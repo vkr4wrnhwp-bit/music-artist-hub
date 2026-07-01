@@ -1,86 +1,103 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Dashboard - Royalty Sweep</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
-    .card { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; min-width: 160px; }
-    table { border-collapse: collapse; margin-top: 1rem; }
-    th, td { border: 1px solid #ccc; padding: 0.5rem 1rem; text-align: left; }
-    section { margin-bottom: 2rem; }
-  </style>
-</head>
-<body>
-  <h1>Action Center</h1>
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Royalty Sweep{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-8">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Action Center</h1>
+    <p class="mt-1 text-sm text-gray-400">Your royalty balances and recent activity across all platforms.</p>
+  </div>
 
   <section>
-    <h2>Platform Balances</h2>
-    <div class="cards">
+    <div class="flex items-baseline justify-between">
+      <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Platform Balances</h2>
+      <span class="text-sm text-gray-400">Total Royalties: <span class="text-lg font-semibold text-emerald-400">${{ "%.2f"|format(total) }}</span></span>
+    </div>
+    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for balance in balances %}
-      <div class="card">
-        <strong>{{ balance.platform }}</strong>
-        <div>{{ balance.royalty_type }}</div>
-        <div>${{ "%.2f"|format(balance.amount) }}</div>
+      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <div class="font-medium">{{ balance.platform }}</div>
+        <div class="text-xs text-gray-400">{{ balance.royalty_type }}</div>
+        <div class="mt-2 text-xl font-semibold text-emerald-400">${{ "%.2f"|format(balance.amount) }}</div>
       </div>
       {% endfor %}
     </div>
-    <h3>Total Royalties: ${{ "%.2f"|format(total) }}</h3>
   </section>
 
   <section>
-    <h2>Key Metrics</h2>
-    <div class="cards">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Key Metrics</h2>
+    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for kpi in kpis %}
-      <div class="card">
-        <strong>{{ kpi.label }}</strong>
-        <div>{{ kpi.value }}</div>
-        <div>{{ kpi.delta_label }}</div>
+      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <div class="text-xs text-gray-400">{{ kpi.label }}</div>
+        <div class="mt-1 text-xl font-semibold text-indigo-400">{{ kpi.value }}</div>
+        <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
       </div>
       {% endfor %}
     </div>
   </section>
 
-  <section>
-    <h2>Earnings Trend</h2>
-    <canvas id="earningsChart" width="600" height="300"></canvas>
+  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Earnings Trend</h2>
+    <div class="mt-3">
+      <canvas id="earningsChart" height="90"></canvas>
+    </div>
   </section>
 
-  <section>
-    <h2>Recent Payouts</h2>
-    <table>
+  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Recent Payouts</h2>
+    <table class="mt-3 w-full text-left text-sm">
       <thead>
-        <tr><th>Song</th><th>Platform</th><th>Status</th><th>Amount</th></tr>
+        <tr class="border-b border-gray-800 text-gray-400">
+          <th class="py-2 pr-4 font-medium">Song</th>
+          <th class="py-2 pr-4 font-medium">Platform</th>
+          <th class="py-2 pr-4 font-medium">Status</th>
+          <th class="py-2 pr-4 font-medium">Amount</th>
+        </tr>
       </thead>
       <tbody>
         {% for payout in payouts %}
-        <tr>
-          <td>{{ payout.song }}</td>
-          <td>{{ payout.platform }}</td>
-          <td>{{ payout.status }}</td>
-          <td>${{ "%.2f"|format(payout.amount) }}</td>
+        <tr class="border-b border-gray-800/60 last:border-0">
+          <td class="py-2 pr-4">{{ payout.song }}</td>
+          <td class="py-2 pr-4 text-gray-400">{{ payout.platform }}</td>
+          <td class="py-2 pr-4">
+            <span class="rounded-full px-2 py-0.5 text-xs {{ 'bg-emerald-500/10 text-emerald-400' if payout.status == 'Paid' else 'bg-amber-500/10 text-amber-400' }}">
+              {{ payout.status }}
+            </span>
+          </td>
+          <td class="py-2 pr-4 font-medium">${{ "%.2f"|format(payout.amount) }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
+</div>
 
-  <script>
-    const trend = {{ earnings_trend | tojson }};
-    new Chart(document.getElementById("earningsChart"), {
-      type: "line",
-      data: {
-        labels: trend.map((point) => point[0]),
-        datasets: [{
-          label: "Earnings ($)",
-          data: trend.map((point) => point[1]),
-          borderColor: "#3366cc",
-          fill: false,
-        }],
+<script>
+  const trend = {{ earnings_trend | tojson }};
+  new Chart(document.getElementById("earningsChart"), {
+    type: "line",
+    data: {
+      labels: trend.map((point) => point[0]),
+      datasets: [{
+        label: "Earnings ($)",
+        data: trend.map((point) => point[1]),
+        borderColor: "#34d399",
+        backgroundColor: "rgba(52, 211, 153, 0.1)",
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: {
+      scales: {
+        x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
       },
-    });
-  </script>
-</body>
-</html>
+      plugins: {
+        legend: { labels: { color: "#e5e7eb" } },
+      },
+    },
+  });
+</script>
+{% endblock %}
