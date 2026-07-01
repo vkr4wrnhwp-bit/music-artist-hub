@@ -13,6 +13,7 @@ class Kpi:
     label: str
     value: str
     delta_label: str
+    trend: list = None
 
 
 @dataclass
@@ -38,10 +39,10 @@ def total_royalties(balances):
 
 def get_kpis():
     return [
-        Kpi("Active Streams", "+2,350", "+180.1% from last month"),
-        Kpi("New Listeners", "+1,200", "+50 from last month"),
-        Kpi("Sync Licenses", "2", "1 pending negotiation"),
-        Kpi("Follower Growth", "+842", "+5.2% this month"),
+        Kpi("Active Streams", "+2,350", "+180.1% from last month", [12, 18, 15, 22, 27, 35]),
+        Kpi("New Listeners", "+1,200", "+50 from last month", [8, 10, 9, 13, 14, 16]),
+        Kpi("Sync Licenses", "2", "1 pending negotiation", [0, 1, 1, 1, 2, 2]),
+        Kpi("Follower Growth", "+842", "+5.2% this month", [20, 19, 24, 26, 25, 29]),
     ]
 
 
@@ -62,3 +63,20 @@ def get_recent_payouts():
         Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
         Payout("City Lights", "ASCAP", "Processing", 350.00),
     ]
+
+
+def get_royalty_goal():
+    return 20000.0
+
+
+def royalty_progress(total, goal):
+    if goal <= 0:
+        return 0.0
+    return min(total / goal, 1.0)
+
+
+def meter_lit_segments(amount, max_amount, segments=12):
+    if max_amount <= 0:
+        return 0
+    fraction = min(amount / max_amount, 1.0)
+    return round(fraction * segments)
