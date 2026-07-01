@@ -30,6 +30,9 @@ def get_platform_balances():
         PlatformBalance("Apple Music", "Streaming Royalties", 1234.56),
         PlatformBalance("ASCAP", "Performance Royalties", 8765.43),
         PlatformBalance("BMI", "Performance Royalties", 4321.00),
+        PlatformBalance("SESAC", "Performance Royalties", 3120.75),
+        PlatformBalance("SoundExchange", "Digital Performance Royalties", 1850.32),
+        PlatformBalance("The MLC", "Mechanical Royalties", 940.18),
     ]
 
 
@@ -66,7 +69,7 @@ def get_recent_payouts():
 
 
 def get_royalty_goal():
-    return 20000.0
+    return 25000.0
 
 
 def royalty_progress(total, goal):
