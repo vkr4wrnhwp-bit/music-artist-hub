@@ -9,6 +9,10 @@ def test_format_duration_zero():
     assert format_duration(0) == "0:00"
 
 
+def test_format_duration_over_an_hour():
+    assert format_duration(3661) == "1:01:01"
+
+
 def test_parse_artist_list_comma():
     assert parse_artist_list("Artist A, Artist B") == ["Artist A", "Artist B"]
 
