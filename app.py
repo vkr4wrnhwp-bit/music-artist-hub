@@ -1,6 +1,7 @@
-from flask import Flask, redirect, render_template
+from flask import Flask, jsonify, redirect, render_template
 
 from royalty_data import (
+    get_action_items,
     get_earnings_trend,
     get_kpis,
     get_platform_balances,
@@ -14,21 +15,24 @@ from royalty_data import (
 
 def build_dashboard_context():
     balances = get_platform_balances()
+    payouts = get_recent_payouts()
+    kpis = get_kpis()
     total = total_royalties(balances)
     goal = get_royalty_goal()
-    max_balance = max(balance.amount for balance in balances)
+    max_balance = max((balance.amount for balance in balances), default=0)
     balance_meters = [
         {"balance": b, "segments": meter_lit_segments(b.amount, max_balance)}
         for b in balances
     ]
     return {
+        "actions": get_action_items(balances, payouts, kpis),
         "balance_meters": balance_meters,
         "total": total,
         "goal": goal,
         "progress": royalty_progress(total, goal),
-        "kpis": get_kpis(),
+        "kpis": kpis,
         "earnings_trend": get_earnings_trend(),
-        "payouts": get_recent_payouts(),
+        "payouts": payouts,
     }
 
 
@@ -42,6 +46,17 @@ def create_app():
     @app.route("/dashboard")
     def dashboard():
         return render_template("dashboard.html", **build_dashboard_context())
+
+    @app.route("/actions/<action_id>/complete", methods=["POST"])
+    def complete_action(action_id):
+        balances = get_platform_balances()
+        payouts = get_recent_payouts()
+        kpis = get_kpis()
+        actions = get_action_items(balances, payouts, kpis)
+        action = next((a for a in actions if a.id == action_id), None)
+        if action is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "message": action.result_message})
 
     return app
 

@@ -24,6 +24,15 @@ class Payout:
     amount: float
 
 
+@dataclass
+class Action:
+    id: str
+    title: str
+    description: str
+    cta_label: str
+    result_message: str
+
+
 def get_platform_balances():
     return [
         PlatformBalance("Spotify", "Streaming Royalties", 2500.00),
@@ -83,3 +92,54 @@ def meter_lit_segments(amount, max_amount, segments=12):
         return 0
     fraction = min(amount / max_amount, 1.0)
     return round(fraction * segments)
+
+
+def get_action_items(balances, payouts, kpis):
+    actions = []
+
+    processing_payout = next((p for p in payouts if p.status == "Processing"), None)
+    if processing_payout is not None:
+        actions.append(Action(
+            id=f"payout-{processing_payout.song.lower().replace(' ', '-')}",
+            title=f'Follow up on the "{processing_payout.song}" payout',
+            description=(
+                f"${processing_payout.amount:.2f} from {processing_payout.platform} "
+                "is still processing."
+            ),
+            cta_label="Send Follow-Up",
+            result_message=(
+                f'Sent a follow-up to {processing_payout.platform} about '
+                f'"{processing_payout.song}".'
+            ),
+        ))
+
+    if balances:
+        lowest = min(balances, key=lambda b: b.amount)
+        actions.append(Action(
+            id=f"lowest-earner-{lowest.platform.lower().replace(' ', '-')}",
+            title=f"Boost your lowest earner: {lowest.platform}",
+            description=f"{lowest.platform} has collected only ${lowest.amount:.2f} so far.",
+            cta_label="Start Royalty Boost",
+            result_message=f"Started a Royalty Boost analysis for {lowest.platform}.",
+        ))
+
+    pending_kpi = next((k for k in kpis if "pending" in k.delta_label.lower()), None)
+    if pending_kpi is not None:
+        actions.append(Action(
+            id="pending-negotiation",
+            title=f"{pending_kpi.label}: {pending_kpi.delta_label}",
+            description=f"Current value: {pending_kpi.value}.",
+            cta_label="Review Negotiation",
+            result_message="Marked the pending negotiation for review.",
+        ))
+
+    if not actions:
+        actions.append(Action(
+            id="scan",
+            title="Run a fresh royalty scan across all platforms",
+            description="Check for newly reported usage data since your last scan.",
+            cta_label="Scan Now",
+            result_message="Scan complete — no new missing royalties found this time.",
+        ))
+
+    return actions
