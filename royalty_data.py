@@ -62,3 +62,20 @@ def get_recent_payouts():
         Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
         Payout("City Lights", "ASCAP", "Processing", 350.00),
     ]
+
+
+def get_royalty_goal():
+    return 20000.0
+
+
+def royalty_progress(total, goal):
+    if goal <= 0:
+        return 0.0
+    return min(total / goal, 1.0)
+
+
+def meter_lit_segments(amount, max_amount, segments=12):
+    if max_amount <= 0:
+        return 0
+    fraction = min(amount / max_amount, 1.0)
+    return round(fraction * segments)

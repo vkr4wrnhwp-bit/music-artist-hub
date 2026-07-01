@@ -3,53 +3,84 @@
 {% block title %}Dashboard - Royalty Sweep by Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-8">
+<div class="mx-auto max-w-6xl space-y-10">
   <div>
     <h1 class="text-2xl font-semibold tracking-tight">Action Center</h1>
-    <p class="mt-1 text-sm text-gray-400">Your royalty balances and recent activity across all platforms.</p>
+    <p class="mt-1 text-sm text-gray-500">Your royalty balances and recent activity across all platforms.</p>
   </div>
 
-  <section>
-    <div class="flex items-baseline justify-between">
-      <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Platform Balances</h2>
-      <span class="text-sm text-gray-400">Total Royalties: <span class="text-lg font-semibold text-emerald-400">${{ "%.2f"|format(total) }}</span></span>
-    </div>
-    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
-      {% for balance in balances %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
-        <div class="font-medium">{{ balance.platform }}</div>
-        <div class="text-xs text-gray-400">{{ balance.royalty_type }}</div>
-        <div class="mt-2 text-xl font-semibold text-emerald-400">${{ "%.2f"|format(balance.amount) }}</div>
+  <section class="rounded-xl border border-white/5 bg-[#111113] p-6">
+    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Total Royalties</h2>
+    <div class="mt-4 flex flex-col items-center gap-8 md:flex-row md:items-center md:justify-around">
+      <div class="relative h-52 w-52">
+        <svg viewBox="0 0 200 200" class="h-full w-full -rotate-90">
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#262626" stroke-width="14" />
+          <circle
+            cx="100" cy="100" r="80" fill="none"
+            stroke="#eab308" stroke-width="14" stroke-linecap="round"
+            stroke-dasharray="502.65"
+            stroke-dashoffset="{{ (502.65 * (1 - progress)) | round(2) }}"
+            style="filter: drop-shadow(0 0 6px rgba(234,179,8,0.65));"
+          />
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <div class="text-3xl font-bold tracking-tight">${{ "%.2f"|format(total) }}</div>
+          <div class="mt-1 text-xs text-gray-500">of ${{ "%.0f"|format(goal) }} goal</div>
+        </div>
       </div>
-      {% endfor %}
+
+      <div class="grid grid-cols-2 gap-x-10 gap-y-6 md:grid-cols-1">
+        {% for meter in balance_meters %}
+        <div>
+          <div class="text-sm font-semibold">{{ meter.balance.platform }}</div>
+          <div class="text-xs text-gray-500">{{ meter.balance.royalty_type }}</div>
+          <div class="mt-2 flex items-end gap-0.5">
+            {% for i in range(12) %}
+            {% if i < meter.segments %}
+              {% if i < 8 %}
+                <span class="h-4 w-2 rounded-sm bg-green-500 shadow-[0_0_4px_1px_rgba(34,197,94,0.7)]"></span>
+              {% elif i < 11 %}
+                <span class="h-4 w-2 rounded-sm bg-amber-500 shadow-[0_0_4px_1px_rgba(245,158,11,0.7)]"></span>
+              {% else %}
+                <span class="h-4 w-2 rounded-sm bg-red-500 shadow-[0_0_4px_1px_rgba(239,68,68,0.7)]"></span>
+              {% endif %}
+            {% else %}
+              <span class="h-4 w-2 rounded-sm bg-white/5"></span>
+            {% endif %}
+            {% endfor %}
+          </div>
+          <div class="mt-1.5 text-sm font-semibold">${{ "%.2f"|format(meter.balance.amount) }}</div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </section>
 
   <section>
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Key Metrics</h2>
+    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Key Metrics</h2>
     <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for kpi in kpis %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
-        <div class="text-xs text-gray-400">{{ kpi.label }}</div>
-        <div class="mt-1 text-xl font-semibold text-indigo-400">{{ kpi.value }}</div>
+      <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
+        <div class="text-xs text-gray-500">{{ kpi.label }}</div>
+        <div class="mt-1 text-xl font-semibold text-gray-100">{{ kpi.value }}</div>
         <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
       </div>
       {% endfor %}
     </div>
   </section>
 
-  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Earnings Trend</h2>
+  <section class="rounded-xl border border-white/5 bg-[#111113] p-4">
+    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Earnings Trend</h2>
     <div class="mt-3">
       <canvas id="earningsChart" height="90"></canvas>
     </div>
   </section>
 
-  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Recent Payouts</h2>
+  <section class="rounded-xl border border-white/5 bg-[#111113] p-4">
+    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Recent Payouts</h2>
     <table class="mt-3 w-full text-left text-sm">
       <thead>
-        <tr class="border-b border-gray-800 text-gray-400">
+        <tr class="border-b border-white/5 text-gray-500">
           <th class="py-2 pr-4 font-medium">Song</th>
           <th class="py-2 pr-4 font-medium">Platform</th>
           <th class="py-2 pr-4 font-medium">Status</th>
@@ -58,12 +89,17 @@
       </thead>
       <tbody>
         {% for payout in payouts %}
-        <tr class="border-b border-gray-800/60 last:border-0">
+        <tr class="border-b border-white/5 last:border-0">
           <td class="py-2 pr-4">{{ payout.song }}</td>
-          <td class="py-2 pr-4 text-gray-400">{{ payout.platform }}</td>
+          <td class="py-2 pr-4 text-gray-500">{{ payout.platform }}</td>
           <td class="py-2 pr-4">
-            <span class="rounded-full px-2 py-0.5 text-xs {{ 'bg-emerald-500/10 text-emerald-400' if payout.status == 'Paid' else 'bg-amber-500/10 text-amber-400' }}">
-              {{ payout.status }}
+            <span class="inline-flex items-center gap-2">
+              {% if payout.status == "Paid" %}
+              <span class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.8)]"></span>
+              {% else %}
+              <span class="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_2px_rgba(245,158,11,0.8)]"></span>
+              {% endif %}
+              <span class="text-gray-300">{{ payout.status }}</span>
             </span>
           </td>
           <td class="py-2 pr-4 font-medium">${{ "%.2f"|format(payout.amount) }}</td>
@@ -83,16 +119,17 @@
       datasets: [{
         label: "Earnings ($)",
         data: trend.map((point) => point[1]),
-        borderColor: "#34d399",
-        backgroundColor: "rgba(52, 211, 153, 0.1)",
+        borderColor: "#eab308",
+        backgroundColor: "rgba(234, 179, 8, 0.08)",
         fill: true,
         tension: 0.3,
+        pointBackgroundColor: "#eab308",
       }],
     },
     options: {
       scales: {
-        x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
       },
       plugins: {
         legend: { labels: { color: "#e5e7eb" } },
