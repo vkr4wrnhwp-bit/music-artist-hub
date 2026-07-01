@@ -2,56 +2,69 @@
 
 {% block title %}Dashboard - Royalty Sweep by Street Banker{% endblock %}
 
+{% set channel_icons = {
+  'Streaming Royalties': '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="9" width="3" height="6" rx="1.5"/><rect x="8" y="4" width="3" height="16" rx="1.5"/><rect x="13" y="7" width="3" height="10" rx="1.5"/><rect x="18" y="2" width="3" height="20" rx="1.5"/></svg>',
+  'Performance Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.5 6.5 0 0 0 0 9M16.5 7.5a6.5 6.5 0 0 1 0 9M4.8 4.8a10.5 10.5 0 0 0 0 14.4M19.2 4.8a10.5 10.5 0 0 1 0 14.4"/></svg>'
+} %}
+{% set kpi_icons = {
+  'Active Streams': '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="9" width="3" height="6" rx="1.5"/><rect x="8" y="4" width="3" height="16" rx="1.5"/><rect x="13" y="7" width="3" height="10" rx="1.5"/><rect x="18" y="2" width="3" height="20" rx="1.5"/></svg>',
+  'New Listeners': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M20.5 20a5.5 5.5 0 0 0-3.2-5"/></svg>',
+  'Sync Licenses': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>',
+  'Follower Growth': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
+} %}
+
 {% block content %}
-{% set active = 'v1' %}
-{% include "_switcher.html" %}
-<div class="mx-auto max-w-6xl space-y-10">
-  <div>
-    <h1 class="text-2xl font-semibold tracking-tight">Action Center</h1>
-    <p class="mt-1 text-sm text-gray-500">Your royalty balances and recent activity across all platforms.</p>
+<div class="mx-auto max-w-6xl space-y-8">
+  <div class="flex items-end justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Action Center</h1>
+      <p class="mt-1 text-sm text-gray-500">Live royalty telemetry across all platforms.</p>
+    </div>
+    <div class="hidden items-end gap-[3px] sm:flex" aria-hidden="true">
+      {% for h in [10, 18, 8, 22, 14, 26, 12, 20, 9, 16] %}
+      <span class="w-1 rounded-full bg-amber-500/70" style="height: {{ h }}px;"></span>
+      {% endfor %}
+    </div>
   </div>
 
-  <section class="rounded-xl border border-white/5 bg-[#111113] p-6">
-    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Total Royalties</h2>
-    <div class="mt-4 flex flex-col items-center gap-8 md:flex-row md:items-center md:justify-around">
-      <div class="relative h-52 w-52">
-        <svg viewBox="0 0 200 200" class="h-full w-full -rotate-90">
-          <circle cx="100" cy="100" r="80" fill="none" stroke="#262626" stroke-width="14" />
-          <circle
-            cx="100" cy="100" r="80" fill="none"
-            stroke="#eab308" stroke-width="14" stroke-linecap="round"
-            stroke-dasharray="502.65"
-            stroke-dashoffset="{{ (502.65 * (1 - progress)) | round(2) }}"
-            style="filter: drop-shadow(0 0 6px rgba(234,179,8,0.65));"
-          />
-        </svg>
-        <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <div class="text-3xl font-bold tracking-tight">${{ "%.2f"|format(total) }}</div>
+  <section class="relative overflow-hidden rounded-2xl border border-white/5 bg-[#111113] p-6"
+           style="background-image: radial-gradient(120% 120% at 28% 30%, rgba(234,179,8,0.08), transparent 55%);">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Total Royalties</h2>
+    <div class="mt-4 flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:justify-around">
+      <div class="relative h-64 w-64 shrink-0">
+        <svg id="gauge" viewBox="0 0 220 220" class="h-full w-full"></svg>
+        <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <div class="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">Collected</div>
+          <div class="mt-1 text-3xl font-bold tracking-tight">${{ "%.2f"|format(total) }}</div>
           <div class="mt-1 text-xs text-gray-500">of ${{ "%.0f"|format(goal) }} goal</div>
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-x-10 gap-y-6 md:grid-cols-1">
+      <div class="w-full max-w-md space-y-5">
         {% for meter in balance_meters %}
-        <div>
-          <div class="text-sm font-semibold">{{ meter.balance.platform }}</div>
-          <div class="text-xs text-gray-500">{{ meter.balance.royalty_type }}</div>
-          <div class="mt-2 flex items-end gap-0.5">
-            {% for i in range(12) %}
-            {% if i < meter.segments %}
-              {% if i < 8 %}
-                <span class="h-4 w-2 rounded-sm bg-green-500 shadow-[0_0_4px_1px_rgba(34,197,94,0.7)]"></span>
-              {% elif i < 11 %}
-                <span class="h-4 w-2 rounded-sm bg-amber-500 shadow-[0_0_4px_1px_rgba(245,158,11,0.7)]"></span>
-              {% else %}
-                <span class="h-4 w-2 rounded-sm bg-red-500 shadow-[0_0_4px_1px_rgba(239,68,68,0.7)]"></span>
-              {% endif %}
-            {% else %}
-              <span class="h-4 w-2 rounded-sm bg-white/5"></span>
-            {% endif %}
-            {% endfor %}
+        <div class="flex items-center gap-4">
+          <div class="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-amber-400">
+            <span class="h-5 w-5">{{ channel_icons.get(meter.balance.royalty_type, '') | safe }}</span>
           </div>
-          <div class="mt-1.5 text-sm font-semibold">${{ "%.2f"|format(meter.balance.amount) }}</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-baseline justify-between">
+              <div class="truncate text-sm font-semibold">{{ meter.balance.platform }}</div>
+              <div class="text-sm font-bold tracking-tight">${{ "%.2f"|format(meter.balance.amount) }}</div>
+            </div>
+            <div class="mt-2 flex items-end gap-[3px]">
+              {% for i in range(14) %}
+              {% if i < meter.segments %}
+                {% if i < 9 %}{% set col = 'bg-green-500 shadow-[0_0_5px_1px_rgba(34,197,94,0.75)]' %}
+                {% elif i < 12 %}{% set col = 'bg-amber-500 shadow-[0_0_5px_1px_rgba(245,158,11,0.75)]' %}
+                {% else %}{% set col = 'bg-red-500 shadow-[0_0_5px_1px_rgba(239,68,68,0.8)]' %}{% endif %}
+                <span class="flex-1 rounded-sm {{ col }}" style="height: {{ 8 + i }}px;"></span>
+              {% else %}
+                <span class="flex-1 rounded-sm bg-white/5" style="height: {{ 8 + i }}px;"></span>
+              {% endif %}
+              {% endfor %}
+            </div>
+            <div class="mt-1 text-[10px] uppercase tracking-widest text-gray-600">{{ meter.balance.royalty_type }}</div>
+          </div>
         </div>
         {% endfor %}
       </div>
@@ -59,52 +72,53 @@
   </section>
 
   <section>
-    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Key Metrics</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Key Metrics</h2>
     <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for kpi in kpis %}
       <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
-        <div class="text-xs text-gray-500">{{ kpi.label }}</div>
-        <div class="mt-1 text-xl font-semibold text-gray-100">{{ kpi.value }}</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-500">{{ kpi.label }}</div>
+          <span class="h-4 w-4 text-amber-400/80">{{ kpi_icons.get(kpi.label, '') | safe }}</span>
+        </div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">{{ kpi.value }}</div>
         <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
       </div>
       {% endfor %}
     </div>
   </section>
 
-  <section class="rounded-xl border border-white/5 bg-[#111113] p-4">
-    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Earnings Trend</h2>
-    <div class="mt-3">
-      <canvas id="earningsChart" height="90"></canvas>
-    </div>
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Earnings Trend</h2>
+    <div class="mt-3"><canvas id="earningsChart" height="88"></canvas></div>
   </section>
 
-  <section class="rounded-xl border border-white/5 bg-[#111113] p-4">
-    <h2 class="text-xs font-medium uppercase tracking-widest text-gray-500">Recent Payouts</h2>
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Recent Payouts</h2>
     <table class="mt-3 w-full text-left text-sm">
       <thead>
-        <tr class="border-b border-white/5 text-gray-500">
+        <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
           <th class="py-2 pr-4 font-medium">Song</th>
           <th class="py-2 pr-4 font-medium">Platform</th>
           <th class="py-2 pr-4 font-medium">Status</th>
-          <th class="py-2 pr-4 font-medium">Amount</th>
+          <th class="py-2 pr-4 text-right font-medium">Amount</th>
         </tr>
       </thead>
       <tbody>
         {% for payout in payouts %}
         <tr class="border-b border-white/5 last:border-0">
-          <td class="py-2 pr-4">{{ payout.song }}</td>
-          <td class="py-2 pr-4 text-gray-500">{{ payout.platform }}</td>
-          <td class="py-2 pr-4">
+          <td class="py-3 pr-4 font-medium">{{ payout.song }}</td>
+          <td class="py-3 pr-4 text-gray-400">{{ payout.platform }}</td>
+          <td class="py-3 pr-4">
             <span class="inline-flex items-center gap-2">
               {% if payout.status == "Paid" %}
-              <span class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.8)]"></span>
+              <span class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.85)]"></span>
               {% else %}
-              <span class="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_2px_rgba(245,158,11,0.8)]"></span>
+              <span class="h-2 w-2 animate-pulse rounded-full bg-amber-500 shadow-[0_0_6px_2px_rgba(245,158,11,0.85)]"></span>
               {% endif %}
               <span class="text-gray-300">{{ payout.status }}</span>
             </span>
           </td>
-          <td class="py-2 pr-4 font-medium">${{ "%.2f"|format(payout.amount) }}</td>
+          <td class="py-3 pr-4 text-right font-semibold">${{ "%.2f"|format(payout.amount) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -113,6 +127,70 @@
 </div>
 
 <script>
+  (function () {
+    const svg = document.getElementById("gauge");
+    const NS = "http://www.w3.org/2000/svg";
+    const cx = 110, cy = 110;
+    const start = 225, sweep = 270;
+    const progress = {{ progress | round(4) }};
+
+    function polar(r, angle) {
+      const a = angle * Math.PI / 180;
+      return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+    }
+    function arcPath(r, a0, a1) {
+      const [x0, y0] = polar(r, a0);
+      const [x1, y1] = polar(r, a1);
+      const large = (a1 - a0) > 180 ? 1 : 0;
+      return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+    }
+    function el(tag, attrs) {
+      const n = document.createElementNS(NS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    }
+
+    const ticks = 40;
+    for (let i = 0; i <= ticks; i++) {
+      const f = i / ticks;
+      const ang = start + f * sweep;
+      const major = i % 5 === 0;
+      const [xi, yi] = polar(major ? 70 : 74, ang);
+      const [xo, yo] = polar(84, ang);
+      let color = f < 0.62 ? "#22c55e" : f < 0.86 ? "#f59e0b" : "#ef4444";
+      svg.appendChild(el("line", {
+        x1: xi, y1: yi, x2: xo, y2: yo,
+        stroke: color, "stroke-width": major ? 2.4 : 1.2,
+        "stroke-linecap": "round", opacity: f <= progress ? 0.95 : 0.28,
+      }));
+    }
+
+    svg.appendChild(el("path", {
+      d: arcPath(58, start, start + sweep),
+      fill: "none", stroke: "#2a2a2a", "stroke-width": 10, "stroke-linecap": "round",
+    }));
+
+    const valArc = el("path", {
+      d: arcPath(58, start, start + sweep * progress),
+      fill: "none", stroke: "#eab308", "stroke-width": 10, "stroke-linecap": "round",
+    });
+    valArc.style.filter = "drop-shadow(0 0 5px rgba(234,179,8,0.75))";
+    svg.appendChild(valArc);
+
+    const [dx, dy] = polar(58, start + sweep * progress);
+    const dot = el("circle", { cx: dx, cy: dy, r: 6, fill: "#fde047" });
+    dot.style.filter = "drop-shadow(0 0 6px rgba(234,179,8,0.95))";
+    svg.appendChild(dot);
+
+    const pctText = el("text", {
+      x: cx, y: 176, "text-anchor": "middle",
+      fill: "#eab308", "font-size": 13, "font-weight": "700",
+      "font-family": "ui-sans-serif, system-ui, sans-serif", "letter-spacing": "1",
+    });
+    pctText.textContent = Math.round(progress * 100) + "%";
+    svg.appendChild(pctText);
+  })();
+
   const trend = {{ earnings_trend | tojson }};
   new Chart(document.getElementById("earningsChart"), {
     type: "line",
@@ -124,8 +202,9 @@
         borderColor: "#eab308",
         backgroundColor: "rgba(234, 179, 8, 0.08)",
         fill: true,
-        tension: 0.3,
+        tension: 0.35,
         pointBackgroundColor: "#eab308",
+        pointRadius: 3,
       }],
     },
     options: {
@@ -133,9 +212,7 @@
         x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
         y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
       },
-      plugins: {
-        legend: { labels: { color: "#e5e7eb" } },
-      },
+      plugins: { legend: { display: false } },
     },
   });
 </script>

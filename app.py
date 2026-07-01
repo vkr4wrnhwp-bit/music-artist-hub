@@ -43,14 +43,6 @@ def create_app():
     def dashboard():
         return render_template("dashboard.html", **build_dashboard_context())
 
-    @app.route("/v2")
-    def dashboard_v2():
-        return render_template("dashboard_v2.html", **build_dashboard_context())
-
-    @app.route("/v3")
-    def dashboard_v3():
-        return render_template("dashboard_v3.html", **build_dashboard_context())
-
     return app
 
 
