@@ -3,70 +3,66 @@
 {% block title %}Dashboard - Royalty Sweep by Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-8">
+<div class="mx-auto max-w-5xl space-y-16">
   <div>
-    <h1 class="text-2xl font-semibold tracking-tight">Action Center</h1>
-    <p class="mt-1 text-sm text-gray-400">Your royalty balances and recent activity across all platforms.</p>
+    <h1 class="text-3xl font-bold tracking-tight">Action Center</h1>
+    <p class="mt-2 text-sm text-gray-500">Your royalty balances and recent activity across all platforms.</p>
   </div>
 
   <section>
-    <div class="flex items-baseline justify-between">
-      <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Platform Balances</h2>
-      <span class="text-sm text-gray-400">Total Royalties: <span class="text-lg font-semibold text-emerald-400">${{ "%.2f"|format(total) }}</span></span>
+    <div class="flex items-baseline justify-between border-b border-gray-200 pb-3">
+      <h2 class="text-xs font-medium uppercase tracking-widest text-gray-400">Platform Balances</h2>
+      <span class="text-xs uppercase tracking-widest text-gray-400">Total Royalties&nbsp; <span class="text-base font-bold normal-case tracking-normal text-black">${{ "%.2f"|format(total) }}</span></span>
     </div>
-    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+    <div class="mt-6 grid grid-cols-2 gap-8 md:grid-cols-4">
       {% for balance in balances %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
-        <div class="font-medium">{{ balance.platform }}</div>
+      <div>
+        <div class="text-sm font-semibold">{{ balance.platform }}</div>
         <div class="text-xs text-gray-400">{{ balance.royalty_type }}</div>
-        <div class="mt-2 text-xl font-semibold text-emerald-400">${{ "%.2f"|format(balance.amount) }}</div>
+        <div class="mt-3 text-2xl font-bold tracking-tight">${{ "%.2f"|format(balance.amount) }}</div>
       </div>
       {% endfor %}
     </div>
   </section>
 
   <section>
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Key Metrics</h2>
-    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+    <h2 class="border-b border-gray-200 pb-3 text-xs font-medium uppercase tracking-widest text-gray-400">Key Metrics</h2>
+    <div class="mt-6 grid grid-cols-2 gap-8 md:grid-cols-4">
       {% for kpi in kpis %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
+      <div>
         <div class="text-xs text-gray-400">{{ kpi.label }}</div>
-        <div class="mt-1 text-xl font-semibold text-indigo-400">{{ kpi.value }}</div>
-        <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight">{{ kpi.value }}</div>
+        <div class="mt-1 text-xs text-gray-400">{{ kpi.delta_label }}</div>
       </div>
       {% endfor %}
     </div>
   </section>
 
-  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Earnings Trend</h2>
-    <div class="mt-3">
-      <canvas id="earningsChart" height="90"></canvas>
+  <section>
+    <h2 class="border-b border-gray-200 pb-3 text-xs font-medium uppercase tracking-widest text-gray-400">Earnings Trend</h2>
+    <div class="mt-6">
+      <canvas id="earningsChart" height="80"></canvas>
     </div>
   </section>
 
-  <section class="rounded-xl border border-gray-800 bg-gray-900 p-4">
-    <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Recent Payouts</h2>
-    <table class="mt-3 w-full text-left text-sm">
+  <section>
+    <h2 class="border-b border-gray-200 pb-3 text-xs font-medium uppercase tracking-widest text-gray-400">Recent Payouts</h2>
+    <table class="mt-6 w-full text-left text-sm">
       <thead>
-        <tr class="border-b border-gray-800 text-gray-400">
-          <th class="py-2 pr-4 font-medium">Song</th>
-          <th class="py-2 pr-4 font-medium">Platform</th>
-          <th class="py-2 pr-4 font-medium">Status</th>
-          <th class="py-2 pr-4 font-medium">Amount</th>
+        <tr class="text-xs uppercase tracking-wide text-gray-400">
+          <th class="pb-2 pr-4 font-medium">Song</th>
+          <th class="pb-2 pr-4 font-medium">Platform</th>
+          <th class="pb-2 pr-4 font-medium">Status</th>
+          <th class="pb-2 pr-4 font-medium">Amount</th>
         </tr>
       </thead>
       <tbody>
         {% for payout in payouts %}
-        <tr class="border-b border-gray-800/60 last:border-0">
-          <td class="py-2 pr-4">{{ payout.song }}</td>
-          <td class="py-2 pr-4 text-gray-400">{{ payout.platform }}</td>
-          <td class="py-2 pr-4">
-            <span class="rounded-full px-2 py-0.5 text-xs {{ 'bg-emerald-500/10 text-emerald-400' if payout.status == 'Paid' else 'bg-amber-500/10 text-amber-400' }}">
-              {{ payout.status }}
-            </span>
-          </td>
-          <td class="py-2 pr-4 font-medium">${{ "%.2f"|format(payout.amount) }}</td>
+        <tr class="border-t border-gray-100">
+          <td class="py-3 pr-4 font-medium">{{ payout.song }}</td>
+          <td class="py-3 pr-4 text-gray-500">{{ payout.platform }}</td>
+          <td class="py-3 pr-4 text-gray-500">{{ payout.status }}</td>
+          <td class="py-3 pr-4 font-semibold">${{ "%.2f"|format(payout.amount) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -83,19 +79,20 @@
       datasets: [{
         label: "Earnings ($)",
         data: trend.map((point) => point[1]),
-        borderColor: "#34d399",
-        backgroundColor: "rgba(52, 211, 153, 0.1)",
+        borderColor: "#000000",
+        backgroundColor: "rgba(0, 0, 0, 0.04)",
         fill: true,
         tension: 0.3,
+        pointBackgroundColor: "#000000",
       }],
     },
     options: {
       scales: {
-        x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
+        y: { ticks: { color: "#9ca3af" }, grid: { color: "#f3f4f6" } },
       },
       plugins: {
-        legend: { labels: { color: "#e5e7eb" } },
+        legend: { labels: { color: "#000000" } },
       },
     },
   });
