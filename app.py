@@ -16,7 +16,7 @@ def build_dashboard_context():
     balances = get_platform_balances()
     total = total_royalties(balances)
     goal = get_royalty_goal()
-    max_balance = max(balance.amount for balance in balances)
+    max_balance = max((balance.amount for balance in balances), default=0)
     balance_meters = [
         {"balance": b, "segments": meter_lit_segments(b.amount, max_balance)}
         for b in balances
