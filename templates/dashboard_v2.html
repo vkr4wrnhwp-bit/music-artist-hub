@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - Royalty Sweep by Street Banker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='white' stroke='black' stroke-width='2'/%3E%3Cpath d='M13 10.5L21 16L13 21.5V10.5Z' fill='black'/%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-[#faf9f6] text-[#0a0a0a]">
+  {% set active = 'v2' %}
+  {% include "_switcher.html" %}
+
+  <div class="mx-auto max-w-5xl px-8 py-10">
+    <header class="flex items-center justify-between border-b-2 border-black pb-5">
+      <div class="flex items-center gap-3">
+        <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="14" stroke="black" stroke-width="2"/>
+          <path d="M13 10.5L21 16L13 21.5V10.5Z" fill="black"/>
+        </svg>
+        <div class="text-lg font-bold leading-none tracking-tight">Royalty Sweep</div>
+      </div>
+      <div class="relative px-4 py-2">
+        <span class="absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-black"></span>
+        <span class="absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-black"></span>
+        <span class="absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-black"></span>
+        <span class="absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-black"></span>
+        <span class="text-xs tracking-tight">.street banker</span>
+      </div>
+    </header>
+
+    <section class="border-b border-gray-300 py-12">
+      <div class="text-xs font-bold uppercase tracking-[0.3em] text-gray-500">Total Royalties</div>
+      <div class="mt-4 flex flex-wrap items-end justify-between gap-6">
+        <div class="text-7xl font-bold tracking-tighter">${{ "%.2f"|format(total) }}</div>
+        <div class="text-sm text-gray-500">of ${{ "%.0f"|format(goal) }} goal &middot; {{ (progress * 100) | round(0) | int }}%</div>
+      </div>
+      <div class="mt-6 h-3 w-full bg-gray-200">
+        <div class="h-3 bg-[#2f5fff]" style="width: {{ (progress * 100) | round(1) }}%;"></div>
+      </div>
+    </section>
+
+    <section class="border-b border-gray-300 py-10">
+      <div class="text-xs font-bold uppercase tracking-[0.3em] text-gray-500">Platform Balances</div>
+      <div class="mt-6 grid gap-x-12 gap-y-8 sm:grid-cols-2">
+        {% for meter in balance_meters %}
+        <div>
+          <div class="flex items-baseline justify-between">
+            <div class="text-sm font-bold">{{ meter.balance.platform }}</div>
+            <div class="text-lg font-bold tracking-tight">${{ "%.2f"|format(meter.balance.amount) }}</div>
+          </div>
+          <div class="text-xs text-gray-500">{{ meter.balance.royalty_type }}</div>
+          <div class="mt-3 flex gap-1">
+            {% for i in range(12) %}
+            <span class="h-2.5 flex-1 {{ 'bg-[#2f5fff]' if i < meter.segments else 'bg-gray-200' }}"></span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="border-b border-gray-300 py-10">
+      <div class="text-xs font-bold uppercase tracking-[0.3em] text-gray-500">Key Metrics</div>
+      <div class="mt-6 grid grid-cols-2 gap-8 md:grid-cols-4">
+        {% for kpi in kpis %}
+        <div>
+          <div class="text-xs text-gray-500">{{ kpi.label }}</div>
+          <div class="mt-1 text-3xl font-bold tracking-tight">{{ kpi.value }}</div>
+          <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="border-b border-gray-300 py-10">
+      <div class="text-xs font-bold uppercase tracking-[0.3em] text-gray-500">Earnings Trend</div>
+      <div class="mt-6"><canvas id="earningsChart" height="80"></canvas></div>
+    </section>
+
+    <section class="py-10">
+      <div class="text-xs font-bold uppercase tracking-[0.3em] text-gray-500">Recent Payouts</div>
+      <table class="mt-6 w-full text-left text-sm">
+        <thead>
+          <tr class="border-b-2 border-black text-xs uppercase tracking-wide text-gray-500">
+            <th class="pb-2 pr-4 font-bold">Song</th>
+            <th class="pb-2 pr-4 font-bold">Platform</th>
+            <th class="pb-2 pr-4 font-bold">Status</th>
+            <th class="pb-2 pr-4 font-bold">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payout in payouts %}
+          <tr class="border-b border-gray-200">
+            <td class="py-3 pr-4 font-bold">{{ payout.song }}</td>
+            <td class="py-3 pr-4 text-gray-500">{{ payout.platform }}</td>
+            <td class="py-3 pr-4">
+              <span class="inline-flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full {{ 'bg-green-600' if payout.status == 'Paid' else 'bg-amber-500' }}"></span>
+                {{ payout.status }}
+              </span>
+            </td>
+            <td class="py-3 pr-4 font-bold">${{ "%.2f"|format(payout.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const trend = {{ earnings_trend | tojson }};
+    new Chart(document.getElementById("earningsChart"), {
+      type: "line",
+      data: {
+        labels: trend.map((p) => p[0]),
+        datasets: [{
+          label: "Earnings ($)",
+          data: trend.map((p) => p[1]),
+          borderColor: "#0a0a0a",
+          backgroundColor: "rgba(47,95,255,0.08)",
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: "#2f5fff",
+        }],
+      },
+      options: {
+        scales: {
+          x: { ticks: { color: "#6b7280" }, grid: { display: false } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "#e5e7eb" } },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+  </script>
+</body>
+</html>

@@ -16,3 +16,13 @@ def test_dashboard_renders_expected_content():
     assert "Total Royalties" in body
     assert "Spotify" in body
     assert "Midnight Drive" in body
+
+
+def test_variant_routes_render():
+    client = create_app().test_client()
+    for path in ("/v2", "/v3"):
+        response = client.get(path)
+        assert response.status_code == 200
+        body = response.get_data(as_text=True)
+        assert "Total Royalties" in body
+        assert "Spotify" in body
