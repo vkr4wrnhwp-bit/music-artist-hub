@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template
 
 from royalty_data import (
     get_earnings_trend,
@@ -11,6 +11,10 @@ from royalty_data import (
 
 def create_app():
     app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        return redirect("/dashboard")
 
     @app.route("/dashboard")
     def dashboard():
