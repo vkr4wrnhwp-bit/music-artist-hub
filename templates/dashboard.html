@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard - Royalty Sweep</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .card { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; min-width: 160px; }
+    table { border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem 1rem; text-align: left; }
+    section { margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Action Center</h1>
+
+  <section>
+    <h2>Platform Balances</h2>
+    <div class="cards">
+      {% for balance in balances %}
+      <div class="card">
+        <strong>{{ balance.platform }}</strong>
+        <div>{{ balance.royalty_type }}</div>
+        <div>${{ "%.2f"|format(balance.amount) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <h3>Total Royalties: ${{ "%.2f"|format(total) }}</h3>
+  </section>
+
+  <section>
+    <h2>Key Metrics</h2>
+    <div class="cards">
+      {% for kpi in kpis %}
+      <div class="card">
+        <strong>{{ kpi.label }}</strong>
+        <div>{{ kpi.value }}</div>
+        <div>{{ kpi.delta_label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2>Earnings Trend</h2>
+    <canvas id="earningsChart" width="600" height="300"></canvas>
+  </section>
+
+  <section>
+    <h2>Recent Payouts</h2>
+    <table>
+      <thead>
+        <tr><th>Song</th><th>Platform</th><th>Status</th><th>Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for payout in payouts %}
+        <tr>
+          <td>{{ payout.song }}</td>
+          <td>{{ payout.platform }}</td>
+          <td>{{ payout.status }}</td>
+          <td>${{ "%.2f"|format(payout.amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <script>
+    const trend = {{ earnings_trend | tojson }};
+    new Chart(document.getElementById("earningsChart"), {
+      type: "line",
+      data: {
+        labels: trend.map((point) => point[0]),
+        datasets: [{
+          label: "Earnings ($)",
+          data: trend.map((point) => point[1]),
+          borderColor: "#3366cc",
+          fill: false,
+        }],
+      },
+    });
+  </script>
+</body>
+</html>
