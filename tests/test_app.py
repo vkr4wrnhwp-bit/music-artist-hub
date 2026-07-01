@@ -1,6 +1,13 @@
 from app import create_app
 
 
+def test_index_redirects_to_dashboard():
+    client = create_app().test_client()
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/dashboard"
+
+
 def test_dashboard_renders_expected_content():
     client = create_app().test_client()
     response = client.get("/dashboard")
