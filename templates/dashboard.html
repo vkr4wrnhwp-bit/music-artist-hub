@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Royalty Sweep{% endblock %}
+{% block title %}Dashboard - Royalty Sweep by Street Banker{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-6xl space-y-8">
@@ -16,7 +16,7 @@
     </div>
     <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for balance in balances %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
         <div class="font-medium">{{ balance.platform }}</div>
         <div class="text-xs text-gray-400">{{ balance.royalty_type }}</div>
         <div class="mt-2 text-xl font-semibold text-emerald-400">${{ "%.2f"|format(balance.amount) }}</div>
@@ -29,7 +29,7 @@
     <h2 class="text-sm font-medium uppercase tracking-wide text-gray-400">Key Metrics</h2>
     <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
       {% for kpi in kpis %}
-      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4">
+      <div class="rounded-xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700">
         <div class="text-xs text-gray-400">{{ kpi.label }}</div>
         <div class="mt-1 text-xl font-semibold text-indigo-400">{{ kpi.value }}</div>
         <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
