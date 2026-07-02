@@ -29,18 +29,27 @@ def test_dashboard_includes_set_goal_ui():
     assert 'id="goal-deadline"' in body
 
 
-def test_complete_action_returns_result_message():
+def test_dashboard_includes_leak_alerts_ui():
     client = create_app().test_client()
-    response = client.post("/actions/pending-negotiation/complete")
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Royalty Leak Alerts" in body
+    assert 'id="alert-filters"' in body
+    assert 'data-filter="High"' in body
+    assert 'data-filter="Resolved"' in body
+
+
+def test_resolve_alert_returns_result_message():
+    client = create_app().test_client()
+    response = client.post("/alerts/pending-negotiation/resolve")
     assert response.status_code == 200
     data = response.get_json()
     assert data["ok"] is True
     assert data["message"]
 
 
-def test_complete_unknown_action_returns_404():
+def test_resolve_unknown_alert_returns_404():
     client = create_app().test_client()
-    response = client.post("/actions/not-a-real-id/complete")
+    response = client.post("/alerts/not-a-real-id/resolve")
     assert response.status_code == 404
 
 

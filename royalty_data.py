@@ -34,12 +34,15 @@ class Payout:
 
 
 @dataclass
-class Action:
+class Alert:
     id: str
     title: str
     description: str
+    severity: str  # High | Medium | Low
+    source: str
+    estimated_impact: float
     cta_label: str
-    result_message: str
+    resolution_message: str
 
 
 @dataclass
@@ -288,52 +291,90 @@ def get_missing_royalty_findings(catalog):
     return findings
 
 
-def get_action_items(balances, payouts, kpis):
-    actions = []
+_SEVERITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
-    processing_payout = next((p for p in payouts if p.status == "Processing"), None)
+
+def get_royalty_leak_alerts(balances, payouts, kpis, catalog):
+    alerts = []
+
+    for p in catalog:
+        if p.status == "needs_login":
+            alerts.append(Alert(
+                id=f"{p.id}-needs-login",
+                title=f"{p.platform} login expired",
+                description="Collections are paused until you re-authenticate this connection.",
+                severity="High",
+                source=p.platform,
+                estimated_impact=round(p.amount * 0.5, 2),
+                cta_label="Re-authenticate",
+                resolution_message=f"Re-authenticated {p.platform}. Collections resumed.",
+            ))
+        elif p.status == "error":
+            alerts.append(Alert(
+                id=f"{p.id}-sync-error",
+                title=f"{p.platform} sync failure",
+                description="This platform hasn't synced successfully — royalties may be going uncounted.",
+                severity="High",
+                source=p.platform,
+                estimated_impact=round(p.amount, 2),
+                cta_label="Retry Sync",
+                resolution_message=f"Resynced {p.platform} successfully.",
+            ))
+        elif p.status == "not_connected":
+            alerts.append(Alert(
+                id=f"{p.id}-not-connected",
+                title=f"{p.platform} isn't connected",
+                description="Estimated royalties are going uncollected on this platform.",
+                severity="Medium" if p.amount >= 250 else "Low",
+                source=p.platform,
+                estimated_impact=round(p.amount, 2),
+                cta_label="Connect Platform",
+                resolution_message=f"Connected {p.platform}.",
+            ))
+
+    processing_payout = next((x for x in payouts if x.status == "Processing"), None)
     if processing_payout is not None:
-        actions.append(Action(
-            id=f"payout-{processing_payout.song.lower().replace(' ', '-')}",
-            title=f'Follow up on the "{processing_payout.song}" payout',
+        alerts.append(Alert(
+            id=f"payout-{_slug(processing_payout.song)}",
+            title=f'"{processing_payout.song}" payout delayed',
             description=(
                 f"${processing_payout.amount:.2f} from {processing_payout.platform} "
                 "is still processing."
             ),
+            severity="Medium",
+            source=processing_payout.platform,
+            estimated_impact=round(processing_payout.amount, 2),
             cta_label="Send Follow-Up",
-            result_message=(
+            resolution_message=(
                 f'Sent a follow-up to {processing_payout.platform} about '
                 f'"{processing_payout.song}".'
             ),
         ))
 
-    if balances:
-        lowest = min(balances, key=lambda b: b.amount)
-        actions.append(Action(
-            id=f"lowest-earner-{lowest.platform.lower().replace(' ', '-')}",
-            title=f"Boost your lowest earner: {lowest.platform}",
-            description=f"{lowest.platform} has collected only ${lowest.amount:.2f} so far.",
-            cta_label="Start Royalty Boost",
-            result_message=f"Started a Royalty Boost analysis for {lowest.platform}.",
-        ))
-
     pending_kpi = next((k for k in kpis if "pending" in k.delta_label.lower()), None)
     if pending_kpi is not None:
-        actions.append(Action(
+        alerts.append(Alert(
             id="pending-negotiation",
-            title=f"{pending_kpi.label}: {pending_kpi.delta_label}",
-            description=f"Current value: {pending_kpi.value}.",
+            title=f"{pending_kpi.label} needs review",
+            description=f"{pending_kpi.delta_label}.",
+            severity="Low",
+            source="Internal",
+            estimated_impact=0.0,
             cta_label="Review Negotiation",
-            result_message="Marked the pending negotiation for review.",
+            resolution_message="Marked the pending negotiation for review.",
         ))
 
-    if not actions:
-        actions.append(Action(
+    if not alerts:
+        alerts.append(Alert(
             id="scan",
-            title="Run a fresh royalty scan across all platforms",
-            description="Check for newly reported usage data since your last scan.",
+            title="No active leaks detected",
+            description="Run a scan periodically to catch new issues early.",
+            severity="Low",
+            source="System",
+            estimated_impact=0.0,
             cta_label="Scan Now",
-            result_message="Scan complete — no new missing royalties found this time.",
+            resolution_message="Scan complete — no new missing royalties found this time.",
         ))
 
-    return actions
+    alerts.sort(key=lambda a: (_SEVERITY_ORDER.get(a.severity, 3), -a.estimated_impact))
+    return alerts
