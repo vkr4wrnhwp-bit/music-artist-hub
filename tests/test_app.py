@@ -61,6 +61,26 @@ def test_dashboard_includes_health_score():
     assert "out of 100" in body
 
 
+def test_dashboard_includes_scanner_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert 'id="scan-btn"' in body
+    assert "Missing Money Scanner" in body
+
+
+def test_scan_endpoint_returns_findings():
+    client = create_app().test_client()
+    response = client.post("/scan/missing-royalties")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    assert data["count"] == len(data["findings"])
+    assert data["count"] > 0
+    assert data["total_estimated"] > 0
+    required = {"id", "source", "issue_type", "estimated_value", "confidence", "recommended_action"}
+    assert required <= set(data["findings"][0].keys())
+
+
 def test_connect_and_disconnect_platform():
     client = create_app().test_client()
     try:

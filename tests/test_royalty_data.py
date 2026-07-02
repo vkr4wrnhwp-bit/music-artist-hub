@@ -8,6 +8,7 @@ from royalty_data import (
     get_action_items,
     get_health_factors,
     get_health_recommendations,
+    get_missing_royalty_findings,
     get_platform_balances,
     get_platform_catalog,
     meter_lit_segments,
@@ -170,3 +171,42 @@ def test_connecting_platform_raises_health_score():
         assert after > before
     finally:
         reset_connection_state()
+
+
+def test_scan_findings_include_unconnected_source():
+    findings = get_missing_royalty_findings(get_platform_catalog())
+    yt = [f for f in findings if f.source == "YouTube Music"]
+    assert len(yt) == 1
+    assert yt[0].issue_type == "Uncollected royalties"
+    assert yt[0].recommended_action == "Connect YouTube Music"
+
+
+def test_scan_findings_have_all_fields_and_valid_confidence():
+    for f in get_missing_royalty_findings(get_platform_catalog()):
+        assert f.source and f.issue_type and f.recommended_action
+        assert f.estimated_value > 0
+        assert f.confidence in {"High", "Medium", "Low"}
+
+
+def test_scan_findings_sorted_by_value_desc():
+    values = [f.estimated_value for f in get_missing_royalty_findings(get_platform_catalog())]
+    assert values == sorted(values, reverse=True)
+
+
+def test_connecting_source_clears_its_uncollected_finding():
+    try:
+        set_connection_status("youtube-music", "connected")
+        findings = get_missing_royalty_findings(get_platform_catalog())
+        uncollected = [
+            f for f in findings
+            if f.source == "YouTube Music" and f.issue_type == "Uncollected royalties"
+        ]
+        assert uncollected == []
+    finally:
+        reset_connection_state()
+
+
+def test_connected_source_deep_scan_finding_present():
+    findings = get_missing_royalty_findings(get_platform_catalog())
+    mlc = [f for f in findings if f.source == "The MLC"]
+    assert any(f.issue_type == "Unclaimed mechanical royalties" for f in mlc)
