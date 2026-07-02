@@ -110,6 +110,46 @@
     </div>
   </section>
 
+  {% set band = 'Strong' if health_score >= 75 else ('Fair' if health_score >= 50 else 'At risk') %}
+  {% set ring_color = '#22c55e' if health_score >= 75 else ('#eab308' if health_score >= 50 else '#ef4444') %}
+  {% set band_text = 'text-green-400' if health_score >= 75 else ('text-amber-400' if health_score >= 50 else 'text-red-400') %}
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-6">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Health Score</h2>
+    <div class="mt-4 flex flex-col items-center">
+      <div class="relative h-40 w-40">
+        <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#262626" stroke-width="10" />
+          <circle cx="60" cy="60" r="52" fill="none" stroke="{{ ring_color }}" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="326.73"
+                  stroke-dashoffset="{{ (326.73 * (1 - health_score / 100)) | round(2) }}"
+                  style="filter: drop-shadow(0 0 5px {{ ring_color }}88);" />
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <div class="text-4xl font-bold tabular-nums tracking-tight">{{ health_score }}</div>
+          <div class="text-[10px] uppercase tracking-[0.2em] text-gray-500">out of 100</div>
+        </div>
+      </div>
+      <div class="mt-2 text-sm font-semibold {{ band_text }}">{{ band }}</div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Recommended actions</div>
+      <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        {% for rec in health_recommendations %}
+        <div class="flex items-start gap-3 rounded-xl border border-white/5 bg-white/5 p-4">
+          <span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-amber-500/15 text-amber-400">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.7.3l6 6a1 1 0 01-1.4 1.4L11 6.42V16a1 1 0 11-2 0V6.41L4.7 10.7a1 1 0 11-1.4-1.4l6-6A1 1 0 0110 3z" clip-rule="evenodd"/></svg>
+          </span>
+          <div class="min-w-0">
+            <div class="text-sm font-semibold">{{ rec.recommendation }}</div>
+            <div class="mt-0.5 text-xs text-gray-500">{{ rec.detail }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
   <section>
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Key Metrics</h2>
     <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">

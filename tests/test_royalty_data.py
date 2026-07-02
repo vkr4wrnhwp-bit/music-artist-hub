@@ -1,14 +1,18 @@
 import pytest
 
 from royalty_data import (
+    HealthFactor,
     Kpi,
     Payout,
     PlatformBalance,
     get_action_items,
+    get_health_factors,
+    get_health_recommendations,
     get_platform_balances,
     get_platform_catalog,
     meter_lit_segments,
     reset_connection_state,
+    royalty_health_score,
     royalty_progress,
     set_connection_status,
     total_royalties,
@@ -119,3 +123,50 @@ def test_disconnecting_platform_removes_it():
 
 def test_set_connection_status_unknown_platform_returns_none():
     assert set_connection_status("not-a-platform", "connected") is None
+
+
+def test_health_score_within_range():
+    score = royalty_health_score(get_health_factors(get_platform_catalog()))
+    assert 0 <= score <= 100
+
+
+def test_health_score_all_perfect_is_100():
+    factors = [
+        HealthFactor("a", "A", 1.0, 0.5, "", ""),
+        HealthFactor("b", "B", 1.0, 0.5, "", ""),
+    ]
+    assert royalty_health_score(factors) == 100
+
+
+def test_health_score_all_zero_is_0():
+    factors = [HealthFactor("a", "A", 0.0, 1.0, "", "")]
+    assert royalty_health_score(factors) == 0
+
+
+def test_health_score_no_factors_is_0():
+    assert royalty_health_score([]) == 0
+
+
+def test_health_recommendations_weakest_first_and_excludes_complete():
+    factors = [
+        HealthFactor("perfect", "Perfect", 1.0, 0.25, "", "done"),
+        HealthFactor("mid", "Mid", 0.6, 0.25, "", "improve mid"),
+        HealthFactor("worst", "Worst", 0.1, 0.25, "", "fix worst"),
+    ]
+    recs = get_health_recommendations(factors)
+    assert [r.key for r in recs] == ["worst", "mid"]
+
+
+def test_health_recommendations_limit():
+    factors = [HealthFactor(str(i), str(i), i / 10, 0.1, "", "") for i in range(5)]
+    assert len(get_health_recommendations(factors, limit=2)) == 2
+
+
+def test_connecting_platform_raises_health_score():
+    try:
+        before = royalty_health_score(get_health_factors(get_platform_catalog()))
+        set_connection_status("tidal", "connected")
+        after = royalty_health_score(get_health_factors(get_platform_catalog()))
+        assert after > before
+    finally:
+        reset_connection_state()
