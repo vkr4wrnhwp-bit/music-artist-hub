@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from flask import Flask, jsonify, redirect, render_template
 
 from royalty_data import (
@@ -6,6 +8,7 @@ from royalty_data import (
     get_health_factors,
     get_health_recommendations,
     get_kpis,
+    get_missing_royalty_findings,
     get_platform_balances,
     get_platform_catalog,
     get_recent_payouts,
@@ -57,6 +60,16 @@ def create_app():
     @app.route("/dashboard")
     def dashboard():
         return render_template("dashboard.html", **build_dashboard_context())
+
+    @app.route("/scan/missing-royalties", methods=["POST"])
+    def scan_missing_royalties():
+        findings = get_missing_royalty_findings(get_platform_catalog())
+        return jsonify({
+            "ok": True,
+            "count": len(findings),
+            "total_estimated": round(sum(f.estimated_value for f in findings), 2),
+            "findings": [asdict(f) for f in findings],
+        })
 
     @app.route("/connections/<platform_id>/connect", methods=["POST"])
     def connect_platform(platform_id):

@@ -52,6 +52,16 @@ class HealthFactor:
     recommendation: str
 
 
+@dataclass
+class Finding:
+    id: str
+    source: str
+    issue_type: str
+    estimated_value: float
+    confidence: str  # High | Medium | Low
+    recommended_action: str
+
+
 _DEFAULT_PLATFORMS = [
     PlatformConnection("spotify", "Spotify", "Streaming Royalties", 2500.00, "connected"),
     PlatformConnection("apple-music", "Apple Music", "Streaming Royalties", 1234.56, "connected"),
@@ -214,6 +224,68 @@ def get_health_recommendations(factors, limit=3):
         (f for f in factors if f.score < 1.0), key=lambda f: f.score
     )
     return incomplete[:limit]
+
+
+# Deep-scan findings that apply to *connected* sources (shown only when the
+# platform is connected, since you can't audit a source you aren't pulling from).
+_CONNECTED_FINDINGS = [
+    ("spotify", "Unmatched ISRC", 142.50, "Medium", "Submit ISRC correction"),
+    ("the-mlc", "Unclaimed mechanical royalties", 318.00, "High", "File a claim"),
+    ("ascap", "Missing live performance royalties", 96.25, "Low", "Register setlists"),
+]
+
+
+def _slug(text):
+    return "".join(c if c.isalnum() else "-" for c in text.lower()).strip("-")
+
+
+def get_missing_royalty_findings(catalog):
+    findings = []
+    by_id = {p.id: p for p in catalog}
+
+    for p in catalog:
+        if p.status == "not_connected":
+            findings.append(Finding(
+                id=f"{p.id}-uncollected",
+                source=p.platform,
+                issue_type="Uncollected royalties",
+                estimated_value=round(p.amount, 2),
+                confidence="High" if p.amount >= 300 else "Medium",
+                recommended_action=f"Connect {p.platform}",
+            ))
+        elif p.status == "needs_login":
+            findings.append(Finding(
+                id=f"{p.id}-login",
+                source=p.platform,
+                issue_type="Login expired — collections paused",
+                estimated_value=round(p.amount * 0.5, 2),
+                confidence="Medium",
+                recommended_action=f"Re-authenticate {p.platform}",
+            ))
+        elif p.status == "error":
+            findings.append(Finding(
+                id=f"{p.id}-sync",
+                source=p.platform,
+                issue_type="Sync failure",
+                estimated_value=round(p.amount, 2),
+                confidence="Medium",
+                recommended_action=f"Retry {p.platform} sync",
+            ))
+
+    for pid, issue, value, confidence, action in _CONNECTED_FINDINGS:
+        p = by_id.get(pid)
+        if p is not None and p.status == "connected":
+            findings.append(Finding(
+                id=f"{pid}-{_slug(issue)}",
+                source=p.platform,
+                issue_type=issue,
+                estimated_value=value,
+                confidence=confidence,
+                recommended_action=action,
+            ))
+
+    findings.sort(key=lambda f: f.estimated_value, reverse=True)
+    return findings
 
 
 def get_action_items(balances, payouts, kpis):
