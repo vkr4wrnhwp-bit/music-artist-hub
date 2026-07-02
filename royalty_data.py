@@ -42,6 +42,16 @@ class Action:
     result_message: str
 
 
+@dataclass
+class HealthFactor:
+    key: str
+    label: str
+    score: float  # 0..1
+    weight: float
+    detail: str
+    recommendation: str
+
+
 _DEFAULT_PLATFORMS = [
     PlatformConnection("spotify", "Spotify", "Streaming Royalties", 2500.00, "connected"),
     PlatformConnection("apple-music", "Apple Music", "Streaming Royalties", 1234.56, "connected"),
@@ -135,6 +145,75 @@ def meter_lit_segments(amount, max_amount, segments=12):
         return 0
     fraction = min(amount / max_amount, 1.0)
     return round(fraction * segments)
+
+
+_HEALTH_TRACK_TOTAL = 24
+_HEALTH_METADATA_DONE = 20
+_HEALTH_SPLITS_DONE = 15
+_HEALTH_SCAN_RUN = False
+
+
+def _plural(n, noun):
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def get_health_factors(catalog):
+    connected = sum(1 for p in catalog if p.status == "connected")
+    total_platforms = len(catalog)
+    tracks = _HEALTH_TRACK_TOTAL
+    metadata_gap = tracks - _HEALTH_METADATA_DONE
+    splits_gap = tracks - _HEALTH_SPLITS_DONE
+    platform_gap = total_platforms - connected
+
+    return [
+        HealthFactor(
+            key="connections",
+            label="Platform connections",
+            score=(connected / total_platforms) if total_platforms else 0.0,
+            weight=0.30,
+            detail=f"{connected} of {total_platforms} platforms connected",
+            recommendation=f"Connect {_plural(platform_gap, 'more platform')}",
+        ),
+        HealthFactor(
+            key="metadata",
+            label="Metadata completeness",
+            score=(_HEALTH_METADATA_DONE / tracks) if tracks else 0.0,
+            weight=0.25,
+            detail=f"{_HEALTH_METADATA_DONE} of {tracks} tracks have complete metadata",
+            recommendation=f"Complete metadata on {_plural(metadata_gap, 'track')}",
+        ),
+        HealthFactor(
+            key="splits",
+            label="Split confirmation",
+            score=(_HEALTH_SPLITS_DONE / tracks) if tracks else 0.0,
+            weight=0.25,
+            detail=f"{_HEALTH_SPLITS_DONE} of {tracks} tracks have confirmed splits",
+            recommendation=f"Confirm splits on {_plural(splits_gap, 'track')}",
+        ),
+        HealthFactor(
+            key="scan",
+            label="Missing royalty scan",
+            score=1.0 if _HEALTH_SCAN_RUN else 0.0,
+            weight=0.20,
+            detail="Scan up to date" if _HEALTH_SCAN_RUN else "No scan run yet",
+            recommendation="Run a missing royalties scan",
+        ),
+    ]
+
+
+def royalty_health_score(factors):
+    total_weight = sum(f.weight for f in factors)
+    if total_weight <= 0:
+        return 0
+    weighted = sum(f.score * f.weight for f in factors)
+    return round((weighted / total_weight) * 100)
+
+
+def get_health_recommendations(factors, limit=3):
+    incomplete = sorted(
+        (f for f in factors if f.score < 1.0), key=lambda f: f.score
+    )
+    return incomplete[:limit]
 
 
 def get_action_items(balances, payouts, kpis):

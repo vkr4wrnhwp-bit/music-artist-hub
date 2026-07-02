@@ -53,6 +53,14 @@ def test_dashboard_includes_add_connection_ui():
     assert "YouTube Music" in body
 
 
+def test_dashboard_includes_health_score():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Royalty Health Score" in body
+    assert "Recommended actions" in body
+    assert "out of 100" in body
+
+
 def test_connect_and_disconnect_platform():
     client = create_app().test_client()
     try:
