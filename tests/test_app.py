@@ -18,6 +18,16 @@ def test_dashboard_renders_expected_content():
     assert "Midnight Drive" in body
 
 
+def test_dashboard_includes_set_goal_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert 'id="set-goal-btn"' in body
+    assert 'id="goal-modal"' in body
+    assert 'id="goal-amount"' in body
+    assert 'id="goal-type"' in body
+    assert 'id="goal-deadline"' in body
+
+
 def test_complete_action_returns_result_message():
     client = create_app().test_client()
     response = client.post("/actions/pending-negotiation/complete")
