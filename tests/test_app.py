@@ -16,3 +16,18 @@ def test_dashboard_renders_expected_content():
     assert "Total Royalties" in body
     assert "Spotify" in body
     assert "Midnight Drive" in body
+
+
+def test_complete_action_returns_result_message():
+    client = create_app().test_client()
+    response = client.post("/actions/pending-negotiation/complete")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    assert data["message"]
+
+
+def test_complete_unknown_action_returns_404():
+    client = create_app().test_client()
+    response = client.post("/actions/not-a-real-id/complete")
+    assert response.status_code == 404
