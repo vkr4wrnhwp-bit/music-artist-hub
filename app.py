@@ -5,10 +5,12 @@ from royalty_data import (
     get_earnings_trend,
     get_kpis,
     get_platform_balances,
+    get_platform_catalog,
     get_recent_payouts,
     get_royalty_goal,
     meter_lit_segments,
     royalty_progress,
+    set_connection_status,
     total_royalties,
 )
 
@@ -26,6 +28,7 @@ def build_dashboard_context():
     ]
     return {
         "actions": get_action_items(balances, payouts, kpis),
+        "platform_catalog": get_platform_catalog(),
         "balance_meters": balance_meters,
         "total": total,
         "goal": goal,
@@ -46,6 +49,20 @@ def create_app():
     @app.route("/dashboard")
     def dashboard():
         return render_template("dashboard.html", **build_dashboard_context())
+
+    @app.route("/connections/<platform_id>/connect", methods=["POST"])
+    def connect_platform(platform_id):
+        entry = set_connection_status(platform_id, "connected")
+        if entry is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "status": entry.status})
+
+    @app.route("/connections/<platform_id>/disconnect", methods=["POST"])
+    def disconnect_platform(platform_id):
+        entry = set_connection_status(platform_id, "not_connected")
+        if entry is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "status": entry.status})
 
     @app.route("/actions/<action_id>/complete", methods=["POST"])
     def complete_action(action_id):
