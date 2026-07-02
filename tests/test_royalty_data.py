@@ -1,10 +1,16 @@
+import pytest
+
 from royalty_data import (
     Kpi,
     Payout,
     PlatformBalance,
     get_action_items,
+    get_platform_balances,
+    get_platform_catalog,
     meter_lit_segments,
+    reset_connection_state,
     royalty_progress,
+    set_connection_status,
     total_royalties,
 )
 
@@ -79,3 +85,37 @@ def test_get_action_items_fallback_when_nothing_applies():
     actions = get_action_items([], [], [])
     assert len(actions) == 1
     assert actions[0].id == "scan"
+
+
+def test_catalog_includes_all_statuses():
+    statuses = {p.status for p in get_platform_catalog()}
+    assert statuses == {"connected", "not_connected", "syncing", "needs_login", "error"}
+
+
+def test_only_connected_platforms_count_toward_balances():
+    names = [b.platform for b in get_platform_balances()]
+    assert "Spotify" in names
+    assert "Tidal" not in names
+
+
+def test_connecting_platform_adds_it_to_balances_and_total():
+    try:
+        before = total_royalties(get_platform_balances())
+        set_connection_status("tidal", "connected")
+        balances = get_platform_balances()
+        assert "Tidal" in [b.platform for b in balances]
+        assert total_royalties(balances) == pytest.approx(before + 95.20)
+    finally:
+        reset_connection_state()
+
+
+def test_disconnecting_platform_removes_it():
+    try:
+        set_connection_status("spotify", "not_connected")
+        assert "Spotify" not in [b.platform for b in get_platform_balances()]
+    finally:
+        reset_connection_state()
+
+
+def test_set_connection_status_unknown_platform_returns_none():
+    assert set_connection_status("not-a-platform", "connected") is None

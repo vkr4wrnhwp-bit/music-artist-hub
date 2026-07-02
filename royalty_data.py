@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass
@@ -6,6 +6,15 @@ class PlatformBalance:
     platform: str
     royalty_type: str
     amount: float
+
+
+@dataclass
+class PlatformConnection:
+    id: str
+    platform: str
+    royalty_type: str
+    amount: float
+    status: str  # connected | not_connected | syncing | needs_login | error
 
 
 @dataclass
@@ -33,15 +42,49 @@ class Action:
     result_message: str
 
 
+_DEFAULT_PLATFORMS = [
+    PlatformConnection("spotify", "Spotify", "Streaming Royalties", 2500.00, "connected"),
+    PlatformConnection("apple-music", "Apple Music", "Streaming Royalties", 1234.56, "connected"),
+    PlatformConnection("ascap", "ASCAP", "Performance Royalties", 8765.43, "connected"),
+    PlatformConnection("bmi", "BMI", "Performance Royalties", 4321.00, "connected"),
+    PlatformConnection("sesac", "SESAC", "Performance Royalties", 3120.75, "connected"),
+    PlatformConnection("soundexchange", "SoundExchange", "Digital Performance Royalties", 1850.32, "connected"),
+    PlatformConnection("the-mlc", "The MLC", "Mechanical Royalties", 940.18, "connected"),
+    PlatformConnection("youtube-music", "YouTube Music", "Streaming Royalties", 612.44, "not_connected"),
+    PlatformConnection("amazon-music", "Amazon Music", "Streaming Royalties", 430.10, "syncing"),
+    PlatformConnection("deezer", "Deezer", "Streaming Royalties", 210.77, "needs_login"),
+    PlatformConnection("tidal", "Tidal", "Streaming Royalties", 95.20, "error"),
+    PlatformConnection("pandora", "Pandora", "Digital Performance Royalties", 150.00, "not_connected"),
+    PlatformConnection("ppl", "PPL", "Performance Royalties", 320.90, "not_connected"),
+]
+
+_status_overrides = {}
+
+
+def get_platform_catalog():
+    return [
+        replace(p, status=_status_overrides.get(p.id, p.status))
+        for p in _DEFAULT_PLATFORMS
+    ]
+
+
+def set_connection_status(platform_id, status):
+    entry = next((p for p in _DEFAULT_PLATFORMS if p.id == platform_id), None)
+    if entry is None:
+        return None
+    _status_overrides[platform_id] = status
+    return replace(entry, status=status)
+
+
+def reset_connection_state():
+    _status_overrides.clear()
+
+
 def get_platform_balances():
     return [
-        PlatformBalance("Spotify", "Streaming Royalties", 2500.00),
-        PlatformBalance("Apple Music", "Streaming Royalties", 1234.56),
-        PlatformBalance("ASCAP", "Performance Royalties", 8765.43),
-        PlatformBalance("BMI", "Performance Royalties", 4321.00),
-        PlatformBalance("SESAC", "Performance Royalties", 3120.75),
-        PlatformBalance("SoundExchange", "Digital Performance Royalties", 1850.32),
-        PlatformBalance("The MLC", "Mechanical Royalties", 940.18),
+        PlatformBalance(p.platform, p.royalty_type, p.amount)
+        for p in get_platform_catalog()
+        if p.status == "connected"
     ]
 
 
