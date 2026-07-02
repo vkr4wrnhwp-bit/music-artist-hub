@@ -54,13 +54,23 @@
     <span class="absolute bottom-3 right-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Total Royalties</h2>
     <div class="mt-4 flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:justify-around">
-      <div class="relative h-64 w-64 shrink-0">
-        <svg id="gauge" viewBox="0 0 220 220" class="h-full w-full"></svg>
-        <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <div class="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">Collected</div>
-          <div class="mt-1 whitespace-nowrap text-2xl font-bold tabular-nums tracking-tight">${{ "%.2f"|format(total) }}</div>
-          <div class="mt-1 text-xs text-gray-500">of ${{ "%.0f"|format(goal) }} goal</div>
+      <div class="flex shrink-0 flex-col items-center gap-3">
+        <div class="relative h-64 w-64">
+          <svg id="gauge" viewBox="0 0 220 220" class="h-full w-full"></svg>
+          <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <div class="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">Collected</div>
+            <div class="mt-1 whitespace-nowrap text-2xl font-bold tabular-nums tracking-tight">${{ "%.2f"|format(total) }}</div>
+            <div id="goal-line" class="mt-1 text-xs text-gray-500">of ${{ "%.0f"|format(goal) }} goal</div>
+          </div>
         </div>
+        <div class="space-y-1 text-center text-xs text-gray-500">
+          <div><span id="goal-remaining" class="font-semibold text-gray-300"></span> <span id="goal-pct"></span></div>
+          <div id="goal-projection"></div>
+          <div id="goal-deadline-status" class="hidden"></div>
+        </div>
+        <button type="button" id="set-goal-btn" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+          Set Goal
+        </button>
       </div>
 
       <div class="grid w-full max-w-2xl grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -159,13 +169,56 @@
   </section>
 </div>
 
+<div id="goal-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
+  <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111113] p-6">
+    <h3 class="text-sm font-semibold tracking-tight">Set Gross Goal</h3>
+    <p class="mt-1 text-xs text-gray-500">Target your royalty collections. Saved on this device.</p>
+    <form id="goal-form" class="mt-4 space-y-4">
+      <label class="block text-xs text-gray-400">
+        Target amount ($)
+        <input id="goal-amount" type="number" min="1" step="0.01" required
+               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <label class="block text-xs text-gray-400">
+        Goal type
+        <select id="goal-type"
+                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+          <option value="monthly">Monthly</option>
+          <option value="yearly" selected>Yearly</option>
+          <option value="project">Project</option>
+        </select>
+      </label>
+      <label class="block text-xs text-gray-400">
+        Deadline (optional)
+        <input id="goal-deadline" type="date"
+               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+      </label>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="goal-cancel"
+                class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200">
+          Cancel
+        </button>
+        <button type="submit"
+                class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+          Save Goal
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
-  (function () {
+  const TOTAL = {{ total | round(2) }};
+  const DEFAULT_GOAL = {{ goal | round(2) }};
+  const GOAL_KEY = "royaltySweep.goal";
+  const trend = {{ earnings_trend | tojson }};
+
+  function renderGauge(progress, goalAmount) {
     const svg = document.getElementById("gauge");
+    svg.innerHTML = "";
     const NS = "http://www.w3.org/2000/svg";
     const cx = 110, cy = 110;
     const start = 225, sweep = 270;
-    const progress = {{ progress | round(4) }};
 
     function polar(r, angle) {
       const a = angle * Math.PI / 180;
@@ -223,7 +276,6 @@
     pctText.textContent = Math.round(progress * 100) + "%";
     svg.appendChild(pctText);
 
-    const goal = {{ goal | round(2) }};
     [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
       const [lx, ly] = polar(96, start + f * sweep);
       const label = el("text", {
@@ -231,13 +283,124 @@
         fill: "#4b5563", "font-size": 9, "font-weight": "600",
         "font-family": "ui-sans-serif, system-ui, sans-serif",
       });
-      const val = goal * f;
+      const val = goalAmount * f;
       label.textContent = val >= 1000 ? Math.round(val / 1000) + "K" : Math.round(val);
       svg.appendChild(label);
     });
-  })();
+  }
 
-  const trend = {{ earnings_trend | tojson }};
+  function loadGoal() {
+    try {
+      const raw = localStorage.getItem(GOAL_KEY);
+      if (!raw) return null;
+      const g = JSON.parse(raw);
+      return g && g.amount > 0 ? g : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function fmtMoney(n) {
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function monthlyRate() {
+    if (!trend.length) return 0;
+    return trend.reduce((sum, point) => sum + point[1], 0) / trend.length;
+  }
+
+  const GOAL_TYPE_LABELS = { monthly: "monthly", yearly: "yearly", project: "project" };
+
+  function renderGoalState() {
+    const saved = loadGoal();
+    const amount = saved ? saved.amount : DEFAULT_GOAL;
+    const progress = amount > 0 ? Math.min(TOTAL / amount, 1) : 0;
+    renderGauge(progress, amount);
+
+    const typeLabel = saved && GOAL_TYPE_LABELS[saved.type] ? GOAL_TYPE_LABELS[saved.type] + " " : "";
+    document.getElementById("goal-line").textContent =
+      "of $" + Math.round(amount).toLocaleString() + " " + typeLabel + "goal";
+
+    const remaining = Math.max(amount - TOTAL, 0);
+    document.getElementById("goal-remaining").textContent =
+      remaining > 0 ? fmtMoney(remaining) + " remaining" : "Goal reached";
+    document.getElementById("goal-pct").textContent =
+      "· " + Math.round(progress * 100) + "% complete";
+
+    const projEl = document.getElementById("goal-projection");
+    const rate = monthlyRate();
+    let projectedDate = null;
+    if (remaining <= 0) {
+      projEl.textContent = "You've hit this goal — set a new one.";
+    } else if (rate <= 0) {
+      projEl.textContent = "Not enough earnings data to project a hit date.";
+    } else {
+      const months = remaining / rate;
+      projectedDate = new Date();
+      projectedDate.setDate(projectedDate.getDate() + Math.round(months * 30.44));
+      projEl.textContent = "Projected to hit goal: " +
+        projectedDate.toLocaleDateString(undefined, { month: "short", year: "numeric" }) +
+        " at ~" + fmtMoney(rate) + "/mo";
+    }
+
+    const dlEl = document.getElementById("goal-deadline-status");
+    if (saved && saved.deadline) {
+      const deadline = new Date(saved.deadline + "T23:59:59");
+      let status = "";
+      let cls = "text-gray-500";
+      if (remaining <= 0) {
+        status = "Met before deadline";
+        cls = "text-green-400";
+      } else if (projectedDate) {
+        if (projectedDate <= deadline) { status = "On track"; cls = "text-green-400"; }
+        else { status = "Behind pace"; cls = "text-amber-400"; }
+      }
+      dlEl.className = "text-xs " + cls;
+      dlEl.textContent = "Deadline: " +
+        deadline.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) +
+        (status ? " · " + status : "");
+    } else {
+      dlEl.className = "hidden";
+    }
+  }
+
+  renderGoalState();
+
+  const goalModal = document.getElementById("goal-modal");
+
+  function openGoalModal() {
+    const saved = loadGoal();
+    document.getElementById("goal-amount").value = saved ? saved.amount : DEFAULT_GOAL;
+    document.getElementById("goal-type").value = saved && saved.type ? saved.type : "yearly";
+    document.getElementById("goal-deadline").value = saved && saved.deadline ? saved.deadline : "";
+    goalModal.classList.remove("hidden");
+    goalModal.classList.add("flex");
+    document.getElementById("goal-amount").focus();
+  }
+
+  function closeGoalModal() {
+    goalModal.classList.add("hidden");
+    goalModal.classList.remove("flex");
+  }
+
+  document.getElementById("set-goal-btn").addEventListener("click", openGoalModal);
+  document.getElementById("goal-cancel").addEventListener("click", closeGoalModal);
+  goalModal.addEventListener("click", (e) => { if (e.target === goalModal) closeGoalModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGoalModal(); });
+
+  document.getElementById("goal-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById("goal-amount").value);
+    if (!(amount > 0)) return;
+    const goal = {
+      amount: amount,
+      type: document.getElementById("goal-type").value,
+      deadline: document.getElementById("goal-deadline").value || null,
+    };
+    localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
+    closeGoalModal();
+    renderGoalState();
+  });
   new Chart(document.getElementById("earningsChart"), {
     type: "line",
     data: {
