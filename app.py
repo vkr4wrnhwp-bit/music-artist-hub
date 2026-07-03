@@ -1,8 +1,9 @@
 from dataclasses import asdict
 
-from flask import Flask, jsonify, redirect, render_template
+from flask import Flask, jsonify, redirect, render_template, request
 
 from royalty_data import (
+    add_split,
     advance_claim,
     assess_advance_eligibility,
     estimate_catalog_value,
@@ -21,10 +22,12 @@ from royalty_data import (
     get_song,
     get_songs,
     get_payout_calendar,
+    live_song,
     meter_lit_segments,
     metadata_completion_score,
     registration_checklist_score,
     reject_claim,
+    remove_split,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
@@ -32,6 +35,7 @@ from royalty_data import (
     song_missing_issues,
     split_total_percentage,
     splits_fully_confirmed,
+    toggle_split_confirmed,
     total_royalties,
     upcoming_payout_total,
 )
@@ -51,7 +55,7 @@ def build_dashboard_context():
     catalog = get_platform_catalog()
     health_factors = get_health_factors(catalog)
 
-    songs = get_songs()
+    songs = [live_song(s) for s in get_songs()]
     songs_summary = [
         {
             "song": s,
@@ -108,6 +112,7 @@ def build_song_detail(song_id):
     song = get_song(song_id)
     if song is None:
         return None
+    song = live_song(song)
     payouts = [p for p in get_recent_payouts() if p.song == song.title]
     status = song_check_status(song)
     return {
@@ -183,6 +188,52 @@ def create_app():
         if detail is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "song": detail})
+
+    @app.route("/songs/<song_id>/splits", methods=["POST"])
+    def add_split_route(song_id):
+        data = request.get_json(silent=True) or {}
+        collaborator = (data.get("collaborator") or "").strip()
+        role = (data.get("role") or "").strip()
+        try:
+            percentage = float(data.get("percentage"))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "Invalid percentage"}), 400
+        if not collaborator or not role or percentage <= 0:
+            return jsonify({"ok": False, "error": "Missing required fields"}), 400
+        splits = add_split(song_id, collaborator, role, percentage)
+        if splits is None:
+            return jsonify({"ok": False}), 404
+        song = live_song(get_song(song_id))
+        return jsonify({
+            "ok": True,
+            "splits": [asdict(s) for s in splits],
+            "split_total": split_total_percentage(song),
+        })
+
+    @app.route("/songs/<song_id>/splits/<int:index>/remove", methods=["POST"])
+    def remove_split_route(song_id, index):
+        splits = remove_split(song_id, index)
+        if splits is None:
+            return jsonify({"ok": False}), 404
+        song = live_song(get_song(song_id))
+        return jsonify({
+            "ok": True,
+            "splits": [asdict(s) for s in splits],
+            "split_total": split_total_percentage(song),
+        })
+
+    @app.route("/songs/<song_id>/splits/<int:index>/toggle", methods=["POST"])
+    def toggle_split_route(song_id, index):
+        splits = toggle_split_confirmed(song_id, index)
+        if splits is None:
+            return jsonify({"ok": False}), 404
+        song = live_song(get_song(song_id))
+        return jsonify({
+            "ok": True,
+            "splits": [asdict(s) for s in splits],
+            "split_total": split_total_percentage(song),
+            "splits_confirmed": splits_fully_confirmed(song),
+        })
 
     @app.route("/claims/<claim_id>/advance", methods=["POST"])
     def advance_claim_route(claim_id):

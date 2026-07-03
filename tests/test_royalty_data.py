@@ -12,9 +12,15 @@ from royalty_data import (
     Song,
     SplitEntry,
     advance_claim,
+    add_split,
     assess_advance_eligibility,
     estimate_catalog_value,
     get_claims,
+    get_song_splits,
+    live_song,
+    remove_split,
+    reset_split_state,
+    toggle_split_confirmed,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
@@ -546,3 +552,66 @@ def test_advance_eligibility_no_data_does_not_crash():
     result = assess_advance_eligibility([], [], catalog_value_mid=0.0, total_royalties_collected=0.0)
     assert result["score"] == 0
     assert result["tier"] == "Not yet eligible"
+
+
+def test_add_split_appends_unconfirmed_entry():
+    try:
+        splits = add_split("midnight-drive", "New Collaborator", "Mixer", 15.0)
+        assert splits[-1].collaborator == "New Collaborator"
+        assert splits[-1].confirmed is False
+        assert len(get_song_splits("midnight-drive")) == 4
+    finally:
+        reset_split_state()
+
+
+def test_add_split_unknown_song_returns_none():
+    assert add_split("not-a-real-song", "X", "Writer", 100.0) is None
+
+
+def test_remove_split_by_index():
+    try:
+        add_split("midnight-drive", "Temp", "Mixer", 10.0)
+        splits = remove_split("midnight-drive", 3)
+        assert len(splits) == 3
+        assert all(s.collaborator != "Temp" for s in splits)
+    finally:
+        reset_split_state()
+
+
+def test_toggle_split_confirmed_flips_state():
+    try:
+        splits = toggle_split_confirmed("neon-dreams", 1)
+        assert splits[1].confirmed is True
+        splits = toggle_split_confirmed("neon-dreams", 1)
+        assert splits[1].confirmed is False
+    finally:
+        reset_split_state()
+
+
+def test_live_song_reflects_split_overrides():
+    try:
+        add_split("midnight-drive", "Extra", "Mixer", 5.0)
+        song = live_song(get_song("midnight-drive"))
+        assert len(song.splits) == 4
+        assert song.title == "Midnight Drive"  # untouched fields stay intact
+    finally:
+        reset_split_state()
+
+
+def test_split_total_over_100_after_add():
+    try:
+        add_split("midnight-drive", "Extra", "Mixer", 15.0)
+        song = live_song(get_song("midnight-drive"))
+        assert split_total_percentage(song) == 115.0
+    finally:
+        reset_split_state()
+
+
+def test_reset_split_state_restores_original():
+    try:
+        add_split("midnight-drive", "Extra", "Mixer", 15.0)
+        reset_split_state()
+        song = live_song(get_song("midnight-drive"))
+        assert len(song.splits) == 3
+    finally:
+        reset_split_state()
