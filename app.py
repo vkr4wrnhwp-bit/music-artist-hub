@@ -3,7 +3,6 @@ from dataclasses import asdict
 from flask import Flask, jsonify, redirect, render_template
 
 from royalty_data import (
-    get_action_items,
     get_earnings_trend,
     get_health_factors,
     get_health_recommendations,
@@ -13,6 +12,7 @@ from royalty_data import (
     get_platform_catalog,
     get_recent_payouts,
     get_royalty_goal,
+    get_royalty_leak_alerts,
     meter_lit_segments,
     royalty_health_score,
     royalty_progress,
@@ -35,7 +35,7 @@ def build_dashboard_context():
     catalog = get_platform_catalog()
     health_factors = get_health_factors(catalog)
     return {
-        "actions": get_action_items(balances, payouts, kpis),
+        "alerts": get_royalty_leak_alerts(balances, payouts, kpis, catalog),
         "platform_catalog": catalog,
         "health_score": royalty_health_score(health_factors),
         "health_factors": health_factors,
@@ -85,16 +85,17 @@ def create_app():
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "status": entry.status})
 
-    @app.route("/actions/<action_id>/complete", methods=["POST"])
-    def complete_action(action_id):
+    @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
+    def resolve_alert(alert_id):
         balances = get_platform_balances()
         payouts = get_recent_payouts()
         kpis = get_kpis()
-        actions = get_action_items(balances, payouts, kpis)
-        action = next((a for a in actions if a.id == action_id), None)
-        if action is None:
+        catalog = get_platform_catalog()
+        alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
+        alert = next((a for a in alerts if a.id == alert_id), None)
+        if alert is None:
             return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "message": action.result_message})
+        return jsonify({"ok": True, "message": alert.resolution_message})
 
     return app
 

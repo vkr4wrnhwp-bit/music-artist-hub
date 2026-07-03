@@ -5,12 +5,13 @@ from royalty_data import (
     Kpi,
     Payout,
     PlatformBalance,
-    get_action_items,
+    PlatformConnection,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
     get_platform_balances,
     get_platform_catalog,
+    get_royalty_leak_alerts,
     meter_lit_segments,
     reset_connection_state,
     royalty_health_score,
@@ -60,36 +61,73 @@ def test_meter_lit_segments_zero_max():
     assert meter_lit_segments(50, 0, segments=12) == 0
 
 
-def test_get_action_items_processing_payout():
-    balances = [PlatformBalance("Spotify", "Streaming", 100.0)]
+def test_alerts_processing_payout_is_medium_severity():
     payouts = [Payout("City Lights", "ASCAP", "Processing", 350.0)]
     kpis = [Kpi("Active Streams", "+1", "no pending items here", [1])]
-    actions = get_action_items(balances, payouts, kpis)
-    payout_actions = [a for a in actions if "City Lights" in a.title]
-    assert len(payout_actions) == 1
-    assert "ASCAP" in payout_actions[0].result_message
+    alerts = get_royalty_leak_alerts([], payouts, kpis, [])
+    payout_alerts = [a for a in alerts if "City Lights" in a.title]
+    assert len(payout_alerts) == 1
+    assert payout_alerts[0].severity == "Medium"
+    assert "ASCAP" in payout_alerts[0].resolution_message
 
 
-def test_get_action_items_lowest_earner():
-    balances = [
-        PlatformBalance("Spotify", "Streaming", 100.0),
-        PlatformBalance("The MLC", "Mechanical", 10.0),
+def test_alerts_needs_login_platform_is_high_severity():
+    catalog = [PlatformConnection("deezer", "Deezer", "Streaming", 200.0, "needs_login")]
+    alerts = get_royalty_leak_alerts([], [], [], catalog)
+    deezer_alerts = [a for a in alerts if a.source == "Deezer"]
+    assert len(deezer_alerts) == 1
+    assert deezer_alerts[0].severity == "High"
+    assert deezer_alerts[0].estimated_impact == 100.0
+
+
+def test_alerts_sync_error_platform_is_high_severity():
+    catalog = [PlatformConnection("tidal", "Tidal", "Streaming", 95.0, "error")]
+    alerts = get_royalty_leak_alerts([], [], [], catalog)
+    assert alerts[0].severity == "High"
+    assert alerts[0].estimated_impact == 95.0
+
+
+def test_alerts_not_connected_severity_by_amount():
+    catalog = [
+        PlatformConnection("big", "Big Platform", "Streaming", 500.0, "not_connected"),
+        PlatformConnection("small", "Small Platform", "Streaming", 50.0, "not_connected"),
     ]
-    actions = get_action_items(balances, [], [])
-    lowest_actions = [a for a in actions if "The MLC" in a.title]
-    assert len(lowest_actions) == 1
+    alerts = get_royalty_leak_alerts([], [], [], catalog)
+    by_source = {a.source: a for a in alerts}
+    assert by_source["Big Platform"].severity == "Medium"
+    assert by_source["Small Platform"].severity == "Low"
 
 
-def test_get_action_items_pending_kpi():
+def test_alerts_pending_kpi_is_low_severity():
     kpis = [Kpi("Sync Licenses", "1", "1 pending negotiation", [1])]
-    actions = get_action_items([], [], kpis)
-    assert any("pending negotiation" in a.title.lower() for a in actions)
+    alerts = get_royalty_leak_alerts([], [], kpis, [])
+    matches = [a for a in alerts if "needs review" in a.title.lower()]
+    assert len(matches) == 1
+    assert matches[0].severity == "Low"
 
 
-def test_get_action_items_fallback_when_nothing_applies():
-    actions = get_action_items([], [], [])
-    assert len(actions) == 1
-    assert actions[0].id == "scan"
+def test_alerts_fallback_when_nothing_applies():
+    alerts = get_royalty_leak_alerts([], [], [], [])
+    assert len(alerts) == 1
+    assert alerts[0].id == "scan"
+
+
+def test_alerts_sorted_high_severity_first():
+    catalog = [
+        PlatformConnection("a", "A", "Streaming", 50.0, "not_connected"),
+        PlatformConnection("b", "B", "Streaming", 200.0, "error"),
+    ]
+    alerts = get_royalty_leak_alerts([], [], [], catalog)
+    assert alerts[0].severity == "High"
+
+
+def test_connecting_platform_removes_its_leak_alert():
+    try:
+        set_connection_status("tidal", "connected")
+        alerts = get_royalty_leak_alerts([], [], [], get_platform_catalog())
+        assert not any(a.source == "Tidal" for a in alerts)
+    finally:
+        reset_connection_state()
 
 
 def test_catalog_includes_all_statuses():
