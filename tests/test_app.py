@@ -140,3 +140,10 @@ def test_song_detail_unknown_id_returns_404():
     client = create_app().test_client()
     response = client.get("/songs/not-a-real-song")
     assert response.status_code == 404
+
+
+def test_dashboard_includes_payout_calendar():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Payout Calendar" in body
+    assert "Upcoming total" in body

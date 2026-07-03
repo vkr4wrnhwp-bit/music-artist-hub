@@ -6,11 +6,13 @@ from royalty_data import (
     Payout,
     PlatformBalance,
     PlatformConnection,
+    ScheduledPayout,
     Song,
     SplitEntry,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
+    get_payout_calendar,
     get_platform_balances,
     get_platform_catalog,
     get_royalty_leak_alerts,
@@ -28,6 +30,7 @@ from royalty_data import (
     split_total_percentage,
     splits_fully_confirmed,
     total_royalties,
+    upcoming_payout_total,
 )
 
 
@@ -352,3 +355,24 @@ def test_metadata_and_registration_scores_within_range():
     for song in get_songs():
         assert 0.0 <= metadata_completion_score(song) <= 1.0
         assert 0.0 <= registration_checklist_score(song) <= 1.0
+
+
+def test_payout_calendar_sorted_by_date():
+    calendar = get_payout_calendar()
+    dates = [p.pay_date for p in calendar]
+    assert dates == sorted(dates)
+
+
+def test_payout_calendar_has_all_statuses():
+    statuses = {p.status for p in get_payout_calendar()}
+    assert statuses == {"Paid", "Processing", "Scheduled", "Delayed"}
+
+
+def test_upcoming_payout_total_excludes_paid_and_delayed():
+    payouts = [
+        ScheduledPayout("a", "Spotify", 100.0, None, "Scheduled"),
+        ScheduledPayout("b", "ASCAP", 50.0, None, "Processing"),
+        ScheduledPayout("c", "BMI", 999.0, None, "Paid"),
+        ScheduledPayout("d", "SESAC", 999.0, None, "Delayed"),
+    ]
+    assert upcoming_payout_total(payouts) == 150.0
