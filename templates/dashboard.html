@@ -33,6 +33,63 @@
     </div>
   </div>
 
+  <section class="story-hero relative overflow-hidden rounded-2xl border border-amber-500/15 bg-[#111113] p-6"
+           style="background-image: radial-gradient(140% 100% at 10% 0%, rgba(234,179,8,0.10), transparent 60%);">
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6">
+      <button type="button" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5" data-scroll-target="Total Royalties">
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What you made</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">${{ "{:,.2f}".format(story.made) }}</div>
+        <div class="mt-1 text-[11px] text-gray-600">Collected across all connected sources</div>
+      </button>
+
+      <button type="button" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5" data-scroll-target="Royalty Leak Alerts">
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What you're missing</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-red-400">${{ "{:,.2f}".format(story.missing_total) }}</div>
+        <div class="mt-1 text-[11px] text-gray-600">{{ story.missing_count }} issue{{ '' if story.missing_count == 1 else 's' }} found</div>
+      </button>
+
+      <button type="button" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5" data-scroll-target="Royalty Leak Alerts">
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Why</div>
+        {% if story.top_finding %}
+        <div class="mt-2 text-sm font-bold leading-snug text-gray-100">{{ story.top_finding.issue_type }}</div>
+        <div class="mt-1 text-[11px] text-gray-600">{{ story.top_finding.source }} · ${{ "%.2f"|format(story.top_finding.estimated_value) }}</div>
+        {% else %}
+        <div class="mt-2 text-sm font-bold text-gray-100">No issues detected</div>
+        <div class="mt-1 text-[11px] text-gray-600">Your catalog looks clean</div>
+        {% endif %}
+      </button>
+
+      <button type="button" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5" data-scroll-target="Missing Money Scanner">
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">How to collect it</div>
+        {% if story.top_finding %}
+        <div class="mt-2 text-sm font-bold leading-snug text-amber-400">{{ story.top_finding.recommended_action }}</div>
+        <div class="mt-1 text-[11px] text-gray-600">Recommended next step</div>
+        {% else %}
+        <div class="mt-2 text-sm font-bold text-gray-100">Nothing to fix right now</div>
+        <div class="mt-1 text-[11px] text-gray-600">Check back after your next scan</div>
+        {% endif %}
+      </button>
+
+      <button type="button" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5" data-scroll-target="Catalog Value Estimate">
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What your catalog may be worth</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">${{ "{:,.0f}".format(story.catalog_value_mid) }}</div>
+        <div class="mt-1 text-[11px] text-gray-600">${{ "{:,.0f}".format(story.catalog_value_low) }} – ${{ "{:,.0f}".format(story.catalog_value_high) }} range</div>
+      </button>
+
+      <button type="button" id="story-next-move" class="story-beat smart-rec-row group flex flex-col items-start rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-left transition-colors hover:border-amber-500/40 hover:bg-amber-500/10"
+              {% if story.top_recommendation %}data-target-type="{{ story.top_recommendation.target_type }}" data-target-id="{{ story.top_recommendation.target_id }}"{% endif %}>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-500/70">The next move</div>
+        {% if story.top_recommendation %}
+        <div class="mt-2 text-sm font-bold leading-snug text-gray-100">{{ story.top_recommendation.reason }}</div>
+        <div class="mt-1 text-[11px] font-semibold text-amber-400">${{ "%.2f"|format(story.top_recommendation.estimated_value) }} · {{ story.top_recommendation.cta_label }}</div>
+        {% else %}
+        <div class="mt-2 text-sm font-bold text-gray-100">You're all caught up</div>
+        <div class="mt-1 text-[11px] text-gray-600">No open actions right now</div>
+        {% endif %}
+      </button>
+    </div>
+  </section>
+
   {% set severity_ui = {
     'High':   'border-red-500/20 bg-red-500/10 text-red-400',
     'Medium': 'border-amber-500/20 bg-amber-500/10 text-amber-400',
@@ -1467,6 +1524,22 @@
       setCollapsed(next);
       localStorage.setItem(key, String(next));
     });
+  });
+
+  function scrollToSectionByTitle(title) {
+    const section = [...document.querySelectorAll("main section")].find(
+      (s) => s.querySelector("h2")?.textContent.trim() === title
+    );
+    if (!section) return;
+    if (section.classList.contains("opacity-70")) {
+      section.querySelector("h2").click();
+    }
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    flashHighlight(section);
+  }
+
+  document.querySelectorAll(".story-beat[data-scroll-target]").forEach((btn) => {
+    btn.addEventListener("click", () => scrollToSectionByTitle(btn.dataset.scrollTarget));
   });
 </script>
 {% endblock %}
