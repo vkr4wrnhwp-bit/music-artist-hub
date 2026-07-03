@@ -266,3 +266,10 @@ def test_dashboard_includes_split_manager_ui():
     assert 'id="add-split-form"' in body
     assert 'id="split-collaborator"' in body
     assert 'id="song-drawer-split-warning"' in body
+
+
+def test_dashboard_includes_collapsible_section_script():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "section-chevron" in body
+    assert "royaltySweep.collapsed." in body
