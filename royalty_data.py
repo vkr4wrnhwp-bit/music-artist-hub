@@ -372,6 +372,58 @@ def get_song(song_id):
     return next((s for s in _SONGS if s.id == song_id), None)
 
 
+_split_overrides = {}
+
+
+def get_song_splits(song_id):
+    if song_id in _split_overrides:
+        return _split_overrides[song_id]
+    song = get_song(song_id)
+    return list(song.splits) if song else []
+
+
+def live_song(song):
+    """A song with any Split Manager edits applied. Every other field is
+    untouched — this only ever overrides `splits`, so the rest of the
+    catalog's static fields (metadata, registrations, earnings) stay
+    exactly as seeded.
+    """
+    return replace(song, splits=get_song_splits(song.id))
+
+
+def add_split(song_id, collaborator, role, percentage):
+    if get_song(song_id) is None:
+        return None
+    splits = get_song_splits(song_id) + [SplitEntry(collaborator, role, percentage, False)]
+    _split_overrides[song_id] = splits
+    return splits
+
+
+def remove_split(song_id, index):
+    if get_song(song_id) is None:
+        return None
+    splits = list(get_song_splits(song_id))
+    if 0 <= index < len(splits):
+        del splits[index]
+    _split_overrides[song_id] = splits
+    return splits
+
+
+def toggle_split_confirmed(song_id, index):
+    if get_song(song_id) is None:
+        return None
+    splits = list(get_song_splits(song_id))
+    if 0 <= index < len(splits):
+        entry = splits[index]
+        splits[index] = replace(entry, confirmed=not entry.confirmed)
+    _split_overrides[song_id] = splits
+    return splits
+
+
+def reset_split_state():
+    _split_overrides.clear()
+
+
 def split_total_percentage(song):
     return sum(s.percentage for s in song.splits)
 

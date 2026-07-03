@@ -1,5 +1,5 @@
 from app import create_app
-from royalty_data import get_platform_balances, reset_claim_state, reset_connection_state
+from royalty_data import get_platform_balances, reset_claim_state, reset_connection_state, reset_split_state
 
 
 def test_index_redirects_to_dashboard():
@@ -198,3 +198,71 @@ def test_dashboard_includes_catalog_value_and_advance_eligibility():
     assert "Advance Eligibility" in body
     assert 'id="custom-multiple"' in body
     assert "Suggested advance amount" in body
+
+
+def test_add_split_route():
+    client = create_app().test_client()
+    try:
+        response = client.post(
+            "/songs/midnight-drive/splits",
+            json={"collaborator": "New Collaborator", "role": "Mixer", "percentage": 15.0},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert len(data["splits"]) == 4
+        assert data["split_total"] == 115.0
+    finally:
+        reset_split_state()
+
+
+def test_add_split_missing_fields_returns_400():
+    client = create_app().test_client()
+    response = client.post("/songs/midnight-drive/splits", json={"collaborator": "", "role": "Mixer", "percentage": 10.0})
+    assert response.status_code == 400
+
+
+def test_add_split_unknown_song_returns_404():
+    client = create_app().test_client()
+    response = client.post(
+        "/songs/not-a-real-song/splits",
+        json={"collaborator": "X", "role": "Writer", "percentage": 100.0},
+    )
+    assert response.status_code == 404
+
+
+def test_remove_split_route():
+    client = create_app().test_client()
+    try:
+        client.post("/songs/midnight-drive/splits", json={"collaborator": "Temp", "role": "Mixer", "percentage": 10.0})
+        response = client.post("/songs/midnight-drive/splits/3/remove")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data["splits"]) == 3
+    finally:
+        reset_split_state()
+
+
+def test_toggle_split_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/songs/neon-dreams/splits/1/toggle")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["splits"][1]["confirmed"] is True
+    finally:
+        reset_split_state()
+
+
+def test_toggle_split_unknown_song_returns_404():
+    client = create_app().test_client()
+    response = client.post("/songs/not-a-real-song/splits/0/toggle")
+    assert response.status_code == 404
+
+
+def test_dashboard_includes_split_manager_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert 'id="add-split-form"' in body
+    assert 'id="split-collaborator"' in body
+    assert 'id="song-drawer-split-warning"' in body
