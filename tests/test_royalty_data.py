@@ -12,6 +12,8 @@ from royalty_data import (
     Song,
     SplitEntry,
     advance_claim,
+    assess_advance_eligibility,
+    estimate_catalog_value,
     get_claims,
     get_health_factors,
     get_health_recommendations,
@@ -502,3 +504,45 @@ def test_smart_recommendations_respects_limit():
         for i in range(10)
     ]
     assert len(get_smart_recommendations(alerts, [], limit=3)) == 3
+
+
+def test_estimate_catalog_value_orders_low_mid_high():
+    result = estimate_catalog_value([("Jan", 1000.0), ("Feb", 1000.0)])
+    assert result["low"] < result["mid"] < result["high"]
+    assert result["annual_run_rate"] == 12000.0
+
+
+def test_estimate_catalog_value_uses_custom_multiples():
+    result = estimate_catalog_value([("Jan", 1000.0)], multiples={"low": 2, "mid": 4, "high": 6})
+    assert result["low"] == 24000.0
+    assert result["mid"] == 48000.0
+    assert result["high"] == 72000.0
+
+
+def test_estimate_catalog_value_empty_trend_is_zero():
+    result = estimate_catalog_value([])
+    assert result["annual_run_rate"] == 0
+    assert result["mid"] == 0
+
+
+def test_advance_eligibility_strong_signals_yield_eligible():
+    trend = [("Jan", 1000.0), ("Feb", 1500.0), ("Mar", 2000.0), ("Apr", 2500.0), ("May", 3000.0), ("Jun", 3500.0)]
+    payouts = [ScheduledPayout("1", "Spotify", 100.0, None, "Paid") for _ in range(5)]
+    result = assess_advance_eligibility(trend, payouts, catalog_value_mid=200000.0, total_royalties_collected=25000.0)
+    assert result["tier"] == "Eligible"
+    assert result["score"] >= 70
+    assert result["suggested_advance"] > 0
+
+
+def test_advance_eligibility_weak_signals_yield_not_eligible():
+    trend = [("Jan", 1000.0), ("Feb", 1000.0)]
+    payouts = [ScheduledPayout("1", "Spotify", 100.0, None, "Delayed") for _ in range(5)]
+    result = assess_advance_eligibility(trend, payouts, catalog_value_mid=1000.0, total_royalties_collected=0.0)
+    assert result["tier"] == "Not yet eligible"
+    assert result["score"] < 45
+
+
+def test_advance_eligibility_no_data_does_not_crash():
+    result = assess_advance_eligibility([], [], catalog_value_mid=0.0, total_royalties_collected=0.0)
+    assert result["score"] == 0
+    assert result["tier"] == "Not yet eligible"

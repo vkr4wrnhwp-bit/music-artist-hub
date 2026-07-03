@@ -4,6 +4,8 @@ from flask import Flask, jsonify, redirect, render_template
 
 from royalty_data import (
     advance_claim,
+    assess_advance_eligibility,
+    estimate_catalog_value,
     get_claims,
     get_earnings_trend,
     get_health_factors,
@@ -68,6 +70,12 @@ def build_dashboard_context():
     claims = get_claims(catalog)
     alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
 
+    earnings_trend = get_earnings_trend()
+    catalog_value = estimate_catalog_value(earnings_trend)
+    advance_eligibility = assess_advance_eligibility(
+        earnings_trend, payout_calendar, catalog_value["mid"], total
+    )
+
     return {
         "alerts": alerts,
         "smart_recommendations": get_smart_recommendations(alerts, songs),
@@ -80,7 +88,7 @@ def build_dashboard_context():
         "goal": goal,
         "progress": royalty_progress(total, goal),
         "kpis": kpis,
-        "earnings_trend": get_earnings_trend(),
+        "earnings_trend": earnings_trend,
         "payouts": payouts,
         "songs_summary": songs_summary,
         "avg_metadata_score": avg_metadata_score,
@@ -91,6 +99,8 @@ def build_dashboard_context():
         "payout_calendar": payout_calendar,
         "upcoming_payout_total": round(upcoming_payout_total(payout_calendar), 2),
         "claims": claims,
+        "catalog_value": catalog_value,
+        "advance_eligibility": advance_eligibility,
     }
 
 

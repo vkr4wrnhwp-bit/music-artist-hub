@@ -189,3 +189,12 @@ def test_dashboard_includes_smart_recommendations():
     body = client.get("/dashboard").get_data(as_text=True)
     assert "Smart Recommendations" in body
     assert "urgency" in body
+
+
+def test_dashboard_includes_catalog_value_and_advance_eligibility():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Catalog Value Estimate" in body
+    assert "Advance Eligibility" in body
+    assert 'id="custom-multiple"' in body
+    assert "Suggested advance amount" in body
