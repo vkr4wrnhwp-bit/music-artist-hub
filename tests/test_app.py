@@ -16,17 +16,29 @@ def test_index_redirects_to_dashboard():
     assert response.headers["Location"] == "/dashboard"
 
 
-def test_dashboard_renders_expected_content():
+def test_all_pages_render():
+    client = create_app().test_client()
+    for route in ["/dashboard", "/royalties", "/catalog", "/valuation", "/settings"]:
+        response = client.get(route)
+        assert response.status_code == 200, route
+
+
+def test_nav_highlights_active_page():
+    client = create_app().test_client()
+    body = client.get("/royalties").get_data(as_text=True)
+    assert 'href="/royalties" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors bg-white/5 text-white"' in body
+
+
+def test_overview_renders_expected_content():
     client = create_app().test_client()
     response = client.get("/dashboard")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "Total Royalties" in body
     assert "Spotify" in body
-    assert "Midnight Drive" in body
 
 
-def test_dashboard_includes_set_goal_ui():
+def test_overview_includes_set_goal_ui():
     client = create_app().test_client()
     body = client.get("/dashboard").get_data(as_text=True)
     assert 'id="set-goal-btn"' in body
@@ -36,9 +48,51 @@ def test_dashboard_includes_set_goal_ui():
     assert 'id="goal-deadline"' in body
 
 
-def test_dashboard_includes_leak_alerts_ui():
+def test_overview_includes_health_score():
     client = create_app().test_client()
     body = client.get("/dashboard").get_data(as_text=True)
+    assert "Royalty Health Score" in body
+    assert "Recommended actions" in body
+    assert "out of 100" in body
+
+
+def test_overview_includes_catalog_completeness_meter():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Catalog Completeness Meter" in body
+    assert "ready to collect" in body
+
+
+def test_overview_includes_story_hero():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "What you made" in body
+    assert "What you're missing" in body
+    assert ">Why<" in body
+    assert "How to collect it" in body
+    assert "What your catalog may be worth" in body
+    assert "The next move" in body
+    assert 'id="story-next-move"' in body
+
+
+def test_overview_includes_money_left_on_the_table():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Money Left on the Table" in body
+    assert "High confidence" in body
+    assert "View Missing Money" in body
+
+
+def test_overview_includes_since_last_login():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "What Changed Since Last Login" in body
+    assert "New Royalties" in body
+
+
+def test_royalties_includes_leak_alerts_ui():
+    client = create_app().test_client()
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Royalty Leak Alerts" in body
     assert 'id="alert-filters"' in body
     assert 'data-filter="High"' in body
@@ -60,26 +114,17 @@ def test_resolve_unknown_alert_returns_404():
     assert response.status_code == 404
 
 
-def test_dashboard_includes_add_connection_ui():
+def test_settings_includes_connections_ui():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert 'id="add-connection-btn"' in body
-    assert 'id="connections-modal"' in body
+    body = client.get("/settings").get_data(as_text=True)
+    assert "Platform Connections" in body
     assert 'id="connection-search"' in body
     assert "YouTube Music" in body
 
 
-def test_dashboard_includes_health_score():
+def test_royalties_includes_scanner_ui():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "Royalty Health Score" in body
-    assert "Recommended actions" in body
-    assert "out of 100" in body
-
-
-def test_dashboard_includes_scanner_ui():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert 'id="scan-btn"' in body
     assert "Missing Money Scanner" in body
 
@@ -118,13 +163,24 @@ def test_connect_unknown_platform_returns_404():
     assert response.status_code == 404
 
 
-def test_dashboard_includes_song_breakdown_and_metadata_ui():
+def test_catalog_includes_song_breakdown_ui():
+    client = create_app().test_client()
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "Song-Level Royalty Breakdown" in body
+    assert "Midnight Drive" in body
+
+
+def test_overview_includes_metadata_completion_ui():
     client = create_app().test_client()
     body = client.get("/dashboard").get_data(as_text=True)
-    assert "Song-Level Royalty Breakdown" in body
     assert "Metadata Completion" in body
-    assert 'id="song-drawer"' in body
-    assert "Midnight Drive" in body
+
+
+def test_base_includes_song_drawer():
+    client = create_app().test_client()
+    for route in ["/dashboard", "/royalties", "/catalog"]:
+        body = client.get(route).get_data(as_text=True)
+        assert 'id="song-drawer"' in body
 
 
 def test_song_detail_endpoint_returns_full_payload():
@@ -149,16 +205,16 @@ def test_song_detail_unknown_id_returns_404():
     assert response.status_code == 404
 
 
-def test_dashboard_includes_payout_calendar():
+def test_royalties_includes_payout_calendar():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Payout Calendar" in body
     assert "Upcoming total" in body
 
 
-def test_dashboard_includes_claim_workflow_ui():
+def test_royalties_includes_claim_workflow_ui():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Claim Workflow" in body
     assert "Detected" in body
 
@@ -191,16 +247,16 @@ def test_advance_unknown_claim_returns_404():
     assert response.status_code == 404
 
 
-def test_dashboard_includes_smart_recommendations():
+def test_royalties_includes_smart_recommendations():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Smart Recommendations" in body
     assert "urgency" in body
 
 
-def test_dashboard_includes_catalog_value_and_advance_eligibility():
+def test_valuation_includes_catalog_value_and_advance_eligibility():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/valuation").get_data(as_text=True)
     assert "Catalog Value Estimate" in body
     assert "Advance Eligibility" in body
     assert 'id="custom-multiple"' in body
@@ -267,7 +323,7 @@ def test_toggle_split_unknown_song_returns_404():
     assert response.status_code == 404
 
 
-def test_dashboard_includes_split_manager_ui():
+def test_base_includes_split_manager_ui():
     client = create_app().test_client()
     body = client.get("/dashboard").get_data(as_text=True)
     assert 'id="add-split-form"' in body
@@ -275,115 +331,81 @@ def test_dashboard_includes_split_manager_ui():
     assert 'id="song-drawer-split-warning"' in body
 
 
-def test_dashboard_includes_collapsible_section_script():
+def test_base_includes_collapsible_section_script():
     client = create_app().test_client()
     body = client.get("/dashboard").get_data(as_text=True)
     assert "section-chevron" in body
     assert "royaltySweep.collapsed." in body
 
 
-def test_dashboard_includes_story_hero():
+def test_royalties_includes_fixes_queue_ui():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "What you made" in body
-    assert "What you're missing" in body
-    assert ">Why<" in body
-    assert "How to collect it" in body
-    assert "What your catalog may be worth" in body
-    assert "The next move" in body
-    assert 'id="story-next-move"' in body
-
-
-def test_dashboard_includes_money_left_on_the_table():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "Money Left on the Table" in body
-    assert "High confidence" in body
-    assert "View Missing Money" in body
-
-
-def test_dashboard_includes_fixes_queue_ui():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Fixes Needed Queue" in body
     assert 'id="fixes-queue-list"' in body
     assert "Fix Now" in body
     assert "Mark Complete" in body
 
 
-def test_dashboard_includes_catalog_completeness_meter():
+def test_royalties_includes_top_royalty_leaks():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "Catalog Completeness Meter" in body
-    assert "ready to collect" in body
-
-
-def test_dashboard_includes_top_royalty_leaks():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Top Royalty Leaks" in body
 
 
-def test_dashboard_includes_release_readiness_checker():
+def test_catalog_includes_release_readiness_checker():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "Release Readiness Checker" in body
     assert "Neon Echoes" in body
     assert "% ready" in body
 
 
-def test_dashboard_includes_royalty_forecast():
+def test_royalties_includes_royalty_forecast():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     assert "Royalty Forecast" in body
     assert "Conservative" in body
     assert "Aggressive" in body
 
 
-def test_dashboard_includes_catalog_value_tracker():
+def test_valuation_includes_catalog_value_tracker():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/valuation").get_data(as_text=True)
     assert "Catalog Value Tracker" in body
     assert 'id="value-tracker-current"' in body
 
 
-def test_dashboard_includes_register_everywhere_wizard():
+def test_catalog_includes_register_everywhere_wizard():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "Register Everywhere Wizard" in body
     assert 'id="wizard-song-select"' in body
 
 
-def test_dashboard_includes_documents_vault():
+def test_catalog_includes_documents_vault():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "Documents Vault" in body
     assert "Split Sheet" in body
 
 
-def test_dashboard_includes_exportable_reports():
+def test_valuation_includes_exportable_reports():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/valuation").get_data(as_text=True)
     assert "Exportable Reports" in body
     assert "Investor Snapshot" in body
 
 
-def test_dashboard_includes_since_last_login():
+def test_catalog_includes_rights_conflict_center():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "What Changed Since Last Login" in body
-    assert "New Royalties" in body
-
-
-def test_dashboard_includes_rights_conflict_center():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "Rights Conflict Center" in body
 
 
 def test_update_fix_status_route():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/royalties").get_data(as_text=True)
     import re
     match = re.search(r'data-fix-id="([^"]+)"', body)
     fix_id = match.group(1)

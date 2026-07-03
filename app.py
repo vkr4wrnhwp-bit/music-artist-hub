@@ -194,7 +194,23 @@ def create_app():
 
     @app.route("/dashboard")
     def dashboard():
-        return render_template("dashboard.html", **build_dashboard_context())
+        return render_template("overview.html", active_page="overview", **build_dashboard_context())
+
+    @app.route("/royalties")
+    def royalties():
+        return render_template("royalties.html", active_page="royalties", **build_dashboard_context())
+
+    @app.route("/catalog")
+    def catalog_page():
+        return render_template("catalog.html", active_page="catalog", **build_dashboard_context())
+
+    @app.route("/valuation")
+    def valuation():
+        return render_template("valuation.html", active_page="valuation", **build_dashboard_context())
+
+    @app.route("/settings")
+    def settings():
+        return render_template("settings.html", active_page="settings", **build_dashboard_context())
 
     @app.route("/scan/missing-royalties", methods=["POST"])
     def scan_missing_royalties():
