@@ -13,10 +13,18 @@ from royalty_data import (
     get_recent_payouts,
     get_royalty_goal,
     get_royalty_leak_alerts,
+    get_song,
+    get_songs,
     meter_lit_segments,
+    metadata_completion_score,
+    registration_checklist_score,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
+    song_check_status,
+    song_missing_issues,
+    split_total_percentage,
+    splits_fully_confirmed,
     total_royalties,
 )
 
@@ -34,6 +42,22 @@ def build_dashboard_context():
     ]
     catalog = get_platform_catalog()
     health_factors = get_health_factors(catalog)
+
+    songs = get_songs()
+    songs_summary = [
+        {
+            "song": s,
+            "missing_count": len(song_missing_issues(s)),
+            "connected_platform_count": len(s.platform_earnings),
+            "splits_confirmed": splits_fully_confirmed(s),
+            "split_total": split_total_percentage(s),
+        }
+        for s in songs
+    ]
+    metadata_scores = [metadata_completion_score(s) for s in songs]
+    avg_metadata_score = round(sum(metadata_scores) / len(metadata_scores) * 100) if songs else 0
+    worst_metadata_songs = sorted(songs, key=metadata_completion_score)[:3]
+
     return {
         "alerts": get_royalty_leak_alerts(balances, payouts, kpis, catalog),
         "platform_catalog": catalog,
@@ -47,6 +71,50 @@ def build_dashboard_context():
         "kpis": kpis,
         "earnings_trend": get_earnings_trend(),
         "payouts": payouts,
+        "songs_summary": songs_summary,
+        "avg_metadata_score": avg_metadata_score,
+        "worst_metadata_songs": [
+            {"song": s, "score": round(metadata_completion_score(s) * 100)}
+            for s in worst_metadata_songs
+        ],
+    }
+
+
+def build_song_detail(song_id):
+    song = get_song(song_id)
+    if song is None:
+        return None
+    payouts = [p for p in get_recent_payouts() if p.song == song.title]
+    status = song_check_status(song)
+    return {
+        "id": song.id,
+        "title": song.title,
+        "isrc": song.isrc,
+        "iswc": song.iswc,
+        "upc": song.upc,
+        "master_owner": song.master_owner,
+        "writers": song.writers,
+        "producers": song.producers,
+        "publisher": song.publisher,
+        "lyrics_on_file": song.lyrics_on_file,
+        "alternate_titles": song.alternate_titles,
+        "total_earned": round(song.total_earned, 2),
+        "streams": song.streams,
+        "platform_earnings": song.platform_earnings,
+        "splits": [
+            {"collaborator": sp.collaborator, "role": sp.role, "percentage": sp.percentage, "confirmed": sp.confirmed}
+            for sp in song.splits
+        ],
+        "split_total": split_total_percentage(song),
+        "splits_confirmed": splits_fully_confirmed(song),
+        "monthly_trend": song.monthly_trend,
+        "check_status": status,
+        "missing_issues": song_missing_issues(song),
+        "metadata_score": round(metadata_completion_score(song) * 100),
+        "registration_score": round(registration_checklist_score(song) * 100),
+        "recent_payouts": [
+            {"platform": p.platform, "status": p.status, "amount": p.amount} for p in payouts
+        ],
     }
 
 
@@ -84,6 +152,13 @@ def create_app():
         if entry is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "status": entry.status})
+
+    @app.route("/songs/<song_id>")
+    def song_detail(song_id):
+        detail = build_song_detail(song_id)
+        if detail is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "song": detail})
 
     @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
     def resolve_alert(alert_id):

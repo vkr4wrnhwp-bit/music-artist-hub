@@ -109,3 +109,34 @@ def test_connect_unknown_platform_returns_404():
     client = create_app().test_client()
     response = client.post("/connections/not-a-platform/connect")
     assert response.status_code == 404
+
+
+def test_dashboard_includes_song_breakdown_and_metadata_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Song-Level Royalty Breakdown" in body
+    assert "Metadata Completion" in body
+    assert 'id="song-drawer"' in body
+    assert "Midnight Drive" in body
+
+
+def test_song_detail_endpoint_returns_full_payload():
+    client = create_app().test_client()
+    response = client.get("/songs/midnight-drive")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    song = data["song"]
+    required = {
+        "isrc", "iswc", "upc", "master_owner", "splits", "platform_earnings",
+        "check_status", "missing_issues", "recent_payouts", "metadata_score",
+        "registration_score",
+    }
+    assert required <= set(song.keys())
+    assert song["title"] == "Midnight Drive"
+
+
+def test_song_detail_unknown_id_returns_404():
+    client = create_app().test_client()
+    response = client.get("/songs/not-a-real-song")
+    assert response.status_code == 404
