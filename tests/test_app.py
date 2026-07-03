@@ -1,5 +1,5 @@
 from app import create_app
-from royalty_data import get_platform_balances, reset_connection_state
+from royalty_data import get_platform_balances, reset_claim_state, reset_connection_state
 
 
 def test_index_redirects_to_dashboard():
@@ -147,3 +147,38 @@ def test_dashboard_includes_payout_calendar():
     body = client.get("/dashboard").get_data(as_text=True)
     assert "Payout Calendar" in body
     assert "Upcoming total" in body
+
+
+def test_dashboard_includes_claim_workflow_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Claim Workflow" in body
+    assert "Detected" in body
+
+
+def test_advance_claim_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/claims/youtube-music-uncollected/advance")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["status"] == "Needs Info"
+    finally:
+        reset_claim_state()
+
+
+def test_reject_claim_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/claims/youtube-music-uncollected/reject")
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True, "status": "Rejected"}
+    finally:
+        reset_claim_state()
+
+
+def test_advance_unknown_claim_returns_404():
+    client = create_app().test_client()
+    response = client.post("/claims/not-a-real-claim/advance")
+    assert response.status_code == 404

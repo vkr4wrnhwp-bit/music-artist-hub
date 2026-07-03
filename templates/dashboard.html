@@ -380,6 +380,55 @@
     </div>
   </section>
 
+  {% set claim_status_ui = {
+    'Detected':    'border-gray-500/20 bg-gray-500/10 text-gray-400',
+    'Needs Info':  'border-amber-500/20 bg-amber-500/10 text-amber-400',
+    'Submitted':   'border-blue-500/20 bg-blue-500/10 text-blue-400',
+    'In Review':   'border-purple-500/20 bg-purple-500/10 text-purple-400',
+    'Approved':    'border-green-500/20 bg-green-500/10 text-green-400',
+    'Paid':        'border-green-500/30 bg-green-500/15 text-green-400',
+    'Rejected':    'border-red-500/20 bg-red-500/10 text-red-400',
+  } %}
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Claim Workflow</h2>
+    <p class="mt-1 text-sm text-gray-500">Missing royalty issues tracked through to resolution.</p>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
+            <th class="py-2 pr-4 font-medium">Source</th>
+            <th class="py-2 pr-4 font-medium">Issue</th>
+            <th class="py-2 pr-4 text-right font-medium">Est. Value</th>
+            <th class="py-2 pr-4 font-medium">Status</th>
+            <th class="py-2 pr-4 text-right font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="claims-tbody">
+          {% for c in claims %}
+          <tr class="claim-row border-b border-white/5 last:border-0" data-claim-id="{{ c.id }}" data-status="{{ c.status }}">
+            <td class="py-3 pr-4 font-medium">{{ c.source }}</td>
+            <td class="py-3 pr-4 text-gray-400">{{ c.issue_type }}</td>
+            <td class="py-3 pr-4 text-right font-semibold text-amber-400">${{ "%.2f"|format(c.estimated_value) }}</td>
+            <td class="py-3 pr-4">
+              <span class="claim-status-badge rounded-full border px-2 py-0.5 text-xs font-semibold {{ claim_status_ui.get(c.status, claim_status_ui['Detected']) }}">
+                {{ c.status }}
+              </span>
+            </td>
+            <td class="py-3 pr-4">
+              <div class="claim-actions flex justify-end gap-2">
+                {% if c.status not in ("Paid", "Rejected") %}
+                <button type="button" class="claim-advance-btn rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Advance</button>
+                <button type="button" class="claim-reject-btn rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">Reject</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -1151,6 +1200,49 @@
   songDrawerBackdrop.addEventListener("click", closeSongDrawer);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !songDrawer.classList.contains("translate-x-full")) closeSongDrawer();
+  });
+
+  const CLAIM_STATUS_UI = {
+    "Detected": "border-gray-500/20 bg-gray-500/10 text-gray-400",
+    "Needs Info": "border-amber-500/20 bg-amber-500/10 text-amber-400",
+    "Submitted": "border-blue-500/20 bg-blue-500/10 text-blue-400",
+    "In Review": "border-purple-500/20 bg-purple-500/10 text-purple-400",
+    "Approved": "border-green-500/20 bg-green-500/10 text-green-400",
+    "Paid": "border-green-500/30 bg-green-500/15 text-green-400",
+    "Rejected": "border-red-500/20 bg-red-500/10 text-red-400",
+  };
+
+  function updateClaimRow(row, status) {
+    row.dataset.status = status;
+    const badge = row.querySelector(".claim-status-badge");
+    badge.className = "claim-status-badge rounded-full border px-2 py-0.5 text-xs font-semibold " +
+      (CLAIM_STATUS_UI[status] || CLAIM_STATUS_UI["Detected"]);
+    badge.textContent = status;
+    if (status === "Paid" || status === "Rejected") {
+      row.querySelector(".claim-actions").innerHTML = "";
+    }
+  }
+
+  async function postClaimAction(row, verb) {
+    const id = row.dataset.claimId;
+    const buttons = row.querySelectorAll(".claim-actions button");
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      const res = await fetch(`/claims/${id}/${verb}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        updateClaimRow(row, data.status);
+      }
+    } finally {
+      buttons.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  document.querySelectorAll(".claim-row").forEach((row) => {
+    const advanceBtn = row.querySelector(".claim-advance-btn");
+    const rejectBtn = row.querySelector(".claim-reject-btn");
+    if (advanceBtn) advanceBtn.addEventListener("click", () => postClaimAction(row, "advance"));
+    if (rejectBtn) rejectBtn.addEventListener("click", () => postClaimAction(row, "reject"));
   });
 </script>
 {% endblock %}

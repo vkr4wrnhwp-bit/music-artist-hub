@@ -6,9 +6,12 @@ from royalty_data import (
     Payout,
     PlatformBalance,
     PlatformConnection,
+    CLAIM_PIPELINE,
     ScheduledPayout,
     Song,
     SplitEntry,
+    advance_claim,
+    get_claims,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
@@ -19,6 +22,8 @@ from royalty_data import (
     get_song,
     get_songs,
     meter_lit_segments,
+    reject_claim,
+    reset_claim_state,
     metadata_completion_score,
     registration_checklist_score,
     reset_connection_state,
@@ -376,3 +381,70 @@ def test_upcoming_payout_total_excludes_paid_and_delayed():
         ScheduledPayout("d", "SESAC", 999.0, None, "Delayed"),
     ]
     assert upcoming_payout_total(payouts) == 150.0
+
+
+def test_get_claims_start_as_detected():
+    try:
+        claims = get_claims(get_platform_catalog())
+        assert len(claims) > 0
+        assert all(c.status == "Detected" for c in claims)
+    finally:
+        reset_claim_state()
+
+
+def test_get_claims_sorted_by_value_desc():
+    values = [c.estimated_value for c in get_claims(get_platform_catalog())]
+    assert values == sorted(values, reverse=True)
+
+
+def test_advance_claim_moves_through_pipeline():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for expected in CLAIM_PIPELINE[1:]:
+            new_status = advance_claim(claim_id, catalog)
+            assert new_status == expected
+    finally:
+        reset_claim_state()
+
+
+def test_advance_claim_stays_at_paid():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for _ in range(len(CLAIM_PIPELINE) + 3):
+            advance_claim(claim_id, catalog)
+        assert advance_claim(claim_id, catalog) == "Paid"
+    finally:
+        reset_claim_state()
+
+
+def test_advance_unknown_claim_returns_none():
+    assert advance_claim("not-a-real-claim", get_platform_catalog()) is None
+
+
+def test_reject_claim_sets_rejected():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        assert reject_claim(claim_id, catalog) == "Rejected"
+        assert get_claims(catalog)[0].status == "Rejected" or any(
+            c.id == claim_id and c.status == "Rejected" for c in get_claims(catalog)
+        )
+    finally:
+        reset_claim_state()
+
+
+def test_reject_claim_does_not_override_paid():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for _ in range(len(CLAIM_PIPELINE)):
+            advance_claim(claim_id, catalog)
+        assert reject_claim(claim_id, catalog) == "Paid"
+    finally:
+        reset_claim_state()
+
+
+def test_reject_unknown_claim_returns_none():
+    assert reject_claim("not-a-real-claim", get_platform_catalog()) is None
