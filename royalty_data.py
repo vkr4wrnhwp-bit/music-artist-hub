@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+from datetime import date, timedelta
 
 
 @dataclass
@@ -94,6 +95,15 @@ class Song:
     monthly_trend: list
 
 
+@dataclass
+class ScheduledPayout:
+    id: str
+    source: str
+    amount: float
+    pay_date: date
+    status: str  # Scheduled | Processing | Delayed | Paid
+
+
 _DEFAULT_PLATFORMS = [
     PlatformConnection("spotify", "Spotify", "Streaming Royalties", 2500.00, "connected"),
     PlatformConnection("apple-music", "Apple Music", "Streaming Royalties", 1234.56, "connected"),
@@ -182,6 +192,29 @@ def get_recent_payouts():
         Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
         Payout("City Lights", "ASCAP", "Processing", 350.00),
     ]
+
+
+def get_payout_calendar():
+    today = date.today()
+    entries = [
+        ("cal-1", "The MLC", 180.18, -10, "Paid"),
+        ("cal-2", "BMI", 340.00, -4, "Delayed"),
+        ("cal-3", "Apple Music", 295.75, 2, "Processing"),
+        ("cal-4", "Spotify", 410.20, 5, "Scheduled"),
+        ("cal-5", "ASCAP", 780.00, 12, "Scheduled"),
+        ("cal-6", "SoundExchange", 610.75, 20, "Scheduled"),
+        ("cal-7", "SESAC", 520.00, 28, "Scheduled"),
+    ]
+    payouts = [
+        ScheduledPayout(id=eid, source=source, amount=amount, pay_date=today + timedelta(days=offset), status=status)
+        for eid, source, amount, offset, status in entries
+    ]
+    payouts.sort(key=lambda p: p.pay_date)
+    return payouts
+
+
+def upcoming_payout_total(payouts):
+    return sum(p.amount for p in payouts if p.status in ("Scheduled", "Processing"))
 
 
 _SONGS = [

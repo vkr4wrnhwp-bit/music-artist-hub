@@ -15,6 +15,7 @@ from royalty_data import (
     get_royalty_leak_alerts,
     get_song,
     get_songs,
+    get_payout_calendar,
     meter_lit_segments,
     metadata_completion_score,
     registration_checklist_score,
@@ -26,6 +27,7 @@ from royalty_data import (
     split_total_percentage,
     splits_fully_confirmed,
     total_royalties,
+    upcoming_payout_total,
 )
 
 
@@ -58,6 +60,8 @@ def build_dashboard_context():
     avg_metadata_score = round(sum(metadata_scores) / len(metadata_scores) * 100) if songs else 0
     worst_metadata_songs = sorted(songs, key=metadata_completion_score)[:3]
 
+    payout_calendar = get_payout_calendar()
+
     return {
         "alerts": get_royalty_leak_alerts(balances, payouts, kpis, catalog),
         "platform_catalog": catalog,
@@ -77,6 +81,8 @@ def build_dashboard_context():
             {"song": s, "score": round(metadata_completion_score(s) * 100)}
             for s in worst_metadata_songs
         ],
+        "payout_calendar": payout_calendar,
+        "upcoming_payout_total": round(upcoming_payout_total(payout_calendar), 2),
     }
 
 

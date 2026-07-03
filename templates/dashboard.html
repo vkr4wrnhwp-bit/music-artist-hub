@@ -335,6 +335,51 @@
     </section>
   </div>
 
+  {% set payout_status_ui = {
+    'Paid':       'border-green-500/20 bg-green-500/10 text-green-400',
+    'Processing': 'border-amber-500/20 bg-amber-500/10 text-amber-400',
+    'Scheduled':  'border-gray-500/20 bg-gray-500/10 text-gray-400',
+    'Delayed':    'border-red-500/20 bg-red-500/10 text-red-400',
+  } %}
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Payout Calendar</h2>
+        <p class="mt-1 text-sm text-gray-500">Upcoming estimated royalty payments across all sources.</p>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] uppercase tracking-[0.2em] text-gray-600">Upcoming total</div>
+        <div class="text-lg font-bold text-amber-400">${{ "%.2f"|format(upcoming_payout_total) }}</div>
+      </div>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
+            <th class="py-2 pr-4 font-medium">Source</th>
+            <th class="py-2 pr-4 font-medium">Date</th>
+            <th class="py-2 pr-4 font-medium">Status</th>
+            <th class="py-2 pr-4 text-right font-medium">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payout_calendar %}
+          <tr class="border-b border-white/5 last:border-0">
+            <td class="py-3 pr-4 font-medium">{{ p.source }}</td>
+            <td class="py-3 pr-4 text-gray-400">{{ p.pay_date.strftime('%b %d, %Y') }}</td>
+            <td class="py-3 pr-4">
+              <span class="rounded-full border px-2 py-0.5 text-xs font-semibold {{ payout_status_ui.get(p.status, payout_status_ui['Scheduled']) }}">
+                {{ p.status }}
+              </span>
+            </td>
+            <td class="py-3 pr-4 text-right font-semibold">${{ "%.2f"|format(p.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
