@@ -1428,5 +1428,45 @@
       e.target.reset();
     }
   });
+
+  function slugify(text) {
+    return "royaltySweep.collapsed." + text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  }
+
+  document.querySelectorAll("main section").forEach((section) => {
+    const h2 = section.querySelector("h2");
+    if (!h2) return;
+
+    let headerBlock = h2;
+    while (headerBlock.parentElement !== section) headerBlock = headerBlock.parentElement;
+
+    const bodyElements = [...section.children].filter((el) => el !== headerBlock);
+    if (bodyElements.length === 0) return;
+
+    const key = slugify(h2.textContent.trim());
+    const chevron = document.createElement("span");
+    chevron.className = "section-chevron inline-block transition-transform";
+    chevron.style.marginRight = "0.5rem";
+    chevron.innerHTML = '<svg class="inline h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 011.4 0L10 10.6l3.3-3.3a1 1 0 111.4 1.4l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>';
+    h2.insertBefore(chevron, h2.firstChild);
+    h2.style.cursor = "pointer";
+    h2.classList.add("select-none");
+
+    function setCollapsed(collapsed) {
+      bodyElements.forEach((el) => { el.style.display = collapsed ? "none" : ""; });
+      chevron.style.transform = collapsed ? "rotate(-90deg)" : "rotate(0deg)";
+      section.classList.toggle("opacity-70", collapsed);
+    }
+
+    const stored = localStorage.getItem(key);
+    setCollapsed(stored === "true");
+
+    h2.addEventListener("click", () => {
+      const collapsed = bodyElements[0].style.display === "none";
+      const next = !collapsed;
+      setCollapsed(next);
+      localStorage.setItem(key, String(next));
+    });
+  });
 </script>
 {% endblock %}
