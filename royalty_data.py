@@ -863,6 +863,449 @@ def get_smart_recommendations(alerts, songs, limit=5):
     return recs[:limit]
 
 
+def money_left_on_table(findings):
+    """Uncollected royalties bucketed by confidence, so the headline number
+    can be shown with an honest range instead of one falsely-precise figure.
+    """
+    high = sum(f.estimated_value for f in findings if f.confidence == "High")
+    medium = sum(f.estimated_value for f in findings if f.confidence == "Medium")
+    low = sum(f.estimated_value for f in findings if f.confidence == "Low")
+    return {
+        "high": round(high, 2),
+        "medium": round(medium, 2),
+        "low": round(low, 2),
+        "total": round(high + medium + low, 2),
+    }
+
+
+def get_top_royalty_leaks(findings, limit=5):
+    return findings[:limit]
+
+
+@dataclass
+class FixItem:
+    id: str
+    title: str
+    category: str  # Royalty | Metadata | Registration | Connection | Split
+    severity: str  # High | Medium | Low
+    estimated_impact: float
+    source: str
+    related_song: str  # nullable
+    recommended_action: str
+    status: str  # Open | Assigned | Dismissed | Complete
+
+
+_fix_status_overrides = {}
+
+
+def set_fix_status(item_id, status):
+    if status not in ("Open", "Assigned", "Dismissed", "Complete"):
+        return None
+    _fix_status_overrides[item_id] = status
+    return status
+
+
+def reset_fix_status_state():
+    _fix_status_overrides.clear()
+
+
+def _severity_for_value(value):
+    if value >= 300:
+        return "High"
+    if value >= 100:
+        return "Medium"
+    return "Low"
+
+
+_FIX_METADATA_LABELS = {
+    "isrc": "Missing ISRC", "iswc": "Missing ISWC", "upc": "Missing UPC",
+    "writers": "No writers on file", "producers": "No producers on file",
+    "publisher": "No publisher on file", "lyrics": "Lyrics not on file",
+    "alternate_titles": "No alternate titles logged",
+}
+_FIX_REGISTRATION_LABELS = {
+    "distribution": "Not registered with a distributor", "pro": "Not registered with a PRO",
+    "mlc": "Not registered with The MLC", "soundexchange": "Not registered with SoundExchange",
+    "youtube_content_id": "Not registered with YouTube Content ID",
+    "tiktok_meta_rights": "TikTok/Meta rights not secured",
+}
+
+
+def get_fixes_queue(catalog, songs, findings, limit=12):
+    """A single prioritized queue across every kind of open issue —
+    royalty, metadata, registration, connection, and split — so nothing
+    requires jumping between five different sections to triage.
+    """
+    items = []
+
+    for p in catalog:
+        if p.status in ("not_connected", "needs_login", "error"):
+            sev = "High" if p.status in ("needs_login", "error") else _severity_for_value(p.amount)
+            action = "Connect Platform" if p.status == "not_connected" else (
+                "Re-authenticate" if p.status == "needs_login" else "Retry Sync"
+            )
+            items.append(FixItem(
+                id=f"fix-conn-{p.id}", title=f"{p.platform} needs attention ({p.status.replace('_', ' ')})",
+                category="Connection", severity=sev, estimated_impact=round(p.amount, 2),
+                source=p.platform, related_song=None, recommended_action=action, status="Open",
+            ))
+
+    for f in findings:
+        items.append(FixItem(
+            id=f"fix-{f.id}", title=f.issue_type, category="Royalty",
+            severity=_severity_for_value(f.estimated_value), estimated_impact=f.estimated_value,
+            source=f.source, related_song=None, recommended_action=f.recommended_action, status="Open",
+        ))
+
+    for s in songs:
+        status = song_check_status(s)
+        at_risk = round(s.total_earned * 0.05, 2)
+        for key, label in _FIX_METADATA_LABELS.items():
+            if not status[key]:
+                items.append(FixItem(
+                    id=f"fix-meta-{s.id}-{key}", title=f'{label} — "{s.title}"', category="Metadata",
+                    severity="Medium", estimated_impact=at_risk, source="Catalog",
+                    related_song=s.title, recommended_action="Update Metadata", status="Open",
+                ))
+        for key, label in _FIX_REGISTRATION_LABELS.items():
+            if not status[key]:
+                items.append(FixItem(
+                    id=f"fix-reg-{s.id}-{key}", title=f'{label} — "{s.title}"', category="Registration",
+                    severity="High" if key in ("pro", "distribution") else "Medium",
+                    estimated_impact=at_risk, source="Catalog",
+                    related_song=s.title, recommended_action="Register Now", status="Open",
+                ))
+        if s.splits and not splits_fully_confirmed(s):
+            items.append(FixItem(
+                id=f"fix-split-{s.id}", title=f'Unconfirmed splits — "{s.title}"', category="Split",
+                severity="Medium", estimated_impact=round(s.total_earned, 2), source="Catalog",
+                related_song=s.title, recommended_action="Confirm Splits", status="Open",
+            ))
+
+    for item in items:
+        if item.id in _fix_status_overrides:
+            item.status = _fix_status_overrides[item.id]
+
+    items.sort(key=lambda i: (_SEVERITY_ORDER.get(i.severity, 3), -i.estimated_impact))
+    return items[:limit]
+
+
+DOCUMENT_TYPES = [
+    "split_sheet", "contract", "registration_receipt", "publishing_agreement",
+    "royalty_report", "catalog_valuation_report", "advance_offer",
+]
+DOCUMENT_LABELS = {
+    "split_sheet": "Split Sheet", "contract": "Contract", "registration_receipt": "Registration Receipt",
+    "publishing_agreement": "Publishing Agreement", "royalty_report": "Royalty Report",
+    "catalog_valuation_report": "Catalog Valuation Report", "advance_offer": "Advance Offer",
+}
+
+_DOCUMENT_PRESENCE = {
+    "midnight-drive": {"split_sheet", "contract", "registration_receipt", "royalty_report"},
+    "neon-dreams": {"split_sheet", "royalty_report"},
+    "city-lights": set(),
+    "digital-paradise": {
+        "split_sheet", "contract", "registration_receipt",
+        "publishing_agreement", "royalty_report", "catalog_valuation_report",
+    },
+    "velvet-static": set(),
+}
+
+
+def get_documents_vault(songs):
+    entries = []
+    total_present = 0
+    for s in songs:
+        present = _DOCUMENT_PRESENCE.get(s.id, set())
+        total_present += len(present)
+        docs = [{"type": t, "label": DOCUMENT_LABELS[t], "present": t in present} for t in DOCUMENT_TYPES]
+        missing = [d["label"] for d in docs if not d["present"]]
+        entries.append({"song": s, "documents": docs, "missing_count": len(missing), "missing": missing})
+    total_slots = len(songs) * len(DOCUMENT_TYPES)
+    completeness = (total_present / total_slots) if total_slots else 0.0
+    return {"entries": entries, "completeness": completeness}
+
+
+def catalog_completeness_score(songs, catalog, documents_vault):
+    """How ready the catalog is to collect royalties, blending metadata,
+    connections, registration, split confirmation, and document coverage
+    into a single percentage.
+    """
+    if not songs:
+        return 0
+    metadata_avg = sum(metadata_completion_score(s) for s in songs) / len(songs)
+    connected = sum(1 for p in catalog if p.status == "connected")
+    connection_ratio = (connected / len(catalog)) if catalog else 0.0
+    registration_avg = sum(registration_checklist_score(s) for s in songs) / len(songs)
+    splits_avg = sum(1.0 if splits_fully_confirmed(s) else 0.0 for s in songs) / len(songs)
+    doc_avg = documents_vault["completeness"]
+    overall = (
+        metadata_avg * 0.25 + connection_ratio * 0.20 + registration_avg * 0.25
+        + splits_avg * 0.15 + doc_avg * 0.15
+    )
+    return round(overall * 100)
+
+
+@dataclass
+class Release:
+    id: str
+    title: str
+    release_date: date
+    readiness_score: int
+    missing_tasks: list
+    registration_status: dict
+    distribution_status: str  # Not submitted | Submitted | Live
+    rights_setup: bool
+    checklist: list  # list of {"label": str, "done": bool}
+
+
+def get_upcoming_releases():
+    today = date.today()
+    return [
+        Release(
+            id="release-neon-echoes",
+            title="Neon Echoes",
+            release_date=today + timedelta(days=18),
+            readiness_score=62,
+            missing_tasks=["Submit ISRC", "Confirm splits", "Upload artwork metadata"],
+            registration_status={
+                "pro": True, "mlc": False, "soundexchange": True,
+                "youtube_content_id": False, "tiktok_meta_rights": False,
+            },
+            distribution_status="Submitted",
+            rights_setup=False,
+            checklist=[
+                {"label": "Masters finalized", "done": True},
+                {"label": "ISRC/UPC assigned", "done": False},
+                {"label": "Splits confirmed", "done": False},
+                {"label": "Distributor submission", "done": True},
+                {"label": "PRO registration", "done": True},
+                {"label": "Artwork + metadata uploaded", "done": False},
+            ],
+        ),
+        Release(
+            id="release-glass-horizon",
+            title="Glass Horizon",
+            release_date=today + timedelta(days=45),
+            readiness_score=25,
+            missing_tasks=["Assign publisher", "Register with PRO", "Submit to distributor", "Secure TikTok/Meta rights"],
+            registration_status={
+                "pro": False, "mlc": False, "soundexchange": False,
+                "youtube_content_id": False, "tiktok_meta_rights": False,
+            },
+            distribution_status="Not submitted",
+            rights_setup=False,
+            checklist=[
+                {"label": "Masters finalized", "done": True},
+                {"label": "ISRC/UPC assigned", "done": False},
+                {"label": "Splits confirmed", "done": False},
+                {"label": "Distributor submission", "done": False},
+                {"label": "PRO registration", "done": False},
+                {"label": "Artwork + metadata uploaded", "done": False},
+            ],
+        ),
+    ]
+
+
+def get_royalty_forecast(earnings_trend):
+    """Conservative / expected / aggressive projections for 30 days, 90
+    days, and 12 months, derived from the existing monthly earnings trend
+    rather than any new mock series.
+    """
+    values = [v for _, v in earnings_trend]
+    monthly_avg = sum(values) / len(values) if values else 0.0
+    growth = (values[-1] - values[0]) / values[0] if values and values[0] > 0 else 0.05
+    modes = {
+        "conservative": 0.85,
+        "expected": 1.0,
+        "aggressive": 1.0 + max(growth, 0.15),
+    }
+    horizons = {"30_day": 1, "90_day": 3, "12_month": 12}
+    return {
+        mode: {horizon: round(monthly_avg * months * mult, 2) for horizon, months in horizons.items()}
+        for mode, mult in modes.items()
+    }
+
+
+CATALOG_VALUE_TRACKER_MULTIPLES = [12, 15, 18, 24]
+
+
+def get_catalog_value_tracker(earnings_trend, multiple=15):
+    values = [v for _, v in earnings_trend]
+    monthly_avg = sum(values) / len(values) if values else 0.0
+    current_value = round(monthly_avg * 12 * multiple, 2)
+    prior_values = values[:-1] if len(values) > 1 else values
+    prior_avg = sum(prior_values) / len(prior_values) if prior_values else monthly_avg
+    last_month_value = round(prior_avg * 12 * multiple, 2)
+    pct_change = round(((current_value - last_month_value) / last_month_value) * 100, 1) if last_month_value else 0.0
+    return {
+        "current_value": current_value,
+        "last_month_value": last_month_value,
+        "pct_change": pct_change,
+        "multiple": multiple,
+        "available_multiples": CATALOG_VALUE_TRACKER_MULTIPLES,
+    }
+
+
+WIZARD_TARGETS = ["pro", "mlc", "soundexchange", "youtube_content_id", "tiktok_meta_rights", "distributor", "publishing_admin"]
+WIZARD_TARGET_LABELS = {
+    "pro": "Performance Rights Organization (PRO)", "mlc": "The MLC", "soundexchange": "SoundExchange",
+    "youtube_content_id": "YouTube Content ID", "tiktok_meta_rights": "TikTok / Meta rights",
+    "distributor": "Distributor", "publishing_admin": "Publishing Administrator",
+}
+
+_registration_wizard_overrides = {}
+
+
+def get_registration_wizard(song):
+    base = {
+        "pro": song.registrations.get("pro", False),
+        "mlc": song.registrations.get("mlc", False),
+        "soundexchange": song.registrations.get("soundexchange", False),
+        "youtube_content_id": song.registrations.get("youtube_content_id", False),
+        "tiktok_meta_rights": song.registrations.get("tiktok_meta_rights", False),
+        "distributor": song.registrations.get("distribution", False),
+        "publishing_admin": False,
+    }
+    status = {**base, **_registration_wizard_overrides.get(song.id, {})}
+    missing = [t for t in WIZARD_TARGETS if not status[t]]
+    completed = len(WIZARD_TARGETS) - len(missing)
+    return {
+        "song_id": song.id,
+        "song_title": song.title,
+        "status": status,
+        "missing": missing,
+        "completion_pct": round(completed / len(WIZARD_TARGETS) * 100),
+    }
+
+
+def complete_registration_step(song_id, target):
+    song = get_song(song_id)
+    if song is None or target not in WIZARD_TARGETS:
+        return None
+    overrides = _registration_wizard_overrides.setdefault(song_id, {})
+    overrides[target] = True
+    return get_registration_wizard(song)
+
+
+def reset_registration_wizard_state():
+    _registration_wizard_overrides.clear()
+
+
+REPORT_TYPES = [
+    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song."},
+    {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected."},
+    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples."},
+    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount."},
+    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body."},
+    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth."},
+]
+
+
+def get_available_reports():
+    return REPORT_TYPES
+
+
+def generate_report(report_id):
+    match = next((r for r in REPORT_TYPES if r["id"] == report_id), None)
+    if match is None:
+        return None
+    generated_at = date.today()
+    return {
+        "id": report_id,
+        "label": match["label"],
+        "generated_at": generated_at.isoformat(),
+        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.pdf",
+    }
+
+
+def get_since_last_login_summary(catalog, songs, catalog_value_pct_change):
+    connection_issues = sum(1 for p in catalog if p.status in ("needs_login", "error"))
+    metadata_issues = sum(len(song_missing_issues(s)) for s in songs)
+    return {
+        "new_royalties_collected": 482.15,
+        "new_payouts_detected": 2,
+        "connection_issues": connection_issues,
+        "metadata_issues": metadata_issues,
+        "catalog_value_change_pct": catalog_value_pct_change,
+        "newly_detected_songs": 1,
+    }
+
+
+@dataclass
+class Conflict:
+    id: str
+    conflict_type: str
+    title: str
+    description: str
+    severity: str  # High | Medium | Low
+    songs_involved: list
+
+
+def get_rights_conflicts(songs):
+    """Detects split conflicts, missing ownership data, disputed publisher
+    information, and ISRC/ISWC inconsistencies across the live catalog
+    (including any in-session Split Manager edits).
+    """
+    conflicts = []
+
+    for s in songs:
+        if s.splits:
+            total = split_total_percentage(s)
+            if abs(total - 100.0) > 0.01:
+                conflicts.append(Conflict(
+                    id=f"split-conflict-{s.id}", conflict_type="Split Conflict",
+                    title=f'"{s.title}" splits total {total:.1f}%',
+                    description="Collaborator splits do not sum to 100% — royalties may be miscalculated.",
+                    severity="High", songs_involved=[s.title],
+                ))
+
+    for s in songs:
+        if not s.writers:
+            conflicts.append(Conflict(
+                id=f"missing-ownership-{s.id}", conflict_type="Missing Ownership Data",
+                title=f'"{s.title}" has no writers on file',
+                description="Ownership cannot be verified without at least one writer credit.",
+                severity="High", songs_involved=[s.title],
+            ))
+
+    for s in songs:
+        if not s.publisher and s.total_earned > 0:
+            conflicts.append(Conflict(
+                id=f"publisher-dispute-{s.id}", conflict_type="Disputed Publisher Information",
+                title=f'"{s.title}" has no publisher of record',
+                description="Publishing royalties may be withheld until publisher information is confirmed.",
+                severity="Medium", songs_involved=[s.title],
+            ))
+
+    for s in songs:
+        if s.isrc and not s.iswc:
+            conflicts.append(Conflict(
+                id=f"isrc-iswc-{s.id}", conflict_type="Conflicting ISRC/ISWC Metadata",
+                title=f'"{s.title}" is missing a matching ISWC',
+                description="ISRC is on file but no ISWC is linked — recording and composition metadata are out of sync.",
+                severity="Low", songs_involved=[s.title],
+            ))
+
+    normalized = {}
+    for s in songs:
+        for candidate in [s.title] + s.alternate_titles:
+            key = candidate.split(" (")[0].strip().lower()
+            normalized.setdefault(key, set()).add(s.id)
+    for key, ids in normalized.items():
+        if len(ids) > 1:
+            titles = [s.title for s in songs if s.id in ids]
+            conflicts.append(Conflict(
+                id=f"duplicate-title-{_slug(key)}", conflict_type="Duplicate Title",
+                title=f'Multiple songs share the title "{key.title()}"',
+                description="Duplicate titles can cause royalties to be misattributed between recordings.",
+                severity="Medium", songs_involved=titles,
+            ))
+
+    conflicts.sort(key=lambda c: _SEVERITY_ORDER.get(c.severity, 3))
+    return conflicts
+
+
 def get_dashboard_story(total, findings, catalog_value, smart_recommendations):
     """The six-beat narrative: what you made, what you're missing, why,
     how to collect it, what your catalog may be worth, and the next move.
