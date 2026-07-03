@@ -1,5 +1,12 @@
 from app import create_app
-from royalty_data import get_platform_balances, reset_claim_state, reset_connection_state, reset_split_state
+from royalty_data import (
+    get_platform_balances,
+    reset_claim_state,
+    reset_connection_state,
+    reset_fix_status_state,
+    reset_registration_wizard_state,
+    reset_split_state,
+)
 
 
 def test_index_redirects_to_dashboard():
@@ -285,3 +292,157 @@ def test_dashboard_includes_story_hero():
     assert "What your catalog may be worth" in body
     assert "The next move" in body
     assert 'id="story-next-move"' in body
+
+
+def test_dashboard_includes_money_left_on_the_table():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Money Left on the Table" in body
+    assert "High confidence" in body
+    assert "View Missing Money" in body
+
+
+def test_dashboard_includes_fixes_queue_ui():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Fixes Needed Queue" in body
+    assert 'id="fixes-queue-list"' in body
+    assert "Fix Now" in body
+    assert "Mark Complete" in body
+
+
+def test_dashboard_includes_catalog_completeness_meter():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Catalog Completeness Meter" in body
+    assert "ready to collect" in body
+
+
+def test_dashboard_includes_top_royalty_leaks():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Top Royalty Leaks" in body
+
+
+def test_dashboard_includes_release_readiness_checker():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Release Readiness Checker" in body
+    assert "Neon Echoes" in body
+    assert "% ready" in body
+
+
+def test_dashboard_includes_royalty_forecast():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Royalty Forecast" in body
+    assert "Conservative" in body
+    assert "Aggressive" in body
+
+
+def test_dashboard_includes_catalog_value_tracker():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Catalog Value Tracker" in body
+    assert 'id="value-tracker-current"' in body
+
+
+def test_dashboard_includes_register_everywhere_wizard():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Register Everywhere Wizard" in body
+    assert 'id="wizard-song-select"' in body
+
+
+def test_dashboard_includes_documents_vault():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Documents Vault" in body
+    assert "Split Sheet" in body
+
+
+def test_dashboard_includes_exportable_reports():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Exportable Reports" in body
+    assert "Investor Snapshot" in body
+
+
+def test_dashboard_includes_since_last_login():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "What Changed Since Last Login" in body
+    assert "New Royalties" in body
+
+
+def test_dashboard_includes_rights_conflict_center():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Rights Conflict Center" in body
+
+
+def test_update_fix_status_route():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    import re
+    match = re.search(r'data-fix-id="([^"]+)"', body)
+    fix_id = match.group(1)
+    try:
+        response = client.post(f"/fixes/{fix_id}/status", json={"status": "Complete"})
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True, "status": "Complete"}
+    finally:
+        reset_fix_status_state()
+
+
+def test_update_fix_status_invalid_status_returns_400():
+    client = create_app().test_client()
+    response = client.post("/fixes/some-id/status", json={"status": "NotAStatus"})
+    assert response.status_code == 400
+
+
+def test_registration_wizard_route():
+    client = create_app().test_client()
+    response = client.get("/songs/midnight-drive/registration-wizard")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    assert data["wizard"]["song_id"] == "midnight-drive"
+
+
+def test_registration_wizard_unknown_song_returns_404():
+    client = create_app().test_client()
+    response = client.get("/songs/not-a-real-song/registration-wizard")
+    assert response.status_code == 404
+
+
+def test_complete_registration_wizard_step_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/songs/midnight-drive/registration-wizard/publishing_admin/complete")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["wizard"]["status"]["publishing_admin"] is True
+    finally:
+        reset_registration_wizard_state()
+
+
+def test_complete_registration_wizard_step_unknown_song_returns_404():
+    client = create_app().test_client()
+    response = client.post("/songs/not-a-real-song/registration-wizard/pro/complete")
+    assert response.status_code == 404
+
+
+def test_generate_report_route():
+    client = create_app().test_client()
+    response = client.post("/reports/royalty-report/generate")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    assert data["report"]["id"] == "royalty-report"
+
+
+def test_generate_report_unknown_id_returns_404():
+    client = create_app().test_client()
+    response = client.post("/reports/not-a-report/generate")
+    assert response.status_code == 404
