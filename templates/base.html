@@ -29,15 +29,418 @@
         <span class="text-xs tracking-tight text-gray-200">.street banker</span>
       </div>
       <nav class="space-y-1 text-sm">
-        <a href="/dashboard" class="flex items-center gap-2 rounded-md px-3 py-2 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3h6v6H3V3zm8 0h6v6h-6V3zM3 11h6v6H3v-6zm8 0h6v6h-6v-6z"/></svg>
-          Dashboard
+        {% set nav_items = [
+          ('overview', '/dashboard', 'M3 3h6v6H3V3zm8 0h6v6h-6V3zM3 11h6v6H3v-6zm8 0h6v6h-6v-6z', 'Overview'),
+          ('royalties', '/royalties', 'M12 3v12M12 15l-4-4M12 15l4-4|M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2', 'Royalties'),
+          ('catalog', '/catalog', 'M3 9h4M3 15h4M17 9h4M17 15h4|M7 4v16M17 4v16', 'Catalog'),
+          ('valuation', '/valuation', 'M3 17l6-6 4 4 8-8|M15 7h6v6', 'Valuation'),
+          ('settings', '/settings', 'M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z', 'Settings'),
+        ] %}
+        {% for key, href, path, label in nav_items %}
+        <a href="{{ href }}" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors {{ 'bg-white/5 text-white' if active_page == key else 'text-gray-400 hover:bg-white/5 hover:text-white' }}">
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            {% for d in path.split('|') %}<path d="{{ d }}"/>{% endfor %}
+          </svg>
+          {{ label }}
         </a>
+        {% endfor %}
       </nav>
     </aside>
     <main class="flex-1 p-8">
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  <div id="song-drawer-backdrop" class="fixed inset-0 z-40 hidden bg-black/70"></div>
+  <aside id="song-drawer" class="fixed right-0 top-0 z-50 h-full w-full max-w-md translate-x-full overflow-y-auto border-l border-white/10 bg-[#111113] p-6 transition-transform duration-300">
+    <div class="flex items-start justify-between">
+      <div>
+        <div id="song-drawer-title" class="text-lg font-bold tracking-tight"></div>
+        <div id="song-drawer-subtitle" class="mt-1 text-xs text-gray-500"></div>
+      </div>
+      <button type="button" id="song-drawer-close" class="rounded-md border border-white/10 p-1.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+
+    <div class="mt-5 grid grid-cols-2 gap-3 text-xs">
+      <div class="rounded-lg border border-white/5 bg-white/5 p-2.5"><div class="text-gray-600">ISRC</div><div id="song-drawer-isrc" class="mt-0.5 font-semibold"></div></div>
+      <div class="rounded-lg border border-white/5 bg-white/5 p-2.5"><div class="text-gray-600">ISWC</div><div id="song-drawer-iswc" class="mt-0.5 font-semibold"></div></div>
+      <div class="rounded-lg border border-white/5 bg-white/5 p-2.5"><div class="text-gray-600">UPC</div><div id="song-drawer-upc" class="mt-0.5 font-semibold"></div></div>
+      <div class="rounded-lg border border-white/5 bg-white/5 p-2.5"><div class="text-gray-600">Master Owner</div><div id="song-drawer-owner" class="mt-0.5 font-semibold"></div></div>
+    </div>
+
+    <div class="mt-5 grid grid-cols-2 gap-3">
+      <div class="rounded-lg border border-white/5 bg-white/5 p-3 text-center">
+        <div id="song-drawer-metadata-score" class="text-xl font-bold"></div>
+        <div class="text-[10px] uppercase tracking-widest text-gray-600">Metadata</div>
+      </div>
+      <div class="rounded-lg border border-white/5 bg-white/5 p-3 text-center">
+        <div id="song-drawer-registration-score" class="text-xl font-bold"></div>
+        <div class="text-[10px] uppercase tracking-widest text-gray-600">Registration</div>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Publishing Splits</div>
+      <div id="song-drawer-splits" class="mt-2 space-y-1.5"></div>
+      <div id="song-drawer-split-warning" class="mt-2 hidden text-[11px] font-semibold text-red-400"></div>
+      <form id="add-split-form" class="mt-3 space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="split-collaborator" placeholder="Collaborator name" required
+                 class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
+          <input type="text" id="split-role" placeholder="Role (e.g. Producer)" required
+                 class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
+        </div>
+        <div class="flex gap-2">
+          <input type="number" id="split-percentage" placeholder="%" min="0.01" max="100" step="0.01" required
+                 class="w-20 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
+          <button type="submit" class="flex-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+            Add Collaborator
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Platform Earnings</div>
+      <div id="song-drawer-earnings" class="mt-2 space-y-1.5"></div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Registration Checklist</div>
+      <div id="song-drawer-checklist" class="mt-2 grid grid-cols-2 gap-1.5"></div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Missing Royalty Issues</div>
+      <div id="song-drawer-issues" class="mt-2 space-y-1.5"></div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Recent Payouts</div>
+      <div id="song-drawer-payouts" class="mt-2 space-y-1.5"></div>
+    </div>
+
+    <div class="mt-6">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Recommended Actions</div>
+      <div id="song-drawer-actions" class="mt-2 space-y-1.5"></div>
+    </div>
+  </aside>
+
+  <script>
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+      ));
+    }
+
+    function fmtMoney(n) {
+      return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function flashHighlight(el) {
+      el.classList.add("ring-2", "ring-amber-400");
+      setTimeout(() => el.classList.remove("ring-2", "ring-amber-400"), 1500);
+    }
+
+    const CHECKLIST_LABELS = {
+      distribution: "Distribution", isrc: "ISRC", upc: "UPC", pro: "PRO",
+      publisher: "Publisher", mlc: "The MLC", soundexchange: "SoundExchange",
+      youtube_content_id: "YouTube Content ID", tiktok_meta_rights: "TikTok/Meta Rights",
+      split_confirmation: "Split Confirmation",
+    };
+    const CHECKLIST_ORDER = Object.keys(CHECKLIST_LABELS);
+
+    const ISSUE_ACTION_MAP = {
+      "Missing ISRC": "Assign an ISRC code",
+      "Missing ISWC": "Register for an ISWC",
+      "Missing UPC": "Assign a UPC code",
+      "No writers on file": "Add writer credits",
+      "No producers on file": "Add producer credits",
+      "No publisher on file": "Assign a publisher",
+      "Lyrics not on file": "Upload lyrics",
+      "No alternate titles logged": "Log alternate titles",
+      "Not registered with a distributor": "Submit to a distributor",
+      "Not registered with a PRO": "Register with a PRO",
+      "Not registered with The MLC": "Register with The MLC",
+      "Not registered with SoundExchange": "Register with SoundExchange",
+      "Not registered with YouTube Content ID": "Register with YouTube Content ID",
+      "TikTok/Meta rights not secured": "Secure TikTok/Meta rights",
+      "Splits not fully confirmed": "Confirm collaborator splits",
+    };
+
+    const songDrawer = document.getElementById("song-drawer");
+    const songDrawerBackdrop = document.getElementById("song-drawer-backdrop");
+
+    function scoreColor(pct) {
+      return pct >= 75 ? "text-green-400" : pct >= 50 ? "text-amber-400" : "text-red-400";
+    }
+
+    function renderKeyValueRow(left, right, rightCls) {
+      const row = document.createElement("div");
+      row.className = "flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs";
+      row.innerHTML = '<span class="text-gray-400">' + escapeHtml(left) + '</span><span class="font-semibold ' + (rightCls || "") + '">' + escapeHtml(String(right)) + "</span>";
+      return row;
+    }
+
+    let currentSongId = null;
+
+    function renderSplits(splits, splitTotal) {
+      const splitsEl = document.getElementById("song-drawer-splits");
+      const warnEl = document.getElementById("song-drawer-split-warning");
+      splitsEl.innerHTML = "";
+      if (splits.length === 0) {
+        splitsEl.innerHTML = '<div class="text-xs text-gray-600">No collaborators added yet.</div>';
+      } else {
+        splits.forEach((sp, index) => {
+          const row = document.createElement("div");
+          row.className = "flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs";
+          row.innerHTML =
+            '<div><div class="font-semibold">' + escapeHtml(sp.collaborator) + '</div><div class="text-gray-600">' + escapeHtml(sp.role) + "</div></div>" +
+            '<div class="flex items-center gap-1.5"><span class="font-semibold">' + sp.percentage + "%</span></div>";
+          const controls = row.lastElementChild;
+
+          const toggleBtn = document.createElement("button");
+          toggleBtn.type = "button";
+          toggleBtn.className = "rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition-colors " +
+            (sp.confirmed ? "bg-green-500/10 text-green-400 hover:bg-green-500/20" : "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20");
+          toggleBtn.textContent = sp.confirmed ? "Confirmed" : "Unconfirmed";
+          toggleBtn.addEventListener("click", async () => {
+            const res = await fetch(`/songs/${currentSongId}/splits/${index}/toggle`, { method: "POST" });
+            const data = await res.json();
+            if (res.ok && data.ok) renderSplits(data.splits, data.split_total);
+          });
+          controls.appendChild(toggleBtn);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "rounded-md px-1.5 py-0.5 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400";
+          removeBtn.textContent = "✕";
+          removeBtn.setAttribute("aria-label", "Remove collaborator");
+          removeBtn.addEventListener("click", async () => {
+            const res = await fetch(`/songs/${currentSongId}/splits/${index}/remove`, { method: "POST" });
+            const data = await res.json();
+            if (res.ok && data.ok) renderSplits(data.splits, data.split_total);
+          });
+          controls.appendChild(removeBtn);
+
+          splitsEl.appendChild(row);
+        });
+      }
+      if (splits.length > 0 && splitTotal !== 100) {
+        warnEl.textContent = "Splits total " + splitTotal + "% — should equal 100%.";
+        warnEl.classList.remove("hidden");
+      } else {
+        warnEl.classList.add("hidden");
+      }
+    }
+
+    async function openSongDrawer(songId) {
+      currentSongId = songId;
+      songDrawerBackdrop.classList.remove("hidden");
+      songDrawer.classList.remove("translate-x-full");
+      document.getElementById("song-drawer-title").textContent = "Loading...";
+      try {
+        const res = await fetch(`/songs/${songId}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) return;
+        const s = data.song;
+
+        document.getElementById("song-drawer-title").textContent = s.title;
+        document.getElementById("song-drawer-subtitle").textContent =
+          s.streams.toLocaleString() + " streams · " + fmtMoney(s.total_earned) + " earned";
+        document.getElementById("song-drawer-isrc").textContent = s.isrc || "Missing";
+        document.getElementById("song-drawer-iswc").textContent = s.iswc || "Missing";
+        document.getElementById("song-drawer-upc").textContent = s.upc || "Missing";
+        document.getElementById("song-drawer-owner").textContent = s.master_owner || "Unknown";
+
+        const metaEl = document.getElementById("song-drawer-metadata-score");
+        metaEl.textContent = s.metadata_score + "%";
+        metaEl.className = "text-xl font-bold " + scoreColor(s.metadata_score);
+        const regEl = document.getElementById("song-drawer-registration-score");
+        regEl.textContent = s.registration_score + "%";
+        regEl.className = "text-xl font-bold " + scoreColor(s.registration_score);
+
+        renderSplits(s.splits, s.split_total);
+
+        const earningsEl = document.getElementById("song-drawer-earnings");
+        earningsEl.innerHTML = "";
+        Object.entries(s.platform_earnings).sort((a, b) => b[1] - a[1]).forEach(([platform, amount]) => {
+          earningsEl.appendChild(renderKeyValueRow(platform, fmtMoney(amount), "text-amber-400"));
+        });
+        if (Object.keys(s.platform_earnings).length === 0) {
+          earningsEl.innerHTML = '<div class="text-xs text-gray-600">No platform earnings recorded.</div>';
+        }
+
+        const checklistEl = document.getElementById("song-drawer-checklist");
+        checklistEl.innerHTML = "";
+        CHECKLIST_ORDER.forEach((key) => {
+          const ok = !!s.check_status[key];
+          const chip = document.createElement("div");
+          chip.className = "flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] " +
+            (ok ? "border-green-500/20 bg-green-500/10 text-green-400" : "border-red-500/20 bg-red-500/10 text-red-400");
+          chip.innerHTML = (ok ? "✓ " : "✕ ") + escapeHtml(CHECKLIST_LABELS[key]);
+          checklistEl.appendChild(chip);
+        });
+
+        const issuesEl = document.getElementById("song-drawer-issues");
+        issuesEl.innerHTML = "";
+        if (s.missing_issues.length === 0) {
+          issuesEl.innerHTML = '<div class="text-xs text-green-400">No missing royalty issues detected.</div>';
+        } else {
+          s.missing_issues.forEach((issue) => {
+            const row = document.createElement("div");
+            row.className = "rounded-lg border border-red-500/10 bg-red-500/5 px-3 py-2 text-xs text-red-300";
+            row.textContent = issue;
+            issuesEl.appendChild(row);
+          });
+        }
+
+        const payoutsEl = document.getElementById("song-drawer-payouts");
+        payoutsEl.innerHTML = "";
+        if (s.recent_payouts.length === 0) {
+          payoutsEl.innerHTML = '<div class="text-xs text-gray-600">No payouts recorded for this song yet.</div>';
+        } else {
+          s.recent_payouts.forEach((p) => {
+            const row = document.createElement("div");
+            row.className = "flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs";
+            row.innerHTML = '<span class="text-gray-400">' + escapeHtml(p.platform) + " · " + escapeHtml(p.status) + '</span><span class="font-semibold">' + fmtMoney(p.amount) + "</span>";
+            payoutsEl.appendChild(row);
+          });
+        }
+
+        const actionsEl = document.getElementById("song-drawer-actions");
+        actionsEl.innerHTML = "";
+        const recs = s.missing_issues.slice(0, 4).map((issue) => ISSUE_ACTION_MAP[issue] || issue);
+        if (recs.length === 0) {
+          actionsEl.innerHTML = '<div class="text-xs text-gray-600">Nothing to do — this song is in great shape.</div>';
+        } else {
+          recs.forEach((action) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-left text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20";
+            btn.textContent = action;
+            actionsEl.appendChild(btn);
+          });
+        }
+      } catch (err) {
+        document.getElementById("song-drawer-title").textContent = "Failed to load song";
+      }
+    }
+
+    function closeSongDrawer() {
+      songDrawer.classList.add("translate-x-full");
+      songDrawerBackdrop.classList.add("hidden");
+    }
+
+    document.querySelectorAll(".song-row").forEach((row) => {
+      row.addEventListener("click", () => openSongDrawer(row.dataset.songId));
+    });
+    document.querySelectorAll(".song-view-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSongDrawer(btn.dataset.songId);
+      });
+    });
+    document.getElementById("song-drawer-close").addEventListener("click", closeSongDrawer);
+    songDrawerBackdrop.addEventListener("click", closeSongDrawer);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !songDrawer.classList.contains("translate-x-full")) closeSongDrawer();
+    });
+
+    document.getElementById("add-split-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentSongId) return;
+      const collaborator = document.getElementById("split-collaborator").value.trim();
+      const role = document.getElementById("split-role").value.trim();
+      const percentage = parseFloat(document.getElementById("split-percentage").value);
+      if (!collaborator || !role || !(percentage > 0)) return;
+      const res = await fetch(`/songs/${currentSongId}/splits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collaborator, role, percentage }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        renderSplits(data.splits, data.split_total);
+        e.target.reset();
+      }
+    });
+
+    document.querySelectorAll(".smart-rec-row").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.targetType;
+        const id = btn.dataset.targetId;
+        let target = null;
+        if (type === "alert") {
+          target = document.querySelector(`.alert-card[data-alert-id="${id}"]`);
+          if (!target) { window.location.href = "/royalties#royalty-leak-alerts"; return; }
+        } else if (type === "song") {
+          openSongDrawer(id);
+          target = document.querySelector(`.song-row[data-song-id="${id}"]`);
+        }
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          flashHighlight(target);
+        }
+      });
+    });
+
+    function slugify(text) {
+      return "royaltySweep.collapsed." + text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    }
+
+    document.querySelectorAll("main section").forEach((section) => {
+      const h2 = section.querySelector("h2");
+      if (!h2) return;
+
+      let headerBlock = h2;
+      while (headerBlock.parentElement !== section) headerBlock = headerBlock.parentElement;
+
+      const bodyElements = [...section.children].filter((el) => el !== headerBlock);
+      if (bodyElements.length === 0) return;
+
+      const key = slugify(h2.textContent.trim());
+      const chevron = document.createElement("span");
+      chevron.className = "section-chevron inline-block transition-transform";
+      chevron.style.marginRight = "0.5rem";
+      chevron.innerHTML = '<svg class="inline h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 011.4 0L10 10.6l3.3-3.3a1 1 0 111.4 1.4l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>';
+      h2.insertBefore(chevron, h2.firstChild);
+      h2.style.cursor = "pointer";
+      h2.classList.add("select-none");
+
+      function setCollapsed(collapsed) {
+        bodyElements.forEach((el) => { el.style.display = collapsed ? "none" : ""; });
+        chevron.style.transform = collapsed ? "rotate(-90deg)" : "rotate(0deg)";
+        section.classList.toggle("opacity-70", collapsed);
+      }
+
+      const stored = localStorage.getItem(key);
+      setCollapsed(stored === "true");
+
+      h2.addEventListener("click", () => {
+        const collapsed = bodyElements[0].style.display === "none";
+        const next = !collapsed;
+        setCollapsed(next);
+        localStorage.setItem(key, String(next));
+      });
+    });
+
+    if (window.location.hash) {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (target) {
+        if (target.classList.contains("opacity-70")) {
+          target.querySelector("h2")?.click();
+        }
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+          flashHighlight(target);
+        }, 50);
+      }
+    }
+  </script>
+
+  {% block scripts %}{% endblock %}
 </body>
 </html>
