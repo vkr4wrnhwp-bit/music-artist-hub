@@ -75,6 +75,27 @@ class SplitEntry:
 
 
 @dataclass
+class Recommendation:
+    id: str
+    reason: str
+    urgency: str  # High | Medium | Low
+    estimated_value: float
+    cta_label: str
+    target_type: str  # "alert" | "song"
+    target_id: str
+
+
+@dataclass
+class Claim:
+    id: str
+    source: str
+    issue_type: str
+    estimated_value: float
+    status: str  # Detected | Needs Info | Submitted | In Review | Approved | Paid | Rejected
+    recommended_action: str
+
+
+@dataclass
 class Song:
     id: str
     title: str
@@ -567,6 +588,56 @@ def get_missing_royalty_findings(catalog):
     return findings
 
 
+CLAIM_PIPELINE = ["Detected", "Needs Info", "Submitted", "In Review", "Approved", "Paid"]
+
+_claim_status_overrides = {}
+
+
+def get_claims(catalog):
+    findings = get_missing_royalty_findings(catalog)
+    claims = [
+        Claim(
+            id=f.id,
+            source=f.source,
+            issue_type=f.issue_type,
+            estimated_value=f.estimated_value,
+            status=_claim_status_overrides.get(f.id, "Detected"),
+            recommended_action=f.recommended_action,
+        )
+        for f in findings
+    ]
+    claims.sort(key=lambda c: c.estimated_value, reverse=True)
+    return claims
+
+
+def advance_claim(claim_id, catalog):
+    findings = get_missing_royalty_findings(catalog)
+    if not any(f.id == claim_id for f in findings):
+        return None
+    current = _claim_status_overrides.get(claim_id, "Detected")
+    if current in ("Paid", "Rejected"):
+        return current
+    idx = CLAIM_PIPELINE.index(current)
+    new_status = CLAIM_PIPELINE[min(idx + 1, len(CLAIM_PIPELINE) - 1)]
+    _claim_status_overrides[claim_id] = new_status
+    return new_status
+
+
+def reject_claim(claim_id, catalog):
+    findings = get_missing_royalty_findings(catalog)
+    if not any(f.id == claim_id for f in findings):
+        return None
+    current = _claim_status_overrides.get(claim_id, "Detected")
+    if current == "Paid":
+        return current
+    _claim_status_overrides[claim_id] = "Rejected"
+    return "Rejected"
+
+
+def reset_claim_state():
+    _claim_status_overrides.clear()
+
+
 _SEVERITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
 
@@ -654,3 +725,35 @@ def get_royalty_leak_alerts(balances, payouts, kpis, catalog):
 
     alerts.sort(key=lambda a: (_SEVERITY_ORDER.get(a.severity, 3), -a.estimated_impact))
     return alerts
+
+
+def get_smart_recommendations(alerts, songs, limit=5):
+    """Ranked, deduplicated action list: catalog-level alerts plus song-level
+    split risk (a signal no other section surfaces), sorted purely by
+    estimated financial impact so the highest-value action is always first.
+    """
+    recs = [
+        Recommendation(
+            id=f"alert-{a.id}",
+            reason=a.title,
+            urgency=a.severity,
+            estimated_value=a.estimated_impact,
+            cta_label=a.cta_label,
+            target_type="alert",
+            target_id=a.id,
+        )
+        for a in alerts
+    ]
+    for s in songs:
+        if s.splits and not splits_fully_confirmed(s):
+            recs.append(Recommendation(
+                id=f"splits-{s.id}",
+                reason=f'Unconfirmed splits on "{s.title}" put its earnings at risk',
+                urgency="Medium",
+                estimated_value=round(s.total_earned, 2),
+                cta_label="Confirm Splits",
+                target_type="song",
+                target_id=s.id,
+            ))
+    recs.sort(key=lambda r: r.estimated_value, reverse=True)
+    return recs[:limit]

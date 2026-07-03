@@ -3,6 +3,8 @@ from dataclasses import asdict
 from flask import Flask, jsonify, redirect, render_template
 
 from royalty_data import (
+    advance_claim,
+    get_claims,
     get_earnings_trend,
     get_health_factors,
     get_health_recommendations,
@@ -13,12 +15,14 @@ from royalty_data import (
     get_recent_payouts,
     get_royalty_goal,
     get_royalty_leak_alerts,
+    get_smart_recommendations,
     get_song,
     get_songs,
     get_payout_calendar,
     meter_lit_segments,
     metadata_completion_score,
     registration_checklist_score,
+    reject_claim,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
@@ -61,9 +65,12 @@ def build_dashboard_context():
     worst_metadata_songs = sorted(songs, key=metadata_completion_score)[:3]
 
     payout_calendar = get_payout_calendar()
+    claims = get_claims(catalog)
+    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
 
     return {
-        "alerts": get_royalty_leak_alerts(balances, payouts, kpis, catalog),
+        "alerts": alerts,
+        "smart_recommendations": get_smart_recommendations(alerts, songs),
         "platform_catalog": catalog,
         "health_score": royalty_health_score(health_factors),
         "health_factors": health_factors,
@@ -83,6 +90,7 @@ def build_dashboard_context():
         ],
         "payout_calendar": payout_calendar,
         "upcoming_payout_total": round(upcoming_payout_total(payout_calendar), 2),
+        "claims": claims,
     }
 
 
@@ -165,6 +173,20 @@ def create_app():
         if detail is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "song": detail})
+
+    @app.route("/claims/<claim_id>/advance", methods=["POST"])
+    def advance_claim_route(claim_id):
+        new_status = advance_claim(claim_id, get_platform_catalog())
+        if new_status is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "status": new_status})
+
+    @app.route("/claims/<claim_id>/reject", methods=["POST"])
+    def reject_claim_route(claim_id):
+        new_status = reject_claim(claim_id, get_platform_catalog())
+        if new_status is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "status": new_status})
 
     @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
     def resolve_alert(alert_id):

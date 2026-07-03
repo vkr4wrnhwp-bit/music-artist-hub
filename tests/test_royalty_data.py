@@ -6,9 +6,13 @@ from royalty_data import (
     Payout,
     PlatformBalance,
     PlatformConnection,
+    CLAIM_PIPELINE,
+    Alert,
     ScheduledPayout,
     Song,
     SplitEntry,
+    advance_claim,
+    get_claims,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
@@ -16,9 +20,12 @@ from royalty_data import (
     get_platform_balances,
     get_platform_catalog,
     get_royalty_leak_alerts,
+    get_smart_recommendations,
     get_song,
     get_songs,
     meter_lit_segments,
+    reject_claim,
+    reset_claim_state,
     metadata_completion_score,
     registration_checklist_score,
     reset_connection_state,
@@ -376,3 +383,122 @@ def test_upcoming_payout_total_excludes_paid_and_delayed():
         ScheduledPayout("d", "SESAC", 999.0, None, "Delayed"),
     ]
     assert upcoming_payout_total(payouts) == 150.0
+
+
+def test_get_claims_start_as_detected():
+    try:
+        claims = get_claims(get_platform_catalog())
+        assert len(claims) > 0
+        assert all(c.status == "Detected" for c in claims)
+    finally:
+        reset_claim_state()
+
+
+def test_get_claims_sorted_by_value_desc():
+    values = [c.estimated_value for c in get_claims(get_platform_catalog())]
+    assert values == sorted(values, reverse=True)
+
+
+def test_advance_claim_moves_through_pipeline():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for expected in CLAIM_PIPELINE[1:]:
+            new_status = advance_claim(claim_id, catalog)
+            assert new_status == expected
+    finally:
+        reset_claim_state()
+
+
+def test_advance_claim_stays_at_paid():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for _ in range(len(CLAIM_PIPELINE) + 3):
+            advance_claim(claim_id, catalog)
+        assert advance_claim(claim_id, catalog) == "Paid"
+    finally:
+        reset_claim_state()
+
+
+def test_advance_unknown_claim_returns_none():
+    assert advance_claim("not-a-real-claim", get_platform_catalog()) is None
+
+
+def test_reject_claim_sets_rejected():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        assert reject_claim(claim_id, catalog) == "Rejected"
+        assert get_claims(catalog)[0].status == "Rejected" or any(
+            c.id == claim_id and c.status == "Rejected" for c in get_claims(catalog)
+        )
+    finally:
+        reset_claim_state()
+
+
+def test_reject_claim_does_not_override_paid():
+    try:
+        catalog = get_platform_catalog()
+        claim_id = get_claims(catalog)[0].id
+        for _ in range(len(CLAIM_PIPELINE)):
+            advance_claim(claim_id, catalog)
+        assert reject_claim(claim_id, catalog) == "Paid"
+    finally:
+        reset_claim_state()
+
+
+def test_reject_unknown_claim_returns_none():
+    assert reject_claim("not-a-real-claim", get_platform_catalog()) is None
+
+
+def test_smart_recommendations_sorted_by_value_desc():
+    alerts = [
+        Alert("a1", "Small alert", "d", "Low", "SrcA", 50.0, "Fix", "done"),
+        Alert("a2", "Big alert", "d", "High", "SrcB", 900.0, "Fix", "done"),
+    ]
+    recs = get_smart_recommendations(alerts, [])
+    values = [r.estimated_value for r in recs]
+    assert values == sorted(values, reverse=True)
+    assert recs[0].reason == "Big alert"
+
+
+def test_smart_recommendations_includes_unconfirmed_split_risk():
+    song = Song(
+        id="x", title="X", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=["W"], producers=["P"], publisher="Pub", lyrics_on_file=True,
+        alternate_titles=[], registrations={}, total_earned=5000.0, streams=0,
+        platform_earnings={},
+        splits=[SplitEntry("A", "Writer", 50.0, True), SplitEntry("B", "Writer", 50.0, False)],
+        monthly_trend=[],
+    )
+    recs = get_smart_recommendations([], [song])
+    assert len(recs) == 1
+    assert recs[0].estimated_value == 5000.0
+    assert recs[0].target_type == "song"
+    assert recs[0].target_id == "x"
+
+
+def test_smart_recommendations_excludes_fully_confirmed_and_empty_splits():
+    confirmed = Song(
+        id="c", title="C", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=[], producers=[], publisher=None, lyrics_on_file=False,
+        alternate_titles=[], registrations={}, total_earned=999.0, streams=0,
+        platform_earnings={}, splits=[SplitEntry("A", "Writer", 100.0, True)],
+        monthly_trend=[],
+    )
+    no_splits = Song(
+        id="n", title="N", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=[], producers=[], publisher=None, lyrics_on_file=False,
+        alternate_titles=[], registrations={}, total_earned=999.0, streams=0,
+        platform_earnings={}, splits=[], monthly_trend=[],
+    )
+    assert get_smart_recommendations([], [confirmed, no_splits]) == []
+
+
+def test_smart_recommendations_respects_limit():
+    alerts = [
+        Alert(f"a{i}", f"Alert {i}", "d", "Low", "Src", float(100 - i), "Fix", "done")
+        for i in range(10)
+    ]
+    assert len(get_smart_recommendations(alerts, [], limit=3)) == 3
