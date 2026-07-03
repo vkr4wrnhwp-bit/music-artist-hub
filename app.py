@@ -15,6 +15,7 @@ from royalty_data import (
     get_recent_payouts,
     get_royalty_goal,
     get_royalty_leak_alerts,
+    get_smart_recommendations,
     get_song,
     get_songs,
     get_payout_calendar,
@@ -65,9 +66,11 @@ def build_dashboard_context():
 
     payout_calendar = get_payout_calendar()
     claims = get_claims(catalog)
+    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
 
     return {
-        "alerts": get_royalty_leak_alerts(balances, payouts, kpis, catalog),
+        "alerts": alerts,
+        "smart_recommendations": get_smart_recommendations(alerts, songs),
         "platform_catalog": catalog,
         "health_score": royalty_health_score(health_factors),
         "health_factors": health_factors,

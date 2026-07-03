@@ -80,6 +80,32 @@
   </section>
   {% endif %}
 
+  {% if smart_recommendations %}
+  {% set urgency_ui = {
+    'High':   'text-red-400',
+    'Medium': 'text-amber-400',
+    'Low':    'text-gray-400',
+  } %}
+  <section class="rounded-2xl border border-amber-500/10 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Smart Recommendations</h2>
+    <p class="mt-1 text-sm text-gray-500">Every open action across your account, ranked by estimated financial impact.</p>
+    <div class="mt-4 space-y-2">
+      {% for rec in smart_recommendations %}
+      <button type="button" class="smart-rec-row flex w-full items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-left transition-colors hover:bg-white/10"
+              data-target-type="{{ rec.target_type }}" data-target-id="{{ rec.target_id }}">
+        <span class="w-6 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-semibold">{{ rec.reason }}</span>
+          <span class="text-xs {{ urgency_ui.get(rec.urgency, 'text-gray-400') }}">{{ rec.urgency }} urgency</span>
+        </span>
+        <span class="shrink-0 text-sm font-bold text-amber-400">${{ "%.2f"|format(rec.estimated_value) }}</span>
+        <span class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400">{{ rec.cta_label }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <section class="relative overflow-hidden rounded-2xl border border-white/5 bg-[#111113] p-6"
            style="background-image: radial-gradient(120% 120% at 28% 30%, rgba(234,179,8,0.08), transparent 55%), repeating-linear-gradient(115deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 4px);">
     <span class="absolute left-3 top-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
@@ -1243,6 +1269,31 @@
     const rejectBtn = row.querySelector(".claim-reject-btn");
     if (advanceBtn) advanceBtn.addEventListener("click", () => postClaimAction(row, "advance"));
     if (rejectBtn) rejectBtn.addEventListener("click", () => postClaimAction(row, "reject"));
+  });
+
+  function flashHighlight(el) {
+    el.classList.add("ring-2", "ring-amber-400");
+    setTimeout(() => el.classList.remove("ring-2", "ring-amber-400"), 1500);
+  }
+
+  document.querySelectorAll(".smart-rec-row").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const type = btn.dataset.targetType;
+      const id = btn.dataset.targetId;
+      let target = null;
+      if (type === "alert") {
+        target = document.querySelector(`.alert-card[data-alert-id="${id}"]`);
+      } else if (type === "song") {
+        target = document.querySelector(`.song-row[data-song-id="${id}"]`);
+        if (target) {
+          openSongDrawer(id);
+        }
+      }
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        flashHighlight(target);
+      }
+    });
   });
 </script>
 {% endblock %}

@@ -182,3 +182,10 @@ def test_advance_unknown_claim_returns_404():
     client = create_app().test_client()
     response = client.post("/claims/not-a-real-claim/advance")
     assert response.status_code == 404
+
+
+def test_dashboard_includes_smart_recommendations():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Smart Recommendations" in body
+    assert "urgency" in body
