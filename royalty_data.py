@@ -450,6 +450,58 @@ def royalty_progress(total, goal):
     return min(total / goal, 1.0)
 
 
+CATALOG_VALUE_MULTIPLES = {"low": 8, "mid": 12, "high": 16}
+
+
+def estimate_catalog_value(earnings_trend, multiples=None):
+    multiples = multiples or CATALOG_VALUE_MULTIPLES
+    values = [v for _, v in earnings_trend]
+    monthly_avg = sum(values) / len(values) if values else 0.0
+    annual_run_rate = monthly_avg * 12
+    return {
+        "annual_run_rate": round(annual_run_rate, 2),
+        "low": round(annual_run_rate * multiples["low"], 2),
+        "mid": round(annual_run_rate * multiples["mid"], 2),
+        "high": round(annual_run_rate * multiples["high"], 2),
+        "multiples": multiples,
+    }
+
+
+def assess_advance_eligibility(earnings_trend, payout_calendar, catalog_value_mid, total_royalties_collected):
+    values = [v for _, v in earnings_trend]
+    if values and values[0] > 0:
+        trend_growth = (values[-1] - values[0]) / values[0]
+    else:
+        trend_growth = 0.0
+    trend_score = min(max(trend_growth, 0.0), 1.0)
+
+    statuses = [p.status for p in payout_calendar]
+    non_delayed = sum(1 for s in statuses if s != "Delayed")
+    consistency_score = (non_delayed / len(statuses)) if statuses else 0.0
+
+    history_score = min(total_royalties_collected / 20000, 1.0)
+
+    overall = round((trend_score * 0.4 + consistency_score * 0.35 + history_score * 0.25) * 100)
+
+    if overall >= 70:
+        tier = "Eligible"
+    elif overall >= 45:
+        tier = "Eligible with conditions"
+    else:
+        tier = "Not yet eligible"
+
+    suggested_advance = round(catalog_value_mid * (overall / 100) * 0.25, 2)
+
+    return {
+        "score": overall,
+        "tier": tier,
+        "trend_score": round(trend_score * 100),
+        "consistency_score": round(consistency_score * 100),
+        "history_score": round(history_score * 100),
+        "suggested_advance": suggested_advance,
+    }
+
+
 def meter_lit_segments(amount, max_amount, segments=12):
     if max_amount <= 0:
         return 0
