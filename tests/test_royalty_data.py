@@ -6,17 +6,27 @@ from royalty_data import (
     Payout,
     PlatformBalance,
     PlatformConnection,
+    Song,
+    SplitEntry,
     get_health_factors,
     get_health_recommendations,
     get_missing_royalty_findings,
     get_platform_balances,
     get_platform_catalog,
     get_royalty_leak_alerts,
+    get_song,
+    get_songs,
     meter_lit_segments,
+    metadata_completion_score,
+    registration_checklist_score,
     reset_connection_state,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
+    song_check_status,
+    song_missing_issues,
+    split_total_percentage,
+    splits_fully_confirmed,
     total_royalties,
 )
 
@@ -248,3 +258,97 @@ def test_connected_source_deep_scan_finding_present():
     findings = get_missing_royalty_findings(get_platform_catalog())
     mlc = [f for f in findings if f.source == "The MLC"]
     assert any(f.issue_type == "Unclaimed mechanical royalties" for f in mlc)
+
+
+def test_get_songs_returns_expected_titles():
+    titles = [s.title for s in get_songs()]
+    assert "Midnight Drive" in titles
+    assert "City Lights" in titles
+    assert len(titles) >= 5
+
+
+def test_get_song_by_id():
+    song = get_song("midnight-drive")
+    assert song is not None
+    assert song.title == "Midnight Drive"
+
+
+def test_get_song_unknown_id_returns_none():
+    assert get_song("not-a-real-song") is None
+
+
+def test_split_total_percentage_sums_to_100_when_complete():
+    song = next(s for s in get_songs() if s.id == "midnight-drive")
+    assert split_total_percentage(song) == 100.0
+
+
+def test_splits_fully_confirmed_true_when_all_confirmed():
+    complete = Song(
+        id="x", title="X", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=["W"], producers=["P"], publisher="Pub", lyrics_on_file=True,
+        alternate_titles=[], registrations={}, total_earned=0, streams=0,
+        platform_earnings={}, splits=[SplitEntry("A", "Writer", 100.0, True)],
+        monthly_trend=[],
+    )
+    assert splits_fully_confirmed(complete) is True
+
+
+def test_splits_fully_confirmed_false_when_any_unconfirmed():
+    partial = Song(
+        id="x", title="X", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=["W"], producers=["P"], publisher="Pub", lyrics_on_file=True,
+        alternate_titles=[], registrations={}, total_earned=0, streams=0,
+        platform_earnings={},
+        splits=[SplitEntry("A", "Writer", 50.0, True), SplitEntry("B", "Writer", 50.0, False)],
+        monthly_trend=[],
+    )
+    assert splits_fully_confirmed(partial) is False
+
+
+def test_splits_fully_confirmed_false_when_no_splits():
+    empty = Song(
+        id="x", title="X", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=["W"], producers=["P"], publisher="Pub", lyrics_on_file=True,
+        alternate_titles=[], registrations={}, total_earned=0, streams=0,
+        platform_earnings={}, splits=[], monthly_trend=[],
+    )
+    assert splits_fully_confirmed(empty) is False
+
+
+def test_song_check_status_all_true_for_fully_complete_song():
+    complete = Song(
+        id="x", title="X", isrc="A", iswc="B", upc="C", master_owner="M",
+        writers=["W"], producers=["P"], publisher="Pub", lyrics_on_file=True,
+        alternate_titles=["Alt"],
+        registrations={
+            "distribution": True, "pro": True, "mlc": True,
+            "soundexchange": True, "youtube_content_id": True, "tiktok_meta_rights": True,
+        },
+        total_earned=0, streams=0, platform_earnings={},
+        splits=[SplitEntry("A", "Writer", 100.0, True)], monthly_trend=[],
+    )
+    status = song_check_status(complete)
+    assert all(status.values())
+    assert song_missing_issues(complete) == []
+    assert metadata_completion_score(complete) == 1.0
+    assert registration_checklist_score(complete) == 1.0
+
+
+def test_song_check_status_empty_song_all_false():
+    empty = Song(
+        id="x", title="X", isrc=None, iswc=None, upc=None, master_owner="M",
+        writers=[], producers=[], publisher=None, lyrics_on_file=False,
+        alternate_titles=[], registrations={}, total_earned=0, streams=0,
+        platform_earnings={}, splits=[], monthly_trend=[],
+    )
+    status = song_check_status(empty)
+    assert not any(status.values())
+    assert len(song_missing_issues(empty)) == len(status)
+    assert metadata_completion_score(empty) == 0.0
+    assert registration_checklist_score(empty) == 0.0
+
+
+def test_metadata_and_registration_scores_within_range():
+    for song in get_songs():
+        assert 0.0 <= metadata_completion_score(song) <= 1.0
+        assert 0.0 <= registration_checklist_score(song) <= 1.0

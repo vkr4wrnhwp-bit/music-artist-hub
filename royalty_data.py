@@ -65,6 +65,35 @@ class Finding:
     recommended_action: str
 
 
+@dataclass
+class SplitEntry:
+    collaborator: str
+    role: str
+    percentage: float
+    confirmed: bool
+
+
+@dataclass
+class Song:
+    id: str
+    title: str
+    isrc: str
+    iswc: str
+    upc: str
+    master_owner: str
+    writers: list
+    producers: list
+    publisher: str
+    lyrics_on_file: bool
+    alternate_titles: list
+    registrations: dict  # distribution|pro|mlc|soundexchange|youtube_content_id|tiktok_meta_rights -> bool
+    total_earned: float
+    streams: int
+    platform_earnings: dict
+    splits: list  # list[SplitEntry]
+    monthly_trend: list
+
+
 _DEFAULT_PLATFORMS = [
     PlatformConnection("spotify", "Spotify", "Streaming Royalties", 2500.00, "connected"),
     PlatformConnection("apple-music", "Apple Music", "Streaming Royalties", 1234.56, "connected"),
@@ -79,6 +108,18 @@ _DEFAULT_PLATFORMS = [
     PlatformConnection("tidal", "Tidal", "Streaming Royalties", 95.20, "error"),
     PlatformConnection("pandora", "Pandora", "Digital Performance Royalties", 150.00, "not_connected"),
     PlatformConnection("ppl", "PPL", "Performance Royalties", 320.90, "not_connected"),
+    PlatformConnection("youtube-content-id", "YouTube Content ID", "Sync Royalties", 480.00, "not_connected"),
+    PlatformConnection("distrokid", "DistroKid", "Distribution Royalties", 275.40, "connected"),
+    PlatformConnection("tunecore", "TuneCore", "Distribution Royalties", 190.15, "not_connected"),
+    PlatformConnection("cd-baby", "CD Baby", "Distribution Royalties", 88.60, "not_connected"),
+    PlatformConnection("unitedmasters", "UnitedMasters", "Distribution Royalties", 132.75, "not_connected"),
+    PlatformConnection("meta", "Meta", "Sync Royalties", 64.20, "not_connected"),
+    PlatformConnection("tiktok", "TikTok", "Sync Royalties", 340.90, "syncing"),
+    PlatformConnection("twitch", "Twitch", "Streaming Royalties", 41.30, "not_connected"),
+    PlatformConnection("bandcamp", "Bandcamp", "Streaming Royalties", 210.00, "connected"),
+    PlatformConnection("beatstars", "BeatStars", "Licensing Royalties", 155.50, "not_connected"),
+    PlatformConnection("songtrust", "Songtrust", "Publishing Royalties", 265.90, "needs_login"),
+    PlatformConnection("harry-fox-agency", "Harry Fox Agency", "Mechanical Royalties", 175.25, "not_connected"),
 ]
 
 _status_overrides = {}
@@ -141,6 +182,208 @@ def get_recent_payouts():
         Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
         Payout("City Lights", "ASCAP", "Processing", 350.00),
     ]
+
+
+_SONGS = [
+    Song(
+        id="midnight-drive",
+        title="Midnight Drive",
+        isrc="USRC12345678",
+        iswc="T-034.524.680-1",
+        upc="810012345671",
+        master_owner="Synthwave Surfer",
+        writers=["Synthwave Surfer", "Jamie Rowe"],
+        producers=["Synthwave Surfer"],
+        publisher="Street Banker Publishing",
+        lyrics_on_file=True,
+        alternate_titles=[],
+        registrations={
+            "distribution": True, "pro": True, "mlc": True,
+            "soundexchange": True, "youtube_content_id": True, "tiktok_meta_rights": False,
+        },
+        total_earned=4120.55,
+        streams=5_200_000,
+        platform_earnings={"Spotify": 2450.00, "Apple Music": 890.55, "ASCAP": 780.00},
+        splits=[
+            SplitEntry("Synthwave Surfer", "Writer/Performer", 70.0, True),
+            SplitEntry("Jamie Rowe", "Co-Writer", 20.0, True),
+            SplitEntry("Street Banker Publishing", "Publisher", 10.0, True),
+        ],
+        monthly_trend=[520, 610, 700, 780, 820, 890],
+    ),
+    Song(
+        id="neon-dreams",
+        title="Neon Dreams",
+        isrc="USRC12345679",
+        iswc=None,
+        upc="810012345672",
+        master_owner="Synthwave Surfer",
+        writers=["Synthwave Surfer"],
+        producers=["Marco Velocity"],
+        publisher="Street Banker Publishing",
+        lyrics_on_file=True,
+        alternate_titles=["Neon Dreams (Extended Mix)"],
+        registrations={
+            "distribution": True, "pro": True, "mlc": False,
+            "soundexchange": True, "youtube_content_id": False, "tiktok_meta_rights": False,
+        },
+        total_earned=2340.10,
+        streams=3_100_000,
+        platform_earnings={"Apple Music": 1234.56, "Spotify": 1105.54},
+        splits=[
+            SplitEntry("Synthwave Surfer", "Writer/Performer", 60.0, True),
+            SplitEntry("Marco Velocity", "Producer", 40.0, False),
+        ],
+        monthly_trend=[310, 340, 360, 400, 410, 430],
+    ),
+    Song(
+        id="city-lights",
+        title="City Lights",
+        isrc=None,
+        iswc=None,
+        upc=None,
+        master_owner="Synthwave Surfer",
+        writers=["Synthwave Surfer", "Lila Rose"],
+        producers=[],
+        publisher=None,
+        lyrics_on_file=False,
+        alternate_titles=[],
+        registrations={
+            "distribution": True, "pro": False, "mlc": False,
+            "soundexchange": False, "youtube_content_id": False, "tiktok_meta_rights": False,
+        },
+        total_earned=350.00,
+        streams=980_000,
+        platform_earnings={"ASCAP": 350.00},
+        splits=[
+            SplitEntry("Synthwave Surfer", "Writer/Performer", 50.0, False),
+            SplitEntry("Lila Rose", "Featured Vocalist", 50.0, False),
+        ],
+        monthly_trend=[40, 55, 60, 70, 62, 63],
+    ),
+    Song(
+        id="digital-paradise",
+        title="Digital Paradise",
+        isrc="USRC12345680",
+        iswc="T-034.524.681-2",
+        upc="810012345673",
+        master_owner="Synthwave Surfer",
+        writers=["Synthwave Surfer"],
+        producers=["Synthwave Surfer", "DJ Codec"],
+        publisher="Street Banker Publishing",
+        lyrics_on_file=False,
+        alternate_titles=[],
+        registrations={
+            "distribution": True, "pro": True, "mlc": True,
+            "soundexchange": True, "youtube_content_id": True, "tiktok_meta_rights": True,
+        },
+        total_earned=1980.75,
+        streams=2_500_000,
+        platform_earnings={"Spotify": 980.00, "SoundExchange": 620.75, "BMI": 380.00},
+        splits=[
+            SplitEntry("Synthwave Surfer", "Writer/Performer", 100.0, True),
+        ],
+        monthly_trend=[260, 280, 300, 330, 340, 350],
+    ),
+    Song(
+        id="velvet-static",
+        title="Velvet Static",
+        isrc=None,
+        iswc=None,
+        upc=None,
+        master_owner="Synthwave Surfer",
+        writers=[],
+        producers=[],
+        publisher=None,
+        lyrics_on_file=False,
+        alternate_titles=["Velvet Static (Demo)"],
+        registrations={
+            "distribution": False, "pro": False, "mlc": False,
+            "soundexchange": False, "youtube_content_id": False, "tiktok_meta_rights": False,
+        },
+        total_earned=95.20,
+        streams=210_000,
+        platform_earnings={"Tidal": 95.20},
+        splits=[],
+        monthly_trend=[10, 12, 15, 14, 18, 20],
+    ),
+]
+
+
+def get_songs():
+    return list(_SONGS)
+
+
+def get_song(song_id):
+    return next((s for s in _SONGS if s.id == song_id), None)
+
+
+def split_total_percentage(song):
+    return sum(s.percentage for s in song.splits)
+
+
+def splits_fully_confirmed(song):
+    return bool(song.splits) and all(s.confirmed for s in song.splits)
+
+
+_METADATA_CHECK_KEYS = [
+    "isrc", "iswc", "upc", "writers", "producers", "publisher",
+    "pro", "mlc", "soundexchange", "lyrics", "alternate_titles",
+]
+
+_REGISTRATION_CHECK_KEYS = [
+    "distribution", "isrc", "upc", "pro", "publisher",
+    "mlc", "soundexchange", "youtube_content_id", "tiktok_meta_rights", "split_confirmation",
+]
+
+
+def song_check_status(song):
+    """Single source of truth: every checklist item this song could be scored on."""
+    return {
+        "isrc": bool(song.isrc),
+        "iswc": bool(song.iswc),
+        "upc": bool(song.upc),
+        "writers": bool(song.writers),
+        "producers": bool(song.producers),
+        "publisher": bool(song.publisher),
+        "lyrics": song.lyrics_on_file,
+        "alternate_titles": bool(song.alternate_titles),
+        "distribution": song.registrations.get("distribution", False),
+        "pro": song.registrations.get("pro", False),
+        "mlc": song.registrations.get("mlc", False),
+        "soundexchange": song.registrations.get("soundexchange", False),
+        "youtube_content_id": song.registrations.get("youtube_content_id", False),
+        "tiktok_meta_rights": song.registrations.get("tiktok_meta_rights", False),
+        "split_confirmation": splits_fully_confirmed(song),
+    }
+
+
+def song_missing_issues(song):
+    status = song_check_status(song)
+    labels = {
+        "isrc": "Missing ISRC", "iswc": "Missing ISWC", "upc": "Missing UPC",
+        "writers": "No writers on file", "producers": "No producers on file",
+        "publisher": "No publisher on file", "lyrics": "Lyrics not on file",
+        "alternate_titles": "No alternate titles logged",
+        "distribution": "Not registered with a distributor", "pro": "Not registered with a PRO",
+        "mlc": "Not registered with The MLC", "soundexchange": "Not registered with SoundExchange",
+        "youtube_content_id": "Not registered with YouTube Content ID",
+        "tiktok_meta_rights": "TikTok/Meta rights not secured",
+        "split_confirmation": "Splits not fully confirmed",
+    }
+    return [labels[key] for key, ok in status.items() if not ok]
+
+
+def metadata_completion_score(song):
+    status = song_check_status(song)
+    checks = [status[k] for k in _METADATA_CHECK_KEYS]
+    return sum(checks) / len(checks)
+
+
+def registration_checklist_score(song):
+    status = song_check_status(song)
+    checks = [status[k] for k in _REGISTRATION_CHECK_KEYS]
+    return sum(checks) / len(checks)
 
 
 def get_royalty_goal():
