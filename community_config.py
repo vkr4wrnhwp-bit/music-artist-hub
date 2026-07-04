@@ -69,22 +69,7 @@ def get_marketplace_data():
     }
 
 
-# ---- Network ----------------------------------------------------------------
-
-def get_network_data():
-    people = [
-        {"name": "Nova Reign", "type": "Artist", "genre": "Synthwave", "listeners": 128000, "action": "Connect"},
-        {"name": "Kilo Byte", "type": "Producer", "genre": "Electronic", "listeners": 54000, "action": "Pitch"},
-        {"name": "Marco Velocity", "type": "Producer", "genre": "House", "listeners": 89000, "action": "Connect"},
-        {"name": "Lila Rose", "type": "Songwriter", "genre": "Pop", "listeners": 32000, "action": "Pitch"},
-        {"name": "Nightdrive Records", "type": "Label", "genre": "Synthwave", "listeners": 410000, "action": "Pitch"},
-        {"name": "DJ Codec", "type": "Artist", "genre": "Techno", "listeners": 76000, "action": "Connect"},
-    ]
-    return {
-        "summary": {"total": len(people), "types": len({p["type"] for p in people})},
-        "people": people,
-        "types": ["Artist", "Producer", "Songwriter", "Label"],
-    }
+# ---- Network moved to network_config.py (rich directory + playlists) --------
 
 
 # ---- Fan Label --------------------------------------------------------------

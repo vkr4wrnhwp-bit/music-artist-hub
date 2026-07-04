@@ -1152,6 +1152,51 @@ def test_landing_links_to_label_services():
     assert 'href="/services"' in body
 
 
+def test_network_directory_filters_and_sort():
+    from network_config import get_network_data, reset_network_state
+    reset_network_state()
+    client = create_app().test_client()
+    assert client.get("/network").status_code == 200
+    # Role filter narrows results to that role only.
+    data = get_network_data({"role": "Producer"})
+    assert data["people"] and all(p["role"] == "Producer" for p in data["people"])
+    # Genre filter.
+    house = get_network_data({"genre": "House"})
+    assert all("House" in p["genres"] for p in house["people"])
+    # Name sort is alphabetical.
+    names = [p["name"] for p in get_network_data({"sort": "name"})["people"]]
+    assert names == sorted(names, key=str.lower)
+    # Search matches location/role/genre text.
+    assert get_network_data({"q": "berlin"})["result_count"] >= 1
+
+
+def test_network_profile_and_playlist_pages():
+    client = create_app().test_client()
+    assert client.get("/network/nova-reign").status_code == 200
+    assert client.get("/network/does-not-exist").status_code == 302  # redirect to /network
+    assert client.get("/network/playlist/late-night-synth").status_code == 200
+    assert client.get("/network/playlist/nope").status_code == 302
+    body = client.get("/network/echo-lin").get_data(as_text=True)
+    assert "Late Night Synth" in body  # curator's playlist listed on profile
+
+
+def test_network_connect_pitch_submit_flows():
+    from network_config import reset_network_state
+    reset_network_state()
+    client = create_app().test_client()
+    assert client.post("/network/kilo-byte/connect").get_json()["status"] == "Pending"
+    assert client.post("/network/nope/connect").status_code == 404
+    assert client.post("/network/kilo-byte/pitch", json={"song": "Midnight Drive"}).get_json()["ok"]
+    # Submit to an open playlist works; closed one is rejected.
+    assert client.post("/network/playlist/late-night-synth/submit", json={"song": "Midnight Drive"}).get_json()["ok"]
+    assert client.post("/network/playlist/chill-drive/submit", json={"song": "X"}).status_code == 400
+    assert client.post("/network/playlist/late-night-synth/submit", json={"song": ""}).status_code == 400
+    # My Network reflects the connection + submission.
+    my = client.get("/network?tab=my").get_data(as_text=True)
+    assert "Kilo Byte" in my and "Late Night Synth" in my
+    reset_network_state()
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

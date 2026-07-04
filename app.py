@@ -37,10 +37,17 @@ from label_config import get_label_data, get_service, BRAND as LABEL_BRAND
 from community_config import (
     get_marketplace_data,
     post_request,
-    get_network_data,
     get_fan_label_data,
     vote_demo,
     get_fan_dashboard_data,
+)
+from network_config import (
+    get_network_data,
+    get_profile,
+    get_playlist,
+    connect as network_connect_action,
+    pitch as network_pitch_action,
+    submit_to_playlist,
 )
 
 from royalty_data import (
@@ -514,8 +521,50 @@ def create_app():
     @app.route("/network")
     def network():
         ctx = build_dashboard_context()
-        ctx["network"] = get_network_data()
+        ctx["network"] = get_network_data(request.args)
         return render_template("network.html", active_page="network", **ctx)
+
+    @app.route("/network/playlist/<playlist_id>")
+    def network_playlist(playlist_id):
+        pl = get_playlist(playlist_id)
+        if pl is None:
+            return redirect(url_for("network"))
+        ctx = build_dashboard_context()
+        ctx["playlist"] = pl
+        ctx["curator"] = get_profile(pl["curator_id"])
+        return render_template("network_playlist.html", active_page="network", **ctx)
+
+    @app.route("/network/playlist/<playlist_id>/submit", methods=["POST"])
+    def network_submit_route(playlist_id):
+        data = request.get_json(silent=True) or {}
+        entry = submit_to_playlist(playlist_id, data.get("song"), data.get("message"))
+        if entry is None:
+            return jsonify({"ok": False, "error": "This playlist isn't accepting submissions, or no track was selected."}), 400
+        return jsonify({"ok": True})
+
+    @app.route("/network/<profile_id>")
+    def network_profile(profile_id):
+        profile = get_profile(profile_id)
+        if profile is None:
+            return redirect(url_for("network"))
+        ctx = build_dashboard_context()
+        ctx["profile"] = profile
+        return render_template("network_profile.html", active_page="network", **ctx)
+
+    @app.route("/network/<profile_id>/connect", methods=["POST"])
+    def network_connect_route(profile_id):
+        status = network_connect_action(profile_id)
+        if status is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "status": status})
+
+    @app.route("/network/<profile_id>/pitch", methods=["POST"])
+    def network_pitch_route(profile_id):
+        data = request.get_json(silent=True) or {}
+        entry = network_pitch_action(profile_id, data.get("message"), data.get("song"))
+        if entry is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
 
     @app.route("/fan-label")
     def fan_label():

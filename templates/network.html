@@ -4,63 +4,147 @@
 
 {% set nw = network %}
 
+{% macro role_badge(role) %}
+<span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ role }}</span>
+{% endmacro %}
+
+{% macro verified(p) %}
+{% if p.verified %}<svg class="h-3.5 w-3.5 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor" title="Verified"><path d="M10 1l2.4 1.8 3 .1 1 2.8 2.4 1.7-.9 2.9.9 2.9-2.4 1.7-1 2.8-3 .1L10 19l-2.4-1.8-3-.1-1-2.8L1.2 12.6l.9-2.9-.9-2.9 2.4-1.7 1-2.8 3-.1z"/><path d="M7 10l2 2 4-4" fill="none" stroke="#141210" stroke-width="1.5"/></svg>{% endif %}
+{% endmacro %}
+
 {% block content %}
-<div class="mx-auto max-w-[1200px] space-y-5">
+<div class="mx-auto max-w-[1400px] space-y-5">
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Network</h1>
-    <p class="mt-1 text-sm text-gray-500">Artists, producers, songwriters, and labels to connect and collaborate with.</p>
+    <p class="mt-1 text-sm text-gray-500">Find collaborators, labels, curators, and industry contacts — connect, pitch, and submit to playlists.</p>
   </div>
 
-  <div class="flex flex-wrap gap-1.5" id="type-filter">
-    <button type="button" class="net-filter-btn rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-400" data-type="All">All</button>
-    {% for t in nw.types %}
-    <button type="button" class="net-filter-btn rounded-md border border-white/10 px-3 py-1 text-[11px] font-semibold text-gray-400 hover:text-gray-200" data-type="{{ t }}">{{ t }}</button>
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Contacts</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.total }}</div></div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Roles</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.roles }}</div></div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Playlists Accepting</div><div class="mt-2 text-2xl font-bold tabular-nums text-green-400">{{ nw.summary.accepting }}</div></div>
+    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">My Connections</div><div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ nw.summary.connections }}</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex flex-wrap gap-1.5 border-b border-white/5">
+    {% for t, label in [('directory','Directory'), ('playlists','Playlists'), ('my','My Network')] %}
+    <a href="/network?tab={{ t }}" class="-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors {{ 'border-amber-400 text-amber-400' if nw.tab == t else 'border-transparent text-gray-500 hover:text-gray-300' }}">{{ label }}</a>
     {% endfor %}
   </div>
 
-  <div id="network-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+  {% if nw.tab == 'directory' %}
+  <!-- Search + filters + sort -->
+  <form method="get" action="/network" class="flex flex-wrap items-center gap-2">
+    <input type="hidden" name="tab" value="directory">
+    <div class="flex min-w-[200px] flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 focus-within:border-amber-500/40">
+      <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M17 17l-4-4"/></svg>
+      <input name="q" value="{{ nw.filters.q }}" placeholder="Search name, role, genre, city…" class="w-full min-w-0 bg-transparent text-sm text-gray-100 placeholder-gray-600 focus:outline-none">
+    </div>
+    <select name="role" onchange="this.form.submit()" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none">
+      {% for r in nw.roles %}<option value="{{ r }}" {{ 'selected' if r == nw.filters.role }}>{{ 'All roles' if r == 'All' else r }}</option>{% endfor %}
+    </select>
+    <select name="genre" onchange="this.form.submit()" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none">
+      {% for g in nw.genres %}<option value="{{ g }}" {{ 'selected' if g == nw.filters.genre }}>{{ 'All genres' if g == 'All' else g }}</option>{% endfor %}
+    </select>
+    <select name="sort" onchange="this.form.submit()" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none">
+      {% for s in nw.sorts %}<option value="{{ s.id }}" {{ 'selected' if s.id == nw.filters.sort }}>{{ s.label }}</option>{% endfor %}
+    </select>
+  </form>
+
+  <div class="text-[11px] text-gray-600">{{ nw.result_count }} result{{ '' if nw.result_count == 1 else 's' }}</div>
+
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for p in nw.people %}
-    <div class="net-card rounded-2xl border border-white/5 bg-[#111113] p-5" data-type="{{ p.type }}">
-      <div class="flex items-center gap-3">
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-amber-500/40 text-sm font-bold text-amber-400">
-          {{ p.name.split(' ')|map('first')|join|upper }}
-        </span>
-        <div class="min-w-0">
-          <div class="truncate text-sm font-semibold text-gray-100">{{ p.name }}</div>
-          <div class="text-[11px] text-gray-500">{{ p.type }} · {{ p.genre }}</div>
+    <div class="flex flex-col rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-start gap-3">
+        <a href="/network/{{ p.id }}" class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-amber-500/40 text-sm font-bold text-amber-400">{{ p.initials }}</a>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5">
+            <a href="/network/{{ p.id }}" class="truncate text-sm font-semibold text-gray-100 hover:text-amber-400">{{ p.name }}</a>
+            {{ verified(p) }}
+          </div>
+          <div class="mt-0.5 flex flex-wrap items-center gap-1.5">{{ role_badge(p.role) }}<span class="text-[11px] text-gray-500">{{ p.location }}</span></div>
         </div>
       </div>
-      <div class="mt-3 text-[11px] text-gray-500">{{ "{:,}".format(p.listeners) }} monthly listeners</div>
-      <button type="button" class="net-action-btn mt-3 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20">{{ p.action }}</button>
+      <p class="mt-3 flex-1 text-xs text-gray-400">{{ p.tagline }}</p>
+      <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
+        {% for g in p.genres %}<span class="rounded border border-white/10 px-1.5 py-0.5">{{ g }}</span>{% endfor %}
+      </div>
+      <div class="mt-3 flex items-center justify-between">
+        <span class="text-[11px] text-gray-500">{{ "{:,}".format(p.followers) }} followers</span>
+        {% if p.available %}<span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-400"></span>Available</span>{% else %}<span class="text-[10px] text-gray-600">Booked</span>{% endif %}
+      </div>
+      <a href="/network/{{ p.id }}" class="mt-3 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+        {{ 'Connected' if p.connection == 'Connected' else ('Pending' if p.connection else 'View Profile') }}
+      </a>
     </div>
     {% endfor %}
+    {% if not nw.people %}
+    <div class="rounded-xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-600 sm:col-span-2 lg:col-span-3">No contacts match those filters.</div>
+    {% endif %}
   </div>
-  <p class="px-1 text-[11px] text-gray-600">Illustrative demo directory.</p>
+
+  {% elif nw.tab == 'playlists' %}
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {% for pl in nw.playlists %}
+    <a href="/network/playlist/{{ pl.id }}" class="flex flex-col rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/30">
+      <div class="flex items-center justify-between">
+        <div class="text-sm font-semibold text-gray-100">{{ pl.name }}</div>
+        {% if pl.accepting %}<span class="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400">Open</span>{% else %}<span class="rounded-full border border-gray-500/20 bg-gray-500/10 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Closed</span>{% endif %}
+      </div>
+      <div class="mt-0.5 text-[11px] text-gray-500">by {{ pl.curator_name }} · {{ pl.mood }}</div>
+      <p class="mt-2 flex-1 text-xs text-gray-400">{{ pl.description }}</p>
+      <div class="mt-3 flex items-center justify-between text-[11px]">
+        <span class="text-gray-500">{{ "{:,}".format(pl.followers) }} followers</span>
+        {% if pl.submitted %}<span class="font-semibold text-amber-400">Submitted ✓</span>{% elif pl.accepting %}<span class="font-semibold text-amber-400">Submit →</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <!-- My Network -->
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5 lg:col-span-1">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Connections</h2>
+      <div class="mt-3 space-y-2">
+        {% for p in nw.my_connections %}
+        <a href="/network/{{ p.id }}" class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2 hover:border-amber-500/30">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">{{ p.initials }}</span>
+          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-gray-100">{{ p.name }}</span><span class="text-[11px] text-gray-500">{{ p.role }}</span></span>
+          <span class="text-[10px] font-semibold text-amber-400">{{ p.connection }}</span>
+        </a>
+        {% endfor %}
+        {% if not nw.my_connections %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No connections yet.</div>{% endif %}
+      </div>
+    </section>
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Pitches Sent</h2>
+      <div class="mt-3 space-y-2">
+        {% for pt in nw.pitches %}
+        <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+          <div class="text-sm font-semibold text-gray-100">{{ pt.name }}</div>
+          {% if pt.song %}<div class="text-[11px] text-gray-500">"{{ pt.song }}"</div>{% endif %}
+          {% if pt.message %}<div class="mt-0.5 text-[11px] text-gray-400">{{ pt.message }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% if not nw.pitches %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No pitches sent yet.</div>{% endif %}
+      </div>
+    </section>
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Playlist Submissions</h2>
+      <div class="mt-3 space-y-2">
+        {% for s in nw.submissions %}
+        <div class="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+          <span class="min-w-0"><span class="block truncate text-sm font-semibold text-gray-100">{{ s.playlist_name }}</span><span class="text-[11px] text-gray-500">"{{ s.song }}"</span></span>
+          <span class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{{ s.status }}</span>
+        </div>
+        {% endfor %}
+        {% if not nw.submissions %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No submissions yet.</div>{% endif %}
+      </div>
+    </section>
+  </div>
+  {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  document.querySelectorAll(".net-filter-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const type = btn.dataset.type;
-      document.querySelectorAll(".net-filter-btn").forEach((b) => {
-        const active = b === btn;
-        b.className = "net-filter-btn rounded-md border px-3 py-1 text-[11px] font-semibold " +
-          (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-400 hover:text-gray-200");
-      });
-      document.querySelectorAll(".net-card").forEach((c) => {
-        c.classList.toggle("hidden", type !== "All" && c.dataset.type !== type);
-      });
-    });
-  });
-
-  document.querySelectorAll(".net-action-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btn.textContent = btn.textContent === "Connect" ? "Requested ✓" : "Pitched ✓";
-      btn.disabled = true;
-      btn.className = "net-action-btn mt-3 w-full rounded-md border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-400";
-    });
-  });
-</script>
 {% endblock %}
