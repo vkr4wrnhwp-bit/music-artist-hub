@@ -343,14 +343,20 @@ def create_app():
         # Homepage content is fully config-driven (landing_config); the
         # command-desk figures are editable there, not injected live.
         config = get_landing_config()
-        # Only use a section's image if the file is actually on disk, so a
+
+        # Only use a section image if the file is actually on disk, so a
         # not-yet-uploaded asset falls back to the built-in visual instead
         # of rendering a broken image.
-        lanes_img = config.get("lanes", {}).get("image")
-        if lanes_img and not os.path.exists(
-            os.path.join(app.static_folder, lanes_img["src"].split("/static/", 1)[-1])
-        ):
+        def _has_file(img):
+            return bool(img) and os.path.exists(
+                os.path.join(app.static_folder, img["src"].split("/static/", 1)[-1])
+            )
+
+        if not _has_file(config.get("lanes", {}).get("image")):
             config["lanes"] = {**config["lanes"], "image": None}
+        if not _has_file(config.get("features_image")):
+            config["features_image"] = None
+
         return render_template("landing.html", config=config)
 
     @app.route("/scan/recovery-summary", methods=["POST"])

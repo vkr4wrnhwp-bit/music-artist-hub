@@ -138,9 +138,13 @@
 
   <!-- 4. FEATURE CARDS -->
   <section id="features" class="scroll-mt-6 py-14">
+    {% if config.features_image %}
+    {{ h.clickable_image(config.features_image) }}
+    {% else %}
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {% for f in config.features %}{{ h.feature_card(f) }}{% endfor %}
     </div>
+    {% endif %}
   </section>
 
   <!-- 5. THREE LANES / INFRASTRUCTURE -->

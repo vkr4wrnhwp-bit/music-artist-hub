@@ -96,6 +96,22 @@ def get_landing_config():
                       "Vantage Group", "Lumen Studios", "Halcyon", "Wavecrest", "+ More"],
         },
 
+        # A single strip graphic that replaces the four feature cards. Its
+        # labels/CTAs are baked in, so each quarter is a clickable region
+        # (left to right) rather than a duplicate button. Drop the file at
+        # this path; falls back to the built-in cards until it exists.
+        "features_image": {
+            "src": "/static/img/features.png",
+            "alt": "Find Missing Money · Connect Everything · Maximize Your Value · You Stay In Control",
+            "bare": True,
+            "regions": [
+                {"label": "Find Missing Money", "href": "/recovery"},
+                {"label": "Connect Everything", "href": "/connections"},
+                {"label": "Maximize Your Value", "href": "/valuation"},
+                {"label": "You Stay In Control", "href": "/catalog"},
+            ],
+        },
+
         "features": [
             {"icon": "search", "texture": "vu", "title": "Find Missing Money",
              "description": "We uncover what's unclaimed, unpaid, or unmatched.",

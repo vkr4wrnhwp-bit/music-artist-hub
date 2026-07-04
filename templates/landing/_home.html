@@ -42,6 +42,22 @@
 {% endif %}
 {% endmacro %}
 
+{# ---- Image split into equal clickable regions (left to right), for a
+   strip graphic whose own labels/CTAs are baked in. Transparent links
+   overlay each region so the art stays untouched. ---- #}
+{% macro clickable_image(img) %}
+<figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
+  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full h-auto" loading="lazy">
+  {% if img.regions %}
+  <div class="absolute inset-0 grid" style="grid-template-columns: repeat({{ img.regions | length }}, minmax(0, 1fr));">
+    {% for r in img.regions %}
+    <a href="{{ r.href }}" aria-label="{{ r.label }}" title="{{ r.label }}" class="block h-full w-full cursor-pointer"></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</figure>
+{% endmacro %}
+
 {# ---- Analog VU meter (reused in the command desk + engine) ---- #}
 {% macro vu_meter(cls='h-20', needle=32, dark=True) %}
 <svg viewBox="0 0 200 120" class="{{ cls }}" aria-hidden="true">
