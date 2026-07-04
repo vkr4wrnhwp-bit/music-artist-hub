@@ -1227,6 +1227,32 @@ def test_network_moments_and_claim():
     reset_network_state()
 
 
+def test_discover_page_and_filters():
+    from discover_config import get_discover_data, reset_discover_state
+    reset_discover_state()
+    client = create_app().test_client()
+    assert client.get("/discover").status_code == 200
+    assert 'href="/discover"' in client.get("/overview").get_data(as_text=True)  # sidebar
+    assert "/discover" in client.get("/login").get_data(as_text=True)  # Continue as a Fan
+    # Genre filter narrows the feed.
+    data = get_discover_data({"genre": "Synthwave"})
+    assert data["tracks"] and all(t["genre"] == "Synthwave" for t in data["tracks"])
+    # Mood filter.
+    assert all(t["mood"] == "late-night" for t in get_discover_data({"mood": "late-night"})["tracks"])
+
+
+def test_discover_like_and_follow():
+    from discover_config import reset_discover_state
+    reset_discover_state()
+    client = create_app().test_client()
+    r = client.post("/discover/like/tr-1").get_json()
+    assert r["liked"] is True and r["count"] == 1
+    assert client.post("/discover/like/tr-1").get_json()["liked"] is False  # toggles off
+    assert client.post("/discover/like/nope").status_code == 404
+    assert client.post("/discover/follow/nova-reign").get_json()["following"] is True
+    reset_discover_state()
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

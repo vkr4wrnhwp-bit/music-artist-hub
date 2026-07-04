@@ -41,6 +41,7 @@ from community_config import (
     vote_demo,
     get_fan_dashboard_data,
 )
+from discover_config import get_discover_data, like_track, follow_artist
 from network_config import (
     get_network_data,
     get_profile,
@@ -520,6 +521,23 @@ def create_app():
         if req is None:
             return jsonify({"ok": False, "error": "Artist, need, and a valid deal type are required."}), 400
         return jsonify({"ok": True, "request": req})
+
+    @app.route("/discover")
+    def discover():
+        ctx = build_dashboard_context()
+        ctx["discover"] = get_discover_data(request.args)
+        return render_template("discover.html", active_page="discover", **ctx)
+
+    @app.route("/discover/like/<track_id>", methods=["POST"])
+    def discover_like_route(track_id):
+        res = like_track(track_id)
+        if res is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, **res})
+
+    @app.route("/discover/follow/<artist_id>", methods=["POST"])
+    def discover_follow_route(artist_id):
+        return jsonify({"ok": True, **follow_artist(artist_id)})
 
     @app.route("/network")
     def network():
