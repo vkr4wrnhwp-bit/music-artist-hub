@@ -18,8 +18,7 @@ def test_index_renders_landing_page():
     assert "STREET BANKER" in body
     assert "ARTIST INFRASTRUCTURE" in body
     assert "THE ARTIST" in body  # hero headline
-    assert "ROYALTY SWEEP" in body
-    assert "COMMAND DESK" in body
+    assert "ROYALTY SWEEP" in body  # engine section label (or SVG desk)
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():

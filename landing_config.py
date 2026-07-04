@@ -16,6 +16,16 @@ def get_landing_config():
         # Kept for the <title> and legacy references; the product name.
         "brand": "Royalty Sweep",
 
+        # Full-width banner graphic pinned to the very top (under the nav,
+        # above the hero). Carries its own headline + modules; links into the
+        # app. Renders only when the file is on disk.
+        "top_banner": {
+            "src": "/static/img/hero-banner.png",
+            "alt": "Release Music. Build Equity. — Infrastructure for the business of music: distribution, development, asset partnership, and backend intelligence.",
+            "bare": True,
+            "href": "/overview",
+        },
+
         "nav": {
             "logo": {"primary": "STREET BANKER", "secondary": "ARTIST INFRASTRUCTURE"},
             "links": [

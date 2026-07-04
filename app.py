@@ -360,6 +360,8 @@ def create_app():
             config["royalty_sweep"] = {**config["royalty_sweep"], "image": None}
         if not _has_file(config.get("hero_visual", {}).get("image")):
             config["hero_visual"] = {**config["hero_visual"], "image": None}
+        if not _has_file(config.get("top_banner")):
+            config["top_banner"] = None
 
         return render_template("landing.html", config=config)
 

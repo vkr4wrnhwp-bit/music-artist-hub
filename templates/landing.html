@@ -44,6 +44,15 @@
     </div>
   </header>
 
+  <!-- Top banner (full-width, above the hero) -->
+  {% if config.top_banner %}
+  <section class="pt-6">
+    <a href="{{ config.top_banner.href }}" class="block w-full" aria-label="Release Music. Build Equity. — enter Street Banker">
+      {{ h.image_panel(config.top_banner) }}
+    </a>
+  </section>
+  {% endif %}
+
   <!-- 2. HERO -->
   <section class="grid grid-cols-1 items-center gap-10 py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14">
     <div>
