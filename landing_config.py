@@ -16,13 +16,13 @@ def get_landing_config():
         "brand": "Royalty Sweep",
         "nav": {
             "links": [
-                {"label": "Product", "href": "#product", "menu": True},
+                {"label": "Product", "href": "/overview", "menu": True},
                 {"label": "Features", "href": "#features"},
-                {"label": "For Artists", "href": "#artists"},
-                {"label": "For Labels", "href": "#labels"},
-                {"label": "Pricing", "href": "#pricing"},
-                {"label": "Resources", "href": "#resources", "menu": True},
-                {"label": "About", "href": "#about"},
+                {"label": "For Artists", "href": "/catalog"},
+                {"label": "For Labels", "href": "/valuation"},
+                {"label": "Pricing", "href": "/overview"},
+                {"label": "Resources", "href": "/reports", "menu": True},
+                {"label": "About", "href": "#features"},
             ],
             "login": {"label": "Login", "href": "/overview"},
             "cta": {"label": "Start Free Scan", "href": "/overview"},
@@ -38,7 +38,7 @@ def get_landing_config():
                 "collected — across every platform, every stream, every time."
             ),
             "primary_cta": {"label": "Scan for Missing Royalties", "href": "/overview", "icon": "search"},
-            "secondary_cta": {"label": "See How It Works", "href": "#how-it-works", "icon": "play"},
+            "secondary_cta": {"label": "See How It Works", "href": "#features", "icon": "play"},
             "value_props": [
                 {"icon": "dollar", "title": "Find Missing Money", "desc": "We uncover what's uncollected."},
                 {"icon": "link", "title": "Connect Everything", "desc": "All platforms. One complete picture."},
@@ -63,15 +63,15 @@ def get_landing_config():
         "features": [
             {"icon": "search", "title": "Find Missing Royalties",
              "desc": "Our proprietary scan identifies unclaimed royalties across every source.",
-             "link": {"label": "Learn More", "href": "#find"}},
+             "link": {"label": "Learn More", "href": "/recovery"}},
             {"icon": "link", "title": "Connect Every Source",
              "desc": "We connect and verify all your catalog data across platforms and territories.",
-             "link": {"label": "Learn More", "href": "#connect"}},
+             "link": {"label": "Learn More", "href": "/connections"}},
             {"icon": "shield", "title": "Recover & Collect",
              "desc": "We resolve issues, file claims, and get you paid.",
-             "link": {"label": "Learn More", "href": "#recover"}},
+             "link": {"label": "Learn More", "href": "/recovery"}},
             {"icon": "chart", "title": "Value Your Catalog",
              "desc": "Know what your catalog is worth and how to grow it.",
-             "link": {"label": "Learn More", "href": "#value"}},
+             "link": {"label": "Learn More", "href": "/valuation"}},
         ],
     }

@@ -30,6 +30,31 @@ def test_landing_page_nav_and_ctas_link_into_the_app():
     assert "Login" in body
 
 
+def test_landing_page_nav_links_all_resolve():
+    """Every landing nav/CTA link must point at a real route or an
+    on-page anchor that exists -- no dead placeholder hashes."""
+    import re
+    from landing_config import get_landing_config
+
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    page_ids = set(re.findall(r'id="([^"]+)"', body))
+
+    config = get_landing_config()
+    hrefs = [link["href"] for link in config["nav"]["links"]]
+    hrefs += [config["nav"]["login"]["href"], config["nav"]["cta"]["href"]]
+    hrefs += [config["hero"]["primary_cta"]["href"], config["hero"]["secondary_cta"]["href"]]
+    hrefs += [f["link"]["href"] for f in config["features"]]
+
+    real_routes = {"/overview", "/royalties", "/catalog", "/connections",
+                   "/recovery", "/valuation", "/reports", "/settings", "/"}
+    for href in hrefs:
+        if href.startswith("#"):
+            assert href[1:] in page_ids, f"dead anchor: {href}"
+        else:
+            assert href in real_routes, f"unknown route: {href}"
+
+
 def test_landing_page_hero_visual_uses_live_catalog_data():
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
