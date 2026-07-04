@@ -28,7 +28,7 @@
 
   <!-- Tabs -->
   <div class="flex flex-wrap gap-1.5 border-b border-white/5">
-    {% for t, label in [('directory','Directory'), ('playlists','Playlists'), ('my','My Network')] %}
+    {% for t, label in [('directory','Directory'), ('playlists','Playlists'), ('shows','Shows'), ('moments','Moments'), ('my','My Network')] %}
     <a href="/network?tab={{ t }}" class="-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors {{ 'border-amber-400 text-amber-400' if nw.tab == t else 'border-transparent text-gray-500 hover:text-gray-300' }}">{{ label }}</a>
     {% endfor %}
   </div>
@@ -103,6 +103,61 @@
     {% endfor %}
   </div>
 
+  {% elif nw.tab == 'shows' %}
+  <!-- Shows / Tour -->
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Upcoming Shows</h2>
+      <span class="text-[11px] text-gray-500">Tour with us · enquire to book</span>
+    </div>
+    <div class="mt-4 space-y-2">
+      {% for s in nw.shows %}
+      <div class="flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-3">
+        <div class="w-24 shrink-0 text-center">
+          <div class="text-sm font-bold text-amber-400">{{ s.date }}</div>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-semibold text-gray-100">{{ s.venue }} · {{ s.city }}</div>
+          <div class="text-[11px] text-gray-500"><a href="/network/{{ s.profile_id }}" class="hover:text-amber-400">{{ s.owner_name }}</a> · {{ s.owner_role }}</div>
+        </div>
+        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ 'border-green-500/20 bg-green-500/10 text-green-400' if s.status == 'On sale' else ('border-red-500/20 bg-red-500/10 text-red-400' if s.status == 'Sold out' else 'border-amber-500/20 bg-amber-500/10 text-amber-400') }}">{{ s.status }}</span>
+        <a href="/network/{{ s.profile_id }}#book" class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400 hover:bg-amber-500/20">Enquire</a>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% elif nw.tab == 'moments' %}
+  <!-- Mintable Moments -->
+  <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-gray-400">
+    <span class="font-semibold text-gray-200">Mintable Moments.</span> Limited, timed drops — each watermarked and numbered. Claim one to keep a clean, owned copy before it expires. <span class="text-gray-600">(Simulated demo — no real payment. Web can't truly block screenshots; every copy is watermarked + serialized so any capture is traceable.)</span>
+  </div>
+  <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {% for m in nw.moments %}
+    <a href="/network/moment/{{ m.id }}" class="group relative block overflow-hidden rounded-2xl border border-white/10">
+      <div class="relative aspect-[3/4]" style="background: linear-gradient(135deg, {{ m.from }}, {{ m.to }});">
+        <!-- watermark tiling -->
+        <div class="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 opacity-[0.18]">
+          {% for i in range(6) %}<div class="whitespace-nowrap text-[9px] font-bold uppercase tracking-widest text-white">STREET BANKER · {{ m.serial }} · STREET BANKER · {{ m.serial }}</div>{% endfor %}
+        </div>
+        <div class="absolute inset-x-0 top-0 flex items-center justify-between p-3">
+          <span class="rounded-full bg-black/40 px-2 py-0.5 text-[9px] font-semibold text-white">#{{ m.edition_n }}/{{ m.edition_total }}</span>
+          <span class="moment-countdown rounded-full bg-black/40 px-2 py-0.5 text-[9px] font-semibold text-amber-300" data-expires="{{ m.expires_iso }}">—</span>
+        </div>
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+          <div class="text-sm font-bold text-white">{{ m.title }}</div>
+          <div class="text-[10px] text-gray-300">{{ m.owner_name }} · {{ m.serial }}</div>
+        </div>
+        {% if m.claimed %}<div class="absolute right-2 bottom-14 rounded-full border border-green-400/40 bg-green-500/20 px-2 py-0.5 text-[9px] font-semibold text-green-300">Owned</div>{% endif %}
+      </div>
+      <div class="flex items-center justify-between bg-[#111113] px-3 py-2">
+        <span class="text-[11px] text-gray-400">${{ m.price }}</span>
+        <span class="text-[11px] font-semibold text-amber-400">{{ 'Owned' if m.claimed else 'Claim →' }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
   {% else %}
   <!-- My Network -->
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -144,7 +199,51 @@
         {% if not nw.submissions %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No submissions yet.</div>{% endif %}
       </div>
     </section>
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Booking Enquiries</h2>
+      <div class="mt-3 space-y-2">
+        {% for b in nw.my_bookings %}
+        <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+          <div class="text-sm font-semibold text-gray-100">{{ b.name }}</div>
+          <div class="text-[11px] text-gray-500">{{ b.city }}{% if b.date %} · {{ b.date }}{% endif %}</div>
+          {% if b.message %}<div class="mt-0.5 text-[11px] text-gray-400">{{ b.message }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% if not nw.my_bookings %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No booking enquiries yet.</div>{% endif %}
+      </div>
+    </section>
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Owned Moments</h2>
+      <div class="mt-3 space-y-2">
+        {% for m in nw.my_moments %}
+        <a href="/network/moment/{{ m.id }}" class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2 hover:border-amber-500/30">
+          <span class="h-9 w-7 shrink-0 rounded" style="background: linear-gradient(135deg, {{ m.from }}, {{ m.to }});"></span>
+          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-gray-100">{{ m.title }}</span><span class="text-[11px] text-gray-500">{{ m.serial }}</span></span>
+          <span class="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400">Owned</span>
+        </a>
+        {% endfor %}
+        {% if not nw.my_moments %}<div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No owned moments yet.</div>{% endif %}
+      </div>
+    </section>
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function fmtCountdown(ms) {
+    if (ms <= 0) return "Expired";
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return h >= 1 ? h + "h " + m + "m left" : m + "m left";
+  }
+  function tickCountdowns() {
+    document.querySelectorAll(".moment-countdown").forEach((el) => {
+      const t = new Date(el.dataset.expires).getTime() - Date.now();
+      el.textContent = fmtCountdown(t);
+    });
+  }
+  tickCountdowns();
+  setInterval(tickCountdowns, 30000);
+</script>
 {% endblock %}

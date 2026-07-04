@@ -45,9 +45,12 @@ from network_config import (
     get_network_data,
     get_profile,
     get_playlist,
+    get_moment,
     connect as network_connect_action,
     pitch as network_pitch_action,
     submit_to_playlist,
+    enquire_show,
+    claim_moment,
 )
 
 from royalty_data import (
@@ -565,6 +568,30 @@ def create_app():
         if entry is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True})
+
+    @app.route("/network/<profile_id>/enquire", methods=["POST"])
+    def network_enquire_route(profile_id):
+        data = request.get_json(silent=True) or {}
+        entry = enquire_show(profile_id, data.get("city"), data.get("date"), data.get("message"))
+        if entry is None:
+            return jsonify({"ok": False, "error": "This profile isn't taking booking enquiries."}), 400
+        return jsonify({"ok": True})
+
+    @app.route("/network/moment/<moment_id>")
+    def network_moment(moment_id):
+        moment = get_moment(moment_id)
+        if moment is None:
+            return redirect(url_for("network"))
+        ctx = build_dashboard_context()
+        ctx["moment"] = moment
+        return render_template("network_moment.html", active_page="network", **ctx)
+
+    @app.route("/network/moment/<moment_id>/claim", methods=["POST"])
+    def network_claim_route(moment_id):
+        serial = claim_moment(moment_id)
+        if serial is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "serial": serial})
 
     @app.route("/fan-label")
     def fan_label():

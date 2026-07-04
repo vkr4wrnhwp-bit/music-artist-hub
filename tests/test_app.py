@@ -1197,6 +1197,36 @@ def test_network_connect_pitch_submit_flows():
     reset_network_state()
 
 
+def test_network_shows_and_booking():
+    from network_config import reset_network_state
+    reset_network_state()
+    client = create_app().test_client()
+    assert client.get("/network?tab=shows").status_code == 200
+    assert "Tour Dates" in client.get("/network/nova-reign").get_data(as_text=True)
+    # Enquire works for booking profiles, rejected for non-booking.
+    assert client.post("/network/nova-reign/enquire", json={"city": "Chicago"}).get_json()["ok"]
+    assert client.post("/network/vera-sound/enquire", json={"city": "X"}).status_code == 400
+    reset_network_state()
+
+
+def test_network_moments_and_claim():
+    from network_config import reset_network_state, get_moment
+    reset_network_state()
+    client = create_app().test_client()
+    assert client.get("/network?tab=moments").status_code == 200
+    body = client.get("/network/moment/mo-1").get_data(as_text=True)
+    # Watermark/serial + honest deterrent labeling present.
+    assert "SB-1-0001" in body
+    assert "can't truly block screenshots" in body
+    assert client.get("/network/moment/nope").status_code == 302
+    # Claim marks it owned.
+    resp = client.post("/network/moment/mo-1/claim")
+    assert resp.get_json()["serial"] == "SB-1-0001"
+    assert get_moment("mo-1")["claimed"] is True
+    assert client.post("/network/moment/nope/claim").status_code == 404
+    reset_network_state()
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
