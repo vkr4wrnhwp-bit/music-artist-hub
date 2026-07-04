@@ -39,6 +39,10 @@ def _all_landing_hrefs(config):
     hrefs += [i["href"] for i in config["lanes"]["items"]]
     hrefs += [config["royalty_sweep"]["cta"]["href"], config["royalty_sweep"]["engine"]["results_cta"]["href"]]
     hrefs += [s["href"] for s in config["services"]["items"]]
+    for p in config.get("pillars", []):
+        hrefs.append(p["cta"]["href"])
+        if p.get("secondary_cta"):
+            hrefs.append(p["secondary_cta"]["href"])
     for col in config["footer"]["columns"]:
         hrefs += [l["href"] for l in col["links"]]
     return hrefs
@@ -55,6 +59,9 @@ def test_landing_page_links_all_resolve():
     page_ids = set(re.findall(r'id="([^"]+)"', body))
     real_routes = {rule.rule for rule in app.url_map.iter_rules()
                    if "GET" in rule.methods and "<" not in rule.rule}
+    # Prefixes for parameterized GET routes, e.g. "/services/<slug>" -> "/services/".
+    param_prefixes = [rule.rule.split("<", 1)[0] for rule in app.url_map.iter_rules()
+                      if "GET" in rule.methods and "<" in rule.rule]
 
     for href in _all_landing_hrefs(get_landing_config()):
         if href.startswith("#"):
@@ -62,7 +69,9 @@ def test_landing_page_links_all_resolve():
         elif href.startswith("http"):
             continue
         else:
-            assert href in real_routes, f"unknown route: {href}"
+            ok = href in real_routes or any(
+                href.startswith(pfx) and len(href) > len(pfx) for pfx in param_prefixes)
+            assert ok, f"unknown route: {href}"
 
 
 def test_landing_command_desk_shows_all_sources():
@@ -89,13 +98,26 @@ def test_landing_page_includes_trust_strip():
     assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" in body
 
 
-def test_landing_includes_lanes_engine_and_services():
+def test_landing_includes_lanes_engine_and_pillars():
     body = create_app().test_client().get("/").get_data(as_text=True)
     # Lanes section renders (headline lives in the graphic when an image is set).
     assert 'id="infrastructure"' in body
     assert "Explore The Three Lanes" in body
     assert "THE RECOVERY ENGINE" in body
-    assert "BUILT FOR EVERY STAGE OF YOUR CAREER" in body
+    # Pillar sections (one per part of the ecosystem) replaced the thin list.
+    assert "Everything Street Banker Is" in body
+    assert "Music Distribution" in body
+    assert "The Industry Network" in body
+
+
+def test_landing_pillars_config():
+    from landing_config import get_landing_config
+    pillars = get_landing_config()["pillars"]
+    assert len(pillars) >= 5
+    # Every pillar links at a real route or on-page target.
+    for p in pillars:
+        assert p["cta"]["href"].startswith("/")
+        assert p["visual"]["type"] in {"stats", "cards", "avatars", "tiles"}
 
 
 def test_scan_recovery_summary_route():

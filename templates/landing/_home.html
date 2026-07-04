@@ -58,6 +58,88 @@
 </figure>
 {% endmacro %}
 
+{# ---- Pillar visual (stats / cards / avatars / tiles) ---- #}
+{% macro pillar_visual(v, dark) %}
+{% set card = 'border-white/10 bg-white/5' if dark else 'border-black/10 bg-white' %}
+{% set label = 'text-gray-500' if dark else 'text-[#8a8377]' %}
+{% set value = 'text-[#e6c675]' if dark else 'text-[#8a6d1f]' %}
+{% set head = 'text-gray-100' if dark else 'text-[#141210]' %}
+{% if v.type == 'stats' %}
+<div class="grid grid-cols-2 gap-3">
+  {% for s in v['items'] %}
+  <div class="rounded-xl border {{ card }} p-5 text-center">
+    <div class="text-2xl font-extrabold tabular-nums {{ value }}">{{ s.value }}</div>
+    <div class="mt-1 text-[10px] font-semibold uppercase tracking-wide {{ label }}">{{ s.label }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% elif v.type == 'cards' %}
+<div class="space-y-3">
+  {% for cd in v['items'] %}
+  <div class="rounded-xl border {{ card }} p-4">
+    <div class="text-sm font-bold {{ head }}">{{ cd.title }}</div>
+    <div class="mt-0.5 text-xs {{ label }}">{{ cd.desc }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% elif v.type == 'avatars' %}
+<div class="rounded-2xl border {{ card }} p-6">
+  <div class="flex flex-wrap gap-3">
+    {% for name in v['items'] %}
+    <div class="flex items-center gap-2 rounded-full border {{ 'border-white/10' if dark else 'border-black/10' }} px-3 py-1.5">
+      <span class="grid h-7 w-7 place-items-center rounded-full border border-amber-500/40 text-[10px] font-bold text-amber-500">{{ name.split()|map('first')|join|upper }}</span>
+      <span class="text-xs font-semibold {{ head }}">{{ name }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif v.type == 'tiles' %}
+<div class="grid grid-cols-2 gap-3">
+  {% for tl in v['items'] %}
+  <div class="flex h-20 items-end overflow-hidden rounded-xl p-3" style="background: linear-gradient(135deg, {{ tl.from }}, {{ tl.to }});">
+    <span class="text-xs font-bold text-white drop-shadow">{{ tl.name }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ---- Pillar section (alternating light / dark) ---- #}
+{% macro pillar_section(p, i) %}
+{% set dark = p.theme == 'dark' %}
+{% set flip = (i % 2) == 1 %}
+{% if dark %}
+<section class="my-6 overflow-hidden rounded-2xl border border-black/20 bg-gradient-to-br from-[#141416] to-[#0a0a0b] p-8 text-gray-100 lg:p-10">
+{% else %}
+<section class="border-t border-black/10 py-12">
+{% endif %}
+  <div class="grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-12">
+    <div class="{{ 'lg:order-2' if flip }}">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.25em] {{ 'text-[#d8b25a]' if dark else 'text-[#8a6d1f]' }}">{{ p.eyebrow }}</div>
+      <h2 class="mt-3 text-3xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-4xl {{ 'text-white' if dark else 'text-[#141210]' }}">{{ p.title }}</h2>
+      <p class="mt-2 text-lg font-semibold {{ 'text-gray-300' if dark else 'text-[#4a463e]' }}">{{ p.tagline }}</p>
+      <p class="mt-3 max-w-md text-sm leading-relaxed {{ 'text-gray-400' if dark else 'text-[#5a544a]' }}">{{ p.description }}</p>
+      <ul class="mt-4 space-y-1.5">
+        {% for b in p['bullets'] %}
+        <li class="flex items-start gap-2 text-sm {{ 'text-gray-300' if dark else 'text-[#3a352c]' }}">
+          <svg class="mt-0.5 h-4 w-4 shrink-0 {{ 'text-[#d8b25a]' if dark else 'text-[#8a6d1f]' }}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
+          {{ b }}
+        </li>
+        {% endfor %}
+      </ul>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href="{{ p.cta.href }}" class="inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-bold transition-colors {{ 'bg-[#d8b25a] text-[#1c1302] hover:bg-[#e6c675]' if dark else 'bg-[#141210] text-white hover:bg-[#2a251d]' }}">
+          {{ p.cta.label }}
+          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+        </a>
+        {% if p.secondary_cta %}<a href="{{ p.secondary_cta.href }}" class="inline-flex items-center rounded-md border px-5 py-2.5 text-sm font-semibold transition-colors {{ 'border-white/20 text-white hover:bg-white/10' if dark else 'border-black/20 text-[#141210] hover:bg-black/5' }}">{{ p.secondary_cta.label }}</a>{% endif %}
+      </div>
+    </div>
+    <div class="{{ 'lg:order-1' if flip }}">{{ pillar_visual(p.visual, dark) }}</div>
+  </div>
+</section>
+{% endmacro %}
+
 {# ---- Analog VU meter (reused in the command desk + engine) ---- #}
 {% macro vu_meter(cls='h-20', needle=32, dark=True) %}
 <svg viewBox="0 0 200 120" class="{{ cls }}" aria-hidden="true">

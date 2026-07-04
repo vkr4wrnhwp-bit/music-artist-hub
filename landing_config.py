@@ -214,6 +214,85 @@ def get_landing_config():
             },
         },
 
+        # Tiered "what everything is" sections — one per part of the
+        # ecosystem. Rendered alternating light/dark; each links into its area.
+        "pillars": [
+            {
+                "eyebrow": "STREET BANKER", "title": "Music Distribution",
+                "tagline": "CDs, vinyl & digital — everywhere, no setup fees.",
+                "description": "Get your releases onto every platform and into physical retail, with real-time sales and streaming data and no upfront fees.",
+                "theme": "light",
+                "bullets": ["170+ digital streaming & download services", "CD & vinyl into 2,500 national and independent retailers",
+                            "No physical or digital set-up fees", "Real-time sales + streaming data, optional Soundscan"],
+                "cta": {"label": "Explore Distribution", "href": "/services/distribution"},
+                "visual": {"type": "stats", "items": [
+                    {"value": "170+", "label": "DSPs"}, {"value": "2,500", "label": "Retailers"},
+                    {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Sales data"}]},
+            },
+            {
+                "eyebrow": "ART IS WAR RECORDS", "title": "Full-Service Label",
+                "tagline": "Distribution, marketing, and management under one roof.",
+                "description": "The SummitArts team builds artists end-to-end — from release strategy and marketing to consulting and management.",
+                "theme": "light",
+                "bullets": ["Music marketing to a 200,000+ fan list", "Artist consulting & day-to-day management",
+                            "Branding, apparel, web & advertising", "Sync, licensing & rights support"],
+                "cta": {"label": "See Label Services", "href": "/services"},
+                "visual": {"type": "cards", "items": [
+                    {"title": "Distribution", "desc": "Release. Collect. Report."},
+                    {"title": "Marketing", "desc": "Grow the audience."},
+                    {"title": "Management", "desc": "Build the career."}]},
+            },
+            {
+                "eyebrow": "ROYALTY SWEEP", "title": "Recover What You're Owed",
+                "tagline": "The engine that finds money others miss.",
+                "description": "Royalty Sweep scans every source, matches your catalog, and recovers uncollected royalties — publishing, neighboring rights, mechanicals, and more.",
+                "theme": "dark",
+                "bullets": ["Missing-money scan across every source", "Publishing, neighboring rights & mechanicals",
+                            "Claims worked through to payout", "Catalog valuation & advance eligibility"],
+                "cta": {"label": "Open Royalty Sweep", "href": "/recovery"},
+                "visual": {"type": "stats", "items": [
+                    {"value": "$3.3K", "label": "Found"}, {"value": "347", "label": "Matches"},
+                    {"value": "9", "label": "Sources"}, {"value": "192", "label": "Territories"}]},
+            },
+            {
+                "eyebrow": "STREET BANKER", "title": "Value & Fund Your Catalog",
+                "tagline": "Know what it's worth — and unlock capital.",
+                "description": "See a live valuation of your catalog and turn that eligibility into real advance offers, on terms you control.",
+                "theme": "light",
+                "bullets": ["Low / mid / high catalog valuation", "Advance eligibility scoring",
+                            "Comparable offers, side by side", "You keep ownership"],
+                "cta": {"label": "Value My Catalog", "href": "/valuation"},
+                "visual": {"type": "stats", "items": [
+                    {"value": "$296K", "label": "Est. value"}, {"value": "$70K", "label": "Advance"},
+                    {"value": "95", "label": "Score"}, {"value": "18mo", "label": "Term"}]},
+            },
+            {
+                "eyebrow": "COMMUNITY", "title": "The Industry Network",
+                "tagline": "Connect, collaborate, and book.",
+                "description": "A directory of artists, producers, labels, curators, and A&R — connect, pitch tracks, submit to playlists, and enquire about shows.",
+                "theme": "dark",
+                "bullets": ["Search by role, genre & location", "Pitch tracks and submit to playlists",
+                            "Tour dates & booking enquiries", "Mintable Moments — timed collectibles"],
+                "cta": {"label": "Enter the Network", "href": "/network"},
+                "visual": {"type": "avatars", "items": ["Nova Reign", "Kilo Byte", "Echo Lin", "Sable Wynn", "Prism Collective"]},
+            },
+            {
+                "eyebrow": "FOR FANS", "title": "Discover & Collect",
+                "tagline": "A home for fans, not just the industry.",
+                "description": "Fans browse new music by genre and mood, follow artists, collect limited Mintable Moments, and catch shows — all from one door.",
+                "theme": "dark",
+                "bullets": ["Browse by genre & mood", "Follow artists & save tracks",
+                            "Collect limited, watermarked Moments", "RSVP and enquire about shows"],
+                "cta": {"label": "Open Discover", "href": "/discover"},
+                "secondary_cta": {"label": "Continue as a Fan", "href": "/login"},
+                "visual": {"type": "tiles", "items": [
+                    {"name": "Late Night", "from": "#1e1b4b", "to": "#0f172a"},
+                    {"name": "Energetic", "from": "#7f1d1d", "to": "#b45309"},
+                    {"name": "Chill", "from": "#0e7490", "to": "#0f172a"},
+                    {"name": "Focus", "from": "#064e3b", "to": "#0c0a09"}]},
+            },
+        ],
+
         "services": {
             "label": "SERVICES & SOLUTIONS",
             "headline": "BUILT FOR EVERY STAGE OF YOUR CAREER",
