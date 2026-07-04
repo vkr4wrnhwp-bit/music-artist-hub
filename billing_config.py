@@ -12,10 +12,12 @@ from royalty_data import get_songs, get_platform_catalog
 PLANS = [
     {"id": "free", "name": "Free", "price": 0, "blurb": "Track your catalog and see what you're owed.",
      "features": ["Up to 10 songs", "1 connected source", "Basic recovery scan"]},
-    {"id": "pro", "name": "Pro Plan", "price": 19, "blurb": "Full recovery, valuation, and publishing tools.",
-     "features": ["Unlimited songs", "All source connections", "Recovery + claims", "Valuation & advances", "Publishing admin"]},
+    {"id": "pro", "name": "Pro Plan", "price": 19, "blurb": "Full tools + real career guidance from our team.",
+     "features": ["Unlimited songs", "All source connections", "Recovery + claims", "Valuation & advances",
+                  "Publishing admin", "Monthly consulting hours + email support — from Street Banker & industry ambassadors"]},
     {"id": "label", "name": "Label", "price": 49, "blurb": "For teams managing multiple artists.",
-     "features": ["Everything in Pro", "Multi-artist roster", "Team permissions", "Priority support", "API access"]},
+     "features": ["Everything in Pro", "Expanded consulting hours + priority ambassador access",
+                  "Multi-artist roster", "Team permissions", "API access"]},
 ]
 
 
