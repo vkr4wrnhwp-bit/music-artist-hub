@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Disputes - Royalty Sweep{% endblock %}
+
+{% set dp = disputes %}
+
+{% block content %}
+<div class="mx-auto max-w-[1400px] space-y-5">
+  <div>
+    <h1 class="text-2xl font-semibold uppercase tracking-tight">Dispute &amp; Audit Center</h1>
+    <p class="mt-1 text-sm text-gray-500">Formal disputes against payers when royalties look wrong — tracked from filing through to resolution.</p>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Amount in Dispute</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(dp.summary.amount_in_dispute) }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Open Disputes</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">{{ dp.summary.open }}</div>
+    </div>
+    <div class="rounded-2xl border border-green-500/15 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Recovered</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">${{ "{:,.2f}".format(dp.summary.recovered) }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Cases</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">{{ dp.summary.total }}</div>
+    </div>
+  </div>
+
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Cases</h2>
+    <div class="mt-4 space-y-3">
+      {% for d in dp.disputes %}
+      <div class="dispute-card rounded-xl border border-white/5 bg-white/5 p-4" data-dispute-id="{{ d.id }}" data-final-stage="{{ dp.stages[-1] }}">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-gray-100">{{ d.title }}</div>
+            <div class="mt-0.5 text-[11px] text-gray-500">
+              {{ d.counterparty }} · {{ d.type }}{% if d.song %} · "{{ d.song }}"{% endif %} · filed {{ d.opened }}
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="text-sm font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(d.amount) }}</span>
+            <span class="dispute-stage rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ dp.stage_tone.get(d.stage, '') }}">{{ d.stage }}</span>
+          </div>
+        </div>
+
+        <!-- Pipeline -->
+        <div class="mt-3 flex items-center gap-1.5">
+          {% for stage in dp.stages %}
+          {% set done = loop.index0 <= (dp.stages.index(d.stage)) %}
+          <div class="dispute-step flex-1" data-stage="{{ stage }}">
+            <div class="h-1.5 rounded-full {{ 'bg-amber-500' if done else 'bg-white/10' }}"></div>
+            <div class="mt-1 text-center text-[9px] uppercase tracking-wide {{ 'text-gray-300' if done else 'text-gray-600' }}">{{ stage }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="dispute-actions mt-3 flex justify-end">
+          {% if not d.resolved %}
+          <button type="button" class="dispute-advance-btn rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Advance Status</button>
+          {% else %}
+          <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-400"><svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>Resolved</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="mt-3 text-[11px] text-gray-600">Disputed amounts are illustrative demo data referencing real song titles.</p>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const STAGES = {{ dp.stages | tojson }};
+  const STAGE_TONE = {{ dp.stage_tone | tojson }};
+
+  document.querySelectorAll(".dispute-advance-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".dispute-card");
+      const id = card.dataset.disputeId;
+      btn.disabled = true;
+      btn.textContent = "...";
+      try {
+        const res = await fetch(`/disputes/${id}/advance`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          // Update badge.
+          const badge = card.querySelector(".dispute-stage");
+          badge.textContent = data.stage;
+          badge.className = "dispute-stage rounded-full border px-2 py-0.5 text-[10px] font-semibold " + (STAGE_TONE[data.stage] || "");
+          // Update pipeline fill.
+          const reached = STAGES.indexOf(data.stage);
+          card.querySelectorAll(".dispute-step").forEach((step, i) => {
+            const bar = step.querySelector("div");
+            const label = step.querySelector("div:last-child");
+            const done = i <= reached;
+            bar.className = "h-1.5 rounded-full " + (done ? "bg-amber-500" : "bg-white/10");
+            label.className = "mt-1 text-center text-[9px] uppercase tracking-wide " + (done ? "text-gray-300" : "text-gray-600");
+          });
+          if (data.resolved) {
+            card.querySelector(".dispute-actions").innerHTML =
+              '<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-400"><svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>Resolved</span>';
+          } else {
+            btn.disabled = false;
+            btn.textContent = "Advance Status";
+          }
+          flashHighlight(card);
+        } else {
+          btn.disabled = false;
+          btn.textContent = "Advance Status";
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Advance Status";
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -17,6 +17,7 @@ from territories_config import get_territories_data
 from mechanicals_config import get_mechanicals_data
 from funding_config import get_funding_data
 from tax_config import get_tax_data
+from disputes_config import get_disputes_data, advance_dispute
 
 from royalty_data import (
     add_split,
@@ -464,6 +465,19 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["tax"] = get_tax_data()
         return render_template("tax.html", active_page="tax", **ctx)
+
+    @app.route("/disputes")
+    def disputes():
+        ctx = build_dashboard_context()
+        ctx["disputes"] = get_disputes_data()
+        return render_template("disputes.html", active_page="disputes", **ctx)
+
+    @app.route("/disputes/<dispute_id>/advance", methods=["POST"])
+    def advance_dispute_route(dispute_id):
+        dispute = advance_dispute(dispute_id)
+        if dispute is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "stage": dispute["stage"], "resolved": dispute["resolved"]})
 
     @app.route("/settings")
     def settings():

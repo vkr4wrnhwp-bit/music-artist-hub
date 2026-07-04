@@ -901,6 +901,37 @@ def test_tax_data_config_shapes():
     assert {t["form"] for t in data["tax_profile"]} == {"W-9", "W-8BEN"}
 
 
+def test_disputes_page_content():
+    from disputes_config import reset_disputes_state
+    reset_disputes_state()
+    client = create_app().test_client()
+    body = client.get("/disputes").get_data(as_text=True)
+    assert "Dispute &amp; Audit Center" in body
+    assert "Amount in Dispute" in body
+    assert 'href="/disputes"' in body
+
+
+def test_disputes_advance_flow():
+    from disputes_config import reset_disputes_state, get_disputes_data
+    reset_disputes_state()
+    client = create_app().test_client()
+    # disp-3 starts at "Filed" (stage_index 0) -> advancing moves to "Submitted".
+    resp = client.post("/disputes/disp-3/advance")
+    assert resp.status_code == 200
+    assert resp.get_json()["stage"] == "Submitted"
+    assert client.post("/disputes/nope/advance").status_code == 404
+    reset_disputes_state()
+
+
+def test_disputes_data_config_shapes():
+    from disputes_config import get_disputes_data, reset_disputes_state
+    reset_disputes_state()
+    data = get_disputes_data()
+    assert data["stages"] == ["Filed", "Submitted", "Under Review", "Resolved"]
+    open_amt = round(sum(d["amount"] for d in data["disputes"] if not d["resolved"]), 2)
+    assert data["summary"]["amount_in_dispute"] == open_amt
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
