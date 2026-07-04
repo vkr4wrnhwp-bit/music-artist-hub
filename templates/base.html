@@ -22,7 +22,15 @@
         <div class="mt-2 text-[8px] uppercase tracking-[0.2em] text-amber-500/70">Track it. Collect it. Sweep it.</div>
       </a>
 
-      <nav class="mt-8 space-y-5 text-sm">
+      <form action="/search" method="get" class="mt-6">
+        <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 focus-within:border-amber-500/40">
+          <svg class="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M17 17l-4-4"/></svg>
+          <input type="search" name="q" placeholder="Search…" value="{{ request.args.get('q', '') if request else '' }}"
+                 class="w-full min-w-0 bg-transparent text-xs text-gray-200 placeholder-gray-600 focus:outline-none">
+        </div>
+      </form>
+
+      <nav class="mt-5 space-y-5 text-sm">
         {% set nav_groups = [
           ('Collect', [
             ('overview', '/overview', 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5z|M14 5h2M14 8h3', 'Overview'),
@@ -57,8 +65,11 @@
             ('artwork', '/artwork', 'M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z', 'Cover Art'),
           ]),
           ('Account', [
+            ('notifications', '/notifications', 'M10 3a4 4 0 00-4 4c0 4-2 5-2 5h12s-2-1-2-5a4 4 0 00-4-4z|M8.5 16a1.5 1.5 0 003 0', 'Notifications'),
             ('reports', '/reports', 'M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5', 'Reports'),
             ('tax', '/tax', 'M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4', 'Tax Center'),
+            ('team', '/team', 'M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4', 'Team'),
+            ('billing', '/billing', 'M3 6h14v8H3z|M3 9h14M6 12h3', 'Billing'),
             ('settings', '/settings', 'M10 7a3 3 0 100 6 3 3 0 000-6z|M10 3v2M10 15v2M3 10h2M15 10h2', 'Settings'),
           ]),
         ] %}

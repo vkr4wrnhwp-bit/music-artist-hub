@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
@@ -21,6 +21,13 @@ from disputes_config import get_disputes_data, advance_dispute
 from audience_config import get_audience_data
 from playlists_config import get_playlists_data
 from stats_config import get_stats_data
+from notifications_config import (
+    get_notifications_data,
+    mark_notification_read,
+    mark_all_read,
+)
+from search_config import search as global_search
+from billing_config import get_billing_data
 
 from royalty_data import (
     add_split,
@@ -293,6 +300,27 @@ def build_landing_hero(catalog, summary):
 
 def create_app():
     app = Flask(__name__)
+    # Demo session key — no real secrets or user accounts in this app.
+    app.config["SECRET_KEY"] = "royalty-sweep-demo-session"
+
+    # Simulated demo passkey. Not real auth — see /login.
+    DEMO_PASSKEY = "sweep"
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        error = None
+        if request.method == "POST":
+            passkey = (request.form.get("passkey") or "").strip()
+            if passkey == DEMO_PASSKEY:
+                session["signed_in"] = True
+                return redirect(url_for("onboarding"))
+            error = "Incorrect passkey. Hint: this is a demo — try \"sweep\"."
+        return render_template("login.html", error=error)
+
+    @app.route("/logout", methods=["POST"])
+    def logout():
+        session.pop("signed_in", None)
+        return redirect(url_for("login"))
 
     @app.route("/")
     def index():
@@ -481,11 +509,51 @@ def create_app():
     def registration():
         return render_template("registration.html", active_page="registration", **build_dashboard_context())
 
+    @app.route("/search")
+    def search_route():
+        ctx = build_dashboard_context()
+        ctx["search_results"] = global_search(request.args.get("q", ""))
+        return render_template("search.html", active_page="search", **ctx)
+
+    @app.route("/notifications")
+    def notifications():
+        ctx = build_dashboard_context()
+        ctx["notifications_data"] = get_notifications_data()
+        return render_template("notifications.html", active_page="notifications", **ctx)
+
+    @app.route("/notifications/<notification_id>/read", methods=["POST"])
+    def notification_read_route(notification_id):
+        mark_notification_read(notification_id)
+        return jsonify({"ok": True})
+
+    @app.route("/notifications/read-all", methods=["POST"])
+    def notifications_read_all_route():
+        ids = [n["id"] for n in get_notifications_data()["notifications"]]
+        mark_all_read(ids)
+        return jsonify({"ok": True})
+
     @app.route("/tax")
     def tax():
         ctx = build_dashboard_context()
         ctx["tax"] = get_tax_data()
         return render_template("tax.html", active_page="tax", **ctx)
+
+    @app.route("/billing")
+    def billing():
+        ctx = build_dashboard_context()
+        ctx["billing"] = get_billing_data(ctx["account"])
+        return render_template("billing.html", active_page="billing", **ctx)
+
+    @app.route("/team")
+    def team():
+        return render_template("team.html", active_page="team", **build_dashboard_context())
+
+    @app.route("/onboarding")
+    def onboarding():
+        catalog = get_platform_catalog()
+        sources = [{"name": p.platform, "logo": platform_logo_key(p.platform),
+                    "connected": p.status == "connected"} for p in catalog[:8]]
+        return render_template("onboarding.html", sources=sources)
 
     @app.route("/disputes")
     def disputes():

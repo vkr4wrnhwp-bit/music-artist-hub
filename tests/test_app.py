@@ -967,6 +967,58 @@ def test_playlists_data_config_shapes():
     assert data["summary"]["placements"] == sum(1 for p in data["pitches"] if p["stage"] == "Added")
 
 
+def test_notifications_page_and_mark_read():
+    from notifications_config import reset_notifications_state
+    reset_notifications_state()
+    client = create_app().test_client()
+    body = client.get("/notifications").get_data(as_text=True)
+    assert "Notifications" in body
+    assert 'href="/notifications"' in body
+    assert client.post("/notifications/ntf-sys-welcome/read").get_json()["ok"]
+    assert client.post("/notifications/read-all").get_json()["ok"]
+    reset_notifications_state()
+
+
+def test_global_search_finds_songs_and_sources():
+    from search_config import search
+    client = create_app().test_client()
+    assert client.get("/search").status_code == 200
+    assert 'action="/search"' in client.get("/overview").get_data(as_text=True)
+    res = search("spotify")
+    assert res["total"] >= 1
+    assert any(g["type"] == "Sources" for g in res["groups"])
+    assert search("")["total"] == 0
+
+
+def test_billing_page_content():
+    client = create_app().test_client()
+    body = client.get("/billing").get_data(as_text=True)
+    assert "Compare Plans" in body
+    assert 'href="/billing"' in body
+
+
+def test_team_page_renders_and_in_nav():
+    client = create_app().test_client()
+    assert 'href="/team"' in client.get("/overview").get_data(as_text=True)
+    assert client.get("/team").status_code == 200
+
+
+def test_onboarding_page_renders():
+    client = create_app().test_client()
+    body = client.get("/onboarding").get_data(as_text=True)
+    assert "Connect your sources" in body
+
+
+def test_login_flow():
+    client = create_app().test_client()
+    assert client.get("/login").status_code == 200
+    ok = client.post("/login", data={"passkey": "sweep"})
+    assert ok.status_code == 302 and "/onboarding" in ok.headers["Location"]
+    bad = client.post("/login", data={"passkey": "nope"})
+    assert bad.status_code == 200 and "Incorrect passkey" in bad.get_data(as_text=True)
+    assert client.post("/logout").status_code == 302
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
@@ -1044,14 +1096,22 @@ def test_generate_report_unknown_id_returns_404():
     assert response.status_code == 404
 
 
-def test_settings_includes_collaborator_access_ui():
+def test_team_page_includes_collaborator_access_ui():
+    # Collaborator access moved from Settings to the dedicated Team page.
     client = create_app().test_client()
-    body = client.get("/settings").get_data(as_text=True)
-    assert "Collaborator Access" in body
+    body = client.get("/team").get_data(as_text=True)
+    assert "Collaborators" in body
     assert "Jamie Rowe" in body
-    assert 'id="invite-collaborator-form"' in body
     assert 'id="invite-name"' in body
     assert 'id="invite-email"' in body
+
+
+def test_settings_has_quick_links_and_signout():
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert 'href="/team"' in body
+    assert 'href="/billing"' in body
+    assert 'action="/logout"' in body
 
 
 def test_invite_collaborator_route():
