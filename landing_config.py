@@ -14,6 +14,26 @@ route at render time; everything here is static copy and structure.
 def get_landing_config():
     return {
         "brand": "Royalty Sweep",
+        "company": {
+            "name": "Street Banker",
+            "tagline": "The artist's back office.",
+            "blurb": (
+                "Street Banker gives independent artists and labels everything they "
+                "need to get paid and grow — royalty recovery, catalog valuation, and "
+                "full-service label support, all in one place."
+            ),
+            "pillars": [
+                {"icon": "search", "name": "Royalty Sweep",
+                 "desc": "Find and recover the royalties your catalog earned but never collected.",
+                 "href": "/overview", "tag": "Flagship"},
+                {"icon": "shield", "name": "Label Services",
+                 "desc": "Distribution, marketing, and management through Art Is War Records.",
+                 "href": "/services", "tag": "Art Is War Records"},
+                {"icon": "chart", "name": "Catalog Valuation",
+                 "desc": "Know what your catalog is worth — and unlock advances against it.",
+                 "href": "/valuation", "tag": "Capital"},
+            ],
+        },
         "nav": {
             "links": [
                 {"label": "Product", "href": "/overview", "menu": True},
@@ -22,7 +42,7 @@ def get_landing_config():
                 {"label": "Label Services", "href": "/services"},
                 {"label": "Pricing", "href": "/overview"},
                 {"label": "Resources", "href": "/reports", "menu": True},
-                {"label": "About", "href": "#features"},
+                {"label": "About", "href": "#company"},
             ],
             "login": {"label": "Login", "href": "/login"},
             "cta": {"label": "Start Free Scan", "href": "/overview"},
