@@ -5,6 +5,7 @@ from flask import Flask, jsonify, redirect, render_template, request
 
 from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
+from connections_config import get_connections_data
 
 from royalty_data import (
     add_split,
@@ -315,7 +316,9 @@ def create_app():
 
     @app.route("/connections")
     def connections():
-        return render_template("connections.html", active_page="connections", **build_dashboard_context())
+        ctx = build_dashboard_context()
+        ctx["conn"] = get_connections_data()
+        return render_template("connections.html", active_page="connections", **ctx)
 
     @app.route("/recovery")
     def recovery():
