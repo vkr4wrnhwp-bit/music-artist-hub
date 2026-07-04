@@ -1076,6 +1076,29 @@ def test_fan_dashboard_content():
     assert "Fan Segments" in body and "Fan Leaderboard" in body
 
 
+def test_capital_page_content_and_disclaimer():
+    client = create_app().test_client()
+    body = client.get("/capital").get_data(as_text=True)
+    assert 'href="/capital"' in body
+    assert "Fan Royalty Passes" in body
+    assert "Royalty Futures Marketplace" in body
+    assert "Roll the Dice" in body
+    # Must carry the prominent simulated-demo disclaimer.
+    assert "Simulated demo" in body
+    assert "no royalties are actually assigned, transferred, or forfeited" in body
+
+
+def test_capital_data_config_shapes():
+    from capital_config import get_capital_data
+    from royalty_data import get_songs
+    data = get_capital_data()
+    assert set(data.keys()) == {"passes", "crowdfunding", "futures", "staking", "dice"}
+    titles = {s.title for s in get_songs()}
+    assert data["passes"]["release"] in titles
+    assert all(f["release"] in titles for f in data["futures"])
+    assert data["crowdfunding"]["pct"] == round(data["crowdfunding"]["raised"] / data["crowdfunding"]["goal"] * 100)
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

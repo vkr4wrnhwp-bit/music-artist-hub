@@ -30,6 +30,7 @@ from search_config import search as global_search
 from billing_config import get_billing_data
 from insights_config import get_insights_data
 from benchmark_config import get_benchmark_data
+from capital_config import get_capital_data
 from community_config import (
     get_marketplace_data,
     post_request,
@@ -513,6 +514,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["fans"] = get_fan_dashboard_data()
         return render_template("fans.html", active_page="fans", **ctx)
+
+    @app.route("/capital")
+    def capital():
+        ctx = build_dashboard_context()
+        ctx["capital"] = get_capital_data()
+        return render_template("capital.html", active_page="capital", **ctx)
 
     @app.route("/audience")
     def audience():
