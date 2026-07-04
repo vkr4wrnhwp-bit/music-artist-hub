@@ -788,6 +788,28 @@ def test_neighboring_rights_data_config_shapes():
     assert round(sum(r["uncollected"] for r in data["recordings"]), 2) == data["summary"]["uncollected_total"]
 
 
+def test_sync_page_content():
+    client = create_app().test_client()
+    body = client.get("/sync").get_data(as_text=True)
+    assert "Sync / Licensing" in body
+    assert "Placements" in body
+    assert "Incoming Requests" in body
+    assert 'href="/sync"' in body
+
+
+def test_sync_data_config_shapes():
+    from sync_config import get_sync_data
+    from royalty_data import get_songs
+    data = get_sync_data()
+    assert data["placements"] and data["requests"] and data["opportunities"]
+    # Placements reference real catalog song titles.
+    titles = {s.title for s in get_songs()}
+    assert all(p["song"] in titles for p in data["placements"])
+    # Sync income counts only live placements.
+    live = round(sum(p["fee"] for p in data["placements"] if p["status"] == "Live"), 2)
+    assert data["summary"]["sync_income"] == live
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
