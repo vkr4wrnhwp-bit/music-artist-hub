@@ -687,6 +687,8 @@ PLATFORM_LOGO_KEYS = {
     "Apple Music": "apple",
     "YouTube Music": "youtube",
     "YouTube Content ID": "youtube",
+    "YouTube": "youtube",
+    "TikTok": "tiktok",
     "ASCAP": "ascap",
     "BMI": "bmi",
     "The MLC": "mlc",

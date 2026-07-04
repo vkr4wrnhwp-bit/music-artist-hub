@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% import "landing/_cards.html" as logos %}
+
+{% block title %}Smart Links - Royalty Sweep{% endblock %}
+
+{% set ld = links_data %}
+
+{% block content %}
+<div class="mx-auto max-w-[1400px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Smart Links</h1>
+      <p class="mt-1 text-sm text-gray-500">One link per release that sends fans to every platform — with click tracking.</p>
+    </div>
+    <button type="button" id="new-link-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
+      Create Smart Link
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Active Links</div>
+      <div id="kpi-links" class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ ld.summary.total_links }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Clicks</div>
+      <div id="kpi-clicks" class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(ld.summary.total_clicks) }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Top Performer</div>
+      <div class="mt-2 truncate text-lg font-bold">{{ ld.summary.top_title }}</div>
+      <div class="text-[11px] text-gray-500">{{ "{:,}".format(ld.summary.top_clicks) }} clicks</div>
+    </div>
+  </div>
+
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Your Links</h2>
+    <div id="links-list" class="mt-4 space-y-3">
+      {% for link in ld.links %}
+      <div class="link-card flex flex-wrap items-center gap-4 rounded-xl border border-white/5 bg-white/5 px-4 py-3">
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-semibold text-gray-100">{{ link.title }}</div>
+          <div class="mt-0.5 flex items-center gap-2">
+            <span class="link-url truncate text-xs text-amber-400/90">{{ link.url }}</span>
+            <button type="button" class="copy-link-btn shrink-0 text-gray-500 transition-colors hover:text-gray-200" data-url="{{ link.url }}" aria-label="Copy link">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="9" height="9" rx="1.5"/><path d="M4 13V5a1 1 0 011-1h8"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="flex shrink-0 items-center gap-1.5">
+          {% for p in link.platform_logos %}{{ logos.platform_logo(p.logo, "h-6 w-6") }}{% endfor %}
+        </div>
+        <div class="shrink-0 text-right">
+          <div class="text-sm font-bold tabular-nums text-amber-400">{{ "{:,}".format(link.clicks) }}</div>
+          <div class="text-[10px] text-gray-600">clicks</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div id="links-empty" class="{{ 'hidden' if ld.links else '' }} mt-4 rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-600">
+      No smart links yet. Create your first one.
+    </div>
+  </section>
+</div>
+
+<!-- Hidden logo templates, keyed for cloning into newly created links -->
+<div id="logo-templates" class="hidden">
+  {% for p in ld.platforms %}
+  <span data-logo-key="{{ logo_key(p) }}">{{ logos.platform_logo(logo_key(p), "h-6 w-6") }}</span>
+  {% endfor %}
+</div>
+
+<!-- Create Smart Link modal -->
+<div id="link-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-[#141416] p-6">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-gray-100">Create Smart Link</h3>
+      <button type="button" id="link-modal-close" class="text-gray-500 hover:text-gray-200" aria-label="Close">
+        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 6l8 8M14 6l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="mt-4">
+      <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Release Title</label>
+      <input id="link-title-input" placeholder="e.g. Midnight Drive"
+             class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
+    </div>
+    <div class="mt-4">
+      <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Platforms</label>
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        {% for p in ld.platforms %}
+        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-200">
+          <input type="checkbox" class="link-platform-cb h-3.5 w-3.5 accent-amber-500" value="{{ p }}" checked>
+          {{ p }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="link-modal-error" class="mt-3 hidden text-[11px] font-semibold text-red-400"></div>
+    <div class="mt-5 flex justify-end gap-2">
+      <button type="button" id="link-modal-cancel" class="rounded-md border border-white/10 px-4 py-2 text-xs font-semibold text-gray-400 hover:bg-white/5">Cancel</button>
+      <button type="button" id="link-modal-create" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-400 hover:bg-amber-500/20">Create Link</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const modal = document.getElementById("link-modal");
+  const openModal = () => { modal.classList.remove("hidden"); modal.classList.add("flex"); };
+  const closeModal = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); };
+  document.getElementById("new-link-btn").addEventListener("click", openModal);
+  document.getElementById("link-modal-close").addEventListener("click", closeModal);
+  document.getElementById("link-modal-cancel").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+  async function copyUrl(url, btn) {
+    try { await navigator.clipboard.writeText(url); } catch (e) {}
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg class="h-3.5 w-3.5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>';
+    setTimeout(() => { btn.innerHTML = orig; }, 1400);
+  }
+  function bindCopy(scope) {
+    scope.querySelectorAll(".copy-link-btn").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => copyUrl(btn.dataset.url, btn));
+    });
+  }
+  bindCopy(document);
+
+  // Clone a server-rendered platform-logo tile from the hidden template set.
+  function logoMarkup(logoKey) {
+    const found = document.querySelector('#logo-templates [data-logo-key="' + logoKey + '"]');
+    return found ? found.innerHTML : '';
+  }
+
+  document.getElementById("link-modal-create").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const title = document.getElementById("link-title-input").value.trim();
+    const platforms = Array.from(document.querySelectorAll(".link-platform-cb:checked")).map((c) => c.value);
+    const errEl = document.getElementById("link-modal-error");
+    errEl.classList.add("hidden");
+    if (!title || !platforms.length) {
+      errEl.textContent = "Enter a title and select at least one platform.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    btn.disabled = true; btn.textContent = "Creating...";
+    try {
+      const res = await fetch("/links/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, platforms }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        prependLink(data.link);
+        closeModal();
+        document.getElementById("link-title-input").value = "";
+      } else {
+        errEl.textContent = data.error || "Could not create link.";
+        errEl.classList.remove("hidden");
+      }
+    } finally {
+      btn.disabled = false; btn.textContent = "Create Link";
+    }
+  });
+
+  function prependLink(link) {
+    document.getElementById("links-empty").classList.add("hidden");
+    const logosHtml = link.platform_logos.map((p) => logoMarkup(p.logo)).join("");
+    const card = document.createElement("div");
+    card.className = "link-card flex flex-wrap items-center gap-4 rounded-xl border border-white/5 bg-white/5 px-4 py-3";
+    card.innerHTML =
+      '<div class="min-w-0 flex-1">' +
+        '<div class="truncate text-sm font-semibold text-gray-100">' + escapeHtml(link.title) + "</div>" +
+        '<div class="mt-0.5 flex items-center gap-2">' +
+          '<span class="link-url truncate text-xs text-amber-400/90">' + escapeHtml(link.url) + "</span>" +
+          '<button type="button" class="copy-link-btn shrink-0 text-gray-500 transition-colors hover:text-gray-200" data-url="' + escapeHtml(link.url) + '" aria-label="Copy link"><svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="9" height="9" rx="1.5"/><path d="M4 13V5a1 1 0 011-1h8"/></svg></button>' +
+        "</div>" +
+      "</div>" +
+      '<div class="flex shrink-0 items-center gap-1.5">' + logosHtml + "</div>" +
+      '<div class="shrink-0 text-right"><div class="text-sm font-bold tabular-nums text-amber-400">' + link.clicks.toLocaleString() + '</div><div class="text-[10px] text-gray-600">clicks</div></div>';
+    document.getElementById("links-list").prepend(card);
+    bindCopy(card);
+    flashHighlight(card);
+    const kpi = document.getElementById("kpi-links");
+    kpi.textContent = String(Number(kpi.textContent) + 1);
+  }
+</script>
+{% endblock %}

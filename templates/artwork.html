@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Cover Art - Royalty Sweep{% endblock %}
+
+{% set aw = artwork %}
+
+{% block content %}
+<div class="mx-auto max-w-[1400px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Cover Art</h1>
+      <p class="mt-1 text-sm text-gray-500">Design release artwork from templates, or generate a concept from a prompt.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" id="download-svg-btn" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5">Download SVG</button>
+      <button type="button" id="download-png-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Download PNG</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <!-- Live preview -->
+    <div class="flex items-center justify-center rounded-2xl border border-white/5 bg-[#0e0e10] p-6">
+      <div id="cover-frame" class="w-full max-w-[520px]"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">AI Concept</h2>
+        <p class="mt-1 text-sm text-gray-500">Describe a mood — we'll suggest a palette and layout.</p>
+        <textarea id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
+                  class="mt-3 w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none"></textarea>
+        <button type="button" id="generate-btn" class="mt-2 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Generate Concept</button>
+        <div id="generate-note" class="mt-2 hidden text-[11px] text-gray-500"></div>
+      </section>
+
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5 space-y-4">
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title</label>
+          <input id="title-input" value="{{ aw.quick_titles[0] if aw.quick_titles else 'Untitled' }}"
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            {% for t in aw.quick_titles %}
+            <button type="button" class="quick-title-btn rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-gray-400 transition-colors hover:text-amber-400" data-title="{{ t }}">{{ t }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Artist</label>
+          <input id="artist-input" value="{{ aw.artist }}"
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Colorway</label>
+          <div id="colorway-row" class="mt-2 flex flex-wrap gap-2">
+            {% for c in aw.colorways %}
+            <button type="button" class="colorway-btn h-9 w-9 rounded-lg border-2 transition-transform hover:scale-105 {{ 'border-amber-400' if loop.first else 'border-transparent' }}"
+                    data-colorway="{{ c.id }}" title="{{ c.name }}"
+                    style="background: linear-gradient(135deg, {{ c.from }}, {{ c.to }});"></button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Template</label>
+          <div id="template-row" class="mt-2 grid grid-cols-2 gap-1.5">
+            {% for t in aw.templates %}
+            <button type="button" class="template-btn rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if loop.first else 'border-white/10 text-gray-400 hover:text-gray-200' }}" data-template="{{ t.id }}">{{ t.name }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Font</label>
+            <select id="font-select" class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
+              {% for f in aw.fonts %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Aspect</label>
+            <select id="aspect-select" class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
+              {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const COLORWAYS = {{ aw.colorways | tojson }};
+  const TEMPLATES = {{ aw.templates | tojson }};
+  const FONTS = {{ aw.fonts | tojson }};
+  const ASPECTS = {{ aw.aspects | tojson }};
+
+  const state = {
+    colorway: COLORWAYS[0].id,
+    template: TEMPLATES[0].id,
+    font: FONTS[0].id,
+    aspect: ASPECTS[0].id,
+    title: document.getElementById("title-input").value,
+    artist: document.getElementById("artist-input").value,
+  };
+
+  const byId = (arr, id) => arr.find((x) => x.id === id) || arr[0];
+
+  function buildSvg() {
+    const c = byId(COLORWAYS, state.colorway);
+    const t = byId(TEMPLATES, state.template);
+    const f = byId(FONTS, state.font);
+    const a = byId(ASPECTS, state.aspect);
+    const W = a.w, H = a.h;
+    const title = (state.title || "Untitled").toUpperCase();
+    const artist = (state.artist || "").toUpperCase();
+
+    let motif = "";
+    if (t.motif === "ring") motif = `<circle cx="${W/2}" cy="${H*0.4}" r="${Math.min(W,H)*0.28}" fill="none" stroke="${c.accent}" stroke-width="6" opacity="0.55"/>`;
+    else if (t.motif === "bar") motif = `<rect x="0" y="${H*0.72}" width="${W}" height="8" fill="${c.accent}"/>`;
+    else if (t.motif === "lines") motif = `<g stroke="${c.accent}" stroke-width="5" opacity="0.5">${[0,1,2].map(i=>`<line x1="${W*0.1}" y1="${H*0.30+i*22}" x2="${W*0.42}" y2="${H*0.30+i*22}"/>`).join("")}</g>`;
+
+    let titleEl, artistEl;
+    const titleSize = Math.min(W, H) * (title.length > 14 ? 0.085 : 0.12);
+    if (t.align === "center") {
+      titleEl = `<text x="${W/2}" y="${H*0.58}" text-anchor="middle" fill="${c.text}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
+      artistEl = `<text x="${W/2}" y="${H*0.66}" text-anchor="middle" fill="${c.accent}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
+    } else if (t.align === "bottom") {
+      titleEl = `<text x="${W*0.06}" y="${H*0.88}" fill="${c.text}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
+      artistEl = `<text x="${W*0.06}" y="${H*0.94}" fill="${c.accent}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
+    } else {
+      titleEl = `<text x="${W*0.1}" y="${H*0.55}" fill="${c.text}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
+      artistEl = `<text x="${W*0.1}" y="${H*0.62}" fill="${c.accent}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
+    }
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+      <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="${c.from}"/><stop offset="1" stop-color="${c.to}"/>
+      </linearGradient></defs>
+      <rect width="${W}" height="${H}" fill="url(#bg)"/>
+      ${motif}${titleEl}${artistEl}
+    </svg>`;
+  }
+
+  function escapeXml(s) {
+    return String(s).replace(/[<>&'"]/g, (ch) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", "'":"&apos;", '"':"&quot;" }[ch]));
+  }
+
+  function render() {
+    document.getElementById("cover-frame").innerHTML = buildSvg();
+  }
+
+  // Wire controls
+  document.getElementById("title-input").addEventListener("input", (e) => { state.title = e.target.value; render(); });
+  document.getElementById("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
+  document.getElementById("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
+  document.getElementById("aspect-select").addEventListener("change", (e) => { state.aspect = e.target.value; render(); });
+
+  document.querySelectorAll(".quick-title-btn").forEach((b) => b.addEventListener("click", () => {
+    state.title = b.dataset.title;
+    document.getElementById("title-input").value = b.dataset.title;
+    render();
+  }));
+
+  function setColorway(id) {
+    state.colorway = id;
+    document.querySelectorAll(".colorway-btn").forEach((b) => {
+      b.classList.toggle("border-amber-400", b.dataset.colorway === id);
+      b.classList.toggle("border-transparent", b.dataset.colorway !== id);
+    });
+    render();
+  }
+  document.querySelectorAll(".colorway-btn").forEach((b) => b.addEventListener("click", () => setColorway(b.dataset.colorway)));
+
+  function setTemplate(id) {
+    state.template = id;
+    document.querySelectorAll(".template-btn").forEach((b) => {
+      const active = b.dataset.template === id;
+      b.className = "template-btn rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors " +
+        (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-400 hover:text-gray-200");
+    });
+    render();
+  }
+  document.querySelectorAll(".template-btn").forEach((b) => b.addEventListener("click", () => setTemplate(b.dataset.template)));
+
+  // AI concept seam
+  document.getElementById("generate-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const note = document.getElementById("generate-note");
+    btn.disabled = true;
+    btn.textContent = "Generating...";
+    try {
+      const res = await fetch("/artwork/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: document.getElementById("prompt-input").value }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setColorway(data.suggestion.colorway_id);
+        setTemplate(data.suggestion.template_id);
+        note.textContent = data.suggestion.note;
+        note.classList.remove("hidden");
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generate Concept";
+    }
+  });
+
+  // Downloads
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+  const safeName = () => (state.title || "cover").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cover";
+
+  document.getElementById("download-svg-btn").addEventListener("click", () => {
+    downloadBlob(new Blob([buildSvg()], { type: "image/svg+xml" }), safeName() + "-cover.svg");
+  });
+
+  document.getElementById("download-png-btn").addEventListener("click", () => {
+    const a = byId(ASPECTS, state.aspect);
+    const img = new Image();
+    const svgBlob = new Blob([buildSvg()], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(svgBlob);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = a.w; canvas.height = a.h;
+      canvas.getContext("2d").drawImage(img, 0, 0, a.w, a.h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => downloadBlob(blob, safeName() + "-cover.png"), "image/png");
+    };
+    img.src = url;
+  });
+
+  render();
+</script>
+{% endblock %}

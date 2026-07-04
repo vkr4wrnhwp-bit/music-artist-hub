@@ -8,6 +8,8 @@ from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
 from epk_config import get_epk_data
+from artwork_config import get_artwork_data, suggest_from_prompt
+from links_config import get_links_data, create_smart_link
 
 from royalty_data import (
     add_split,
@@ -354,6 +356,32 @@ def create_app():
         slug = data["name"].lower().replace(" ", "-")
         filename = f"{slug}-press-kit-{datetime.today().strftime('%Y%m%d')}.pdf"
         return jsonify({"ok": True, "filename": filename})
+
+    @app.route("/artwork")
+    def artwork():
+        ctx = build_dashboard_context()
+        ctx["artwork"] = get_artwork_data(ctx["account"])
+        return render_template("artwork.html", active_page="artwork", **ctx)
+
+    @app.route("/artwork/generate", methods=["POST"])
+    def artwork_generate():
+        payload = request.get_json(silent=True) or {}
+        suggestion = suggest_from_prompt(payload.get("prompt", ""))
+        return jsonify({"ok": True, "suggestion": suggestion})
+
+    @app.route("/links")
+    def links():
+        ctx = build_dashboard_context()
+        ctx["links_data"] = get_links_data()
+        return render_template("links.html", active_page="links", **ctx)
+
+    @app.route("/links/create", methods=["POST"])
+    def links_create():
+        payload = request.get_json(silent=True) or {}
+        link = create_smart_link(payload.get("title", ""), payload.get("platforms", []))
+        if link is None:
+            return jsonify({"ok": False, "error": "A title and at least one platform are required."}), 400
+        return jsonify({"ok": True, "link": link})
 
     @app.route("/settings")
     def settings():

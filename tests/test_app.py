@@ -653,6 +653,52 @@ def test_epk_data_config_shapes():
     assert all(s["key"] for s in data["sections"])
 
 
+def test_artwork_page_includes_generator():
+    client = create_app().test_client()
+    body = client.get("/artwork").get_data(as_text=True)
+    assert 'id="cover-frame"' in body
+    assert "AI Concept" in body
+    assert "colorway-btn" in body
+    assert 'href="/artwork"' in body
+
+
+def test_artwork_generate_endpoint():
+    client = create_app().test_client()
+    resp = client.post("/artwork/generate", json={"prompt": "warm ember sunset fire heat"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"]
+    assert data["suggestion"]["colorway_id"] == "ember"
+    assert "template_id" in data["suggestion"]
+
+
+def test_smart_links_page_and_create():
+    from links_config import reset_smart_links_state
+    reset_smart_links_state()
+    client = create_app().test_client()
+    body = client.get("/links").get_data(as_text=True)
+    assert 'id="links-list"' in body
+    assert "Create Smart Link" in body
+    assert 'href="/links"' in body
+    ok = client.post("/links/create", json={"title": "New Single", "platforms": ["Spotify", "TikTok"]})
+    assert ok.status_code == 200
+    link = ok.get_json()["link"]
+    assert link["slug"] == "new-single"
+    assert link["url"].endswith("/new-single")
+    bad = client.post("/links/create", json={"title": "", "platforms": []})
+    assert bad.status_code == 400
+
+
+def test_links_data_config_shapes():
+    from links_config import get_links_data, reset_smart_links_state
+    reset_smart_links_state()
+    data = get_links_data()
+    assert data["summary"]["total_links"] == len(data["links"])
+    assert data["summary"]["total_clicks"] == sum(l["clicks"] for l in data["links"])
+    assert all("url" in l and "platform_logos" in l for l in data["links"])
+    assert data["platforms"]
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
