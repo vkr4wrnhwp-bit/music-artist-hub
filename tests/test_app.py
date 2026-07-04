@@ -122,6 +122,27 @@ def test_settings_includes_connections_ui():
     assert "YouTube Music" in body
 
 
+def test_settings_includes_account_profile_ui():
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert "Account Profile" in body
+    assert 'id="profile-form"' in body
+    assert 'id="profile-name"' in body
+    assert 'id="profile-email"' in body
+    assert 'id="profile-plan"' in body
+
+
+def test_settings_includes_notification_preferences_ui():
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert "Notification Preferences" in body
+    assert 'id="notification-list"' in body
+    assert "High severity leak alerts" in body
+    assert "Weekly summary email" in body
+    assert 'data-key="leak_high"' in body
+    assert 'data-key="new_song_detected"' in body
+
+
 def test_royalties_includes_scanner_ui():
     client = create_app().test_client()
     body = client.get("/royalties").get_data(as_text=True)
