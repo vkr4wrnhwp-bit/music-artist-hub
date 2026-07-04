@@ -6,6 +6,7 @@ from flask import Flask, jsonify, redirect, render_template, request
 from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
+from reports_config import get_reports_data
 
 from royalty_data import (
     add_split,
@@ -335,7 +336,9 @@ def create_app():
 
     @app.route("/reports")
     def reports():
-        return render_template("reports.html", active_page="reports", **build_dashboard_context())
+        ctx = build_dashboard_context()
+        ctx["reports_data"] = get_reports_data()
+        return render_template("reports.html", active_page="reports", **ctx)
 
     @app.route("/settings")
     def settings():

@@ -600,11 +600,24 @@ def test_catalog_metadata_issues_have_counts():
     assert "Split Conflicts" in body
 
 
-def test_reports_page_includes_exportable_reports():
+def test_reports_page_includes_report_library():
     client = create_app().test_client()
     body = client.get("/reports").get_data(as_text=True)
-    assert "Exportable Reports" in body
     assert "Investor Snapshot" in body
+    assert "Recently Generated" in body
+    assert "Scheduled Reports" in body
+    assert "Report Types" in body
+
+
+def test_reports_data_config_shapes():
+    from reports_config import get_reports_data
+    data = get_reports_data()
+    assert data["summary"]["total_reports"] == len(data["categories"][0]["reports"]) + sum(
+        len(c["reports"]) for c in data["categories"][1:]
+    )
+    assert [c["name"] for c in data["categories"]] == ["Financial", "Recovery", "Rights", "Investor"]
+    assert data["formats"] and data["scheduled"]
+    assert all("tone" in c for c in data["categories"])
 
 
 def test_catalog_data_config_shapes():

@@ -1406,17 +1406,43 @@ def reset_registration_wizard_state():
 
 
 REPORT_TYPES = [
-    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song."},
-    {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected."},
-    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples."},
-    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount."},
-    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body."},
-    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth."},
+    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song.", "category": "Financial", "format": "PDF", "icon": "dollar"},
+    {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected.", "category": "Recovery", "format": "CSV", "icon": "search"},
+    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples.", "category": "Financial", "format": "PDF", "icon": "trend"},
+    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount.", "category": "Financial", "format": "PDF", "icon": "bolt"},
+    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body.", "category": "Rights", "format": "XLSX", "icon": "shield"},
+    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth.", "category": "Investor", "format": "PDF", "icon": "chart"},
 ]
+
+REPORT_CATEGORY_ORDER = ["Financial", "Recovery", "Rights", "Investor"]
+
+# Illustrative saved schedules — the app has no scheduler backend yet, so these
+# stand in as example recurring exports until one is wired up.
+_scheduled_reports = [
+    {"id": "sched-1", "report_id": "royalty-report", "cadence": "Monthly", "next_run": "2026-08-01", "recipients": 2, "enabled": True},
+    {"id": "sched-2", "report_id": "investor-snapshot", "cadence": "Quarterly", "next_run": "2026-10-01", "recipients": 1, "enabled": True},
+    {"id": "sched-3", "report_id": "missing-money-report", "cadence": "Weekly", "next_run": "2026-07-11", "recipients": 1, "enabled": False},
+]
+
+# Live log of reports generated this session, newest first.
+_report_history = []
 
 
 def get_available_reports():
     return REPORT_TYPES
+
+
+def get_scheduled_reports():
+    by_id = {r["id"]: r for r in REPORT_TYPES}
+    out = []
+    for s in _scheduled_reports:
+        rt = by_id.get(s["report_id"], {})
+        out.append({**s, "label": rt.get("label", s["report_id"]), "format": rt.get("format", "PDF")})
+    return out
+
+
+def get_report_history():
+    return list(_report_history)
 
 
 def generate_report(report_id):
@@ -1424,12 +1450,20 @@ def generate_report(report_id):
     if match is None:
         return None
     generated_at = date.today()
-    return {
+    report = {
         "id": report_id,
         "label": match["label"],
+        "format": match["format"],
         "generated_at": generated_at.isoformat(),
-        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.pdf",
+        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.{match['format'].lower()}",
     }
+    _report_history.insert(0, report)
+    del _report_history[25:]
+    return report
+
+
+def reset_report_history():
+    _report_history.clear()
 
 
 def get_since_last_login_summary(catalog, songs, catalog_value_pct_change, catalog_value_mid=0):
