@@ -11,7 +11,7 @@
 <body class="min-h-screen bg-[#0a0a0a] text-gray-100">
   <div class="flex min-h-screen flex-col lg:flex-row">
     <aside class="w-full shrink-0 border-b border-white/5 bg-[#111113] p-5 lg:w-60 lg:border-b-0 lg:border-r">
-      <div class="mb-1 flex items-center gap-2.5">
+      <div class="mb-1 flex items-center justify-center gap-2.5">
         <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
           <circle cx="16" cy="16" r="14" stroke="white" stroke-width="2"/>
           <path d="M13 10.5L21 16L13 21.5V10.5Z" fill="white"/>
@@ -21,12 +21,12 @@
           <div class="text-sm font-bold">Sweep</div>
         </div>
       </div>
-      <div class="relative mb-8 mt-4 inline-flex items-center px-4 py-2.5">
-        <span class="absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-white/60"></span>
-        <span class="absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-white/60"></span>
-        <span class="absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-white/60"></span>
-        <span class="absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-white/60"></span>
-        <span class="text-xs tracking-tight text-gray-200">.street banker</span>
+      <div class="relative mb-8 mt-4 flex items-center justify-center px-3 py-1.5">
+        <span class="absolute left-0 top-0 h-2 w-2 border-l border-t border-white/60"></span>
+        <span class="absolute right-0 top-0 h-2 w-2 border-r border-t border-white/60"></span>
+        <span class="absolute bottom-0 left-0 h-2 w-2 border-b border-l border-white/60"></span>
+        <span class="absolute bottom-0 right-0 h-2 w-2 border-b border-r border-white/60"></span>
+        <span class="text-[10px] tracking-tight text-gray-400">Powered by <span class="text-gray-200">Street Banker</span></span>
       </div>
       <nav class="space-y-1 text-sm">
         {% set nav_items = [
