@@ -932,6 +932,41 @@ def test_disputes_data_config_shapes():
     assert data["summary"]["amount_in_dispute"] == open_amt
 
 
+def test_tier3_pages_render_and_nav():
+    client = create_app().test_client()
+    nav = client.get("/overview").get_data(as_text=True)
+    for href in ("/audience", "/playlists", "/stats"):
+        assert 'href="%s"' % href in nav
+        assert client.get(href).status_code == 200
+
+
+def test_audience_data_config_shapes():
+    from audience_config import get_audience_data
+    data = get_audience_data()
+    assert data["trend"] and data["top_tracks"]
+    assert sum(a["pct"] for a in data["age_brackets"]) == 100
+    # Top tracks are ranked by streams.
+    streams = [t["streams"] for t in data["top_tracks"]]
+    assert streams == sorted(streams, reverse=True)
+
+
+def test_stats_data_matches_catalog():
+    from stats_config import get_stats_data
+    from royalty_data import get_songs
+    data = get_stats_data()
+    assert data["summary"]["total_streams"] == sum(s.streams for s in get_songs())
+    # Platform earnings share sums to ~100%.
+    assert abs(sum(p["share_pct"] for p in data["platforms"]) - 100) < 0.5
+
+
+def test_playlists_data_config_shapes():
+    from playlists_config import get_playlists_data, reset_playlists_state
+    reset_playlists_state()
+    data = get_playlists_data()
+    assert data["summary"]["total_pitches"] == len(data["pitches"])
+    assert data["summary"]["placements"] == sum(1 for p in data["pitches"] if p["stage"] == "Added")
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

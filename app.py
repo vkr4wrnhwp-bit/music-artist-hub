@@ -18,6 +18,9 @@ from mechanicals_config import get_mechanicals_data
 from funding_config import get_funding_data
 from tax_config import get_tax_data
 from disputes_config import get_disputes_data, advance_dispute
+from audience_config import get_audience_data
+from playlists_config import get_playlists_data
+from stats_config import get_stats_data
 
 from royalty_data import (
     add_split,
@@ -420,6 +423,24 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["mechanicals"] = get_mechanicals_data()
         return render_template("mechanicals.html", active_page="mechanicals", **ctx)
+
+    @app.route("/audience")
+    def audience():
+        ctx = build_dashboard_context()
+        ctx["audience"] = get_audience_data()
+        return render_template("audience.html", active_page="audience", **ctx)
+
+    @app.route("/playlists")
+    def playlists():
+        ctx = build_dashboard_context()
+        ctx["playlists"] = get_playlists_data()
+        return render_template("playlists.html", active_page="playlists", **ctx)
+
+    @app.route("/stats")
+    def stats():
+        ctx = build_dashboard_context()
+        ctx["stats"] = get_stats_data()
+        return render_template("stats.html", active_page="stats", **ctx)
 
     @app.route("/funding")
     def funding():
