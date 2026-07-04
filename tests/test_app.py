@@ -1160,9 +1160,10 @@ def test_label_services_content_from_site():
     hub = client.get("/services").get_data(as_text=True)
     assert "Art Is War Records" in hub
     assert "team.summitarts@gmail.com" in hub
-    assert "170+" in hub
+    assert "200+" in hub
     dist = client.get("/services/distribution").get_data(as_text=True)
-    assert "No physical product set-up fees" in dist
+    assert "No physical or digital set-up fees" in dist
+    assert "Content ID" in dist  # UGC monetization sell point
     submit = client.get("/submit").get_data(as_text=True)
     assert "artiswarrecords@gmail.com" in submit
     assert 'href="/epk"' in submit  # submissions tie into the EPK builder

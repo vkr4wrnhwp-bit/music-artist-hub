@@ -219,15 +219,17 @@ def get_landing_config():
         "pillars": [
             {
                 "eyebrow": "STREET BANKER", "title": "Music Distribution",
-                "tagline": "CDs, vinyl & digital — everywhere, no setup fees.",
-                "description": "Get your releases onto every platform and into physical retail, with real-time sales and streaming data and no upfront fees.",
+                "tagline": "CDs, vinyl, video & digital — everywhere, no setup fees.",
+                "description": "Powered by our Symphonic partnership: your releases reach 200+ platforms and physical retail, earn from social/UGC, and collect everywhere — with real-time data and no upfront fees.",
                 "theme": "light",
-                "bullets": ["170+ digital streaming & download services", "CD & vinyl into 2,500 national and independent retailers",
-                            "No physical or digital set-up fees", "Real-time sales + streaming data, optional Soundscan"],
+                "bullets": ["200+ streaming & download platforms — plus CD, vinyl & music video",
+                            "Earn from TikTok, YouTube, Instagram & Facebook UGC (Content ID)",
+                            "Unlimited collaborator splits + real-time analytics (incl. TikTok)",
+                            "Playlist pitching, publishing, neighboring rights & royalty advances"],
                 "cta": {"label": "Explore Distribution", "href": "/services/distribution"},
                 "visual": {"type": "stats", "items": [
-                    {"value": "170+", "label": "DSPs"}, {"value": "2,500", "label": "Retailers"},
-                    {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Sales data"}]},
+                    {"value": "200+", "label": "Platforms"}, {"value": "2,500", "label": "Retailers"},
+                    {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Analytics"}]},
             },
             {
                 "eyebrow": "ART IS WAR RECORDS", "title": "Full-Service Label",
