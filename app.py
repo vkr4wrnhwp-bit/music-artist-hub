@@ -19,6 +19,7 @@ from royalty_data import (
     get_collaborators,
     get_overview_health,
     get_royalties_overview,
+    get_valuation_overview,
     platform_logo_key,
     recent_payout_rows,
     get_recovery_summary,
@@ -137,6 +138,9 @@ def build_dashboard_context():
         "recent_payout_rows": recent_payout_rows(),
         "royalties_overview": get_royalties_overview(
             balances, catalog, payout_calendar, earnings_trend, recent_payout_rows()
+        ),
+        "valuation_overview": get_valuation_overview(
+            earnings_trend, catalog_value, advance_eligibility, value_tracker
         ),
         "logo_key": platform_logo_key,
         "conflicts": get_rights_conflicts(songs),

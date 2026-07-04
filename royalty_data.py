@@ -706,6 +706,37 @@ def _pseudo_change(name):
     return round((h % 340) / 10 - 4, 1)
 
 
+def get_valuation_overview(earnings_trend, catalog_value, advance_eligibility, value_tracker):
+    """The Valuation page's summary layer: headline estimated value,
+    month-over-month change, annual run rate, suggested advance, and a
+    value-over-time series -- all derived from the existing catalog
+    value, advance, and tracker figures so nothing is independently
+    invented. The trend applies the mid multiple to the running
+    annualized run rate at each month.
+    """
+    mid_multiple = catalog_value["multiples"]["mid"]
+    labels = [label for label, _ in earnings_trend]
+    values = [v for _, v in earnings_trend]
+
+    trend = []
+    for i, label in enumerate(labels):
+        window = values[: i + 1]
+        annual = (sum(window) / len(window)) * 12 if window else 0
+        trend.append({"label": label, "value": round(annual * mid_multiple, 2)})
+
+    return {
+        "estimated_value": catalog_value["mid"],
+        "value_low": catalog_value["low"],
+        "value_high": catalog_value["high"],
+        "monthly_change": value_tracker["pct_change"],
+        "annual_run_rate": catalog_value["annual_run_rate"],
+        "suggested_advance": advance_eligibility["suggested_advance"],
+        "eligibility_tier": advance_eligibility["tier"],
+        "eligibility_score": advance_eligibility["score"],
+        "trend": trend,
+    }
+
+
 def get_royalties_overview(balances, catalog, payout_calendar, earnings_trend, recent_rows):
     """Everything the Royalties page's top half needs -- four summary
     stats, the ranked by-source breakdown, and the earnings-trend footer
