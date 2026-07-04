@@ -1019,6 +1019,63 @@ def test_login_flow():
     assert client.post("/logout").status_code == 302
 
 
+def test_tier5_and_community_pages_render_and_nav():
+    client = create_app().test_client()
+    nav = client.get("/overview").get_data(as_text=True)
+    for href in ("/insights", "/benchmark", "/marketplace", "/network", "/fan-label", "/fans"):
+        assert 'href="%s"' % href in nav
+        assert client.get(href).status_code == 200
+    for group in ("Intelligence", "Community"):
+        assert ">%s<" % group in nav
+
+
+def test_insights_ranked_and_consolidated():
+    from insights_config import get_insights_data
+    from app import build_dashboard_context
+    data = get_insights_data(build_dashboard_context()["smart_recommendations"])
+    impacts = [i["impact"] for i in data["insights"]]
+    assert impacts == sorted(impacts, reverse=True)
+    # Consolidates more than one category (recovery + publishing/etc).
+    assert data["summary"]["categories"] >= 2
+    assert data["summary"]["total_impact"] == round(sum(impacts), 2)
+
+
+def test_benchmark_uses_real_metrics():
+    from benchmark_config import get_benchmark_data
+    from royalty_data import get_songs
+    data = get_benchmark_data()
+    streams = next(m for m in data["metrics"] if m["label"] == "Total streams")
+    assert streams["you"] == sum(s.streams for s in get_songs())
+    assert data["summary"]["ahead"] + data["summary"]["behind"] == data["summary"]["metrics"]
+
+
+def test_marketplace_post_flow():
+    from community_config import reset_marketplace_state
+    reset_marketplace_state()
+    client = create_app().test_client()
+    ok = client.post("/marketplace/post", json={"artist": "Me", "need": "Vocalist", "deal_type": "For Fun"})
+    assert ok.status_code == 200 and ok.get_json()["ok"]
+    bad = client.post("/marketplace/post", json={"artist": "", "need": "", "deal_type": "Nope"})
+    assert bad.status_code == 400
+    reset_marketplace_state()
+
+
+def test_fan_label_vote_flow():
+    from community_config import reset_fan_label_state, get_fan_label_data
+    reset_fan_label_state()
+    before = {d["id"]: d["votes"] for d in get_fan_label_data()["demos"]}
+    client = create_app().test_client()
+    resp = client.post("/fan-label/vote/demo-1")
+    assert resp.status_code == 200 and resp.get_json()["votes"] == before["demo-1"] + 1
+    assert client.post("/fan-label/vote/nope").status_code == 404
+    reset_fan_label_state()
+
+
+def test_fan_dashboard_content():
+    body = create_app().test_client().get("/fans").get_data(as_text=True)
+    assert "Fan Segments" in body and "Fan Leaderboard" in body
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

@@ -28,6 +28,16 @@ from notifications_config import (
 )
 from search_config import search as global_search
 from billing_config import get_billing_data
+from insights_config import get_insights_data
+from benchmark_config import get_benchmark_data
+from community_config import (
+    get_marketplace_data,
+    post_request,
+    get_network_data,
+    get_fan_label_data,
+    vote_demo,
+    get_fan_dashboard_data,
+)
 
 from royalty_data import (
     add_split,
@@ -451,6 +461,58 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["mechanicals"] = get_mechanicals_data()
         return render_template("mechanicals.html", active_page="mechanicals", **ctx)
+
+    @app.route("/insights")
+    def insights():
+        ctx = build_dashboard_context()
+        ctx["insights"] = get_insights_data(ctx["smart_recommendations"])
+        return render_template("insights.html", active_page="insights", **ctx)
+
+    @app.route("/benchmark")
+    def benchmark():
+        ctx = build_dashboard_context()
+        ctx["benchmark"] = get_benchmark_data()
+        return render_template("benchmark.html", active_page="benchmark", **ctx)
+
+    @app.route("/marketplace")
+    def marketplace():
+        ctx = build_dashboard_context()
+        ctx["marketplace"] = get_marketplace_data()
+        return render_template("marketplace.html", active_page="marketplace", **ctx)
+
+    @app.route("/marketplace/post", methods=["POST"])
+    def marketplace_post():
+        p = request.get_json(silent=True) or {}
+        req = post_request(p.get("artist"), p.get("need"), p.get("genre"),
+                           p.get("deal_type"), p.get("detail"))
+        if req is None:
+            return jsonify({"ok": False, "error": "Artist, need, and a valid deal type are required."}), 400
+        return jsonify({"ok": True, "request": req})
+
+    @app.route("/network")
+    def network():
+        ctx = build_dashboard_context()
+        ctx["network"] = get_network_data()
+        return render_template("network.html", active_page="network", **ctx)
+
+    @app.route("/fan-label")
+    def fan_label():
+        ctx = build_dashboard_context()
+        ctx["fan_label"] = get_fan_label_data()
+        return render_template("fan_label.html", active_page="fan-label", **ctx)
+
+    @app.route("/fan-label/vote/<demo_id>", methods=["POST"])
+    def fan_label_vote(demo_id):
+        votes = vote_demo(demo_id)
+        if votes is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "votes": votes})
+
+    @app.route("/fans")
+    def fans():
+        ctx = build_dashboard_context()
+        ctx["fans"] = get_fan_dashboard_data()
+        return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/audience")
     def audience():

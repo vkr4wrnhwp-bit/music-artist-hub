@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Fan Label - Royalty Sweep{% endblock %}
+
+{% set fl = fan_label %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  <div>
+    <h1 class="text-2xl font-semibold uppercase tracking-tight">Fan Label</h1>
+    <p class="mt-1 text-sm text-gray-500">A community-funded label where fans back releases and vote on which demos get made.</p>
+  </div>
+
+  <section class="rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.06] to-transparent p-5">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Community Fund</div>
+        <div class="mt-1 text-3xl font-bold tabular-nums text-amber-400">${{ "{:,}".format(fl.raised) }}<span class="text-base font-normal text-gray-500"> / ${{ "{:,}".format(fl.goal) }}</span></div>
+        <div class="mt-1 text-[11px] text-gray-500">{{ fl.backers }} backers · {{ fl.pct }}% funded</div>
+      </div>
+    </div>
+    <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-white/5"><div class="h-2.5 rounded-full bg-amber-500" style="width: {{ fl.pct }}%;"></div></div>
+  </section>
+
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Milestones</h2>
+      <div class="mt-3 space-y-2">
+        {% for m in fl.milestones %}
+        <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
+          {% if m.unlocked %}
+          <svg class="h-5 w-5 shrink-0 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
+          {% else %}
+          <svg class="h-5 w-5 shrink-0 text-gray-600" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="9" width="10" height="8" rx="1"/><path d="M7 9V7a3 3 0 016 0v2"/></svg>
+          {% endif %}
+          <span class="min-w-0 flex-1 text-sm {{ 'text-gray-300' if m.unlocked else 'text-gray-500' }}">{{ m.label }}</span>
+          <span class="shrink-0 text-xs font-semibold tabular-nums {{ 'text-green-400' if m.unlocked else 'text-gray-500' }}">${{ "{:,}".format(m.amount) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Vote on Demos</h2>
+      <p class="mt-1 text-sm text-gray-500">The most-voted demo gets funded next.</p>
+      <div class="mt-3 space-y-2">
+        {% for d in fl.demos %}
+        <div class="demo-row flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-id="{{ d.id }}">
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-semibold text-gray-100">{{ d.title }}</div>
+            <div class="text-[11px] text-gray-500">{{ d.artist }}</div>
+          </div>
+          <span class="demo-votes shrink-0 text-sm font-bold tabular-nums text-amber-400">{{ d.votes }}</span>
+          <button type="button" class="demo-vote-btn shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400 hover:bg-amber-500/20">Vote</button>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  <p class="px-1 text-[11px] text-gray-600">Demo only — this visualises a community-funded label concept. No real money is contributed or moved.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".demo-vote-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = btn.closest(".demo-row");
+      btn.disabled = true;
+      const res = await fetch(`/fan-label/vote/${row.dataset.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        row.querySelector(".demo-votes").textContent = data.votes;
+        btn.textContent = "Voted ✓";
+        btn.className = "demo-vote-btn shrink-0 rounded-md border border-green-500/20 bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold text-green-400";
+        flashHighlight(row);
+      } else {
+        btn.disabled = false;
+      }
+    });
+  });
+</script>
+{% endblock %}
