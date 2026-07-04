@@ -3,6 +3,8 @@ from datetime import datetime
 
 from flask import Flask, jsonify, redirect, render_template, request
 
+from landing_config import get_landing_config
+
 from royalty_data import (
     add_split,
     advance_claim,
@@ -200,6 +202,66 @@ def build_song_detail(song_id):
     }
 
 
+_LANDING_SOURCES = [
+    ("spotify", "Spotify", "spotify"),
+    ("apple-music", "Apple Music", "apple"),
+    ("ascap", "ASCAP", "ascap"),
+    ("bmi", "BMI", "bmi"),
+    ("the-mlc", "The MLC", "mlc"),
+    ("soundexchange", "SoundExchange", "soundexchange"),
+    ("youtube-content-id", "YouTube Content ID", "youtube"),
+]
+
+_STATUS_LABELS = {
+    "connected": ("Connected", "ok"),
+    "not_connected": ("Not Connected", "danger"),
+    "needs_login": ("Partial Match", "warning"),
+    "error": ("Partial Match", "warning"),
+    "syncing": ("Syncing", "warning"),
+}
+
+_ACTIONS = {
+    "connected": ("Ready to Claim", "success"),
+    "not_connected": ("Connect", "danger"),
+    "needs_login": ("Investigate", "warning"),
+    "error": ("Investigate", "warning"),
+    "syncing": ("Investigate", "warning"),
+}
+
+
+def build_landing_hero(catalog, summary):
+    """Assemble the recovery-scan hero visual's live data — source nodes,
+    per-source recovery cards, and the center scan panel — from the real
+    platform catalog and scan summary. Copy stays in the config; only the
+    data-shaped parts are built here."""
+    by_id = {p.id: p for p in catalog}
+    by_source_amount = {s["source"]: s["amount"] for s in summary["sources"]}
+
+    nodes, cards = [], []
+    for pid, name, logo in _LANDING_SOURCES:
+        p = by_id.get(pid)
+        status = p.status if p else "not_connected"
+        label, tone = _STATUS_LABELS.get(status, _STATUS_LABELS["not_connected"])
+        action_label, action_tone = _ACTIONS.get(status, _ACTIONS["not_connected"])
+        est = by_source_amount.get(name)
+        if est is None:
+            est = round(p.amount, 2) if p else 0.0
+        nodes.append({"name": name, "logo": logo, "status_label": label, "status_tone": tone})
+        cards.append({
+            "name": name, "logo": logo, "est_recovery": round(est, 2),
+            "action_label": action_label, "action_tone": action_tone,
+        })
+
+    return {
+        "center_amount": summary["estimated_uncollected"],
+        "issues_detected": summary["flagged_issues"],
+        "ready_to_claim": sum(1 for c in cards if c["action_tone"] == "success"),
+        "confidence_pct": summary["confidence_pct"],
+        "nodes": nodes,
+        "cards": cards,
+    }
+
+
 def create_app():
     app = Flask(__name__)
 
@@ -209,10 +271,10 @@ def create_app():
         catalog = get_platform_catalog()
         earnings_trend = get_earnings_trend()
         summary = get_recovery_summary(catalog, songs, earnings_trend)
-        return render_template(
-            "landing.html", summary=summary,
-            last_audit=datetime.now().strftime("%I:%M %p").lstrip("0"),
-        )
+
+        config = get_landing_config()
+        config["hero_visual"].update(build_landing_hero(catalog, summary))
+        return render_template("landing.html", config=config)
 
     @app.route("/scan/recovery-summary", methods=["POST"])
     def scan_recovery_summary():

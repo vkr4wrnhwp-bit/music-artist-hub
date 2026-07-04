@@ -15,19 +15,40 @@ def test_index_renders_landing_page():
     response = client.get("/")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Find the" in body
-    assert "Royalties" in body
+    assert "Find the Royalties" in body
     assert "ROYALTY SWEEP" in body
-    assert 'id="run-audit-btn"' in body
-    assert "Sources Scanned" in body
-    assert "Recovery Potential Over Time" in body
+    assert "Scan for Missing Royalties" in body
+    assert "Potential Missing Royalties Found" in body
+    assert "Ready to Claim" in body
 
 
-def test_landing_page_links_into_dashboard_and_royalties():
+def test_landing_page_nav_and_ctas_link_into_the_app():
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
-    assert 'href="/dashboard"' in body
-    assert 'href="/royalties#missing-money-scanner"' in body
+    assert 'href="/overview"' in body
+    assert "Start Free Scan" in body
+    assert "Login" in body
+
+
+def test_landing_page_hero_visual_uses_live_catalog_data():
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    for platform in ["Spotify", "Apple Music", "ASCAP", "BMI", "The MLC", "SoundExchange", "YouTube Content ID"]:
+        assert platform in body
+
+
+def test_landing_page_includes_feature_cards():
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    assert "Find Missing Royalties" in body
+    assert "Connect Every Source" in body
+    assert "Value Your Catalog" in body
+
+
+def test_landing_page_includes_trust_strip():
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    assert "Trusted by artists, managers, and labels" in body
 
 
 def test_scan_recovery_summary_route():
@@ -603,3 +624,27 @@ def test_remove_collaborator_unknown_id_returns_404():
     client = create_app().test_client()
     response = client.post("/collaborators/not-a-real-id/remove")
     assert response.status_code == 404
+
+
+def test_build_landing_hero_reflects_catalog_status():
+    from app import build_landing_hero
+    from royalty_data import get_platform_catalog, get_missing_royalty_findings, get_recovery_summary, get_songs, live_song, get_earnings_trend
+
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    summary = get_recovery_summary(catalog, songs, get_earnings_trend())
+    hero = build_landing_hero(catalog, summary)
+
+    assert len(hero["nodes"]) == 7
+    assert len(hero["cards"]) == 7
+    assert hero["center_amount"] == summary["estimated_uncollected"]
+    spotify_node = next(n for n in hero["nodes"] if n["name"] == "Spotify")
+    assert spotify_node["status_tone"] == "ok"
+
+
+def test_get_landing_config_has_swappable_hero_visual():
+    from landing_config import get_landing_config
+    config = get_landing_config()
+    assert config["hero_visual"]["template"] == "landing/hero_recovery.html"
+    assert config["hero"]["headline"][1]["accent"] is True
+    assert len(config["features"]) == 4
