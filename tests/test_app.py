@@ -294,11 +294,50 @@ def test_connect_unknown_platform_returns_404():
     assert response.status_code == 404
 
 
-def test_catalog_includes_song_breakdown_ui():
+def test_catalog_page_matches_control_center():
     client = create_app().test_client()
     body = client.get("/catalog").get_data(as_text=True)
-    assert "Song-Level Royalty Breakdown" in body
-    assert "Midnight Drive" in body
+    assert "Your entire catalog. Organized. Verified. Maximized." in body
+    assert "Total Tracks" in body
+    assert "Total Releases" in body
+    assert "Registered Tracks" in body
+    assert "Total ISRCs" in body
+    assert "Blood in the Groove" in body
+
+
+def test_catalog_has_all_five_tabs():
+    client = create_app().test_client()
+    body = client.get("/catalog").get_data(as_text=True)
+    for tab in ["Tracks", "Releases", "Songwriters", "Publishers", "Splits"]:
+        assert 'data-tab="{}"'.format(tab) in body
+
+
+def test_catalog_right_column_and_recently_added():
+    client = create_app().test_client()
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "Catalog Health" in body
+    assert "Metadata Issues" in body
+    assert "Catalog Value (Estimated)" in body
+    assert "Recently Added" in body
+    assert "Improve Catalog Health" in body
+
+
+def test_catalog_includes_add_release_and_filters():
+    client = create_app().test_client()
+    body = client.get("/catalog").get_data(as_text=True)
+    assert 'id="add-release-modal"' in body
+    assert 'id="status-filter"' in body
+    assert 'id="genre-filter"' in body
+    assert 'id="source-filter"' in body
+
+
+def test_sidebar_account_is_config_driven():
+    from catalog_config import get_account
+    client = create_app().test_client()
+    body = client.get("/catalog").get_data(as_text=True)
+    account = get_account()
+    assert account["name"] in body
+    assert account["plan"] in body
 
 
 def test_base_includes_song_drawer():
@@ -478,12 +517,12 @@ def test_recovery_includes_top_royalty_leaks():
     assert "Top Royalty Leaks" in body
 
 
-def test_catalog_includes_release_readiness_checker():
+def test_catalog_releases_tab_lists_releases():
     client = create_app().test_client()
     body = client.get("/catalog").get_data(as_text=True)
-    assert "Release Readiness Checker" in body
-    assert "Neon Echoes" in body
-    assert "% ready" in body
+    assert 'id="tab-Releases"' in body
+    assert "The Collection Vol. 1" in body
+    assert "Survival Mode" in body
 
 
 def test_valuation_includes_royalty_forecast():
@@ -501,18 +540,20 @@ def test_valuation_includes_catalog_value_tracker():
     assert 'id="value-tracker-current"' in body
 
 
-def test_catalog_includes_register_everywhere_wizard():
+def test_catalog_splits_tab_lists_splits():
     client = create_app().test_client()
     body = client.get("/catalog").get_data(as_text=True)
-    assert "Register Everywhere Wizard" in body
-    assert 'id="wizard-song-select"' in body
+    assert 'id="tab-Splits"' in body
+    assert "Collaborator" in body
+    assert "Conflict" in body
 
 
-def test_catalog_includes_documents_vault():
+def test_catalog_metadata_issues_have_counts():
     client = create_app().test_client()
     body = client.get("/catalog").get_data(as_text=True)
-    assert "Documents Vault" in body
-    assert "Split Sheet" in body
+    assert "Missing ISRCs" in body
+    assert "Unregistered Tracks" in body
+    assert "Split Conflicts" in body
 
 
 def test_reports_page_includes_exportable_reports():
@@ -522,10 +563,14 @@ def test_reports_page_includes_exportable_reports():
     assert "Investor Snapshot" in body
 
 
-def test_catalog_includes_rights_conflict_center():
-    client = create_app().test_client()
-    body = client.get("/catalog").get_data(as_text=True)
-    assert "Rights Conflict Center" in body
+def test_catalog_data_config_shapes():
+    from catalog_config import get_catalog_data
+    data = get_catalog_data()
+    assert data["tabs"] == ["Tracks", "Releases", "Songwriters", "Publishers", "Splits"]
+    assert data["tracks"] and data["releases"] and data["songwriters"]
+    assert data["publishers"] and data["splits"] and data["recently_added"]
+    assert data["registered_pct"] == 82.7
+    assert data["health"]["total"] == 76
 
 
 def test_update_fix_status_route():

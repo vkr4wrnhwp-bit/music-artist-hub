@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Flask, jsonify, redirect, render_template, request
 
 from landing_config import get_landing_config
+from catalog_config import get_account, get_catalog_data
 
 from royalty_data import (
     add_split,
@@ -129,6 +130,7 @@ def build_dashboard_context():
         "value_tracker": value_tracker,
         "available_reports": get_available_reports(),
         "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"], catalog_value["mid"]),
+        "account": get_account(),
         "overview_health": get_overview_health(catalog, songs),
         "action_center": get_action_center(alerts, payouts),
         "recent_payout_rows": recent_payout_rows(),
@@ -307,7 +309,9 @@ def create_app():
 
     @app.route("/catalog")
     def catalog_page():
-        return render_template("catalog.html", active_page="catalog", **build_dashboard_context())
+        ctx = build_dashboard_context()
+        ctx["catalog"] = get_catalog_data()
+        return render_template("catalog.html", active_page="catalog", **ctx)
 
     @app.route("/connections")
     def connections():
