@@ -58,7 +58,15 @@ def get_landing_config():
         },
         "trust": {
             "heading": "Trusted by artists, managers, and labels",
-            "logos": ["ASCAP", "BMI", "The MLC", "SoundExchange", "Spotify", "Apple Music", "YouTube"],
+            "logos": [
+                {"name": "ASCAP", "logo": "ascap"},
+                {"name": "BMI", "logo": "bmi"},
+                {"name": "The MLC", "logo": "mlc"},
+                {"name": "SoundExchange", "logo": "soundexchange"},
+                {"name": "Spotify", "logo": "spotify"},
+                {"name": "Apple Music", "logo": "apple"},
+                {"name": "YouTube", "logo": "youtube"},
+            ],
         },
         "features": [
             {"icon": "search", "title": "Find Missing Royalties",
