@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from datetime import datetime
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request
 
 from royalty_data import (
     add_split,
@@ -11,7 +11,9 @@ from royalty_data import (
     complete_registration_step,
     COLLABORATOR_ROLES,
     estimate_catalog_value,
+    get_action_center,
     get_collaborators,
+    get_overview_health,
     get_recovery_summary,
     invite_collaborator,
     generate_report,
@@ -121,7 +123,9 @@ def build_dashboard_context():
         "forecast": get_royalty_forecast(earnings_trend),
         "value_tracker": value_tracker,
         "available_reports": get_available_reports(),
-        "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"]),
+        "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"], catalog_value["mid"]),
+        "overview_health": get_overview_health(catalog, songs),
+        "action_center": get_action_center(alerts, payouts),
         "conflicts": get_rights_conflicts(songs),
         "registration_wizards": [get_registration_wizard(s) for s in songs],
         "wizard_targets": WIZARD_TARGETS,
@@ -219,9 +223,13 @@ def create_app():
             "scanned_at": datetime.now().strftime("%I:%M %p").lstrip("0"),
         })
 
+    @app.route("/overview")
+    def overview():
+        return render_template("overview.html", active_page="overview", **build_dashboard_context())
+
     @app.route("/dashboard")
     def dashboard():
-        return render_template("overview.html", active_page="overview", **build_dashboard_context())
+        return redirect("/overview")
 
     @app.route("/royalties")
     def royalties():
@@ -231,9 +239,21 @@ def create_app():
     def catalog_page():
         return render_template("catalog.html", active_page="catalog", **build_dashboard_context())
 
+    @app.route("/connections")
+    def connections():
+        return render_template("connections.html", active_page="connections", **build_dashboard_context())
+
+    @app.route("/recovery")
+    def recovery():
+        return render_template("recovery.html", active_page="recovery", **build_dashboard_context())
+
     @app.route("/valuation")
     def valuation():
         return render_template("valuation.html", active_page="valuation", **build_dashboard_context())
+
+    @app.route("/reports")
+    def reports():
+        return render_template("reports.html", active_page="reports", **build_dashboard_context())
 
     @app.route("/settings")
     def settings():

@@ -630,6 +630,42 @@ def get_health_recommendations(factors, limit=3):
     return incomplete[:limit]
 
 
+def get_overview_health(catalog, songs):
+    """The Overview health card's four-bar breakdown plus an overall
+    score, each bar deep-linking to the page that fixes it. Derived from
+    the live catalog and songs so it stays honest as connections and
+    metadata change.
+    """
+    total_platforms = len(catalog) or 1
+    connected = sum(1 for p in catalog if p.status == "connected")
+    connections_pct = round(connected / total_platforms * 100)
+
+    if songs:
+        metadata_pct = round(sum(metadata_completion_score(s) for s in songs) / len(songs) * 100)
+        registration_pct = round(sum(registration_checklist_score(s) for s in songs) / len(songs) * 100)
+        confirmed = sum(1 for s in songs if splits_fully_confirmed(s))
+        splits_pct = round(confirmed / len(songs) * 100)
+    else:
+        metadata_pct = registration_pct = splits_pct = 0
+
+    bars = [
+        {"key": "connections", "label": "Connections", "pct": connections_pct, "route": "/connections"},
+        {"key": "metadata", "label": "Metadata", "pct": metadata_pct, "route": "/catalog"},
+        {"key": "registration", "label": "Registration", "pct": registration_pct, "route": "/catalog"},
+        {"key": "splits", "label": "Splits", "pct": splits_pct, "route": "/catalog"},
+    ]
+    overall = round(sum(b["pct"] for b in bars) / len(bars))
+    if overall >= 80:
+        band = "Excellent"
+    elif overall >= 60:
+        band = "Good"
+    elif overall >= 40:
+        band = "Fair"
+    else:
+        band = "At risk"
+    return {"score": overall, "band": band, "bars": bars}
+
+
 # Deep-scan findings that apply to *connected* sources (shown only when the
 # platform is connected, since you can't audit a source you aren't pulling from).
 _CONNECTED_FINDINGS = [
@@ -829,6 +865,57 @@ def get_royalty_leak_alerts(balances, payouts, kpis, catalog):
 
     alerts.sort(key=lambda a: (_SEVERITY_ORDER.get(a.severity, 3), -a.estimated_impact))
     return alerts
+
+
+def _alert_route(alert):
+    """Send each Action Center alert to the page that resolves it."""
+    aid = alert.id
+    if any(token in aid for token in ("needs-login", "sync-error", "not-connected")):
+        return "/connections"
+    if aid.startswith("payout-") or aid == "pending-negotiation":
+        return "/royalties"
+    if aid == "scan":
+        return "/recovery"
+    return "/recovery"
+
+
+def get_action_center(alerts, payouts, limit=5):
+    """The Overview Action Center: open problems (from leak alerts, each
+    routed to its fix page) blended with recent wins (paid payouts), so
+    the feed reads like a real activity log, not just a problem list.
+    """
+    items = []
+    for a in alerts:
+        severity = "critical" if a.severity == "High" else ("warning" if a.severity == "Medium" else "info")
+        items.append({
+            "kind": "alert",
+            "severity": severity,
+            "title": a.title,
+            "description": a.description,
+            "impact": round(a.estimated_impact, 2),
+            "impact_positive": False,
+            "route": _alert_route(a),
+        })
+    for p in payouts:
+        if p.status == "Paid":
+            items.append({
+                "kind": "success",
+                "severity": "success",
+                "title": f"{p.platform} payout received",
+                "description": f'"{p.song}" collected successfully',
+                "impact": round(p.amount, 2),
+                "impact_positive": True,
+                "route": "/royalties",
+            })
+    order = {"critical": 0, "warning": 1, "info": 2}
+    problems = sorted(
+        (i for i in items if i["kind"] != "success"),
+        key=lambda i: order.get(i["severity"], 3),
+    )
+    wins = [i for i in items if i["kind"] == "success"]
+    problem_slots = min(len(problems), max(limit - 2, limit - len(wins)))
+    blended = problems[:problem_slots] + wins[: limit - problem_slots]
+    return blended[:limit]
 
 
 def get_smart_recommendations(alerts, songs, limit=5):
@@ -1219,15 +1306,22 @@ def generate_report(report_id):
     }
 
 
-def get_since_last_login_summary(catalog, songs, catalog_value_pct_change):
+def get_since_last_login_summary(catalog, songs, catalog_value_pct_change, catalog_value_mid=0):
     connection_issues = sum(1 for p in catalog if p.status in ("needs_login", "error"))
     metadata_issues = sum(len(song_missing_issues(s)) for s in songs)
+    issues_needing_attention = connection_issues + sum(
+        1 for s in songs if not splits_fully_confirmed(s)
+    )
+    catalog_value_increase = round(catalog_value_mid * (catalog_value_pct_change / 100), 2)
     return {
         "new_royalties_collected": 482.15,
         "new_payouts_detected": 2,
         "connection_issues": connection_issues,
         "metadata_issues": metadata_issues,
+        "issues_needing_attention": issues_needing_attention,
+        "tasks_completed": 5,
         "catalog_value_change_pct": catalog_value_pct_change,
+        "catalog_value_increase": catalog_value_increase,
         "newly_detected_songs": 1,
     }
 

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Royalty Sweep{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-8">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Reports</h1>
+    <p class="mt-1 text-sm text-gray-500">Generate exportable reports for accounting, investors, and rights audits.</p>
+  </div>
+
+  <section id="exportable-reports" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Exportable Reports</h2>
+    <p class="mt-1 text-sm text-gray-500">Generate a mock report for download or sharing.</p>
+    <div id="reports-grid" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% for r in available_reports %}
+      <div class="report-card rounded-xl border border-white/5 bg-white/5 p-4" data-report-id="{{ r.id }}">
+        <div class="text-sm font-semibold">{{ r.label }}</div>
+        <div class="mt-1 text-xs text-gray-500">{{ r.description }}</div>
+        <button type="button" class="report-generate-btn mt-3 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+          Generate
+        </button>
+        <div class="report-result mt-2 hidden text-[11px] text-green-400"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".report-generate-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".report-card");
+      const reportId = card.dataset.reportId;
+      const resultEl = card.querySelector(".report-result");
+      btn.disabled = true;
+      btn.textContent = "Generating...";
+      const res = await fetch(`/reports/${reportId}/generate`, { method: "POST" });
+      const data = await res.json();
+      btn.disabled = false;
+      btn.textContent = "Generate";
+      if (data.ok) {
+        resultEl.textContent = `Ready: ${data.report.filename}`;
+        resultEl.classList.remove("hidden");
+      }
+    });
+  });
+</script>
+{% endblock %}

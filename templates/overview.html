@@ -1,344 +1,235 @@
 {% extends "base.html" %}
 
-{% block title %}Overview - Royalty Sweep by Street Banker{% endblock %}
-
-{% set channel_icons = {
-  'Streaming Royalties': '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="9" width="3" height="6" rx="1.5"/><rect x="8" y="4" width="3" height="16" rx="1.5"/><rect x="13" y="7" width="3" height="10" rx="1.5"/><rect x="18" y="2" width="3" height="20" rx="1.5"/></svg>',
-  'Performance Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.5 6.5 0 0 0 0 9M16.5 7.5a6.5 6.5 0 0 1 0 9M4.8 4.8a10.5 10.5 0 0 0 0 14.4M19.2 4.8a10.5 10.5 0 0 1 0 14.4"/></svg>',
-  'Digital Performance Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>',
-  'Mechanical Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg>',
-  'Distribution Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>',
-  'Sync Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
-  'Licensing Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10H7z"/><path d="M7 12h10M12 7v10"/></svg>',
-  'Publishing Royalties': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
-} %}
-{% set kpi_icons = {
-  'Active Streams': '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="9" width="3" height="6" rx="1.5"/><rect x="8" y="4" width="3" height="16" rx="1.5"/><rect x="13" y="7" width="3" height="10" rx="1.5"/><rect x="18" y="2" width="3" height="20" rx="1.5"/></svg>',
-  'New Listeners': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M20.5 20a5.5 5.5 0 0 0-3.2-5"/></svg>',
-  'Sync Licenses': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>',
-  'Follower Growth': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
-} %}
+{% block title %}Overview - Royalty Sweep{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-8">
-  <div class="flex items-end justify-between">
+{% set this_month = earnings_trend[-1][1] %}
+{% set last_month = earnings_trend[-2][1] if earnings_trend|length > 1 else earnings_trend[-1][1] %}
+{% set growth_pct = ((this_month - last_month) / last_month * 100) if last_month else 0 %}
+{% set remaining = (goal - total) if goal > total else 0 %}
+{% set goal_pct = ((total / goal) * 100) if goal else 0 %}
+{% set health = overview_health %}
+
+<div class="mx-auto max-w-6xl space-y-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight">Overview</h1>
-      <p class="mt-1 text-sm text-gray-500">Live royalty telemetry across all platforms.</p>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Overview</h1>
+      <p class="mt-1 text-sm text-gray-500">Your royalty command center.</p>
     </div>
-    <div class="hidden items-end gap-[3px] sm:flex" aria-hidden="true">
-      {% for h in [10, 18, 8, 22, 14, 26, 12, 20, 9, 16] %}
-      <span class="w-1 rounded-full bg-amber-500/70" style="height: {{ h }}px;"></span>
-      {% endfor %}
+    <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-[#111113] px-3 py-2">
+      <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>
+      <select id="date-range" class="bg-transparent text-sm font-medium text-gray-200 focus:outline-none [color-scheme:dark]">
+        <option value="1">This month</option>
+        <option value="3">Last 3 months</option>
+        <option value="6" selected>Last 6 months</option>
+      </select>
     </div>
   </div>
 
-  <section class="story-hero relative overflow-hidden rounded-2xl border border-amber-500/15 bg-[#111113] p-6"
-           style="background-image: radial-gradient(140% 100% at 10% 0%, rgba(234,179,8,0.10), transparent 60%);">
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6">
-      <a href="#total-royalties" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What you made</div>
-        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">${{ "{:,.2f}".format(story.made) }}</div>
-        <div class="mt-1 text-[11px] text-gray-600">Collected across all connected sources</div>
-      </a>
-
-      <a href="/royalties#royalty-leak-alerts" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What you're missing</div>
-        <div class="mt-2 text-2xl font-bold tracking-tight text-red-400">${{ "{:,.2f}".format(story.missing_total) }}</div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ story.missing_count }} issue{{ '' if story.missing_count == 1 else 's' }} found</div>
-      </a>
-
-      <a href="/royalties#royalty-leak-alerts" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Why</div>
-        {% if story.top_finding %}
-        <div class="mt-2 text-sm font-bold leading-snug text-gray-100">{{ story.top_finding.issue_type }}</div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ story.top_finding.source }} · ${{ "%.2f"|format(story.top_finding.estimated_value) }}</div>
-        {% else %}
-        <div class="mt-2 text-sm font-bold text-gray-100">No issues detected</div>
-        <div class="mt-1 text-[11px] text-gray-600">Your catalog looks clean</div>
-        {% endif %}
-      </a>
-
-      <a href="/royalties#missing-money-scanner" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">How to collect it</div>
-        {% if story.top_finding %}
-        <div class="mt-2 text-sm font-bold leading-snug text-amber-400">{{ story.top_finding.recommended_action }}</div>
-        <div class="mt-1 text-[11px] text-gray-600">Recommended next step</div>
-        {% else %}
-        <div class="mt-2 text-sm font-bold text-gray-100">Nothing to fix right now</div>
-        <div class="mt-1 text-[11px] text-gray-600">Check back after your next scan</div>
-        {% endif %}
-      </a>
-
-      <a href="/valuation#catalog-value-estimate" class="story-beat group flex flex-col items-start rounded-xl border border-white/5 bg-white/[0.03] p-4 text-left transition-colors hover:border-amber-500/30 hover:bg-white/5">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">What your catalog may be worth</div>
-        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">${{ "{:,.0f}".format(story.catalog_value_mid) }}</div>
-        <div class="mt-1 text-[11px] text-gray-600">${{ "{:,.0f}".format(story.catalog_value_low) }} – ${{ "{:,.0f}".format(story.catalog_value_high) }} range</div>
-      </a>
-
-      <button type="button" id="story-next-move" class="story-beat smart-rec-row group flex flex-col items-start rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-left transition-colors hover:border-amber-500/40 hover:bg-amber-500/10"
-              {% if story.top_recommendation %}data-target-type="{{ story.top_recommendation.target_type }}" data-target-id="{{ story.top_recommendation.target_id }}"{% endif %}>
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-500/70">The next move</div>
-        {% if story.top_recommendation %}
-        <div class="mt-2 text-sm font-bold leading-snug text-gray-100">{{ story.top_recommendation.reason }}</div>
-        <div class="mt-1 text-[11px] font-semibold text-amber-400">${{ "%.2f"|format(story.top_recommendation.estimated_value) }} · {{ story.top_recommendation.cta_label }}</div>
-        {% else %}
-        <div class="mt-2 text-sm font-bold text-gray-100">You're all caught up</div>
-        <div class="mt-1 text-[11px] text-gray-600">No open actions right now</div>
-        {% endif %}
-      </button>
-    </div>
-  </section>
-
-  <section id="what-changed-since-last-login" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">What Changed Since Last Login</h2>
-    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">New Royalties</div>
-        <div class="mt-1 text-lg font-bold text-green-400">${{ "%.2f"|format(since_last_login.new_royalties_collected) }}</div>
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Total Royalties Collected</h2>
+        <button type="button" id="edit-goal-btn" class="text-[11px] font-semibold text-amber-400 hover:underline">Edit Goal</button>
       </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">New Payouts</div>
-        <div class="mt-1 text-lg font-bold text-gray-100">{{ since_last_login.new_payouts_detected }}</div>
-      </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">Connection Issues</div>
-        <div class="mt-1 text-lg font-bold {{ 'text-red-400' if since_last_login.connection_issues > 0 else 'text-green-400' }}">{{ since_last_login.connection_issues }}</div>
-      </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">Metadata Issues</div>
-        <div class="mt-1 text-lg font-bold {{ 'text-amber-400' if since_last_login.metadata_issues > 0 else 'text-green-400' }}">{{ since_last_login.metadata_issues }}</div>
-      </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">Catalog Value</div>
-        <div class="mt-1 text-lg font-bold {{ 'text-green-400' if since_last_login.catalog_value_change_pct >= 0 else 'text-red-400' }}">{{ '+' if since_last_login.catalog_value_change_pct >= 0 else '' }}{{ since_last_login.catalog_value_change_pct }}%</div>
-      </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-widest text-gray-600">New Songs</div>
-        <div class="mt-1 text-lg font-bold text-gray-100">{{ since_last_login.newly_detected_songs }}</div>
-      </div>
-    </div>
-  </section>
-
-  <section id="money-left-on-the-table" class="relative overflow-hidden rounded-2xl border border-red-500/15 bg-[#111113] p-6">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Money Left on the Table</h2>
-    <div class="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <div class="text-4xl font-bold tracking-tight text-red-400">${{ "{:,.2f}".format(money_left.total) }}</div>
-        <div class="mt-1 text-xs text-gray-500">Estimated uncollected royalties across your catalog</div>
-      </div>
-      <div class="grid grid-cols-3 gap-3">
-        <div class="rounded-lg border border-white/5 bg-white/5 p-3 text-center">
-          <div class="text-[10px] uppercase tracking-widest text-green-500/70">High confidence</div>
-          <div class="mt-1 text-sm font-bold text-green-400">${{ "{:,.2f}".format(money_left.high) }}</div>
-        </div>
-        <div class="rounded-lg border border-white/5 bg-white/5 p-3 text-center">
-          <div class="text-[10px] uppercase tracking-widest text-amber-500/70">Medium confidence</div>
-          <div class="mt-1 text-sm font-bold text-amber-400">${{ "{:,.2f}".format(money_left.medium) }}</div>
-        </div>
-        <div class="rounded-lg border border-white/5 bg-white/5 p-3 text-center">
-          <div class="text-[10px] uppercase tracking-widest text-gray-500">Low confidence</div>
-          <div class="mt-1 text-sm font-bold text-gray-300">${{ "{:,.2f}".format(money_left.low) }}</div>
-        </div>
-      </div>
-      <a href="/royalties#top-royalty-leaks" class="story-beat shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        View Missing Money
-      </a>
-    </div>
-  </section>
-
-  <section id="total-royalties" class="relative overflow-hidden rounded-2xl border border-white/5 bg-[#111113] p-6"
-           style="background-image: radial-gradient(120% 120% at 28% 30%, rgba(234,179,8,0.08), transparent 55%), repeating-linear-gradient(115deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 4px);">
-    <span class="absolute left-3 top-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
-    <span class="absolute right-3 top-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
-    <span class="absolute bottom-3 left-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
-    <span class="absolute bottom-3 right-3 h-1.5 w-1.5 rounded-full bg-white/10"></span>
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Total Royalties</h2>
-    <div class="mt-4 flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:justify-around">
-      <div class="flex shrink-0 flex-col items-center gap-3">
-        <div class="relative h-64 w-64">
-          <svg id="gauge" viewBox="0 0 220 220" class="h-full w-full"></svg>
-          <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <div class="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">Collected</div>
-            <div class="mt-1 whitespace-nowrap text-2xl font-bold tabular-nums tracking-tight">${{ "%.2f"|format(total) }}</div>
-            <div id="goal-line" class="mt-1 text-xs text-gray-500">of ${{ "%.0f"|format(goal) }} goal</div>
+      <div class="mt-3 flex items-center justify-between gap-4">
+        <div>
+          <div class="text-3xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(total) }}</div>
+          <div class="mt-1 text-xs font-semibold {{ 'text-green-400' if growth_pct >= 0 else 'text-red-400' }}">
+            {{ '↑' if growth_pct >= 0 else '↓' }} {{ "%.1f"|format(growth_pct|abs) }}% vs last month
           </div>
         </div>
-        <div class="space-y-1 text-center text-xs text-gray-500">
-          <div><span id="goal-remaining" class="font-semibold text-gray-300"></span> <span id="goal-pct"></span></div>
-          <div id="goal-projection"></div>
-          <div id="goal-deadline-status" class="hidden"></div>
-        </div>
-        <button type="button" id="set-goal-btn" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-          Set Goal
-        </button>
-      </div>
-
-      <div class="grid w-full max-w-2xl grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
-        {% for meter in balance_meters %}
-        <div class="flex items-center gap-4">
-          <div class="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-amber-400">
-            <span class="h-5 w-5">{{ channel_icons.get(meter.balance.royalty_type, '') | safe }}</span>
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-baseline justify-between">
-              <div class="truncate text-sm font-semibold">{{ meter.balance.platform }}</div>
-              <div class="text-sm font-bold tracking-tight">${{ "%.2f"|format(meter.balance.amount) }}</div>
-            </div>
-            <div class="mt-2 flex items-end gap-[3px]">
-              {% for i in range(14) %}
-              {% set is_peak = (i == meter.segments - 1) %}
-              {% if i < meter.segments %}
-                {% if i < 9 %}{% set col = 'bg-green-500 shadow-[0_0_5px_1px_rgba(34,197,94,0.75)]' %}
-                {% elif i < 12 %}{% set col = 'bg-amber-500 shadow-[0_0_5px_1px_rgba(245,158,11,0.75)]' %}
-                {% else %}{% set col = 'bg-red-500 shadow-[0_0_5px_1px_rgba(239,68,68,0.8)]' %}{% endif %}
-                <span class="flex-1 rounded-sm {{ col }} {{ 'ring-1 ring-white/80 brightness-125' if is_peak else '' }}" style="height: {{ 8 + i }}px;"></span>
-              {% else %}
-                <span class="flex-1 rounded-sm bg-white/5" style="height: {{ 8 + i }}px;"></span>
-              {% endif %}
-              {% endfor %}
-            </div>
-            <div class="mt-1 text-[10px] uppercase tracking-widest text-gray-600">{{ meter.balance.royalty_type }}</div>
-          </div>
-        </div>
-        {% endfor %}
-        <a href="/settings" class="flex min-h-[72px] items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 text-sm font-semibold text-gray-500 transition-colors hover:border-amber-500/40 hover:text-amber-400">
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"/></svg>
-          Manage Connections
-        </a>
-      </div>
-    </div>
-  </section>
-
-  {% set band = 'Strong' if health_score >= 75 else ('Fair' if health_score >= 50 else 'At risk') %}
-  {% set ring_color = '#22c55e' if health_score >= 75 else ('#eab308' if health_score >= 50 else '#ef4444') %}
-  {% set band_text = 'text-green-400' if health_score >= 75 else ('text-amber-400' if health_score >= 50 else 'text-red-400') %}
-  <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-    <section id="royalty-health-score" class="rounded-2xl border border-white/5 bg-[#111113] p-6">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Health Score</h2>
-      <div class="mt-4 flex flex-col items-center">
-        <div class="relative h-40 w-40">
+        <div class="relative h-24 w-24 shrink-0">
           <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#262626" stroke-width="10" />
-            <circle cx="60" cy="60" r="52" fill="none" stroke="{{ ring_color }}" stroke-width="10" stroke-linecap="round"
-                    stroke-dasharray="326.73"
-                    stroke-dashoffset="{{ (326.73 * (1 - health_score / 100)) | round(2) }}"
-                    style="filter: drop-shadow(0 0 5px {{ ring_color }}88);" />
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#262626" stroke-width="10"/>
+            <circle id="goal-ring" cx="60" cy="60" r="50" fill="none" stroke="#22c55e" stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"/>
           </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <div class="text-4xl font-bold tabular-nums tracking-tight">{{ health_score }}</div>
-            <div class="text-[10px] uppercase tracking-[0.2em] text-gray-500">out of 100</div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <div id="goal-ring-pct" class="text-lg font-bold tabular-nums">{{ goal_pct|round|int }}%</div>
+            <div id="goal-ring-label" class="text-[8px] text-gray-500">of ${{ "{:,.0f}".format(goal) }} goal</div>
           </div>
         </div>
-        <div class="mt-2 text-sm font-semibold {{ band_text }}">{{ band }}</div>
       </div>
+      <div class="mt-4 h-2 rounded-full bg-white/5">
+        <div id="goal-bar" class="h-2 rounded-full bg-amber-500"></div>
+      </div>
+      <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
+        <span>Goal: <span id="goal-amount-label">${{ "{:,.0f}".format(goal) }}</span></span>
+        <span id="goal-remaining-label">${{ "{:,.2f}".format(remaining) }} to go</span>
+      </div>
+    </section>
 
-      <div class="mt-6">
-        <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Recommended actions</div>
-        <div class="mt-3 grid grid-cols-1 gap-3">
-          {% for rec in health_recommendations %}
-          <div class="flex items-start gap-3 rounded-xl border border-white/5 bg-white/5 p-4">
-            <span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-amber-500/15 text-amber-400">
-              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.7.3l6 6a1 1 0 01-1.4 1.4L11 6.42V16a1 1 0 11-2 0V6.41L4.7 10.7a1 1 0 11-1.4-1.4l6-6A1 1 0 0110 3z" clip-rule="evenodd"/></svg>
+    <a href="/recovery" class="group flex flex-col rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/30">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Money Left on the Table</h2>
+        <svg class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 9a1 1 0 011-1h.01a1 1 0 010 2H10v2a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/></svg>
+      </div>
+      <div class="mt-3 text-3xl font-bold tracking-tight text-amber-400 tabular-nums">${{ "{:,.2f}".format(money_left.total) }}</div>
+      <div class="mt-1 text-xs text-gray-500">Estimated uncollected royalties</div>
+      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
+        <span>{{ story.missing_count }} issues found</span>
+        <span>${{ "{:,.0f}".format(money_left.high) }} high confidence</span>
+      </div>
+      <div class="mt-auto pt-4">
+        <span class="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors group-hover:bg-amber-500/20">
+          Scan Now
+          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+        </span>
+      </div>
+    </a>
+
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Health Score</h2>
+      </div>
+      <div class="mt-3 flex items-center gap-5">
+        <div class="relative h-24 w-28 shrink-0">
+          <svg viewBox="0 0 100 60" class="h-full w-full">
+            <path d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="#262626" stroke-width="8" stroke-linecap="round"/>
+            <path id="health-arc" d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="#eab308" stroke-width="8" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="132"/>
+          </svg>
+          <div class="absolute inset-x-0 bottom-1 flex flex-col items-center">
+            <div class="text-2xl font-bold tabular-nums">{{ health.score }}</div>
+            <div class="text-[9px] text-gray-500">/100</div>
+          </div>
+        </div>
+        <div class="min-w-0 flex-1 space-y-1.5">
+          {% for bar in health.bars %}
+          <a href="{{ bar.route }}" class="flex items-center gap-2 text-[11px] transition-opacity hover:opacity-80">
+            <span class="w-20 shrink-0 text-gray-400">{{ bar.label }}</span>
+            <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+              <span class="block h-full rounded-full {{ 'bg-green-500' if bar.pct >= 75 else ('bg-amber-500' if bar.pct >= 50 else 'bg-red-500') }}" style="width: {{ bar.pct }}%;"></span>
             </span>
-            <div class="min-w-0">
-              <div class="text-sm font-semibold">{{ rec.recommendation }}</div>
-              <div class="mt-0.5 text-xs text-gray-500">{{ rec.detail }}</div>
-            </div>
-          </div>
+            <span class="w-8 shrink-0 text-right font-semibold text-gray-300">{{ bar.pct }}%</span>
+          </a>
           {% endfor %}
         </div>
       </div>
-    </section>
-
-    <section id="metadata-completion" class="rounded-2xl border border-white/5 bg-[#111113] p-6">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Metadata Completion</h2>
-      <div class="mt-4 flex flex-col items-center">
-        <div class="relative h-40 w-40">
-          <svg viewBox="0 0 60 60" class="h-full w-full -rotate-90">
-            <circle cx="30" cy="30" r="25" fill="none" stroke="#262626" stroke-width="6"/>
-            <circle cx="30" cy="30" r="25" fill="none"
-                    stroke="{{ '#22c55e' if avg_metadata_score >= 75 else ('#eab308' if avg_metadata_score >= 50 else '#ef4444') }}"
-                    stroke-width="6" stroke-linecap="round"
-                    stroke-dasharray="157.08"
-                    stroke-dashoffset="{{ (157.08 * (1 - avg_metadata_score / 100)) | round(2) }}"/>
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <div class="text-2xl font-bold tabular-nums tracking-tight">{{ avg_metadata_score }}%</div>
-            <div class="text-[10px] uppercase tracking-[0.2em] text-gray-500">complete</div>
-          </div>
-        </div>
-        <div class="mt-2 max-w-xs text-center text-xs text-gray-500">Average completeness across your catalog's ISRC, ISWC, UPC, credits, and registrations.</div>
-      </div>
-      <div class="mt-6">
-        <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Needs the most work</div>
-        <div class="mt-3 space-y-2">
-          {% for item in worst_metadata_songs %}
-          <button type="button" class="song-view-btn flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10" data-song-id="{{ item.song.id }}">
-            <span class="text-xs font-semibold">{{ item.song.title }}</span>
-            <span class="text-xs font-semibold {{ 'text-green-400' if item.score >= 75 else ('text-amber-400' if item.score >= 50 else 'text-red-400') }}">{{ item.score }}%</span>
-          </button>
-          {% endfor %}
-        </div>
-      </div>
-    </section>
-
-    <section id="catalog-completeness-meter" class="rounded-2xl border border-white/5 bg-[#111113] p-6">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Catalog Completeness Meter</h2>
-      <div class="mt-4 flex flex-col items-center">
-        <div class="relative h-40 w-40">
-          <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#262626" stroke-width="10" />
-            <circle cx="60" cy="60" r="52" fill="none"
-                    stroke="{{ '#22c55e' if completeness_score >= 75 else ('#eab308' if completeness_score >= 50 else '#ef4444') }}"
-                    stroke-width="10" stroke-linecap="round"
-                    stroke-dasharray="326.73"
-                    stroke-dashoffset="{{ (326.73 * (1 - completeness_score / 100)) | round(2) }}" />
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <div class="text-4xl font-bold tabular-nums tracking-tight">{{ completeness_score }}%</div>
-            <div class="text-[10px] uppercase tracking-[0.2em] text-gray-500">ready to collect</div>
-          </div>
-        </div>
-        <div class="mt-2 max-w-xs text-center text-xs text-gray-500">Blends metadata, connections, registrations, splits, and documents into one readiness score.</div>
+      <div class="mt-3 flex items-center justify-between">
+        <span class="text-sm font-semibold {{ 'text-green-400' if health.score >= 75 else ('text-amber-400' if health.score >= 50 else 'text-red-400') }}">{{ health.band }}</span>
+        <a href="/catalog" class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-200 transition-colors hover:bg-white/5">Improve Score</a>
       </div>
     </section>
   </div>
 
-  <section id="key-metrics">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Key Metrics</h2>
-    <div class="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
-      {% for kpi in kpis %}
-      {% set kmax = (kpi.trend | max) if kpi.trend else 1 %}
-      <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
-        <div class="flex items-center justify-between">
-          <div class="text-xs text-gray-500">{{ kpi.label }}</div>
-          <span class="h-4 w-4 text-amber-400/80">{{ kpi_icons.get(kpi.label, '') | safe }}</span>
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <a href="/royalties" class="block rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/30">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Earnings Trend</h2>
+        <span class="text-[11px] text-gray-500" id="trend-range-label">Last 6 months</span>
+      </div>
+      <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(total) }}</div>
+      <div class="text-[11px] text-gray-500">Total royalties</div>
+      <div class="mt-3"><canvas id="earningsChart" height="120"></canvas></div>
+      <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-3 text-center">
+        <div>
+          <div class="text-sm font-bold tabular-nums">${{ "{:,.2f}".format(this_month) }}</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">This month</div>
         </div>
-        <div class="mt-2 text-2xl font-bold tracking-tight text-gray-100">{{ kpi.value }}</div>
-        <div class="mt-1 text-xs text-gray-500">{{ kpi.delta_label }}</div>
-        {% if kpi.trend %}
-        <div class="mt-3 flex h-6 items-end gap-[3px]">
-          {% for v in kpi.trend %}
-          <span class="flex-1 rounded-sm {{ 'bg-amber-500/90' if loop.last else 'bg-amber-500/25' }}"
-                style="height: {{ ((v / kmax) * 100) | round(0) | int if kmax else 0 }}%;"></span>
-          {% endfor %}
+        <div>
+          <div class="text-sm font-bold tabular-nums">${{ "{:,.2f}".format(last_month) }}</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">Last month</div>
         </div>
+        <div>
+          <div class="text-sm font-bold {{ 'text-green-400' if growth_pct >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if growth_pct >= 0 else '↓' }} {{ "%.1f"|format(growth_pct|abs) }}%</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">Growth</div>
+        </div>
+      </div>
+    </a>
+
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Action Center</h2>
+        <a href="/recovery" class="text-[11px] font-semibold text-amber-400 hover:underline">View All</a>
+      </div>
+      {% set sev_icon = {
+        'critical': ('text-red-400', 'M10 2L1 18h18L10 2z|M10 8v4|M10 14v.5'),
+        'warning':  ('text-amber-400', 'M10 2L1 18h18L10 2z|M10 8v4|M10 14v.5'),
+        'info':     ('text-gray-400', 'M10 2a8 8 0 100 16 8 8 0 000-16z|M10 9v4|M10 6v.5'),
+        'success':  ('text-green-400', 'M10 2a8 8 0 100 16 8 8 0 000-16z|M6.5 10l2.5 2.5 4.5-5'),
+      } %}
+      <div class="mt-3 space-y-1">
+        {% for item in action_center %}
+        {% set icolor, ipath = sev_icon.get(item.severity, sev_icon['info']) %}
+        <a href="{{ item.route }}" class="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-white/5">
+          <svg class="h-4 w-4 shrink-0 {{ icolor }}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            {% for d in ipath.split('|') %}<path d="{{ d }}"/>{% endfor %}
+          </svg>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-xs font-semibold text-gray-200">{{ item.title }}</span>
+            <span class="block truncate text-[11px] text-gray-500">{{ item.description }}</span>
+          </span>
+          {% if item.impact > 0 %}
+          <span class="shrink-0 text-xs font-bold {{ 'text-green-400' if item.impact_positive else 'text-red-400' }} tabular-nums">
+            {{ '+' if item.impact_positive else '−' }}${{ "%.0f"|format(item.impact) }}
+          </span>
+          {% endif %}
+          <svg class="h-4 w-4 shrink-0 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+        </a>
+        {% endfor %}
+        {% if not action_center %}
+        <div class="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">You're all caught up.</div>
         {% endif %}
       </div>
+      <a href="/recovery" class="mt-3 block rounded-md border border-amber-500/30 bg-amber-500/10 py-2 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">View All Alerts</a>
+    </section>
+
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Recent Payouts</h2>
+        <a href="/royalties" class="text-[11px] font-semibold text-amber-400 hover:underline">View All</a>
+      </div>
+      <div class="mt-3 space-y-1">
+        {% for p in payouts %}
+        <button type="button" class="payout-row flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5"
+                data-platform="{{ p.platform }}" data-song="{{ p.song }}" data-status="{{ p.status }}" data-amount="{{ "%.2f"|format(p.amount) }}">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/10 bg-white/5 text-[10px] font-bold text-gray-400">{{ p.platform[:2]|upper }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-xs font-semibold text-gray-200">{{ p.platform }}</span>
+            <span class="block truncate text-[11px] text-gray-500">{{ p.song }}</span>
+          </span>
+          <span class="shrink-0 text-right">
+            <span class="block text-xs font-bold tabular-nums">${{ "{:,.2f}".format(p.amount) }}</span>
+            <span class="block text-[10px] font-semibold {{ 'text-green-400' if p.status == 'Paid' else 'text-amber-400' }}">{{ p.status }}</span>
+          </span>
+        </button>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">What Changed Since Your Last Visit</h2>
+    <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {% set lv = since_last_login %}
+      {% set metrics = [
+        ('/royalties', 'text-green-400', '$', '+$' ~ '%.2f'|format(lv.new_royalties_collected), 'New royalties collected'),
+        ('/royalties', 'text-green-400', '$', lv.new_payouts_detected|string, 'New payouts received'),
+        ('/recovery', 'text-amber-400', '!', lv.issues_needing_attention|string, 'Issues need attention'),
+        ('/catalog', 'text-green-400', '=', lv.tasks_completed|string, 'Tasks completed'),
+        ('/valuation', 'text-green-400', '^', '+$' ~ '{:,.0f}'.format(lv.catalog_value_increase), 'Catalog value increase'),
+      ] %}
+      {% for route, color, glyph, value, label in metrics %}
+      <a href="{{ route }}" class="flex items-center gap-3 transition-opacity hover:opacity-80">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 {{ color }}">
+          {% if glyph == '$' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v.09c1.2.2 2 .96 2 1.91a1 1 0 11-2 0c0-.2-.3-.5-1-.5s-1 .3-1 .5.3.5 1 .5c1.4 0 3 .9 3 2.5 0 1.16-1 2-2 2.16V12a1 1 0 11-2 0v-.09c-1.2-.2-2-.96-2-1.91a1 1 0 112 0c0 .2.3.5 1 .5s1-.3 1-.5-.3-.5-1-.5c-1.4 0-3-.9-3-2.5 0-1.16 1-2 2-2.16V4a1 1 0 011-1z"/></svg>
+          {% elif glyph == '!' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 15v.5"/></svg>
+          {% elif glyph == '=' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 8l2 2 4-4"/></svg>
+          {% else %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14l4-4 3 3 7-7"/><path d="M14 6h3v3"/></svg>{% endif %}
+        </span>
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-bold {{ color if glyph in ('$', '^') else 'text-gray-100' }} tabular-nums">{{ value }}</span>
+          <span class="block truncate text-[11px] text-gray-500">{{ label }}</span>
+        </span>
+      </a>
       {% endfor %}
     </div>
-  </section>
-
-  <section id="earnings-trend" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Earnings Trend</h2>
-    <div class="mt-3"><canvas id="earningsChart" height="88"></canvas></div>
   </section>
 </div>
 
 <div id="goal-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
   <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111113] p-6">
-    <h3 class="text-sm font-semibold tracking-tight">Set Gross Goal</h3>
+    <h3 class="text-sm font-semibold tracking-tight">Set Royalty Goal</h3>
     <p class="mt-1 text-xs text-gray-500">Target your royalty collections. Saved on this device.</p>
     <form id="goal-form" class="mt-4 space-y-4">
       <label class="block text-xs text-gray-400">
@@ -361,18 +252,37 @@
                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
       </label>
       <div class="flex justify-end gap-2 pt-2">
-        <button type="button" id="goal-cancel"
-                class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200">
-          Cancel
-        </button>
-        <button type="submit"
-                class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-          Save Goal
-        </button>
+        <button type="button" id="goal-cancel" class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200">Cancel</button>
+        <button type="submit" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Save Goal</button>
       </div>
     </form>
   </div>
 </div>
+
+<div id="payout-drawer-backdrop" class="fixed inset-0 z-40 hidden bg-black/70"></div>
+<aside id="payout-drawer" class="fixed right-0 top-0 z-50 h-full w-full max-w-sm translate-x-full overflow-y-auto border-l border-white/10 bg-[#111113] p-6 transition-transform duration-300">
+  <div class="flex items-start justify-between">
+    <div>
+      <div id="payout-drawer-platform" class="text-lg font-bold tracking-tight"></div>
+      <div id="payout-drawer-song" class="mt-1 text-xs text-gray-500"></div>
+    </div>
+    <button type="button" id="payout-drawer-close" class="rounded-md border border-white/10 p-1.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+    </button>
+  </div>
+  <div class="mt-6 space-y-3">
+    <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-sm">
+      <span class="text-gray-500">Amount</span><span id="payout-drawer-amount" class="font-bold text-amber-400"></span>
+    </div>
+    <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-sm">
+      <span class="text-gray-500">Status</span><span id="payout-drawer-status" class="font-semibold"></span>
+    </div>
+    <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-sm">
+      <span class="text-gray-500">Song</span><span id="payout-drawer-song2" class="font-semibold"></span>
+    </div>
+  </div>
+  <a href="/royalties" class="mt-6 block rounded-md border border-amber-500/30 bg-amber-500/10 py-2 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">View in Royalties</a>
+</aside>
 {% endblock %}
 
 {% block scripts %}
@@ -382,213 +292,116 @@
   const GOAL_KEY = "royaltySweep.goal";
   const trend = {{ earnings_trend | tojson }};
 
-  function renderGauge(progress, goalAmount) {
-    const svg = document.getElementById("gauge");
-    svg.innerHTML = "";
-    const NS = "http://www.w3.org/2000/svg";
-    const cx = 110, cy = 110;
-    const start = 225, sweep = 270;
-
-    function polar(r, angle) {
-      const a = angle * Math.PI / 180;
-      return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
-    }
-    function arcPath(r, a0, a1) {
-      const [x0, y0] = polar(r, a0);
-      const [x1, y1] = polar(r, a1);
-      const large = (a1 - a0) > 180 ? 1 : 0;
-      return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
-    }
-    function el(tag, attrs) {
-      const n = document.createElementNS(NS, tag);
-      for (const k in attrs) n.setAttribute(k, attrs[k]);
-      return n;
-    }
-
-    const ticks = 40;
-    for (let i = 0; i <= ticks; i++) {
-      const f = i / ticks;
-      const ang = start + f * sweep;
-      const major = i % 5 === 0;
-      const [xi, yi] = polar(major ? 70 : 74, ang);
-      const [xo, yo] = polar(84, ang);
-      let color = f < 0.62 ? "#22c55e" : f < 0.86 ? "#f59e0b" : "#ef4444";
-      svg.appendChild(el("line", {
-        x1: xi, y1: yi, x2: xo, y2: yo,
-        stroke: color, "stroke-width": major ? 2.4 : 1.2,
-        "stroke-linecap": "round", opacity: f <= progress ? 0.95 : 0.28,
-      }));
-    }
-
-    svg.appendChild(el("path", {
-      d: arcPath(58, start, start + sweep),
-      fill: "none", stroke: "#2a2a2a", "stroke-width": 10, "stroke-linecap": "round",
-    }));
-
-    const valArc = el("path", {
-      d: arcPath(58, start, start + sweep * progress),
-      fill: "none", stroke: "#eab308", "stroke-width": 10, "stroke-linecap": "round",
-    });
-    valArc.style.filter = "drop-shadow(0 0 5px rgba(234,179,8,0.75))";
-    svg.appendChild(valArc);
-
-    const [dx, dy] = polar(58, start + sweep * progress);
-    const dot = el("circle", { cx: dx, cy: dy, r: 6, fill: "#fde047" });
-    dot.style.filter = "drop-shadow(0 0 6px rgba(234,179,8,0.95))";
-    svg.appendChild(dot);
-
-    const pctText = el("text", {
-      x: cx, y: 176, "text-anchor": "middle",
-      fill: "#eab308", "font-size": 13, "font-weight": "700",
-      "font-family": "ui-sans-serif, system-ui, sans-serif", "letter-spacing": "1",
-    });
-    pctText.textContent = Math.round(progress * 100) + "%";
-    svg.appendChild(pctText);
-
-    [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
-      const [lx, ly] = polar(96, start + f * sweep);
-      const label = el("text", {
-        x: lx, y: ly + 3, "text-anchor": "middle",
-        fill: "#4b5563", "font-size": 9, "font-weight": "600",
-        "font-family": "ui-sans-serif, system-ui, sans-serif",
-      });
-      const val = goalAmount * f;
-      label.textContent = val >= 1000 ? Math.round(val / 1000) + "K" : Math.round(val);
-      svg.appendChild(label);
-    });
-  }
-
-  function loadGoal() {
+  function renderGoalCard() {
+    let goal = DEFAULT_GOAL;
     try {
-      const raw = localStorage.getItem(GOAL_KEY);
-      if (!raw) return null;
-      const g = JSON.parse(raw);
-      return g && g.amount > 0 ? g : null;
-    } catch (err) {
-      return null;
-    }
+      const saved = JSON.parse(localStorage.getItem(GOAL_KEY) || "null");
+      if (saved && saved.amount > 0) goal = saved.amount;
+    } catch (err) {}
+    const pct = goal > 0 ? Math.min(TOTAL / goal, 1) : 0;
+    const remaining = Math.max(goal - TOTAL, 0);
+    const ring = document.getElementById("goal-ring");
+    ring.setAttribute("stroke-dashoffset", String(314.16 * (1 - pct)));
+    ring.setAttribute("stroke", pct >= 0.75 ? "#22c55e" : (pct >= 0.4 ? "#eab308" : "#ef4444"));
+    document.getElementById("goal-ring-pct").textContent = Math.round(pct * 100) + "%";
+    document.getElementById("goal-ring-label").textContent = "of $" + Math.round(goal).toLocaleString() + " goal";
+    document.getElementById("goal-bar").style.width = (pct * 100) + "%";
+    document.getElementById("goal-amount-label").textContent = "$" + Math.round(goal).toLocaleString();
+    document.getElementById("goal-remaining-label").textContent = fmtMoney(remaining) + " to go";
   }
-
-  function monthlyRate() {
-    if (!trend.length) return 0;
-    return trend.reduce((sum, point) => sum + point[1], 0) / trend.length;
-  }
-
-  const GOAL_TYPE_LABELS = { monthly: "monthly", yearly: "yearly", project: "project" };
-
-  function renderGoalState() {
-    const saved = loadGoal();
-    const amount = saved ? saved.amount : DEFAULT_GOAL;
-    const progress = amount > 0 ? Math.min(TOTAL / amount, 1) : 0;
-    renderGauge(progress, amount);
-
-    const typeLabel = saved && GOAL_TYPE_LABELS[saved.type] ? GOAL_TYPE_LABELS[saved.type] + " " : "";
-    document.getElementById("goal-line").textContent =
-      "of $" + Math.round(amount).toLocaleString() + " " + typeLabel + "goal";
-
-    const remaining = Math.max(amount - TOTAL, 0);
-    document.getElementById("goal-remaining").textContent =
-      remaining > 0 ? fmtMoney(remaining) + " remaining" : "Goal reached";
-    document.getElementById("goal-pct").textContent =
-      "· " + Math.round(progress * 100) + "% complete";
-
-    const projEl = document.getElementById("goal-projection");
-    const rate = monthlyRate();
-    let projectedDate = null;
-    if (remaining <= 0) {
-      projEl.textContent = "You've hit this goal — set a new one.";
-    } else if (rate <= 0) {
-      projEl.textContent = "Not enough earnings data to project a hit date.";
-    } else {
-      const months = remaining / rate;
-      projectedDate = new Date();
-      projectedDate.setDate(projectedDate.getDate() + Math.round(months * 30.44));
-      projEl.textContent = "Projected to hit goal: " +
-        projectedDate.toLocaleDateString(undefined, { month: "short", year: "numeric" }) +
-        " at ~" + fmtMoney(rate) + "/mo";
-    }
-
-    const dlEl = document.getElementById("goal-deadline-status");
-    if (saved && saved.deadline) {
-      const deadline = new Date(saved.deadline + "T23:59:59");
-      let status = "";
-      let cls = "text-gray-500";
-      if (remaining <= 0) {
-        status = "Met before deadline";
-        cls = "text-green-400";
-      } else if (projectedDate) {
-        if (projectedDate <= deadline) { status = "On track"; cls = "text-green-400"; }
-        else { status = "Behind pace"; cls = "text-amber-400"; }
-      }
-      dlEl.className = "text-xs " + cls;
-      dlEl.textContent = "Deadline: " +
-        deadline.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) +
-        (status ? " · " + status : "");
-    } else {
-      dlEl.className = "hidden";
-    }
-  }
-
-  renderGoalState();
+  renderGoalCard();
 
   const goalModal = document.getElementById("goal-modal");
-
   function openGoalModal() {
-    const saved = loadGoal();
-    document.getElementById("goal-amount").value = saved ? saved.amount : DEFAULT_GOAL;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(GOAL_KEY) || "null"); } catch (err) {}
+    document.getElementById("goal-amount").value = saved && saved.amount ? saved.amount : DEFAULT_GOAL;
     document.getElementById("goal-type").value = saved && saved.type ? saved.type : "yearly";
     document.getElementById("goal-deadline").value = saved && saved.deadline ? saved.deadline : "";
     goalModal.classList.remove("hidden");
     goalModal.classList.add("flex");
     document.getElementById("goal-amount").focus();
   }
-
   function closeGoalModal() {
     goalModal.classList.add("hidden");
     goalModal.classList.remove("flex");
   }
-
-  document.getElementById("set-goal-btn").addEventListener("click", openGoalModal);
+  document.getElementById("edit-goal-btn").addEventListener("click", openGoalModal);
   document.getElementById("goal-cancel").addEventListener("click", closeGoalModal);
   goalModal.addEventListener("click", (e) => { if (e.target === goalModal) closeGoalModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGoalModal(); });
-
   document.getElementById("goal-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const amount = parseFloat(document.getElementById("goal-amount").value);
     if (!(amount > 0)) return;
-    const goal = {
+    localStorage.setItem(GOAL_KEY, JSON.stringify({
       amount: amount,
       type: document.getElementById("goal-type").value,
       deadline: document.getElementById("goal-deadline").value || null,
-    };
-    localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
+    }));
     closeGoalModal();
-    renderGoalState();
+    renderGoalCard();
   });
 
-  new Chart(document.getElementById("earningsChart"), {
+  const HEALTH_SCORE = {{ overview_health.score }};
+  const healthArc = document.getElementById("health-arc");
+  healthArc.setAttribute("stroke-dashoffset", String(132 * (1 - HEALTH_SCORE / 100)));
+  healthArc.setAttribute("stroke", HEALTH_SCORE >= 75 ? "#22c55e" : (HEALTH_SCORE >= 50 ? "#eab308" : "#ef4444"));
+
+  const chart = new Chart(document.getElementById("earningsChart"), {
     type: "line",
     data: {
-      labels: trend.map((point) => point[0]),
+      labels: trend.map((p) => p[0]),
       datasets: [{
-        label: "Earnings ($)",
-        data: trend.map((point) => point[1]),
+        data: trend.map((p) => p[1]),
         borderColor: "#eab308",
-        backgroundColor: "rgba(234, 179, 8, 0.08)",
-        fill: true,
-        tension: 0.35,
-        pointBackgroundColor: "#eab308",
-        pointRadius: 3,
+        backgroundColor: "rgba(234,179,8,0.08)",
+        fill: true, tension: 0.35, pointBackgroundColor: "#eab308", pointRadius: 3,
       }],
     },
     options: {
-      scales: {
-        x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
-        y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.04)" } },
-      },
       plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+      },
     },
+  });
+
+  document.getElementById("date-range").addEventListener("change", (e) => {
+    const months = Number(e.target.value);
+    const sliced = trend.slice(-months);
+    chart.data.labels = sliced.map((p) => p[0]);
+    chart.data.datasets[0].data = sliced.map((p) => p[1]);
+    chart.update();
+    const labels = { 1: "This month", 3: "Last 3 months", 6: "Last 6 months" };
+    document.getElementById("trend-range-label").textContent = labels[months] || "Last 6 months";
+  });
+  document.getElementById("date-range").addEventListener("click", (e) => e.stopPropagation());
+
+  const payoutDrawer = document.getElementById("payout-drawer");
+  const payoutBackdrop = document.getElementById("payout-drawer-backdrop");
+  function closePayoutDrawer() {
+    payoutDrawer.classList.add("translate-x-full");
+    payoutBackdrop.classList.add("hidden");
+  }
+  document.querySelectorAll(".payout-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      document.getElementById("payout-drawer-platform").textContent = row.dataset.platform;
+      document.getElementById("payout-drawer-song").textContent = row.dataset.song;
+      document.getElementById("payout-drawer-song2").textContent = row.dataset.song;
+      document.getElementById("payout-drawer-amount").textContent = fmtMoney(parseFloat(row.dataset.amount));
+      const statusEl = document.getElementById("payout-drawer-status");
+      statusEl.textContent = row.dataset.status;
+      statusEl.className = "font-semibold " + (row.dataset.status === "Paid" ? "text-green-400" : "text-amber-400");
+      payoutBackdrop.classList.remove("hidden");
+      payoutDrawer.classList.remove("translate-x-full");
+    });
+  });
+  document.getElementById("payout-drawer-close").addEventListener("click", closePayoutDrawer);
+  payoutBackdrop.addEventListener("click", closePayoutDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !payoutDrawer.classList.contains("translate-x-full")) closePayoutDrawer();
   });
 </script>
 {% endblock %}

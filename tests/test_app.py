@@ -44,76 +44,95 @@ def test_scan_recovery_summary_route():
 
 def test_all_pages_render():
     client = create_app().test_client()
-    for route in ["/dashboard", "/royalties", "/catalog", "/valuation", "/settings"]:
+    for route in ["/overview", "/royalties", "/catalog", "/connections", "/recovery", "/valuation", "/reports", "/settings"]:
         response = client.get(route)
         assert response.status_code == 200, route
+
+
+def test_dashboard_redirects_to_overview():
+    client = create_app().test_client()
+    response = client.get("/dashboard")
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/overview"
 
 
 def test_nav_highlights_active_page():
     client = create_app().test_client()
     body = client.get("/royalties").get_data(as_text=True)
-    assert 'href="/royalties" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors bg-white/5 text-white"' in body
+    assert 'href="/royalties"' in body
+    assert "bg-amber-500/10 font-semibold text-amber-400" in body
 
 
-def test_overview_renders_expected_content():
+def test_nav_includes_all_eight_routes():
     client = create_app().test_client()
-    response = client.get("/dashboard")
+    body = client.get("/overview").get_data(as_text=True)
+    for href in ["/overview", "/royalties", "/catalog", "/connections", "/recovery", "/valuation", "/reports", "/settings"]:
+        assert 'href="{}"'.format(href) in body
+
+
+def test_overview_renders_command_center():
+    client = create_app().test_client()
+    response = client.get("/overview")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Total Royalties" in body
-    assert "Spotify" in body
+    assert "Your royalty command center." in body
+    assert "Total Royalties Collected" in body
 
 
-def test_overview_includes_set_goal_ui():
+def test_overview_includes_goal_card_and_modal():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert 'id="set-goal-btn"' in body
+    body = client.get("/overview").get_data(as_text=True)
+    assert 'id="edit-goal-btn"' in body
     assert 'id="goal-modal"' in body
     assert 'id="goal-amount"' in body
     assert 'id="goal-type"' in body
     assert 'id="goal-deadline"' in body
 
 
-def test_overview_includes_health_score():
+def test_overview_includes_health_score_card():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/overview").get_data(as_text=True)
     assert "Royalty Health Score" in body
-    assert "Recommended actions" in body
-    assert "out of 100" in body
+    assert "Improve Score" in body
+    assert "/100" in body
 
 
-def test_overview_includes_catalog_completeness_meter():
+def test_overview_includes_money_left_card():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "Catalog Completeness Meter" in body
-    assert "ready to collect" in body
-
-
-def test_overview_includes_story_hero():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "What you made" in body
-    assert "What you're missing" in body
-    assert ">Why<" in body
-    assert "How to collect it" in body
-    assert "What your catalog may be worth" in body
-    assert "The next move" in body
-    assert 'id="story-next-move"' in body
-
-
-def test_overview_includes_money_left_on_the_table():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/overview").get_data(as_text=True)
     assert "Money Left on the Table" in body
-    assert "High confidence" in body
-    assert "View Missing Money" in body
+    assert "Scan Now" in body
+    assert 'href="/recovery"' in body
 
 
-def test_overview_includes_since_last_login():
+def test_overview_includes_action_center_and_payouts():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "What Changed Since Last Login" in body
-    assert "New Royalties" in body
+    body = client.get("/overview").get_data(as_text=True)
+    assert "Action Center" in body
+    assert "Recent Payouts" in body
+    assert 'id="payout-drawer"' in body
+
+
+def test_overview_includes_last_visit_summary():
+    client = create_app().test_client()
+    body = client.get("/overview").get_data(as_text=True)
+    assert "What Changed Since Your Last Visit" in body
+    assert "New royalties collected" in body
+    assert "Tasks completed" in body
+    assert "Catalog value increase" in body
+
+
+def test_overview_includes_date_range_selector():
+    client = create_app().test_client()
+    body = client.get("/overview").get_data(as_text=True)
+    assert 'id="date-range"' in body
+
+
+def test_overview_includes_earnings_trend():
+    client = create_app().test_client()
+    body = client.get("/overview").get_data(as_text=True)
+    assert "Earnings Trend" in body
+    assert 'id="earningsChart"' in body
 
 
 def test_royalties_includes_leak_alerts_ui():
@@ -140,12 +159,18 @@ def test_resolve_unknown_alert_returns_404():
     assert response.status_code == 404
 
 
-def test_settings_includes_connections_ui():
+def test_connections_page_includes_connections_ui():
     client = create_app().test_client()
-    body = client.get("/settings").get_data(as_text=True)
+    body = client.get("/connections").get_data(as_text=True)
     assert "Platform Connections" in body
     assert 'id="connection-search"' in body
     assert "YouTube Music" in body
+
+
+def test_settings_links_to_connections_page():
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert 'href="/connections"' in body
 
 
 def test_settings_includes_account_profile_ui():
@@ -169,9 +194,9 @@ def test_settings_includes_notification_preferences_ui():
     assert 'data-key="new_song_detected"' in body
 
 
-def test_royalties_includes_scanner_ui():
+def test_recovery_includes_scanner_ui():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert 'id="scan-btn"' in body
     assert "Missing Money Scanner" in body
 
@@ -217,15 +242,9 @@ def test_catalog_includes_song_breakdown_ui():
     assert "Midnight Drive" in body
 
 
-def test_overview_includes_metadata_completion_ui():
-    client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
-    assert "Metadata Completion" in body
-
-
 def test_base_includes_song_drawer():
     client = create_app().test_client()
-    for route in ["/dashboard", "/royalties", "/catalog"]:
+    for route in ["/overview", "/royalties", "/catalog"]:
         body = client.get(route).get_data(as_text=True)
         assert 'id="song-drawer"' in body
 
@@ -259,9 +278,9 @@ def test_royalties_includes_payout_calendar():
     assert "Upcoming total" in body
 
 
-def test_royalties_includes_claim_workflow_ui():
+def test_recovery_includes_claim_workflow_ui():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert "Claim Workflow" in body
     assert "Detected" in body
 
@@ -372,7 +391,7 @@ def test_toggle_split_unknown_song_returns_404():
 
 def test_base_includes_split_manager_ui():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/overview").get_data(as_text=True)
     assert 'id="add-split-form"' in body
     assert 'id="split-collaborator"' in body
     assert 'id="song-drawer-split-warning"' in body
@@ -380,23 +399,23 @@ def test_base_includes_split_manager_ui():
 
 def test_base_includes_collapsible_section_script():
     client = create_app().test_client()
-    body = client.get("/dashboard").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "section-chevron" in body
     assert "royaltySweep.collapsed." in body
 
 
-def test_royalties_includes_fixes_queue_ui():
+def test_recovery_includes_fixes_queue_ui():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert "Fixes Needed Queue" in body
     assert 'id="fixes-queue-list"' in body
     assert "Fix Now" in body
     assert "Mark Complete" in body
 
 
-def test_royalties_includes_top_royalty_leaks():
+def test_recovery_includes_top_royalty_leaks():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert "Top Royalty Leaks" in body
 
 
@@ -437,9 +456,9 @@ def test_catalog_includes_documents_vault():
     assert "Split Sheet" in body
 
 
-def test_valuation_includes_exportable_reports():
+def test_reports_page_includes_exportable_reports():
     client = create_app().test_client()
-    body = client.get("/valuation").get_data(as_text=True)
+    body = client.get("/reports").get_data(as_text=True)
     assert "Exportable Reports" in body
     assert "Investor Snapshot" in body
 
@@ -452,7 +471,7 @@ def test_catalog_includes_rights_conflict_center():
 
 def test_update_fix_status_route():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     import re
     match = re.search(r'data-fix-id="([^"]+)"', body)
     fix_id = match.group(1)

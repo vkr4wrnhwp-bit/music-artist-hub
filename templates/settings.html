@@ -129,29 +129,18 @@
     </form>
   </section>
 
-  <section id="platform-connections" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Platform Connections</h2>
-    <p class="mt-1 text-sm text-gray-500">Connect royalty platforms to include them in your totals.</p>
-    <input id="connection-search" type="text" placeholder="Search platforms..."
-           class="mt-4 w-full max-w-sm rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
-    <div id="connection-list" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {% for p in platform_catalog %}
-      <div class="connection-row flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2"
-           data-platform-id="{{ p.id }}" data-status="{{ p.status }}"
-           data-search="{{ p.platform | lower }} {{ p.royalty_type | lower }}">
-        <div class="min-w-0">
-          <div class="truncate text-sm font-semibold">{{ p.platform }}</div>
-          <div class="text-[10px] uppercase tracking-widest text-gray-600">{{ p.royalty_type }}</div>
-        </div>
-        <div class="flex shrink-0 items-center gap-2.5">
-          <span class="conn-status inline-flex items-center gap-1.5 text-[11px]"></span>
-          <button type="button" class="conn-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors"></button>
-        </div>
+  <a href="/connections" class="block rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/30">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Platform Connections</h2>
+        <p class="mt-1 text-sm text-gray-500">Manage connected royalty platforms and rights sources.</p>
       </div>
-      {% endfor %}
-      <div id="connection-no-results" class="hidden py-6 text-center text-xs text-gray-600 sm:col-span-2 lg:col-span-3">No platforms match your search.</div>
+      <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-400">
+        Manage
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+      </span>
     </div>
-  </section>
+  </a>
 </div>
 {% endblock %}
 
@@ -290,53 +279,6 @@
       return;
     }
     window.location.reload();
-  });
-
-  const CONN_UI = {
-    connected:     { badge: "Connected",     dot: "bg-green-500 shadow-[0_0_5px_1px_rgba(34,197,94,0.75)]",  text: "text-green-400", btn: "Disconnect", btnCls: "border-white/10 text-gray-400 hover:bg-white/5 hover:text-gray-200", disabled: false },
-    not_connected: { badge: "Not connected", dot: "bg-gray-600",                                             text: "text-gray-500",  btn: "Connect",    btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-    syncing:       { badge: "Syncing...",    dot: "bg-amber-500 animate-pulse shadow-[0_0_5px_1px_rgba(245,158,11,0.75)]", text: "text-amber-400", btn: "Syncing...", btnCls: "border-white/10 text-gray-600", disabled: true },
-    needs_login:   { badge: "Needs login",   dot: "bg-blue-500 shadow-[0_0_5px_1px_rgba(59,130,246,0.75)]",  text: "text-blue-400",  btn: "Log In",     btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-    error:         { badge: "Error",         dot: "bg-red-500 shadow-[0_0_5px_1px_rgba(239,68,68,0.8)]",     text: "text-red-400",   btn: "Retry",      btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-  };
-
-  function renderConnectionRow(row) {
-    const ui = CONN_UI[row.dataset.status] || CONN_UI.not_connected;
-    row.querySelector(".conn-status").innerHTML =
-      '<span class="h-1.5 w-1.5 rounded-full ' + ui.dot + '"></span><span class="' + ui.text + '">' + ui.badge + "</span>";
-    const btn = row.querySelector(".conn-btn");
-    btn.textContent = ui.btn;
-    btn.className = "conn-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors " + ui.btnCls;
-    btn.disabled = ui.disabled;
-  }
-
-  document.querySelectorAll(".connection-row").forEach((row) => {
-    renderConnectionRow(row);
-    row.querySelector(".conn-btn").addEventListener("click", async () => {
-      const verb = row.dataset.status === "connected" ? "disconnect" : "connect";
-      const btn = row.querySelector(".conn-btn");
-      btn.disabled = true;
-      btn.textContent = "Working...";
-      try {
-        const res = await fetch(`/connections/${row.dataset.platformId}/${verb}`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          row.dataset.status = data.status;
-        }
-      } catch (err) { /* fall through to re-render */ }
-      renderConnectionRow(row);
-    });
-  });
-
-  document.getElementById("connection-search").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    let visible = 0;
-    document.querySelectorAll(".connection-row").forEach((row) => {
-      const match = !q || row.dataset.search.includes(q);
-      row.classList.toggle("hidden", !match);
-      if (match) visible++;
-    });
-    document.getElementById("connection-no-results").classList.toggle("hidden", visible > 0);
   });
 </script>
 {% endblock %}
