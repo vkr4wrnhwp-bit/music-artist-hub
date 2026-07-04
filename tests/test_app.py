@@ -830,6 +830,32 @@ def test_territories_data_config_shapes():
     assert round(sum(t["uncollected"] for t in data["territories"]), 2) == data["summary"]["uncollected_total"]
 
 
+def test_mechanicals_page_content():
+    client = create_app().test_client()
+    body = client.get("/mechanicals").get_data(as_text=True)
+    assert "Mechanical Royalties" in body
+    assert "Black Box" in body
+    assert 'href="/mechanicals"' in body
+
+
+def test_mechanicals_data_config_shapes():
+    from mechanicals_config import get_mechanicals_data
+    data = get_mechanicals_data()
+    s = data["summary"]
+    assert round(s["matched_total"] + s["blackbox_total"], 2) == s["mechanical_total"]
+    # Unmatched works contribute to the black box, matched ones don't.
+    for w in data["works"]:
+        assert (w["blackbox_amount"] > 0) == (not w["mlc_matched"])
+
+
+def test_mechanicals_agree_with_publishing():
+    from mechanicals_config import get_mechanicals_data
+    from publishing_config import get_publishing_data
+    mech = {w["id"]: w["mechanical_total"] for w in get_mechanicals_data()["works"]}
+    pub = {w["id"]: w["mechanical_estimate"] for w in get_publishing_data()["works"]}
+    assert mech == pub
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

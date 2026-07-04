@@ -14,6 +14,7 @@ from publishing_config import get_publishing_data
 from neighboring_rights_config import get_neighboring_rights_data
 from sync_config import get_sync_data
 from territories_config import get_territories_data
+from mechanicals_config import get_mechanicals_data
 
 from royalty_data import (
     add_split,
@@ -410,6 +411,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["territories"] = get_territories_data()
         return render_template("territories.html", active_page="territories", **ctx)
+
+    @app.route("/mechanicals")
+    def mechanicals():
+        ctx = build_dashboard_context()
+        ctx["mechanicals"] = get_mechanicals_data()
+        return render_template("mechanicals.html", active_page="mechanicals", **ctx)
 
     @app.route("/documents")
     def documents():
