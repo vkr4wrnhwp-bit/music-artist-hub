@@ -767,6 +767,27 @@ def test_registration_page_and_complete_step():
     assert data["ok"] and data["wizard"]["status"]["mlc"] is True
 
 
+def test_neighboring_rights_page_content():
+    client = create_app().test_client()
+    body = client.get("/neighboring-rights").get_data(as_text=True)
+    assert "Neighboring Rights" in body
+    assert "SoundExchange" in body
+    assert "Collection Societies" in body
+    assert 'href="/neighboring-rights"' in body
+
+
+def test_neighboring_rights_data_config_shapes():
+    from neighboring_rights_config import get_neighboring_rights_data
+    data = get_neighboring_rights_data()
+    assert data["summary"]["recordings"] == len(data["recordings"])
+    # SoundExchange is the first society and reflects real registration.
+    assert data["societies"][0]["name"] == "SoundExchange"
+    assert data["summary"]["territories_total"] == len(data["societies"])
+    # Every recording carries a positive uncollected estimate (intl always uncollected).
+    assert all(r["uncollected"] > 0 for r in data["recordings"])
+    assert round(sum(r["uncollected"] for r in data["recordings"]), 2) == data["summary"]["uncollected_total"]
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

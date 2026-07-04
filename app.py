@@ -11,6 +11,7 @@ from epk_config import get_epk_data
 from artwork_config import get_artwork_data, suggest_from_prompt
 from links_config import get_links_data, create_smart_link
 from publishing_config import get_publishing_data
+from neighboring_rights_config import get_neighboring_rights_data
 
 from royalty_data import (
     add_split,
@@ -389,6 +390,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["publishing"] = get_publishing_data()
         return render_template("publishing.html", active_page="publishing", **ctx)
+
+    @app.route("/neighboring-rights")
+    def neighboring_rights():
+        ctx = build_dashboard_context()
+        ctx["neighboring"] = get_neighboring_rights_data()
+        return render_template("neighboring_rights.html", active_page="neighboring", **ctx)
 
     @app.route("/documents")
     def documents():
