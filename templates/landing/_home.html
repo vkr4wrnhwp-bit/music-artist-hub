@@ -27,7 +27,7 @@
   'top-left': 'inset-x-0 top-0 items-start text-left bg-gradient-to-b from-black/70 via-black/30 to-transparent',
   'center': 'inset-0 items-center justify-center text-center bg-black/40',
 } %}
-<figure class="relative overflow-hidden rounded-xl border border-black/10">
+<figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
   <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full {{ img.height_class or 'h-auto' }} {{ 'object-cover' if img.height_class else '' }}" loading="lazy">
   {% if img.overlay %}
   <figcaption class="absolute flex flex-col gap-3 p-5 sm:p-7 {{ pos.get(img.overlay.position, pos['bottom-left']) }}">
@@ -38,7 +38,7 @@
   {% endif %}
 </figure>
 {% if img.buttons_below %}
-<div class="mt-4 flex flex-wrap gap-3">{% for b in img.buttons_below %}{{ cta_button(b) }}{% endfor %}</div>
+<div class="mt-5 flex flex-wrap gap-3 {{ 'justify-center' if img.center_buttons }}">{% for b in img.buttons_below %}{{ cta_button(b) }}{% endfor %}</div>
 {% endif %}
 {% endmacro %}
 

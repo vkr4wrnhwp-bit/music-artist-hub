@@ -90,7 +90,9 @@ def test_landing_page_includes_trust_strip():
 
 def test_landing_includes_lanes_engine_and_services():
     body = create_app().test_client().get("/").get_data(as_text=True)
-    assert "THREE LANES. ONE INFRASTRUCTURE." in body
+    # Lanes section renders (headline lives in the graphic when an image is set).
+    assert 'id="infrastructure"' in body
+    assert "Explore The Three Lanes" in body
     assert "THE RECOVERY ENGINE" in body
     assert "BUILT FOR EVERY STAGE OF YOUR CAREER" in body
 

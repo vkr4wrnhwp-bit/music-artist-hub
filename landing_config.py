@@ -126,6 +126,8 @@ def get_landing_config():
             "image": {
                 "src": "/static/img/three-lanes.png",
                 "alt": "The Three Distro Lanes — 01 Distribution, 02 Development, 03 Partnership",
+                "bare": True,          # borderless, blends on the white page
+                "center_buttons": True,
                 "buttons_below": [
                     {"label": "01 Distribution", "href": "/royalties", "variant": "outline-dark"},
                     {"label": "02 Development", "href": "/audience", "variant": "outline-dark"},

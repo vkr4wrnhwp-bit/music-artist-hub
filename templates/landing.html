@@ -11,7 +11,7 @@
     .ink { color: #141210; }
   </style>
 </head>
-<body class="min-h-screen bg-[#F5F2EC] text-[#141210] antialiased">
+<body class="min-h-screen bg-white text-[#141210] antialiased">
 {% import "landing/_cards.html" as c %}
 {% import "landing/_home.html" as h %}
 
@@ -146,8 +146,8 @@
   <!-- 5. THREE LANES / INFRASTRUCTURE -->
   <section id="infrastructure" class="scroll-mt-6 py-10">
     {% if config.lanes.image %}
-    <!-- Full-bleed lanes graphic (carries its own title + detail); buttons stay below the art -->
-    <div class="mx-auto max-w-5xl">
+    <!-- Full-width lanes graphic (carries its own title + detail); buttons stay below the art -->
+    <div class="w-full">
       {{ h.image_panel(config.lanes.image) }}
     </div>
     {% else %}
