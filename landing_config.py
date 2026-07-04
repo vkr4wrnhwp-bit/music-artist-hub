@@ -52,6 +52,15 @@ def get_landing_config():
 
         "hero_visual": {
             "variant": "commandDesk",
+            # Photo of the command desk; replaces the built-in SVG panel when
+            # present. Whole panel links into the app. Falls back to the SVG
+            # until the file is on disk.
+            "image": {
+                "src": "/static/img/command-desk.png",
+                "alt": "Royalty Sweep Command Desk — connected sources, missing royalties found, recovery opportunities",
+                "bare": True,
+                "href": "/overview",
+            },
             "title": "ROYALTY SWEEP",
             "label": "COMMAND DESK",
             "center": {

@@ -67,10 +67,12 @@ def test_landing_page_links_all_resolve():
 
 
 def test_landing_command_desk_shows_all_sources():
-    client = create_app().test_client()
-    body = client.get("/").get_data(as_text=True)
+    # The command desk lists these sources; when a photo replaces the built-in
+    # SVG the names live in the image, so assert the editable config data.
+    from landing_config import get_landing_config
+    sources = [s["name"] for s in get_landing_config()["hero_visual"]["connected_sources"]]
     for platform in ["Spotify", "Apple Music", "ASCAP", "BMI", "The MLC", "SoundExchange", "YouTube Content ID"]:
-        assert platform in body
+        assert platform in sources
 
 
 def test_landing_page_includes_feature_cards():

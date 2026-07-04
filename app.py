@@ -358,6 +358,8 @@ def create_app():
             config["features_image"] = None
         if not _has_file(config.get("royalty_sweep", {}).get("image")):
             config["royalty_sweep"] = {**config["royalty_sweep"], "image": None}
+        if not _has_file(config.get("hero_visual", {}).get("image")):
+            config["hero_visual"] = {**config["hero_visual"], "image": None}
 
         return render_template("landing.html", config=config)
 
