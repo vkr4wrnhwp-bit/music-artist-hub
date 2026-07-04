@@ -722,6 +722,51 @@ def test_publishing_data_config_shapes():
     assert all(w["uncollected"] > 0 for w in unreg)
 
 
+def test_tier2_pages_render_and_are_in_nav():
+    client = create_app().test_client()
+    nav = client.get("/overview").get_data(as_text=True)
+    for href in ("/documents", "/identifiers", "/conflicts", "/releases", "/registration"):
+        assert 'href="%s"' % href in nav
+        assert client.get(href).status_code == 200
+    # Grouped sidebar section labels present.
+    for group in ("Collect", "Catalog", "Grow", "Promote", "Account"):
+        assert ">%s<" % group in nav
+
+
+def test_documents_page_content():
+    body = create_app().test_client().get("/documents").get_data(as_text=True)
+    assert "Documents Vault" in body
+    assert "Vault Completeness" in body
+
+
+def test_identifiers_page_content():
+    body = create_app().test_client().get("/identifiers").get_data(as_text=True)
+    assert "Identifiers" in body
+    assert "ISRC" in body and "ISWC" in body and "UPC" in body
+
+
+def test_conflicts_page_content():
+    body = create_app().test_client().get("/conflicts").get_data(as_text=True)
+    assert "Rights Conflict Center" in body
+
+
+def test_releases_page_content():
+    body = create_app().test_client().get("/releases").get_data(as_text=True)
+    assert "Release Scheduler" in body
+    assert "Readiness Checklist" in body
+
+
+def test_registration_page_and_complete_step():
+    client = create_app().test_client()
+    body = client.get("/registration").get_data(as_text=True)
+    assert "Registration Wizard" in body
+    # The completion endpoint the page posts to should advance a missing target.
+    resp = client.post("/songs/neon-dreams/registration-wizard/mlc/complete")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] and data["wizard"]["status"]["mlc"] is True
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

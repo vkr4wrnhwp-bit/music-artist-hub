@@ -390,6 +390,26 @@ def create_app():
         ctx["publishing"] = get_publishing_data()
         return render_template("publishing.html", active_page="publishing", **ctx)
 
+    @app.route("/documents")
+    def documents():
+        return render_template("documents.html", active_page="documents", **build_dashboard_context())
+
+    @app.route("/identifiers")
+    def identifiers():
+        return render_template("identifiers.html", active_page="identifiers", **build_dashboard_context())
+
+    @app.route("/conflicts")
+    def conflicts():
+        return render_template("conflicts.html", active_page="conflicts", **build_dashboard_context())
+
+    @app.route("/releases")
+    def releases():
+        return render_template("releases.html", active_page="releases", **build_dashboard_context())
+
+    @app.route("/registration")
+    def registration():
+        return render_template("registration.html", active_page="registration", **build_dashboard_context())
+
     @app.route("/settings")
     def settings():
         return render_template("settings.html", active_page="settings", **build_dashboard_context())
