@@ -1,4 +1,5 @@
 import math
+import os
 from dataclasses import asdict
 from datetime import datetime
 
@@ -341,7 +342,16 @@ def create_app():
     def index():
         # Homepage content is fully config-driven (landing_config); the
         # command-desk figures are editable there, not injected live.
-        return render_template("landing.html", config=get_landing_config())
+        config = get_landing_config()
+        # Only use a section's image if the file is actually on disk, so a
+        # not-yet-uploaded asset falls back to the built-in visual instead
+        # of rendering a broken image.
+        lanes_img = config.get("lanes", {}).get("image")
+        if lanes_img and not os.path.exists(
+            os.path.join(app.static_folder, lanes_img["src"].split("/static/", 1)[-1])
+        ):
+            config["lanes"] = {**config["lanes"], "image": None}
+        return render_template("landing.html", config=config)
 
     @app.route("/scan/recovery-summary", methods=["POST"])
     def scan_recovery_summary():

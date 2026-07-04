@@ -120,6 +120,19 @@ def get_landing_config():
                 "artist infrastructure."
             ),
             "cta": {"label": "Explore The Three Lanes", "href": "/overview"},
+            # Full-bleed graphic that carries its own title + all lane detail.
+            # Engagement buttons render BELOW it (the art has no empty space
+            # to safely overlay). Drop the file at this exact path.
+            "image": {
+                "src": "/static/img/three-lanes.png",
+                "alt": "The Three Distro Lanes — 01 Distribution, 02 Development, 03 Partnership",
+                "buttons_below": [
+                    {"label": "01 Distribution", "href": "/royalties", "variant": "outline-dark"},
+                    {"label": "02 Development", "href": "/audience", "variant": "outline-dark"},
+                    {"label": "03 Partnership", "href": "/capital", "variant": "outline-dark"},
+                    {"label": "Explore The Three Lanes", "href": "/overview", "variant": "primary"},
+                ],
+            },
             "items": [
                 {"number": "01", "title": "Distribution", "description": "Release. Collect. Report.", "href": "/royalties"},
                 {"number": "02", "title": "Development", "description": "Build the artist. Grow the audience.", "href": "/audience"},

@@ -144,7 +144,13 @@
   </section>
 
   <!-- 5. THREE LANES / INFRASTRUCTURE -->
-  <section id="infrastructure" class="scroll-mt-6 py-8">
+  <section id="infrastructure" class="scroll-mt-6 py-10">
+    {% if config.lanes.image %}
+    <!-- Full-bleed lanes graphic (carries its own title + detail); buttons stay below the art -->
+    <div class="mx-auto max-w-5xl">
+      {{ h.image_panel(config.lanes.image) }}
+    </div>
+    {% else %}
     <div class="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] lg:items-center">
       <div>
         <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ config.lanes.label }}</div>
@@ -152,7 +158,6 @@
         <p class="mt-4 max-w-md text-sm leading-relaxed text-[#5a544a]">{{ config.lanes.subheadline }}</p>
         <a href="{{ config.lanes.cta.href }}" class="mt-6 inline-flex items-center gap-2 rounded-md border border-black/20 px-5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/5">{{ config.lanes.cta.label }}</a>
       </div>
-      <!-- Rack hardware panel -->
       <div class="rounded-xl border border-black/20 bg-gradient-to-b from-[#26262a] to-[#141416] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)]">
           {% for item in config.lanes['items'] %}{{ h.lane_card(item) }}{% endfor %}
@@ -170,6 +175,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </section>
 
   <!-- 6. ROYALTY SWEEP DARK ENGINE -->

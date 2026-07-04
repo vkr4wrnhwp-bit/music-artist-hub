@@ -3,6 +3,45 @@
    small, reusable pieces rather than one giant template. #}
 {% import "landing/_cards.html" as c %}
 
+{# ---- Reusable CTA button ---- #}
+{% macro cta_button(btn) %}
+{% set styles = {
+  'primary': 'bg-[#141210] text-white hover:bg-[#2a251d]',
+  'gold': 'bg-[#d8b25a] text-[#1c1302] hover:bg-[#e6c675]',
+  'outline-dark': 'border border-black/25 text-[#141210] hover:bg-black/5',
+  'outline-light': 'border border-white/25 text-white hover:bg-white/10',
+} %}
+<a href="{{ btn.href }}" class="inline-flex items-center gap-1.5 rounded-md px-5 py-2.5 text-sm font-semibold transition-colors {{ styles.get(btn.variant, styles['primary']) }}">
+  {{ btn.label }}
+  <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+</a>
+{% endmacro %}
+
+{# ---- Image panel: buttons stay OUTSIDE the image (buttons_below) or
+   overlaid ONLY in a chosen empty zone with a readable scrim. Never over
+   the focal subject. ---- #}
+{% macro image_panel(img) %}
+{% set pos = {
+  'bottom-left': 'inset-x-0 bottom-0 items-start text-left bg-gradient-to-t from-black/70 via-black/30 to-transparent',
+  'bottom-right': 'inset-x-0 bottom-0 items-end text-right bg-gradient-to-t from-black/70 via-black/30 to-transparent',
+  'top-left': 'inset-x-0 top-0 items-start text-left bg-gradient-to-b from-black/70 via-black/30 to-transparent',
+  'center': 'inset-0 items-center justify-center text-center bg-black/40',
+} %}
+<figure class="relative overflow-hidden rounded-xl border border-black/10">
+  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full {{ img.height_class or 'h-auto' }} {{ 'object-cover' if img.height_class else '' }}" loading="lazy">
+  {% if img.overlay %}
+  <figcaption class="absolute flex flex-col gap-3 p-5 sm:p-7 {{ pos.get(img.overlay.position, pos['bottom-left']) }}">
+    {% if img.overlay.heading %}<div class="max-w-md text-2xl font-extrabold uppercase leading-tight tracking-tight text-white drop-shadow">{{ img.overlay.heading }}</div>{% endif %}
+    {% if img.overlay.subtext %}<div class="max-w-md text-sm text-gray-200 drop-shadow">{{ img.overlay.subtext }}</div>{% endif %}
+    {% if img.overlay.buttons %}<div class="flex flex-wrap gap-3">{% for b in img.overlay.buttons %}{{ cta_button(b) }}{% endfor %}</div>{% endif %}
+  </figcaption>
+  {% endif %}
+</figure>
+{% if img.buttons_below %}
+<div class="mt-4 flex flex-wrap gap-3">{% for b in img.buttons_below %}{{ cta_button(b) }}{% endfor %}</div>
+{% endif %}
+{% endmacro %}
+
 {# ---- Analog VU meter (reused in the command desk + engine) ---- #}
 {% macro vu_meter(cls='h-20', needle=32, dark=True) %}
 <svg viewBox="0 0 200 120" class="{{ cls }}" aria-hidden="true">
