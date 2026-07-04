@@ -699,6 +699,29 @@ def test_links_data_config_shapes():
     assert data["platforms"]
 
 
+def test_publishing_page_includes_compositions():
+    client = create_app().test_client()
+    body = client.get("/publishing").get_data(as_text=True)
+    assert "Publishing Administration" in body
+    assert "Your Compositions" in body
+    assert "Performance Income" in body
+    assert "Registration Gaps" in body
+    assert 'href="/publishing"' in body
+
+
+def test_publishing_data_config_shapes():
+    from publishing_config import get_publishing_data
+    data = get_publishing_data()
+    assert data["summary"]["total_works"] == len(data["works"])
+    assert data["summary"]["pro_registered"] <= data["summary"]["total_works"]
+    # Uncollected total is the sum of per-work uncollected estimates.
+    assert round(sum(w["uncollected"] for w in data["works"]), 2) == data["summary"]["uncollected_total"]
+    assert len(data["issues"]) == 3
+    # A work missing MLC registration should carry a positive uncollected estimate.
+    unreg = [w for w in data["works"] if not w["mlc_registered"]]
+    assert all(w["uncollected"] > 0 for w in unreg)
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

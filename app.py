@@ -10,6 +10,7 @@ from reports_config import get_reports_data
 from epk_config import get_epk_data
 from artwork_config import get_artwork_data, suggest_from_prompt
 from links_config import get_links_data, create_smart_link
+from publishing_config import get_publishing_data
 
 from royalty_data import (
     add_split,
@@ -382,6 +383,12 @@ def create_app():
         if link is None:
             return jsonify({"ok": False, "error": "A title and at least one platform are required."}), 400
         return jsonify({"ok": True, "link": link})
+
+    @app.route("/publishing")
+    def publishing():
+        ctx = build_dashboard_context()
+        ctx["publishing"] = get_publishing_data()
+        return render_template("publishing.html", active_page="publishing", **ctx)
 
     @app.route("/settings")
     def settings():
