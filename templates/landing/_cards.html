@@ -56,11 +56,11 @@
 {% macro source_node(node, elem_id='', side='left') %}
 {%- set tone = {'ok': 'text-green-400', 'warning': 'text-amber-400', 'danger': 'text-red-400'} %}
 {%- set dot = {'ok': 'bg-green-500', 'warning': 'bg-amber-500', 'danger': 'bg-red-500'} %}
-<div {% if elem_id %}id="{{ elem_id }}"{% endif %} class="connector-node flex items-center gap-2 rounded-xl border border-white/10 bg-[#111113]/80 px-2 py-2" data-tone="{{ node.status_tone }}" data-side="{{ side }}">
-  {{ platform_logo(node.logo, 'h-7 w-7') }}
+<div {% if elem_id %}id="{{ elem_id }}"{% endif %} class="connector-node flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#111113]/80 px-3 py-2.5" data-tone="{{ node.status_tone }}" data-side="{{ side }}">
+  {{ platform_logo(node.logo, 'h-8 w-8') }}
   <div class="min-w-0">
-    <div class="text-[11px] font-semibold leading-tight text-gray-100">{{ node.name }}</div>
-    <div class="mt-0.5 flex items-center gap-1 text-[9px] {{ tone.get(node.status_tone, 'text-gray-400') }}">
+    <div class="text-sm font-semibold leading-tight text-white">{{ node.name }}</div>
+    <div class="mt-0.5 flex items-center gap-1.5 text-[11px] {{ tone.get(node.status_tone, 'text-gray-400') }}">
       <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ dot.get(node.status_tone, 'bg-gray-500') }}"></span>{{ node.status_label }}
     </div>
   </div>
@@ -76,7 +76,7 @@
 <div class="flex flex-col rounded-xl border border-white/10 bg-[#111113] p-3">
   <div class="flex items-center gap-2">
     {{ platform_logo(card.logo, 'h-6 w-6') }}
-    <span class="min-w-0 flex-1 text-xs font-semibold leading-tight text-gray-100">{{ card.name }}</span>
+    <span class="min-w-0 flex-1 text-[13px] font-semibold leading-tight text-white">{{ card.name }}</span>
   </div>
   <div class="mt-3 text-[9px] uppercase tracking-widest text-gray-600">Est. Recovery</div>
   <div class="mt-0.5 text-lg font-bold tabular-nums text-gray-100">${{ "{:,.2f}".format(card.est_recovery) }}</div>

@@ -32,17 +32,17 @@
     </div>
   </nav>
 
-  <div class="mt-12 grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-14">
-    <div>
+  <div class="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)] lg:gap-12">
+    <div class="lg:pt-4">
       <span class="inline-block rounded-md border border-amber-500/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400">{{ config.hero.eyebrow }}</span>
-      <h1 class="mt-5 text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl">
+      <h1 class="mt-6 text-5xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
         {% for line in config.hero.headline %}
         <span class="{{ 'text-amber-400' if line.accent else 'text-gray-100' }}">{{ line.text }}</span>{% if not loop.last %}<br>{% endif %}
         {% endfor %}
       </h1>
-      <p class="mt-5 max-w-md text-base leading-relaxed text-gray-400">{{ config.hero.subhead }}</p>
+      <p class="mt-6 max-w-md text-base leading-relaxed text-gray-400">{{ config.hero.subhead }}</p>
 
-      <div class="mt-7 flex flex-wrap items-center gap-3">
+      <div class="mt-8 flex flex-wrap items-center gap-3">
         <a href="{{ config.hero.primary_cta.href }}" class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-bold text-[#1c1302] transition-colors hover:bg-amber-400">
           {{ c.icon(config.hero.primary_cta.icon, 'h-4 w-4') }}
           {{ config.hero.primary_cta.label }}
