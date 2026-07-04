@@ -810,6 +810,26 @@ def test_sync_data_config_shapes():
     assert data["summary"]["sync_income"] == live
 
 
+def test_territories_page_content():
+    client = create_app().test_client()
+    body = client.get("/territories").get_data(as_text=True)
+    assert "Territories" in body
+    assert "Earnings by Territory" in body
+    assert 'href="/territories"' in body
+
+
+def test_territories_data_config_shapes():
+    from territories_config import get_territories_data
+    data = get_territories_data()
+    assert data["territories"]
+    # Sorted by earnings descending.
+    earnings = [t["earnings"] for t in data["territories"]]
+    assert earnings == sorted(earnings, reverse=True)
+    # Only non-collecting territories carry an uncollected gap.
+    assert all((t["uncollected"] > 0) == (not t["collecting"]) for t in data["territories"])
+    assert round(sum(t["uncollected"] for t in data["territories"]), 2) == data["summary"]["uncollected_total"]
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

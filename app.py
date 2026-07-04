@@ -13,6 +13,7 @@ from links_config import get_links_data, create_smart_link
 from publishing_config import get_publishing_data
 from neighboring_rights_config import get_neighboring_rights_data
 from sync_config import get_sync_data
+from territories_config import get_territories_data
 
 from royalty_data import (
     add_split,
@@ -403,6 +404,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["sync"] = get_sync_data()
         return render_template("sync.html", active_page="sync", **ctx)
+
+    @app.route("/territories")
+    def territories():
+        ctx = build_dashboard_context()
+        ctx["territories"] = get_territories_data()
+        return render_template("territories.html", active_page="territories", **ctx)
 
     @app.route("/documents")
     def documents():
