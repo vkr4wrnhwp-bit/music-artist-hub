@@ -32,6 +32,7 @@ class Payout:
     platform: str
     status: str
     amount: float
+    days_ago: int = 0
 
 
 @dataclass
@@ -209,9 +210,24 @@ def get_earnings_trend():
 
 def get_recent_payouts():
     return [
-        Payout("Midnight Drive", "Spotify", "Paid", 250.00),
-        Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
-        Payout("City Lights", "ASCAP", "Processing", 350.00),
+        Payout("Midnight Drive", "Spotify", "Paid", 250.00, days_ago=0),
+        Payout("Neon Dreams", "Apple Music", "Paid", 150.00, days_ago=2),
+        Payout("City Lights", "ASCAP", "Processing", 350.00, days_ago=3),
+        Payout("Digital Paradise", "YouTube Content ID", "Paid", 180.15, days_ago=5),
+        Payout("Digital Paradise", "SoundExchange", "Paid", 140.25, days_ago=7),
+    ]
+
+
+def recent_payout_rows():
+    """Recent payouts with a resolved calendar date, for list views that
+    show when each payment landed."""
+    today = date.today()
+    return [
+        {
+            "song": p.song, "platform": p.platform, "status": p.status,
+            "amount": p.amount, "date": today - timedelta(days=p.days_ago),
+        }
+        for p in get_recent_payouts()
     ]
 
 
