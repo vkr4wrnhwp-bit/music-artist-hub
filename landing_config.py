@@ -122,7 +122,7 @@ def get_landing_config():
             {"icon": "chart", "texture": "grille", "title": "Maximize Your Value",
              "description": "More data. More leverage. More recovery.",
              "link": {"label": "Learn More", "href": "/valuation"}},
-            {"icon": "lock", "texture": "patchbay", "title": "You Stay in Control",
+            {"icon": "lock", "texture": "patchbay", "title": "You Stay In Control",
              "description": "You own your catalog, connections, and future.",
              "link": {"label": "Learn More", "href": "/catalog"}},
         ],
@@ -178,6 +178,19 @@ def get_landing_config():
                 "matches_value": "347",
                 "sensitivity_label": "Sensitivity",
                 "results_cta": {"label": "View Results", "href": "/recovery"},
+            },
+            # Photo panel for the right side; overlay sits in the dark
+            # bottom-left area so the VU meters stay uncovered. Falls back to
+            # the built-in engine rack until the file is on disk.
+            "image": {
+                "src": "/static/img/recovery-engine.png",
+                "alt": "Royalty Sweep recovery engine — analog VU meters and rack gear",
+                "overlay": {
+                    "position": "bottom-left",
+                    "heading": "347 Matches",
+                    "subtext": "Scan Complete",
+                    "buttons": [{"label": "View Results", "href": "/recovery", "variant": "gold"}],
+                },
             },
         },
 

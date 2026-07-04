@@ -74,12 +74,12 @@ def test_landing_command_desk_shows_all_sources():
 
 
 def test_landing_page_includes_feature_cards():
+    # Features may render as built-in cards or as the clickable image whose
+    # region aria-labels carry the same names -- match case-insensitively.
     client = create_app().test_client()
-    body = client.get("/").get_data(as_text=True)
-    assert "Find Missing Money" in body
-    assert "Connect Everything" in body
-    assert "Maximize Your Value" in body
-    assert "You Stay in Control" in body
+    body = client.get("/").get_data(as_text=True).lower()
+    for name in ["find missing money", "connect everything", "maximize your value", "you stay in control"]:
+        assert name in body
 
 
 def test_landing_page_includes_trust_strip():

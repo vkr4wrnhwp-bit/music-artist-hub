@@ -194,7 +194,10 @@
         <p class="mt-4 max-w-md text-sm leading-relaxed text-gray-400">{{ rs.subheadline }}</p>
         <a href="{{ rs.cta.href }}" class="mt-6 inline-flex items-center gap-2 rounded-md border border-[#d8b25a]/40 bg-[#d8b25a]/10 px-5 py-2.5 text-sm font-semibold text-[#e6c675] transition-colors hover:bg-[#d8b25a]/20">{{ rs.cta.label }}</a>
       </div>
-      <!-- Engine rack -->
+      <!-- Engine visual: photo panel when set, else the built-in rack -->
+      {% if rs.image %}
+      {{ h.image_panel(rs.image) }}
+      {% else %}
       <div class="flex items-center gap-4 rounded-xl border border-white/10 bg-black/40 p-5">
         {{ h.vu_meter('h-24 shrink-0', 68, True) }}
         <div class="flex-1">
@@ -207,6 +210,7 @@
           {% for i in range(5) %}<span class="h-2 w-2 rounded-full {{ 'bg-emerald-400' if i < 4 else 'bg-white/15' }}"></span>{% endfor %}
         </div>
       </div>
+      {% endif %}
     </div>
   </section>
 

@@ -356,6 +356,8 @@ def create_app():
             config["lanes"] = {**config["lanes"], "image": None}
         if not _has_file(config.get("features_image")):
             config["features_image"] = None
+        if not _has_file(config.get("royalty_sweep", {}).get("image")):
+            config["royalty_sweep"] = {**config["royalty_sweep"], "image": None}
 
         return render_template("landing.html", config=config)
 
