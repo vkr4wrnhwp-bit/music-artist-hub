@@ -2,6 +2,7 @@ from app import create_app
 from royalty_data import (
     get_platform_balances,
     reset_claim_state,
+    reset_collaborator_state,
     reset_connection_state,
     reset_fix_status_state,
     reset_registration_wizard_state,
@@ -488,4 +489,73 @@ def test_generate_report_route():
 def test_generate_report_unknown_id_returns_404():
     client = create_app().test_client()
     response = client.post("/reports/not-a-report/generate")
+    assert response.status_code == 404
+
+
+def test_settings_includes_collaborator_access_ui():
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert "Collaborator Access" in body
+    assert "Jamie Rowe" in body
+    assert 'id="invite-collaborator-form"' in body
+    assert 'id="invite-name"' in body
+    assert 'id="invite-email"' in body
+
+
+def test_invite_collaborator_route():
+    client = create_app().test_client()
+    try:
+        response = client.post(
+            "/collaborators/invite",
+            json={"name": "New Person", "email": "new@example.com", "role": "Viewer", "songs": ["City Lights"]},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["collaborator"]["name"] == "New Person"
+        assert data["collaborator"]["status"] == "Invited"
+    finally:
+        reset_collaborator_state()
+
+
+def test_invite_collaborator_invalid_returns_400():
+    client = create_app().test_client()
+    response = client.post(
+        "/collaborators/invite",
+        json={"name": "", "email": "new@example.com", "role": "Viewer", "songs": []},
+    )
+    assert response.status_code == 400
+
+
+def test_update_collaborator_role_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/collaborators/jamie-rowe/role", json={"role": "Admin"})
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["collaborator"]["role"] == "Admin"
+    finally:
+        reset_collaborator_state()
+
+
+def test_update_collaborator_role_unknown_id_returns_404():
+    client = create_app().test_client()
+    response = client.post("/collaborators/not-a-real-id/role", json={"role": "Viewer"})
+    assert response.status_code == 404
+
+
+def test_remove_collaborator_route():
+    client = create_app().test_client()
+    try:
+        response = client.post("/collaborators/marco-velocity/remove")
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True}
+    finally:
+        reset_collaborator_state()
+
+
+def test_remove_collaborator_unknown_id_returns_404():
+    client = create_app().test_client()
+    response = client.post("/collaborators/not-a-real-id/remove")
     assert response.status_code == 404

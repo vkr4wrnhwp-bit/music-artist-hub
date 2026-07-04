@@ -66,6 +66,69 @@
     </div>
   </section>
 
+  <section id="collaborator-access" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Collaborator Access</h2>
+    <p class="mt-1 text-sm text-gray-500">Invite collaborators and control what they can see or edit on specific songs.</p>
+
+    <div id="collaborator-list" class="mt-4 space-y-2">
+      {% for c in collaborators %}
+      <div class="collaborator-row flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-collaborator-id="{{ c.id }}">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold">{{ c.name }}</span>
+            <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ 'border-green-500/20 bg-green-500/10 text-green-400' if c.status == 'Active' else 'border-amber-500/20 bg-amber-500/10 text-amber-400' }}">{{ c.status }}</span>
+          </div>
+          <div class="mt-0.5 text-xs text-gray-500">{{ c.email }}</div>
+          <div class="mt-1 flex flex-wrap gap-1">
+            {% for song in c.songs %}
+            <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-gray-400">{{ song }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        <select class="collaborator-role-select rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+          {% for role in collaborator_roles %}
+          <option value="{{ role }}" {{ 'selected' if role == c.role else '' }}>{{ role }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="collaborator-remove-btn rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">
+          Remove
+        </button>
+      </div>
+      {% endfor %}
+      <div id="collaborator-empty" class="{{ 'hidden' if collaborators else '' }} rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No collaborators yet.</div>
+    </div>
+
+    <form id="invite-collaborator-form" class="mt-4 rounded-lg border border-white/5 bg-white/5 p-4">
+      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Invite a collaborator</div>
+      <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <input type="text" id="invite-name" placeholder="Name" required
+               class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
+        <input type="email" id="invite-email" placeholder="Email" required
+               class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
+        <select id="invite-role" class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+          {% for role in collaborator_roles %}
+          <option value="{{ role }}">{{ role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mt-3">
+        <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Song access</div>
+        <div class="mt-2 flex flex-wrap gap-3">
+          {% for s in songs_summary %}
+          <label class="flex items-center gap-1.5 text-xs text-gray-400">
+            <input type="checkbox" class="invite-song-checkbox" value="{{ s.song.title }}">
+            {{ s.song.title }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <button type="submit" class="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+        Send Invite
+      </button>
+      <div id="invite-error" class="mt-2 hidden text-[11px] font-semibold text-red-400"></div>
+    </form>
+  </section>
+
   <section id="platform-connections" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Platform Connections</h2>
     <p class="mt-1 text-sm text-gray-500">Connect royalty platforms to include them in your totals.</p>
@@ -162,6 +225,71 @@
       renderNotificationRow(row, notifications[key]);
       localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
     });
+  });
+
+  document.querySelectorAll(".collaborator-role-select").forEach((select) => {
+    select.addEventListener("change", async () => {
+      const row = select.closest(".collaborator-row");
+      const id = row.dataset.collaboratorId;
+      const previous = select.dataset.previous || select.value;
+      select.disabled = true;
+      try {
+        const res = await fetch(`/collaborators/${id}/role`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: select.value }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) select.value = previous;
+      } catch (err) {
+        select.value = previous;
+      } finally {
+        select.dataset.previous = select.value;
+        select.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".collaborator-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = btn.closest(".collaborator-row");
+      const id = row.dataset.collaboratorId;
+      btn.disabled = true;
+      btn.textContent = "Removing...";
+      const res = await fetch(`/collaborators/${id}/remove`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        row.remove();
+        if (!document.querySelector(".collaborator-row")) {
+          document.getElementById("collaborator-empty").classList.remove("hidden");
+        }
+      } else {
+        btn.disabled = false;
+        btn.textContent = "Remove";
+      }
+    });
+  });
+
+  document.getElementById("invite-collaborator-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("invite-name").value.trim();
+    const email = document.getElementById("invite-email").value.trim();
+    const role = document.getElementById("invite-role").value;
+    const songs = [...document.querySelectorAll(".invite-song-checkbox:checked")].map((cb) => cb.value);
+    const errorEl = document.getElementById("invite-error");
+    errorEl.classList.add("hidden");
+    const res = await fetch("/collaborators/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, role, songs }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      errorEl.textContent = (data && data.error) || "Failed to send invite.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    window.location.reload();
   });
 
   const CONN_UI = {

@@ -1306,6 +1306,66 @@ def get_rights_conflicts(songs):
     return conflicts
 
 
+@dataclass
+class Collaborator:
+    id: str
+    name: str
+    email: str
+    role: str  # Viewer | Editor | Admin
+    status: str  # Active | Invited | Removed
+    songs: list  # song titles this collaborator has access to
+
+
+COLLABORATOR_ROLES = ["Viewer", "Editor", "Admin"]
+
+_DEFAULT_COLLABORATORS = [
+    Collaborator("jamie-rowe", "Jamie Rowe", "jamie.rowe@example.com", "Editor", "Active", ["Midnight Drive"]),
+    Collaborator("marco-velocity", "Marco Velocity", "marco@velocitysound.com", "Viewer", "Active", ["Neon Dreams"]),
+    Collaborator("lila-rose", "Lila Rose", "lila.rose@example.com", "Viewer", "Active", ["City Lights"]),
+    Collaborator("dj-codec", "DJ Codec", "djcodec@example.com", "Viewer", "Invited", ["Digital Paradise"]),
+]
+
+_collaborators = list(_DEFAULT_COLLABORATORS)
+
+
+def get_collaborators():
+    return [c for c in _collaborators if c.status != "Removed"]
+
+
+def invite_collaborator(name, email, role, songs):
+    if not name or not email or role not in COLLABORATOR_ROLES:
+        return None
+    collaborator = Collaborator(
+        id=f"invite-{_slug(name)}-{len(_collaborators)}",
+        name=name, email=email, role=role, status="Invited", songs=songs or [],
+    )
+    _collaborators.append(collaborator)
+    return collaborator
+
+
+def update_collaborator_role(collaborator_id, role):
+    if role not in COLLABORATOR_ROLES:
+        return None
+    for i, c in enumerate(_collaborators):
+        if c.id == collaborator_id and c.status != "Removed":
+            _collaborators[i] = replace(c, role=role)
+            return _collaborators[i]
+    return None
+
+
+def remove_collaborator(collaborator_id):
+    for i, c in enumerate(_collaborators):
+        if c.id == collaborator_id and c.status != "Removed":
+            _collaborators[i] = replace(c, status="Removed")
+            return True
+    return False
+
+
+def reset_collaborator_state():
+    global _collaborators
+    _collaborators = list(_DEFAULT_COLLABORATORS)
+
+
 def get_dashboard_story(total, findings, catalog_value, smart_recommendations):
     """The six-beat narrative: what you made, what you're missing, why,
     how to collect it, what your catalog may be worth, and the next move.

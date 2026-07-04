@@ -66,6 +66,12 @@ from royalty_data import (
     reset_fix_status_state,
     reset_registration_wizard_state,
     set_fix_status,
+    COLLABORATOR_ROLES,
+    get_collaborators,
+    invite_collaborator,
+    remove_collaborator,
+    reset_collaborator_state,
+    update_collaborator_role,
 )
 
 
@@ -839,3 +845,59 @@ def test_get_rights_conflicts_detects_disputed_publisher():
 
 def test_get_rights_conflicts_empty_catalog():
     assert get_rights_conflicts([]) == []
+
+
+def test_get_collaborators_returns_seeded_list():
+    names = {c.name for c in get_collaborators()}
+    assert {"Jamie Rowe", "Marco Velocity", "Lila Rose", "DJ Codec"} <= names
+
+
+def test_invite_collaborator_adds_to_list():
+    try:
+        collaborator = invite_collaborator("New Person", "new@example.com", "Viewer", ["City Lights"])
+        assert collaborator.status == "Invited"
+        assert "New Person" in {c.name for c in get_collaborators()}
+    finally:
+        reset_collaborator_state()
+
+
+def test_invite_collaborator_rejects_invalid_role():
+    assert invite_collaborator("Someone", "s@example.com", "NotARole", []) is None
+
+
+def test_invite_collaborator_rejects_missing_name_or_email():
+    assert invite_collaborator("", "s@example.com", "Viewer", []) is None
+    assert invite_collaborator("Someone", "", "Viewer", []) is None
+
+
+def test_update_collaborator_role_changes_role():
+    try:
+        updated = update_collaborator_role("jamie-rowe", "Admin")
+        assert updated.role == "Admin"
+        assert any(c.id == "jamie-rowe" and c.role == "Admin" for c in get_collaborators())
+    finally:
+        reset_collaborator_state()
+
+
+def test_update_collaborator_role_rejects_invalid_role():
+    assert update_collaborator_role("jamie-rowe", "NotARole") is None
+
+
+def test_update_collaborator_role_unknown_id_returns_none():
+    assert update_collaborator_role("not-a-real-id", "Viewer") is None
+
+
+def test_remove_collaborator_hides_from_list():
+    try:
+        assert remove_collaborator("marco-velocity") is True
+        assert "Marco Velocity" not in {c.name for c in get_collaborators()}
+    finally:
+        reset_collaborator_state()
+
+
+def test_remove_collaborator_unknown_id_returns_false():
+    assert remove_collaborator("not-a-real-id") is False
+
+
+def test_collaborator_roles_are_stable():
+    assert COLLABORATOR_ROLES == ["Viewer", "Editor", "Admin"]
