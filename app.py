@@ -7,6 +7,7 @@ from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
+from epk_config import get_epk_data
 
 from royalty_data import (
     add_split,
@@ -339,6 +340,20 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["reports_data"] = get_reports_data()
         return render_template("reports.html", active_page="reports", **ctx)
+
+    @app.route("/epk")
+    def epk():
+        ctx = build_dashboard_context()
+        ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"])
+        return render_template("epk.html", active_page="epk", **ctx)
+
+    @app.route("/epk/export", methods=["POST"])
+    def epk_export():
+        ctx = build_dashboard_context()
+        data = get_epk_data(ctx["account"], ctx["catalog_value"])
+        slug = data["name"].lower().replace(" ", "-")
+        filename = f"{slug}-press-kit-{datetime.today().strftime('%Y%m%d')}.pdf"
+        return jsonify({"ok": True, "filename": filename})
 
     @app.route("/settings")
     def settings():

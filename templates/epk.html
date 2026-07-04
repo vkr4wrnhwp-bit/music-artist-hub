@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% import "landing/_cards.html" as logos %}
+
+{% block title %}Press Kit - Royalty Sweep{% endblock %}
+
+{% set e = epk %}
+
+{% block content %}
+<div class="mx-auto max-w-[1400px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Press Kit</h1>
+      <p class="mt-1 text-sm text-gray-500">A shareable one-pager built from your live catalog — send it to labels, promoters, and press.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" id="copy-link-btn" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a3 3 0 004 0l2-2a3 3 0 00-4-4M12 8a3 3 0 00-4 0l-2 2a3 3 0 004 4"/></svg>
+        Copy Share Link
+      </button>
+      <button type="button" id="export-epk-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4M4 16h12"/></svg>
+        Export Press Kit
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <!-- The press kit "document" preview -->
+    <div id="epk-document" class="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#15130c] to-[#0e0e10]">
+      <div class="flex flex-wrap items-center gap-5 border-b border-white/10 bg-[#111113]/60 p-6">
+        <span class="grid h-20 w-20 shrink-0 place-items-center rounded-2xl border border-amber-500/40 bg-amber-500/10 text-2xl font-bold text-amber-400">{{ e.initials }}</span>
+        <div class="min-w-0">
+          <h2 class="text-3xl font-bold tracking-tight text-white">{{ e.name }}</h2>
+          <p class="mt-1 text-sm text-amber-400/90">{{ e.profile.tagline }}</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
+            <span>{{ e.profile.location }}</span>
+            <span class="text-gray-600">·</span>
+            {% for g in e.profile.genres %}<span class="rounded-full border border-white/10 px-2 py-0.5">{{ g }}</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-6 p-6">
+        <section data-section="stats" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {% for s in e.stats %}
+          <div class="rounded-xl border border-white/5 bg-white/5 p-4 text-center">
+            <div class="text-xl font-bold tabular-nums text-amber-400">{{ s.value }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ s.label }}</div>
+            <div class="mt-0.5 text-[10px] text-gray-600">{{ s.sub }}</div>
+          </div>
+          {% endfor %}
+        </section>
+
+        <section data-section="bio">
+          <h3 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Biography</h3>
+          <p class="mt-2 text-sm leading-relaxed text-gray-300">{{ e.profile.bio }}</p>
+          <p class="mt-2 text-xs text-gray-500">Strongest platform: <span class="font-semibold text-gray-300">{{ e.top_platform }}</span></p>
+        </section>
+
+        <section data-section="tracks">
+          <h3 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Top Tracks</h3>
+          <div class="mt-3 space-y-2">
+            {% for t in e.top_tracks %}
+            <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
+              <span class="w-5 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-semibold text-gray-100">{{ t.title }}</span>
+                <span class="block truncate text-[11px] text-gray-500">{{ t.owner }}</span>
+              </span>
+              <span class="shrink-0 text-right">
+                <span class="block text-sm font-bold tabular-nums text-amber-400">{{ t.streams_compact }}</span>
+                <span class="block text-[10px] text-gray-600">streams</span>
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section data-section="press">
+          <h3 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Press</h3>
+          <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {% for q in e.profile.press %}
+            <blockquote class="rounded-xl border border-white/5 bg-white/5 p-4">
+              <p class="text-sm italic text-gray-200">“{{ q.quote }}”</p>
+              <footer class="mt-2 text-[11px] font-semibold text-amber-400">— {{ q.source }}</footer>
+            </blockquote>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section data-section="contact" class="rounded-xl border border-white/10 bg-[#111113] p-4">
+          <h3 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Contact</h3>
+          <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <div class="text-[10px] uppercase tracking-wide text-gray-600">Booking</div>
+              <div class="mt-0.5 text-xs font-semibold text-gray-200">{{ e.profile.contact.booking }}</div>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-wide text-gray-600">Press</div>
+              <div class="mt-0.5 text-xs font-semibold text-gray-200">{{ e.profile.contact.press }}</div>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-wide text-gray-600">Management</div>
+              <div class="mt-0.5 text-xs font-semibold text-gray-200">{{ e.profile.contact.management }}</div>
+            </div>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            {% for soc in e.profile.socials %}
+            <span class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
+              {{ logos.platform_logo(soc.logo, "h-4 w-4") }}
+              <span class="text-[11px] font-semibold text-gray-200">{{ soc.handle }}</span>
+            </span>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Builder controls -->
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Included Sections</h2>
+        <p class="mt-1 text-sm text-gray-500">Toggle what appears in your kit.</p>
+        <div class="mt-3 space-y-2">
+          {% for sec in e.sections %}
+          <label class="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
+            <span class="text-sm font-medium text-gray-200">{{ sec.label }}</span>
+            <input type="checkbox" class="section-toggle h-4 w-4 accent-amber-500" data-section="{{ sec.key }}" {{ 'checked' if sec.on }}>
+          </label>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Share</h2>
+        <p class="mt-1 text-sm text-gray-500">A public link updates automatically as your stats grow.</p>
+        <div class="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+          <span class="grid h-5 w-5 shrink-0 place-items-center rounded text-amber-400">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a3 3 0 004 0l2-2a3 3 0 00-4-4M12 8a3 3 0 00-4 0l-2 2a3 3 0 004 4"/></svg>
+          </span>
+          <input id="share-url" readonly value="royaltysweep.co/press/{{ e.name | lower | replace(' ', '-') }}"
+                 class="min-w-0 flex-1 bg-transparent text-xs text-gray-300 focus:outline-none">
+        </div>
+        <div id="export-status" class="mt-3 hidden text-[11px] font-semibold text-green-400"></div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".section-toggle").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const el = document.querySelector('#epk-document [data-section="' + cb.dataset.section + '"]');
+      if (el) el.classList.toggle("hidden", !cb.checked);
+    });
+  });
+
+  const shareInput = document.getElementById("share-url");
+  document.getElementById("copy-link-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const original = btn.innerHTML;
+    try {
+      await navigator.clipboard.writeText(shareInput.value);
+    } catch (err) {
+      shareInput.select();
+    }
+    btn.textContent = "Copied ✓";
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  });
+
+  document.getElementById("export-epk-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const original = btn.innerHTML;
+    const status = document.getElementById("export-status");
+    btn.disabled = true;
+    btn.textContent = "Exporting...";
+    try {
+      const res = await fetch("/epk/export", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        status.textContent = "Ready: " + data.filename;
+        status.classList.remove("hidden");
+        btn.textContent = "Exported ✓";
+      } else {
+        btn.innerHTML = original;
+      }
+    } catch (err) {
+      btn.innerHTML = original;
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.innerHTML = original; }, 1800);
+    }
+  });
+</script>
+{% endblock %}

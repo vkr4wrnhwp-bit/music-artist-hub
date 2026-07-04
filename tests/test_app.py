@@ -620,6 +620,39 @@ def test_reports_data_config_shapes():
     assert all("tone" in c for c in data["categories"])
 
 
+def test_epk_page_includes_press_kit():
+    client = create_app().test_client()
+    body = client.get("/epk").get_data(as_text=True)
+    assert 'id="epk-document"' in body
+    assert "Biography" in body
+    assert "Top Tracks" in body
+    assert "Included Sections" in body
+    assert "section-toggle" in body
+
+
+def test_epk_sidebar_and_export():
+    client = create_app().test_client()
+    assert 'href="/epk"' in client.get("/overview").get_data(as_text=True)
+    resp = client.post("/epk/export")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] and data["filename"].endswith(".pdf")
+    assert "press-kit" in data["filename"]
+
+
+def test_epk_data_config_shapes():
+    from epk_config import get_epk_data
+    from catalog_config import get_account
+    data = get_epk_data(get_account(), {"mid": 296400.0})
+    assert data["name"] == get_account()["name"]
+    assert len(data["stats"]) == 4
+    assert data["top_tracks"]
+    # Top tracks sorted by streams descending.
+    streams = [t["streams"] for t in data["top_tracks"]]
+    assert streams == sorted(streams, reverse=True)
+    assert all(s["key"] for s in data["sections"])
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
