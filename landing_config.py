@@ -185,6 +185,7 @@ def get_landing_config():
             "image": {
                 "src": "/static/img/recovery-engine.png",
                 "alt": "Royalty Sweep recovery engine — analog VU meters and rack gear",
+                "height_class": "h-full min-h-[240px]",  # fill the box, minimal margin
                 "overlay": {
                     "position": "bottom-left",
                     "heading": "347 Matches",
