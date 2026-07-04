@@ -16,6 +16,7 @@ from sync_config import get_sync_data
 from territories_config import get_territories_data
 from mechanicals_config import get_mechanicals_data
 from funding_config import get_funding_data
+from tax_config import get_tax_data
 
 from royalty_data import (
     add_split,
@@ -457,6 +458,12 @@ def create_app():
     @app.route("/registration")
     def registration():
         return render_template("registration.html", active_page="registration", **build_dashboard_context())
+
+    @app.route("/tax")
+    def tax():
+        ctx = build_dashboard_context()
+        ctx["tax"] = get_tax_data()
+        return render_template("tax.html", active_page="tax", **ctx)
 
     @app.route("/settings")
     def settings():

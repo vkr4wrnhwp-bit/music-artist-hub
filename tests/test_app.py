@@ -882,6 +882,25 @@ def test_funding_offers_derive_from_advance():
         assert round(o["amount"] + o["cost"], 2) == o["total_repayable"]
 
 
+def test_tax_page_content():
+    client = create_app().test_client()
+    body = client.get("/tax").get_data(as_text=True)
+    assert "Tax Center" in body
+    assert "Suggested Set-Aside" in body
+    assert "Taxpayer Forms" in body
+    assert 'href="/tax"' in body
+
+
+def test_tax_data_config_shapes():
+    from tax_config import get_tax_data
+    data = get_tax_data()
+    s = data["summary"]
+    assert s["set_aside"] == round(s["ytd_earnings"] * s["set_aside_rate"] / 100, 2)
+    assert s["forms_total"] == len(data["forms"])
+    assert any(f["status"] == "Available" for f in data["forms"])
+    assert {t["form"] for t in data["tax_profile"]} == {"W-9", "W-8BEN"}
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
