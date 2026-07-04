@@ -16,6 +16,8 @@ from royalty_data import (
     get_action_center,
     get_collaborators,
     get_overview_health,
+    get_royalties_overview,
+    platform_logo_key,
     recent_payout_rows,
     get_recovery_summary,
     invite_collaborator,
@@ -130,6 +132,10 @@ def build_dashboard_context():
         "overview_health": get_overview_health(catalog, songs),
         "action_center": get_action_center(alerts, payouts),
         "recent_payout_rows": recent_payout_rows(),
+        "royalties_overview": get_royalties_overview(
+            balances, catalog, payout_calendar, earnings_trend, recent_payout_rows()
+        ),
+        "logo_key": platform_logo_key,
         "conflicts": get_rights_conflicts(songs),
         "registration_wizards": [get_registration_wizard(s) for s in songs],
         "wizard_targets": WIZARD_TARGETS,

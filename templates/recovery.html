@@ -141,6 +141,70 @@
       </table>
     </div>
   </section>
+
+  {% if alerts %}
+  <section id="royalty-leak-alerts">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Leak Alerts</h2>
+      <div id="alert-filters" class="flex flex-wrap gap-1.5">
+        {% for f in ['All', 'High', 'Medium', 'Low', 'Resolved'] %}
+        <button type="button" class="alert-filter-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if f == 'All' else 'border-white/10 text-gray-500 hover:text-gray-300' }}" data-filter="{{ f }}">
+          {{ f }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div id="alert-list" class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+      {% for alert in alerts %}
+      <div class="alert-card rounded-xl border border-white/5 bg-[#111113] p-4"
+           data-alert-id="{{ alert.id }}" data-severity="{{ alert.severity }}" data-status="open">
+        <div class="flex items-start justify-between gap-2">
+          <div class="text-sm font-semibold">{{ alert.title }}</div>
+          <span class="alert-severity-badge shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ severity_ui.get(alert.severity, severity_ui['Low']) }}">
+            {{ alert.severity }}
+          </span>
+        </div>
+        <div class="alert-description mt-1 text-xs text-gray-500">{{ alert.description }}</div>
+        <div class="mt-2 flex items-center justify-between text-[11px] text-gray-600">
+          <span>{{ alert.source }}</span>
+          {% if alert.estimated_impact > 0 %}
+          <span class="font-semibold text-amber-400">${{ "%.2f"|format(alert.estimated_impact) }}</span>
+          {% endif %}
+        </div>
+        <button type="button" class="alert-btn mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+          {{ alert.cta_label }}
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    <div id="alert-empty" class="mt-3 hidden rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">
+      No alerts in this filter.
+    </div>
+  </section>
+  {% endif %}
+
+  {% if smart_recommendations %}
+  <section id="smart-recommendations" class="rounded-2xl border border-amber-500/10 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Smart Recommendations</h2>
+    <p class="mt-1 text-sm text-gray-500">Every open action across your account, ranked by estimated financial impact.</p>
+    <div class="mt-4 space-y-2">
+      {% for rec in smart_recommendations %}
+      {% set urgency_color = 'text-red-400' if rec.urgency == 'High' else ('text-amber-400' if rec.urgency == 'Medium' else 'text-gray-400') %}
+      <button type="button" class="smart-rec-row flex w-full items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-left transition-colors hover:bg-white/10"
+              data-target-type="{{ rec.target_type }}" data-target-id="{{ rec.target_id }}">
+        <span class="w-6 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-semibold">{{ rec.reason }}</span>
+          <span class="text-xs {{ urgency_color }}">{{ rec.urgency }} urgency</span>
+        </span>
+        <span class="shrink-0 text-sm font-bold text-amber-400">${{ "%.2f"|format(rec.estimated_value) }}</span>
+        <span class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400">{{ rec.cta_label }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -282,6 +346,66 @@
       if (!res.ok) return;
       const data = await res.json();
       row.querySelector(".fix-status-label").textContent = data.status;
+    });
+  });
+
+  let alertFilter = "All";
+  function applyAlertFilter() {
+    let visibleCount = 0;
+    document.querySelectorAll(".alert-card").forEach((card) => {
+      const severity = card.dataset.severity;
+      const status = card.dataset.status;
+      let visible;
+      if (alertFilter === "All") visible = true;
+      else if (alertFilter === "Resolved") visible = status === "resolved";
+      else visible = severity === alertFilter && status !== "resolved";
+      card.classList.toggle("hidden", !visible);
+      if (visible) visibleCount++;
+    });
+    const emptyEl = document.getElementById("alert-empty");
+    if (emptyEl) emptyEl.classList.toggle("hidden", visibleCount > 0);
+  }
+
+  document.querySelectorAll(".alert-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      alertFilter = btn.dataset.filter;
+      document.querySelectorAll(".alert-filter-btn").forEach((b) => {
+        const active = b === btn;
+        b.className = "alert-filter-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors " +
+          (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-500 hover:text-gray-300");
+      });
+      applyAlertFilter();
+    });
+  });
+
+  document.querySelectorAll(".alert-card").forEach((card) => {
+    const btn = card.querySelector(".alert-btn");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const id = card.dataset.alertId;
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Working...";
+      try {
+        const res = await fetch(`/alerts/${id}/resolve`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          card.querySelector(".alert-description").textContent = data.message;
+          card.classList.add("opacity-60");
+          card.dataset.status = "resolved";
+          const done = document.createElement("span");
+          done.className = "mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-green-400";
+          done.innerHTML = '<svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>Resolved';
+          btn.replaceWith(done);
+          applyAlertFilter();
+        } else {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
     });
   });
 </script>

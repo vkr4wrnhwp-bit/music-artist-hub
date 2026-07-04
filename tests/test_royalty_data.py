@@ -987,3 +987,33 @@ def test_since_last_login_includes_overview_metrics():
     assert summary["tasks_completed"] == 5
     assert summary["issues_needing_attention"] >= 0
     assert summary["catalog_value_increase"] == 12500.0
+
+
+def test_get_royalties_overview_shapes_and_totals():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    trend = get_earnings_trend()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), trend, recent_payout_rows())
+    s = ov["summary"]
+    assert s["total_royalties"] == pytest.approx(total_royalties(balances), abs=0.01)
+    assert s["sources_connected"] == sum(1 for p in catalog if p.status == "connected")
+    assert s["total_sources"] == len(catalog)
+    assert 0 <= sum(r["pct_of_total"] for r in ov["by_source"]) <= 102
+    assert all(r["logo"] for r in ov["by_source"])
+
+
+def test_get_royalties_overview_groups_extra_sources_as_other():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), get_earnings_trend(), recent_payout_rows())
+    if len(balances) > 7:
+        assert ov["by_source"][-1]["name"] == "Other Sources"
+
+
+def test_platform_logo_key_maps_known_and_unknown():
+    from royalty_data import platform_logo_key
+    assert platform_logo_key("Spotify") == "spotify"
+    assert platform_logo_key("The MLC") == "mlc"
+    assert platform_logo_key("Nonexistent Platform") == "other"

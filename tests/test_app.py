@@ -181,13 +181,26 @@ def test_overview_includes_earnings_trend():
     assert 'id="earningsChart"' in body
 
 
-def test_royalties_includes_leak_alerts_ui():
+def test_recovery_includes_leak_alerts_ui():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert "Royalty Leak Alerts" in body
     assert 'id="alert-filters"' in body
     assert 'data-filter="High"' in body
     assert 'data-filter="Resolved"' in body
+
+
+def test_royalties_page_matches_tracking_dashboard():
+    client = create_app().test_client()
+    body = client.get("/royalties").get_data(as_text=True)
+    assert "Track every royalty stream in one place." in body
+    assert "Total Royalties" in body
+    assert "Payouts Received" in body
+    assert "Pending Payouts" in body
+    assert "Platforms Connected" in body
+    assert "Royalties by Source" in body
+    assert 'id="royaltiesChart"' in body
+    assert 'id="export-btn"' in body
 
 
 def test_resolve_alert_returns_result_message():
@@ -359,9 +372,9 @@ def test_advance_unknown_claim_returns_404():
     assert response.status_code == 404
 
 
-def test_royalties_includes_smart_recommendations():
+def test_recovery_includes_smart_recommendations():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/recovery").get_data(as_text=True)
     assert "Smart Recommendations" in body
     assert "urgency" in body
 
@@ -473,9 +486,9 @@ def test_catalog_includes_release_readiness_checker():
     assert "% ready" in body
 
 
-def test_royalties_includes_royalty_forecast():
+def test_valuation_includes_royalty_forecast():
     client = create_app().test_client()
-    body = client.get("/royalties").get_data(as_text=True)
+    body = client.get("/valuation").get_data(as_text=True)
     assert "Royalty Forecast" in body
     assert "Conservative" in body
     assert "Aggressive" in body

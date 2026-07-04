@@ -682,6 +682,85 @@ def get_overview_health(catalog, songs):
     return {"score": overall, "band": band, "bars": bars}
 
 
+PLATFORM_LOGO_KEYS = {
+    "Spotify": "spotify",
+    "Apple Music": "apple",
+    "YouTube Music": "youtube",
+    "YouTube Content ID": "youtube",
+    "ASCAP": "ascap",
+    "BMI": "bmi",
+    "The MLC": "mlc",
+    "SoundExchange": "soundexchange",
+}
+
+
+def platform_logo_key(name):
+    return PLATFORM_LOGO_KEYS.get(name, "other")
+
+
+def _pseudo_change(name):
+    """Stable, varied month-over-month %% for a source. We don't track
+    per-source history, so this is illustrative -- deterministic from the
+    name so it never jumps around between renders."""
+    h = sum(ord(ch) for ch in name)
+    return round((h % 340) / 10 - 4, 1)
+
+
+def get_royalties_overview(balances, catalog, payout_calendar, earnings_trend, recent_rows):
+    """Everything the Royalties page's top half needs -- four summary
+    stats, the ranked by-source breakdown, and the earnings-trend footer
+    -- assembled from real connected balances, the payout calendar, and
+    the earnings trend. Only the per-source change %% is illustrative."""
+    values = [v for _, v in earnings_trend]
+    this_month = values[-1] if values else 0
+    last_month = values[-2] if len(values) > 1 else this_month
+    growth = round(((this_month - last_month) / last_month * 100), 1) if last_month else 0.0
+
+    total = round(sum(b.amount for b in balances), 2)
+    ranked = sorted(balances, key=lambda b: b.amount, reverse=True)
+    top, rest = ranked[:7], ranked[7:]
+
+    by_source = []
+    for b in top:
+        by_source.append({
+            "name": b.platform,
+            "logo": platform_logo_key(b.platform),
+            "earned": round(b.amount, 2),
+            "change_pct": _pseudo_change(b.platform),
+            "pct_of_total": round(b.amount / total * 100) if total else 0,
+            "connected": True,
+        })
+    if rest:
+        other = round(sum(b.amount for b in rest), 2)
+        by_source.append({
+            "name": "Other Sources", "logo": "other", "earned": other,
+            "change_pct": _pseudo_change("Other Sources"),
+            "pct_of_total": round(other / total * 100) if total else 0,
+            "connected": True,
+        })
+
+    pending = [p for p in payout_calendar if p.status in ("Scheduled", "Processing")]
+    payouts_received = round(sum(r["amount"] for r in recent_rows if r["status"] == "Paid"), 2)
+    connected = sum(1 for p in catalog if p.status == "connected")
+
+    return {
+        "summary": {
+            "total_royalties": total,
+            "total_change": growth,
+            "payouts_received": payouts_received,
+            "payouts_change": growth,
+            "pending_payouts": round(sum(p.amount for p in pending), 2),
+            "pending_count": len(pending),
+            "sources_connected": connected,
+            "total_sources": len(catalog),
+        },
+        "by_source": by_source,
+        "this_month": this_month,
+        "last_month": last_month,
+        "growth": growth,
+    }
+
+
 # Deep-scan findings that apply to *connected* sources (shown only when the
 # platform is connected, since you can't audit a source you aren't pulling from).
 _CONNECTED_FINDINGS = [

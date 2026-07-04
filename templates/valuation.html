@@ -82,6 +82,33 @@
       </div>
     </section>
   </div>
+
+  <section id="royalty-forecast" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Forecast</h2>
+    <p class="mt-1 text-sm text-gray-500">Projected earnings across conservative, expected, and aggressive scenarios.</p>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
+            <th class="py-2 pr-4 font-medium">Mode</th>
+            <th class="py-2 pr-4 text-right font-medium">30 Days</th>
+            <th class="py-2 pr-4 text-right font-medium">90 Days</th>
+            <th class="py-2 pr-4 text-right font-medium">12 Months</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mode, label, cls in [('conservative', 'Conservative', 'text-gray-300'), ('expected', 'Expected', 'text-amber-400'), ('aggressive', 'Aggressive', 'text-green-400')] %}
+          <tr class="border-b border-white/5 last:border-0">
+            <td class="py-3 pr-4 font-medium {{ cls }}">{{ label }}</td>
+            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['30_day']) }}</td>
+            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['90_day']) }}</td>
+            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['12_month']) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 {% endblock %}
 
