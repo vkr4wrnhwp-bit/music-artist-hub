@@ -15,6 +15,7 @@ from neighboring_rights_config import get_neighboring_rights_data
 from sync_config import get_sync_data
 from territories_config import get_territories_data
 from mechanicals_config import get_mechanicals_data
+from funding_config import get_funding_data
 
 from royalty_data import (
     add_split,
@@ -417,6 +418,25 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["mechanicals"] = get_mechanicals_data()
         return render_template("mechanicals.html", active_page="mechanicals", **ctx)
+
+    @app.route("/funding")
+    def funding():
+        ctx = build_dashboard_context()
+        ctx["funding"] = get_funding_data(ctx["advance_eligibility"])
+        return render_template("funding.html", active_page="funding", **ctx)
+
+    @app.route("/funding/request", methods=["POST"])
+    def funding_request():
+        payload = request.get_json(silent=True) or {}
+        offer_id = (payload.get("offer_id") or "").strip()
+        data = get_funding_data(build_dashboard_context()["advance_eligibility"])
+        offer = next((o for o in data["offers"] if o["id"] == offer_id), None)
+        if offer is None:
+            return jsonify({"ok": False, "error": "Unknown offer."}), 400
+        # Simulated only: record interest and return a reference. No money
+        # moves and no application is actually submitted.
+        reference = "REQ-" + offer_id.split("-")[-1].upper() + "-" + datetime.today().strftime("%Y%m%d")
+        return jsonify({"ok": True, "reference": reference, "offer": offer["name"]})
 
     @app.route("/documents")
     def documents():

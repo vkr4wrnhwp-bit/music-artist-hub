@@ -856,6 +856,32 @@ def test_mechanicals_agree_with_publishing():
     assert mech == pub
 
 
+def test_funding_page_and_request():
+    client = create_app().test_client()
+    body = client.get("/funding").get_data(as_text=True)
+    assert "Advance &amp; Funding" in body
+    assert "Available Offers" in body
+    assert 'href="/funding"' in body
+    ok = client.post("/funding/request", json={"offer_id": "offer-royalty-advance"})
+    assert ok.status_code == 200 and ok.get_json()["ok"]
+    assert ok.get_json()["reference"].startswith("REQ-")
+    bad = client.post("/funding/request", json={"offer_id": "nope"})
+    assert bad.status_code == 400
+
+
+def test_funding_offers_derive_from_advance():
+    from funding_config import get_funding_data
+    elig = {"suggested_advance": 70000, "tier": "Eligible", "score": 95}
+    data = get_funding_data(elig)
+    assert data["eligibility"]["suggested_advance"] == 70000
+    # Recommended offer matches the suggested advance.
+    rec = next(o for o in data["offers"] if o["recommended"])
+    assert rec["amount"] == 70000
+    # Total repayable exceeds the amount by the cost of funds.
+    for o in data["offers"]:
+        assert round(o["amount"] + o["cost"], 2) == o["total_repayable"]
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
