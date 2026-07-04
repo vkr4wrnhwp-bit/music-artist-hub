@@ -47,7 +47,8 @@ def test_landing_page_nav_links_all_resolve():
     hrefs += [f["link"]["href"] for f in config["features"]]
 
     real_routes = {"/overview", "/royalties", "/catalog", "/connections",
-                   "/recovery", "/valuation", "/reports", "/settings", "/"}
+                   "/recovery", "/valuation", "/reports", "/settings", "/",
+                   "/services", "/login"}
     for href in hrefs:
         if href.startswith("#"):
             assert href[1:] in page_ids, f"dead anchor: {href}"
@@ -1097,6 +1098,37 @@ def test_capital_data_config_shapes():
     assert data["passes"]["release"] in titles
     assert all(f["release"] in titles for f in data["futures"])
     assert data["crowdfunding"]["pct"] == round(data["crowdfunding"]["raised"] / data["crowdfunding"]["goal"] * 100)
+
+
+def test_label_services_pages_and_nav():
+    client = create_app().test_client()
+    nav = client.get("/overview").get_data(as_text=True)
+    assert 'href="/services"' in nav
+    assert 'href="/submit"' in nav
+    assert ">Label Services<" in nav
+    for path in ("/services", "/services/distribution", "/services/marketing", "/services/management", "/submit"):
+        assert client.get(path).status_code == 200
+    # Unknown service slug redirects back to the hub.
+    assert client.get("/services/nope").status_code == 302
+
+
+def test_label_services_content_from_site():
+    client = create_app().test_client()
+    hub = client.get("/services").get_data(as_text=True)
+    assert "Art Is War Records" in hub
+    assert "team.summitarts@gmail.com" in hub
+    assert "170+" in hub
+    dist = client.get("/services/distribution").get_data(as_text=True)
+    assert "No physical product set-up fees" in dist
+    submit = client.get("/submit").get_data(as_text=True)
+    assert "artiswarrecords@gmail.com" in submit
+    assert 'href="/epk"' in submit  # submissions tie into the EPK builder
+
+
+def test_landing_links_to_label_services():
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    assert 'href="/services"' in body
 
 
 def test_catalog_data_config_shapes():

@@ -31,6 +31,7 @@ from billing_config import get_billing_data
 from insights_config import get_insights_data
 from benchmark_config import get_benchmark_data
 from capital_config import get_capital_data
+from label_config import get_label_data, get_service, BRAND as LABEL_BRAND
 from community_config import (
     get_marketplace_data,
     post_request,
@@ -520,6 +521,28 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["capital"] = get_capital_data()
         return render_template("capital.html", active_page="capital", **ctx)
+
+    @app.route("/services")
+    def services():
+        ctx = build_dashboard_context()
+        ctx["label"] = get_label_data()
+        return render_template("services.html", active_page="services", **ctx)
+
+    @app.route("/services/<slug>")
+    def service_detail(slug):
+        service = get_service(slug)
+        if service is None:
+            return redirect(url_for("services"))
+        ctx = build_dashboard_context()
+        ctx["label"] = get_label_data()
+        ctx["service"] = service
+        return render_template("service_detail.html", active_page="services", **ctx)
+
+    @app.route("/submit")
+    def submit():
+        ctx = build_dashboard_context()
+        ctx["label"] = get_label_data()
+        return render_template("submit.html", active_page="submit", **ctx)
 
     @app.route("/audience")
     def audience():
