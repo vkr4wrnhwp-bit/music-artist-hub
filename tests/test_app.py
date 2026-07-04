@@ -551,6 +551,16 @@ def test_recovery_includes_top_royalty_leaks():
     assert "Top Royalty Leaks" in body
 
 
+def test_recovery_includes_command_center_header():
+    client = create_app().test_client()
+    body = client.get("/recovery").get_data(as_text=True)
+    assert "Estimated Uncollected" in body
+    assert "Ready to Claim" in body
+    assert "Affected Recordings" in body
+    assert 'id="recoveryChart"' in body
+    assert "Top Sources" in body
+
+
 def test_catalog_releases_tab_lists_releases():
     client = create_app().test_client()
     body = client.get("/catalog").get_data(as_text=True)

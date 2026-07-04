@@ -123,6 +123,7 @@ def build_dashboard_context():
     return {
         "story": get_dashboard_story(total, missing_findings, catalog_value, smart_recommendations),
         "money_left": money_left_on_table(missing_findings),
+        "recovery_summary": get_recovery_summary(catalog, songs, earnings_trend),
         "fixes_queue": get_fixes_queue(catalog, songs, missing_findings),
         "top_leaks": get_top_royalty_leaks(missing_findings),
         "documents_vault": documents_vault,
