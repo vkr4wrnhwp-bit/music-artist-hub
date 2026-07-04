@@ -53,10 +53,10 @@
 </div>
 {% endmacro %}
 
-{% macro source_node(node) %}
+{% macro source_node(node, elem_id='', side='left') %}
 {%- set tone = {'ok': 'text-green-400', 'warning': 'text-amber-400', 'danger': 'text-red-400'} %}
 {%- set dot = {'ok': 'bg-green-500', 'warning': 'bg-amber-500', 'danger': 'bg-red-500'} %}
-<div class="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111113]/80 px-2 py-2">
+<div {% if elem_id %}id="{{ elem_id }}"{% endif %} class="connector-node flex items-center gap-2 rounded-xl border border-white/10 bg-[#111113]/80 px-2 py-2" data-tone="{{ node.status_tone }}" data-side="{{ side }}">
   {{ platform_logo(node.logo, 'h-7 w-7') }}
   <div class="min-w-0">
     <div class="text-[11px] font-semibold leading-tight text-gray-100">{{ node.name }}</div>
