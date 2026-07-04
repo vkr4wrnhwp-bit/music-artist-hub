@@ -68,6 +68,8 @@ from royalty_data import (
     set_fix_status,
     COLLABORATOR_ROLES,
     get_collaborators,
+    get_earnings_trend,
+    get_recovery_summary,
     invite_collaborator,
     remove_collaborator,
     reset_collaborator_state,
@@ -901,3 +903,40 @@ def test_remove_collaborator_unknown_id_returns_false():
 
 def test_collaborator_roles_are_stable():
     assert COLLABORATOR_ROLES == ["Viewer", "Editor", "Admin"]
+
+
+def test_get_recovery_summary_matches_money_left_total():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    trend = get_earnings_trend()
+    findings = get_missing_royalty_findings(catalog)
+    expected_total = money_left_on_table(findings)["total"]
+    summary = get_recovery_summary(catalog, songs, trend)
+    assert summary["estimated_uncollected"] == expected_total
+    assert summary["flagged_issues"] == len(findings)
+
+
+def test_get_recovery_summary_sources_sorted_descending():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    trend = get_earnings_trend()
+    summary = get_recovery_summary(catalog, songs, trend)
+    amounts = [s["amount"] for s in summary["sources"]]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+def test_get_recovery_summary_chart_ends_at_total():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    trend = get_earnings_trend()
+    summary = get_recovery_summary(catalog, songs, trend)
+    assert summary["chart"][-1]["value"] == pytest.approx(summary["estimated_uncollected"])
+    assert len(summary["chart"]) == len(trend)
+
+
+def test_get_recovery_summary_confidence_pct_in_range():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    trend = get_earnings_trend()
+    summary = get_recovery_summary(catalog, songs, trend)
+    assert 0 <= summary["confidence_pct"] <= 100

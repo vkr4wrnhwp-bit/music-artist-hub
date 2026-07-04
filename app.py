@@ -1,6 +1,7 @@
 from dataclasses import asdict
+from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, jsonify, render_template, request
 
 from royalty_data import (
     add_split,
@@ -11,6 +12,7 @@ from royalty_data import (
     COLLABORATOR_ROLES,
     estimate_catalog_value,
     get_collaborators,
+    get_recovery_summary,
     invite_collaborator,
     generate_report,
     get_available_reports,
@@ -197,7 +199,25 @@ def create_app():
 
     @app.route("/")
     def index():
-        return redirect("/dashboard")
+        songs = [live_song(s) for s in get_songs()]
+        catalog = get_platform_catalog()
+        earnings_trend = get_earnings_trend()
+        summary = get_recovery_summary(catalog, songs, earnings_trend)
+        return render_template(
+            "landing.html", summary=summary,
+            last_audit=datetime.now().strftime("%I:%M %p").lstrip("0"),
+        )
+
+    @app.route("/scan/recovery-summary", methods=["POST"])
+    def scan_recovery_summary():
+        songs = [live_song(s) for s in get_songs()]
+        catalog = get_platform_catalog()
+        earnings_trend = get_earnings_trend()
+        summary = get_recovery_summary(catalog, songs, earnings_trend)
+        return jsonify({
+            "ok": True, "summary": summary,
+            "scanned_at": datetime.now().strftime("%I:%M %p").lstrip("0"),
+        })
 
     @app.route("/dashboard")
     def dashboard():

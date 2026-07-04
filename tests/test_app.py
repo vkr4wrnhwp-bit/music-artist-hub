@@ -10,11 +10,36 @@ from royalty_data import (
 )
 
 
-def test_index_redirects_to_dashboard():
+def test_index_renders_landing_page():
     client = create_app().test_client()
     response = client.get("/")
-    assert response.status_code == 302
-    assert response.headers["Location"] == "/dashboard"
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Find the" in body
+    assert "Royalties" in body
+    assert "ROYALTY SWEEP" in body
+    assert 'id="run-audit-btn"' in body
+    assert "Sources Scanned" in body
+    assert "Recovery Potential Over Time" in body
+
+
+def test_landing_page_links_into_dashboard_and_royalties():
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    assert 'href="/dashboard"' in body
+    assert 'href="/royalties#missing-money-scanner"' in body
+
+
+def test_scan_recovery_summary_route():
+    client = create_app().test_client()
+    response = client.post("/scan/recovery-summary")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    summary = data["summary"]
+    required = {"estimated_uncollected", "flagged_issues", "affected_recordings", "ready_to_claim", "confidence_pct", "sources", "chart"}
+    assert required <= set(summary.keys())
+    assert data["scanned_at"]
 
 
 def test_all_pages_render():
