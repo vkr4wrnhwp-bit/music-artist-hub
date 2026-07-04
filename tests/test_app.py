@@ -15,11 +15,11 @@ def test_index_renders_landing_page():
     response = client.get("/")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Find the Royalties" in body
+    assert "STREET BANKER" in body
+    assert "ARTIST INFRASTRUCTURE" in body
+    assert "THE ARTIST" in body  # hero headline
     assert "ROYALTY SWEEP" in body
-    assert "Scan for Missing Royalties" in body
-    assert "Potential Missing Royalties Found" in body
-    assert "Ready to Claim" in body
+    assert "COMMAND DESK" in body
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():
@@ -30,33 +30,43 @@ def test_landing_page_nav_and_ctas_link_into_the_app():
     assert "Login" in body
 
 
-def test_landing_page_nav_links_all_resolve():
-    """Every landing nav/CTA link must point at a real route or an
-    on-page anchor that exists -- no dead placeholder hashes."""
+def _all_landing_hrefs(config):
+    hrefs = [l["href"] for l in config["nav"]["links"]]
+    hrefs += [a["href"] for a in config["nav"]["actions"]]
+    hrefs += [cta["href"] for cta in config["hero"]["ctas"]]
+    hrefs += [config["hero_visual"]["recoveries_cta"]["href"]]
+    hrefs += [f["link"]["href"] for f in config["features"]]
+    hrefs += [config["lanes"]["cta"]["href"]]
+    hrefs += [i["href"] for i in config["lanes"]["items"]]
+    hrefs += [config["royalty_sweep"]["cta"]["href"], config["royalty_sweep"]["engine"]["results_cta"]["href"]]
+    hrefs += [s["href"] for s in config["services"]["items"]]
+    for col in config["footer"]["columns"]:
+        hrefs += [l["href"] for l in col["links"]]
+    return hrefs
+
+
+def test_landing_page_links_all_resolve():
+    """Every landing link points at a real GET route or an on-page anchor
+    that exists -- no dead placeholder routes or hashes."""
     import re
     from landing_config import get_landing_config
 
-    client = create_app().test_client()
-    body = client.get("/").get_data(as_text=True)
+    app = create_app()
+    body = app.test_client().get("/").get_data(as_text=True)
     page_ids = set(re.findall(r'id="([^"]+)"', body))
+    real_routes = {rule.rule for rule in app.url_map.iter_rules()
+                   if "GET" in rule.methods and "<" not in rule.rule}
 
-    config = get_landing_config()
-    hrefs = [link["href"] for link in config["nav"]["links"]]
-    hrefs += [config["nav"]["login"]["href"], config["nav"]["cta"]["href"]]
-    hrefs += [config["hero"]["primary_cta"]["href"], config["hero"]["secondary_cta"]["href"]]
-    hrefs += [f["link"]["href"] for f in config["features"]]
-
-    real_routes = {"/overview", "/royalties", "/catalog", "/connections",
-                   "/recovery", "/valuation", "/reports", "/settings", "/",
-                   "/services", "/login"}
-    for href in hrefs:
+    for href in _all_landing_hrefs(get_landing_config()):
         if href.startswith("#"):
             assert href[1:] in page_ids, f"dead anchor: {href}"
+        elif href.startswith("http"):
+            continue
         else:
             assert href in real_routes, f"unknown route: {href}"
 
 
-def test_landing_page_hero_visual_uses_live_catalog_data():
+def test_landing_command_desk_shows_all_sources():
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
     for platform in ["Spotify", "Apple Music", "ASCAP", "BMI", "The MLC", "SoundExchange", "YouTube Content ID"]:
@@ -66,15 +76,23 @@ def test_landing_page_hero_visual_uses_live_catalog_data():
 def test_landing_page_includes_feature_cards():
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
-    assert "Find Missing Royalties" in body
-    assert "Connect Every Source" in body
-    assert "Value Your Catalog" in body
+    assert "Find Missing Money" in body
+    assert "Connect Everything" in body
+    assert "Maximize Your Value" in body
+    assert "You Stay in Control" in body
 
 
 def test_landing_page_includes_trust_strip():
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
-    assert "Trusted by artists, managers, and labels" in body
+    assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" in body
+
+
+def test_landing_includes_lanes_engine_and_services():
+    body = create_app().test_client().get("/").get_data(as_text=True)
+    assert "THREE LANES. ONE INFRASTRUCTURE." in body
+    assert "THE RECOVERY ENGINE" in body
+    assert "BUILT FOR EVERY STAGE OF YOUR CAREER" in body
 
 
 def test_scan_recovery_summary_route():
@@ -1304,6 +1322,9 @@ def test_build_landing_hero_reflects_catalog_status():
 def test_get_landing_config_has_swappable_hero_visual():
     from landing_config import get_landing_config
     config = get_landing_config()
-    assert config["hero_visual"]["template"] == "landing/hero_recovery.html"
-    assert config["hero"]["headline"][1]["accent"] is True
+    # Hero visual is swappable via a variant, and command-desk data is editable.
+    assert config["hero_visual"]["variant"] == "commandDesk"
+    assert config["hero_visual"]["connected_sources"]
+    assert config["hero_visual"]["recovery_opportunities"]
+    assert len(config["hero"]["headline"]) == 4
     assert len(config["features"]) == 4

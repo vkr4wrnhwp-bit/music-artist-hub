@@ -1,121 +1,241 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ config.company.name }} · {{ config.brand }} - {{ config.hero.headline[0].text }} {{ config.hero.headline[1].text }}</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a0a0a' stroke='white' stroke-width='2'/%3E%3Cpath d='M13 10.5L21 16L13 21.5V10.5Z' fill='white'/%3E%3C/svg%3E">
+  <title>{{ config.nav.logo.primary | title }} · {{ config.brand }} — The Artist Back Office</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-feature-settings: "ss01"; }
+    .ink { color: #141210; }
+  </style>
 </head>
-<body class="min-h-screen bg-[#0a0a0a] text-gray-100">
+<body class="min-h-screen bg-[#F5F2EC] text-[#141210] antialiased">
 {% import "landing/_cards.html" as c %}
-<div class="mx-auto max-w-7xl px-6 py-6 lg:px-10">
+{% import "landing/_home.html" as h %}
 
-  <nav class="flex flex-wrap items-center justify-between gap-4">
+<div class="mx-auto max-w-7xl px-6 lg:px-10">
+
+  <!-- 1. TOP NAVIGATION -->
+  <header class="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 py-5">
     <a href="/" class="flex items-center gap-2.5">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linejoin="round" class="shrink-0">
-        <path d="M3 8l4 3 5-6 5 6 4-3v9a1 1 0 01-1 1H4a1 1 0 01-1-1V8z"/>
-      </svg>
-      <span class="leading-tight">
-        <span class="block text-sm font-bold tracking-[0.2em] text-gray-100">{{ config.company.name | upper }}</span>
-        <span class="block text-[9px] font-semibold uppercase tracking-[0.25em] text-amber-500/80">{{ config.brand }} · Label Services</span>
+      <span class="grid h-9 w-9 place-items-center rounded-md bg-[#141210]">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d8b25a" stroke-width="1.6" stroke-linejoin="round"><path d="M4 10l5 4 5-7 5 7 5-4v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/></svg>
+      </span>
+      <span class="leading-none">
+        <span class="block text-sm font-extrabold tracking-[0.2em] text-[#141210]">{{ config.nav.logo.primary }}</span>
+        <span class="mt-0.5 block text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.nav.logo.secondary }}</span>
       </span>
     </a>
-    <div class="hidden items-center gap-7 text-sm text-gray-300 lg:flex">
+    <nav class="hidden items-center gap-8 text-[13px] font-medium text-[#4a463e] lg:flex">
       {% for link in config.nav.links %}
-      <a href="{{ link.href }}" class="inline-flex items-center gap-1 transition-colors hover:text-white">
-        {{ link.label }}
-        {% if link.menu %}<svg class="h-3.5 w-3.5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 011.4 0L10 10.6l3.3-3.3a1 1 0 111.4 1.4l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>{% endif %}
-      </a>
+      <a href="{{ link.href }}" class="transition-colors hover:text-[#141210]">{{ link.label }}</a>
       {% endfor %}
-    </div>
+    </nav>
     <div class="flex items-center gap-4">
-      <a href="{{ config.nav.login.href }}" class="text-sm font-semibold text-gray-300 transition-colors hover:text-white">{{ config.nav.login.label }}</a>
-      <a href="{{ config.nav.cta.href }}" class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">{{ config.nav.cta.label }}</a>
-    </div>
-  </nav>
-
-  <div class="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)] lg:gap-12">
-    <div class="lg:pt-4">
-      <div class="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]">
-        <span class="text-amber-400">{{ config.brand | upper }}</span>
-        <span class="text-gray-600">by {{ config.company.name }}</span>
-      </div>
-      <span class="inline-block rounded-md border border-amber-500/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400">{{ config.hero.eyebrow }}</span>
-      <h1 class="mt-6 text-5xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
-        {% for line in config.hero.headline %}
-        <span class="{{ 'text-amber-400' if line.accent else 'text-gray-100' }}">{{ line.text }}</span>{% if not loop.last %}<br>{% endif %}
-        {% endfor %}
-      </h1>
-      <p class="mt-6 max-w-md text-base leading-relaxed text-gray-400">{{ config.hero.subhead }}</p>
-
-      <div class="mt-8 flex flex-wrap items-center gap-3">
-        <a href="{{ config.hero.primary_cta.href }}" class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-bold text-[#1c1302] transition-colors hover:bg-amber-400">
-          {{ c.icon(config.hero.primary_cta.icon, 'h-4 w-4') }}
-          {{ config.hero.primary_cta.label }}
-        </a>
-        <a href="{{ config.hero.secondary_cta.href }}" class="inline-flex items-center gap-2 rounded-lg border border-white/15 px-6 py-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-white/5">
-          {{ c.icon(config.hero.secondary_cta.icon, 'h-4 w-4') }}
-          {{ config.hero.secondary_cta.label }}
-        </a>
-      </div>
-
-      <div class="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-3">
-        {% for vp in config.hero.value_props %}
-        {{ c.value_prop(vp) }}
-        {% endfor %}
-      </div>
-    </div>
-
-    <div>
-      {% with hero = config.hero_visual %}
-      {% include config.hero_visual.template %}
-      {% endwith %}
-    </div>
-  </div>
-
-  <div class="mt-16 border-t border-white/5 pt-10">
-    <div class="text-center text-xs font-semibold uppercase tracking-[0.3em] text-gray-500">{{ config.trust.heading }}</div>
-    <div class="mt-8 flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
-      {% for logo in config.trust.logos %}
-      <div class="flex items-center gap-2.5">
-        {{ c.platform_logo(logo.logo, 'h-9 w-9') }}
-        <span class="text-xl font-bold tracking-wide text-gray-300">{{ logo.name }}</span>
-      </div>
+      {% for a in config.nav.actions %}
+      {% if a.variant == 'primary' %}
+      <a href="{{ a.href }}" class="rounded-md bg-[#141210] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#2a251d]">{{ a.label }}</a>
+      {% else %}
+      <a href="{{ a.href }}" class="text-[13px] font-semibold text-[#4a463e] transition-colors hover:text-[#141210]">{{ a.label }}</a>
+      {% endif %}
       {% endfor %}
     </div>
-  </div>
+  </header>
 
-  <div id="features" class="mt-16 scroll-mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-    {% for f in config.features %}
-    {{ c.feature_card(f) }}
-    {% endfor %}
-  </div>
-
-  <!-- Street Banker company section -->
-  <section id="company" class="mt-16 scroll-mt-8 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#15130c] via-[#0e0e10] to-[#0a0a0a] p-8 lg:p-10">
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-center">
-      <div>
-        <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-500/80">The Company</div>
-        <h2 class="mt-3 text-3xl font-extrabold uppercase leading-[0.95] tracking-tight text-white sm:text-4xl">{{ config.company.name }}</h2>
-        <p class="mt-2 text-lg font-semibold text-amber-400">{{ config.company.tagline }}</p>
-        <p class="mt-4 max-w-md text-sm leading-relaxed text-gray-400">{{ config.company.blurb }}</p>
-      </div>
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {% for p in config.company.pillars %}
-        <a href="{{ p.href }}" class="group flex flex-col rounded-2xl border border-white/5 bg-white/5 p-5 transition-colors hover:border-amber-500/40 hover:bg-white/[0.07]">
-          <span class="grid h-10 w-10 place-items-center rounded-xl border border-amber-500/30 text-amber-400">{{ c.icon(p.icon, 'h-5 w-5') }}</span>
-          <span class="mt-3 text-[9px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ p.tag }}</span>
-          <span class="mt-0.5 text-sm font-bold text-gray-100">{{ p.name }}</span>
-          <span class="mt-1 flex-1 text-[11px] leading-snug text-gray-400">{{ p.desc }}</span>
-          <span class="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400">Explore
-            <svg class="h-3 w-3 transition-transform group-hover:translate-x-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
-          </span>
+  <!-- 2. HERO -->
+  <section class="grid grid-cols-1 items-center gap-10 py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.hero.eyebrow }}</div>
+      <h1 class="mt-5 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl lg:text-[68px]">
+        {% for line in config.hero.headline %}<span class="block">{{ line }}</span>{% endfor %}
+      </h1>
+      <p class="mt-6 max-w-md text-base leading-relaxed text-[#5a544a]">{{ config.hero.subheadline }}</p>
+      <div class="mt-8 flex flex-wrap items-center gap-3">
+        {% for cta in config.hero.ctas %}
+        {% if cta.variant == 'primary' %}
+        <a href="{{ cta.href }}" class="inline-flex items-center gap-2 rounded-md bg-[#141210] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#2a251d]">
+          {{ cta.label }}
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
         </a>
+        {% else %}
+        <a href="{{ cta.href }}" class="inline-flex items-center gap-2 rounded-md border border-black/20 px-6 py-3 text-sm font-semibold text-[#141210] transition-colors hover:bg-black/5">{{ cta.label }}</a>
+        {% endif %}
         {% endfor %}
+      </div>
+      <div class="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-3">
+        {% for vp in config.hero.value_points %}
+        <div>
+          <span class="grid h-8 w-8 place-items-center rounded-full border border-[#8a6d1f]/40 text-[#8a6d1f]">{{ c.icon(vp.icon, 'h-4 w-4') }}</span>
+          <div class="mt-2 text-[13px] font-bold tracking-tight">{{ vp.title }}</div>
+          <div class="mt-0.5 text-[11px] leading-snug text-[#6b6459]">{{ vp.description }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- HeroCommandDesk -->
+    {% with hv = config.hero_visual %}
+    <div class="relative rounded-2xl border border-black/20 bg-gradient-to-b from-[#1c1c1f] to-[#0d0d0f] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.25)] sm:p-5">
+      {% for pos in ['left-2 top-2','right-2 top-2','left-2 bottom-2','right-2 bottom-2'] %}
+      <span class="absolute {{ pos }} h-1.5 w-1.5 rounded-full bg-white/20"></span>
+      {% endfor %}
+      <div class="flex items-center justify-between px-1">
+        <span class="text-[11px] font-bold tracking-[0.2em] text-[#d8b25a]">{{ hv.title }}</span>
+        <span class="text-[9px] font-semibold uppercase tracking-[0.25em] text-gray-500">{{ hv.label }}</span>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <!-- Connected sources -->
+        <div>
+          <div class="mb-1.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500">Connected Sources</div>
+          <div class="space-y-1.5">
+            {% for src in hv.connected_sources %}{{ h.source_row(src) }}{% endfor %}
+          </div>
+        </div>
+        <!-- Center readout -->
+        <div class="flex flex-col items-center justify-center rounded-lg border border-white/5 bg-black/30 p-3 text-center">
+          <div class="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">{{ hv.center.title }}</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[#e6c675]">{{ hv.center.amount }}</div>
+          <div class="text-[9px] font-semibold text-emerald-400">{{ hv.center.delta }}</div>
+          {{ h.vu_meter('mt-2 h-16', 30, True) }}
+          <div class="mt-1 w-full rounded-md border border-white/5 bg-white/[0.03] px-2 py-1.5">
+            <div class="flex items-center justify-center gap-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400"><span class="h-1 w-1 animate-pulse rounded-full bg-amber-400"></span>{{ hv.center.status }}</div>
+            <div class="mt-0.5 text-[9px] leading-tight text-gray-500">{{ hv.center.description }}</div>
+          </div>
+        </div>
+        <!-- Recovery opportunities -->
+        <div>
+          <div class="mb-1.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500">Recovery Opportunities</div>
+          <div class="space-y-1.5">
+            {% for op in hv.recovery_opportunities %}{{ h.opportunity_row(op) }}{% endfor %}
+          </div>
+        </div>
+      </div>
+      <!-- Recent recoveries -->
+      <div class="mt-3 rounded-lg border border-white/5 bg-black/20 p-2.5">
+        <div class="mb-1.5 flex items-center justify-between">
+          <span class="text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500">Recent Recoveries</span>
+          <a href="{{ hv.recoveries_cta.href }}" class="text-[9px] font-semibold text-[#d8b25a] hover:underline">{{ hv.recoveries_cta.label }}</a>
+        </div>
+        <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+          {% for r in hv.recent_recoveries %}{{ h.recovery_pill(r) }}{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+  </section>
+
+  <!-- 3. TRUST STRIP -->
+  <section class="border-y border-black/10 py-8">
+    <div class="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-[#8a8377]">{{ config.trust.heading }}</div>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+      {% for item in config.trust['items'] %}
+      <span class="text-sm font-bold uppercase tracking-wide text-[#7c766b]">{{ item }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- 4. FEATURE CARDS -->
+  <section id="features" class="scroll-mt-6 py-14">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {% for f in config.features %}{{ h.feature_card(f) }}{% endfor %}
+    </div>
+  </section>
+
+  <!-- 5. THREE LANES / INFRASTRUCTURE -->
+  <section id="infrastructure" class="scroll-mt-6 py-8">
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] lg:items-center">
+      <div>
+        <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ config.lanes.label }}</div>
+        <h2 class="mt-3 text-3xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-4xl">{{ config.lanes.headline }}</h2>
+        <p class="mt-4 max-w-md text-sm leading-relaxed text-[#5a544a]">{{ config.lanes.subheadline }}</p>
+        <a href="{{ config.lanes.cta.href }}" class="mt-6 inline-flex items-center gap-2 rounded-md border border-black/20 px-5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/5">{{ config.lanes.cta.label }}</a>
+      </div>
+      <!-- Rack hardware panel -->
+      <div class="rounded-xl border border-black/20 bg-gradient-to-b from-[#26262a] to-[#141416] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)]">
+          {% for item in config.lanes['items'] %}{{ h.lane_card(item) }}{% endfor %}
+          <div class="rounded-lg border border-white/10 bg-black/30 p-3">
+            <div class="text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500">Lane Status</div>
+            <div class="mt-2 space-y-1.5">
+              {% for s in config.lanes.status %}
+              <div class="flex items-center justify-between gap-2 text-[10px]">
+                <span class="text-gray-400">{{ s.label }}</span>
+                <span class="inline-flex items-center gap-1 font-semibold text-emerald-400"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>{{ s.value }}</span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
+
+  <!-- 6. ROYALTY SWEEP DARK ENGINE -->
+  <section class="my-14 overflow-hidden rounded-2xl border border-black/20 bg-gradient-to-br from-[#141416] to-[#0a0a0b] p-8 text-gray-100 lg:p-10">
+    {% set rs = config.royalty_sweep %}
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center">
+      <div>
+        <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#d8b25a]">{{ rs.label }}</div>
+        <h2 class="mt-3 text-3xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-4xl">
+          {% for line in rs.headline %}<span class="block">{{ line }}</span>{% endfor %}
+        </h2>
+        <p class="mt-4 max-w-md text-sm leading-relaxed text-gray-400">{{ rs.subheadline }}</p>
+        <a href="{{ rs.cta.href }}" class="mt-6 inline-flex items-center gap-2 rounded-md border border-[#d8b25a]/40 bg-[#d8b25a]/10 px-5 py-2.5 text-sm font-semibold text-[#e6c675] transition-colors hover:bg-[#d8b25a]/20">{{ rs.cta.label }}</a>
+      </div>
+      <!-- Engine rack -->
+      <div class="flex items-center gap-4 rounded-xl border border-white/10 bg-black/40 p-5">
+        {{ h.vu_meter('h-24 shrink-0', 68, True) }}
+        <div class="flex-1">
+          <div class="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">{{ rs.engine.status_label }}</div>
+          <div class="mt-1 text-[10px] uppercase tracking-wide text-gray-500">{{ rs.engine.matches_label }}</div>
+          <div class="text-4xl font-extrabold tabular-nums text-[#e6c675]">{{ rs.engine.matches_value }}</div>
+          <a href="{{ rs.engine.results_cta.href }}" class="mt-2 inline-block rounded-md border border-[#d8b25a]/40 bg-[#d8b25a]/10 px-3 py-1 text-[11px] font-semibold text-[#e6c675] hover:bg-[#d8b25a]/20">{{ rs.engine.results_cta.label }}</a>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          {% for i in range(5) %}<span class="h-2 w-2 rounded-full {{ 'bg-emerald-400' if i < 4 else 'bg-white/15' }}"></span>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. SERVICES & SOLUTIONS -->
+  <section id="services" class="scroll-mt-6 py-6">
+    <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ config.services.label }}</div>
+    <h2 class="mt-3 max-w-2xl text-3xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-4xl">{{ config.services.headline }}</h2>
+    <div class="mt-8 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-5">
+      {% for s in config.services['items'] %}{{ h.service_card(s) }}{% endfor %}
+    </div>
+  </section>
+
+  <!-- 8. FOOTER -->
+  <footer class="mt-14 border-t border-black/10 py-12">
+    <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+      <div>
+        <div class="text-sm font-extrabold tracking-[0.2em]">{{ config.footer.logo.primary }}</div>
+        <div class="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.footer.logo.secondary }}</div>
+        <p class="mt-4 max-w-xs text-xs leading-relaxed text-[#6b6459]">{{ config.footer.description }}</p>
+        <div class="mt-4 flex gap-3 text-[11px] font-semibold text-[#6b6459]">
+          {% for soc in config.footer.socials %}<a href="{{ soc.href }}" target="_blank" rel="noopener noreferrer" class="hover:text-[#141210]">{{ soc.label }}</a>{% endfor %}
+        </div>
+      </div>
+      {% for col in config.footer.columns %}
+      <div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8a8377]">{{ col.title }}</div>
+        <ul class="mt-3 space-y-2 text-[13px] text-[#4a463e]">
+          {% for link in col['links'] %}<li><a href="{{ link.href }}" class="transition-colors hover:text-[#141210]">{{ link.label }}</a></li>{% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-6 text-[11px] text-[#8a8377]">
+      <span>{{ config.footer.copyright }}</span>
+      <div class="flex gap-4">
+        {% for item in config.footer.legal %}<span>{{ item }}</span>{% endfor %}
+      </div>
+    </div>
+  </footer>
 
 </div>
 </body>

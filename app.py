@@ -1,3 +1,4 @@
+import math
 from dataclasses import asdict
 from datetime import datetime
 
@@ -314,6 +315,8 @@ def create_app():
     app = Flask(__name__)
     # Demo session key — no real secrets or user accounts in this app.
     app.config["SECRET_KEY"] = "royalty-sweep-demo-session"
+    # Trig helpers for the homepage's analog VU-meter / knob SVGs.
+    app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
 
     # Simulated demo passkey. Not real auth — see /login.
     DEMO_PASSKEY = "sweep"
@@ -336,14 +339,9 @@ def create_app():
 
     @app.route("/")
     def index():
-        songs = [live_song(s) for s in get_songs()]
-        catalog = get_platform_catalog()
-        earnings_trend = get_earnings_trend()
-        summary = get_recovery_summary(catalog, songs, earnings_trend)
-
-        config = get_landing_config()
-        config["hero_visual"].update(build_landing_hero(catalog, summary))
-        return render_template("landing.html", config=config)
+        # Homepage content is fully config-driven (landing_config); the
+        # command-desk figures are editable there, not injected live.
+        return render_template("landing.html", config=get_landing_config())
 
     @app.route("/scan/recovery-summary", methods=["POST"])
     def scan_recovery_summary():
