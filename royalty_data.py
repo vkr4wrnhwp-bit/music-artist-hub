@@ -1366,6 +1366,45 @@ def reset_collaborator_state():
     _collaborators = list(_DEFAULT_COLLABORATORS)
 
 
+def get_recovery_summary(catalog, songs, earnings_trend):
+    """Aggregates the missing-royalty scan into the shape the landing
+    page's audit hero needs: one headline recovery number, a few
+    supporting stats, per-source breakdown, and a recovery-over-time
+    series -- all derived from the same findings used everywhere else,
+    so a rescan here stays consistent with the rest of the app.
+    """
+    findings = get_missing_royalty_findings(catalog)
+    money_left = money_left_on_table(findings)
+    affected_recordings = sum(1 for s in songs if song_missing_issues(s))
+    confidence_pct = round((money_left["high"] / money_left["total"]) * 100) if money_left["total"] else 0
+
+    by_source = {}
+    for f in findings:
+        by_source[f.source] = by_source.get(f.source, 0) + f.estimated_value
+    sources = sorted(
+        ({"source": source, "amount": round(amount, 2)} for source, amount in by_source.items()),
+        key=lambda entry: entry["amount"], reverse=True,
+    )
+
+    total = money_left["total"]
+    months = [label for label, _ in earnings_trend]
+    fractions = [0.15, 0.28, 0.42, 0.58, 0.78, 1.0]
+    chart = [
+        {"label": label, "value": round(total * fraction, 2)}
+        for label, fraction in zip(months, fractions)
+    ]
+
+    return {
+        "estimated_uncollected": total,
+        "flagged_issues": len(findings),
+        "affected_recordings": affected_recordings,
+        "ready_to_claim": money_left["high"],
+        "confidence_pct": confidence_pct,
+        "sources": sources[:6],
+        "chart": chart,
+    }
+
+
 def get_dashboard_story(total, findings, catalog_value, smart_recommendations):
     """The six-beat narrative: what you made, what you're missing, why,
     how to collect it, what your catalog may be worth, and the next move.
