@@ -806,8 +806,14 @@ def create_app():
     def submit():
         ctx = build_dashboard_context()
         ctx["label"] = get_label_data()
-        # Photoreal turntable crop from the user's design; code-drawn deck
-        # renders as the fallback until the file exists.
+        # Full-page designed image with clickable HTML overlays; the coded
+        # page renders as the fallback until the file exists.
+        ctx["submit_page_img"] = (
+            "/static/img/submit-page.png"
+            if os.path.exists(os.path.join(app.static_folder, "img", "submit-page.png"))
+            else None
+        )
+        # Photoreal turntable crop (used by the coded fallback layout).
         ctx["turntable_img"] = (
             "/static/img/turntable.png"
             if os.path.exists(os.path.join(app.static_folder, "img", "turntable.png"))

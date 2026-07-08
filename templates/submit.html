@@ -15,6 +15,48 @@
 {% endmacro %}
 
 {% block content %}
+{% if submit_page_img %}
+<!-- Designed full-page image with real clickable overlays on the blank plates.
+     Positions are % of the image so they scale together; nudge as needed. -->
+<div class="relative mx-auto max-w-[940px]" style="font-size: clamp(8px, 1.55vw, 15px);">
+  <img src="{{ submit_page_img }}" alt="Send us your sound — Street Banker A&R desk" class="block h-auto w-full">
+
+  <!-- Gold plate: Email Your Demo -->
+  <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
+     class="absolute flex items-center justify-center font-bold text-[#1c1302] transition-transform hover:scale-[1.03]"
+     style="left: 49.6%; top: 42.9%; width: 21.2%; height: 4%;" aria-label="Email your demo">
+    Email Your Demo&nbsp;&rsaquo;
+  </a>
+
+  <!-- Dark plate: Build an EPK first -->
+  <a href="/epk"
+     class="absolute flex items-center justify-center font-semibold text-gray-100 transition-colors hover:text-[#e8c667]"
+     style="left: 72.4%; top: 42.9%; width: 19.2%; height: 4%;" aria-label="Build an EPK first">
+    Build an EPK first
+  </a>
+
+  <!-- Step number plates -->
+  {% for n, left in [('01', 16.2), ('02', 46.5), ('03', 78.0)] %}
+  <span class="absolute flex items-center justify-center font-bold tracking-[0.2em] text-[#e8c667]"
+        style="left: {{ left }}%; top: 63.9%; width: 6.8%; height: 2.4%;">{{ n }}</span>
+  {% endfor %}
+
+  <!-- Patchbay plate: LINK / MP3 -->
+  <span class="absolute flex items-center justify-center gap-[1em]"
+        style="left: 6.8%; top: 84.2%; width: 15%; height: 2.4%;">
+    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (streaming link)" class="font-bold tracking-[0.15em] text-[#e8c667] hover:underline">LINK</a>
+    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (MP3 attached)" class="font-bold tracking-[0.15em] text-[#e8c667] hover:underline">MP3</a>
+  </span>
+
+  <!-- The Desk: email bars -->
+  <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
+     class="absolute flex items-center justify-center font-semibold text-[#e8c667] hover:underline"
+     style="left: 8.3%; top: 91.7%; width: 38%; height: 2.6%;">{{ lb.brand.submissions_emails[0] }}</a>
+  <a href="mailto:{{ lb.brand.submissions_emails[1] }}?subject=Demo Submission"
+     class="absolute flex items-center justify-center font-semibold text-[#e8c667] hover:underline"
+     style="left: 52.2%; top: 91.7%; width: 38%; height: 2.6%;">{{ lb.brand.submissions_emails[1] }}</a>
+</div>
+{% else %}
 <div class="mx-auto max-w-4xl">
 
   <!-- Editorial header -->
@@ -184,4 +226,5 @@
 
   <div class="h-10"></div>
 </div>
+{% endif %}
 {% endblock %}
