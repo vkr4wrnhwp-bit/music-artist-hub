@@ -89,8 +89,18 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS api_cache (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                created TEXT NOT NULL
+            );
             """
         )
+        # Migration: universal-link metadata on smart links.
+        try:
+            db.execute("ALTER TABLE smart_links ADD COLUMN meta TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -163,17 +173,24 @@ def get_statement_rows(user_id, statement_id=None):
 
 # --- Smart links -------------------------------------------------------------
 
-def create_db_link(slug, user_id, title, target, platforms):
+def create_db_link(slug, user_id, title, target, platforms, meta=None):
     base, n = slug, 1
     with get_db() as db:
         while db.execute("SELECT 1 FROM smart_links WHERE slug = ?", (slug,)).fetchone():
             n += 1
             slug = f"{base}-{n}"
         db.execute(
-            "INSERT INTO smart_links (slug, user_id, title, target, platforms, created) VALUES (?,?,?,?,?,?)",
-            (slug, user_id, title, target, json.dumps(platforms or []), _now()),
+            "INSERT INTO smart_links (slug, user_id, title, target, platforms, meta, created) VALUES (?,?,?,?,?,?,?)",
+            (slug, user_id, title, target, json.dumps(platforms or []),
+             json.dumps(meta) if meta else None, _now()),
         )
     return slug
+
+
+def _link_row(d):
+    d["platforms"] = json.loads(d.get("platforms") or "[]")
+    d["meta"] = json.loads(d["meta"]) if d.get("meta") else None
+    return d
 
 
 def get_db_links():
@@ -182,23 +199,40 @@ def get_db_links():
             "SELECT l.*, (SELECT COUNT(*) FROM link_clicks c WHERE c.slug = l.slug) AS clicks "
             "FROM smart_links l ORDER BY created DESC"
         ).fetchall()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["platforms"] = json.loads(d.get("platforms") or "[]")
-        out.append(d)
-    return out
+    return [_link_row(dict(r)) for r in rows]
 
 
 def get_db_link(slug):
     with get_db() as db:
         row = db.execute("SELECT * FROM smart_links WHERE slug = ?", (slug,)).fetchone()
-    return dict(row) if row else None
+    return _link_row(dict(row)) if row else None
 
 
 def log_click(slug):
     with get_db() as db:
         db.execute("INSERT INTO link_clicks (slug, ts) VALUES (?,?)", (slug, _now()))
+
+
+# --- API cache -----------------------------------------------------------------
+
+def cache_get(key, max_age_seconds):
+    with get_db() as db:
+        row = db.execute("SELECT value, created FROM api_cache WHERE key = ?", (key,)).fetchone()
+    if row is None:
+        return None
+    created = datetime.fromisoformat(row["created"])
+    if (datetime.now(timezone.utc) - created).total_seconds() > max_age_seconds:
+        return None
+    return json.loads(row["value"])
+
+
+def cache_set(key, value):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO api_cache (key, value, created) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, created=excluded.created",
+            (key, json.dumps(value), _now()),
+        )
 
 
 # --- EPK profiles --------------------------------------------------------------

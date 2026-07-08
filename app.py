@@ -46,6 +46,7 @@ from community_config import (
     get_fan_dashboard_data,
 )
 from discover_config import get_discover_data, like_track, follow_artist
+from music_apis import itunes_search, odesli_lookup, ordered_platform_links
 from network_config import (
     get_network_data,
     get_profile,
@@ -446,6 +447,10 @@ def create_app():
         if link is None:
             return redirect(url_for("links"))
         store.log_click(slug)
+        meta = link.get("meta")
+        if meta and meta.get("links"):
+            return render_template("link_landing.html", link=link, meta=meta,
+                                   platform_links=ordered_platform_links(meta["links"]))
         return redirect(link["target"])
 
     # --- Reports: real CSV download --------------------------------------------
@@ -642,16 +647,20 @@ def create_app():
         link = create_smart_link(payload.get("title", ""), payload.get("platforms", []))
         if link is None:
             return jsonify({"ok": False, "error": "A title and at least one platform are required."}), 400
-        # Persist a real redirect: /l/<slug> -> a live Spotify search for the
-        # track (works with zero setup; artists can repoint targets later).
+        # Universal link: if the artist pasted a track URL, resolve every
+        # platform via Odesli and serve a branded all-platform landing page.
+        meta = odesli_lookup(payload.get("source_url", ""))
         from urllib.parse import quote
-        target = "https://open.spotify.com/search/" + quote(payload.get("title", "").strip())
+        target = (meta or {}).get("page") or \
+            "https://open.spotify.com/search/" + quote(payload.get("title", "").strip())
         user = current_user()
         slug = store.create_db_link(link["slug"], user["id"] if user else None,
-                                    link["title"], target, link["platforms"])
+                                    link["title"], target, link["platforms"], meta=meta)
         link["slug"] = slug
         link["url"] = request.host_url.rstrip("/") + "/l/" + slug
         link["real"] = True
+        link["universal"] = bool(meta)
+        link["platform_count"] = len((meta or {}).get("links", {}))
         return jsonify({"ok": True, "link": link})
 
     @app.route("/publishing")
@@ -716,6 +725,10 @@ def create_app():
     def discover():
         ctx = build_dashboard_context()
         ctx["discover"] = get_discover_data(request.args)
+        # Real music search: iTunes catalog with artwork + 30s previews.
+        q = (request.args.get("q") or "").strip()
+        ctx["real_query"] = q
+        ctx["real_results"] = itunes_search(q) if q else []
         return render_template("discover.html", active_page="discover", **ctx)
 
     @app.route("/discover/like/<track_id>", methods=["POST"])

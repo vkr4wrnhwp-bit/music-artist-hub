@@ -1390,6 +1390,61 @@ def test_epk_photo_upload_real():
     assert bad.status_code == 400                        # non-image rejected
 
 
+def _fake_itunes(url):
+    return {"results": [{"trackName": "Fake Song", "artistName": "Fake Artist",
+                         "collectionName": "Fake LP", "artworkUrl100": "https://x/100x100bb.jpg",
+                         "previewUrl": "https://x/p.m4a", "trackViewUrl": "https://x/t"}]}
+
+
+def _fake_odesli(url):
+    return {"entityUniqueId": "E", "pageUrl": "https://song.link/x",
+            "entitiesByUniqueId": {"E": {"title": "Fake Song", "artistName": "Fake Artist",
+                                          "thumbnailUrl": "https://x/art.jpg"}},
+            "linksByPlatform": {"spotify": {"url": "https://sp/x"},
+                                 "appleMusic": {"url": "https://ap/x"},
+                                 "youtube": {"url": "https://yt/x"}}}
+
+
+def test_discover_real_search_offline(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_itunes)
+    client = create_app().test_client()
+    body = client.get("/discover?q=offline+test+query").get_data(as_text=True)
+    assert "Fake Song" in body and "Fake Artist" in body
+    assert "preview-play" in body                       # playable preview button
+    assert "300x300bb.jpg" in body                      # artwork upscaled
+
+
+def test_universal_link_via_odesli_offline(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_odesli)
+    client = create_app().test_client()
+    r = client.post("/links/create", json={"title": "Uni", "platforms": ["Spotify"],
+                                            "source_url": "https://open.spotify.com/track/offlinetest"})
+    link = r.get_json()["link"]
+    assert link["universal"] is True and link["platform_count"] == 3
+    landing = client.get("/l/" + link["slug"]).get_data(as_text=True)
+    for s in ("Fake Song", "Fake Artist", "Spotify", "Apple Music", "YouTube",
+              "Powered by Street Banker", "https://sp/x"):
+        assert s in landing
+    # Odesli failure falls back to a plain redirect link.
+    monkeypatch.setattr(music_apis, "_fetch_json",
+                        lambda url: (_ for _ in ()).throw(Exception("down")))
+    r2 = client.post("/links/create", json={"title": "Plain Fallback", "platforms": ["Spotify"],
+                                             "source_url": "https://open.spotify.com/track/failing"})
+    l2 = r2.get_json()["link"]
+    assert l2["universal"] is False
+    assert client.get("/l/" + l2["slug"]).status_code == 302
+
+
+def test_api_cache_roundtrip():
+    import db as store
+    store.cache_set("t:key", {"a": 1})
+    assert store.cache_get("t:key", 60) == {"a": 1}
+    assert store.cache_get("t:key", -1) is None  # expired
+    assert store.cache_get("missing", 60) is None
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()
