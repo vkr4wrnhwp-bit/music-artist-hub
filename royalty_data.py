@@ -861,3 +861,24 @@ def get_smart_recommendations(alerts, songs, limit=5):
             ))
     recs.sort(key=lambda r: r.estimated_value, reverse=True)
     return recs[:limit]
+
+
+def get_dashboard_story(total, findings, catalog_value, smart_recommendations):
+    """The six-beat narrative: what you made, what you're missing, why,
+    how to collect it, what your catalog may be worth, and the next move.
+    Every value here is already computed elsewhere on the dashboard --
+    this just picks the single most important item from each to answer
+    the question in one line, so nothing has to be independently derived
+    or kept in sync.
+    """
+    top_finding = findings[0] if findings else None
+    return {
+        "made": total,
+        "missing_total": round(sum(f.estimated_value for f in findings), 2),
+        "missing_count": len(findings),
+        "top_finding": top_finding,
+        "catalog_value_low": catalog_value["low"],
+        "catalog_value_mid": catalog_value["mid"],
+        "catalog_value_high": catalog_value["high"],
+        "top_recommendation": smart_recommendations[0] if smart_recommendations else None,
+    }

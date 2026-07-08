@@ -273,3 +273,15 @@ def test_dashboard_includes_collapsible_section_script():
     body = client.get("/dashboard").get_data(as_text=True)
     assert "section-chevron" in body
     assert "royaltySweep.collapsed." in body
+
+
+def test_dashboard_includes_story_hero():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "What you made" in body
+    assert "What you're missing" in body
+    assert ">Why<" in body
+    assert "How to collect it" in body
+    assert "What your catalog may be worth" in body
+    assert "The next move" in body
+    assert 'id="story-next-move"' in body
