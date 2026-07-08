@@ -261,6 +261,35 @@ def init_db():
                 note TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS recovery_cases (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'other',
+                estimated_amount REAL NOT NULL DEFAULT 0,
+                confidence TEXT NOT NULL DEFAULT 'medium',
+                status TEXT NOT NULL DEFAULT 'open',
+                deadline TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                evidence_doc_id TEXT,
+                payout_result REAL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                closed_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS deals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                deal_type TEXT NOT NULL DEFAULT 'split',
+                title TEXT NOT NULL,
+                counterparty TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft',
+                terms TEXT NOT NULL DEFAULT '',
+                doc_id TEXT,
+                deadline TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -625,3 +654,95 @@ def delete_document(user_id, doc_id):
             return None
         db.execute("DELETE FROM documents WHERE id = ? AND user_id = ?", (doc_id, user_id))
     return row["path"]
+
+# --- Recovery cases + deal room --------------------------------------------------
+
+def create_recovery_case(user_id, fields):
+    case_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO recovery_cases (id, user_id, title, category, estimated_amount,"
+            " confidence, status, deadline, notes, created, updated)"
+            " VALUES (?,?,?,?,?,?,'open',?,?,?,?)",
+            (case_id, user_id, fields.get("title", "Untitled case")[:200],
+             fields.get("category", "other")[:40],
+             float(fields.get("estimated_amount") or 0),
+             fields.get("confidence", "medium")[:10],
+             fields.get("deadline", "")[:10], fields.get("notes", "")[:600],
+             now, now))
+    return case_id
+
+
+def update_recovery_case(user_id, case_id, fields):
+    allowed = ("status", "notes", "deadline", "evidence_doc_id", "payout_result")
+    sets, vals = [], []
+    for key in allowed:
+        if key in fields:
+            sets.append("%s = ?" % key)
+            vals.append(fields[key])
+    if not sets:
+        return False
+    if fields.get("status") in ("won", "lost", "closed"):
+        sets.append("closed_at = ?")
+        vals.append(_now())
+    sets.append("updated = ?")
+    vals.extend([_now(), case_id, user_id])
+    with get_db() as db:
+        cur = db.execute("UPDATE recovery_cases SET %s WHERE id = ? AND user_id = ?"
+                         % ", ".join(sets), vals)
+    return cur.rowcount > 0
+
+
+def list_recovery_cases(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM recovery_cases WHERE user_id = ? ORDER BY"
+            " CASE status WHEN 'open' THEN 0 WHEN 'submitted' THEN 1 ELSE 2 END, updated DESC",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_recovery_case(user_id, case_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM recovery_cases WHERE id = ? AND user_id = ?",
+                         (case_id, user_id)).fetchone()
+    return dict(row) if row else None
+
+
+def create_deal(user_id, fields):
+    deal_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO deals (id, user_id, deal_type, title, counterparty, status,"
+            " terms, doc_id, deadline, created, updated) VALUES (?,?,?,?,?,'draft',?,?,?,?,?)",
+            (deal_id, user_id, fields.get("deal_type", "split")[:40],
+             fields.get("title", "Untitled deal")[:200],
+             fields.get("counterparty", "")[:120], fields.get("terms", "")[:600],
+             fields.get("doc_id"), fields.get("deadline", "")[:10], now, now))
+    return deal_id
+
+
+def update_deal(user_id, deal_id, fields):
+    allowed = ("status", "terms", "deadline", "doc_id", "counterparty")
+    sets, vals = [], []
+    for key in allowed:
+        if key in fields:
+            sets.append("%s = ?" % key)
+            vals.append(fields[key])
+    if not sets:
+        return False
+    sets.append("updated = ?")
+    vals.extend([_now(), deal_id, user_id])
+    with get_db() as db:
+        cur = db.execute("UPDATE deals SET %s WHERE id = ? AND user_id = ?"
+                         % ", ".join(sets), vals)
+    return cur.rowcount > 0
+
+
+def list_deals(user_id):
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM deals WHERE user_id = ? ORDER BY updated DESC",
+                          (user_id,)).fetchall()
+    return [dict(r) for r in rows]

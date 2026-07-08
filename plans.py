@@ -42,7 +42,7 @@ _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes"
               "/publishing", "/mechanicals", "/neighboring-rights", "/territories",
               "/connections", "/catalog", "/identifiers", "/documents",
               "/conflicts", "/registration", "/valuation", "/funding", "/sync",
-              "/tax", "/reports")
+              "/tax", "/reports", "/royalty-recovery", "/deal-room")
 
 
 def _matches(path, prefixes):

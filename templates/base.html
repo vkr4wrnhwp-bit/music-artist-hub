@@ -62,6 +62,7 @@
             ('royalties', '/royalties', 'M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6', 'Royalties'),
             ('statements', '/statements', 'M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4', 'Statements'),
             ('recovery', '/recovery', 'M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2', 'Recovery'),
+            ('cases', '/royalty-recovery/cases', 'M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2', 'Recovery Cases'),
             ('disputes', '/disputes', 'M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0', 'Disputes'),
             ('publishing', '/publishing', 'M5 4h7a2 2 0 012 2v10H7a2 2 0 00-2 2V4z|M14 6h1a1 1 0 011 1v11a2 2 0 00-2-2', 'Publishing'),
             ('mechanicals', '/mechanicals', 'M10 6a4 4 0 100 8 4 4 0 000-8z|M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.5 1.5M14 14l1.5 1.5', 'Mechanicals'),
@@ -73,6 +74,7 @@
             ('catalog', '/catalog', 'M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2', 'Catalog'),
             ('identifiers', '/identifiers', 'M4 6h12M4 10h12M4 14h7|', 'Identifiers'),
             ('documents', '/documents', 'M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 11h5M8 14h3', 'Documents'),
+            ('deal-room', '/deal-room', 'M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4', 'Deal Room'),
             ('conflicts', '/conflicts', 'M10 3l7 13H3z|M10 8v3M10 13.5v.5', 'Conflicts'),
             ('registration', '/registration', 'M4 10l4 4 8-9|M3 6h6', 'Registration'),
             ('releases', '/releases', 'M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3', 'Releases'),
@@ -123,7 +125,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

@@ -72,6 +72,13 @@
           <div class="text-sm font-bold text-gray-100">Unmatched revenue in your statements</div>
           <div class="mt-0.5 text-xs text-gray-400">${{ "{:,.2f}".format(rr.unmatched_revenue) }} across rows with no track title — money paid but not attributed. Ask your distributor for corrected metadata.</div>
         </div>
+        <form method="post" action="/royalty-recovery/cases/from-finding" class="mr-1">
+          <input type="hidden" name="title" value="Unmatched statement revenue">
+          <input type="hidden" name="category" value="unmatched">
+          <input type="hidden" name="amount" value="{{ rr.unmatched_revenue }}">
+          <input type="hidden" name="notes" value="Statement rows with no track title - request corrected metadata from the distributor.">
+          <button class="rounded-md bg-[#141210] px-3 py-1.5 text-[11px] font-bold text-[#e8c667] ring-1 ring-[#c9a24a]/50 hover:bg-black">Open case</button>
+        </form>
         <form method="post" action="/actions/from-alert">
           <input type="hidden" name="title" value="Claim ${{ '{:,.2f}'.format(rr.unmatched_revenue) }} unmatched statement revenue">
           <input type="hidden" name="description" value="Statement rows without track titles — request corrected metadata from the distributor.">
@@ -88,6 +95,13 @@
           <div class="text-sm font-bold text-gray-100">“{{ g.title }}” missing from {{ g.missing_sources | join(', ') }}</div>
           <div class="mt-0.5 text-xs text-gray-400">Earning on other sources but absent here — estimated ${{ "{:,.2f}".format(g.estimated_value) }} based on its own per-source average. Estimate, not a guarantee.</div>
         </div>
+        <form method="post" action="/royalty-recovery/cases/from-finding" class="mr-1">
+          <input type="hidden" name="title" value="Coverage gap: {{ g.title }}">
+          <input type="hidden" name="category" value="coverage_gap">
+          <input type="hidden" name="amount" value="{{ g.estimated_value }}">
+          <input type="hidden" name="notes" value="Missing from {{ g.missing_sources | join(', ') }} - verify delivery and registration.">
+          <button class="rounded-md bg-[#141210] px-3 py-1.5 text-[11px] font-bold text-[#e8c667] ring-1 ring-[#c9a24a]/50 hover:bg-black">Open case</button>
+        </form>
         <form method="post" action="/actions/from-alert">
           <input type="hidden" name="title" value="Check {{ g.title }} on {{ g.missing_sources | join(', ') }}">
           <input type="hidden" name="description" value="Track earns elsewhere but shows nothing from these sources — verify delivery and registration. Est. ${{ '{:,.2f}'.format(g.estimated_value) }}.">

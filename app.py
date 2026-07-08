@@ -1462,6 +1462,158 @@ def create_app():
         if _status == "preview":
             app.add_url_rule(_route, view_func=_module_preview(_route))
 
+    # --- OS Phase 2: recovery case management + deal room ----------------------
+
+    _CASE_CATEGORIES = ["unmatched", "coverage_gap", "mechanical", "publishing",
+                        "neighboring", "content_id", "distributor", "split_conflict",
+                        "other"]
+    _CASE_STATUSES = ["open", "submitted", "waiting", "won", "lost"]
+    _DEAL_TYPES = ["split", "producer", "feature", "work_for_hire", "management",
+                   "distribution", "label_services", "sync", "publishing_admin",
+                   "advance", "merch", "touring", "brand"]
+    _DEAL_STATUSES = ["draft", "sent", "negotiating", "signed", "expired", "cancelled"]
+
+    @app.route("/royalty-recovery/cases", methods=["GET", "POST"])
+    def recovery_cases():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            f = request.form
+            if f.get("case_id"):
+                fields = {}
+                if f.get("status") in _CASE_STATUSES:
+                    fields["status"] = f["status"]
+                if "notes" in f:
+                    fields["notes"] = (f.get("notes") or "").strip()[:600]
+                if f.get("evidence_doc_id"):
+                    fields["evidence_doc_id"] = f["evidence_doc_id"]
+                if f.get("payout_result"):
+                    try:
+                        fields["payout_result"] = float(f["payout_result"])
+                    except ValueError:
+                        pass
+                store.update_recovery_case(user["id"], f["case_id"], fields)
+                case = store.get_recovery_case(user["id"], f["case_id"])
+                if case and f.get("status") == "won":
+                    store.notify(user["id"], "recovery",
+                                 "Case won: %s" % case["title"],
+                                 "Recovered $%.2f." % (case.get("payout_result") or 0),
+                                 "/royalty-recovery/cases")
+            elif (f.get("title") or "").strip():
+                store.create_recovery_case(user["id"], {
+                    "title": f["title"].strip(),
+                    "category": f.get("category") if f.get("category") in _CASE_CATEGORIES else "other",
+                    "estimated_amount": f.get("estimated_amount") or 0,
+                    "confidence": f.get("confidence") or "medium",
+                    "deadline": (f.get("deadline") or "").strip(),
+                    "notes": (f.get("notes") or "").strip()})
+            return redirect("/royalty-recovery/cases")
+        cases = store.list_recovery_cases(user["id"])
+        recovered = sum(c.get("payout_result") or 0 for c in cases if c["status"] == "won")
+        pipeline = sum(c["estimated_amount"] for c in cases
+                       if c["status"] in ("open", "submitted", "waiting"))
+        docs = {d["id"]: d for d in store.list_documents(user["id"])}
+        return render_template("recovery_cases.html", active_page="cases",
+                               cases=cases, recovered=recovered, pipeline=pipeline,
+                               docs=docs, doc_list=list(docs.values()),
+                               categories=_CASE_CATEGORIES, statuses=_CASE_STATUSES,
+                               **build_dashboard_context())
+
+    @app.route("/royalty-recovery/cases/from-finding", methods=["POST"])
+    def case_from_finding():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        f = request.form
+        store.create_recovery_case(user["id"], {
+            "title": (f.get("title") or "Statement finding").strip(),
+            "category": f.get("category") if f.get("category") in _CASE_CATEGORIES else "other",
+            "estimated_amount": f.get("amount") or 0,
+            "confidence": "high" if f.get("category") == "unmatched" else "medium",
+            "notes": (f.get("notes") or "").strip()})
+        return redirect("/royalty-recovery/cases")
+
+    @app.route("/deal-room", methods=["GET", "POST"])
+    def deal_room():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            f = request.form
+            if f.get("deal_id"):
+                fields = {}
+                if f.get("status") in _DEAL_STATUSES:
+                    fields["status"] = f["status"]
+                if "terms" in f:
+                    fields["terms"] = (f.get("terms") or "").strip()[:600]
+                if f.get("doc_id"):
+                    fields["doc_id"] = f["doc_id"]
+                store.update_deal(user["id"], f["deal_id"], fields)
+                if f.get("status") == "signed":
+                    store.notify(user["id"], "campaign", "Deal signed",
+                                 "A deal moved to signed in your Deal Room.",
+                                 "/deal-room")
+            elif (f.get("title") or "").strip():
+                store.create_deal(user["id"], {
+                    "title": f["title"].strip(),
+                    "deal_type": f.get("deal_type") if f.get("deal_type") in _DEAL_TYPES else "split",
+                    "counterparty": (f.get("counterparty") or "").strip(),
+                    "terms": (f.get("terms") or "").strip(),
+                    "deadline": (f.get("deadline") or "").strip()})
+            return redirect("/deal-room")
+        deals = store.list_deals(user["id"])
+        docs = {d["id"]: d for d in store.list_documents(user["id"])}
+        return render_template("deal_room.html", active_page="deal-room",
+                               deals=deals, docs=docs, doc_list=list(docs.values()),
+                               deal_types=_DEAL_TYPES, deal_statuses=_DEAL_STATUSES,
+                               **build_dashboard_context())
+
+    @app.route("/deal-room/generate-split", methods=["POST"])
+    def generate_split_agreement():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        f = request.form
+        track = (f.get("track") or "Untitled Track").strip()[:120]
+        parties = []
+        for i in range(1, 5):
+            name = (f.get("party%d_name" % i) or "").strip()
+            share = (f.get("party%d_share" % i) or "").strip()
+            if name and share:
+                parties.append((name, share))
+        if len(parties) < 2:
+            return redirect("/deal-room")
+        lines = [
+            "SPLIT AGREEMENT (TEMPLATE)",
+            "=" * 40, "",
+            "Track: %s" % track,
+            "Date: %s" % datetime.now(timezone.utc).strftime("%Y-%m-%d"), "",
+            "The undersigned agree to the following ownership splits for the",
+            "composition and/or master recording of the track named above:", "",
+        ]
+        for name, share in parties:
+            lines.append("  %s ....... %s%%" % (name.ljust(30, " "), share))
+        lines += ["", "Each party warrants their contribution is original.",
+                  "Signatures:", ""]
+        for name, _unused in parties:
+            lines.append("  ______________________  (%s)   Date: __________" % name)
+        lines += ["", "-" * 40,
+                  "Generated by Street Banker Deal Room as a starting template.",
+                  "NOT LEGAL ADVICE - have an attorney review before signing."]
+        fname = "doc_%s.txt" % uuid.uuid4().hex
+        with open(os.path.join(UPLOADS_DIR, fname), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+        doc_id = store.add_document(user["id"], "split-agreement-%s.txt" % _slugify(track),
+                                    "/uploads/" + fname, "Split Agreement",
+                                    "Generated template - attorney review required")
+        store.create_deal(user["id"], {
+            "title": "Split: %s" % track, "deal_type": "split",
+            "counterparty": ", ".join(n for n, _unused in parties),
+            "terms": " / ".join("%s %s%%" % (n, sh) for n, sh in parties),
+            "doc_id": doc_id})
+        return redirect("/deal-room")
+
     # --- Release OS: qualification, artist profile, vault, review queue --------
 
     @app.route("/qualification")

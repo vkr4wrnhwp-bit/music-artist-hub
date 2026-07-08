@@ -1961,10 +1961,10 @@ def test_release_autopilot_and_clean_release():
 
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
-    routes = ["/fraud-sentinel", "/deal-room", "/revenue-os", "/capital-score",
+    routes = ["/fraud-sentinel", "/revenue-os", "/capital-score",
               "/metadata-passport", "/ai-rights", "/trust-score", "/artist-twin",
               "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
-              "/partner-portal", "/royalty-recovery/cases", "/royalty-recovery/mlc",
+              "/partner-portal", "/royalty-recovery/mlc",
               "/sync/clearance-packs", "/sync/deal-simulator"]
     for route in routes:
         r = client.get(route)
@@ -2276,6 +2276,93 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     client.post("/catalog/add", json={"title": "No Meta Song", "artist": "B"})
     body = client.get("/identifiers").get_data(as_text=True)
     assert "MISSING" in body and "Create action" in body
+
+
+# --- Recovery cases + deal room ------------------------------------------------
+
+def test_recovery_case_lifecycle():
+    import io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "case%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "C", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    # One-click case from a statement finding.
+    client.post("/royalty-recovery/cases/from-finding",
+                data={"title": "Unmatched statement revenue", "category": "unmatched",
+                      "amount": "12.40", "notes": "from finding"})
+    body = client.get("/royalty-recovery/cases").get_data(as_text=True)
+    assert "Unmatched statement revenue" in body and "12.40" in body
+    # Manual case -> submitted -> won with payout; totals + notification.
+    client.post("/royalty-recovery/cases",
+                data={"title": "Content ID claim", "category": "content_id",
+                      "estimated_amount": "85"})
+    user = store_mod.get_user_by_email(email)
+    case = next(x for x in store_mod.list_recovery_cases(user["id"])
+                if "Content ID" in x["title"])
+    client.post("/royalty-recovery/cases", data={"case_id": case["id"], "status": "submitted"})
+    client.post("/royalty-recovery/cases", data={"case_id": case["id"], "status": "won",
+                                                 "payout_result": "92.50"})
+    body = client.get("/royalty-recovery/cases").get_data(as_text=True)
+    assert "92.50" in body and "Recovered" in body
+    assert "Case won: Content ID claim" in client.get("/notifications").get_data(as_text=True)
+    # Evidence from the vault attaches to a case.
+    client.post("/documents", data={"document": (io.BytesIO(b"%PDF x"), "evidence.pdf"),
+                                    "doc_type": "Statement"},
+                content_type="multipart/form-data")
+    doc = store_mod.list_documents(user["id"])[0]
+    open_case = next(x for x in store_mod.list_recovery_cases(user["id"])
+                     if x["status"] == "open")
+    client.post("/royalty-recovery/cases", data={"case_id": open_case["id"],
+                                                 "status": "open",
+                                                 "evidence_doc_id": doc["id"]})
+    assert "evidence.pdf" in client.get("/royalty-recovery/cases").get_data(as_text=True)
+    # Recovery findings page offers Open case buttons.
+    csv_rows = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"A,Spotify,10.00,2026-05\n"
+                b",Spotify,5.00,2026-05\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv_rows), "s.csv")},
+                content_type="multipart/form-data")
+    assert "Open case" in client.get("/recovery").get_data(as_text=True)
+
+
+def test_deal_room_and_split_generator():
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "deal%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "D", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    client.post("/deal-room", data={"title": "Producer deal", "deal_type": "producer",
+                                    "counterparty": "Marcus", "terms": "3 points"})
+    body = client.get("/deal-room").get_data(as_text=True)
+    assert "Producer deal" in body and "Marcus" in body and "not legal advice" in body
+    user = store_mod.get_user_by_email(email)
+    deal = store_mod.list_deals(user["id"])[0]
+    client.post("/deal-room", data={"deal_id": deal["id"], "status": "signed"})
+    assert next(d for d in store_mod.list_deals(user["id"])
+                if d["id"] == deal["id"])["status"] == "signed"
+    # Split generator: vault document + tracked deal, honest template text.
+    client.post("/deal-room/generate-split", data={
+        "track": "Neon Nights", "party1_name": "Artist", "party1_share": "60",
+        "party2_name": "Producer", "party2_share": "40"})
+    body = client.get("/deal-room").get_data(as_text=True)
+    assert "Split: Neon Nights" in body and "Artist 60%" in body
+    gen = next(d for d in store_mod.list_documents(user["id"])
+               if "split-agreement" in d["filename"])
+    txt = client.get(gen["path"]).get_data(as_text=True)
+    assert "SPLIT AGREEMENT" in txt and "NOT LEGAL ADVICE" in txt and "60%" in txt
+    # Fewer than two parties: no deal created.
+    before = len(store_mod.list_deals(user["id"]))
+    client.post("/deal-room/generate-split", data={"track": "Solo",
+                                                   "party1_name": "Artist",
+                                                   "party1_share": "100"})
+    assert len(store_mod.list_deals(user["id"])) == before
 
 
 def test_ml_quick_links_still_work():
