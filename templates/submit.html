@@ -19,7 +19,7 @@
   </div>
 
   <!-- The record -->
-  <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#16130a] via-[#0e0e10] to-[#0a0a0b]">
+  <div class="mt-12 overflow-hidden rounded-3xl border border-amber-500/25 bg-gradient-to-br from-[#201a0e] via-[#141412] to-[#0e0e10] shadow-[0_0_60px_rgba(216,178,90,0.07)]">
     <div class="grid grid-cols-1 items-center gap-8 p-8 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-12">
       <!-- Turntable deck, drawn in code: platter + spinning record + static tonearm -->
       <div class="relative mx-auto w-full max-w-[360px]">
@@ -140,23 +140,26 @@
     </div>
   </div>
 
-  <!-- Three steps, editorial -->
-  <div class="mt-14 grid grid-cols-1 gap-10 sm:grid-cols-3">
-    {% for n, title, body in [
-      ('01', 'Make it easy to love', 'A link or two attachments beats a zip of 40 stems. Lead with your best song.'),
-      ('02', 'Tell us who you are', 'A few lines, your numbers if you have them, links to your world. An EPK is perfect.'),
-      ('03', 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
-    ] %}
-    <div class="text-center sm:text-left">
-      <div class="text-5xl font-extrabold tracking-tight text-white/15">{{ n }}</div>
-      <div class="mt-2 text-sm font-bold text-white">{{ title }}</div>
-      <p class="mt-1.5 text-xs leading-relaxed text-gray-300">{{ body }}</p>
+  <!-- Three steps: light editorial band for hard separation off the black -->
+  <div class="mt-14 rounded-3xl bg-[#F5F2EC] p-8 lg:p-10">
+    <div class="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">How it works</div>
+    <div class="mt-6 grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-6">
+      {% for n, title, body in [
+        ('01', 'Make it easy to love', 'A link or two attachments beats a zip of 40 stems. Lead with your best song.'),
+        ('02', 'Tell us who you are', 'A few lines, your numbers if you have them, links to your world. An EPK is perfect.'),
+        ('03', 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
+      ] %}
+      <div class="relative text-center sm:text-left {{ 'sm:border-l sm:border-black/10 sm:pl-6' if not loop.first }}">
+        <div class="text-5xl font-extrabold tracking-tight text-[#d8b25a]">{{ n }}</div>
+        <div class="mt-2 text-sm font-extrabold text-[#141210]">{{ title }}</div>
+        <p class="mt-1.5 text-xs leading-relaxed text-[#5a544a]">{{ body }}</p>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 
   <!-- Where to send -->
-  <div class="mt-14 rounded-2xl border border-white/5 bg-[#111113] p-6 text-center">
+  <div class="mt-14 rounded-2xl border border-amber-500/25 bg-gradient-to-b from-amber-500/[0.08] to-transparent p-6 text-center">
     <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">The desk</div>
     <div class="mt-3 flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-6">
       {% for email in lb.brand.submissions_emails %}
