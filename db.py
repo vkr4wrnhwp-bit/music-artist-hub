@@ -89,6 +89,18 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS catalog_tracks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                artist TEXT NOT NULL DEFAULT '',
+                album TEXT NOT NULL DEFAULT '',
+                art TEXT NOT NULL DEFAULT '',
+                preview TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                added TEXT NOT NULL,
+                UNIQUE(user_id, title, artist)
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -214,6 +226,40 @@ def log_click(slug):
 
 
 # --- API cache -----------------------------------------------------------------
+
+def add_catalog_track(user_id, track):
+    """Save a Discover track to the user's catalog. Returns the row id,
+    or None if the same title+artist is already in their catalog."""
+    track_id = uuid.uuid4().hex
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO catalog_tracks (id, user_id, title, artist, album, art, preview, url, added)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (track_id, user_id, (track.get("title") or "").strip(),
+                 (track.get("artist") or "").strip(), track.get("album") or "",
+                 track.get("art") or "", track.get("preview") or "",
+                 track.get("url") or "", _now()),
+            )
+    except sqlite3.IntegrityError:
+        return None
+    return track_id
+
+
+def get_catalog_tracks(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM catalog_tracks WHERE user_id = ? ORDER BY added DESC",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def remove_catalog_track(user_id, track_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM catalog_tracks WHERE id = ? AND user_id = ?",
+                         (track_id, user_id))
+    return cur.rowcount > 0
+
 
 def cache_get(key, max_age_seconds):
     with get_db() as db:

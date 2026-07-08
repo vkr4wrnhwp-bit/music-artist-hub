@@ -50,6 +50,39 @@
     </div>
   </div>
 
+  {% if catalog_user %}
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141210] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">My Tracks</h2>
+        <p class="mt-1 text-[11px] text-gray-400">Saved to your account — pulled in from Discover. Real data, yours to keep.</p>
+      </div>
+      <a href="/discover" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-semibold text-[#e8c667] hover:bg-[#c9a24a]/25">+ Add from Discover</a>
+    </div>
+    {% if my_tracks %}
+    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      {% for t in my_tracks %}
+      <div class="group overflow-hidden rounded-xl border border-white/10 bg-[#111113]" id="mytrack-{{ t.id }}">
+        <div class="relative aspect-square">
+          {% if t.art %}<img src="{{ t.art }}" alt="{{ t.title }}" class="h-full w-full object-cover" loading="lazy">
+          {% else %}<div class="grid h-full w-full place-items-center bg-white/5 text-2xl text-gray-600">♪</div>{% endif %}
+          <button type="button" class="remove-track absolute right-1.5 top-1.5 hidden h-6 w-6 place-items-center rounded-full bg-black/70 text-xs text-gray-200 hover:text-red-400 group-hover:grid" data-id="{{ t.id }}" title="Remove from catalog">✕</button>
+        </div>
+        <div class="p-2">
+          <div class="truncate text-[11px] font-semibold text-gray-100">{{ t.title }}</div>
+          <div class="truncate text-[10px] text-gray-400">{{ t.artist }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="mt-4 rounded-xl border border-dashed border-[#c9a24a]/25 py-6 text-center text-xs text-gray-400">
+      Nothing saved yet — <a href="/discover" class="font-semibold text-[#e8c667] hover:underline">search Discover</a> and hit “+ Catalog” on any track.
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
     <button type="button" class="metric-card rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25" data-goto-tab="Tracks">
       <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Tracks</div>
@@ -579,6 +612,15 @@
     if (e.key !== "Escape") return;
     if (!drawer.classList.contains("translate-x-full")) closeDrawer();
     if (!arModal.classList.contains("hidden")) closeAr();
+  });
+
+  // Remove a saved track from My Tracks.
+  document.querySelectorAll(".remove-track").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const res = await fetch(`/catalog/remove/${btn.dataset.id}`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) document.getElementById(`mytrack-${btn.dataset.id}`).remove();
+    });
   });
 </script>
 {% endblock %}

@@ -45,7 +45,12 @@
         <div class="p-2.5">
           <div class="truncate text-xs font-semibold text-gray-100">{{ t.title }}</div>
           <div class="truncate text-[11px] text-gray-400">{{ t.artist }}</div>
-          {% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener noreferrer" class="mt-1 block truncate text-[10px] text-[#c9a24a] hover:underline">Open ↗</a>{% endif %}
+          <div class="mt-1.5 flex items-center justify-between gap-2">
+            <button type="button" class="add-to-catalog rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-2 py-1 text-[10px] font-semibold text-[#e8c667] transition-colors hover:bg-[#c9a24a]/25 disabled:cursor-default disabled:opacity-70"
+                    data-title="{{ t.title }}" data-artist="{{ t.artist }}" data-album="{{ t.album }}"
+                    data-art="{{ t.art }}" data-preview="{{ t.preview }}" data-url="{{ t.url }}">+ Catalog</button>
+            {% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener noreferrer" class="truncate text-[10px] text-[#c9a24a] hover:underline">Open ↗</a>{% endif %}
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -169,6 +174,33 @@
       btn.querySelector(".icon-play").classList.add("hidden");
       btn.querySelector(".icon-pause").classList.remove("hidden");
       activeBtn = btn;
+    });
+  });
+
+  // Pull a real search result into the signed-in user's catalog.
+  document.querySelectorAll(".add-to-catalog").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      const d = btn.dataset;
+      const res = await fetch("/catalog/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: d.title, artist: d.artist, album: d.album,
+                               art: d.art, preview: d.preview, url: d.url }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+        return;
+      }
+      if (res.ok) {
+        btn.textContent = "✓ In Catalog";
+        btn.classList.add("border-green-500/30", "bg-green-500/10", "text-green-400");
+      } else if (res.status === 409) {
+        btn.textContent = "Already added";
+      } else {
+        btn.textContent = "Try again";
+        btn.disabled = false;
+      }
     });
   });
 

@@ -1437,6 +1437,36 @@ def test_universal_link_via_odesli_offline(monkeypatch):
     assert client.get("/l/" + l2["slug"]).status_code == 302
 
 
+def test_add_discover_track_to_catalog():
+    client = create_app().test_client()
+    # Anonymous adds are rejected so the button can redirect to sign-in.
+    assert client.post("/catalog/add", json={"title": "Neon Ride"}).status_code == 401
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    r = client.post("/catalog/add", json={"title": "Neon Ride", "artist": "Test Artist",
+                                           "art": "https://x/300x300bb.jpg", "url": "https://x/t"})
+    assert r.status_code == 200 and r.get_json()["ok"]
+    track_id = r.get_json()["id"]
+    # Same title+artist can't be added twice.
+    assert client.post("/catalog/add", json={"title": "Neon Ride",
+                                              "artist": "Test Artist"}).status_code == 409
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "Add from Discover" in body and "Neon Ride" in body
+    assert client.post("/catalog/remove/" + track_id).get_json()["ok"] is True
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "Neon Ride" not in body and "Nothing saved yet" in body
+    # Signed out, the personal section disappears entirely.
+    client.post("/logout")
+    assert "Add from Discover" not in client.get("/catalog").get_data(as_text=True)
+
+
+def test_discover_results_have_add_button(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_itunes)
+    client = create_app().test_client()
+    body = client.get("/discover?q=offline+add+button").get_data(as_text=True)
+    assert "add-to-catalog" in body and "+ Catalog" in body
+
+
 def test_api_cache_roundtrip():
     import db as store
     store.cache_set("t:key", {"a": 1})

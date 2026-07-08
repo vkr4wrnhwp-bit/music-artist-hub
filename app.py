@@ -543,7 +543,30 @@ def create_app():
     def catalog_page():
         ctx = build_dashboard_context()
         ctx["catalog"] = get_catalog_data()
+        user = current_user()
+        ctx["catalog_user"] = user
+        ctx["my_tracks"] = store.get_catalog_tracks(user["id"]) if user else []
         return render_template("catalog.html", active_page="catalog", **ctx)
+
+    @app.route("/catalog/add", methods=["POST"])
+    def catalog_add():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "sign_in"}), 401
+        track = request.get_json(silent=True) or {}
+        if not (track.get("title") or "").strip():
+            return jsonify({"ok": False, "error": "A track title is required."}), 400
+        track_id = store.add_catalog_track(user["id"], track)
+        if track_id is None:
+            return jsonify({"ok": False, "error": "Already in your catalog."}), 409
+        return jsonify({"ok": True, "id": track_id})
+
+    @app.route("/catalog/remove/<track_id>", methods=["POST"])
+    def catalog_remove(track_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "sign_in"}), 401
+        return jsonify({"ok": store.remove_catalog_track(user["id"], track_id)})
 
     @app.route("/connections")
     def connections():
