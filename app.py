@@ -49,7 +49,7 @@ from community_config import (
 )
 from discover_config import get_discover_data, like_track, follow_artist
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
-                        deezer_track_metadata, musicbrainz_credits)
+                        deezer_track_metadata, musicbrainz_credits, press_mentions)
 from network_config import (
     get_network_data,
     get_profile,
@@ -720,6 +720,15 @@ def create_app():
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets)
         return render_template("epk.html", active_page="epk", **ctx)
+
+    @app.route("/epk/press/search")
+    def epk_press_search():
+        if current_user() is None:
+            return jsonify({"ok": False, "results": []}), 401
+        q = (request.args.get("q") or "").strip()
+        if not q:
+            return jsonify({"ok": False, "results": []})
+        return jsonify({"ok": True, "results": press_mentions(q)})
 
     @app.route("/epk/asset/<kind>", methods=["POST"])
     def epk_asset_upload(kind):

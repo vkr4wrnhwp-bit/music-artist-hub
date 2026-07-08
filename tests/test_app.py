@@ -1611,6 +1611,60 @@ def test_epk_media_assets_and_zip():
     assert "youtube.com/embed/abc123" in public
 
 
+def test_epk_cover_color_logo_video_press():
+    import io
+    import music_apis
+    client = create_app().test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    client.get("/epk")
+    # Cover color: valid hex persists to the public page; junk is rejected.
+    client.post("/epk/save", json={"bg_color": "#2a1015"})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "background-color: #2a1015" in public
+    client.post("/epk/save", json={"bg_color": "javascript:alert(1)"})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "background-color: #141210" in public          # falls back to default
+    # Logo asset renders above the hero on both editor and public page.
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    client.post("/epk/asset/logo", data={"asset": (io.BytesIO(png), "logo.png")},
+                content_type="multipart/form-data")
+    # An earlier test may have made the demo logo private; visibility is
+    # deliberately preserved across re-uploads, so re-enable it here.
+    client.post("/epk/asset/logo/visibility", json={"public": True})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert 'alt="Synthwave Surfer logo"' in public
+    # Video URL yields a thumbnail in the editor and an embed publicly.
+    client.post("/epk/save", json={"video_url": "https://www.youtube.com/watch?v=xyz789"})
+    editor = client.get("/epk").get_data(as_text=True)
+    assert "img.youtube.com/vi/xyz789/hqdefault.jpg" in editor
+    # Press quotes keep their source links on the public page.
+    client.post("/epk/save", json={"press": [{"quote": "Brilliant live show.",
+                                               "source": "Test Mag",
+                                               "url": "https://example.com/review"}]})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert 'href="https://example.com/review"' in public
+
+
+def test_epk_press_search(monkeypatch):
+    import music_apis
+    rss = ('<rss><channel><item><title>Great new single - Test Weekly</title>'
+           '<link>https://example.com/a</link><source url="https://tw.com">Test Weekly</source>'
+           '<pubDate>Tue, 08 Jul 2026 01:00:00 GMT</pubDate></item></channel></rss>')
+    monkeypatch.setattr(music_apis, "_fetch_text", lambda url: rss)
+    client = create_app().test_client()
+    # Requires sign-in.
+    assert client.get("/epk/press/search?q=x").status_code == 401
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    data = client.get("/epk/press/search?q=Test Artist").get_json()
+    assert data["ok"] and data["results"][0] == {
+        "title": "Great new single", "source": "Test Weekly",
+        "url": "https://example.com/a", "date": "Tue, 08 Jul 2026"}
+    # Editor ships the finder UI.
+    body = client.get("/epk").get_data(as_text=True)
+    assert "press-search-btn" in body and "Find press on the web" in body
+    assert "bg-swatch" in body                     # cover color swatches too
+
+
 def test_api_cache_roundtrip():
     import db as store
     store.cache_set("t:key", {"a": 1})

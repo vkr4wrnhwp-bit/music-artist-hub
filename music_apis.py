@@ -25,6 +25,12 @@ def _fetch_json(url):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _fetch_text(url):
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
 def itunes_search(term, limit=18):
     """Real songs from the iTunes catalog: title, artist, art, preview."""
     term = (term or "").strip()
@@ -133,6 +139,43 @@ def deezer_track_metadata(title, artist):
         "duration": track.get("duration") or 0,
         "track_count": album.get("nb_tracks") or 0,
     }
+
+
+PRESS_TTL = 24 * 3600  # news results refresh daily
+
+
+def press_mentions(term, limit=10):
+    """Real press coverage from Google News RSS (no key). Returns
+    [{title, source, url, date}] for the artist to pick from."""
+    term = (term or "").strip()
+    if not term:
+        return []
+    key = "press:" + term.lower()
+    cached = store.cache_get(key, PRESS_TTL)
+    if cached is not None:
+        return cached[:limit]
+    url = "https://news.google.com/rss/search?" + urllib.parse.urlencode(
+        {"q": term, "hl": "en-US", "gl": "US", "ceid": "US:en"})
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(_fetch_text(url))
+        out = []
+        for item in root.iter("item"):
+            title = (item.findtext("title") or "").strip()
+            source = (item.findtext("source") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            date = (item.findtext("pubDate") or "").strip()
+            if not title:
+                continue
+            # Google News titles end with " - Publication"; keep the headline.
+            if source and title.endswith(" - " + source):
+                title = title[: -len(" - " + source)]
+            out.append({"title": title, "source": source or "News",
+                        "url": link, "date": date[:16]})
+    except Exception:
+        return []
+    store.cache_set(key, out)
+    return out[:limit]
 
 
 MUSICBRAINZ_TTL = 30 * 24 * 3600

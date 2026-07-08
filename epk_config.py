@@ -7,6 +7,8 @@ derived stats stay in sync with the rest of the app; the profile fields
 so they can be edited without touching the template.
 """
 
+import re
+
 from royalty_data import get_songs
 
 # Artist-supplied profile. Not derivable from royalty data, so it lives
@@ -87,12 +89,17 @@ def normalize_epk_overrides(payload):
                for k in ("booking", "press", "management")}
     if any(contact.values()):
         out["contact"] = contact
-    press = [{"quote": (q.get("quote") or "").strip()[:220], "source": (q.get("source") or "").strip()[:60]}
+    press = [{"quote": (q.get("quote") or "").strip()[:220],
+              "source": (q.get("source") or "").strip()[:60],
+              "url": (q.get("url") or "").strip()[:300]}
              for q in (p.get("press") or []) if (q.get("quote") or "").strip()][:3]
     if press:
         out["press"] = press
     if "show_sweep" in p:
         out["show_sweep"] = bool(p.get("show_sweep"))
+    bg = (p.get("bg_color") or "").strip()
+    if "bg_color" in p:
+        out["bg_color"] = bg if re.fullmatch(r"#[0-9a-fA-F]{6}", bg) else ""
     if "sections_off" in p:
         out["sections_off"] = [k for k in (p.get("sections_off") or [])
                                if k in _SECTION_KEYS]
@@ -102,14 +109,23 @@ def normalize_epk_overrides(payload):
     return out
 
 
+def _youtube_id(url):
+    if "youtube.com/watch" in url and "v=" in url:
+        return url.split("v=")[1].split("&")[0]
+    if "youtu.be/" in url:
+        return url.split("youtu.be/")[1].split("?")[0]
+    return None
+
+
 def _video_embed(url):
     """YouTube watch/short URLs become embeddable; anything else stays a link."""
-    if "youtube.com/watch" in url and "v=" in url:
-        vid = url.split("v=")[1].split("&")[0]
-        return "https://www.youtube.com/embed/" + vid
-    if "youtu.be/" in url:
-        return "https://www.youtube.com/embed/" + url.split("youtu.be/")[1].split("?")[0]
-    return None
+    vid = _youtube_id(url)
+    return "https://www.youtube.com/embed/" + vid if vid else None
+
+
+def _video_thumb(url):
+    vid = _youtube_id(url)
+    return "https://img.youtube.com/vi/%s/hqdefault.jpg" % vid if vid else None
 
 
 def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None):
@@ -195,5 +211,8 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "sections_on": sections_on,
         "video_url": video_url,
         "video_embed": _video_embed(video_url) if video_url else None,
+        "video_thumb": _video_thumb(video_url) if video_url else None,
         "assets": assets,
+        "logo_path": next((a["path"] for a in assets if a.get("kind") == "logo"), None),
+        "bg_color": o.get("bg_color") or "#141210",
     }
