@@ -9,202 +9,230 @@
   {% if e.photo %}<meta property="og:image" content="{{ e.photo }}">{% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,900;1,9..144,300&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #efece5; }
     .serif { font-family: 'Fraunces', Georgia, serif; }
+    /* Printed-paper sheet */
+    .sheet {
+      background-color: #faf8f3;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .duo { filter: grayscale(1) contrast(1.08) brightness(1.02); }
+    .rule { background: #141210; height: 1px; opacity: .14; }
+    .leaders { overflow: hidden; }
+    .leaders::after { content: " . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."; color: rgba(20,18,16,.25); letter-spacing: 2px; }
     @media print {
       .no-print { display: none !important; }
       body { background: #ffffff !important; }
+      .sheet { box-shadow: none !important; }
     }
   </style>
 </head>
-<body class="min-h-screen bg-[#f7f5f0] text-[#141210] antialiased">
+<body class="min-h-screen text-[#141210] antialiased">
 
-  <!-- Press Office bar -->
-  <div class="no-print border-b border-[#141210]/10 bg-white">
-    <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-      <div class="text-[11px] font-bold uppercase tracking-[0.3em]">Street Banker <span class="text-[#a8862f]">— Press Office</span></div>
-      <button type="button" onclick="window.print()" class="rounded-lg border border-[#141210]/20 px-3 py-1.5 text-[11px] font-semibold hover:bg-[#141210] hover:text-white">Print / Save PDF</button>
+  <!-- Utility bar -->
+  <div class="no-print">
+    <div class="mx-auto flex max-w-[1040px] items-center justify-between px-6 py-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#141210]/70">Street Banker <span class="text-[#a8862f]">— Press Office</span></div>
+      <button type="button" onclick="window.print()" class="border border-[#141210]/25 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] transition-colors hover:bg-[#141210] hover:text-white">Print / Save PDF</button>
     </div>
   </div>
 
-  <main class="mx-auto max-w-5xl px-6">
+  <!-- ===== The sheet ===== -->
+  <main class="sheet mx-auto mb-14 max-w-[1040px] shadow-[0_30px_80px_rgba(20,18,16,0.18)]">
 
-    <!-- ===== Magazine hero ===== -->
-    <header class="grid gap-0 py-12 sm:py-16 {{ 'sm:grid-cols-[1fr_360px]' if e.photo else '' }} sm:items-end">
-      <div class="min-w-0 {{ 'sm:pr-12' if e.photo else '' }}">
-        <div class="flex items-center gap-4">
-          <span class="h-px w-10 bg-[#a8862f]"></span>
-          <span class="text-[10px] font-bold uppercase tracking-[0.45em] text-[#a8862f]">Official Press Kit</span>
-        </div>
-        <h1 class="serif mt-5 text-6xl font-black leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">{{ e.name }}</h1>
-        <p class="serif mt-6 max-w-lg text-xl font-light italic leading-snug text-[#141210]/75 sm:text-2xl">{{ e.profile.tagline }}</p>
-        <div class="mt-7 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-          <span class="rounded-full bg-[#141210] px-3.5 py-1.5 text-white">{{ e.profile.location }}</span>
-          {% for g in e.profile.genres %}<span class="rounded-full border border-[#141210]/25 px-3.5 py-1.5">{{ g }}</span>{% endfor %}
+    <!-- ===== Black cover masthead ===== -->
+    <header class="relative bg-[#141210] px-8 pb-0 pt-10 text-white sm:px-14">
+      <div class="h-[3px] w-full bg-gradient-to-r from-[#a8862f] via-[#e5c878] to-[#a8862f]"></div>
+
+      <div class="flex items-baseline justify-between pt-8">
+        <span class="text-[9px] font-bold uppercase tracking-[0.5em] text-[#d8b25a]">Official Press Kit</span>
+        <span class="serif text-[11px] italic text-white/40">Street Banker Press Office</span>
+      </div>
+
+      <div class="pb-10 pt-8">
+        <h1 class="serif break-words text-[17vw] font-black uppercase leading-[0.88] tracking-tight text-white sm:text-[92px] lg:text-[110px]">{{ e.name }}</h1>
+        <div class="mt-7 flex flex-wrap items-end justify-between gap-6">
+          <p class="serif max-w-md text-xl font-light italic leading-snug text-[#e5c878] sm:text-2xl">{{ e.profile.tagline }}</p>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">
+            <span class="text-white">{{ e.profile.location }}</span>
+            {% for g in e.profile.genres %}<span class="text-[#d8b25a]">·</span><span>{{ g }}</span>{% endfor %}
+          </div>
         </div>
       </div>
-      {% if e.photo %}
-      <figure class="relative mt-10 sm:mt-0">
-        <div class="absolute -bottom-3 -right-3 h-full w-full rounded-2xl border-2 border-[#a8862f]/60"></div>
-        <img src="{{ e.photo }}" alt="{{ e.name }}" class="relative aspect-[4/5] w-full rounded-2xl object-cover shadow-2xl">
-      </figure>
-      {% else %}
-      <div class="hidden"></div>
-      {% endif %}
-    </header>
 
-    <!-- ===== Black stat band ===== -->
-    {% if e.sections_on.stats %}
-    <section class="overflow-hidden rounded-2xl bg-[#141210] text-white shadow-xl">
-      <div class="grid grid-cols-2 divide-white/10 sm:grid-cols-2 sm:divide-x">
+      {% if e.photo %}
+      <!-- Full-bleed cover photograph -->
+      <figure class="relative -mx-8 sm:-mx-14">
+        <img src="{{ e.photo }}" alt="{{ e.name }}" class="aspect-[4/5] w-full object-cover sm:aspect-[21/10]" style="filter: contrast(1.04) saturate(1.05);">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#141210] to-transparent"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-gradient-to-r from-[#a8862f] via-[#e5c878] to-[#a8862f]"></div>
+      </figure>
+      {% endif %}
+
+      {% if e.sections_on.stats %}
+      <!-- Stats strip set into the cover -->
+      <div class="grid grid-cols-2 border-t border-white/15">
         {% for s in [e.stats[0], e.stats[3]] %}
-        <div class="px-4 py-8 text-center">
-          <div class="serif text-5xl font-black tabular-nums text-[#d8b25a]">{{ s.value }}</div>
-          <div class="mt-2 text-[10px] font-bold uppercase tracking-[0.25em] text-white/70">{{ s.label }}</div>
-          <div class="mt-0.5 text-[10px] text-white/40">{{ s.sub }}</div>
+        <div class="{{ 'border-l border-white/15' if not loop.first }} px-4 py-7 text-center">
+          <div class="serif text-4xl font-black tabular-nums text-[#e5c878] sm:text-5xl">{{ s.value }}</div>
+          <div class="mt-2 text-[9px] font-bold uppercase tracking-[0.3em] text-white/60">{{ s.label }}</div>
+          <div class="mt-0.5 text-[9px] uppercase tracking-[0.15em] text-white/30">{{ s.sub }}</div>
         </div>
         {% endfor %}
       </div>
-    </section>
-    {% endif %}
+      {% endif %}
+    </header>
 
-    <!-- ===== Bio ===== -->
-    {% if e.sections_on.bio %}
-    <section class="border-b border-[#141210]/10 py-14">
-      <div class="grid gap-6 sm:grid-cols-[180px_1fr]">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Biography</h2>
-        <p class="serif max-w-2xl text-xl font-light leading-relaxed text-[#141210]/85 sm:text-[22px]">{{ e.profile.bio }}</p>
-      </div>
-    </section>
-    {% endif %}
+    <!-- ===== Body of the sheet ===== -->
+    <div class="px-8 py-4 sm:px-14">
 
-    <!-- ===== Top tracks ===== -->
-    {% if e.sections_on.tracks %}
-    <section class="border-b border-[#141210]/10 py-14">
-      <div class="grid gap-6 sm:grid-cols-[180px_1fr]">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Top Tracks</h2>
-        <ol>
+      <!-- Bio -->
+      {% if e.sections_on.bio %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Biography</h2>
+          <div class="rule w-full"></div>
+        </div>
+        <p class="serif mt-8 max-w-3xl text-[22px] font-light leading-[1.6] text-[#141210]/90 sm:text-[26px]">{{ e.profile.bio }}</p>
+      </section>
+      {% endif %}
+
+      <!-- Top tracks: index with dotted leaders -->
+      {% if e.sections_on.tracks %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Top Tracks</h2>
+          <div class="rule w-full"></div>
+        </div>
+        <ol class="mt-8">
           {% for t in e.top_tracks %}
-          <li class="flex items-baseline justify-between gap-6 border-b border-[#141210]/10 py-3.5 first:pt-0 last:border-0">
-            <span class="flex min-w-0 items-baseline gap-5">
-              <span class="serif w-8 shrink-0 text-right text-lg font-light tabular-nums text-[#a8862f]">{{ '%02d' | format(loop.index) }}</span>
-              <span class="serif truncate text-xl font-semibold sm:text-2xl">{{ t.title }}</span>
-            </span>
-            <span class="shrink-0 text-sm font-semibold tabular-nums text-[#141210]/50">{{ t.streams_compact }} streams</span>
+          <li class="flex items-baseline gap-4 py-3">
+            <span class="serif shrink-0 text-sm font-light tabular-nums text-[#a8862f]">{{ '%02d' | format(loop.index) }}</span>
+            <span class="serif shrink-0 text-xl font-semibold sm:text-[26px]">{{ t.title }}</span>
+            <span class="leaders min-w-0 flex-1"></span>
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">{{ t.streams_compact }} streams</span>
           </li>
           {% endfor %}
         </ol>
-      </div>
-    </section>
-    {% endif %}
+      </section>
+      {% endif %}
 
-    <!-- ===== Press quotes (pull-quote treatment) ===== -->
-    {% if e.profile.press and e.sections_on.press %}
-    <section class="border-b border-[#141210]/10 py-14">
-      <div class="grid gap-6 sm:grid-cols-[180px_1fr]">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Press</h2>
-        <div class="space-y-10">
+      <!-- Press: full editorial pull quotes -->
+      {% if e.profile.press and e.sections_on.press %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Press</h2>
+          <div class="rule w-full"></div>
+        </div>
+        <div class="mt-4 divide-y divide-[#141210]/10">
           {% for q in e.profile.press %}
-          <blockquote class="relative pl-8">
-            <span class="serif absolute -left-1 -top-4 text-6xl font-black text-[#a8862f]/30">“</span>
-            <p class="serif text-2xl font-light italic leading-snug text-[#141210]/90 sm:text-3xl">{{ q.quote }}</p>
-            <cite class="mt-3 flex items-center gap-3 not-italic">
-              <span class="h-px w-8 bg-[#a8862f]"></span>
-              <span class="text-[11px] font-bold uppercase tracking-[0.2em] text-[#141210]/55">{{ q.source }}</span>
+          <blockquote class="py-10 {{ 'sm:pl-24' if loop.index is even }}">
+            <p class="serif max-w-3xl text-3xl font-light italic leading-[1.25] text-[#141210] sm:text-4xl">“{{ q.quote }}”</p>
+            <cite class="mt-5 flex items-center gap-4 not-italic">
+              <span class="h-px w-10 bg-[#a8862f]"></span>
+              <span class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#141210]/60">{{ q.source }}</span>
             </cite>
           </blockquote>
           {% endfor %}
         </div>
-      </div>
-    </section>
-    {% endif %}
+      </section>
+      {% endif %}
 
-    <!-- ===== Royalty Sweep intelligence (optional, artist-controlled) ===== -->
-    {% if e.show_sweep %}
-    <section class="my-14 overflow-hidden rounded-2xl bg-[#141210] p-8 text-white shadow-xl">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#d8b25a]">Powered by Royalty Sweep</h2>
-        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Catalog verified</span>
-      </div>
-      <div class="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
-        <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Strongest Platform</div><div class="serif mt-1.5 text-2xl font-semibold">{{ e.top_platform }}</div></div>
-        <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">{{ e.stats[1].label }}</div><div class="serif mt-1.5 text-2xl font-semibold tabular-nums">{{ e.stats[1].value }}</div></div>
-        <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">{{ e.stats[2].label }}</div><div class="serif mt-1.5 text-2xl font-semibold tabular-nums text-[#d8b25a]">{{ e.stats[2].value }}</div></div>
-        <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">{{ e.stats[3].label }}</div><div class="serif mt-1.5 text-2xl font-semibold tabular-nums">{{ e.stats[3].value }}</div></div>
-      </div>
-      <p class="mt-6 text-[10px] text-white/40">Catalog intelligence by Royalty Sweep. Sample metrics shown — live royalty data connects at launch.</p>
-    </section>
-    {% endif %}
+      <!-- Royalty Sweep intelligence (optional, artist-controlled) -->
+      {% if e.show_sweep %}
+      <section class="my-12 bg-[#141210] px-8 py-9 text-white sm:px-10">
+        <div class="h-[2px] w-14 bg-[#d8b25a]"></div>
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-[10px] font-bold uppercase tracking-[0.4em] text-[#d8b25a]">Powered by Royalty Sweep</h2>
+          <span class="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Catalog verified</span>
+        </div>
+        <div class="mt-7 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">Strongest Platform</div><div class="serif mt-2 text-2xl font-semibold">{{ e.top_platform }}</div></div>
+          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[1].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums">{{ e.stats[1].value }}</div></div>
+          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[2].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums text-[#e5c878]">{{ e.stats[2].value }}</div></div>
+          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[3].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums">{{ e.stats[3].value }}</div></div>
+        </div>
+        <p class="mt-7 text-[9px] uppercase tracking-[0.15em] text-white/35">Catalog intelligence by Royalty Sweep · Sample metrics shown — live royalty data connects at launch</p>
+      </section>
+      {% endif %}
 
-    <!-- ===== Media assets / downloads ===== -->
-    {% if e.sections_on.media and (e.assets or e.video_url) %}
-    <section class="border-b border-[#141210]/10 py-14">
-      <div class="grid gap-6 sm:grid-cols-[180px_1fr]">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Media Assets</h2>
-        <div>
+      <!-- Media assets / downloads -->
+      {% if e.sections_on.media and (e.assets or e.video_url) %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Media Assets</h2>
+          <div class="rule w-full"></div>
           {% if e.assets %}
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {% for a in e.assets %}
-            <a href="{{ a.path }}" download class="group block overflow-hidden rounded-xl border border-[#141210]/15 bg-white shadow-sm transition-shadow hover:shadow-lg">
-              <div class="overflow-hidden"><img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"></div>
-              <div class="flex items-center justify-between px-3 py-2.5 text-[10px] font-bold"><span>{{ a.label }}</span><span class="text-[#a8862f]">Download ↓</span></div>
-            </a>
-            {% endfor %}
-          </div>
-          <a href="/epk/{{ slug }}/kit.zip" class="no-print mt-5 inline-block rounded-lg bg-[#141210] px-6 py-3 text-[11px] font-bold uppercase tracking-[0.15em] text-white hover:bg-[#141210]/85">Download Press Kit (ZIP)</a>
-          {% endif %}
-          {% if e.video_embed %}
-          <div class="no-print mt-6 aspect-video overflow-hidden rounded-xl border border-[#141210]/15 shadow-lg">
-            <iframe src="{{ e.video_embed }}" class="h-full w-full" frameborder="0" allowfullscreen loading="lazy" title="{{ e.name }} video"></iframe>
-          </div>
-          {% elif e.video_url %}
-          <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="no-print mt-6 inline-block rounded-lg border border-[#141210]/20 px-4 py-2 text-xs font-bold hover:bg-[#141210]/5">Watch video ↗</a>
+          <a href="/epk/{{ slug }}/kit.zip" class="no-print shrink-0 bg-[#141210] px-5 py-2.5 text-[9px] font-bold uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#a8862f]">Download Press Kit (ZIP)</a>
           {% endif %}
         </div>
-      </div>
-    </section>
-    {% endif %}
-
-    <!-- ===== Contact ===== -->
-    {% if e.sections_on.contact %}
-    <section class="py-14">
-      <div class="grid gap-6 sm:grid-cols-[180px_1fr]">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Contact</h2>
-        <div>
-          <div class="grid gap-4 sm:grid-cols-3">
-            {% for key, label in [('booking', 'Booking'), ('press', 'Press'), ('management', 'Management')] %}
-            {% if e.profile.contact[key] %}
-            <div class="rounded-xl border border-[#141210]/15 bg-white p-5 shadow-sm">
-              <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#a8862f]">{{ label }}</div>
-              {% if '@' in e.profile.contact[key] %}
-              <a href="mailto:{{ e.profile.contact[key] }}" class="serif mt-2 block truncate text-base font-semibold hover:underline">{{ e.profile.contact[key] }}</a>
-              {% else %}
-              <div class="serif mt-2 truncate text-base font-semibold">{{ e.profile.contact[key] }}</div>
-              {% endif %}
+        {% if e.assets %}
+        <div class="mt-8 grid gap-8 sm:grid-cols-2">
+          {% for a in e.assets %}
+          <a href="{{ a.path }}" download class="group block">
+            <div class="relative overflow-hidden border border-[#141210]/15">
+              <img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" style="filter: contrast(1.03) saturate(1.04);">
+              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-[#a8862f] via-[#e5c878] to-[#a8862f] opacity-0 transition-opacity group-hover:opacity-100"></div>
             </div>
+            <div class="mt-3 flex items-baseline justify-between">
+              <span class="text-[11px] font-bold uppercase tracking-[0.25em]">{{ a.label }}</span>
+              <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#a8862f]">Download ↓</span>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if e.video_embed %}
+        <div class="no-print mt-8 aspect-video w-full border border-[#141210]/20">
+          <iframe src="{{ e.video_embed }}" class="h-full w-full" frameborder="0" allowfullscreen loading="lazy" title="{{ e.name }} video"></iframe>
+        </div>
+        {% elif e.video_url %}
+        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="no-print mt-8 inline-block border border-[#141210]/25 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-[#141210] hover:text-white">Watch video ↗</a>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <!-- Contact -->
+      {% if e.sections_on.contact %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Contact</h2>
+          <div class="rule w-full"></div>
+        </div>
+        <div class="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-3">
+          {% for key, label in [('booking', 'Booking'), ('press', 'Press'), ('management', 'Management')] %}
+          {% if e.profile.contact[key] %}
+          <div>
+            <div class="text-[9px] font-bold uppercase tracking-[0.35em] text-[#141210]/45">{{ label }}</div>
+            {% if '@' in e.profile.contact[key] %}
+            <a href="mailto:{{ e.profile.contact[key] }}" class="serif mt-2 block break-all text-lg font-semibold underline decoration-[#a8862f]/40 decoration-1 underline-offset-4 hover:decoration-[#a8862f]">{{ e.profile.contact[key] }}</a>
+            {% else %}
+            <div class="serif mt-2 break-all text-lg font-semibold">{{ e.profile.contact[key] }}</div>
             {% endif %}
-            {% endfor %}
-          </div>
-          {% if e.profile.socials %}
-          <div class="mt-5 flex flex-wrap gap-2">
-            {% for s in e.profile.socials %}
-            <span class="rounded-full border border-[#141210]/15 bg-white px-4 py-2 text-[11px] font-semibold shadow-sm"><span class="text-[#a8862f]">{{ s.label }}</span> {{ s.handle }}</span>
-            {% endfor %}
           </div>
           {% endif %}
+          {% endfor %}
         </div>
-      </div>
-    </section>
-    {% endif %}
+        {% if e.profile.socials %}
+        <div class="mt-9 flex flex-wrap gap-x-8 gap-y-3">
+          {% for s in e.profile.socials %}
+          <span class="text-[10px] font-bold uppercase tracking-[0.2em]"><span class="text-[#a8862f]">{{ s.label }}</span> <span class="text-[#141210]/70 normal-case tracking-normal">{{ s.handle }}</span></span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
 
+      <!-- Folio -->
+      <footer class="flex items-center justify-between border-t border-[#141210]/15 py-8">
+        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-[#141210]/45">{{ e.name }} — Press Kit</span>
+        <a href="/" class="text-[9px] font-bold uppercase tracking-[0.35em] text-[#141210]/45 hover:text-[#141210]">Powered by <span class="text-[#a8862f]">Street Banker</span></a>
+      </footer>
+    </div>
   </main>
-
-  <footer class="no-print border-t border-[#141210]/10 bg-white py-8 text-center">
-    <a href="/" class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#141210]/60 hover:text-[#141210]">Press kit powered by <span class="text-[#a8862f]">Street Banker</span></a>
-  </footer>
 
 </body>
 </html>
