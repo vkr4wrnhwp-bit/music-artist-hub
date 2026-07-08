@@ -2080,13 +2080,70 @@ def create_app():
         reference = "REQ-" + offer_id.split("-")[-1].upper() + "-" + datetime.today().strftime("%Y%m%d")
         return jsonify({"ok": True, "reference": reference, "offer": offer["name"]})
 
-    @app.route("/documents")
+    _DOC_TYPES = ["Split Agreement", "Producer Agreement", "Feature Agreement",
+                  "Distribution", "Publishing", "Sync License", "Statement",
+                  "Registration", "Other"]
+    _DOC_EXTS = ("pdf", "doc", "docx", "txt", "csv", "png", "jpg", "jpeg", "webp")
+
+    @app.route("/documents", methods=["GET", "POST"])
     def documents():
-        return render_template("documents.html", active_page="documents", **build_dashboard_context())
+        user = current_user()
+        error = None
+        if request.method == "POST":
+            if user is None:
+                return login_required_redirect()
+            f = request.files.get("document")
+            if f is None or not f.filename:
+                error = "Choose a file to upload."
+            else:
+                ext = f.filename.rsplit(".", 1)[-1].lower()
+                if ext not in _DOC_EXTS:
+                    error = "Use PDF, DOC/DOCX, TXT, CSV, or an image file."
+                else:
+                    fname = "doc_%s.%s" % (uuid.uuid4().hex, ext)
+                    f.save(os.path.join(UPLOADS_DIR, fname))
+                    doc_type = request.form.get("doc_type") or "Other"
+                    store.add_document(user["id"], f.filename, "/uploads/" + fname,
+                                       doc_type if doc_type in _DOC_TYPES else "Other",
+                                       (request.form.get("note") or "").strip())
+                    return redirect("/documents")
+        ctx = build_dashboard_context()
+        ctx["docs_user"] = user
+        ctx["real_docs"] = store.list_documents(user["id"]) if user else []
+        ctx["doc_types"] = _DOC_TYPES
+        ctx["doc_error"] = error
+        return render_template("documents.html", active_page="documents", **ctx)
+
+    @app.route("/documents/<doc_id>/delete", methods=["POST"])
+    def document_delete(doc_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        path = store.delete_document(user["id"], doc_id)
+        if path:
+            try:
+                os.remove(os.path.join(UPLOADS_DIR, os.path.basename(path)))
+            except OSError:
+                pass
+        return redirect("/documents")
 
     @app.route("/identifiers")
     def identifiers():
-        return render_template("identifiers.html", active_page="identifiers", **build_dashboard_context())
+        ctx = build_dashboard_context()
+        user = current_user()
+        ctx["ids_user"] = user
+        tracks = store.get_catalog_tracks(user["id"]) if user else []
+        rows = []
+        for t in tracks:
+            m = t.get("meta") or {}
+            rows.append({"title": t["title"], "artist": t["artist"],
+                         "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
+                         "label": m.get("label") or "",
+                         "release_date": m.get("release_date") or ""})
+        ctx["real_ids"] = rows
+        ctx["ids_with_isrc"] = sum(1 for r in rows if r["isrc"])
+        ctx["ids_with_upc"] = sum(1 for r in rows if r["upc"])
+        return render_template("identifiers.html", active_page="identifiers", **ctx)
 
     @app.route("/conflicts")
     def conflicts():

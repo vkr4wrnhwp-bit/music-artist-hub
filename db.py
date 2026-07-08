@@ -252,6 +252,15 @@ def init_db():
                 is_read INTEGER NOT NULL DEFAULT 0,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS documents (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                path TEXT NOT NULL,
+                doc_type TEXT NOT NULL DEFAULT 'Agreement',
+                note TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -587,3 +596,32 @@ def unread_notifications(user_id):
 def mark_notifications_read(user_id):
     with get_db() as db:
         db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
+
+# --- Documents vault -----------------------------------------------------------
+
+def add_document(user_id, filename, path, doc_type, note=""):
+    doc_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO documents (id, user_id, filename, path, doc_type, note, created)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (doc_id, user_id, filename[:200], path, doc_type[:60], note[:300], _now()))
+    return doc_id
+
+
+def list_documents(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM documents WHERE user_id = ? ORDER BY created DESC",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_document(user_id, doc_id):
+    with get_db() as db:
+        row = db.execute("SELECT path FROM documents WHERE id = ? AND user_id = ?",
+                         (doc_id, user_id)).fetchone()
+        if row is None:
+            return None
+        db.execute("DELETE FROM documents WHERE id = ? AND user_id = ?", (doc_id, user_id))
+    return row["path"]

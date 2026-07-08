@@ -2227,6 +2227,57 @@ def test_notifications_from_real_events():
     assert "Notifications" in anon
 
 
+# --- Documents vault + real identifiers --------------------------------------------
+
+def test_documents_vault_real():
+    import io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "doc%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "D", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    r = client.post("/documents", data={
+        "document": (io.BytesIO(b"%PDF-1.4 fake"), "producer-split.pdf"),
+        "doc_type": "Producer Agreement", "note": "50/50 with Marcus"},
+        content_type="multipart/form-data")
+    assert r.status_code == 302
+    body = client.get("/documents").get_data(as_text=True)
+    assert "Your Vault" in body and "producer-split.pdf" in body
+    assert "50/50 with Marcus" in body
+    user = store_mod.get_user_by_email(email)
+    doc = store_mod.list_documents(user["id"])[0]
+    assert client.get(doc["path"]).status_code == 200      # actually served
+    # Dangerous extensions rejected; deletion removes listing + file.
+    bad = client.post("/documents", data={"document": (io.BytesIO(b"x"), "evil.exe")},
+                      content_type="multipart/form-data")
+    assert "Use PDF" in bad.get_data(as_text=True)
+    client.post("/documents/%s/delete" % doc["id"])
+    assert "producer-split.pdf" not in client.get("/documents").get_data(as_text=True)
+    # Other users cannot delete someone else's document.
+    assert store_mod.delete_document("someone-else", doc["id"]) is None
+
+
+def test_identifiers_page_uses_real_catalog(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
+    monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
+    client = _ml_login(create_app())
+    client.post("/catalog/add", json={"title": "ID Song", "artist": "A"})
+    body = client.get("/identifiers").get_data(as_text=True)
+    assert "Your Identifiers" in body
+    assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
+    assert "auto-pulled from your catalog" in body
+    # A metadata-less track is flagged with an actionable MISSING row.
+    monkeypatch.setattr(music_apis, "_fetch_json",
+                        lambda url: {"data": [], "results": []})
+    client.post("/catalog/add", json={"title": "No Meta Song", "artist": "B"})
+    body = client.get("/identifiers").get_data(as_text=True)
+    assert "MISSING" in body and "Create action" in body
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()
