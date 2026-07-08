@@ -173,6 +173,11 @@
       {% endfor %}
     </div>
 
+    <!-- Patchbay: your song, routed to our desk -->
+    <div class="border-t border-black/15 px-6 pb-1 pt-4 sm:px-10">
+      {{ gear.patchbay(tags=[('SONG', 0, 1), ('STORY', 2, 3), ('SEND', 4, 2)]) }}
+    </div>
+
     <!-- Status strip -->
     <div class="flex items-center justify-between border-t border-black/15 px-10 py-3">
       <span class="text-[8px] font-bold uppercase tracking-[0.35em] text-[#4a4a52]">Street Banker · SR-03 · Signal Routing</span>
