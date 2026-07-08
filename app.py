@@ -518,7 +518,7 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 4,
+            "v": 5,
             "var_data_is_real_mount": os.path.ismount("/var/data"),
         })
 
