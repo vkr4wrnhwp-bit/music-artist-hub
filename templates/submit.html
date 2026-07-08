@@ -16,45 +16,91 @@
 
 {% block content %}
 {% if submit_page_img %}
-<!-- Designed full-page image with real clickable overlays on the blank plates.
-     Positions are % of the image so they scale together; nudge as needed. -->
-<div class="relative mx-auto max-w-[940px]" style="font-size: clamp(8px, 1.55vw, 15px);">
-  <img src="{{ submit_page_img }}" alt="Send us your sound — Street Banker A&R desk" class="block h-auto w-full">
+<!-- Text-free designed art + ALL copy as real positioned HTML.
+     Percent coordinates scale with the image; nudge values to fine-align. -->
+<div class="mx-auto max-w-[940px]">
 
-  <!-- Gold plate: Email Your Demo -->
-  <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
-     class="absolute flex items-center justify-center font-bold text-[#1c1302] transition-transform hover:scale-[1.03]"
-     style="left: 49.6%; top: 42.9%; width: 21.2%; height: 4%;" aria-label="Email your demo">
-    Email Your Demo&nbsp;&rsaquo;
-  </a>
+  <!-- Editorial header (HTML above the art; page + art are both near-black) -->
+  <div class="pt-6 pb-2 text-center">
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker — A&amp;R Desk</div>
+    <h1 class="mt-4 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl">
+      <span class="text-gray-100">Send Us</span><br>
+      <span class="bg-gradient-to-b from-[#f2dc96] via-[#d8b25a] to-[#a37c2a] bg-clip-text text-transparent drop-shadow-[0_2px_12px_rgba(216,178,90,0.25)]">Your Sound.</span>
+    </h1>
+    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-200">
+      No forms. No fees. No gatekeeping robots. A real person at Street Banker listens to everything that lands on our desk.
+    </p>
+  </div>
 
-  <!-- Dark plate: Build an EPK first -->
-  <a href="/epk"
-     class="absolute flex items-center justify-center font-semibold text-gray-100 transition-colors hover:text-[#e8c667]"
-     style="left: 72.4%; top: 42.9%; width: 19.2%; height: 4%;" aria-label="Build an EPK first">
-    Build an EPK first
-  </a>
+  <div class="relative" style="font-size: clamp(7px, 1.5vw, 14.5px);">
+    <img src="{{ submit_page_img }}" alt="Street Banker A&R desk — turntable, meters, and patchbay" class="block h-auto w-full">
 
-  <!-- Step number plates -->
-  {% for n, left in [('01', 16.2), ('02', 46.5), ('03', 78.0)] %}
-  <span class="absolute flex items-center justify-center font-bold tracking-[0.2em] text-[#e8c667]"
-        style="left: {{ left }}%; top: 63.9%; width: 6.8%; height: 2.4%;">{{ n }}</span>
-  {% endfor %}
+    <!-- Vinyl gold label -->
+    <span class="pointer-events-none absolute flex flex-col items-center justify-center text-center"
+          style="left: 16.5%; top: 22.3%; width: 13%; height: 4.6%;">
+      <span class="text-[0.72em] font-extrabold uppercase tracking-[0.12em] text-[#1c1302]">Street Banker</span>
+      <span class="text-[0.5em] font-bold uppercase tracking-[0.28em] text-[#1c1302]/70">A&amp;R Desk</span>
+    </span>
 
-  <!-- Patchbay plate: LINK / MP3 -->
-  <span class="absolute flex items-center justify-center gap-[1em]"
-        style="left: 6.8%; top: 84.2%; width: 15%; height: 2.4%;">
-    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (streaming link)" class="font-bold tracking-[0.15em] text-[#e8c667] hover:underline">LINK</a>
-    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (MP3 attached)" class="font-bold tracking-[0.15em] text-[#e8c667] hover:underline">MP3</a>
-  </span>
+    <!-- Turntable panel: right-side copy -->
+    <div class="absolute" style="left: 49%; top: 14.6%; width: 43%;">
+      <div class="text-[0.78em] font-semibold uppercase tracking-[0.28em] text-[#c9a24a]">Now accepting demos</div>
+      <h2 class="mt-[0.6em] text-[1.9em] font-extrabold uppercase leading-[1.08] tracking-tight text-white">Every record starts as a demo somebody almost didn't send.</h2>
+      <p class="mt-[0.9em] text-[0.95em] leading-[1.55] text-gray-200">Synthwave to soul, bedroom demo to mixed master — if it moves, we want to hear it. If it's a fit, we'll reach out about distribution, marketing, or a full label deal.</p>
+    </div>
 
-  <!-- The Desk: email bars -->
-  <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
-     class="absolute flex items-center justify-center font-semibold text-[#e8c667] hover:underline"
-     style="left: 8.3%; top: 91.7%; width: 38%; height: 2.6%;">{{ lb.brand.submissions_emails[0] }}</a>
-  <a href="mailto:{{ lb.brand.submissions_emails[1] }}?subject=Demo Submission"
-     class="absolute flex items-center justify-center font-semibold text-[#e8c667] hover:underline"
-     style="left: 52.2%; top: 91.7%; width: 38%; height: 2.6%;">{{ lb.brand.submissions_emails[1] }}</a>
+    <!-- Buttons on the plates -->
+    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
+       class="absolute flex items-center justify-center font-bold text-[#1c1302] transition-transform hover:scale-[1.02]"
+       style="left: 50.4%; top: 34.2%; width: 20.4%; height: 4.6%; font-size: 1.05em;" aria-label="Email your demo">Email Your Demo&nbsp;&rsaquo;</a>
+    <a href="/epk"
+       class="absolute flex items-center justify-center font-semibold text-gray-100 transition-colors hover:text-[#e8c667]"
+       style="left: 72.7%; top: 34.2%; width: 19.6%; height: 4.6%; font-size: 1em;" aria-label="Build an EPK first">Build an EPK first</a>
+
+    <!-- How It Works -->
+    <span class="absolute left-0 top-[44.6%] flex w-full justify-center text-[0.85em] font-bold uppercase tracking-[0.35em] text-[#e8c667]">How It Works</span>
+    {% for n, plate_left, col_left, title, body in [
+      ('01', 16.9, 4.8, 'Make it easy to love', 'A link or two attachments beats a zip of 40 stems. Lead with your best song.'),
+      ('02', 47.3, 35.3, 'Tell us who you are', 'A few lines, your numbers if you have them, links to your world. An EPK is perfect.'),
+      ('03', 78.0, 66.0, 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
+    ] %}
+    <span class="absolute flex items-center justify-center text-[0.8em] font-bold tracking-[0.2em] text-[#e8c667]"
+          style="left: {{ plate_left }}%; top: 56.3%; width: 5.6%; height: 2.2%;">{{ n }}</span>
+    <span class="absolute flex justify-center text-center text-[0.95em] font-extrabold uppercase tracking-wide text-white"
+          style="left: {{ col_left }}%; top: 59.2%; width: 30%;">{{ title }}</span>
+    <p class="absolute text-center text-[0.78em] leading-[1.5] text-gray-300"
+       style="left: {{ col_left + 1 }}%; top: 62.3%; width: 28%;">{{ body }}</p>
+    {% endfor %}
+
+    <!-- Patchbay -->
+    <span class="absolute left-0 top-[67.4%] flex w-full justify-center text-[0.78em] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Send It To The Desk</span>
+    <span class="absolute flex items-center justify-center text-[0.62em] font-bold uppercase tracking-[0.2em] text-[#c9a24a]"
+          style="left: 6.2%; top: 69.2%; width: 7.4%; height: 1.9%;">Output</span>
+    <span class="absolute flex items-center justify-center text-[0.62em] font-bold uppercase tracking-[0.2em] text-[#c9a24a]"
+          style="left: 6.2%; top: 73.3%; width: 7.4%; height: 1.9%;">Send</span>
+    <span class="absolute flex items-center justify-center gap-[0.8em]" style="left: 6.2%; top: 77.3%; width: 7.4%; height: 1.6%;">
+      <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (streaming link)" class="text-[0.6em] font-bold tracking-[0.12em] text-[#e8c667] hover:underline">LINK</a>
+      <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (MP3 attached)" class="text-[0.6em] font-bold tracking-[0.12em] text-[#e8c667] hover:underline">MP3</a>
+    </span>
+    <div class="pointer-events-none absolute flex flex-col items-center text-center" style="left: 77%; top: 70.2%; width: 16.5%;">
+      <span class="text-[1.05em] font-extrabold uppercase tracking-[0.25em] text-[#e8c667]">Patchbay</span>
+      <span class="mt-[0.7em] text-[0.62em] font-semibold uppercase tracking-[0.28em] text-gray-300">Street Banker</span>
+      <span class="mt-[0.25em] text-[0.56em] font-semibold uppercase tracking-[0.3em] text-gray-500">A&amp;R Desk</span>
+    </div>
+    <span class="pointer-events-none absolute flex items-center text-[0.55em] font-semibold uppercase tracking-[0.18em] text-gray-400"
+          style="left: 80.7%; top: 77%; width: 8%; height: 1.5%;">Signal</span>
+
+    <!-- The Desk -->
+    <span class="absolute left-0 top-[83.3%] flex w-full justify-center text-[0.78em] font-bold uppercase tracking-[0.3em] text-[#e8c667]">The Desk</span>
+    <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission"
+       class="absolute flex items-center justify-center text-[1em] font-semibold text-[#e8c667] hover:underline"
+       style="left: 7.4%; top: 85.5%; width: 40.6%; height: 3.6%;">{{ lb.brand.submissions_emails[0] }}</a>
+    <a href="mailto:{{ lb.brand.submissions_emails[1] }}?subject=Demo Submission"
+       class="absolute flex items-center justify-center text-[1em] font-semibold text-[#e8c667] hover:underline"
+       style="left: 51.5%; top: 85.5%; width: 41%; height: 3.6%;">{{ lb.brand.submissions_emails[1] }}</a>
+    <span class="absolute flex justify-center text-center text-[0.72em] leading-[1.5] text-gray-400"
+          style="left: 15%; top: 89.8%; width: 70%;">Reviewed by the Street Banker team. No automation, no auto-responders — we can't reply to everything, but we do play everything.</span>
+  </div>
 </div>
 {% else %}
 <div class="mx-auto max-w-4xl">
