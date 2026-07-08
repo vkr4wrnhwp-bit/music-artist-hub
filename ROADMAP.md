@@ -1,5 +1,19 @@
 # Roadmap notes
 
+## Shopify = the commerce engine (decided)
+The existing Shopify store (artiswarrecords.com) stays live and handles all real
+commerce — merch, checkout, payments, PCI compliance. The app gets hosted at a
+subdomain (target: **app.artiswarrecords.com**) and the two are stitched:
+
+- App -> store links: done (services hub "Shop Apparel & Merch", homepage footer).
+- User steps at go-live: DNS CNAME `app.artiswarrecords.com` -> host; add an
+  "Artist Portal" link to the Shopify store nav.
+- Next integrations: **Shopify Buy Button** embeds inside the app (Apparel page,
+  Discover, Network artist profiles) — embed code generated from the Shopify
+  admin; later the Storefront API can feed a live in-app Merch tab.
+- Result: no custom payment code needed; the store the user already built is
+  the ecosystem's real checkout.
+
 ## Native mobile app (planned)
 Street Banker / Royalty Sweep is currently a Flask web app (demo + marketing
 surface). The goal is to **also ship a native mobile app (iOS/Android)** and/or

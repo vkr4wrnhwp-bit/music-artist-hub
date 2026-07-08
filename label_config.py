@@ -9,6 +9,9 @@ BRAND = {
     "name": "Art Is War Records",
     "sub": "SummitArts",
     "tagline": "Music Marketing, Management & Label",
+    # The live Shopify store — the ecosystem's real commerce engine.
+    "store_url": "https://www.artiswarrecords.com",
+    "store_label": "Shop Apparel & Merch",
     "contact_email": "team.summitarts@gmail.com",
     "submissions_emails": ["team.summitarts@gmail.com", "artiswarrecords@gmail.com"],
     "consulting_contact": "Lucas Joyner",

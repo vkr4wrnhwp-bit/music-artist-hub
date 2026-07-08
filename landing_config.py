@@ -334,6 +334,7 @@ def get_landing_config():
                 ]},
                 {"title": "Company", "links": [
                     {"label": "Label Services", "href": "/services"},
+                    {"label": "Shop Apparel", "href": "https://www.artiswarrecords.com"},
                     {"label": "Team", "href": "/team"},
                     {"label": "Partners", "href": "/network"},
                     {"label": "Contact", "href": "/submit"},

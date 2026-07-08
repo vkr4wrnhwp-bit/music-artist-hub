@@ -22,6 +22,7 @@
     <p class="mt-1 text-sm text-amber-400/90">{{ lb.brand.tagline }}</p>
     <div class="mt-4 flex flex-wrap gap-2">
       <a href="/submit" class="rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25">Submit your music</a>
+      <a href="{{ lb.brand.store_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 hover:bg-white/5">{{ lb.brand.store_label }} ↗</a>
       <a href="mailto:{{ lb.brand.contact_email }}" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 hover:bg-white/5">Contact the label</a>
     </div>
   </section>
