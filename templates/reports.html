@@ -30,6 +30,31 @@
     </div>
   </div>
 
+  {% if reports_user %}
+  <section class="rounded-2xl border border-[#c9a24a]/40 bg-gradient-to-b from-[#141209] to-[#0d0c09] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Your Real Reports <span class="ml-2 rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[9px] font-semibold text-green-400">LIVE ACCOUNT DATA</span></h2>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% for title, desc, href, kind in [
+        ('Executive Report', 'Qualification, royalty findings, campaigns, and fan ownership in one partner-ready document.', '/reports/executive', 'Print / PDF'),
+        ('Campaign Performance', 'Every campaign with visits, clicks, CTR, captures, and SB score.', '/reports/campaigns.csv', 'CSV'),
+        ('Recovery Findings', 'Unmatched revenue and coverage gaps from your uploaded statements.', '/reports/recovery.csv', 'CSV'),
+        ('Fan CRM Export', 'Owned fans with consent status and intent scores.', '/links/fans/export.csv', 'CSV'),
+        ('Royalty Rows', 'Raw parsed statement rows for accounting.', '/reports/royalty-report/download.csv', 'CSV'),
+        ('Artist One-Sheet', 'The label-facing profile with badges and live numbers.', '/artist-profile', 'Print / PDF'),
+      ] %}
+      <a href="{{ href }}" class="flex flex-col rounded-xl border border-white/10 bg-black/30 p-4 transition-colors hover:border-[#c9a24a]/50">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm font-bold text-gray-100">{{ title }}</span>
+          <span class="shrink-0 rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ kind }}</span>
+        </div>
+        <p class="mt-1 flex-1 text-[11px] text-gray-500">{{ desc }}</p>
+        <span class="mt-2 text-[10px] font-bold uppercase tracking-wide text-[#e8c667]">{{ 'Download' if kind == 'CSV' else 'Open' }} →</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
       <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Report Types</div>

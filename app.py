@@ -777,7 +777,82 @@ def create_app():
     def reports():
         ctx = build_dashboard_context()
         ctx["reports_data"] = get_reports_data()
+        ctx["reports_user"] = current_user()
         return render_template("reports.html", active_page="reports", **ctx)
+
+    @app.route("/reports/campaigns.csv")
+    def report_campaigns_csv():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import csv as _csv
+        import io as _io
+        out = _io.StringIO()
+        w = _csv.writer(out)
+        w.writerow(["Campaign", "Artist", "Status", "Release Date", "SB Score",
+                    "Visits", "Service Clicks", "CTR %", "Pre-saves",
+                    "Email Captures", "QR Scans", "Public URL"])
+        for c in mls.list_campaigns(user["id"]):
+            counts = mls.event_counts(c["id"])
+            visits = counts.get("page_view", 0)
+            clicks = counts.get("service_click", 0)
+            score = links_engine.calculate_street_banker_score(
+                c, mls.get_destinations(c["id"]))
+            w.writerow([c["title"], c["artist_name"],
+                        links_engine.effective_status(c), c["release_date"],
+                        score["total"], visits, clicks,
+                        round(100 * clicks / visits, 1) if visits else 0,
+                        counts.get("presave_notify", 0),
+                        counts.get("email_capture", 0), counts.get("qr_scan", 0),
+                        request.host_url.rstrip("/") + "/l/" + c["slug"]])
+        return Response(out.getvalue(), mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=street-banker-campaigns.csv"})
+
+    @app.route("/reports/recovery.csv")
+    def report_recovery_csv():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import csv as _csv
+        import io as _io
+        summary = build_royalty_summary(store.get_statement_rows(user["id"]))
+        out = _io.StringIO()
+        w = _csv.writer(out)
+        w.writerow(["Finding", "Track", "Detail", "Amount / Estimate", "Type"])
+        if summary:
+            if summary["unmatched_revenue"]:
+                w.writerow(["Unmatched revenue", "(rows with no title)",
+                            "Money paid but not attributed — request corrected metadata",
+                            summary["unmatched_revenue"], "Actual"])
+            for g in summary["coverage_gaps"]:
+                w.writerow(["Coverage gap", g["title"],
+                            "Missing from: " + ", ".join(g["missing_sources"]),
+                            g["estimated_value"], "Estimate"])
+        return Response(out.getvalue(), mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=street-banker-recovery-findings.csv"})
+
+    @app.route("/reports/executive")
+    def report_executive():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        campaigns = []
+        for c in mls.list_campaigns(user["id"]):
+            counts = mls.event_counts(c["id"])
+            campaigns.append({**c, "visits": counts.get("page_view", 0),
+                              "clicks": counts.get("service_click", 0),
+                              "fans": counts.get("email_capture", 0)
+                                      + counts.get("presave_notify", 0),
+                              "eff_status": links_engine.effective_status(c)})
+        campaigns.sort(key=lambda c: c["visits"], reverse=True)
+        return render_template(
+            "report_executive.html",
+            user=user, summary=cc.get_summary(user["id"]),
+            q=qualification.calculate(user["id"]),
+            rr=build_royalty_summary(store.get_statement_rows(user["id"])),
+            campaigns=campaigns,
+            fans=mls.list_fans(user["id"]),
+            today=datetime.now(timezone.utc).strftime("%B %d, %Y"))
 
     UPLOADS_DIR = os.path.join(os.path.dirname(store.db_path()), "uploads")
     os.makedirs(UPLOADS_DIR, exist_ok=True)

@@ -2146,6 +2146,46 @@ def test_royalty_summary_math():
     assert build_royalty_summary([]) is None
 
 
+# --- Real reports ------------------------------------------------------------------
+
+def test_real_reports_suite():
+    import io
+    import uuid as _uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "rep%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "R", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})   # reports live in Royalty Sweep
+    # Seed real activity: a published campaign and a statement.
+    r = client.post("/links/new", data={"title": "Report Drop",
+                                        "dest_spotify": "https://sp/x"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    csv_rows = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"Midnight Drive,Spotify,120.50,2026-04\n"
+                b",Spotify,12.40,2026-05\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv_rows), "s.csv")},
+                content_type="multipart/form-data")
+    # Reports hub shows the live-data band.
+    body = client.get("/reports").get_data(as_text=True)
+    assert "Your Real Reports" in body and "Executive Report" in body
+    # Campaign CSV carries real rows.
+    body = client.get("/reports/campaigns.csv").get_data(as_text=True)
+    assert "Report Drop" in body and "SB Score" in body
+    # Recovery CSV carries the unmatched finding.
+    body = client.get("/reports/recovery.csv").get_data(as_text=True)
+    assert "Unmatched revenue" in body and "12.4" in body
+    # Executive report composes score + money + campaigns + fans.
+    body = client.get("/reports/executive").get_data(as_text=True)
+    for marker in ("Executive Report", "SB Qualification", "Royalty Findings",
+                   "Report Drop", "Fan Ownership", "Prepared by Street Banker"):
+        assert marker in body
+    # Signed-out visitors are redirected, never served account data.
+    assert app_obj.test_client().get("/reports/executive").status_code == 302
+    assert app_obj.test_client().get("/reports/campaigns.csv").status_code == 302
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()
