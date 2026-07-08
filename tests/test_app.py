@@ -2088,6 +2088,64 @@ def test_admin_review_queue_label_only():
     assert artist.get("/qualification").status_code == 200  # own score always visible
 
 
+# --- Real royalty engine: statements power the money pages -----------------------
+
+def test_money_pages_use_real_statement_data():
+    import io
+    import uuid as _uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "money%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "M", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    # Before any upload: honest sample-data nudge.
+    body = client.get("/overview").get_data(as_text=True)
+    assert "Sample data below" in body and "Upload a statement" in body
+    csv_data = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"Midnight Drive,Spotify,120.50,2026-04\n"
+                b"Midnight Drive,Apple Music,80.25,2026-05\n"
+                b"Neon Dreams,Spotify,60.00,2026-05\n"
+                b",Spotify,12.40,2026-05\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv_data), "s.csv")},
+                content_type="multipart/form-data")
+    # Overview: real totals, unmatched, top track.
+    body = client.get("/overview").get_data(as_text=True)
+    assert "Your Real Numbers" in body and "273.15" in body and "12.40" in body
+    assert "Midnight Drive" in body
+    # Royalties: source bars, monthly trend, top tracks.
+    body = client.get("/royalties").get_data(as_text=True)
+    assert "By Source" in body and "Monthly Trend" in body and "200.75" in body
+    # Recovery: unmatched + coverage-gap findings with action buttons.
+    body = client.get("/recovery").get_data(as_text=True)
+    assert "Unmatched revenue in your statements" in body
+    assert "Neon Dreams" in body and "missing from Apple Music" in body
+    assert "Create recovery action" in body
+    # Valuation: annualized signal with the honesty disclaimer.
+    body = client.get("/valuation").get_data(as_text=True)
+    assert "Annualized Pace" in body and "Catalog Signal" in body
+    assert "not financial advice" in body
+    # Command Center surfaces the money-on-the-table alerts first.
+    body = client.get("/command-center").get_data(as_text=True)
+    assert "unmatched revenue in your statements" in body
+    assert "coverage gap" in body
+
+
+def test_royalty_summary_math():
+    from statements_engine import build_royalty_summary
+    rows = [
+        {"title": "A", "source": "Spotify", "amount": 100.0, "period": "2026-01"},
+        {"title": "A", "source": "Apple Music", "amount": 50.0, "period": "2026-02"},
+        {"title": "", "source": "Spotify", "amount": 10.0, "period": "2026-02"},
+    ]
+    s = build_royalty_summary(rows)
+    assert s["total"] == 160.0
+    assert s["monthly_trend"] == [("2026-01", 100.0), ("2026-02", 60.0)]
+    assert s["annualized"] == 960.0            # 160 over 2 months, annualized
+    assert s["valuation"]["low"] == 2880 and s["valuation"]["high"] == 4800
+    assert build_royalty_summary([]) is None
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

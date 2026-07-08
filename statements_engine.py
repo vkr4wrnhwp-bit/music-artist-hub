@@ -155,3 +155,28 @@ def analyze(rows):
         "coverage_gaps": findings[:15],
         "gap_estimate_total": round(sum(f["estimated_value"] for f in findings), 2),
     }
+
+
+def build_royalty_summary(rows):
+    """Everything the money pages need from real uploaded statements:
+    the core analysis plus a monthly trend and an honest catalog-value
+    estimate (labeled, never presented as financial advice)."""
+    result = analyze(rows)
+    if result is None:
+        return None
+    monthly = {}
+    for r in rows:
+        if r["period"]:
+            monthly[r["period"]] = monthly.get(r["period"], 0) + r["amount"]
+    trend = [(p, round(a, 2)) for p, a in sorted(monthly.items())]
+    result["monthly_trend"] = trend[-12:]
+    # Valuation signal: annualize the average tracked month, apply a
+    # conservative independent-catalog multiple range.
+    months = max(len(monthly), 1)
+    annualized = round(result["total"] / months * 12, 2)
+    result["annualized"] = annualized
+    result["valuation"] = {
+        "low": round(annualized * 3), "mid": round(annualized * 4),
+        "high": round(annualized * 5),
+    }
+    return result

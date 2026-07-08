@@ -11,6 +11,10 @@
 {% set health = overview_health %}
 
 <div class="mx-auto max-w-6xl space-y-6">
+
+  {% set band_mode = 'overview' %}
+  {% include "_real_royalty_band.html" %}
+
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold uppercase tracking-tight">Overview</h1>

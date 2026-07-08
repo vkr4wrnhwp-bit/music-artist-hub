@@ -168,6 +168,21 @@ def build_alerts(user_id):
             alerts.append(("medium", "“%s” captures emails without consent copy" % c["title"],
                            "Add consent text — it's logged with every signup.",
                            "/links/%s/edit" % c["id"], "rights"))
+    # Real statement findings: money on the table beats everything else.
+    import db as store
+    from statements_engine import build_royalty_summary
+    rows = store.get_statement_rows(user_id)
+    summary = build_royalty_summary(rows) if rows else None
+    if summary and summary["unmatched_revenue"]:
+        alerts.insert(0, ("high", "$%.2f unmatched revenue in your statements" % summary["unmatched_revenue"],
+                          "Rows with no track title — money paid but not attributed. Review and claim it.",
+                          "/recovery", "royalty_recovery"))
+    if summary and summary["coverage_gaps"]:
+        alerts.append(("medium", "%d coverage gap%s across your royalty sources" % (
+                           len(summary["coverage_gaps"]),
+                           "s" if len(summary["coverage_gaps"]) != 1 else ""),
+                       "Tracks earning on some sources but missing from others — est. $%.2f." % summary["gap_estimate_total"],
+                       "/recovery", "royalty_recovery"))
     # Catalog metadata gaps
     tracks = mls_catalog_tracks(user_id)
     missing_isrc = [t for t in tracks if not (t.get("meta") or {}).get("isrc")]

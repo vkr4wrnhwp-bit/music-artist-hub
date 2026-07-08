@@ -9,7 +9,8 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
-from statements_engine import analyze as analyze_statement, parse_statement
+from statements_engine import (analyze as analyze_statement, parse_statement,
+                               build_royalty_summary)
 
 from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
@@ -618,9 +619,19 @@ def create_app():
             "scanned_at": datetime.now().strftime("%I:%M %p").lstrip("0"),
         })
 
+    def _real_royalty():
+        """Real statement analysis for the signed-in user, or None."""
+        user = current_user()
+        if user is None:
+            return None
+        rows = store.get_statement_rows(user["id"])
+        return build_royalty_summary(rows) if rows else None
+
     @app.route("/overview")
     def overview():
-        return render_template("overview.html", active_page="overview", **build_dashboard_context())
+        return render_template("overview.html", active_page="overview",
+                               real_royalty=_real_royalty(),
+                               **build_dashboard_context())
 
     @app.route("/dashboard")
     def dashboard():
@@ -628,7 +639,9 @@ def create_app():
 
     @app.route("/royalties")
     def royalties():
-        return render_template("royalties.html", active_page="royalties", **build_dashboard_context())
+        return render_template("royalties.html", active_page="royalties",
+                               real_royalty=_real_royalty(),
+                               **build_dashboard_context())
 
     @app.route("/catalog")
     def catalog_page():
@@ -750,11 +763,15 @@ def create_app():
 
     @app.route("/recovery")
     def recovery():
-        return render_template("recovery.html", active_page="recovery", **build_dashboard_context())
+        return render_template("recovery.html", active_page="recovery",
+                               real_royalty=_real_royalty(),
+                               **build_dashboard_context())
 
     @app.route("/valuation")
     def valuation():
-        return render_template("valuation.html", active_page="valuation", **build_dashboard_context())
+        return render_template("valuation.html", active_page="valuation",
+                               real_royalty=_real_royalty(),
+                               **build_dashboard_context())
 
     @app.route("/reports")
     def reports():
