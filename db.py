@@ -264,6 +264,11 @@ def init_db():
             db.execute("ALTER TABLE epk_profiles ADD COLUMN slug TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: account plan tiers (fan / artist / pro / label).
+        try:
+            db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'artist'")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -283,6 +288,11 @@ def create_user(email, name, password_hash):
     except sqlite3.IntegrityError:
         return None
     return user_id
+
+
+def set_user_plan(user_id, plan):
+    with get_db() as db:
+        db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))
 
 
 def get_user_by_email(email):

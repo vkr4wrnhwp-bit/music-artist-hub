@@ -82,4 +82,28 @@
   </section>
   <p class="px-1 text-[11px] text-gray-600">Demo only — no payment method is stored or charged. Plan changes are not billed.</p>
 </div>
+
+  <!-- Plan tiers (demo switching until Stripe) -->
+  <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Your Plan</h2>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {% for key, name, price, blurb, includes in plan_cards %}
+      <div class="flex flex-col rounded-xl border {{ 'border-[#c9a24a]/60 bg-black/30' if key == user_plan else 'border-white/10 bg-[#111113]' }} p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-black uppercase {{ 'text-[#e8c667]' if key == user_plan }}">{{ name }}</span>
+          {% if key == user_plan %}<span class="rounded bg-[#c9a24a]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">Current</span>{% endif %}
+        </div>
+        <div class="mt-1 text-xl font-black">{{ price }}</div>
+        <p class="mt-1 flex-1 text-[11px] text-gray-400">{{ blurb }}</p>
+        {% if key != user_plan %}
+        <form method="post" action="/plan/switch" class="mt-3">
+          <input type="hidden" name="plan" value="{{ key }}">
+          <button class="w-full rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/20">Switch (demo)</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="mt-3 text-[10px] text-gray-600">Demo plan switching — no payment is taken. Real billing arrives with Stripe.</p>
+  </section>
 {% endblock %}

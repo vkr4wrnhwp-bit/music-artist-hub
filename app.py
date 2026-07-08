@@ -56,6 +56,7 @@ import rollout_engine
 import rollout_store as ros
 import social_providers
 import command_center as cc
+import plans
 from network_config import (
     get_network_data,
     get_profile,
@@ -367,6 +368,9 @@ def create_app():
     if store.get_user_by_email("demo@streetbanker.io") is None:
         store.create_user("demo@streetbanker.io", "Synthwave Surfer",
                           generate_password_hash("sweep"))
+    _demo = store.get_user_by_email("demo@streetbanker.io")
+    if (_demo.get("plan") or "artist") != "label":
+        store.set_user_plan(_demo["id"], "label")  # full-access showcase account
 
     def current_user():
         user_id = session.get("user_id")
@@ -389,6 +393,10 @@ def create_app():
                 if user_id is None:
                     error = "An account with that email already exists."
                 else:
+                    if request.form.get("account_type") == "fan":
+                        store.set_user_plan(user_id, "fan")
+                        session["user_id"] = user_id
+                        return redirect("/discover")
                     session["user_id"] = user_id
                     return redirect(url_for("onboarding"))
         return render_template("signup.html", error=error)
@@ -402,7 +410,8 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
-                return redirect(request.args.get("next") or url_for("overview"))
+                default = "/discover" if (user.get("plan") or "artist") == "fan" else "/command-center"
+                return redirect(request.args.get("next") or default)
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
 
@@ -1156,6 +1165,54 @@ def create_app():
                                         dark="#141210", light=None)
         return Response(buf.getvalue(), mimetype="image/svg+xml")
 
+    # --- Plan tiers + product worlds -------------------------------------------
+
+    @app.context_processor
+    def inject_plan_context():
+        user = None
+        try:
+            user = current_user()
+        except RuntimeError:
+            pass
+        plan = (user.get("plan") or "artist") if user else None
+        world = plans.world_for_path(request.path) or session.get("world")
+        if plan == "fan":
+            world = "fan"
+        return {"user_plan": plan, "nav_world": world or "promote",
+                "plan_worlds": plans.WORLDS, "plan_rank": plans.TIER_RANK,
+                "plan_names": plans.PLAN_NAMES}
+
+    @app.before_request
+    def plan_gate():
+        user = current_user()
+        if user is None:
+            return None  # signed-out browsing keeps the demo/marketing views
+        tier = plans.required_tier(request.path)
+        if tier and not plans.allowed(user.get("plan") or "artist", tier):
+            return render_template("upgrade.html", required=tier,
+                                   plans_list=plans.PLANS,
+                                   **build_dashboard_context()), 402
+        return None
+
+    @app.route("/world/<world>")
+    def switch_world(world):
+        homes = {k: home for k, _, home, _ in plans.WORLDS}
+        if world not in homes:
+            abort(404)
+        session["world"] = world
+        return redirect(homes[world])
+
+    @app.route("/plan/switch", methods=["POST"])
+    def plan_switch():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        plan = request.form.get("plan") or ""
+        if plan in plans.TIER_RANK:
+            # Demo plan switching -- real payments arrive with Stripe.
+            store.set_user_plan(user["id"], plan)
+        return redirect(request.referrer or "/billing")
+
     # --- Artist OS: Command Center, Actions, Autopilot, Clean Release ----------
 
     @app.route("/command-center")
@@ -1854,6 +1911,7 @@ def create_app():
     def billing():
         ctx = build_dashboard_context()
         ctx["billing"] = get_billing_data(ctx["account"])
+        ctx["plan_cards"] = plans.PLANS
         return render_template("billing.html", active_page="billing", **ctx)
 
     @app.route("/team")

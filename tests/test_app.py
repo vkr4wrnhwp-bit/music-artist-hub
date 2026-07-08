@@ -676,7 +676,7 @@ def test_epk_page_includes_press_kit():
 
 def test_epk_sidebar_and_export():
     client = create_app().test_client()
-    assert 'href="/epk"' in client.get("/overview").get_data(as_text=True)
+    assert 'href="/epk"' in client.get("/links").get_data(as_text=True)
     resp = client.post("/epk/export")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -772,9 +772,12 @@ def test_tier2_pages_render_and_are_in_nav():
     for href in ("/documents", "/identifiers", "/conflicts", "/releases", "/registration"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
-    # Grouped sidebar section labels present.
-    for group in ("Collect", "Catalog", "Grow", "Promote", "Account"):
+    # Grouped sidebar sections are split across product worlds now.
+    for group in ("Collect", "Catalog", "Value", "Account"):
         assert ">%s<" % group in nav
+    promote_nav = client.get("/links").get_data(as_text=True)
+    for group in ("Grow", "Promote"):
+        assert ">%s<" % group in promote_nav
 
 
 def test_documents_page_content():
@@ -978,7 +981,7 @@ def test_disputes_data_config_shapes():
 
 def test_tier3_pages_render_and_nav():
     client = create_app().test_client()
-    nav = client.get("/overview").get_data(as_text=True)
+    nav = client.get("/links").get_data(as_text=True)
     for href in ("/audience", "/playlists", "/stats"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
@@ -1081,6 +1084,7 @@ def test_statements_upload_and_real_findings():
     # Requires login.
     assert client.get("/statements").status_code == 302
     client.post("/signup", data={"name": "S", "email": email, "password": "secret1"})
+    client.post("/plan/switch", data={"plan": "pro"})  # Royalty Sweep is Pro tier
     csv_data = (b"Track Title,Store,Net Revenue,Sales Period\n"
                 b"Midnight Drive,Spotify,120.50,2026-05\n"
                 b"Midnight Drive,Apple Music,80.25,2026-05\n"
@@ -1137,12 +1141,16 @@ def test_inbox_persists_submissions():
 
 def test_tier5_and_community_pages_render_and_nav():
     client = create_app().test_client()
-    nav = client.get("/overview").get_data(as_text=True)
-    for href in ("/insights", "/benchmark", "/marketplace", "/network", "/fan-label", "/fans"):
-        assert 'href="%s"' % href in nav
+    promote_nav = client.get("/links").get_data(as_text=True)
+    fan_nav = client.get("/discover").get_data(as_text=True)
+    for href in ("/insights", "/benchmark"):
+        assert 'href="%s"' % href in promote_nav
         assert client.get(href).status_code == 200
-    for group in ("Intelligence", "Community"):
-        assert ">%s<" % group in nav
+    for href in ("/marketplace", "/network", "/fan-label", "/fans"):
+        assert 'href="%s"' % href in fan_nav
+        assert client.get(href).status_code == 200
+    assert ">Intelligence<" in promote_nav
+    assert ">Community<" in fan_nav
 
 
 def test_insights_ranked_and_consolidated():
@@ -1217,7 +1225,7 @@ def test_capital_data_config_shapes():
 
 def test_label_services_pages_and_nav():
     client = create_app().test_client()
-    nav = client.get("/overview").get_data(as_text=True)
+    nav = client.get("/services").get_data(as_text=True)
     assert 'href="/services"' in nav
     assert 'href="/submit"' in nav
     assert ">Label Services<" in nav
@@ -1329,7 +1337,7 @@ def test_discover_page_and_filters():
     reset_discover_state()
     client = create_app().test_client()
     assert client.get("/discover").status_code == 200
-    assert 'href="/discover"' in client.get("/overview").get_data(as_text=True)  # sidebar
+    assert 'href="/discover"' in client.get("/discover").get_data(as_text=True)  # fan-world sidebar
     assert "/discover" in client.get("/login").get_data(as_text=True)  # Continue as a Fan
     # Genre filter narrows the feed.
     data = get_discover_data({"genre": "Synthwave"})
@@ -1520,6 +1528,7 @@ def test_fresh_account_gets_clean_catalog(monkeypatch):
     client.post("/signup", data={"name": "Clean Artist", "email": "clean@a.com",
                                   "password": "pass1234"})
     client.post("/login", data={"email": "clean@a.com", "password": "pass1234"})
+    client.post("/plan/switch", data={"plan": "pro"})  # catalog is Royalty Sweep (Pro)
     body = client.get("/catalog").get_data(as_text=True)
     # No sample-catalog remnants for a real account.
     assert "1,248" not in body and "New World Order" not in body
@@ -1964,6 +1973,69 @@ def test_preview_modules_are_honest():
         assert "in preview" in body, route            # no fake functionality
     assert "not legal advice" in client.get("/sync/deal-simulator").get_data(as_text=True)
     assert "not financial advice" in client.get("/capital-score").get_data(as_text=True)
+
+
+# --- Plan tiers + product worlds -------------------------------------------------
+
+def test_plan_tiers_gate_sections():
+    import uuid as _uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "tier%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "T", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    # Artist tier: Promote works, Royalty Sweep is gated with the upgrade page.
+    assert client.get("/links").status_code == 200
+    assert client.get("/command-center").status_code == 200
+    r = client.get("/overview")
+    assert r.status_code == 402
+    assert "This is a Pro feature" in r.get_data(as_text=True)
+    assert client.get("/statements").status_code == 402
+    # Demo plan switch unlocks it (labeled demo until Stripe).
+    client.post("/plan/switch", data={"plan": "pro"})
+    assert client.get("/overview").status_code == 200
+    assert client.get("/catalog").status_code == 200
+    # Billing shows the plan cards.
+    body = client.get("/billing").get_data(as_text=True)
+    assert "Your Plan" in body and "Switch (demo)" in body
+
+
+def test_fan_accounts_get_fan_shell():
+    import uuid as _uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "fanshell%s@x.com" % _uuid.uuid4().hex[:6]
+    r = client.post("/signup", data={"name": "F", "email": email, "password": "secret1",
+                                     "account_type": "fan"})
+    assert r.headers["Location"] == "/discover"
+    body = client.get("/discover").get_data(as_text=True)
+    # Fan shell: Community nav, no artist tooling, no world switcher.
+    assert "Fan Account" in body and ">Community<" in body
+    assert "Rollout Studio" not in body and "Statements" not in body
+    # Artist tools are gated for fans.
+    assert client.get("/links").status_code == 402
+    assert client.get("/overview").status_code == 402
+    # Fan login lands on Discover.
+    fresh = app_obj.test_client()
+    r = fresh.post("/login", data={"email": email, "password": "secret1"})
+    assert r.headers["Location"] == "/discover"
+
+
+def test_world_switcher_and_public_pages():
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    # Demo account has the Label plan: everything open, switcher rendered.
+    body = client.get("/links").get_data(as_text=True)
+    assert "/world/sweep" in body and "/world/fan" in body
+    assert "Rollout Studio" in body and "Statements" not in body   # promote world nav
+    body = client.get("/overview").get_data(as_text=True)
+    assert "Statements" in body and "Rollout Studio" not in body   # sweep world nav
+    assert client.get("/world/label").headers["Location"] == "/services"
+    # Public pages stay open for signed-out visitors.
+    anon = app_obj.test_client()
+    assert anon.get("/links").status_code == 200
+    assert anon.get("/epk").status_code == 200
 
 
 def test_ml_quick_links_still_work():
