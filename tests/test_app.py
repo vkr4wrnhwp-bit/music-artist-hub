@@ -2549,6 +2549,94 @@ def test_trust_score_from_real_state():
     assert "not a credit score" in body
 
 
+# --- Spotify pre-save OAuth ---------------------------------------------------
+
+def _spotify_env(monkeypatch):
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "cid")
+    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "csec")
+    monkeypatch.setenv("SPOTIFY_REDIRECT_URI", "https://x/presave/callback")
+
+
+def test_spotify_presave_oauth_flow(monkeypatch):
+    import urllib.parse
+    import db as store_mod
+    import links_store as mls
+    import spotify_provider as sp
+    _spotify_env(monkeypatch)
+    monkeypatch.setattr(sp, "_http", lambda url, data=None, headers=None: (
+        {"access_token": "at", "refresh_token": "rt"} if "api/token" in url
+        else {"id": "fan123", "email": "PresaveFan@Example.com",
+              "display_name": "Presave Fan"}))
+    app_obj = create_app()
+    client = _demo(app_obj)
+    r = client.post("/links/new", data={
+        "title": "Presave Drop", "release_date": "2031-01-01",
+        "email_capture": "1", "consent_text": "ok",
+        "dest_spotify": "https://open.spotify.com/track/TRACK123"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    slug = mls.get_campaign(cid)["slug"]
+    anon = app_obj.test_client()
+    # Button renders on the pre-release page.
+    body = anon.get("/l/" + slug).get_data(as_text=True)
+    assert "Pre-Save on Spotify" in body
+    # Start -> Spotify authorize with a session-bound state.
+    r = anon.get("/presave/%s/start" % slug)
+    assert "accounts.spotify.com/authorize" in r.headers["Location"]
+    state = urllib.parse.parse_qs(
+        urllib.parse.urlparse(r.headers["Location"]).query)["state"][0]
+    # Forged state is rejected.
+    r = anon.get("/presave/callback?code=abc&state=%s.forged" % slug)
+    assert "presave=error" in r.headers["Location"]
+    # Real callback: presave stored encrypted, fan lands in CRM with consent.
+    r = anon.get("/presave/%s/start" % slug)
+    state = urllib.parse.parse_qs(
+        urllib.parse.urlparse(r.headers["Location"]).query)["state"][0]
+    r = anon.get("/presave/callback?code=abc&state=" + state)
+    assert r.headers["Location"].endswith("?presave=done")
+    pres = store_mod.pending_spotify_presaves(cid)
+    assert len(pres) == 1 and pres[0]["refresh_token_enc"] != "rt"
+    assert sp.decrypt_token(pres[0]["refresh_token_enc"]) == "rt"
+    owner = mls.get_campaign(cid)["user_id"]
+    fan = mls.list_fans(owner, "presavefan@example.com")[0]
+    assert fan["total_presaves"] == 1
+    assert mls.list_consents(fan["id"])[0]["consent_type"] == "spotify_presave"
+    # Duplicate pre-save is deduped.
+    r = anon.get("/presave/%s/start" % slug)
+    state = urllib.parse.parse_qs(
+        urllib.parse.urlparse(r.headers["Location"]).query)["state"][0]
+    r = anon.get("/presave/callback?code=abc&state=" + state)
+    assert r.headers["Location"].endswith("?presave=already")
+    # Release day: a page view lazily delivers the save to the fan's library.
+    with store_mod.get_db() as conn:
+        conn.execute("UPDATE ml_campaigns SET release_date = ? WHERE id = ?",
+                     ("2020-01-01", cid))
+    saved = []
+    monkeypatch.setattr(sp, "refresh_access", lambda rt: "fresh")
+    monkeypatch.setattr(sp, "save_track",
+                        lambda at, tid: saved.append((at, tid)) or True)
+    anon.get("/l/" + slug)
+    assert saved == [("fresh", "TRACK123")]
+    assert store_mod.count_spotify_presaves(cid).get("completed") == 1
+
+
+def test_spotify_presave_hidden_without_env():
+    import links_store as mls
+    app_obj = create_app()
+    client = _demo(app_obj)
+    r = client.post("/links/new", data={
+        "title": "NoEnv Drop", "release_date": "2031-01-01",
+        "dest_spotify": "https://open.spotify.com/track/x"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    slug = mls.get_campaign(cid)["slug"]
+    anon = app_obj.test_client()
+    body = anon.get("/l/" + slug).get_data(as_text=True)
+    assert "Pre-Save on Spotify" not in body       # never fake availability
+    r = anon.get("/presave/%s/start" % slug)
+    assert r.headers["Location"].endswith("/l/" + slug)
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = _demo()

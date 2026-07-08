@@ -335,6 +335,19 @@ def init_db():
                 spend_date TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS spotify_presaves (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                spotify_user_id TEXT NOT NULL,
+                email TEXT NOT NULL DEFAULT '',
+                refresh_token_enc TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error TEXT NOT NULL DEFAULT '',
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL,
+                completed_at TEXT,
+                UNIQUE(campaign_id, spotify_user_id)
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -912,3 +925,48 @@ def delete_expense(user_id, exp_id):
         cur = db.execute("DELETE FROM revenue_expenses WHERE id = ? AND user_id = ?",
                          (exp_id, user_id))
     return cur.rowcount > 0
+
+# --- Spotify pre-saves -----------------------------------------------------------
+
+def add_spotify_presave(campaign_id, spotify_user_id, email, refresh_token_enc):
+    """Returns the presave id, or None if this fan already pre-saved."""
+    presave_id = uuid.uuid4().hex
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO spotify_presaves (id, campaign_id, spotify_user_id, email,"
+                " refresh_token_enc, created) VALUES (?,?,?,?,?,?)",
+                (presave_id, campaign_id, spotify_user_id, email,
+                 refresh_token_enc, _now()))
+    except sqlite3.IntegrityError:
+        return None
+    return presave_id
+
+
+def pending_spotify_presaves(campaign_id, limit=10):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM spotify_presaves WHERE campaign_id = ? AND status = 'pending'"
+            " AND retry_count < 5 LIMIT ?", (campaign_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def resolve_spotify_presave(presave_id, status, error=""):
+    with get_db() as db:
+        if status == "completed":
+            db.execute(
+                "UPDATE spotify_presaves SET status='completed', completed_at=?,"
+                " refresh_token_enc='' WHERE id = ?", (_now(), presave_id))
+        else:
+            db.execute(
+                "UPDATE spotify_presaves SET retry_count = retry_count + 1, error = ?,"
+                " status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END"
+                " WHERE id = ?", (error[:200], presave_id))
+
+
+def count_spotify_presaves(campaign_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT status, COUNT(*) AS n FROM spotify_presaves WHERE campaign_id = ?"
+            " GROUP BY status", (campaign_id,)).fetchall()
+    return {r["status"]: r["n"] for r in rows}

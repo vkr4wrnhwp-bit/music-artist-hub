@@ -60,6 +60,7 @@ import command_center as cc
 import qualification
 import sync_simulator
 import trust_score
+import spotify_provider as spotify
 import artist_twin as twin
 import plans
 from network_config import (
@@ -475,6 +476,87 @@ def create_app():
         )
         return render_template("statements.html", active_page="statements", **ctx)
 
+    # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
+
+    def _process_due_presaves(campaign):
+        """Lazy release-day conversion: whenever a released campaign page is
+        hit, complete a small batch of pending pre-saves. No cron needed."""
+        if not spotify.configured() or links_engine.is_prerelease(campaign):
+            return
+        dest = next((d for d in mls.get_destinations(campaign["id"])
+                     if d["service_key"] == "spotify"), None)
+        track_id = spotify.track_id_from_url(dest["url"]) if dest else None
+        for p in store.pending_spotify_presaves(campaign["id"]):
+            if not track_id:
+                store.resolve_spotify_presave(p["id"], "retry", "No Spotify track URL on campaign")
+                continue
+            try:
+                access = spotify.refresh_access(
+                    spotify.decrypt_token(p["refresh_token_enc"]))
+                if access and spotify.save_track(access, track_id):
+                    store.resolve_spotify_presave(p["id"], "completed")
+                    store.notify(campaign["user_id"], "fan",
+                                 "Pre-save delivered: %s" % campaign["title"],
+                                 "Saved to a fan's Spotify library on release.",
+                                 "/links/%s/analytics" % campaign["id"])
+                else:
+                    store.resolve_spotify_presave(p["id"], "retry", "Save failed")
+            except Exception as exc:
+                store.resolve_spotify_presave(p["id"], "retry", str(exc))
+
+    @app.route("/presave/<slug>/start")
+    def presave_start(slug):
+        campaign = mls.get_campaign_by_slug(slug)
+        if campaign is None or campaign["status"] != "live" or not spotify.configured():
+            return redirect("/l/" + slug)
+        nonce = uuid.uuid4().hex
+        session["presave_nonce"] = nonce
+        return redirect(spotify.auth_url("%s.%s" % (slug, nonce)))
+
+    @app.route("/presave/callback")
+    def presave_callback():
+        state = request.args.get("state") or ""
+        slug = state.split(".")[0] if "." in state else ""
+        campaign = mls.get_campaign_by_slug(slug) if slug else None
+        if campaign is None or not spotify.configured():
+            return redirect("/")
+        if state.split(".")[-1] != session.pop("presave_nonce", None):
+            return redirect("/l/%s?presave=error" % slug)
+        if request.args.get("error") or not request.args.get("code"):
+            return redirect("/l/%s?presave=denied" % slug)
+        try:
+            tokens = spotify.exchange_code(request.args["code"])
+            me = spotify.get_me(tokens["access_token"])
+        except Exception:
+            return redirect("/l/%s?presave=error" % slug)
+        email = (me.get("email") or "").lower()
+        presave_id = store.add_spotify_presave(
+            campaign["id"], me.get("id") or "unknown", email,
+            spotify.encrypt_token(tokens.get("refresh_token") or ""))
+        if presave_id is None:
+            return redirect("/l/%s?presave=already" % slug)
+        # The OAuth consent screen covered email sharing; log it into the CRM.
+        if email:
+            fan_id = mls.upsert_fan(campaign["user_id"], email, campaign["id"],
+                                    me.get("display_name") or "")
+            mls.add_consent(fan_id, campaign["id"], "spotify_presave",
+                            "Authorized Spotify pre-save (library save + email).")
+            mls.bump_fan(fan_id, "total_presaves")
+            fan = mls.get_fan(fan_id)
+            score, level = links_engine.calculate_fan_intent(fan)
+            mls.set_fan_intent(fan_id, score, level)
+            mls.track(campaign["id"], "presave_notify", fan_id=fan_id)
+        else:
+            mls.track(campaign["id"], "presave_notify")
+        store.notify(campaign["user_id"], "fan",
+                     "Spotify pre-save: %s" % (email or me.get("id") or "a fan"),
+                     "Via \u201c%s\u201d \u2014 track saves to their library on release day." % campaign["title"],
+                     "/links/fans")
+        # Already released? Deliver immediately.
+        if not links_engine.is_prerelease(campaign):
+            _process_due_presaves(campaign)
+        return redirect("/l/%s?presave=done" % slug)
+
     # --- Smart links: real redirects + click tracking --------------------------
 
     def _ml_variant_id(campaign_id):
@@ -503,8 +585,11 @@ def create_app():
                           utm_source=request.args.get("utm_source"))
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
+                _process_due_presaves(campaign)
             return render_template(
                 "link_campaign.html", c=campaign,
+                spotify_presave=spotify.configured(),
+                presave_state=(request.args.get("presave") or ""),
                 destinations=mls.get_destinations(campaign["id"], active_only=True),
                 prerelease=links_engine.is_prerelease(campaign),
                 status=links_engine.effective_status(campaign),
@@ -1301,7 +1386,7 @@ def create_app():
                 "unread_ntf": store.unread_notifications(user["id"]) if user else 0}
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
-                        "/services", "/favicon")
+                        "/services", "/favicon", "/presave/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit"}
 
     def _is_public_path(path):
