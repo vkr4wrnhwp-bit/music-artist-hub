@@ -1821,6 +1821,79 @@ def test_ml_autofill_and_cover_upload(monkeypatch):
     assert client.get(camp["cover_url"]).status_code == 200  # actually served
 
 
+# --- Rollout Studio ------------------------------------------------------------
+
+def test_rollout_studio_full_flow():
+    import io
+    import links_store as mls
+    import rollout_store as ros
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    # Attach a published Links campaign for attribution.
+    ml_id = _ml_create(client, title="Rollout Base", release_date="2031-01-01")
+    client.post("/links/%s/publish" % ml_id)
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    r = client.post("/rollout-studio/new", data={
+        "title": "Rollout Base", "artist_name": "Test Artist",
+        "release_date": "2031-01-01", "rollout_length": "7", "goal": "presaves",
+        "tone": "street", "ml_campaign_id": ml_id,
+        "pf_instagram_reels": "1", "pf_tiktok": "1", "pf_x": "1",
+        "art_file": (io.BytesIO(png), "art.png"),
+        "video_file": (io.BytesIO(b"0" * 128), "clip.mp4"),
+        "lyrics": "Neon lights across the bay\nWe ride until the break of day\nNothing left to prove",
+    }, content_type="multipart/form-data")
+    cid = r.headers["Location"].split("/")[2]
+    # Generation: dated posts across the phase arc, one Links variant each.
+    client.post("/rollout-studio/%s/generate" % cid)
+    posts = ros.list_posts(cid)
+    assert len(posts) == 10                      # 7 pre-release + release + 2 follow-ups
+    phases = [p["phase"] for p in posts]
+    assert phases[0] == "tease" and "release_day" in phases and "post_release" in phases
+    assert all(p["variant_id"] for p in posts)
+    variants = mls.list_variants(ml_id)
+    assert len(variants) == len(posts)
+    assert variants[0]["name"].startswith("rollout_")
+    assert variants[0]["utm_medium"] == "rollout"
+    # Lyrics feed the lyric-reveal caption; video posts get edit plans.
+    lyric_posts = [p for p in posts if p["phase"] == "lyric_reveal"]
+    assert any("ride until the break" in p["caption"] for p in lyric_posts)
+    video_posts = [p for p in posts if p["edit_plan"]]
+    assert video_posts and video_posts[0]["edit_plan"]["aspect_ratio"] == "9:16"
+    assert "export_checklist" in video_posts[0]["edit_plan"]
+    # Approval workflow + manual posting with published URL.
+    pid = posts[0]["id"]
+    client.post("/rollout-studio/%s/posts" % cid,
+                data={"post_id": pid, "action": "approve"})
+    assert ros.get_post(pid)["status"] == "approved"
+    client.post("/rollout-studio/%s/posts" % cid,
+                data={"post_id": pid, "action": "posted",
+                      "published_url": "https://instagram.com/p/abc"})
+    post = ros.get_post(pid)
+    assert post["status"] == "posted" and post["published_url"].endswith("/abc")
+    # Attribution: a fan hitting this post's variant shows on performance.
+    ml_camp = mls.get_campaign(ml_id)
+    vslug = next(v["slug"] for v in variants if v["id"] == posts[0]["variant_id"])
+    anon = app_obj.test_client()
+    anon.get("/l/%s?v=%s" % (ml_camp["slug"], vslug))
+    perf = client.get("/rollout-studio/%s/performance" % cid).get_data(as_text=True)
+    assert "Top Posts" in perf and "1v" in perf
+    # All pages render; socials shows manual mode ready.
+    for path in ("", "/posts", "/calendar", "/socials"):
+        assert client.get("/rollout-studio/%s%s" % (cid, path)).status_code == 200
+    socials = client.get("/rollout-studio/%s/socials" % cid).get_data(as_text=True)
+    assert "Manual posting" in socials and "ready" in socials
+    assert "TikTok" in socials and "needs credentials" in socials
+    # Dashboard card with attribution totals.
+    dash = client.get("/rollout-studio").get_data(as_text=True)
+    assert "Rollout Base" in dash and "link clicks" in dash
+    # Other users cannot see this rollout.
+    other = app_obj.test_client()
+    import uuid as _uuid
+    other.post("/signup", data={"name": "O", "email": "o%s@x.com" % _uuid.uuid4().hex[:6],
+                                "password": "secret1"})
+    assert other.get("/rollout-studio/%s" % cid).status_code == 404
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

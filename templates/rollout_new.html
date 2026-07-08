@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}New Rollout - Street Banker{% endblock %}
+
+{% set field = 'mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none' %}
+
+{% block content %}
+<div class="mx-auto max-w-[820px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">New Rollout</h1>
+    <p class="mt-1 text-sm text-gray-400">Feed it the release; it hands back the campaign.</p>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-5">
+    <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">1 · Release</h2>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Release title *</label>
+          <input name="title" required placeholder="Midnight Drive" class="{{ field }}"></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Artist name</label>
+          <input name="artist_name" placeholder="Synthwave Surfer" class="{{ field }}"></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Release date</label>
+          <input name="release_date" type="date" class="{{ field }} [color-scheme:dark]"></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Connect Street Banker Link campaign</label>
+          <select name="ml_campaign_id" class="{{ field }} [color-scheme:dark]">
+            <option value="">— none (no link tracking) —</option>
+            {% for m in ml_campaigns %}<option value="{{ m.id }}">{{ m.title }} (/l/{{ m.slug }})</option>{% endfor %}
+          </select></div>
+      </div>
+      {% if not ml_campaigns %}<p class="mt-2 text-[10px] text-amber-400">No Links campaigns yet — <a href="/links/new" class="underline">create one first</a> so every post gets a tracked link.</p>{% endif %}
+    </section>
+
+    <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">2 · Strategy</h2>
+      <div class="mt-3 grid gap-3 sm:grid-cols-3">
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Campaign goal</label>
+          <select name="goal" class="{{ field }} [color-scheme:dark]">
+            {% for k, n in engine.CAMPAIGN_GOALS %}<option value="{{ k }}">{{ n }}</option>{% endfor %}
+          </select></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Rollout length</label>
+          <select name="rollout_length" class="{{ field }} [color-scheme:dark]">
+            {% for days, n in engine.ROLLOUT_LENGTHS %}<option value="{{ days }}" {{ 'selected' if days == 14 }}>{{ n }}</option>{% endfor %}
+          </select></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Content tone</label>
+          <select name="tone" class="{{ field }} [color-scheme:dark]">
+            {% for k, n in engine.TONES %}<option value="{{ k }}">{{ n }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="mt-3">
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Platforms</label>
+        <div class="mt-1.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {% for k, n, kind in engine.PLATFORMS %}
+          <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-gray-200">
+            <input type="checkbox" name="pf_{{ k }}" class="h-4 w-4 accent-[#c9a24a]" {{ 'checked' if k in ('instagram_reels', 'tiktok', 'x') }}>{{ n }}
+            <span class="ml-auto text-[9px] uppercase text-gray-600">{{ kind }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">3 · Creative Assets</h2>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Album / single art (PNG, JPG, WebP)</label>
+          <input type="file" name="art_file" accept=".png,.jpg,.jpeg,.webp" class="mt-1 w-full text-xs text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-[#c9a24a]/40 file:bg-[#c9a24a]/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#e8c667]"></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Video clip (MP4, MOV, WebM) — unlocks edit plans</label>
+          <input type="file" name="video_file" accept=".mp4,.mov,.webm" class="mt-1 w-full text-xs text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-[#c9a24a]/40 file:bg-[#c9a24a]/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#e8c667]"></div>
+      </div>
+      <div class="mt-3"><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Lyrics — powers lyric-reveal posts and overlays</label>
+        <textarea name="lyrics" rows="5" placeholder="Paste lyrics here (optional)" class="{{ field }} resize-none"></textarea></div>
+    </section>
+
+    <button type="submit" class="rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-6 py-2.5 text-sm font-bold text-[#1c1302] shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">Create Rollout</button>
+  </form>
+</div>
+{% endblock %}

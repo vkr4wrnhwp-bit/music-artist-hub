@@ -52,6 +52,9 @@ from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
                         deezer_track_metadata, musicbrainz_credits, press_mentions)
 import links_engine
 import links_store as mls
+import rollout_engine
+import rollout_store as ros
+import social_providers
 from network_config import (
     get_network_data,
     get_profile,
@@ -1151,6 +1154,213 @@ def create_app():
         segno.make(url, error="m").save(buf, kind="svg", scale=6,
                                         dark="#141210", light=None)
         return Response(buf.getvalue(), mimetype="image/svg+xml")
+
+    # --- Rollout Studio: social rollout campaigns wired into Links ------------
+
+    def _ro_owned(cid):
+        user = current_user()
+        if user is None:
+            return None, login_required_redirect()
+        campaign = ros.get_campaign(cid, user["id"])
+        if campaign is None:
+            abort(404)
+        return campaign, None
+
+    def _ro_post_attribution(campaign):
+        """Per-post visits/clicks/fans pulled from ml_events via each
+        post's Links variant."""
+        posts = ros.list_posts(campaign["id"])
+        stats = (mls.variant_stats(campaign["ml_campaign_id"])
+                 if campaign.get("ml_campaign_id") else {})
+        for p in posts:
+            st = stats.get(p["variant_id"], {})
+            p["visits"] = st.get("page_view", 0)
+            p["clicks"] = st.get("service_click", 0)
+            p["fans"] = st.get("email_capture", 0) + st.get("presave_notify", 0)
+        return posts
+
+    @app.route("/rollout-studio")
+    def rollout_dashboard():
+        user = current_user()
+        ctx = build_dashboard_context()
+        cards = []
+        if user:
+            for c in ros.list_campaigns(user["id"]):
+                counts = ros.post_status_counts(c["id"])
+                posts = _ro_post_attribution(c)
+                cards.append({**c, "counts": counts,
+                              "total_posts": sum(counts.values()),
+                              "clicks": sum(p["clicks"] for p in posts),
+                              "fans": sum(p["fans"] for p in posts)})
+        return render_template("rollout_dashboard.html", active_page="rollout",
+                               campaigns=cards, rollout_user=user, **ctx)
+
+    @app.route("/rollout-studio/new", methods=["GET", "POST"])
+    def rollout_new():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        ml_campaigns = mls.list_campaigns(user["id"])
+        if request.method == "POST":
+            f = request.form
+            platforms = [k for k, _, _ in rollout_engine.PLATFORMS if f.get("pf_" + k)]
+            ml_id = f.get("ml_campaign_id") or None
+            if ml_id and mls.get_campaign(ml_id, user["id"]) is None:
+                ml_id = None
+            cid = ros.create_campaign(user["id"], {
+                "title": (f.get("title") or "").strip()[:120],
+                "artist_name": (f.get("artist_name") or "").strip()[:120],
+                "release_date": (f.get("release_date") or "").strip()[:10],
+                "rollout_length": f.get("rollout_length") or 14,
+                "goal": f.get("goal") if f.get("goal") in dict(rollout_engine.CAMPAIGN_GOALS) else "presaves",
+                "tone": f.get("tone") if f.get("tone") in dict(rollout_engine.TONES) else "premium",
+                "platforms": platforms,
+                "ml_campaign_id": ml_id,
+            })
+            # Creative uploads: art + optional video, plus lyrics text.
+            for field, kind in (("art_file", "image"), ("video_file", "video")):
+                up = request.files.get(field)
+                if up and up.filename:
+                    ext = up.filename.rsplit(".", 1)[-1].lower()
+                    allowed = ("png", "jpg", "jpeg", "webp") if kind == "image" else ("mp4", "mov", "webm")
+                    if ext in allowed:
+                        fname = "ro_%s_%s.%s" % (cid, kind, ext)
+                        up.save(os.path.join(UPLOADS_DIR, fname))
+                        ros.add_asset(cid, kind, file_path="/uploads/" + fname)
+            lyrics = (f.get("lyrics") or "").strip()[:8000]
+            if lyrics:
+                ros.add_asset(cid, "lyrics", lyrics_text=lyrics)
+            return redirect("/rollout-studio/%s" % cid)
+        return render_template("rollout_new.html", active_page="rollout",
+                               engine=rollout_engine, ml_campaigns=ml_campaigns,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/generate", methods=["POST"])
+    def rollout_generate(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        assets = ros.list_assets(cid)
+        lyrics = next((a["lyrics_text"] for a in assets if a["asset_type"] == "lyrics"), "")
+        video = next((a["id"] for a in assets if a["asset_type"] == "video"), None)
+        image = next((a["id"] for a in assets if a["asset_type"] == "image"), None)
+        ros.clear_posts(cid)
+        posts = rollout_engine.generate_rollout(campaign, lyrics=lyrics,
+                                                video_asset_id=video, image_asset_id=image)
+        for p in posts:
+            # One tracked Links variant per post — the attribution backbone.
+            if campaign.get("ml_campaign_id"):
+                vname = rollout_engine.variant_name(p["platform"], p["phase"],
+                                                    p["scheduled_date"])
+                vslug = _ml_slug(vname.replace("_", "-"))
+                p["variant_id"] = mls.create_variant(
+                    campaign["ml_campaign_id"], vname, vslug,
+                    utm_source=p["platform"], utm_medium="rollout")
+            ros.add_post(cid, p)
+        ros.set_status(cid, "generated")
+        return redirect("/rollout-studio/%s" % cid)
+
+    @app.route("/rollout-studio/<cid>")
+    def rollout_overview(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        posts = _ro_post_attribution(campaign)
+        assets = ros.list_assets(cid)
+        ml_campaign = (mls.get_campaign(campaign["ml_campaign_id"])
+                       if campaign.get("ml_campaign_id") else None)
+        variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
+                    if campaign.get("ml_campaign_id") else {})
+        return render_template("rollout_overview.html", active_page="rollout",
+                               c=campaign, posts=posts, assets=assets,
+                               ml_campaign=ml_campaign, variants=variants,
+                               direction=rollout_engine.creative_direction(campaign),
+                               next_action=rollout_engine.next_action(campaign, posts, assets),
+                               counts=ros.post_status_counts(cid),
+                               phase_names=rollout_engine.PHASE_NAMES,
+                               platform_names=rollout_engine.PLATFORM_NAMES,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/posts", methods=["GET", "POST"])
+    def rollout_posts(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        if request.method == "POST":
+            post = ros.get_post(request.form.get("post_id") or "")
+            if post and post["campaign_id"] == cid:
+                action = request.form.get("action")
+                if action == "approve":
+                    ros.update_post(post["id"], {"status": "approved"})
+                elif action == "reject":
+                    ros.update_post(post["id"], {"status": "rejected"})
+                elif action == "posted":
+                    ros.update_post(post["id"], {
+                        "status": "posted",
+                        "published_url": (request.form.get("published_url") or "").strip()[:300]})
+                elif action == "save":
+                    ros.update_post(post["id"], {
+                        "caption": (request.form.get("caption") or "").strip()[:2200],
+                        "hashtags": (request.form.get("hashtags") or "").strip()[:300],
+                        "scheduled_date": (request.form.get("scheduled_date") or "").strip()[:10]})
+            return redirect("/rollout-studio/%s/posts" % cid)
+        posts = _ro_post_attribution(campaign)
+        variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
+                    if campaign.get("ml_campaign_id") else {})
+        ml_campaign = (mls.get_campaign(campaign["ml_campaign_id"])
+                       if campaign.get("ml_campaign_id") else None)
+        return render_template("rollout_posts.html", active_page="rollout",
+                               c=campaign, posts=posts, variants=variants,
+                               ml_campaign=ml_campaign,
+                               phase_names=rollout_engine.PHASE_NAMES,
+                               platform_names=rollout_engine.PLATFORM_NAMES,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/calendar")
+    def rollout_calendar(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        posts = ros.list_posts(cid)
+        by_date = {}
+        for p in posts:
+            by_date.setdefault(p["scheduled_date"], []).append(p)
+        return render_template("rollout_calendar.html", active_page="rollout",
+                               c=campaign, by_date=sorted(by_date.items()),
+                               phase_names=rollout_engine.PHASE_NAMES,
+                               platform_names=rollout_engine.PLATFORM_NAMES,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/performance")
+    def rollout_performance(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        posts = _ro_post_attribution(campaign)
+        ranked = sorted(posts, key=lambda p: (p["fans"], p["clicks"], p["visits"]),
+                        reverse=True)
+        by_platform = {}
+        for p in posts:
+            agg = by_platform.setdefault(p["platform"], {"visits": 0, "clicks": 0, "fans": 0})
+            for k in agg:
+                agg[k] += p[k]
+        return render_template("rollout_performance.html", active_page="rollout",
+                               c=campaign, posts=ranked, by_platform=by_platform,
+                               totals={"visits": sum(p["visits"] for p in posts),
+                                       "clicks": sum(p["clicks"] for p in posts),
+                                       "fans": sum(p["fans"] for p in posts)},
+                               phase_names=rollout_engine.PHASE_NAMES,
+                               platform_names=rollout_engine.PLATFORM_NAMES,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/socials")
+    def rollout_socials(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        return render_template("rollout_socials.html", active_page="rollout",
+                               c=campaign, providers=social_providers.provider_status(),
+                               **build_dashboard_context())
 
     @app.route("/links/fans")
     def ml_fans():

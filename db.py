@@ -185,6 +185,48 @@ def init_db():
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ro_campaigns (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                ml_campaign_id TEXT,
+                title TEXT NOT NULL,
+                artist_name TEXT NOT NULL DEFAULT '',
+                release_date TEXT NOT NULL DEFAULT '',
+                rollout_length INTEGER NOT NULL DEFAULT 14,
+                goal TEXT NOT NULL DEFAULT 'presaves',
+                platforms TEXT NOT NULL DEFAULT '[]',
+                tone TEXT NOT NULL DEFAULT 'premium',
+                status TEXT NOT NULL DEFAULT 'draft',
+                settings TEXT NOT NULL DEFAULT '{}',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ro_assets (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                file_path TEXT NOT NULL DEFAULT '',
+                lyrics_text TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ro_posts (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                variant_id TEXT,
+                platform TEXT NOT NULL,
+                post_type TEXT NOT NULL DEFAULT 'post',
+                phase TEXT NOT NULL,
+                caption TEXT NOT NULL DEFAULT '',
+                hashtags TEXT NOT NULL DEFAULT '',
+                cta TEXT NOT NULL DEFAULT '',
+                asset_id TEXT,
+                edit_plan TEXT,
+                scheduled_date TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft',
+                published_url TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
