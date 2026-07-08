@@ -140,7 +140,8 @@ def _account_with_user(account):
     if not user:
         return account
     initials = "".join(p[0] for p in user["name"].split()[:2]).upper() or "?"
-    return {**account, "name": user["name"], "initials": initials, "email": user["email"]}
+    return {**account, "name": user["name"], "initials": initials,
+            "email": user["email"], "role": "Artist Account"}
 
 
 def build_dashboard_context():
@@ -354,7 +355,7 @@ def create_app():
     store.init_db()
     # Seed a one-click demo account so partners can tour without signing up.
     if store.get_user_by_email("demo@streetbanker.io") is None:
-        store.create_user("demo@streetbanker.io", "Art Is War",
+        store.create_user("demo@streetbanker.io", "Synthwave Surfer",
                           generate_password_hash("sweep"))
 
     def current_user():
