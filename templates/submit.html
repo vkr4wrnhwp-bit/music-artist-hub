@@ -5,41 +5,87 @@
 {% set lb = label %}
 
 {% block content %}
-<div class="mx-auto max-w-2xl space-y-5">
-  <div>
-    <h1 class="text-2xl font-semibold uppercase tracking-tight">Submit Your Music</h1>
-    <p class="mt-1 text-sm text-gray-500">Send {{ lb.brand.name }} your EPK and we'll take a listen.</p>
+<div class="mx-auto max-w-4xl">
+
+  <!-- Editorial header -->
+  <div class="pt-6 text-center">
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-amber-500/80">{{ lb.brand.name }} · A&amp;R Desk</div>
+    <h1 class="mt-4 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl">
+      Send Us<br><span class="text-amber-400">Your Sound.</span>
+    </h1>
+    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-400">
+      No forms. No fees. No gatekeeping robots. A real person at {{ lb.brand.sub }} listens to everything that lands on our desk.
+    </p>
   </div>
 
-  <!-- EPK tie-in -->
-  <section class="rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.06] to-transparent p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="min-w-0">
-        <div class="text-sm font-semibold text-gray-100">Don't have an EPK yet?</div>
-        <div class="text-xs text-gray-500">Build a press kit from your catalog in a couple of clicks, then send it in.</div>
+  <!-- The record -->
+  <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#16130a] via-[#0e0e10] to-[#0a0a0b]">
+    <div class="grid grid-cols-1 items-center gap-8 p-8 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-12">
+      <!-- Spinning vinyl, drawn in code -->
+      <div class="mx-auto w-52 sm:w-full sm:max-w-[260px]">
+        <div class="animate-[spin_12s_linear_infinite]" style="filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle cx="100" cy="100" r="96" fill="#0d0d0f"/>
+            <circle cx="100" cy="100" r="96" fill="none" stroke="#ffffff14"/>
+            {% for r in [88, 80, 72, 64, 56, 48] %}
+            <circle cx="100" cy="100" r="{{ r }}" fill="none" stroke="#ffffff0a" stroke-width="1.5"/>
+            {% endfor %}
+            <circle cx="100" cy="100" r="83" fill="none" stroke="#ffffff05" stroke-width="6"/>
+            <circle cx="100" cy="100" r="34" fill="#d8b25a"/>
+            <circle cx="100" cy="100" r="34" fill="none" stroke="#00000030"/>
+            <text x="100" y="96" text-anchor="middle" font-size="13" font-weight="800" letter-spacing="2" fill="#1c1302" font-family="sans-serif">ART IS WAR</text>
+            <text x="100" y="112" text-anchor="middle" font-size="8" font-weight="600" letter-spacing="3" fill="#1c1302aa" font-family="sans-serif">RECORDS</text>
+            <circle cx="100" cy="100" r="4" fill="#0a0a0b"/>
+            <!-- light sheen -->
+            <path d="M100 8 A92 92 0 0 1 192 100" fill="none" stroke="#ffffff22" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+          </svg>
+        </div>
       </div>
-      <a href="/epk" class="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25">Build my EPK</a>
+      <div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-500">Now accepting demos</div>
+        <h2 class="mt-3 text-2xl font-extrabold uppercase leading-tight tracking-tight text-white sm:text-3xl">Every record starts as a demo somebody almost didn't send.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-gray-400">
+          Synthwave to soul, bedroom demo to mixed master — if it moves, we want to hear it.
+          If it's a fit, we'll reach out about distribution, marketing, or a full label deal.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission" class="inline-flex items-center gap-2 rounded-lg bg-[#d8b25a] px-6 py-3 text-sm font-bold text-[#1c1302] transition-colors hover:bg-[#e6c675]">
+            Email Your Demo
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+          </a>
+          <a href="/epk" class="inline-flex items-center gap-2 rounded-lg border border-white/15 px-6 py-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-white/5">Build an EPK first</a>
+        </div>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">How To Submit</h2>
-    <ol class="mt-3 space-y-2 text-sm text-gray-300">
-      <li class="flex gap-2"><span class="font-bold text-amber-400">1.</span> Put together your EPK — bio, top tracks, streaming stats, and links.</li>
-      <li class="flex gap-2"><span class="font-bold text-amber-400">2.</span> Email it to one of the addresses below.</li>
-      <li class="flex gap-2"><span class="font-bold text-amber-400">3.</span> We'll review and reach out if it's a fit.</li>
-    </ol>
+  <!-- Three steps, editorial -->
+  <div class="mt-14 grid grid-cols-1 gap-10 sm:grid-cols-3">
+    {% for n, title, body in [
+      ('01', 'Make it easy to love', 'A link or two attachments beats a zip of 40 stems. Lead with your best song.'),
+      ('02', 'Tell us who you are', 'A few lines, your numbers if you have them, links to your world. An EPK is perfect.'),
+      ('03', 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
+    ] %}
+    <div class="text-center sm:text-left">
+      <div class="text-5xl font-extrabold tracking-tight text-white/10">{{ n }}</div>
+      <div class="mt-2 text-sm font-bold text-gray-100">{{ title }}</div>
+      <p class="mt-1.5 text-xs leading-relaxed text-gray-500">{{ body }}</p>
+    </div>
+    {% endfor %}
+  </div>
 
-    <h2 class="mt-6 text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Send To</h2>
-    <div class="mt-3 space-y-2">
+  <!-- Where to send -->
+  <div class="mt-14 rounded-2xl border border-white/5 bg-[#111113] p-6 text-center">
+    <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-500">The desk</div>
+    <div class="mt-3 flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-6">
       {% for email in lb.brand.submissions_emails %}
-      <a href="mailto:{{ email }}?subject=Music Submission / EPK" class="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 transition-colors hover:border-amber-500/30">
-        <span class="text-sm font-semibold text-amber-400">{{ email }}</span>
-        <svg class="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6l7 5 7-5M3 6h14v9H3z"/></svg>
-      </a>
+      <a href="mailto:{{ email }}?subject=Demo Submission" class="text-base font-semibold text-amber-400 hover:underline">{{ email }}</a>
+      {% if not loop.last %}<span class="hidden text-gray-700 sm:inline">·</span>{% endif %}
       {% endfor %}
     </div>
-    <p class="mt-3 text-[11px] text-gray-600">Submissions are reviewed by the {{ lb.brand.sub }} team. No fee to submit.</p>
-  </section>
+    <p class="mx-auto mt-3 max-w-sm text-[11px] leading-relaxed text-gray-600">Reviewed by the {{ lb.brand.sub }} team. No submission fee, ever. We can't reply to everything, but we do play everything.</p>
+  </div>
+
+  <div class="h-10"></div>
 </div>
 {% endblock %}
