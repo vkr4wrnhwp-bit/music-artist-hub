@@ -1,7 +1,7 @@
 import math
 import os
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -46,7 +46,8 @@ from community_config import (
     get_fan_dashboard_data,
 )
 from discover_config import get_discover_data, like_track, follow_artist
-from music_apis import itunes_search, odesli_lookup, ordered_platform_links
+from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
+                        deezer_track_metadata)
 from network_config import (
     get_network_data,
     get_profile,
@@ -546,6 +547,65 @@ def create_app():
         user = current_user()
         ctx["catalog_user"] = user
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"]) if user else []
+        # Group saved tracks into real releases keyed by UPC (or album title).
+        releases = {}
+        for t in ctx["my_tracks"]:
+            m = t.get("meta") or {}
+            key = m.get("upc") or m.get("album") or t.get("album") or t["title"]
+            r = releases.setdefault(key, {
+                "title": m.get("album") or t.get("album") or t["title"],
+                "artist": t["artist"], "art": t["art"],
+                "upc": m.get("upc") or "", "label": m.get("label") or "",
+                "release_date": m.get("release_date") or "",
+                "genre": m.get("genre") or "",
+                "total_tracks": m.get("track_count") or 0,
+                "saved_tracks": 0, "isrcs": [],
+            })
+            r["saved_tracks"] += 1
+            if m.get("isrc"):
+                r["isrcs"].append(m["isrc"])
+        ctx["my_releases"] = list(releases.values())
+        # Real accounts see only their own catalog — the rich sample data is
+        # for the demo tour account and signed-out visitors only.
+        if user and user["email"] != "demo@streetbanker.io":
+            tracks = ctx["my_tracks"]
+            n = len(tracks)
+            with_isrc = sum(1 for t in tracks if (t.get("meta") or {}).get("isrc"))
+            with_meta = sum(1 for t in tracks if t.get("meta"))
+            month = datetime.now(timezone.utc).strftime("%Y-%m")
+            releases_n = len(ctx["my_releases"])
+            c = ctx["catalog"]
+            c["summary"] = {
+                "total_tracks": n,
+                "tracks_added_this_month": sum(1 for t in tracks if (t.get("added") or "").startswith(month)),
+                "total_releases": releases_n, "releases_added_this_month": 0,
+                "registered_tracks": with_isrc, "unregistered_tracks": n - with_isrc,
+                "total_isrcs": with_isrc,
+                "isrc_assignment_rate": round(100 * with_isrc / n, 1) if n else 0,
+            }
+            c["registered_pct"] = round(100 * with_isrc / n) if n else 0
+            c["unregistered_pct"] = 100 - c["registered_pct"] if n else 0
+            meta_pct = round(100 * with_meta / n) if n else 0
+            isrc_pct = round(100 * with_isrc / n) if n else 0
+            c["health"] = {
+                "total": round((meta_pct + isrc_pct) / 2),
+                "status": "Good" if isrc_pct >= 80 else ("Fair" if n else "Empty"),
+                "bars": [{"label": "Metadata", "pct": meta_pct},
+                         {"label": "ISRCs", "pct": isrc_pct}],
+            }
+            missing = n - with_isrc
+            c["issues"] = ([{"id": "real_isrc", "title": "Missing ISRCs", "count": missing,
+                             "severity": "critical", "filter_tab": "Tracks",
+                             "filter_status": "Missing ISRC"}] if missing else [])
+            c["catalog_value"] = {"estimated_value": 0, "monthly_change": 0,
+                                  "trend": [{"month": m, "value": 0}
+                                            for m in ("Jan", "Feb", "Mar", "Apr", "May")]}
+            c["tracks"], c["releases"], c["songwriters"] = [], [], []
+            c["publishers"], c["splits"] = [], []
+            c["recently_added"] = [{"id": t["id"], "title": t["title"], "type": "Single",
+                                    "date_added": (t.get("added") or "")[:10],
+                                    "status": "Registered" if (t.get("meta") or {}).get("isrc") else "Pending"}
+                                   for t in tracks[:5]]
         return render_template("catalog.html", active_page="catalog", **ctx)
 
     @app.route("/catalog/add", methods=["POST"])
@@ -559,7 +619,12 @@ def create_app():
         track_id = store.add_catalog_track(user["id"], track)
         if track_id is None:
             return jsonify({"ok": False, "error": "Already in your catalog."}), 409
-        return jsonify({"ok": True, "id": track_id})
+        # Best-effort metadata enrichment: ISRC/UPC/label from Deezer.
+        # The track stays saved even when the lookup finds nothing.
+        meta = deezer_track_metadata(track.get("title"), track.get("artist"))
+        if meta:
+            store.set_catalog_track_meta(user["id"], track_id, meta)
+        return jsonify({"ok": True, "id": track_id, "meta": meta})
 
     @app.route("/catalog/remove/<track_id>", methods=["POST"])
     def catalog_remove(track_id):

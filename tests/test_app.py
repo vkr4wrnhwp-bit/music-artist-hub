@@ -1467,6 +1467,58 @@ def test_discover_results_have_add_button(monkeypatch):
     assert "add-to-catalog" in body and "+ Catalog" in body
 
 
+def _fake_deezer(url):
+    if "api.deezer.com/search" in url:
+        return {"data": [{"id": 42}]}
+    if "api.deezer.com/track/" in url:
+        return {"isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
+                "album": {"id": 7, "title": "Test LP"}}
+    if "api.deezer.com/album/" in url:
+        return {"upc": "123456789012", "label": "Test Label", "title": "Test LP",
+                "release_date": "2025-01-10", "nb_tracks": 10,
+                "genres": {"data": [{"name": "Electro"}]}}
+    return {"results": []}
+
+
+def test_catalog_add_pulls_metadata(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
+    client = create_app().test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    r = client.post("/catalog/add", json={"title": "Meta Song", "artist": "Meta Artist"})
+    meta = r.get_json()["meta"]
+    assert meta["isrc"] == "USTEST2500001" and meta["upc"] == "123456789012"
+    assert meta["label"] == "Test Label" and meta["album"] == "Test LP"
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "My Releases" in body and "UPC 123456789012" in body
+    assert "ISRC USTEST2500001" in body and "Test Label" in body
+    # A failed lookup must never block the save itself.
+    monkeypatch.setattr(music_apis, "_fetch_json",
+                        lambda url: (_ for _ in ()).throw(Exception("down")))
+    r2 = client.post("/catalog/add", json={"title": "No Meta Song", "artist": "X"})
+    assert r2.status_code == 200 and r2.get_json()["meta"] is None
+
+
+def test_fresh_account_gets_clean_catalog(monkeypatch):
+    import music_apis
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
+    client = create_app().test_client()
+    client.post("/signup", data={"name": "Clean Artist", "email": "clean@a.com",
+                                  "password": "pass1234"})
+    client.post("/login", data={"email": "clean@a.com", "password": "pass1234"})
+    body = client.get("/catalog").get_data(as_text=True)
+    # No sample-catalog remnants for a real account.
+    assert "1,248" not in body and "New World Order" not in body
+    assert "Nothing saved yet" in body
+    client.post("/catalog/add", json={"title": "First Song", "artist": "Clean Artist"})
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "First Song" in body
+    # Demo tour account keeps the rich showcase.
+    client.post("/logout")
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    assert "1,248" in client.get("/catalog").get_data(as_text=True)
+
+
 def test_api_cache_roundtrip():
     import db as store
     store.cache_set("t:key", {"a": 1})

@@ -71,6 +71,7 @@
         <div class="p-2">
           <div class="truncate text-[11px] font-semibold text-gray-100">{{ t.title }}</div>
           <div class="truncate text-[10px] text-gray-400">{{ t.artist }}</div>
+          {% if t.meta and t.meta.isrc %}<div class="mt-0.5 truncate text-[9px] font-semibold tracking-wide text-[#c9a24a]">ISRC {{ t.meta.isrc }}</div>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -204,6 +205,29 @@
       </div>
 
       <div id="tab-Releases" class="tab-panel hidden overflow-x-auto px-4 pb-4">
+        {% if my_releases %}
+        <div class="mb-4 rounded-xl border border-[#c9a24a]/30 bg-[#141210] p-4">
+          <h3 class="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#e8c667]">My Releases — real identifiers, auto-pulled</h3>
+          <div class="mt-3 space-y-2">
+            {% for r in my_releases %}
+            <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-[#111113] p-3">
+              {% if r.art %}<img src="{{ r.art }}" alt="{{ r.title }}" class="h-12 w-12 rounded-md object-cover" loading="lazy">{% endif %}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold text-gray-100">{{ r.title }}</div>
+                <div class="truncate text-[11px] text-gray-400">{{ r.artist }}{% if r.label %} · {{ r.label }}{% endif %}{% if r.release_date %} · {{ r.release_date }}{% endif %}</div>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5">
+                {% if r.upc %}<span class="rounded-md border border-green-500/25 bg-green-500/10 px-2 py-1 text-[10px] font-semibold text-green-400">UPC {{ r.upc }}</span>{% endif %}
+                {% for isrc in r.isrcs %}<span class="rounded-md border border-[#c9a24a]/30 bg-[#c9a24a]/10 px-2 py-1 text-[10px] font-semibold text-[#e8c667]">ISRC {{ isrc }}</span>{% endfor %}
+                {% if r.genre %}<span class="rounded-md border border-white/10 px-2 py-1 text-[10px] text-gray-400">{{ r.genre }}</span>{% endif %}
+                <span class="rounded-md border border-white/10 px-2 py-1 text-[10px] text-gray-400">{{ r.saved_tracks }}{% if r.total_tracks %} of {{ r.total_tracks }}{% endif %} tracks saved</span>
+                {% if not r.upc and not r.isrcs %}<span class="rounded-md border border-white/10 px-2 py-1 text-[10px] text-gray-500">No identifiers found yet</span>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         <table class="w-full text-left text-sm">
           <thead>
             <tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">

@@ -113,6 +113,11 @@ def init_db():
             db.execute("ALTER TABLE smart_links ADD COLUMN meta TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: industry identifiers (ISRC/UPC/label) on catalog tracks.
+        try:
+            db.execute("ALTER TABLE catalog_tracks ADD COLUMN meta TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -246,12 +251,23 @@ def add_catalog_track(user_id, track):
     return track_id
 
 
+def set_catalog_track_meta(user_id, track_id, meta):
+    with get_db() as db:
+        db.execute("UPDATE catalog_tracks SET meta = ? WHERE id = ? AND user_id = ?",
+                   (json.dumps(meta), track_id, user_id))
+
+
 def get_catalog_tracks(user_id):
     with get_db() as db:
         rows = db.execute(
             "SELECT * FROM catalog_tracks WHERE user_id = ? ORDER BY added DESC",
             (user_id,)).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["meta"] = json.loads(d["meta"]) if d.get("meta") else None
+        out.append(d)
+    return out
 
 
 def remove_catalog_track(user_id, track_id):

@@ -88,6 +88,52 @@ def odesli_lookup(source_url):
         return None
 
 
+DEEZER_TTL = 30 * 24 * 3600   # ISRC/UPC assignments never change
+
+
+def deezer_track_metadata(title, artist):
+    """Industry identifiers for a track from Deezer's free API: ISRC, and
+    the album's UPC, label, release date. Returns a dict or None."""
+    title = (title or "").strip()
+    artist = (artist or "").strip()
+    if not title:
+        return None
+    key = "deezer2:%s|%s" % (title.lower(), artist.lower())
+    data = store.cache_get(key, DEEZER_TTL)
+    if data is None:
+        # Plain keyword query — Deezer's quoted advanced syntax 404s when urlencoded.
+        url = "https://api.deezer.com/search?" + urllib.parse.urlencode(
+            {"q": ("%s %s" % (title, artist)).strip(), "limit": 1})
+        try:
+            hits = (_fetch_json(url).get("data") or [])
+            if not hits:
+                data = {}
+            else:
+                track = _fetch_json("https://api.deezer.com/track/%s" % hits[0]["id"])
+                album_id = (track.get("album") or {}).get("id")
+                album = _fetch_json("https://api.deezer.com/album/%s" % album_id) if album_id else {}
+                data = {"track": track, "album": album}
+        except Exception:
+            return None
+        store.cache_set(key, data)
+    track = data.get("track") or {}
+    if not track:
+        return None
+    album = data.get("album") or {}
+    genres = [g.get("name") for g in ((album.get("genres") or {}).get("data") or [])
+              if g.get("name")]
+    return {
+        "isrc": track.get("isrc") or "",
+        "upc": album.get("upc") or "",
+        "label": album.get("label") or "",
+        "release_date": album.get("release_date") or track.get("release_date") or "",
+        "album": album.get("title") or (track.get("album") or {}).get("title") or "",
+        "genre": genres[0] if genres else "",
+        "duration": track.get("duration") or 0,
+        "track_count": album.get("nb_tracks") or 0,
+    }
+
+
 # Display order + branding for the universal landing page.
 PLATFORM_DISPLAY = [
     ("spotify", "Spotify", "spotify"),
