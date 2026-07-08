@@ -1053,14 +1053,86 @@ def test_onboarding_page_renders():
     assert "Connect your sources" in body
 
 
-def test_login_flow():
+def test_real_auth_flow():
+    import uuid
     client = create_app().test_client()
+    email = "u%s@example.com" % uuid.uuid4().hex[:8]
     assert client.get("/login").status_code == 200
-    ok = client.post("/login", data={"passkey": "sweep"})
+    assert client.get("/signup").status_code == 200
+    # Signup -> onboarding; weak input rejected.
+    ok = client.post("/signup", data={"name": "T", "email": email, "password": "secret1"})
     assert ok.status_code == 302 and "/onboarding" in ok.headers["Location"]
-    bad = client.post("/login", data={"passkey": "nope"})
-    assert bad.status_code == 200 and "Incorrect passkey" in bad.get_data(as_text=True)
+    dup = client.post("/signup", data={"name": "T", "email": email, "password": "secret1"})
+    assert "already exists" in dup.get_data(as_text=True)
     assert client.post("/logout").status_code == 302
+    # Login with right/wrong password.
+    good = client.post("/login", data={"email": email, "password": "secret1"})
+    assert good.status_code == 302
+    bad = client.post("/login", data={"email": email, "password": "nope"})
+    assert "Incorrect email or password" in bad.get_data(as_text=True)
+    # One-click demo account works.
+    assert client.post("/login/demo").status_code == 302
+
+
+def test_statements_upload_and_real_findings():
+    import io, uuid
+    client = create_app().test_client()
+    email = "s%s@example.com" % uuid.uuid4().hex[:8]
+    # Requires login.
+    assert client.get("/statements").status_code == 302
+    client.post("/signup", data={"name": "S", "email": email, "password": "secret1"})
+    csv_data = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"Midnight Drive,Spotify,120.50,2026-05\n"
+                b"Midnight Drive,Apple Music,80.25,2026-05\n"
+                b"Neon Dreams,Spotify,60.00,2026-05\n"
+                b",Spotify,12.40,2026-05\n")
+    up = client.post("/statements", data={"statement": (io.BytesIO(csv_data), "symphonic.csv")},
+                     content_type="multipart/form-data")
+    assert up.status_code == 302
+    body = client.get("/statements").get_data(as_text=True)
+    assert "273.15" in body            # real total
+    assert "12.40" in body             # unmatched revenue detected
+    assert "Coverage Gaps" in body     # Neon Dreams missing Apple Music
+    # Real CSV export includes the uploaded rows.
+    csv_out = client.get("/reports/royalty-report/download.csv")
+    assert csv_out.status_code == 200 and "Midnight Drive" in csv_out.get_data(as_text=True)
+
+
+def test_statement_engine_math():
+    from statements_engine import parse_statement, analyze
+    parsed = parse_statement("Song,Platform,Earnings\nA,Spotify,10\nA,Apple,20\nB,Spotify,5\n")
+    assert parsed["error"] is None and len(parsed["rows"]) == 3
+    a = analyze(parsed["rows"])
+    assert a["total"] == 35.0
+    assert a["by_source"][0]["source"] in ("Apple", "Spotify")
+    # B earns on Spotify but not Apple -> one coverage gap, est = B's avg (5).
+    assert a["coverage_gaps"][0]["title"] == "B"
+    assert a["coverage_gaps"][0]["estimated_value"] == 5.0
+    assert parse_statement("no,amount,columns\nx,y,z\n")["error"]
+
+
+def test_real_smart_link_redirect_and_click():
+    client = create_app().test_client()
+    link = client.post("/links/create", json={"title": "Wire Test", "platforms": ["Spotify"]}).get_json()["link"]
+    assert link["real"] and "/l/" in link["url"]
+    r = client.get("/l/" + link["slug"])
+    assert r.status_code == 302 and "spotify.com/search" in r.headers["Location"]
+    assert client.get("/l/does-not-exist").status_code == 302  # falls back to /links
+    assert "real clicks" in client.get("/links").get_data(as_text=True)
+
+
+def test_inbox_persists_submissions():
+    import uuid
+    from network_config import reset_network_state
+    reset_network_state()
+    client = create_app().test_client()
+    assert client.get("/inbox").status_code == 302  # requires login
+    client.post("/signup", data={"name": "I", "email": "i%s@example.com" % uuid.uuid4().hex[:8], "password": "secret1"})
+    client.post("/network/playlist/late-night-synth/submit", json={"song": "Midnight Drive"})
+    client.post("/network/nova-reign/enquire", json={"city": "Chicago"})
+    body = client.get("/inbox").get_data(as_text=True)
+    assert "Playlist Submission" in body and "Booking Enquiry" in body
+    reset_network_state()
 
 
 def test_tier5_and_community_pages_render_and_nav():

@@ -3,7 +3,11 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
+
+import db as store
+from statements_engine import analyze as analyze_statement, parse_statement
 
 from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
@@ -123,6 +127,22 @@ from royalty_data import (
 )
 
 
+def _account_with_user(account):
+    """Overlay the signed-in user's identity on the sidebar account chip.
+    Safe outside a request context (tests call this directly)."""
+    try:
+        user_id = session.get("user_id")
+    except RuntimeError:
+        return account
+    if not user_id:
+        return account
+    user = store.get_user(user_id)
+    if not user:
+        return account
+    initials = "".join(p[0] for p in user["name"].split()[:2]).upper() or "?"
+    return {**account, "name": user["name"], "initials": initials, "email": user["email"]}
+
+
 def build_dashboard_context():
     balances = get_platform_balances()
     payouts = get_recent_payouts()
@@ -180,7 +200,7 @@ def build_dashboard_context():
         "value_tracker": value_tracker,
         "available_reports": get_available_reports(),
         "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"], catalog_value["mid"]),
-        "account": get_account(),
+        "account": _account_with_user(get_account()),
         "overview_health": get_overview_health(catalog, songs),
         "action_center": get_action_center(alerts, payouts),
         "recent_payout_rows": recent_payout_rows(),
@@ -325,29 +345,143 @@ def build_landing_hero(catalog, summary):
 
 def create_app():
     app = Flask(__name__)
-    # Demo session key — no real secrets or user accounts in this app.
-    app.config["SECRET_KEY"] = "royalty-sweep-demo-session"
+    # Session key: override via SECRET_KEY env in production.
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "royalty-sweep-demo-session")
+    app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # statement uploads
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
 
-    # Simulated demo passkey. Not real auth — see /login.
-    DEMO_PASSKEY = "sweep"
+    store.init_db()
+    # Seed a one-click demo account so partners can tour without signing up.
+    if store.get_user_by_email("demo@streetbanker.io") is None:
+        store.create_user("demo@streetbanker.io", "Art Is War",
+                          generate_password_hash("sweep"))
+
+    def current_user():
+        user_id = session.get("user_id")
+        return store.get_user(user_id) if user_id else None
+
+    def login_required_redirect():
+        return redirect(url_for("login", next=request.path))
+
+    @app.route("/signup", methods=["GET", "POST"])
+    def signup():
+        error = None
+        if request.method == "POST":
+            name = (request.form.get("name") or "").strip()
+            email = (request.form.get("email") or "").strip().lower()
+            password = request.form.get("password") or ""
+            if not name or "@" not in email or len(password) < 6:
+                error = "Please provide a name, a valid email, and a password of 6+ characters."
+            else:
+                user_id = store.create_user(email, name, generate_password_hash(password))
+                if user_id is None:
+                    error = "An account with that email already exists."
+                else:
+                    session["user_id"] = user_id
+                    return redirect(url_for("onboarding"))
+        return render_template("signup.html", error=error)
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
         error = None
         if request.method == "POST":
-            passkey = (request.form.get("passkey") or "").strip()
-            if passkey == DEMO_PASSKEY:
-                session["signed_in"] = True
-                return redirect(url_for("onboarding"))
-            error = "Incorrect passkey. Hint: this is a demo — try \"sweep\"."
+            email = (request.form.get("email") or "").strip().lower()
+            password = request.form.get("password") or ""
+            user = store.get_user_by_email(email)
+            if user and check_password_hash(user["password_hash"], password):
+                session["user_id"] = user["id"]
+                return redirect(request.args.get("next") or url_for("overview"))
+            error = "Incorrect email or password."
         return render_template("login.html", error=error)
+
+    @app.route("/login/demo", methods=["POST"])
+    def login_demo():
+        user = store.get_user_by_email("demo@streetbanker.io")
+        session["user_id"] = user["id"]
+        return redirect(url_for("onboarding"))
 
     @app.route("/logout", methods=["POST"])
     def logout():
+        session.pop("user_id", None)
         session.pop("signed_in", None)
         return redirect(url_for("login"))
+
+    # --- Statements: real CSV ingestion + recovery findings -------------------
+
+    @app.route("/statements", methods=["GET", "POST"])
+    def statements():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        error = None
+        if request.method == "POST":
+            f = request.files.get("statement")
+            if f is None or not f.filename:
+                error = "Choose a CSV file to upload."
+            else:
+                parsed = parse_statement(f.read(), f.filename)
+                if parsed["error"]:
+                    error = parsed["error"]
+                else:
+                    store.save_statement(user["id"], f.filename, parsed["rows"])
+                    return redirect(url_for("statements"))
+        ctx = build_dashboard_context()
+        ctx["user"] = user
+        ctx["error"] = error
+        ctx["uploads"] = store.get_statements(user["id"])
+        rows = store.get_statement_rows(user["id"])
+        ctx["analysis"] = analyze_statement(
+            [{"title": r["title"], "source": r["source"], "amount": r["amount"], "period": r["period"]}
+             for r in rows]
+        )
+        return render_template("statements.html", active_page="statements", **ctx)
+
+    # --- Smart links: real redirects + click tracking --------------------------
+
+    @app.route("/l/<slug>")
+    def smart_link_redirect(slug):
+        link = store.get_db_link(slug)
+        if link is None:
+            return redirect(url_for("links"))
+        store.log_click(slug)
+        return redirect(link["target"])
+
+    # --- Reports: real CSV download --------------------------------------------
+
+    @app.route("/reports/royalty-report/download.csv")
+    def royalty_report_csv():
+        import csv as _csv
+        import io as _io
+        out = _io.StringIO()
+        w = _csv.writer(out)
+        user = current_user()
+        rows = store.get_statement_rows(user["id"]) if user else []
+        if rows:
+            w.writerow(["Title", "Source", "Amount", "Period"])
+            for r in rows:
+                w.writerow([r["title"], r["source"], "%.2f" % r["amount"], r["period"]])
+        else:
+            # No uploaded data yet — export the demo catalog earnings.
+            w.writerow(["Title", "Platform", "Earnings"])
+            for s in get_songs():
+                for platform, amount in (s.platform_earnings or {}).items():
+                    w.writerow([s.title, platform, "%.2f" % amount])
+        return Response(
+            out.getvalue(), mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=royalty-report.csv"},
+        )
+
+    # --- Inbox: persisted submissions ------------------------------------------
+
+    @app.route("/inbox")
+    def inbox():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        ctx = build_dashboard_context()
+        ctx["inbox_items"] = store.get_inbox()
+        return render_template("inbox.html", active_page="inbox", **ctx)
 
     @app.route("/")
     def index():
@@ -455,6 +589,8 @@ def create_app():
     def links():
         ctx = build_dashboard_context()
         ctx["links_data"] = get_links_data()
+        # Real, persisted links with genuine click counts sit above the demo set.
+        ctx["real_links"] = store.get_db_links()
         return render_template("links.html", active_page="links", **ctx)
 
     @app.route("/links/create", methods=["POST"])
@@ -463,6 +599,16 @@ def create_app():
         link = create_smart_link(payload.get("title", ""), payload.get("platforms", []))
         if link is None:
             return jsonify({"ok": False, "error": "A title and at least one platform are required."}), 400
+        # Persist a real redirect: /l/<slug> -> a live Spotify search for the
+        # track (works with zero setup; artists can repoint targets later).
+        from urllib.parse import quote
+        target = "https://open.spotify.com/search/" + quote(payload.get("title", "").strip())
+        user = current_user()
+        slug = store.create_db_link(link["slug"], user["id"] if user else None,
+                                    link["title"], target, link["platforms"])
+        link["slug"] = slug
+        link["url"] = request.host_url.rstrip("/") + "/l/" + slug
+        link["real"] = True
         return jsonify({"ok": True, "link": link})
 
     @app.route("/publishing")
@@ -520,6 +666,7 @@ def create_app():
                            p.get("deal_type"), p.get("detail"))
         if req is None:
             return jsonify({"ok": False, "error": "Artist, need, and a valid deal type are required."}), 400
+        store.add_inbox("marketplace_post", {k: v for k, v in req.items() if k != "deal_tone"})
         return jsonify({"ok": True, "request": req})
 
     @app.route("/discover")
@@ -561,6 +708,7 @@ def create_app():
         entry = submit_to_playlist(playlist_id, data.get("song"), data.get("message"))
         if entry is None:
             return jsonify({"ok": False, "error": "This playlist isn't accepting submissions, or no track was selected."}), 400
+        store.add_inbox("playlist_submission", entry)
         return jsonify({"ok": True})
 
     @app.route("/network/<profile_id>")
@@ -593,6 +741,7 @@ def create_app():
         entry = enquire_show(profile_id, data.get("city"), data.get("date"), data.get("message"))
         if entry is None:
             return jsonify({"ok": False, "error": "This profile isn't taking booking enquiries."}), 400
+        store.add_inbox("booking_enquiry", entry)
         return jsonify({"ok": True})
 
     @app.route("/network/moment/<moment_id>")
