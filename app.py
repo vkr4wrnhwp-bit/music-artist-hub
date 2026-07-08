@@ -961,13 +961,14 @@ def create_app():
             "cta_text": (f.get("cta_text") or "").strip()[:60],
             "accent": (f.get("accent") or "").strip()[:7],
         }
+        uploaded = _ml_cover_upload()
         return {
             "title": (f.get("title") or "").strip()[:120],
             "artist_name": (f.get("artist_name") or "").strip()[:120],
             "release_type": f.get("release_type") if f.get("release_type") in links_engine.RELEASE_TYPES else "Single",
             "campaign_type": f.get("campaign_type") if f.get("campaign_type") in links_engine.CAMPAIGN_TYPE_NAMES else "release",
             "release_date": (f.get("release_date") or "").strip()[:10],
-            "cover_url": (f.get("cover_url") or "").strip()[:500],
+            "cover_url": uploaded or (f.get("cover_url") or "").strip()[:500],
             "description": (f.get("description") or "").strip()[:600],
             "settings": settings,
         }
@@ -981,6 +982,36 @@ def create_app():
                             "url": url, "sort_order": order})
                 order += 1
         return out
+
+    @app.route("/links/autofill")
+    def ml_autofill():
+        """Paste one track URL -> Odesli resolves every platform + metadata."""
+        if current_user() is None:
+            return jsonify({"ok": False}), 401
+        url = (request.args.get("url") or "").strip()
+        meta = odesli_lookup(url)
+        if not meta:
+            return jsonify({"ok": False, "error": "Couldn't resolve that link — check the URL or fill services manually."})
+        links = {}
+        for odesli_key, service_key in links_engine.ODESLI_TO_SERVICE.items():
+            if meta["links"].get(odesli_key):
+                links[service_key] = meta["links"][odesli_key]
+        return jsonify({"ok": True, "title": meta.get("title") or "",
+                        "artist": meta.get("artist") or "",
+                        "art": meta.get("art") or "", "links": links,
+                        "found": len(links)})
+
+    def _ml_cover_upload():
+        """Optional cover art file upload; returns a served path or None."""
+        f = request.files.get("cover_file")
+        if f is None or not f.filename:
+            return None
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return None
+        fname = "mlcover_%s.%s" % (uuid.uuid4().hex, ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        return "/uploads/" + fname
 
     @app.route("/links/new", methods=["GET", "POST"])
     def ml_new():

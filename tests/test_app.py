@@ -1790,6 +1790,37 @@ def test_ml_score_variants_qr_duplicate():
     assert "Music Link Campaigns" in body and "SB Score" in body
 
 
+def test_ml_autofill_and_cover_upload(monkeypatch):
+    import io
+    import music_apis
+    import links_store as mls
+    monkeypatch.setattr(music_apis, "_fetch_json", _fake_odesli)
+    app_obj = create_app()
+    # Autofill requires sign-in, then maps Odesli platforms to service keys.
+    anon = app_obj.test_client()
+    assert anon.get("/links/autofill?url=https://x").status_code == 401
+    client = _ml_login(app_obj)
+    data = client.get("/links/autofill?url=https://open.spotify.com/track/t").get_json()
+    assert data["ok"] and data["title"] == "Fake Song" and data["artist"] == "Fake Artist"
+    assert data["links"]["spotify"] == "https://sp/x"
+    assert data["links"]["apple_music"] == "https://ap/x"
+    assert data["links"]["youtube"] == "https://yt/x"
+    # A bad URL fails gracefully.
+    monkeypatch.setattr(music_apis, "_fetch_json",
+                        lambda url: (_ for _ in ()).throw(Exception("down")))
+    assert client.get("/links/autofill?url=https://bad").get_json()["ok"] is False
+    # Cover art uploads as a file and overrides the URL field.
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    r = client.post("/links/new", data={
+        "title": "Upload Test", "cover_url": "https://ignored.example/x.jpg",
+        "cover_file": (io.BytesIO(png), "cover.png")},
+        content_type="multipart/form-data")
+    cid = r.headers["Location"].split("/")[2]
+    camp = mls.get_campaign(cid)
+    assert camp["cover_url"].startswith("/uploads/mlcover_")
+    assert client.get(camp["cover_url"]).status_code == 200  # actually served
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

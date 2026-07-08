@@ -29,6 +29,23 @@ SERVICES = [
 ]
 SERVICE_NAMES = dict((k, n) for k, n, _ in SERVICES)
 
+# Odesli platform keys -> our destination service keys, for the builder's
+# auto-scan (paste one track URL, fill every service).
+ODESLI_TO_SERVICE = {
+    "spotify": "spotify",
+    "appleMusic": "apple_music",
+    "itunes": "itunes",
+    "youtube": "youtube",
+    "youtubeMusic": "youtube_music",
+    "amazonMusic": "amazon_music",
+    "soundcloud": "soundcloud",
+    "audiomack": "audiomack",
+    "deezer": "deezer",
+    "tidal": "tidal",
+    "pandora": "pandora",
+}
+
+
 # Campaign types: MVP types are buildable now; the rest are registered in
 # the architecture and appear as "coming soon" until their engines land.
 CAMPAIGN_TYPES = [
