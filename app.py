@@ -518,7 +518,7 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 2,
+            "v": 3,
         })
 
     @app.route("/presave/<slug>/start")
