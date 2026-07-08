@@ -7,9 +7,79 @@
 
 {% block content %}
 <div class="mx-auto max-w-[1400px] space-y-5">
+
+  <!-- ===== Street Banker Links: campaign engine ===== -->
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold uppercase tracking-tight">Smart Links</h1>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker Links</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Music Link Campaigns</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">One link that turns attention into pre-saves, streams, and fan data you own — not just a redirect.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/links/fans" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">Fan CRM</a>
+      <a href="/links/new" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-4 py-2 text-sm font-bold text-[#1c1302] shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
+        Create Music Link
+      </a>
+    </div>
+  </div>
+
+  {% if not links_user %}
+  <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#c9a24a]/[0.05] p-5 text-sm text-gray-300">
+    <span class="font-bold text-[#e8c667]">Sign in to build campaigns.</span>
+    Campaigns come with a fan-facing landing page, pre-save countdown, email capture, QR codes, variants, and analytics.
+    <a href="/login?next=/links" class="ml-2 font-semibold text-[#e8c667] underline">Sign in</a>
+  </div>
+  {% elif ml_campaigns %}
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    {% for c in ml_campaigns %}
+    <div class="overflow-hidden rounded-2xl border border-white/10 bg-[#111113]">
+      <div class="flex gap-4 p-4">
+        {% if c.cover_url %}
+        <img src="{{ c.cover_url }}" alt="{{ c.title }}" class="h-20 w-20 shrink-0 rounded-lg object-cover">
+        {% else %}
+        <div class="grid h-20 w-20 shrink-0 place-items-center rounded-lg bg-white/5 text-2xl text-gray-600">♪</div>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between gap-2">
+            <div class="truncate text-sm font-bold text-gray-100">{{ c.title }}</div>
+            <span class="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if c.status_tone == 'green' else ('bg-[#c9a24a]/15 text-[#e8c667]' if c.status_tone == 'gold' else 'bg-white/10 text-gray-400') }}">{{ c.eff_status }}</span>
+          </div>
+          <div class="truncate text-[11px] text-gray-500">{{ c.artist_name }} · {{ c.release_type }}{% if c.release_date %} · {{ c.release_date }}{% endif %}</div>
+          <div class="mt-1.5 flex items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-wide text-gray-500">SB Score</span>
+            <span class="h-1.5 w-16 overflow-hidden rounded-full bg-white/10"><span class="block h-full rounded-full {{ 'bg-green-500' if c.score >= 70 else ('bg-[#d8b25a]' if c.score >= 40 else 'bg-red-500/70') }}" style="width: {{ c.score }}%;"></span></span>
+            <span class="text-[11px] font-bold tabular-nums {{ 'text-green-400' if c.score >= 70 else 'text-[#e8c667]' }}">{{ c.score }}</span>
+          </div>
+          <div class="mt-1 flex gap-3 text-[11px] tabular-nums text-gray-400">
+            <span>{{ c.visits }} visits</span><span>{{ c.clicks }} clicks</span><span>{{ c.ctr }}% CTR</span><span>{{ c.presaves + c.captures }} fans</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between border-t border-white/5 bg-black/20 px-4 py-2 text-[11px] font-semibold">
+        <span class="flex gap-3">
+          <a href="/l/{{ c.slug }}" target="_blank" class="text-[#e8c667] hover:underline">View</a>
+          <a href="/links/{{ c.id }}/edit" class="text-gray-300 hover:text-white">Edit</a>
+          <a href="/links/{{ c.id }}/analytics" class="text-gray-300 hover:text-white">Analytics</a>
+          <a href="/links/{{ c.id }}/variants" class="text-gray-300 hover:text-white">Variants</a>
+          <a href="/links/{{ c.id }}/qr.svg" target="_blank" class="text-gray-300 hover:text-white">QR</a>
+        </span>
+        <button type="button" class="copy-campaign-link text-gray-400 hover:text-[#e8c667]" data-slug="{{ c.slug }}">Copy link</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
+    <div class="text-sm font-bold text-gray-200">No campaigns yet</div>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Build your first music link: landing page, streaming buttons, pre-save countdown, email capture, QR code, and analytics — all from one URL.</p>
+    <a href="/links/new" class="mt-4 inline-block rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-5 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create your first campaign</a>
+  </div>
+  {% endif %}
+
+  <div class="flex flex-wrap items-end justify-between gap-4 border-t border-white/10 pt-5">
+    <div>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Quick Smart Links</h1>
       <p class="mt-1 text-sm text-gray-500">One link per release that sends fans to every platform — with click tracking.</p>
     </div>
     <button type="button" id="new-link-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
@@ -221,5 +291,15 @@
     const kpi = document.getElementById("kpi-links");
     kpi.textContent = String(Number(kpi.textContent) + 1);
   }
+
+  // Campaign cards: copy the public link.
+  document.querySelectorAll(".copy-campaign-link").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const url = window.location.origin + "/l/" + btn.dataset.slug;
+      try { await navigator.clipboard.writeText(url); } catch (e) {}
+      btn.textContent = "Copied ✓";
+      setTimeout(() => { btn.textContent = "Copy link"; }, 1500);
+    });
+  });
 </script>
 {% endblock %}

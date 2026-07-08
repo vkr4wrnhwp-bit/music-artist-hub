@@ -109,6 +109,82 @@ def init_db():
                 updated TEXT NOT NULL,
                 PRIMARY KEY (user_id, kind)
             );
+            CREATE TABLE IF NOT EXISTS ml_campaigns (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                artist_name TEXT NOT NULL DEFAULT '',
+                release_type TEXT NOT NULL DEFAULT 'Single',
+                campaign_type TEXT NOT NULL DEFAULT 'release',
+                status TEXT NOT NULL DEFAULT 'draft',
+                release_date TEXT NOT NULL DEFAULT '',
+                cover_url TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                settings TEXT NOT NULL DEFAULT '{}',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                published_at TEXT,
+                archived_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS ml_destinations (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                service_key TEXT NOT NULL,
+                service_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_active INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS ml_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                campaign_id TEXT NOT NULL,
+                variant_id TEXT,
+                event_type TEXT NOT NULL,
+                service_key TEXT,
+                fan_id TEXT,
+                referrer TEXT,
+                utm_source TEXT,
+                created TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ml_events_campaign
+                ON ml_events (campaign_id, event_type);
+            CREATE TABLE IF NOT EXISTS ml_fans (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                first_campaign_id TEXT,
+                last_campaign_id TEXT,
+                total_visits INTEGER NOT NULL DEFAULT 0,
+                total_clicks INTEGER NOT NULL DEFAULT 0,
+                total_presaves INTEGER NOT NULL DEFAULT 0,
+                total_captures INTEGER NOT NULL DEFAULT 0,
+                tags TEXT NOT NULL DEFAULT '[]',
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                intent_level TEXT NOT NULL DEFAULT 'Cold',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                UNIQUE(user_id, email)
+            );
+            CREATE TABLE IF NOT EXISTS ml_consents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fan_id TEXT NOT NULL,
+                campaign_id TEXT,
+                consent_type TEXT NOT NULL,
+                consent_text TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ml_variants (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                utm_source TEXT NOT NULL DEFAULT '',
+                utm_medium TEXT NOT NULL DEFAULT '',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,

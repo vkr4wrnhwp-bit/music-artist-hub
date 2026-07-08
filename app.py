@@ -50,6 +50,8 @@ from community_config import (
 from discover_config import get_discover_data, like_track, follow_artist
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
                         deezer_track_metadata, musicbrainz_credits, press_mentions)
+import links_engine
+import links_store as mls
 from network_config import (
     get_network_data,
     get_profile,
@@ -444,8 +446,40 @@ def create_app():
 
     # --- Smart links: real redirects + click tracking --------------------------
 
+    def _ml_variant_id(campaign_id):
+        """Resolve ?v= variant slug to an id for event attribution."""
+        vslug = (request.args.get("v") or request.form.get("v") or "").strip()
+        if not vslug:
+            return None
+        variant = mls.get_variant_by_slug(vslug)
+        return variant["id"] if variant and variant["campaign_id"] == campaign_id else None
+
     @app.route("/l/<slug>")
     def smart_link_redirect(slug):
+        # Street Banker Links campaigns share the /l/ namespace with quick links.
+        campaign = mls.get_campaign_by_slug(slug)
+        if campaign is not None:
+            if campaign.get("archived_at"):
+                return render_template("link_campaign_unavailable.html"), 410
+            owner_preview = (campaign["status"] != "live"
+                             and session.get("user_id") == campaign["user_id"])
+            if campaign["status"] != "live" and not owner_preview:
+                abort(404)
+            variant_id = _ml_variant_id(campaign["id"])
+            if not owner_preview:
+                mls.track(campaign["id"], "page_view", variant_id=variant_id,
+                          referrer=request.referrer,
+                          utm_source=request.args.get("utm_source"))
+                if request.args.get("src") == "qr":
+                    mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
+            return render_template(
+                "link_campaign.html", c=campaign,
+                destinations=mls.get_destinations(campaign["id"], active_only=True),
+                prerelease=links_engine.is_prerelease(campaign),
+                status=links_engine.effective_status(campaign),
+                variant_slug=(request.args.get("v") or ""),
+                owner_preview=owner_preview,
+                service_logo=dict((k, l) for k, _, l in links_engine.SERVICES))
         link = store.get_db_link(slug)
         if link is None:
             return redirect(url_for("links"))
@@ -455,6 +489,46 @@ def create_app():
             return render_template("link_landing.html", link=link, meta=meta,
                                    platform_links=ordered_platform_links(meta["links"]))
         return redirect(link["target"])
+
+    @app.route("/l/<slug>/go/<dest_id>")
+    def ml_go(slug, dest_id):
+        campaign = mls.get_campaign_by_slug(slug)
+        dest = mls.get_destination(dest_id)
+        if campaign is None or dest is None or dest["campaign_id"] != campaign["id"]:
+            abort(404)
+        mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
+                  service_key=dest["service_key"], referrer=request.referrer)
+        target = dest["url"]
+        if not target.startswith(("http://", "https://")):
+            abort(400)
+        return redirect(target)
+
+    @app.route("/l/<slug>/subscribe", methods=["POST"])
+    def ml_subscribe(slug):
+        campaign = mls.get_campaign_by_slug(slug)
+        if campaign is None or campaign["status"] != "live":
+            return jsonify({"ok": False, "error": "This link is not accepting signups."}), 404
+        email = (request.form.get("email") or "").strip().lower()
+        name = (request.form.get("name") or "").strip()
+        if "@" not in email or "." not in email.split("@")[-1]:
+            return jsonify({"ok": False, "error": "Enter a valid email address."}), 400
+        settings = campaign.get("settings") or {}
+        consent_text = settings.get("consent_text") or (
+            "I agree to receive updates about this release.")
+        prerelease = links_engine.is_prerelease(campaign)
+        fan_id = mls.upsert_fan(campaign["user_id"], email, campaign["id"], name)
+        consent_type = "presave_notify" if prerelease else "email_marketing"
+        mls.add_consent(fan_id, campaign["id"], consent_type, consent_text)
+        event = "presave_notify" if prerelease else "email_capture"
+        mls.track(campaign["id"], event, variant_id=_ml_variant_id(campaign["id"]),
+                  fan_id=fan_id)
+        mls.bump_fan(fan_id, "total_presaves" if prerelease else "total_captures")
+        fan = mls.get_fan(fan_id)
+        score, level = links_engine.calculate_fan_intent(fan)
+        mls.set_fan_intent(fan_id, score, level)
+        message = ("You're locked in — we'll remind you the moment it drops."
+                   if prerelease else "You're on the list. Welcome to the inner circle.")
+        return jsonify({"ok": True, "message": message})
 
     # --- Reports: real CSV download --------------------------------------------
 
@@ -841,13 +915,242 @@ def create_app():
         suggestion = suggest_from_prompt(payload.get("prompt", ""))
         return jsonify({"ok": True, "suggestion": suggestion})
 
+    def _ml_campaign_card(c):
+        counts = mls.event_counts(c["id"])
+        visits = counts.get("page_view", 0)
+        clicks = counts.get("service_click", 0)
+        dests = mls.get_destinations(c["id"])
+        score = links_engine.calculate_street_banker_score(c, dests)
+        status = links_engine.effective_status(c)
+        return {**c, "visits": visits, "clicks": clicks,
+                "ctr": round(100 * clicks / visits, 1) if visits else 0.0,
+                "captures": counts.get("email_capture", 0),
+                "presaves": counts.get("presave_notify", 0),
+                "score": score["total"], "warnings": score["warnings"],
+                "eff_status": status,
+                "status_tone": links_engine.STATUS_TONES.get(status, "gray"),
+                "dest_count": len(dests)}
+
     @app.route("/links")
     def links():
         ctx = build_dashboard_context()
         ctx["links_data"] = get_links_data()
         # Real, persisted links with genuine click counts sit above the demo set.
         ctx["real_links"] = store.get_db_links()
+        user = current_user()
+        ctx["links_user"] = user
+        ctx["ml_campaigns"] = ([_ml_campaign_card(c) for c in mls.list_campaigns(user["id"])]
+                               if user else [])
         return render_template("links.html", active_page="links", **ctx)
+
+    def _ml_slug(title):
+        base = _slugify(title)
+        slug = base
+        while (mls.get_campaign_by_slug(slug) is not None
+               or store.get_db_link(slug) is not None
+               or mls.get_variant_by_slug(slug) is not None):
+            slug = "%s-%s" % (base, uuid.uuid4().hex[:4])
+        return slug
+
+    def _ml_form_fields():
+        f = request.form
+        settings = {
+            "email_capture": bool(f.get("email_capture")),
+            "consent_text": (f.get("consent_text") or "").strip()[:400],
+            "privacy_url": (f.get("privacy_url") or "").strip()[:300],
+            "cta_text": (f.get("cta_text") or "").strip()[:60],
+            "accent": (f.get("accent") or "").strip()[:7],
+        }
+        return {
+            "title": (f.get("title") or "").strip()[:120],
+            "artist_name": (f.get("artist_name") or "").strip()[:120],
+            "release_type": f.get("release_type") if f.get("release_type") in links_engine.RELEASE_TYPES else "Single",
+            "campaign_type": f.get("campaign_type") if f.get("campaign_type") in links_engine.CAMPAIGN_TYPE_NAMES else "release",
+            "release_date": (f.get("release_date") or "").strip()[:10],
+            "cover_url": (f.get("cover_url") or "").strip()[:500],
+            "description": (f.get("description") or "").strip()[:600],
+            "settings": settings,
+        }
+
+    def _ml_form_destinations():
+        out, order = [], 0
+        for key, name, _logo in links_engine.SERVICES:
+            url = (request.form.get("dest_" + key) or "").strip()[:500]
+            if url and url.startswith(("http://", "https://")):
+                out.append({"service_key": key, "service_name": name,
+                            "url": url, "sort_order": order})
+                order += 1
+        return out
+
+    @app.route("/links/new", methods=["GET", "POST"])
+    def ml_new():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            fields = _ml_form_fields()
+            if not fields["title"]:
+                return render_template("links_builder.html", active_page="links",
+                                       c=None, destinations=[], engine=links_engine,
+                                       error="A campaign title is required.",
+                                       **build_dashboard_context())
+            cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
+            mls.set_destinations(cid, _ml_form_destinations())
+            return redirect("/links/%s/edit" % cid)
+        return render_template("links_builder.html", active_page="links",
+                               c=None, destinations=[], engine=links_engine,
+                               error=None, **build_dashboard_context())
+
+    def _ml_owned(campaign_id):
+        user = current_user()
+        if user is None:
+            return None, login_required_redirect()
+        campaign = mls.get_campaign(campaign_id, user["id"])
+        if campaign is None:
+            return None, abort(404)
+        return campaign, None
+
+    @app.route("/links/<cid>/edit", methods=["GET", "POST"])
+    def ml_edit(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        if request.method == "POST":
+            mls.update_campaign(cid, campaign["user_id"], _ml_form_fields())
+            mls.set_destinations(cid, _ml_form_destinations())
+            campaign = mls.get_campaign(cid)
+        dests = mls.get_destinations(cid)
+        score = links_engine.calculate_street_banker_score(campaign, dests)
+        return render_template("links_builder.html", active_page="links",
+                               c=campaign, destinations=dests, engine=links_engine,
+                               score=score, error=None,
+                               eff_status=links_engine.effective_status(campaign),
+                               **build_dashboard_context())
+
+    @app.route("/links/<cid>/publish", methods=["POST"])
+    def ml_publish(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        mls.update_campaign(cid, campaign["user_id"],
+                            {"status": "live", "published_at": store._now(),
+                             "archived_at": None})
+        return redirect("/links/%s/edit" % cid)
+
+    @app.route("/links/<cid>/unpublish", methods=["POST"])
+    def ml_unpublish(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        mls.update_campaign(cid, campaign["user_id"], {"status": "draft"})
+        return redirect("/links/%s/edit" % cid)
+
+    @app.route("/links/<cid>/archive", methods=["POST"])
+    def ml_archive(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        mls.update_campaign(cid, campaign["user_id"],
+                            {"status": "draft", "archived_at": store._now()})
+        return redirect("/links")
+
+    @app.route("/links/<cid>/duplicate", methods=["POST"])
+    def ml_duplicate(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        new_id = mls.duplicate_campaign(cid, campaign["user_id"],
+                                        _ml_slug(campaign["title"] + "-copy"))
+        return redirect("/links/%s/edit" % new_id)
+
+    @app.route("/links/<cid>/analytics")
+    def ml_analytics(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        counts = mls.event_counts(cid)
+        visits = counts.get("page_view", 0)
+        clicks = counts.get("service_click", 0)
+        variants = mls.list_variants(cid)
+        vstats = mls.variant_stats(cid)
+        dests = mls.get_destinations(cid)
+        return render_template(
+            "links_analytics.html", active_page="links", c=campaign,
+            counts=counts, visits=visits, clicks=clicks,
+            ctr=round(100 * clicks / visits, 1) if visits else 0.0,
+            top_services_named=[(links_engine.SERVICE_NAMES.get(k, k), n)
+                                for k, n in mls.breakdown(cid, "service_key", "service_click")],
+            top_referrers=mls.breakdown(cid, "referrer"),
+            top_utm=mls.breakdown(cid, "utm_source"),
+            timeline=mls.timeline(cid),
+            variants=variants, vstats=vstats,
+            score=links_engine.calculate_street_banker_score(campaign, dests),
+            eff_status=links_engine.effective_status(campaign),
+            service_names=links_engine.SERVICE_NAMES,
+            **build_dashboard_context())
+
+    @app.route("/links/<cid>/variants", methods=["GET", "POST"])
+    def ml_variants(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        if request.method == "POST":
+            name = (request.form.get("name") or "").strip()[:80]
+            if name:
+                mls.create_variant(cid, name, _ml_slug(campaign["slug"] + "-" + name),
+                                   utm_source=(request.form.get("utm_source") or "").strip()[:80],
+                                   utm_medium=(request.form.get("utm_medium") or "").strip()[:80])
+        return render_template(
+            "links_variants.html", active_page="links", c=campaign,
+            variants=mls.list_variants(cid), vstats=mls.variant_stats(cid),
+            **build_dashboard_context())
+
+    @app.route("/links/<cid>/qr.svg")
+    def ml_qr(cid):
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        import io as _io
+        import segno
+        url = request.host_url.rstrip("/") + "/l/" + campaign["slug"] + "?src=qr"
+        vslug = (request.args.get("v") or "").strip()
+        if vslug:
+            url += "&v=" + vslug
+        buf = _io.BytesIO()
+        segno.make(url, error="m").save(buf, kind="svg", scale=6,
+                                        dark="#141210", light=None)
+        return Response(buf.getvalue(), mimetype="image/svg+xml")
+
+    @app.route("/links/fans")
+    def ml_fans():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        q = (request.args.get("q") or "").strip()
+        fans = mls.list_fans(user["id"], q)
+        campaigns = {c["id"]: c["title"] for c in mls.list_campaigns(user["id"])}
+        return render_template("links_fans.html", active_page="links",
+                               fans=fans, q=q, campaign_titles=campaigns,
+                               intent_tones=links_engine.INTENT_TONES,
+                               **build_dashboard_context())
+
+    @app.route("/links/fans/export.csv")
+    def ml_fans_export():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import csv as _csv
+        import io as _io
+        out = _io.StringIO()
+        w = _csv.writer(out)
+        w.writerow(["Email", "Name", "Visits", "Clicks", "Pre-saves", "Captures",
+                    "Intent Score", "Intent Level", "First Seen", "Last Active"])
+        for f in mls.list_fans(user["id"]):
+            w.writerow([f["email"], f["name"], f["total_visits"], f["total_clicks"],
+                        f["total_presaves"], f["total_captures"], f["intent_score"],
+                        f["intent_level"], f["created"], f["updated"]])
+        return Response(out.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=street-banker-fans.csv"})
 
     @app.route("/links/create", methods=["POST"])
     def links_create():

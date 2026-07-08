@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ c.title }} — {{ c.artist_name or 'Street Banker' }}</title>
+  <meta name="description" content="{{ c.description or (c.title + ' by ' + c.artist_name + ' — listen everywhere.') }}">
+  <meta property="og:title" content="{{ c.title }} — {{ c.artist_name }}">
+  <meta property="og:description" content="{{ c.description or 'Listen on every platform.' }}">
+  {% if c.cover_url %}<meta property="og:image" content="{{ c.cover_url }}">{% endif %}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .cover-bg {
+      position: fixed; inset: -40px; z-index: -1;
+      background-size: cover; background-position: center;
+      filter: blur(48px) brightness(0.32) saturate(1.2);
+      transform: scale(1.15);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0a0a0b] text-gray-100 antialiased">
+  {% set accent = c.settings.get('accent') or '#d8b25a' %}
+  {% if c.cover_url %}<div class="cover-bg" style="background-image: url('{{ c.cover_url }}');"></div>{% endif %}
+
+  {% if owner_preview %}
+  <div class="bg-[#d8b25a] px-4 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-[#1c1302]">Draft preview — only you can see this. Publish to go live.</div>
+  {% endif %}
+
+  <main class="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
+
+    <!-- Cover + identity -->
+    <div class="text-center">
+      {% if c.cover_url %}
+      <img src="{{ c.cover_url }}" alt="{{ c.title }}" class="mx-auto aspect-square w-full max-w-[340px] rounded-2xl object-cover shadow-[0_25px_60px_rgba(0,0,0,0.6)]">
+      {% else %}
+      <div class="mx-auto grid aspect-square w-full max-w-[340px] place-items-center rounded-2xl bg-white/5 text-6xl text-gray-700 shadow-2xl">♪</div>
+      {% endif %}
+      <div class="mt-5 text-[10px] font-bold uppercase tracking-[0.35em]" style="color: {{ accent }};">{{ c.release_type }}{% if prerelease %} · {{ c.release_date }}{% endif %}</div>
+      <h1 class="mt-1.5 text-3xl font-black leading-tight">{{ c.title }}</h1>
+      <div class="mt-1 text-base font-semibold text-gray-300">{{ c.artist_name }}</div>
+      {% if c.description %}<p class="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-gray-400">{{ c.description }}</p>{% endif %}
+    </div>
+
+    {% if prerelease %}
+    <!-- Pre-release: countdown + notify -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5 text-center backdrop-blur">
+      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Dropping in</div>
+      <div id="countdown" data-date="{{ c.release_date }}" class="mt-2 flex justify-center gap-4 text-center"></div>
+    </div>
+    {% endif %}
+
+    {% set capture_on = c.settings.get('email_capture') %}
+    {% if prerelease and capture_on %}
+    <!-- Primary CTA: pre-save / notify -->
+    <form id="capture-form" class="mt-4">
+      <input type="hidden" name="v" value="{{ variant_slug }}">
+      <div class="flex gap-2">
+        <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-500 backdrop-blur focus:border-white/40 focus:outline-none">
+        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302]" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
+      </div>
+      <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }}{% if c.settings.get('privacy_url') %} <a href="{{ c.settings.get('privacy_url') }}" class="underline" target="_blank" rel="noopener">Privacy</a>{% endif %}</p>
+      <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
+    </form>
+    {% endif %}
+
+    <!-- Streaming destinations -->
+    {% if destinations %}
+    <div class="mt-6 space-y-2.5">
+      {% if not prerelease %}<div class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
+      {% for d in destinations %}
+      <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if variant_slug %}?v={{ variant_slug }}{% endif %}"
+         class="flex items-center justify-between rounded-xl border border-white/12 bg-black/45 px-5 py-3.5 backdrop-blur transition-all hover:border-white/35 hover:bg-black/60">
+        <span class="text-sm font-bold">{{ d.service_name }}</span>
+        <span class="text-xs font-bold uppercase tracking-wide" style="color: {{ accent }};">{{ 'Pre-save' if prerelease and d.service_key in ('spotify', 'apple_music', 'deezer') else 'Play' }} →</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not prerelease and capture_on %}
+    <!-- Released: email capture below buttons -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5 backdrop-blur">
+      <div class="text-center text-sm font-bold">Join the inner circle</div>
+      <p class="mt-1 text-center text-xs text-gray-400">First access to drops, tickets, and merch.</p>
+      <form id="capture-form" class="mt-3">
+        <input type="hidden" name="v" value="{{ variant_slug }}">
+        <div class="flex gap-2">
+          <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
+          <button type="submit" class="shrink-0 rounded-xl px-4 py-3 text-sm font-black text-[#1c1302]" style="background: {{ accent }};">Join</button>
+        </div>
+        <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }}{% if c.settings.get('privacy_url') %} <a href="{{ c.settings.get('privacy_url') }}" class="underline" target="_blank" rel="noopener">Privacy</a>{% endif %}</p>
+        <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Share -->
+    <div class="mt-6 flex justify-center gap-3">
+      <button type="button" id="share-btn" class="rounded-full border border-white/15 px-5 py-2 text-xs font-bold text-gray-300 hover:bg-white/10">Share</button>
+      <button type="button" id="copy-btn" class="rounded-full border border-white/15 px-5 py-2 text-xs font-bold text-gray-300 hover:bg-white/10">Copy Link</button>
+    </div>
+
+    <footer class="mt-auto pt-10 text-center">
+      <a href="/" class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-600 hover:text-gray-400">Powered by <span style="color: {{ accent }};">Street Banker</span></a>
+    </footer>
+  </main>
+
+  <script>
+    // Countdown
+    const cd = document.getElementById("countdown");
+    if (cd) {
+      const target = new Date(cd.dataset.date + "T00:00:00");
+      function tick() {
+        let ms = target - new Date();
+        if (ms < 0) ms = 0;
+        const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24,
+              m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+        cd.innerHTML = [[d, "days"], [h, "hrs"], [m, "min"], [s, "sec"]].map(([v, l]) =>
+          '<div><div class="text-2xl font-black tabular-nums">' + v + '</div><div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">' + l + "</div></div>").join("");
+      }
+      tick(); setInterval(tick, 1000);
+    }
+
+    // Email capture -> fan record + consent log
+    const form = document.getElementById("capture-form");
+    if (form) form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const res = await fetch("/l/{{ c.slug }}/subscribe", { method: "POST", body: new FormData(form) });
+      const data = await res.json();
+      const done = document.getElementById("capture-done");
+      if (data.ok) {
+        form.querySelector(".flex").classList.add("hidden");
+        done.textContent = data.message;
+        done.classList.remove("hidden");
+      } else {
+        done.textContent = data.error || "Something went wrong.";
+        done.className = "rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-semibold text-red-400";
+      }
+    });
+
+    // Share / copy
+    const pageUrl = window.location.origin + "/l/{{ c.slug }}";
+    document.getElementById("share-btn").addEventListener("click", async () => {
+      if (navigator.share) { try { await navigator.share({ title: {{ c.title | tojson }}, url: pageUrl }); } catch (e) {} }
+      else { try { await navigator.clipboard.writeText(pageUrl); } catch (e) {} }
+    });
+    document.getElementById("copy-btn").addEventListener("click", async (e) => {
+      try { await navigator.clipboard.writeText(pageUrl); } catch (ex) {}
+      e.target.textContent = "Copied ✓";
+      setTimeout(() => { e.target.textContent = "Copy Link"; }, 1500);
+    });
+  </script>
+</body>
+</html>

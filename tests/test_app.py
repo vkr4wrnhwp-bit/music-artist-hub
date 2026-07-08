@@ -1665,6 +1665,139 @@ def test_epk_press_search(monkeypatch):
     assert "bg-swatch" in body                     # cover color swatches too
 
 
+# --- Street Banker Links: campaign engine ------------------------------------
+
+def _ml_login(app_obj):
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    return client
+
+
+def _ml_create(client, **overrides):
+    data = {"title": "Test Drop", "artist_name": "Test Artist",
+            "release_type": "Single", "campaign_type": "release",
+            "cover_url": "https://x/art.jpg", "description": "New single.",
+            "email_capture": "1", "consent_text": "I agree to updates.",
+            "dest_spotify": "https://open.spotify.com/track/x",
+            "dest_apple_music": "https://music.apple.com/x",
+            "dest_youtube": "https://youtube.com/watch?v=x"}
+    data.update(overrides)
+    r = client.post("/links/new", data=data)
+    assert r.status_code == 302
+    return r.headers["Location"].split("/")[2]
+
+
+def test_ml_campaign_lifecycle_and_public_page():
+    import links_store as mls
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    # Anonymous cannot create.
+    anon = app_obj.test_client()
+    assert anon.post("/links/new", data={"title": "x"}).status_code == 302  # -> login
+    cid = _ml_create(client)
+    camp = mls.get_campaign(cid)
+    assert camp["status"] == "draft"
+    # Draft is invisible to the public but previewable by the owner.
+    assert anon.get("/l/" + camp["slug"]).status_code == 404
+    assert "Draft preview" in client.get("/l/" + camp["slug"]).get_data(as_text=True)
+    client.post("/links/%s/publish" % cid)
+    page = anon.get("/l/" + camp["slug"]).get_data(as_text=True)
+    assert "Test Drop" in page and "Listen Now" in page
+    assert "Powered by" in page and "Street Banker" in page
+    assert "I agree to updates." in page          # consent copy on public form
+    # Page view tracked; service click via /go/ redirects and tracks.
+    dests = mls.get_destinations(cid)
+    r = anon.get("/l/%s/go/%s" % (camp["slug"], dests[0]["id"]))
+    assert r.status_code == 302 and "spotify" in r.headers["Location"]
+    counts = mls.event_counts(cid)
+    assert counts["page_view"] >= 1 and counts["service_click"] == 1
+    # Archive -> public 410 unavailable state.
+    client.post("/links/%s/archive" % cid)
+    assert anon.get("/l/" + camp["slug"]).status_code == 410
+
+
+def test_ml_presave_capture_consent_and_intent():
+    import links_store as mls
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    cid = _ml_create(client, campaign_type="presave", release_date="2030-01-01",
+                     title="Future Drop")
+    client.post("/links/%s/publish" % cid)
+    camp = mls.get_campaign(cid)
+    anon = app_obj.test_client()
+    page = anon.get("/l/" + camp["slug"]).get_data(as_text=True)
+    assert "Dropping in" in page and 'id="countdown"' in page  # pre-save state
+    # Bad email rejected; good email creates fan + consent + presave event.
+    assert anon.post("/l/%s/subscribe" % camp["slug"],
+                     data={"email": "junk"}).status_code == 400
+    r = anon.post("/l/%s/subscribe" % camp["slug"],
+                  data={"email": "Fan@Example.com", "name": "Fan One"})
+    assert r.get_json()["ok"]
+    fans = mls.list_fans(camp["user_id"], "fan@example.com")
+    assert fans and fans[0]["total_presaves"] == 1
+    assert fans[0]["intent_score"] > 0 and fans[0]["intent_level"] != ""
+    consents = mls.list_consents(fans[0]["id"])
+    assert consents[0]["consent_type"] == "presave_notify"
+    assert consents[0]["consent_text"] == "I agree to updates."
+    # Fan CRM lists + exports the fan.
+    assert "fan@example.com" in client.get("/links/fans").get_data(as_text=True)
+    assert "fan@example.com" in client.get("/links/fans/export.csv").get_data(as_text=True)
+    # Duplicate emails update, not duplicate.
+    anon.post("/l/%s/subscribe" % camp["slug"], data={"email": "fan@example.com"})
+    assert len(mls.list_fans(camp["user_id"], "fan@example.com")) == 1
+
+
+def test_ml_score_variants_qr_duplicate():
+    import links_store as mls
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    # Bare campaign scores low with actionable warnings.
+    bare = _ml_create(client, title="Bare", cover_url="", description="",
+                      email_capture="", consent_text="", dest_spotify="",
+                      dest_apple_music="", dest_youtube="")
+    body = client.get("/links/%s/edit" % bare).get_data(as_text=True)
+    assert "Spotify destination missing." in body
+    assert "No email capture enabled" in body
+    import links_engine
+    camp = mls.get_campaign(bare)
+    score = links_engine.calculate_street_banker_score(camp, [])
+    assert score["total"] < 40
+    # Full campaign scores high once published.
+    full = _ml_create(client, title="Full", release_date="2030-06-01")
+    client.post("/links/%s/publish" % full)
+    camp = mls.get_campaign(full)
+    score = links_engine.calculate_street_banker_score(
+        camp, mls.get_destinations(full))
+    assert score["total"] >= 70
+    # Variants: unique slug, tracked separately, QR per variant.
+    client.post("/links/%s/variants" % full,
+                data={"name": "Instagram bio", "utm_source": "instagram"})
+    variants = mls.list_variants(full)
+    assert len(variants) == 1
+    anon = app_obj.test_client()
+    anon.get("/l/%s?v=%s" % (camp["slug"], variants[0]["slug"]))
+    assert mls.variant_stats(full)[variants[0]["id"]]["page_view"] == 1
+    r = client.get("/links/%s/qr.svg?v=%s" % (full, variants[0]["slug"]))
+    assert r.status_code == 200 and b"<svg" in r.data
+    # Duplicate copies destinations, resets to draft.
+    r = client.post("/links/%s/duplicate" % full)
+    new_id = r.headers["Location"].split("/")[2]
+    dup = mls.get_campaign(new_id)
+    assert dup["status"] == "draft" and "(copy)" in dup["title"]
+    assert len(mls.get_destinations(new_id)) == len(mls.get_destinations(full))
+    # Dashboard shows campaign cards with the score.
+    body = client.get("/links").get_data(as_text=True)
+    assert "Music Link Campaigns" in body and "SB Score" in body
+
+
+def test_ml_quick_links_still_work():
+    # The original quick smart links share /l/ and must be untouched.
+    client = create_app().test_client()
+    r = client.post("/links/create", json={"title": "Quick", "platforms": ["Spotify"]})
+    slug = r.get_json()["link"]["slug"]
+    assert client.get("/l/" + slug).status_code == 302
+
+
 def test_api_cache_roundtrip():
     import db as store
     store.cache_set("t:key", {"a": 1})
