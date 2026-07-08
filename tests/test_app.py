@@ -1533,6 +1533,31 @@ def test_fresh_account_gets_clean_catalog(monkeypatch):
     assert "1,248" in client.get("/catalog").get_data(as_text=True)
 
 
+def test_public_epk_share_link():
+    app_obj = create_app()
+    client = app_obj.test_client()
+    # Signed-out editor has no share block.
+    assert "Public link" not in client.get("/epk").get_data(as_text=True)
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    body = client.get("/epk").get_data(as_text=True)
+    # Visiting the editor mints a stable slug and shows the copyable link.
+    assert "Public link" in body and "/epk/synthwave-surfer" in body
+    assert "f-show-sweep" in body
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Official Press Kit" in public and "Synthwave Surfer" in public
+    assert "Customize" not in public          # no editor UI on the public page
+    assert "Powered by Royalty Sweep" not in public  # private by default
+    # The artist opts in to showing backend stats publicly.
+    client.post("/epk/save", json={"show_sweep": True})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Powered by Royalty Sweep" in public and "Strongest Platform" in public
+    assert "Sample metrics" in public          # honesty disclaimer stays
+    # Anyone can open it without signing in; unknown slugs 404.
+    anon = app_obj.test_client()
+    assert anon.get("/epk/synthwave-surfer").status_code == 200
+    assert anon.get("/epk/no-such-artist").status_code == 404
+
+
 def test_api_cache_roundtrip():
     import db as store
     store.cache_set("t:key", {"a": 1})

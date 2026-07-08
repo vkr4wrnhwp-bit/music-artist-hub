@@ -137,6 +137,17 @@
           <span id="save-state" class="text-[10px] font-semibold normal-case tracking-normal text-gray-500">{{ 'Saved' if e.customized else '' }}</span>
         </h2>
 
+        {% if epk_public_url %}
+        <div class="mt-3 rounded-lg border border-[#c9a24a]/30 bg-[#c9a24a]/[0.06] p-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#e8c667]">Public link — share with press &amp; promoters</label>
+          <div class="mt-1.5 flex items-center gap-2">
+            <input id="public-link" readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url }}" class="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-300 focus:outline-none">
+            <button type="button" id="copy-link-btn" class="shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy</button>
+          </div>
+          <a href="{{ epk_public_url }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-[10px] font-semibold text-[#c9a24a] hover:underline">View public page ↗</a>
+        </div>
+        {% endif %}
+
         <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Artist photo</label>
           <input type="file" id="photo-input" accept=".png,.jpg,.jpeg,.webp"
@@ -184,6 +195,11 @@
             </div>
             {% endfor %}
           </div>
+
+          <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2.5">
+            <input type="checkbox" id="f-show-sweep" {{ 'checked' if e.show_sweep }} class="h-4 w-4 accent-[#c9a24a]">
+            <span class="text-xs font-semibold text-gray-200">Show Royalty Sweep stats on public EPK</span>
+          </label>
 
           <button type="button" id="save-btn" class="w-full rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2.5 text-sm font-bold text-[#e8c667] transition-colors hover:bg-[#c9a24a]/25">Save My EPK</button>
           <div id="save-error" class="hidden text-[11px] font-semibold text-red-400"></div>
@@ -260,6 +276,7 @@
       socials: { instagram: v("f-soc-instagram"), tiktok: v("f-soc-tiktok"), youtube: v("f-soc-youtube"), spotify: v("f-soc-spotify") },
       contact: { booking: v("f-con-booking"), press: v("f-con-press"), management: v("f-con-management") },
       press: [ { quote: v("f-q0"), source: v("f-s0") }, { quote: v("f-q1"), source: v("f-s1") } ],
+      show_sweep: document.getElementById("f-show-sweep").checked,
     };
     try {
       const res = await fetch("/epk/save", {
@@ -270,6 +287,16 @@
       if (res.ok && data.ok) { btn.textContent = "Saved ✓"; setTimeout(() => window.location.reload(), 600); }
       else { err.textContent = data.error || "Could not save."; err.classList.remove("hidden"); btn.disabled = false; btn.textContent = "Save My EPK"; }
     } catch (ex) { btn.disabled = false; btn.textContent = "Save My EPK"; }
+  });
+
+  // Copy the public press-kit link.
+  const copyBtn = document.getElementById("copy-link-btn");
+  if (copyBtn) copyBtn.addEventListener("click", async () => {
+    const input = document.getElementById("public-link");
+    try { await navigator.clipboard.writeText(input.value); }
+    catch (ex) { input.select(); document.execCommand("copy"); }
+    copyBtn.textContent = "Copied ✓";
+    setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
   });
   {% endif %}
 </script>

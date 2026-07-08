@@ -118,6 +118,11 @@ def init_db():
             db.execute("ALTER TABLE catalog_tracks ADD COLUMN meta TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: public share slug on EPK profiles.
+        try:
+            db.execute("ALTER TABLE epk_profiles ADD COLUMN slug TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -322,7 +327,29 @@ def get_epk(user_id):
         row = db.execute("SELECT * FROM epk_profiles WHERE user_id = ?", (user_id,)).fetchone()
     if row is None:
         return None
-    return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"]}
+    return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"],
+            "slug": row["slug"]}
+
+
+def set_epk_slug(user_id, slug):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_profiles (user_id, data, slug, updated) VALUES (?,'{}',?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET slug=excluded.slug, updated=excluded.updated",
+            (user_id, slug, _now()),
+        )
+
+
+def get_epk_by_slug(slug):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT p.*, u.name AS user_name FROM epk_profiles p "
+            "JOIN users u ON u.id = p.user_id WHERE p.slug = ?", (slug,)).fetchone()
+    if row is None:
+        return None
+    return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"],
+            "slug": row["slug"], "user_id": row["user_id"],
+            "user_name": row["user_name"]}
 
 
 # --- Inbox -------------------------------------------------------------------

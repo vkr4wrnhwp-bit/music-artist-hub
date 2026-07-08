@@ -89,6 +89,8 @@ def normalize_epk_overrides(payload):
              for q in (p.get("press") or []) if (q.get("quote") or "").strip()][:3]
     if press:
         out["press"] = press
+    if "show_sweep" in p:
+        out["show_sweep"] = bool(p.get("show_sweep"))
     return out
 
 
@@ -147,6 +149,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None):
         "social_handles": social_handles,
         "photo": photo,
         "customized": bool(o),
+        "show_sweep": bool(o.get("show_sweep")),
         "top_platform": top_platform,
         "stats": stats,
         "top_tracks": top_tracks,

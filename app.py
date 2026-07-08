@@ -1,9 +1,11 @@
 import math
 import os
+import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
+from flask import (Flask, Response, abort, jsonify, redirect, render_template,
+                   request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
@@ -680,6 +682,20 @@ def create_app():
         from flask import send_from_directory
         return send_from_directory(UPLOADS_DIR, filename)
 
+    def _slugify(name):
+        s = "".join(c if c.isalnum() else "-" for c in (name or "").lower())
+        return "-".join(p for p in s.split("-") if p) or "artist"
+
+    def _ensure_epk_slug(user):
+        saved = store.get_epk(user["id"])
+        if saved and saved.get("slug"):
+            return saved["slug"]
+        slug = _slugify(user["name"])
+        while store.get_epk_by_slug(slug) is not None:
+            slug = "%s-%s" % (_slugify(user["name"]), uuid.uuid4().hex[:4])
+        store.set_epk_slug(user["id"], slug)
+        return slug
+
     @app.route("/epk")
     def epk():
         ctx = build_dashboard_context()
@@ -689,10 +705,24 @@ def create_app():
             saved = store.get_epk(user["id"])
             if saved:
                 overrides, photo = saved["data"], saved["photo"]
+            ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo)
         return render_template("epk.html", active_page="epk", **ctx)
+
+    @app.route("/epk/<slug>")
+    def epk_public(slug):
+        prof = store.get_epk_by_slug(slug)
+        if prof is None:
+            abort(404)
+        ctx = build_dashboard_context()
+        name = prof["user_name"]
+        initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
+        data = get_epk_data({"name": name, "initials": initials},
+                            ctx["catalog_value"],
+                            overrides=prof["data"], photo=prof["photo"])
+        return render_template("epk_public.html", e=data, slug=slug)
 
     @app.route("/epk/save", methods=["POST"])
     def epk_save():
