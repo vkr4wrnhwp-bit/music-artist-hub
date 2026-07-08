@@ -13,7 +13,7 @@ from landing_config import get_landing_config
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
-from epk_config import get_epk_data
+from epk_config import get_epk_data, normalize_epk_overrides
 from artwork_config import get_artwork_data, suggest_from_prompt
 from links_config import get_links_data, create_smart_link
 from publishing_config import get_publishing_data
@@ -560,11 +560,53 @@ def create_app():
         ctx["reports_data"] = get_reports_data()
         return render_template("reports.html", active_page="reports", **ctx)
 
+    UPLOADS_DIR = os.path.join(os.path.dirname(store.db_path()), "uploads")
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+    @app.route("/uploads/<path:filename>")
+    def uploaded_file(filename):
+        from flask import send_from_directory
+        return send_from_directory(UPLOADS_DIR, filename)
+
     @app.route("/epk")
     def epk():
         ctx = build_dashboard_context()
-        ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"])
+        user = current_user()
+        overrides, photo = None, None
+        if user:
+            saved = store.get_epk(user["id"])
+            if saved:
+                overrides, photo = saved["data"], saved["photo"]
+        ctx["user"] = user
+        ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
+                                  overrides=overrides, photo=photo)
         return render_template("epk.html", active_page="epk", **ctx)
+
+    @app.route("/epk/save", methods=["POST"])
+    def epk_save():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to save your EPK."}), 401
+        overrides = normalize_epk_overrides(request.get_json(silent=True) or {})
+        store.save_epk(user["id"], overrides)
+        return jsonify({"ok": True})
+
+    @app.route("/epk/photo", methods=["POST"])
+    def epk_photo():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to upload a photo."}), 401
+        f = request.files.get("photo")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "error": "Choose an image file."}), 400
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return jsonify({"ok": False, "error": "Use a PNG, JPG, or WebP image."}), 400
+        fname = "epk_%s.%s" % (user["id"], ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        photo_path = "/uploads/" + fname
+        store.save_epk_photo(user["id"], photo_path)
+        return jsonify({"ok": True, "photo": photo_path})
 
     @app.route("/epk/export", methods=["POST"])
     def epk_export():

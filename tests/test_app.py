@@ -1350,6 +1350,46 @@ def test_discover_like_and_follow():
     reset_discover_state()
 
 
+def test_epk_editable_savable_real():
+    import uuid
+    client = create_app().test_client()
+    # Anonymous can view the demo kit but cannot save.
+    assert "Make it yours" in client.get("/epk").get_data(as_text=True)
+    assert client.post("/epk/save", json={"tagline": "X"}).status_code == 401
+    # Signed-in edits persist across requests.
+    client.post("/signup", data={"name": "EPK Artist",
+                                 "email": "epk%s@example.com" % uuid.uuid4().hex[:6],
+                                 "password": "secret1"})
+    assert client.post("/epk/save", json={
+        "tagline": "Custom tagline here.", "bio": "Custom biography.",
+        "genres": "Synthwave, House", "socials": {"instagram": "@custom"},
+        "contact": {"booking": "book@custom.com"},
+        "press": [{"quote": "Stellar.", "source": "MagX"}],
+    }).get_json()["ok"]
+    body = client.get("/epk").get_data(as_text=True)
+    for s in ("Custom tagline here.", "Custom biography.", "House",
+              "@custom", "book@custom.com", "Stellar.", "EPK Artist"):
+        assert s in body
+
+
+def test_epk_photo_upload_real():
+    import io, uuid
+    client = create_app().test_client()
+    assert client.post("/epk/photo").status_code == 401  # login required
+    client.post("/signup", data={"name": "P", "email": "p%s@example.com" % uuid.uuid4().hex[:6],
+                                 "password": "secret1"})
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    r = client.post("/epk/photo", data={"photo": (io.BytesIO(png), "me.png")},
+                    content_type="multipart/form-data")
+    photo = r.get_json()["photo"]
+    assert photo.startswith("/uploads/epk_")
+    assert client.get(photo).status_code == 200          # actually served
+    assert photo in client.get("/epk").get_data(as_text=True)
+    bad = client.post("/epk/photo", data={"photo": (io.BytesIO(b"x"), "x.exe")},
+                      content_type="multipart/form-data")
+    assert bad.status_code == 400                        # non-image rejected
+
+
 def test_catalog_data_config_shapes():
     from catalog_config import get_catalog_data
     data = get_catalog_data()

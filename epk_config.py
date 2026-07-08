@@ -59,7 +59,40 @@ def _fmt_compact(n):
     return str(int(n))
 
 
-def get_epk_data(account, catalog_value):
+_SOCIAL_KEYS = [("instagram", "Instagram", "other"), ("tiktok", "TikTok", "tiktok"),
+                ("youtube", "YouTube", "youtube"), ("spotify", "Spotify", "spotify")]
+
+
+def normalize_epk_overrides(payload):
+    """Validate + shape a saved editor payload into profile overrides."""
+    p = payload or {}
+    out = {}
+    for key, cap in (("tagline", 120), ("bio", 1200), ("location", 80)):
+        val = (p.get(key) or "").strip()
+        if val:
+            out[key] = val[:cap]
+    genres = [g.strip() for g in (p.get("genres") or "").split(",") if g.strip()][:6]
+    if genres:
+        out["genres"] = genres
+    socials = []
+    for key, label, logo in _SOCIAL_KEYS:
+        handle = ((p.get("socials") or {}).get(key) or "").strip()
+        if handle:
+            socials.append({"label": label, "handle": handle[:60], "logo": logo})
+    if socials:
+        out["socials"] = socials
+    contact = {k: ((p.get("contact") or {}).get(k) or "").strip()[:120]
+               for k in ("booking", "press", "management")}
+    if any(contact.values()):
+        out["contact"] = contact
+    press = [{"quote": (q.get("quote") or "").strip()[:220], "source": (q.get("source") or "").strip()[:60]}
+             for q in (p.get("press") or []) if (q.get("quote") or "").strip()][:3]
+    if press:
+        out["press"] = press
+    return out
+
+
+def get_epk_data(account, catalog_value, overrides=None, photo=None):
     songs = get_songs()
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
@@ -90,10 +123,30 @@ def get_epk_data(account, catalog_value):
         {"label": "Releases", "value": str(len(songs)), "sub": "In active catalog"},
     ]
 
+    # Merge the artist's saved edits over the demo defaults.
+    profile = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in _EPK_PROFILE.items()}
+    o = overrides or {}
+    for key in ("tagline", "bio", "location", "genres", "socials", "press"):
+        if o.get(key):
+            profile[key] = o[key]
+    if o.get("contact"):
+        profile["contact"] = {**profile["contact"],
+                              **{k: v for k, v in o["contact"].items() if v}}
+
+    # Editor prefill: flat handle map for the fixed social rows.
+    social_handles = {key: "" for key, _, _ in _SOCIAL_KEYS}
+    for s in profile["socials"]:
+        for key, label, _ in _SOCIAL_KEYS:
+            if s["label"] == label:
+                social_handles[key] = s["handle"]
+
     return {
         "name": account["name"],
         "initials": account["initials"],
-        "profile": _EPK_PROFILE,
+        "profile": profile,
+        "social_handles": social_handles,
+        "photo": photo,
+        "customized": bool(o),
         "top_platform": top_platform,
         "stats": stats,
         "top_tracks": top_tracks,

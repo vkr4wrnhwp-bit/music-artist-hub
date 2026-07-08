@@ -92,7 +92,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'links', 'artwork', 'services', 'submit', 'inbox', 'settings'] %}
+        {% set live_keys = ['statements', 'links', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk'] %}
         {% for group_name, items in nav_groups %}
         <div class="space-y-1">
           <div class="px-3 text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-600">{{ group_name }}</div>

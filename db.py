@@ -83,6 +83,12 @@ def init_db():
                 payload TEXT NOT NULL,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS epk_profiles (
+                user_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL DEFAULT '{}',
+                photo TEXT,
+                updated TEXT NOT NULL
+            );
             """
         )
 
@@ -193,6 +199,34 @@ def get_db_link(slug):
 def log_click(slug):
     with get_db() as db:
         db.execute("INSERT INTO link_clicks (slug, ts) VALUES (?,?)", (slug, _now()))
+
+
+# --- EPK profiles --------------------------------------------------------------
+
+def save_epk(user_id, data):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_profiles (user_id, data, updated) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
+            (user_id, json.dumps(data), _now()),
+        )
+
+
+def save_epk_photo(user_id, photo_path):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_profiles (user_id, data, photo, updated) VALUES (?, '{}', ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET photo=excluded.photo, updated=excluded.updated",
+            (user_id, photo_path, _now()),
+        )
+
+
+def get_epk(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM epk_profiles WHERE user_id = ?", (user_id,)).fetchone()
+    if row is None:
+        return None
+    return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"]}
 
 
 # --- Inbox -------------------------------------------------------------------
