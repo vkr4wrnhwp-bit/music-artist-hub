@@ -520,9 +520,10 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 6,
+            "v": 7,
             "var_data_is_real_mount": os.path.ismount("/var/data"),
             "app_token_check": _app_token_check(),
+            "search_check": _search_check(),
         })
 
     def _app_token_check():
@@ -532,6 +533,22 @@ def create_app():
             return "ok" if spotify.app_token() else "no token in response"
         except Exception as exc:
             return "%s: %s" % (type(exc).__name__, exc)
+
+    def _search_check():
+        """Owner-only: raw /v1/search attempt, reporting the exact failure."""
+        try:
+            data = spotify._api("/search?q=drake&type=artist&limit=1",
+                                spotify.app_token())
+            items = (data.get("artists") or {}).get("items", [])
+            return "ok: %d items" % len(items)
+        except Exception as exc:
+            detail = ""
+            if hasattr(exc, "read"):
+                try:
+                    detail = " body=" + exc.read().decode("utf-8", "replace")[:200]
+                except Exception:
+                    pass
+            return "%s: %s%s" % (type(exc).__name__, exc, detail)
 
     @app.route("/presave/<slug>/start")
     def presave_start(slug):
