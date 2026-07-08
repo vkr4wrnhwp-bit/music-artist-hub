@@ -2,7 +2,7 @@ services:
   - type: web
     name: street-banker
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
@@ -13,17 +13,12 @@ services:
       # Render dashboard (Environment tab). Never commit it.
       - key: DEMO_PASSWORD
         sync: false
-    # --- Persistent storage: requires the Starter instance (~$7/mo) plus ---
-    # --- $0.25/GB/mo for the disk. To enable:                            ---
-    # ---   1. change `plan: free` above to `plan: starter`               ---
-    # ---   2. uncomment the disk block AND the DATABASE_PATH env var     ---
-    # --- Database + uploads (documents, covers, EPK photos, sync audio)  ---
-    # --- all live under DATABASE_PATH's folder, so one disk covers       ---
-    # --- everything. Do NOT set DATABASE_PATH without the disk — the     ---
-    # --- app cannot create /var/data on the free plan.                   ---
-    #   - key: DATABASE_PATH
-    #     value: /var/data/streetbanker.db
-    # disk:
-    #   name: street-banker-data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+      # Persistent storage (Starter instance + 1GB disk): database and all
+      # uploads (documents, covers, EPK photos, sync audio) live under this
+      # path together, so the one disk below covers everything.
+      - key: DATABASE_PATH
+        value: /var/data/streetbanker.db
+    disk:
+      name: street-banker-data
+      mountPath: /var/data
+      sizeGB: 1
