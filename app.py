@@ -60,6 +60,7 @@ import command_center as cc
 import qualification
 import sync_simulator
 import trust_score
+import bandsintown_provider as bandsintown
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -1028,8 +1029,11 @@ def create_app():
             ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
         ctx["asset_kinds"] = _EPK_ASSET_KINDS
+        ctx["bandsintown_configured"] = bandsintown.configured()
+        tour = bandsintown.upcoming_events((overrides or {}).get("bandsintown_artist"))
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
-                                  overrides=overrides, photo=photo, assets=assets)
+                                  overrides=overrides, photo=photo, assets=assets,
+                                  tour_dates=tour)
         return render_template("epk.html", active_page="epk", **ctx)
 
     @app.route("/epk/press/search")
@@ -1077,10 +1081,11 @@ def create_app():
         name = prof["user_name"]
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
+        tour = bandsintown.upcoming_events(prof["data"].get("bandsintown_artist"))
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
-                            assets=assets)
+                            assets=assets, tour_dates=tour)
         return render_template("epk_public.html", e=data, slug=slug)
 
     @app.route("/epk/<slug>/kit.zip")

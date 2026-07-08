@@ -104,6 +104,33 @@
         </div>
       </section>
 
+      <!-- Tour dates (live from Bandsintown) -->
+      <section data-section="tour" class="{{ '' if e.sections_on.tour else 'hidden' }} border-b border-[#141210]/10 py-7">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Tour Dates</h3>
+        {% if e.tour_dates %}
+        <div class="mt-4 divide-y divide-[#141210]/10">
+          {% for ev in e.tour_dates %}
+          <div class="flex items-center justify-between gap-3 py-2.5">
+            <div>
+              <div class="text-sm font-bold">{{ ev.venue }}</div>
+              <div class="text-[11px] text-[#141210]/55">{{ ev.location }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-bold tabular-nums">{{ ev.date }}</div>
+              {% if ev.tickets %}<a href="{{ ev.tickets }}" target="_blank" rel="noopener" class="text-[10px] font-bold uppercase tracking-wide text-[#a8862f] hover:underline">Tickets ↗</a>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% elif not bandsintown_configured %}
+        <p class="mt-3 text-xs text-[#141210]/50">Live tour dates connect through Bandsintown — not enabled on this server yet.</p>
+        {% elif not e.bandsintown_artist %}
+        <p class="mt-3 text-xs text-[#141210]/50">Add your Bandsintown artist name in the editor and upcoming shows appear here automatically.</p>
+        {% else %}
+        <p class="mt-3 text-xs text-[#141210]/50">No upcoming shows found on Bandsintown for “{{ e.bandsintown_artist }}”. Dates you announce there show up here automatically.</p>
+        {% endif %}
+      </section>
+
       <!-- Media assets -->
       <section data-section="media" class="border-b border-[#141210]/10 py-7 {{ '' if e.sections_on.media else 'hidden' }}">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Media Assets</h3>
@@ -301,6 +328,11 @@
             <input id="f-video" value="{{ epk.video_url }}" placeholder="https://youtube.com/watch?v=..." class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
             <img id="video-thumb" src="{{ epk.video_thumb or '' }}" alt="Video thumbnail" class="mt-2 {{ '' if epk.video_thumb else 'hidden' }} aspect-video w-full rounded-md border border-[#141210]/15 object-cover">
           </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Bandsintown Artist Name</label>
+            <input id="f-bandsintown" value="{{ epk.bandsintown_artist }}" placeholder="Exact name on Bandsintown" {{ 'disabled' if not bandsintown_configured }} class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none disabled:opacity-50">
+            <p class="mt-1 text-[10px] text-[#141210]/45">{{ 'Upcoming shows from your Bandsintown profile appear in the Tour Dates section automatically.' if bandsintown_configured else 'Live tour dates connect through Bandsintown — not enabled on this server yet.' }}</p>
+          </div>
           <div id="asset-error" class="hidden text-[11px] font-semibold text-red-600"></div>
           <p class="text-[10px] text-[#141210]/45">Public assets appear as downloads on your EPK, bundled into the press-kit ZIP. Video saves with your draft.</p>
         </div>
@@ -401,6 +433,7 @@
       press: [ { quote: v("f-q0"), source: v("f-s0"), url: v("f-u0") }, { quote: v("f-q1"), source: v("f-s1"), url: v("f-u1") } ],
       show_sweep: document.getElementById("f-show-sweep").checked,
       video_url: v("f-video"),
+      bandsintown_artist: v("f-bandsintown"),
       bg_color: v("f-bg"),
       sections_off: [...document.querySelectorAll(".section-toggle:not(:checked)")].map((cb) => cb.dataset.section),
     };

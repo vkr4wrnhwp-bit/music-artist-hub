@@ -49,6 +49,7 @@ _SECTIONS = [
     {"key": "stats", "label": "Career Stats", "on": True},
     {"key": "tracks", "label": "Top Tracks", "on": True},
     {"key": "press", "label": "Press Quotes", "on": True},
+    {"key": "tour", "label": "Tour Dates", "on": True},
     {"key": "contact", "label": "Contact", "on": True},
     {"key": "media", "label": "Media Assets", "on": True},
 ]
@@ -106,6 +107,8 @@ def normalize_epk_overrides(payload):
     video = (p.get("video_url") or "").strip()[:300]
     if "video_url" in p:
         out["video_url"] = video if video.startswith("http") else ""
+    if "bandsintown_artist" in p:
+        out["bandsintown_artist"] = (p.get("bandsintown_artist") or "").strip()[:100]
     return out
 
 
@@ -128,7 +131,8 @@ def _video_thumb(url):
     return "https://img.youtube.com/vi/%s/hqdefault.jpg" % vid if vid else None
 
 
-def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None):
+def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None,
+                 tour_dates=None):
     songs = get_songs()
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
@@ -178,6 +182,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
 
     # Section rail: persisted visibility + a readiness status per section.
     assets = assets or []
+    tour_dates = tour_dates or []
     video_url = (o.get("video_url") or "").strip()
     off = set(o.get("sections_off") or [])
     complete = {
@@ -185,6 +190,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "stats": True,
         "tracks": True,
         "press": bool(profile["press"]),
+        "tour": bool(tour_dates),
         "contact": any(profile["contact"].values()),
         "media": bool(assets or video_url),
     }
@@ -215,4 +221,6 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "assets": assets,
         "logo_path": next((a["path"] for a in assets if a.get("kind") == "logo"), None),
         "bg_color": o.get("bg_color") or "#141210",
+        "bandsintown_artist": (o.get("bandsintown_artist") or "").strip(),
+        "tour_dates": tour_dates,
     }

@@ -1675,6 +1675,43 @@ def test_epk_press_search(monkeypatch):
     assert "bg-swatch" in body                     # cover color swatches too
 
 
+def test_bandsintown_tour_dates(monkeypatch):
+    import db as store_mod
+    import bandsintown_provider as bit
+    monkeypatch.setenv("BANDSINTOWN_APP_ID", "test-app")
+    monkeypatch.setattr(bit, "_fetch_json", lambda url: [
+        {"datetime": "2026-08-01T20:00:00",
+         "venue": {"name": "The Fillmore", "city": "Charlotte", "region": "NC"},
+         "url": "https://bandsintown.com/e/1",
+         "offers": [{"type": "Tickets", "url": "https://tix.example/1"}]}])
+    app_obj = create_app()
+    client = _demo(app_obj)
+    assert client.post("/epk/save", json={
+        "bandsintown_artist": "Art Is War"}).get_json()["ok"]
+    # Editor: field prefilled, live dates render in the preview.
+    body = client.get("/epk").get_data(as_text=True)
+    assert "Bandsintown Artist Name" in body
+    assert "The Fillmore" in body and "Aug 1, 2026" in body
+    assert "Charlotte, NC" in body
+    # Public EPK carries the tour section with the ticket link.
+    with store_mod.get_db() as conn:
+        slug = conn.execute("SELECT slug FROM epk_profiles WHERE slug IS NOT NULL "
+                            "LIMIT 1").fetchone()["slug"]
+    pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
+    assert "Tour Dates" in pub and "The Fillmore" in pub
+    assert "https://tix.example/1" in pub
+    assert "Live dates via Bandsintown" in pub
+
+
+def test_bandsintown_honest_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("BANDSINTOWN_APP_ID", raising=False)
+    client = _demo()
+    body = client.get("/epk").get_data(as_text=True)
+    # Field is disabled with an honest note; no fake dates anywhere.
+    assert "not enabled on this server yet" in body
+    assert "The Fillmore" not in body
+
+
 # --- Street Banker Links: campaign engine ------------------------------------
 
 def _demo(app_obj=None):
