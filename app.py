@@ -504,6 +504,20 @@ def create_app():
             except Exception as exc:
                 store.resolve_spotify_presave(p["id"], "retry", str(exc))
 
+    @app.route("/presave/diag")
+    def presave_diag():
+        # Owner-only config check: reports WHICH credentials the running
+        # process can see (presence booleans only, never values).
+        user = current_user()
+        if user is None or (user.get("plan") or "artist") != "label":
+            abort(404)
+        return jsonify({
+            "SPOTIFY_CLIENT_ID": bool(os.environ.get("SPOTIFY_CLIENT_ID")),
+            "SPOTIFY_CLIENT_SECRET": bool(os.environ.get("SPOTIFY_CLIENT_SECRET")),
+            "SPOTIFY_REDIRECT_URI": bool(os.environ.get("SPOTIFY_REDIRECT_URI")),
+            "configured": spotify.configured(),
+        })
+
     @app.route("/presave/<slug>/start")
     def presave_start(slug):
         campaign = mls.get_campaign_by_slug(slug)
