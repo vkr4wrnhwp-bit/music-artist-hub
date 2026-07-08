@@ -447,6 +447,18 @@ def create_app():
                     error = parsed["error"]
                 else:
                     store.save_statement(user["id"], f.filename, parsed["rows"])
+                    finding = analyze_statement(parsed["rows"])
+                    if finding and (finding["unmatched_revenue"] or finding["coverage_gaps"]):
+                        store.notify(user["id"], "recovery",
+                                     "Recovery findings in %s" % f.filename,
+                                     "$%.2f unmatched revenue and %d coverage gap(s) detected."
+                                     % (finding["unmatched_revenue"], len(finding["coverage_gaps"])),
+                                     "/recovery")
+                    else:
+                        store.notify(user["id"], "statement",
+                                     "Statement processed: %s" % f.filename,
+                                     "%d rows parsed, no recovery flags." % len(parsed["rows"]),
+                                     "/statements")
                     return redirect(url_for("statements"))
         ctx = build_dashboard_context()
         ctx["user"] = user
@@ -543,6 +555,10 @@ def create_app():
         mls.set_fan_intent(fan_id, score, level)
         message = ("You're locked in — we'll remind you the moment it drops."
                    if prerelease else "You're on the list. Welcome to the inner circle.")
+        store.notify(campaign["user_id"], "fan",
+                     "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
+                     "Via “%s” — consent logged, intent scored." % campaign["title"],
+                     "/links/fans")
         return jsonify({"ok": True, "message": message})
 
     # --- Reports: real CSV download --------------------------------------------
@@ -1172,6 +1188,10 @@ def create_app():
         mls.update_campaign(cid, campaign["user_id"],
                             {"status": "live", "published_at": store._now(),
                              "archived_at": None})
+        store.notify(campaign["user_id"], "campaign",
+                     "Campaign live: %s" % campaign["title"],
+                     "Public page is up at /l/%s — start sharing variant links." % campaign["slug"],
+                     "/l/" + campaign["slug"])
         return redirect("/links/%s/edit" % cid)
 
     @app.route("/links/<cid>/unpublish", methods=["POST"])
@@ -1273,7 +1293,8 @@ def create_app():
             world = "fan"
         return {"user_plan": plan, "nav_world": world or "promote",
                 "plan_worlds": plans.WORLDS, "plan_rank": plans.TIER_RANK,
-                "plan_names": plans.PLAN_NAMES}
+                "plan_names": plans.PLAN_NAMES,
+                "unread_ntf": store.unread_notifications(user["id"]) if user else 0}
 
     @app.before_request
     def plan_gate():
@@ -1648,6 +1669,10 @@ def create_app():
                     utm_source=p["platform"], utm_medium="rollout")
             ros.add_post(cid, p)
         ros.set_status(cid, "generated")
+        store.notify(campaign["user_id"], "rollout",
+                     "Rollout generated: %s" % campaign["title"],
+                     "%d posts drafted across the release arc — review and approve." % len(posts),
+                     "/rollout-studio/%s/posts" % cid)
         return redirect("/rollout-studio/%s" % cid)
 
     @app.route("/rollout-studio/<cid>")
@@ -2084,6 +2109,12 @@ def create_app():
     @app.route("/notifications")
     def notifications():
         ctx = build_dashboard_context()
+        user = current_user()
+        if user:
+            items = store.list_notifications(user["id"])
+            store.mark_notifications_read(user["id"])  # viewing clears the badge
+            return render_template("notifications_real.html", active_page="notifications",
+                                   items=items, **ctx)
         ctx["notifications_data"] = get_notifications_data()
         return render_template("notifications.html", active_page="notifications", **ctx)
 

@@ -123,7 +123,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
+        {% set live_keys = ['statements', 'notifications', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],
@@ -144,7 +144,8 @@
             <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               {% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
             </svg>
-            {{ label }}
+            <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+            {% if key == 'notifications' and unread_ntf %}<span class="rounded-full bg-[#d8b25a] px-1.5 text-[10px] font-black text-[#1c1302]">{{ unread_ntf }}</span>{% endif %}
             {% if key not in live_keys %}
             <svg class="nav-lock ml-auto h-3 w-3 shrink-0 text-gray-600" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-label="Demo preview">
               <rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 015 0V7"/>

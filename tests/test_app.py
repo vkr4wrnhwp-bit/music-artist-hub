@@ -2186,6 +2186,47 @@ def test_real_reports_suite():
     assert app_obj.test_client().get("/reports/campaigns.csv").status_code == 302
 
 
+# --- Real notifications ------------------------------------------------------------
+
+def test_notifications_from_real_events():
+    import io
+    import re
+    import uuid as _uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "ntf%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "N", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    # Publish -> notification; fan subscribe -> notification; statement -> notification.
+    r = client.post("/links/new", data={"title": "Bell Drop", "email_capture": "1",
+                                        "consent_text": "ok",
+                                        "dest_spotify": "https://sp/x"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    import links_store as mls
+    slug = mls.get_campaign(cid)["slug"]
+    app_obj.test_client().post("/l/%s/subscribe" % slug, data={"email": "bellfan@x.com"})
+    csv_rows = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"Midnight Drive,Spotify,120.50,2026-04\n"
+                b",Spotify,12.40,2026-05\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv_rows), "s.csv")},
+                content_type="multipart/form-data")
+    # Badge shows unread count in the nav.
+    body = client.get("/links").get_data(as_text=True)
+    assert re.search(r'text-\[#1c1302\]">\d+</span>', body)
+    # Page lists all three real events and clears the badge.
+    body = client.get("/notifications").get_data(as_text=True)
+    assert "Campaign live: Bell Drop" in body
+    assert "bellfan@x.com" in body
+    assert "Recovery findings in s.csv" in body
+    body = client.get("/links").get_data(as_text=True)
+    assert not re.search(r'text-\[#1c1302\]">\d+</span>', body)
+    # Anonymous visitors still get the demo notifications page.
+    anon = app_obj.test_client().get("/notifications").get_data(as_text=True)
+    assert "Notifications" in anon
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

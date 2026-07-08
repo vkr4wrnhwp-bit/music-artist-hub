@@ -242,6 +242,16 @@ def init_db():
                 updated TEXT NOT NULL,
                 completed_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'system',
+                title TEXT NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                link TEXT NOT NULL DEFAULT '',
+                is_read INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -547,3 +557,33 @@ def get_inbox():
         d["payload"] = json.loads(d["payload"])
         out.append(d)
     return out
+
+# --- Notifications -------------------------------------------------------------
+
+def notify(user_id, kind, title, body="", link=""):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO notifications (user_id, kind, title, body, link, created)"
+            " VALUES (?,?,?,?,?,?)",
+            (user_id, kind, title[:200], body[:400], link[:300], _now()))
+
+
+def list_notifications(user_id, limit=50):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def unread_notifications(user_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND is_read = 0",
+            (user_id,)).fetchone()
+    return row["n"]
+
+
+def mark_notifications_read(user_id):
+    with get_db() as db:
+        db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
