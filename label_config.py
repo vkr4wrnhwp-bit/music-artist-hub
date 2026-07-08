@@ -6,8 +6,10 @@ No public pricing tiers exist on the source site, so services use
 """
 
 BRAND = {
-    "name": "Art Is War Records",
-    "sub": "SummitArts",
+    # Platform branding is Street Banker everywhere; Art Is War Records is
+    # the external Shopify store's identity (linked, not the app's brand).
+    "name": "Street Banker",
+    "sub": "Label Services",
     "tagline": "Music Marketing, Management & Label",
     # The live Shopify store — the ecosystem's real commerce engine.
     "store_url": "https://www.artiswarrecords.com",
@@ -18,7 +20,7 @@ BRAND = {
     "socials": [
         {"label": "Facebook", "handle": "/artiswarrecords", "url": "https://facebook.com/artiswarrecords/", "logo": "other"},
         {"label": "Instagram", "handle": "@summitartsgroup", "url": "https://instagram.com/summitartsgroup", "logo": "other"},
-        {"label": "YouTube", "handle": "Art Is War Records", "url": "https://youtube.com", "logo": "youtube"},
+        {"label": "YouTube", "handle": "Street Banker", "url": "https://youtube.com", "logo": "youtube"},
     ],
 }
 

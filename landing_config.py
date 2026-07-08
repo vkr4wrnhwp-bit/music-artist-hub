@@ -232,9 +232,9 @@ def get_landing_config():
                     {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Analytics"}]},
             },
             {
-                "eyebrow": "ART IS WAR RECORDS", "title": "Full-Service Label",
+                "eyebrow": "STREET BANKER", "title": "Full-Service Label",
                 "tagline": "Distribution, marketing, and management under one roof.",
-                "description": "The SummitArts team builds artists end-to-end — from release strategy and marketing to consulting and management.",
+                "description": "The Street Banker label team builds artists end-to-end — from release strategy and marketing to consulting and management.",
                 "theme": "light",
                 "bullets": ["Music marketing to a 200,000+ fan list", "Artist consulting & day-to-day management",
                             "Branding, apparel, web & advertising", "Sync, licensing & rights support"],

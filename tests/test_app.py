@@ -1230,7 +1230,9 @@ def test_label_services_pages_and_nav():
 def test_label_services_content_from_site():
     client = create_app().test_client()
     hub = client.get("/services").get_data(as_text=True)
-    assert "Art Is War Records" in hub
+    # Platform branding is Street Banker; the AIW Shopify store is only a link.
+    assert "Street Banker" in hub
+    assert "artiswarrecords.com" in hub  # store link retained
     assert "team.summitarts@gmail.com" in hub
     assert "200+" in hub
     dist = client.get("/services/distribution").get_data(as_text=True)
