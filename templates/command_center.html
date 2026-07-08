@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Command Center - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1300px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Command Center</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Everything that matters today — every card links to the move that fixes it.</p>
+  </div>
+
+  <!-- Unified scores -->
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    <a href="/links" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Smart Link Score</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.links_score >= 70 else 'text-[#e8c667]' }}">{{ summary.links_score }}</div>
+      <div class="text-[10px] text-gray-600">{{ summary.campaign_count }} campaign{{ 's' if summary.campaign_count != 1 }}</div>
+    </a>
+    <a href="/releases/clean-release" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Release Readiness</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.next_release and summary.next_release.score >= 70 else 'text-[#e8c667]' }}">{{ summary.next_release.score if summary.next_release else '—' }}</div>
+      <div class="truncate text-[10px] text-gray-600">{{ summary.next_release.title if summary.next_release else 'No upcoming release' }}</div>
+    </a>
+    <a href="/catalog" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Catalog Health</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.catalog_health >= 70 else 'text-[#e8c667]' }}">{{ summary.catalog_health }}%</div>
+      <div class="text-[10px] text-gray-600">{{ summary.catalog_count }} tracks · ISRC coverage</div>
+    </a>
+    <a href="/links/fans" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Fans Owned</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-[#e8c667]">{{ summary.fan_count }}</div>
+      <div class="text-[10px] text-gray-600">{{ summary.hot_fans }} hot / superfan</div>
+    </a>
+    <a href="/links" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Link Traffic</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">{{ summary.visits }}</div>
+      <div class="text-[10px] text-gray-600">{{ summary.clicks }} service clicks</div>
+    </a>
+    <a href="/fraud-sentinel" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Fraud Risk</div>
+      <div class="mt-2 text-2xl font-bold text-gray-500">—</div>
+      <div class="text-[10px] text-gray-600">Sentinel in preview</div>
+    </a>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <!-- Today's priorities: derived alerts -->
+    <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Today's Priorities</h2>
+      {% if cc_alerts %}
+      <div class="mt-3 space-y-2.5">
+        {% for severity, title, rec, link, category in cc_alerts %}
+        <div class="rounded-xl border border-white/10 bg-black/30 p-3.5">
+          <div class="flex items-start gap-2">
+            <span class="mt-1 h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if severity == 'high' else 'bg-amber-500' }}"></span>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-gray-100">{{ title }}</div>
+              <div class="mt-0.5 text-xs text-gray-400">{{ rec }}</div>
+              <div class="mt-2 flex gap-2">
+                <a href="{{ link }}" class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Fix now →</a>
+                <form method="post" action="/actions/from-alert">
+                  <input type="hidden" name="title" value="{{ title }}">
+                  <input type="hidden" name="description" value="{{ rec }}">
+                  <input type="hidden" name="category" value="{{ category }}">
+                  <button class="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:bg-white/5">Create action</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-xs text-green-400">Nothing on fire — every live campaign is capturing fans and fully set up.</p>
+      {% endif %}
+    </section>
+
+    <!-- Open actions + upcoming releases -->
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Open Actions</h2>
+          <a href="/actions" class="text-[11px] font-semibold text-[#e8c667] hover:underline">All actions →</a>
+        </div>
+        {% if cc_actions %}
+        <div class="mt-3 space-y-2">
+          {% for a in cc_actions %}
+          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
+            <span class="min-w-0 flex-1 truncate font-semibold text-gray-200">{{ a.title }}</span>
+            <span class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-400">{{ a.category }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="mt-3 text-xs text-gray-600">No open actions. Alerts and checklists can create them.</p>
+        {% endif %}
+      </section>
+
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Upcoming Releases</h2>
+        {% if summary.upcoming %}
+        <div class="mt-3 space-y-2">
+          {% for u in summary.upcoming %}
+          <a href="/releases/autopilot?campaign={{ u.id }}" class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs transition-colors hover:border-[#c9a24a]/40">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#c9a24a]/15 text-sm font-black tabular-nums text-[#e8c667]">{{ u.days }}<span class="sr-only"> days</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold text-gray-200">{{ u.title }}</span>
+              <span class="text-[10px] text-gray-500">{{ u.days }} day{{ 's' if u.days != 1 }} out · readiness {{ u.score }}/100</span>
+            </span>
+            <span class="shrink-0 text-[11px] font-bold text-[#e8c667]">Autopilot →</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="mt-3 text-xs text-gray-600">No dated releases. Set a release date on a Links campaign to activate countdowns and autopilot.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+
+  <!-- Module grid -->
+  <section>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">The Operating System</h2>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for route, name, blurb, status, disc in modules %}
+      <a href="{{ route }}" class="rounded-xl border {{ 'border-white/10' if status == 'live' else 'border-white/5' }} bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-sm font-bold {{ 'text-gray-100' if status == 'live' else 'text-gray-400' }}">{{ name }}</span>
+          <span class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'live' else 'bg-white/10 text-gray-500' }}">{{ status }}</span>
+        </div>
+        <p class="mt-1 line-clamp-2 text-[11px] text-gray-500">{{ blurb }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

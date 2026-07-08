@@ -32,6 +32,12 @@
 
       <nav class="mt-5 space-y-5 text-sm">
         {% set nav_groups = [
+          ('Command', [
+            ('command-center', '/command-center', 'M4 4h5v5H4zM11 4h5v3h-5zM11 9h5v7h-5zM4 11h5v5H4z', 'Command Center'),
+            ('actions', '/actions', 'M8 4h8M8 10h8M8 16h8|M4 4l1 1 2-2M4 10l1 1 2-2M4 16l1 1 2-2', 'Actions'),
+            ('autopilot', '/releases/autopilot', 'M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6', 'Release Autopilot'),
+            ('clean-release', '/releases/clean-release', 'M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M7.5 10l2 2 3.5-4', 'Clean Release'),
+          ]),
           ('Collect', [
             ('overview', '/overview', 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5z|M14 5h2M14 8h3', 'Overview'),
             ('royalties', '/royalties', 'M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6', 'Royalties'),
@@ -93,7 +99,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog'] %}
+        {% set live_keys = ['statements', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release'] %}
         {% for group_name, items in nav_groups %}
         <div class="space-y-1">
           <div class="px-3 text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-600">{{ group_name }}</div>

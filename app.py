@@ -55,6 +55,7 @@ import links_store as mls
 import rollout_engine
 import rollout_store as ros
 import social_providers
+import command_center as cc
 from network_config import (
     get_network_data,
     get_profile,
@@ -1154,6 +1155,141 @@ def create_app():
         segno.make(url, error="m").save(buf, kind="svg", scale=6,
                                         dark="#141210", light=None)
         return Response(buf.getvalue(), mimetype="image/svg+xml")
+
+    # --- Artist OS: Command Center, Actions, Autopilot, Clean Release ----------
+
+    @app.route("/command-center")
+    def command_center_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template(
+            "command_center.html", active_page="command-center",
+            summary=cc.get_summary(user["id"]),
+            cc_alerts=cc.build_alerts(user["id"]),
+            cc_actions=cc.open_actions(user["id"]),
+            modules=cc.MODULES,
+            **build_dashboard_context())
+
+    @app.route("/actions", methods=["GET", "POST"])
+    def actions_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            f = request.form
+            if f.get("action_id"):
+                cc.set_action_status(f["action_id"], user["id"], f.get("status") or "new")
+            elif (f.get("title") or "").strip():
+                cc.create_action(user["id"], f["title"].strip(),
+                                 category=f.get("category") or "general",
+                                 priority=f.get("priority") or "medium",
+                                 description=(f.get("description") or "").strip(),
+                                 due_date=(f.get("due_date") or "").strip())
+            return redirect("/actions")
+        status_filter = request.args.get("status") or None
+        return render_template(
+            "actions.html", active_page="actions",
+            actions=cc.list_actions(user["id"], status_filter),
+            status_filter=status_filter or "",
+            categories=cc.ACTION_CATEGORIES, priorities=cc.ACTION_PRIORITIES,
+            **build_dashboard_context())
+
+    @app.route("/actions/from-alert", methods=["POST"])
+    def action_from_alert():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        f = request.form
+        cc.create_action(user["id"], (f.get("title") or "").strip()[:200],
+                         category=f.get("category") or "general", priority="high",
+                         description=(f.get("description") or "").strip())
+        return redirect(request.referrer or "/command-center")
+
+    def _release_checks(user, campaign):
+        """Clean-release + autopilot share one derived checklist."""
+        dests = mls.get_destinations(campaign["id"])
+        keys = {d["service_key"] for d in dests}
+        settings = campaign.get("settings") or {}
+        rollouts = ros.list_campaigns(user["id"])
+        has_rollout = any(r.get("ml_campaign_id") == campaign["id"] for r in rollouts)
+        variants = mls.list_variants(campaign["id"])
+        tracks = store.get_catalog_tracks(user["id"])
+        title_l = campaign["title"].lower()
+        track = next((t for t in tracks if t["title"].lower() == title_l), None)
+        epk = store.get_epk(user["id"])
+        checks = [
+            ("Cover art set", bool(campaign.get("cover_url")),
+             "Upload or auto-scan cover art in the campaign builder.", "/links/%s/edit" % campaign["id"], "release"),
+            ("Release date set", bool(campaign.get("release_date")),
+             "A date drives the pre-save countdown and auto-conversion.", "/links/%s/edit" % campaign["id"], "release"),
+            ("Spotify destination", "spotify" in keys,
+             "Add the Spotify link (auto-scan can find it).", "/links/%s/edit" % campaign["id"], "smart_link"),
+            ("Apple Music destination", "apple_music" in keys or "itunes" in keys,
+             "Add the Apple Music link.", "/links/%s/edit" % campaign["id"], "smart_link"),
+            ("YouTube destination", "youtube" in keys or "youtube_music" in keys,
+             "Add the YouTube link.", "/links/%s/edit" % campaign["id"], "smart_link"),
+            ("Campaign published", campaign["status"] == "live",
+             "Publish the campaign so the public page is live.", "/links/%s/edit" % campaign["id"], "smart_link"),
+            ("Fan capture enabled", bool(settings.get("email_capture")),
+             "Own the fan — enable email capture.", "/links/%s/edit" % campaign["id"], "fan_growth"),
+            ("Consent copy set", bool(settings.get("consent_text")),
+             "Consent text is stored with every signup.", "/links/%s/edit" % campaign["id"], "rights"),
+            ("ISRC on catalog track", bool(track and (track.get("meta") or {}).get("isrc")),
+             "Add the track to your catalog so identifiers auto-pull.", "/catalog", "metadata"),
+            ("Rollout scheduled", has_rollout,
+             "Generate the social rollout with tracked links per post.", "/rollout-studio/new", "rollout"),
+            ("Promo variants created", bool(variants),
+             "Create per-channel variants so every door is measured.", "/links/%s/variants" % campaign["id"], "smart_link"),
+            ("Press kit ready", bool(epk and (epk.get("data") or epk.get("photo"))),
+             "Update your EPK — press and promoters will ask for it.", "/epk", "release"),
+        ]
+        passed = sum(1 for _, ok, _, _, _ in checks if ok)
+        return checks, round(100 * passed / len(checks))
+
+    def _campaign_picker(user):
+        return [c for c in mls.list_campaigns(user["id"]) if not c.get("archived_at")]
+
+    @app.route("/releases/autopilot")
+    def release_autopilot():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        campaigns = _campaign_picker(user)
+        selected = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+        campaign = mls.get_campaign(selected, user["id"]) if selected else None
+        checks, score = _release_checks(user, campaign) if campaign else ([], 0)
+        return render_template("release_autopilot.html", active_page="autopilot",
+                               campaigns=campaigns, c=campaign, checks=checks,
+                               score=score, **build_dashboard_context())
+
+    @app.route("/releases/clean-release")
+    def clean_release():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        campaigns = _campaign_picker(user)
+        selected = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+        campaign = mls.get_campaign(selected, user["id"]) if selected else None
+        checks, score = _release_checks(user, campaign) if campaign else ([], 0)
+        return render_template("clean_release.html", active_page="clean-release",
+                               campaigns=campaigns, c=campaign, checks=checks,
+                               score=score, **build_dashboard_context())
+
+    # Preview modules: registered honestly, one generic page each.
+    def _module_preview(route):
+        def view():
+            module = cc.MODULE_BY_ROUTE[route]
+            return render_template("module_preview.html",
+                                   active_page="command-center", m=module,
+                                   features=cc.PREVIEW_FEATURES.get(route, []),
+                                   **build_dashboard_context())
+        view.__name__ = "preview_" + route.strip("/").replace("/", "_").replace("-", "_")
+        return view
+
+    for _route, _name, _blurb, _status, _disc in cc.MODULES:
+        if _status == "preview":
+            app.add_url_rule(_route, view_func=_module_preview(_route))
 
     # --- Rollout Studio: social rollout campaigns wired into Links ------------
 

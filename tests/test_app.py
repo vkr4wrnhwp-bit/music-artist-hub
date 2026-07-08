@@ -1894,6 +1894,78 @@ def test_rollout_studio_full_flow():
     assert other.get("/rollout-studio/%s" % cid).status_code == 404
 
 
+# --- Artist OS: Command Center + Actions ---------------------------------------
+
+def test_command_center_and_actions():
+    import command_center as cc_mod
+    import db as store_mod
+    from datetime import date, timedelta
+    app_obj = create_app()
+    # Anonymous users are sent to sign in.
+    assert app_obj.test_client().get("/command-center").status_code == 302
+    client = _ml_login(app_obj)
+    # A live campaign with gaps drives real derived alerts.
+    soon = (date.today() + timedelta(days=3)).isoformat()
+    r = client.post("/links/new", data={"title": "OS Drop", "release_date": soon,
+                                        "dest_spotify": "https://open.spotify.com/track/x"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    body = client.get("/command-center").get_data(as_text=True)
+    assert "Command Center" in body and "capturing fans" in body
+    assert "with no rollout" in body           # release in 3 days, no rollout
+    assert "OS Drop" in body and "Autopilot" in body
+    assert "Fraud Sentinel" in body            # module grid with previews
+    # Alert -> action -> lifecycle.
+    client.post("/actions/from-alert", data={"title": "Enable capture on OS Drop",
+                                             "description": "x", "category": "fan_growth"})
+    body = client.get("/actions").get_data(as_text=True)
+    assert "Enable capture on OS Drop" in body
+    user = store_mod.get_user_by_email("demo@streetbanker.io")
+    action = next(a for a in cc_mod.list_actions(user["id"])
+                  if a["title"] == "Enable capture on OS Drop")
+    client.post("/actions", data={"action_id": action["id"], "status": "in_progress"})
+    client.post("/actions", data={"action_id": action["id"], "status": "complete"})
+    refreshed = next(a for a in cc_mod.list_actions(user["id"])
+                     if a["id"] == action["id"])
+    assert refreshed["status"] == "complete" and refreshed["completed_at"]
+    # Manual action creation with priority ordering.
+    client.post("/actions", data={"title": "Call the plant", "category": "release",
+                                  "priority": "high"})
+    body = client.get("/actions?status=new").get_data(as_text=True)
+    assert "Call the plant" in body
+
+
+def test_release_autopilot_and_clean_release():
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    r = client.post("/links/new", data={"title": "Checklist Drop",
+                                        "dest_spotify": "https://open.spotify.com/track/x"})
+    cid = r.headers["Location"].split("/")[2]
+    for route in ("/releases/autopilot", "/releases/clean-release"):
+        body = client.get("%s?campaign=%s" % (route, cid)).get_data(as_text=True)
+        assert "Checklist Drop" in body
+        assert "Spotify destination" in body          # passing check listed
+        assert "Apple Music destination" in body      # failing check listed
+        assert "Create action" in body                # failed checks are actionable
+        assert "ready" in body                        # score badge
+
+
+def test_preview_modules_are_honest():
+    client = _ml_login(create_app())
+    routes = ["/fraud-sentinel", "/deal-room", "/revenue-os", "/capital-score",
+              "/metadata-passport", "/ai-rights", "/trust-score", "/artist-twin",
+              "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
+              "/partner-portal", "/royalty-recovery/cases", "/royalty-recovery/mlc",
+              "/sync/clearance-packs", "/sync/deal-simulator"]
+    for route in routes:
+        r = client.get(route)
+        assert r.status_code == 200, route
+        body = r.get_data(as_text=True)
+        assert "in preview" in body, route            # no fake functionality
+    assert "not legal advice" in client.get("/sync/deal-simulator").get_data(as_text=True)
+    assert "not financial advice" in client.get("/capital-score").get_data(as_text=True)
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

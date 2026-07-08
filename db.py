@@ -227,6 +227,21 @@ def init_db():
                 created TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS street_actions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'general',
+                priority TEXT NOT NULL DEFAULT 'medium',
+                description TEXT NOT NULL DEFAULT '',
+                entity_type TEXT NOT NULL DEFAULT '',
+                entity_id TEXT NOT NULL DEFAULT '',
+                due_date TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'new',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                completed_at TEXT
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,

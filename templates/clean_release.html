@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Clean Release Checklist - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Clean Release</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Clean Release Checklist</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Rights-clean, metadata-clean, promo-ready, royalty-ready — checked against your real campaign, catalog, rollout, and press kit before the release ships.</p>
+    </div>
+    <a href="/command-center" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Command Center</a>
+  </div>
+
+  {% include "_release_checks.html" %}
+
+  <p class="text-[10px] text-gray-600">Checks derive live from your campaign, catalog metadata, rollout, and EPK. Split confirmations, PRO/MLC registration, and Content ID checks arrive with the Deal Room and Metadata Passport modules.</p>
+</div>
+{% endblock %}
