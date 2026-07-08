@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Sync Clearance Packs - Street Banker{% endblock %}
+
+{% set clear_tone = {'cleared': 'bg-green-500/15 text-green-400', 'pending': 'bg-amber-500/15 text-amber-400', 'unconfirmed': 'bg-white/10 text-gray-500'} %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Royalty Sweep · Sync Engine</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Sync Clearance Packs</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">One private link per track: audio, tempo/key/mood, and clearance status — everything a music supervisor needs to say yes fast.</p>
+  </div>
+
+  {% if error %}<div class="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400">{{ error }}</div>{% endif %}
+
+  <!-- New pack -->
+  <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">New Pack</h2>
+    {% set field = 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none' %}
+    <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3">
+      <div class="grid gap-2 sm:grid-cols-2">
+        <input name="title" required placeholder="Track title *" class="{{ field }}">
+        <input name="artist_name" placeholder="Artist name" class="{{ field }}">
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <input name="bpm" placeholder="BPM" class="{{ field }}">
+        <input name="song_key" placeholder="Key (e.g. A min)" class="{{ field }}">
+        <input name="moods" placeholder="Moods (dark, driving, neon)" class="{{ field }}">
+      </div>
+      <div class="grid gap-2 sm:grid-cols-3">
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Master clearance</label>
+          <select name="master_status" class="{{ field }} mt-1 [color-scheme:dark]">
+            <option value="cleared">Cleared — I control 100%</option>
+            <option value="pending">Pending — splits in progress</option>
+            <option value="unconfirmed" selected>Unconfirmed</option>
+          </select></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Publishing clearance</label>
+          <select name="publishing_status" class="{{ field }} mt-1 [color-scheme:dark]">
+            <option value="cleared">Cleared — I control 100%</option>
+            <option value="pending">Pending — splits in progress</option>
+            <option value="unconfirmed" selected>Unconfirmed</option>
+          </select></div>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Licensing contact email</label>
+          <input name="contact_email" type="email" placeholder="you@example.com" class="{{ field }} mt-1"></div>
+      </div>
+      <input name="ownership_note" placeholder="Ownership note (e.g. one-stop: master + publishing, no samples)" class="{{ field }}">
+      <div class="grid gap-2 sm:grid-cols-3">
+        {% for name, label in [('main_audio', 'Main audio *'), ('instrumental_audio', 'Instrumental'), ('clean_audio', 'Clean version')] %}
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ label }}</label>
+          <input type="file" name="{{ name }}" accept=".mp3,.wav,.m4a,.aiff,.aif,.flac" class="mt-1 w-full text-xs text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-[#c9a24a]/40 file:bg-[#c9a24a]/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#e8c667]"></div>
+        {% endfor %}
+      </div>
+      <button class="rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-6 py-2.5 text-sm font-bold text-[#1c1302] shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">Create Pack</button>
+    </form>
+  </section>
+
+  <!-- Packs -->
+  {% if packs %}
+  <div class="space-y-3">
+    {% for p in packs %}
+    <div class="rounded-2xl border {{ 'border-white/5 opacity-60' if p.status == 'archived' else 'border-white/10' }} bg-[#111113] p-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="min-w-0 flex-1 truncate text-sm font-bold text-gray-100">{{ p.title }}{% if p.artist_name %} <span class="font-normal text-gray-500">— {{ p.artist_name }}</span>{% endif %}</span>
+        <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ clear_tone.get(p.master_status) }}">Master {{ p.master_status }}</span>
+        <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ clear_tone.get(p.publishing_status) }}">Pub {{ p.publishing_status }}</span>
+        <span class="text-[11px] tabular-nums text-gray-500">{{ p.views }} views</span>
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <input readonly value="{{ request.url_root.rstrip('/') }}/s/{{ p.slug }}" class="pack-url w-full flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-300 focus:outline-none sm:w-auto">
+        <button type="button" class="copy-pack shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy</button>
+        <a href="/s/{{ p.slug }}" target="_blank" class="shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:bg-white/5">Preview</a>
+        <form method="post" class="shrink-0">
+          <input type="hidden" name="pack_id" value="{{ p.id }}">
+          {% if p.status == 'active' %}
+          <button name="status" value="archived" class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-500 hover:bg-white/5">Archive</button>
+          {% else %}
+          <button name="status" value="active" class="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-[11px] font-bold text-green-400">Reactivate</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
+    <div class="text-sm font-bold text-gray-200">No packs yet</div>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Create one pack per pitch-ready track — the private link is what you send supervisors, music houses, and trailer editors.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".copy-pack").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const input = btn.parentElement.querySelector(".pack-url");
+      try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand("copy"); }
+      btn.textContent = "Copied ✓"; setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+    });
+  });
+</script>
+{% endblock %}

@@ -1614,6 +1614,89 @@ def create_app():
             "doc_id": doc_id})
         return redirect("/deal-room")
 
+    _SYNC_AUDIO_EXTS = ("mp3", "wav", "m4a", "aiff", "aif", "flac")
+
+    def _sync_audio_upload(field):
+        f = request.files.get(field)
+        if f is None or not f.filename:
+            return ""
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in _SYNC_AUDIO_EXTS:
+            return ""
+        fname = "sync_%s.%s" % (uuid.uuid4().hex, ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        return "/uploads/" + fname
+
+    @app.route("/sync/clearance-packs", methods=["GET", "POST"])
+    def sync_packs():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        error = None
+        if request.method == "POST":
+            f = request.form
+            if f.get("pack_id"):
+                fields = {}
+                if f.get("status") in ("active", "archived"):
+                    fields["status"] = f["status"]
+                for key in ("master_status", "publishing_status"):
+                    if f.get(key) in ("cleared", "pending", "unconfirmed"):
+                        fields[key] = f[key]
+                store.update_sync_pack(user["id"], f["pack_id"], fields)
+                return redirect("/sync/clearance-packs")
+            title = (f.get("title") or "").strip()
+            if not title:
+                error = "A track title is required."
+            else:
+                main_url = _sync_audio_upload("main_audio")
+                if not main_url:
+                    error = "Upload the main audio (MP3, WAV, M4A, AIFF, or FLAC)."
+                else:
+                    slug = _ml_slug("sync-" + title)
+                    store.create_sync_pack(user["id"], slug, {
+                        "title": title,
+                        "artist_name": (f.get("artist_name") or "").strip(),
+                        "bpm": (f.get("bpm") or "").strip(),
+                        "song_key": (f.get("song_key") or "").strip(),
+                        "moods": (f.get("moods") or "").strip(),
+                        "master_status": f.get("master_status") if f.get("master_status") in ("cleared", "pending", "unconfirmed") else "unconfirmed",
+                        "publishing_status": f.get("publishing_status") if f.get("publishing_status") in ("cleared", "pending", "unconfirmed") else "unconfirmed",
+                        "ownership_note": (f.get("ownership_note") or "").strip(),
+                        "contact_email": (f.get("contact_email") or "").strip(),
+                        "main_url": main_url,
+                        "instrumental_url": _sync_audio_upload("instrumental_audio"),
+                        "clean_url": _sync_audio_upload("clean_audio")})
+                    return redirect("/sync/clearance-packs")
+        return render_template("sync_packs.html", active_page="sync-packs",
+                               packs=store.list_sync_packs(user["id"]), error=error,
+                               **build_dashboard_context())
+
+    @app.route("/s/<slug>")
+    def sync_pack_public(slug):
+        pack = store.get_sync_pack_by_slug(slug, count_view=True)
+        if pack is None or pack["status"] != "active":
+            abort(404)
+        return render_template("sync_pack_public.html", p=pack)
+
+    @app.route("/s/<slug>/request", methods=["POST"])
+    def sync_pack_request(slug):
+        pack = store.get_sync_pack_by_slug(slug)
+        if pack is None or pack["status"] != "active":
+            abort(404)
+        f = request.form
+        email = (f.get("email") or "").strip()
+        message = (f.get("message") or "").strip()[:600]
+        if "@" not in email:
+            return jsonify({"ok": False, "error": "Enter a valid email."}), 400
+        store.add_inbox("sync_request", {"pack": pack["title"], "slug": slug,
+                                         "email": email, "message": message})
+        store.notify(pack["user_id"], "campaign",
+                     "License request: %s" % pack["title"],
+                     "%s asked about this track via your sync pack link." % email,
+                     "/inbox")
+        return jsonify({"ok": True,
+                        "message": "Request sent - the rights holder will follow up."})
+
     # --- Release OS: qualification, artist profile, vault, review queue --------
 
     @app.route("/qualification")

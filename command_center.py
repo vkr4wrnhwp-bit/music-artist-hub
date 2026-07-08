@@ -86,7 +86,7 @@ MODULES = [
     ("/releases/clean-release", "Clean Release Checklist", "Rights-, metadata-, and promo-readiness before you ship.", "live", None),
     ("/royalty-recovery/cases", "Royalty Recovery Cases", "Turn recovery insights into tracked cases with evidence and deadlines.", "live", None),
     ("/royalty-recovery/mlc", "MLC / Unmatched Recovery", "Find and claim unmatched mechanical royalties with claim packets.", "preview", None),
-    ("/sync/clearance-packs", "Sync Clearance Packs", "One-click supervisor-safe pitch packages with clearance status.", "preview", None),
+    ("/sync/clearance-packs", "Sync Clearance Packs", "One-click supervisor-safe pitch packages with clearance status.", "live", None),
     ("/sync/deal-simulator", "Sync Deal Simulator", "Evaluate sync terms, flag buyouts, draft counteroffers.", "preview", _NOT_LEGAL),
     ("/deal-room", "Deal Room", "Splits, producer and feature agreements, document vault, deal board.", "live", _NOT_LEGAL),
     ("/revenue-os", "Revenue OS", "Per-release P&L: income, spend, recoupment, break-even.", "preview", _NOT_FINANCIAL),

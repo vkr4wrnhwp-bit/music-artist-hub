@@ -88,6 +88,7 @@
             ('valuation', '/valuation', 'M10 3l6 4v6l-6 4-6-4V7z|M10 8v4', 'Valuation'),
             ('funding', '/funding', 'M3 6h14v8H3z|M10 8a2 2 0 100 4 2 2 0 000-4zM6 6v0M14 14v0', 'Funding'),
             ('sync', '/sync', 'M4 6h9l-2-2M16 14H7l2 2|M4 6v0M16 14v0', 'Sync / Licensing'),
+            ('sync-packs', '/sync/clearance-packs', 'M4 4h12v9H4z|M8 7v4l3-2zM4 16h12', 'Sync Packs'),
           ]),
           ('Intelligence', [
             ('insights', '/insights', 'M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 16h4M9 18h2', 'AI Insights'),
@@ -125,7 +126,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

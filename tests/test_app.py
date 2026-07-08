@@ -1965,7 +1965,7 @@ def test_preview_modules_are_honest():
               "/metadata-passport", "/ai-rights", "/trust-score", "/artist-twin",
               "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
               "/partner-portal", "/royalty-recovery/mlc",
-              "/sync/clearance-packs", "/sync/deal-simulator"]
+              "/sync/deal-simulator"]
     for route in routes:
         r = client.get(route)
         assert r.status_code == 200, route
@@ -2363,6 +2363,57 @@ def test_deal_room_and_split_generator():
                                                    "party1_name": "Artist",
                                                    "party1_share": "100"})
     assert len(store_mod.list_deals(user["id"])) == before
+
+
+# --- Sync clearance packs ------------------------------------------------------
+
+def test_sync_clearance_pack_flow():
+    import io
+    import re
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "sync%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "S", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    # Main audio is required; bad request re-renders with the error.
+    r = client.post("/sync/clearance-packs", data={"title": "No Audio"},
+                    content_type="multipart/form-data")
+    assert "Upload the main audio" in r.get_data(as_text=True)
+    # Full pack with two audio files.
+    r = client.post("/sync/clearance-packs", data={
+        "title": "Sync Track", "artist_name": "Test Artist", "bpm": "118",
+        "song_key": "A min", "moods": "dark, driving",
+        "master_status": "cleared", "publishing_status": "cleared",
+        "ownership_note": "One-stop, no samples.",
+        "contact_email": "team.summitarts@gmail.com",
+        "main_audio": (io.BytesIO(b"ID3fake"), "t.mp3"),
+        "instrumental_audio": (io.BytesIO(b"ID3inst"), "t-inst.mp3")},
+        content_type="multipart/form-data")
+    assert r.status_code == 302
+    user = store_mod.get_user_by_email(email)
+    pack = store_mod.list_sync_packs(user["id"])[0]
+    body = client.get("/sync/clearance-packs").get_data(as_text=True)
+    assert "Sync Track" in body and "Master cleared" in body
+    # Anonymous supervisor page: facts, one-stop badge, streaming audio, noindex.
+    anon = app_obj.test_client()
+    public = anon.get("/s/" + pack["slug"]).get_data(as_text=True)
+    assert "Private Sync Pack" in public and "118 BPM" in public
+    assert "One-Stop" in public and public.count("<audio") == 2
+    assert "noindex" in public
+    src = re.search(r'src="(/uploads/sync_[^"]+)"', public).group(1)
+    assert anon.get(src).status_code == 200
+    # License request lands in inbox and notifies the owner.
+    r = anon.post("/s/%s/request" % pack["slug"],
+                  data={"email": "supervisor@studio.com", "message": "Trailer use"})
+    assert r.get_json()["ok"]
+    assert "License request: Sync Track" in client.get("/notifications").get_data(as_text=True)
+    # Views counted; archiving kills the public link.
+    assert store_mod.get_sync_pack_by_slug(pack["slug"])["views"] >= 1
+    client.post("/sync/clearance-packs", data={"pack_id": pack["id"], "status": "archived"})
+    assert anon.get("/s/" + pack["slug"]).status_code == 404
 
 
 def test_ml_quick_links_still_work():

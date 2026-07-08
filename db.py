@@ -290,6 +290,27 @@ def init_db():
                 created TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS sync_packs (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                artist_name TEXT NOT NULL DEFAULT '',
+                bpm TEXT NOT NULL DEFAULT '',
+                song_key TEXT NOT NULL DEFAULT '',
+                moods TEXT NOT NULL DEFAULT '',
+                master_status TEXT NOT NULL DEFAULT 'unconfirmed',
+                publishing_status TEXT NOT NULL DEFAULT 'unconfirmed',
+                ownership_note TEXT NOT NULL DEFAULT '',
+                contact_email TEXT NOT NULL DEFAULT '',
+                main_url TEXT NOT NULL DEFAULT '',
+                instrumental_url TEXT NOT NULL DEFAULT '',
+                clean_url TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'active',
+                views INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -746,3 +767,57 @@ def list_deals(user_id):
         rows = db.execute("SELECT * FROM deals WHERE user_id = ? ORDER BY updated DESC",
                           (user_id,)).fetchall()
     return [dict(r) for r in rows]
+
+# --- Sync clearance packs --------------------------------------------------------
+
+def create_sync_pack(user_id, slug, fields):
+    pack_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO sync_packs (id, user_id, slug, title, artist_name, bpm, song_key,"
+            " moods, master_status, publishing_status, ownership_note, contact_email,"
+            " main_url, instrumental_url, clean_url, created, updated)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (pack_id, user_id, slug, fields.get("title", "Untitled")[:150],
+             fields.get("artist_name", "")[:120], fields.get("bpm", "")[:10],
+             fields.get("song_key", "")[:20], fields.get("moods", "")[:200],
+             fields.get("master_status", "unconfirmed")[:20],
+             fields.get("publishing_status", "unconfirmed")[:20],
+             fields.get("ownership_note", "")[:400],
+             fields.get("contact_email", "")[:120],
+             fields.get("main_url", ""), fields.get("instrumental_url", ""),
+             fields.get("clean_url", ""), now, now))
+    return pack_id
+
+
+def update_sync_pack(user_id, pack_id, fields):
+    allowed = ("status", "master_status", "publishing_status", "ownership_note")
+    sets, vals = [], []
+    for key in allowed:
+        if key in fields:
+            sets.append("%s = ?" % key)
+            vals.append(fields[key])
+    if not sets:
+        return False
+    sets.append("updated = ?")
+    vals.extend([_now(), pack_id, user_id])
+    with get_db() as db:
+        cur = db.execute("UPDATE sync_packs SET %s WHERE id = ? AND user_id = ?"
+                         % ", ".join(sets), vals)
+    return cur.rowcount > 0
+
+
+def list_sync_packs(user_id):
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM sync_packs WHERE user_id = ? ORDER BY updated DESC",
+                          (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_sync_pack_by_slug(slug, count_view=False):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM sync_packs WHERE slug = ?", (slug,)).fetchone()
+        if row and count_view:
+            db.execute("UPDATE sync_packs SET views = views + 1 WHERE slug = ?", (slug,))
+    return dict(row) if row else None
