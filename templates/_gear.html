@@ -38,8 +38,8 @@
 {% endmacro %}
 
 {# Rotary knob: knurled metal collar, black body, specular crescent, gold
-   pointer, seated shadow. angle: -135..135 #}
-{% macro knob(angle=-30, cls='h-16 w-16', min_label='MIN', max_label='MAX') %}
+   pointer, seated shadow. angle: -135..135; dark=True for gold-on-black. #}
+{% macro knob(angle=-30, cls='h-16 w-16', min_label='MIN', max_label='MAX', dark=False) %}
 <svg viewBox="0 0 90 96" class="{{ cls }}" aria-hidden="true">
   <defs>
     <radialGradient id="knobmetal" cx="0.35" cy="0.28" r="0.95">
@@ -49,20 +49,27 @@
       <stop offset="0" stop-color="#43434b"/><stop offset="0.65" stop-color="#1b1b20"/><stop offset="1" stop-color="#0b0b0f"/>
     </radialGradient>
   </defs>
-  <ellipse cx="45" cy="82" rx="22" ry="4.5" fill="#00000038"/>
+  <defs>
+    <radialGradient id="knobcollardark" cx="0.35" cy="0.28" r="0.95">
+      <stop offset="0" stop-color="#4a4a52"/><stop offset="0.6" stop-color="#26262c"/><stop offset="1" stop-color="#121216"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="45" cy="82" rx="22" ry="4.5" fill="#00000060"/>
+  {% set tick = '#c9a24a' if dark else '#33333b' %}
+  {% set lbl = '#c9a24a' if dark else '#3d3d45' %}
   {% for i in range(11) %}
-  <line x1="45" y1="7" x2="45" y2="12" stroke="#33333b" stroke-width="1.6" transform="rotate({{ -135 + i * 27 }} 45 45)"/>
+  <line x1="45" y1="7" x2="45" y2="12" stroke="{{ tick }}" stroke-width="1.6" transform="rotate({{ -135 + i * 27 }} 45 45)"/>
   {% endfor %}
-  <circle cx="45" cy="45" r="30" fill="url(#knobmetal)"/>
-  <circle cx="45" cy="45" r="30" fill="none" stroke="#00000045"/>
-  <circle cx="45" cy="45" r="28.4" fill="none" stroke="#4c4c54" stroke-width="1.7" stroke-dasharray="1.8 2.6"/>
+  <circle cx="45" cy="45" r="30" fill="url(#{{ 'knobcollardark' if dark else 'knobmetal' }})"/>
+  <circle cx="45" cy="45" r="30" fill="none" stroke="{{ '#c9a24a55' if dark else '#00000045' }}"/>
+  <circle cx="45" cy="45" r="28.4" fill="none" stroke="{{ '#5c5c64' if dark else '#4c4c54' }}" stroke-width="1.7" stroke-dasharray="1.8 2.6"/>
   <circle cx="45" cy="45" r="24" fill="url(#knobbody)"/>
-  <circle cx="45" cy="45" r="24" fill="none" stroke="#ffffff1c"/>
+  <circle cx="45" cy="45" r="24" fill="none" stroke="{{ '#c9a24a40' if dark else '#ffffff1c' }}"/>
   <path d="M28 33 A21 21 0 0 1 44 22" fill="none" stroke="#ffffff30" stroke-width="5" stroke-linecap="round"/>
   <line x1="45" y1="45" x2="45" y2="24.5" stroke="#e8c667" stroke-width="2.8" stroke-linecap="round" transform="rotate({{ angle }} 45 45)"/>
   <circle cx="45" cy="45" r="2" fill="#0a0a0c"/>
-  {% if min_label %}<text x="10" y="90" font-size="7.5" font-weight="700" letter-spacing="0.5" fill="#3d3d45" font-family="sans-serif">{{ min_label }}</text>{% endif %}
-  {% if max_label %}<text x="80" y="90" text-anchor="end" font-size="7.5" font-weight="700" letter-spacing="0.5" fill="#3d3d45" font-family="sans-serif">{{ max_label }}</text>{% endif %}
+  {% if min_label %}<text x="10" y="90" font-size="7.5" font-weight="700" letter-spacing="0.5" fill="{{ lbl }}" font-family="sans-serif">{{ min_label }}</text>{% endif %}
+  {% if max_label %}<text x="80" y="90" text-anchor="end" font-size="7.5" font-weight="700" letter-spacing="0.5" fill="{{ lbl }}" font-family="sans-serif">{{ max_label }}</text>{% endif %}
 </svg>
 {% endmacro %}
 
@@ -126,9 +133,82 @@
 </span>
 {% endmacro %}
 
-{# Black engraved label plate. #}
-{% macro label_plate(text, cls='') %}
-<span class="inline-block rounded-[4px] border border-black/60 bg-gradient-to-b from-[#26262a] to-[#111114] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_1px_2px_rgba(0,0,0,0.4)] {{ cls }}">{{ text }}</span>
+{# Black engraved label plate. gold=True for the gold-bordered variant. #}
+{% macro label_plate(text, cls='', gold=False) %}
+<span class="inline-block rounded-[4px] border {{ 'border-[#c9a24a]/60' if gold else 'border-black/60' }} bg-gradient-to-b from-[#26262a] to-[#111114] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_1px_2px_rgba(0,0,0,0.4)] {{ cls }}">{{ text }}</span>
+{% endmacro %}
+
+{# Gold patchbay ("send it to the desk"): black rows, dark jacks with a gold
+   cable routing OUTPUT -> SEND, and a gold-ruled end plate. #}
+{% macro patchbay_gold(from_idx=0, to_idx=2, n=10) %}
+{% set x0 = 128 %}{% set dx = 62 %}
+{% set ty = 58 %}{% set by = 138 %}
+<svg viewBox="0 0 900 216" class="h-auto w-full" aria-hidden="true">
+  <defs>
+    <radialGradient id="jknutd" cx="0.4" cy="0.32" r="0.95">
+      <stop offset="0" stop-color="#3c3c44"/><stop offset="0.7" stop-color="#1e1e24"/><stop offset="1" stop-color="#101014"/>
+    </radialGradient>
+    <radialGradient id="jkringd" cx="0.38" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#8a8a92"/><stop offset="0.55" stop-color="#4e4e56"/><stop offset="1" stop-color="#2a2a30"/>
+    </radialGradient>
+    <linearGradient id="goldcable" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0d68a"/><stop offset="0.5" stop-color="#c9a24a"/><stop offset="1" stop-color="#8a6d1f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- row labels -->
+  {% for label, y in [('OUTPUT', ty + 3), ('SEND', by + 3)] %}
+  <text x="34" y="{{ y }}" font-size="9" font-weight="700" letter-spacing="2.5" fill="#c9a24a" font-family="sans-serif">{{ label }}</text>
+  {% endfor %}
+
+  <!-- gold cable first (plugs above) -->
+  {% set x1 = x0 + from_idx * dx %}{% set x2 = x0 + to_idx * dx %}
+  {% set path = 'M ' ~ x1 ~ ' ' ~ (ty + 6) ~ ' C ' ~ x1 ~ ' 196, ' ~ x2 ~ ' 196, ' ~ x2 ~ ' ' ~ (by - 16) %}
+  <path d="{{ path }}" fill="none" stroke="#000000" stroke-opacity="0.5" stroke-width="10" stroke-linecap="round" transform="translate(2 3)"/>
+  <path d="{{ path }}" fill="none" stroke="url(#goldcable)" stroke-width="8" stroke-linecap="round"/>
+  <path d="{{ path }}" fill="none" stroke="#fff3c4" stroke-opacity="0.5" stroke-width="1.5" stroke-linecap="round" transform="translate(-1 -1.5)"/>
+
+  <!-- jacks -->
+  {% for i in range(n) %}
+  {% set x = x0 + i * dx %}
+  {% for y in [ty, by] %}
+  {% set lit = (y == ty and i == from_idx) or (y == by and i == to_idx) %}
+  <circle cx="{{ x }}" cy="{{ y + 1.5 }}" r="15" fill="#00000060"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="15" fill="url(#jknutd)"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="15" fill="none" stroke="{{ '#c9a24a66' if lit else '#00000070' }}"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="10.5" fill="url(#jkringd)"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="10.5" fill="none" stroke="#00000050"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="6" fill="#050507"/>
+  <path d="M {{ x - 3.8 }} {{ y - 3 }} A 4.8 4.8 0 0 1 {{ x + 1.6 }} {{ y - 4.3 }}" fill="none" stroke="#ffffff2a" stroke-width="1.3" stroke-linecap="round"/>
+  {% if lit %}
+  <circle cx="{{ x }}" cy="{{ y }}" r="5.2" fill="url(#goldcable)"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="5.2" fill="none" stroke="#00000050"/>
+  <circle cx="{{ x }}" cy="{{ y }}" r="1.8" fill="#3a2c0e"/>
+  {% endif %}
+  {% endfor %}
+  {% endfor %}
+
+  <!-- status LEDs under the field -->
+  {% for i in range(n) %}
+  <circle cx="{{ x0 + i * dx }}" cy="{{ by + 34 }}" r="2.2" fill="{{ '#e8c667' if i in [from_idx, to_idx] else '#33332c' }}"{% if i in [from_idx, to_idx] %} opacity="0.9"{% endif %}/>
+  {% endfor %}
+
+  <!-- gold-ruled end plate -->
+  {% set px = x0 + (n - 1) * dx + 36 %}
+  <rect x="{{ px }}" y="30" width="{{ 890 - px }}" height="150" rx="8" fill="#0d0d10"/>
+  <rect x="{{ px }}" y="30" width="{{ 890 - px }}" height="150" rx="8" fill="none" stroke="#c9a24a55"/>
+  {% set ex = px + (890 - px) / 2 %}
+  <line x1="{{ ex - 52 }}" y1="66" x2="{{ ex + 52 }}" y2="66" stroke="#c9a24a66" stroke-width="0.8"/>
+  <text x="{{ ex }}" y="90" text-anchor="middle" font-size="14" font-weight="800" letter-spacing="3" fill="#e8c667" font-family="sans-serif">PATCHBAY</text>
+  <text x="{{ ex }}" y="110" text-anchor="middle" font-size="7.5" font-weight="600" letter-spacing="2.6" fill="#b8b8c0" font-family="sans-serif">STREET BANKER</text>
+  <text x="{{ ex }}" y="124" text-anchor="middle" font-size="7.5" font-weight="600" letter-spacing="2.6" fill="#8a8a92" font-family="sans-serif">A&amp;R DESK</text>
+  <line x1="{{ ex - 52 }}" y1="140" x2="{{ ex + 52 }}" y2="140" stroke="#c9a24a66" stroke-width="0.8"/>
+  <circle cx="{{ ex - 36 }}" cy="158" r="3" fill="#7ee083"/>
+  <circle cx="{{ ex - 36 }}" cy="158" r="5.5" fill="#7ee083" opacity="0.2"/>
+  <text x="{{ ex - 27 }}" y="161" font-size="6.5" font-weight="600" letter-spacing="1.6" fill="#c9c9cf" font-family="sans-serif">SIGNAL</text>
+  <circle cx="{{ ex + 14 }}" cy="158" r="3" fill="#54544c"/>
+  <text x="{{ ex + 23 }}" y="161" font-size="6.5" font-weight="600" letter-spacing="1.6" fill="#8a8a92" font-family="sans-serif">RECEIVED</text>
+</svg>
 {% endmacro %}
 
 {# 1/4-inch panel jack. plugged=True draws the plug barrel seated in it. #}

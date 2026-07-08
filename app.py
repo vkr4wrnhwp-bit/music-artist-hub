@@ -806,6 +806,13 @@ def create_app():
     def submit():
         ctx = build_dashboard_context()
         ctx["label"] = get_label_data()
+        # Photoreal turntable crop from the user's design; code-drawn deck
+        # renders as the fallback until the file exists.
+        ctx["turntable_img"] = (
+            "/static/img/turntable.png"
+            if os.path.exists(os.path.join(app.static_folder, "img", "turntable.png"))
+            else None
+        )
         return render_template("submit.html", active_page="submit", **ctx)
 
     @app.route("/audience")
