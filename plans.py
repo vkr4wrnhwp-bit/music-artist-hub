@@ -37,7 +37,7 @@ WORLDS = [
 _ARTIST_PATHS = ("/links", "/rollout-studio", "/artwork", "/command-center",
                  "/actions", "/releases", "/audience", "/playlists", "/stats",
                  "/insights", "/benchmark", "/qualification", "/artist-profile",
-                 "/vault")
+                 "/vault", "/artist-twin")
 _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes",
               "/publishing", "/mechanicals", "/neighboring-rights", "/territories",
               "/connections", "/catalog", "/identifiers", "/documents",

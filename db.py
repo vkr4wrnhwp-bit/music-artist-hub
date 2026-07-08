@@ -311,6 +311,21 @@ def init_db():
                 created TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS twin_settings (
+                user_id TEXT PRIMARY KEY,
+                sources TEXT NOT NULL DEFAULT '[]',
+                tone TEXT NOT NULL DEFAULT 'premium',
+                do_not_say TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS twin_generations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                output TEXT NOT NULL,
+                sources_used TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -821,3 +836,43 @@ def get_sync_pack_by_slug(slug, count_view=False):
         if row and count_view:
             db.execute("UPDATE sync_packs SET views = views + 1 WHERE slug = ?", (slug,))
     return dict(row) if row else None
+
+# --- Artist Twin -----------------------------------------------------------------
+
+def save_twin_settings(user_id, sources, tone, do_not_say):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO twin_settings (user_id, sources, tone, do_not_say, updated)"
+            " VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET"
+            " sources=excluded.sources, tone=excluded.tone,"
+            " do_not_say=excluded.do_not_say, updated=excluded.updated",
+            (user_id, json.dumps(sources), tone, do_not_say[:400], _now()))
+
+
+def get_twin_settings(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM twin_settings WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["sources"] = json.loads(d["sources"] or "[]")
+    return d
+
+
+def save_twin_generation(user_id, kind, output, sources_used):
+    gen_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO twin_generations (id, user_id, kind, output, sources_used, created)"
+            " VALUES (?,?,?,?,?,?)",
+            (gen_id, user_id, kind, output[:2000], sources_used[:200], _now()))
+    return gen_id
+
+
+def list_twin_generations(user_id, limit=20):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM twin_generations WHERE user_id = ? ORDER BY created DESC LIMIT ?",
+            (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]

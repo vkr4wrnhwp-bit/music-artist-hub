@@ -1962,16 +1962,15 @@ def test_release_autopilot_and_clean_release():
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
     routes = ["/fraud-sentinel", "/revenue-os", "/capital-score",
-              "/metadata-passport", "/ai-rights", "/trust-score", "/artist-twin",
+              "/metadata-passport", "/ai-rights", "/trust-score",
               "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
-              "/partner-portal", "/royalty-recovery/mlc",
-              "/sync/deal-simulator"]
+              "/partner-portal", "/royalty-recovery/mlc"]
     for route in routes:
         r = client.get(route)
         assert r.status_code == 200, route
         body = r.get_data(as_text=True)
         assert "in preview" in body, route            # no fake functionality
-    assert "not legal advice" in client.get("/sync/deal-simulator").get_data(as_text=True)
+    assert "not legal advice" in client.get("/ai-rights").get_data(as_text=True)
     assert "not financial advice" in client.get("/capital-score").get_data(as_text=True)
 
 
@@ -2414,6 +2413,66 @@ def test_sync_clearance_pack_flow():
     assert store_mod.get_sync_pack_by_slug(pack["slug"])["views"] >= 1
     client.post("/sync/clearance-packs", data={"pack_id": pack["id"], "status": "archived"})
     assert anon.get("/s/" + pack["slug"]).status_code == 404
+
+
+# --- Deal simulator + artist twin ------------------------------------------------
+
+def test_sync_deal_simulator():
+    import sync_simulator
+    # Engine: lowball perpetuity exclusive trailer offer gets flagged hard.
+    res = sync_simulator.simulate({"fee": 500, "media": "trailer",
+                                   "term": "perpetuity", "territory": "worldwide",
+                                   "exclusive": True, "buyout": True})
+    assert res["position"] == "below"
+    flag_text = " ".join(t for _sev, t in res["flags"])
+    assert "Perpetuity / buyout" in flag_text
+    assert "Exclusivity below the range floor" in flag_text
+    assert res["counteroffer"] and "one-stop" in res["counteroffer"]
+    # A fair offer sits within range and needs no counteroffer.
+    res = sync_simulator.simulate({"fee": 2000, "media": "web_social",
+                                   "term": "3y", "territory": "worldwide"})
+    assert res["position"] == "within" and res["counteroffer"] is None
+    # Gratis offers warn about exposure-only terms.
+    res = sync_simulator.simulate({"fee": 0, "media": "indie_film",
+                                   "term": "1y", "territory": "single"})
+    assert any("Gratis" in t for _sev, t in res["flags"])
+    # Page renders form + results with the disclaimer.
+    client = _ml_login(create_app())
+    body = client.post("/sync/deal-simulator",
+                       data={"fee": "500", "media": "trailer", "term": "perpetuity",
+                             "territory": "worldwide", "buyout": "1"}).get_data(as_text=True)
+    assert "Market Range" in body and "Counteroffer Draft" in body
+    assert "not legal or financial advice" in body
+
+
+def test_artist_twin_consent_and_generation():
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "twin%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "Twin Artist", "email": email,
+                                 "password": "secret1", "account_type": "artist"})
+    client.post("/epk/save", json={"tagline": "Night drive synths.",
+                                   "bio": "Analog and modern.",
+                                   "press": [{"quote": "Gleaming work.",
+                                              "source": "Test Mag"}]})
+    # Consent layer: only EPK approved, "Gleaming" is forbidden.
+    client.post("/artist-twin", data={"save_settings": "1", "src_epk": "1",
+                                      "tone": "street", "do_not_say": "Gleaming"})
+    body = client.post("/artist-twin", data={"kind": "press_pitch"}).get_data(as_text=True)
+    assert "Sources used" in body
+    sources_section = body.split("Sources used")[1][:150]
+    assert "Press kit" in sources_section
+    assert "Campaigns" not in sources_section       # excluded source never read
+    # Do-not-say enforced on the fresh generation block.
+    gen_block = body.split('id="gen-text"')[1].split("</p>")[0]
+    assert "Gleaming" not in gen_block
+    # Generation history persists with its source audit.
+    user = store_mod.get_user_by_email(email)
+    gens = store_mod.list_twin_generations(user["id"])
+    assert gens and gens[0]["kind"] == "press_pitch"
+    assert "Press kit" in gens[0]["sources_used"]
 
 
 def test_ml_quick_links_still_work():

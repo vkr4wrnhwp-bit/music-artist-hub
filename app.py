@@ -58,6 +58,8 @@ import rollout_store as ros
 import social_providers
 import command_center as cc
 import qualification
+import sync_simulator
+import artist_twin as twin
 import plans
 from network_config import (
     get_network_data,
@@ -1696,6 +1698,60 @@ def create_app():
                      "/inbox")
         return jsonify({"ok": True,
                         "message": "Request sent - the rights holder will follow up."})
+
+    @app.route("/sync/deal-simulator", methods=["GET", "POST"])
+    def deal_simulator():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        result, inp = None, {}
+        if request.method == "POST":
+            f = request.form
+            inp = {"fee": f.get("fee") or 0, "media": f.get("media"),
+                   "term": f.get("term"), "territory": f.get("territory"),
+                   "exclusive": bool(f.get("exclusive")),
+                   "all_media": bool(f.get("all_media")),
+                   "mfn": bool(f.get("mfn")), "buyout": bool(f.get("buyout"))}
+            try:
+                inp["fee"] = float(inp["fee"])
+            except (TypeError, ValueError):
+                inp["fee"] = 0
+            result = sync_simulator.simulate(inp)
+        return render_template("deal_simulator.html", active_page="deal-simulator",
+                               result=result, inp=inp, sim=sync_simulator,
+                               **build_dashboard_context())
+
+    @app.route("/artist-twin", methods=["GET", "POST"])
+    def artist_twin_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        settings = store.get_twin_settings(user["id"]) or {
+            "sources": [k for k, _label in twin.SOURCES], "tone": "premium",
+            "do_not_say": ""}
+        generated = None
+        if request.method == "POST":
+            f = request.form
+            if f.get("save_settings"):
+                sources = [k for k, _label in twin.SOURCES if f.get("src_" + k)]
+                tone = f.get("tone") if f.get("tone") in dict(twin.TONES) else "premium"
+                store.save_twin_settings(user["id"], sources, tone,
+                                         (f.get("do_not_say") or "").strip())
+                return redirect("/artist-twin")
+            kind = f.get("kind")
+            if kind in twin.OUTPUT_KEYS:
+                enabled = set(settings["sources"])
+                facts, used = twin.gather_context(user["id"], enabled)
+                do_not_say = [p.strip() for p in
+                              (settings.get("do_not_say") or "").split(",") if p.strip()]
+                text = twin.generate(kind, facts, settings.get("tone", "premium"),
+                                     do_not_say)
+                store.save_twin_generation(user["id"], kind, text, ", ".join(used))
+                generated = {"kind": kind, "text": text, "used": used}
+        return render_template("artist_twin.html", active_page="artist-twin",
+                               settings=settings, twin=twin, generated=generated,
+                               history=store.list_twin_generations(user["id"]),
+                               **build_dashboard_context())
 
     # --- Release OS: qualification, artist profile, vault, review queue --------
 
