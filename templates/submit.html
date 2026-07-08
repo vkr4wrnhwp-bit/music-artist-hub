@@ -13,17 +13,23 @@
     <h1 class="mt-4 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl">
       Send Us<br><span class="text-amber-400">Your Sound.</span>
     </h1>
-    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-400">
-      No forms. No fees. No gatekeeping robots. A real person at {{ lb.brand.sub }} listens to everything that lands on our desk.
+    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-200">
+      No forms. No fees. No gatekeeping robots. A real person at Street Banker listens to everything that lands on our desk.
     </p>
   </div>
 
   <!-- The record -->
   <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#16130a] via-[#0e0e10] to-[#0a0a0b]">
     <div class="grid grid-cols-1 items-center gap-8 p-8 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-12">
-      <!-- Spinning vinyl, drawn in code: the disc rotates, the light stays still -->
-      <div class="relative mx-auto w-52 sm:w-full sm:max-w-[260px]" style="filter: drop-shadow(0 24px 44px rgba(0,0,0,0.55));">
-        <div class="animate-[spin_10s_linear_infinite]">
+      <!-- Turntable deck, drawn in code: platter + spinning record + static tonearm -->
+      <div class="relative mx-auto w-full max-w-[360px]">
+        <div class="relative rounded-2xl border border-white/10 bg-gradient-to-b from-[#232327] to-[#0f0f11] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_rgba(0,0,0,0.5)]">
+          <div class="flex items-center">
+            <!-- Platter + record -->
+            <div class="relative flex-1" style="filter: drop-shadow(0 10px 24px rgba(0,0,0,0.5));">
+              <div class="absolute -inset-[6%] rounded-full border border-white/10 bg-[#08080a]"></div>
+              <div class="relative">
+                <div class="animate-[spin_10s_linear_infinite]">
           <svg viewBox="0 0 200 200" aria-hidden="true">
             <defs>
               <radialGradient id="vinylbody" cx="0.5" cy="0.5" r="0.5">
@@ -70,11 +76,56 @@
           <path d="M43 26 A94 94 0 0 1 157 26 L146 44 A72 72 0 0 0 54 44 Z" fill="url(#sheenfade)"/>
           <path d="M30 168 A94 94 0 0 0 170 168 L160 152 A74 74 0 0 1 40 152 Z" fill="#ffffff08"/>
         </svg>
+              </div>
+            </div>
+
+            <!-- Tonearm (static, resting on the groove) -->
+            <svg viewBox="0 0 90 210" aria-hidden="true" class="relative z-10 -ml-8 w-[76px] shrink-0">
+              <defs>
+                <linearGradient id="armmetal" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#d6d6dc"/>
+                  <stop offset="0.5" stop-color="#8e8e96"/>
+                  <stop offset="1" stop-color="#5a5a62"/>
+                </linearGradient>
+              </defs>
+              <!-- counterweight -->
+              <line x1="62" y1="36" x2="80" y2="18" stroke="#3c3c42" stroke-width="9" stroke-linecap="round"/>
+              <circle cx="80" cy="18" r="8" fill="#2a2a2e" stroke="#ffffff25"/>
+              <!-- pivot base -->
+              <circle cx="58" cy="42" r="17" fill="#1b1b1e" stroke="#ffffff1e"/>
+              <circle cx="58" cy="42" r="8" fill="#303036" stroke="#ffffff30"/>
+              <circle cx="58" cy="42" r="2.5" fill="#0c0c0e"/>
+              <!-- arm -->
+              <line x1="58" y1="42" x2="20" y2="152" stroke="url(#armmetal)" stroke-width="4.5" stroke-linecap="round"/>
+              <!-- headshell + stylus -->
+              <g transform="rotate(19 20 152)">
+                <rect x="11" y="147" width="18" height="10" rx="2.5" fill="#c9a24a"/>
+                <rect x="11" y="147" width="18" height="10" rx="2.5" fill="none" stroke="#00000040"/>
+                <rect x="14" y="157" width="4" height="5" rx="1" fill="#e8e8ee"/>
+              </g>
+              <!-- anti-skate knob -->
+              <circle cx="76" cy="58" r="5" fill="#242428" stroke="#ffffff20"/>
+            </svg>
+          </div>
+
+          <!-- Deck controls -->
+          <div class="mt-4 flex items-center justify-between px-1">
+            <div class="flex items-center gap-2">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
+              <span class="text-[8px] font-semibold uppercase tracking-[0.25em] text-gray-300">Power</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="grid h-6 w-6 place-items-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[8px] font-bold text-amber-300">33</span>
+              <span class="grid h-6 w-6 place-items-center rounded-full border border-white/10 bg-white/5 text-[8px] font-bold text-gray-500">45</span>
+            </div>
+            <span class="text-[8px] font-semibold uppercase tracking-[0.3em] text-gray-400">Street Banker Audio</span>
+          </div>
+        </div>
       </div>
       <div>
-        <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-500">Now accepting demos</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-400/90">Now accepting demos</div>
         <h2 class="mt-3 text-2xl font-extrabold uppercase leading-tight tracking-tight text-white sm:text-3xl">Every record starts as a demo somebody almost didn't send.</h2>
-        <p class="mt-4 text-sm leading-relaxed text-gray-400">
+        <p class="mt-4 text-sm leading-relaxed text-gray-200">
           Synthwave to soul, bedroom demo to mixed master — if it moves, we want to hear it.
           If it's a fit, we'll reach out about distribution, marketing, or a full label deal.
         </p>
@@ -97,23 +148,23 @@
       ('03', 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
     ] %}
     <div class="text-center sm:text-left">
-      <div class="text-5xl font-extrabold tracking-tight text-white/10">{{ n }}</div>
-      <div class="mt-2 text-sm font-bold text-gray-100">{{ title }}</div>
-      <p class="mt-1.5 text-xs leading-relaxed text-gray-500">{{ body }}</p>
+      <div class="text-5xl font-extrabold tracking-tight text-white/15">{{ n }}</div>
+      <div class="mt-2 text-sm font-bold text-white">{{ title }}</div>
+      <p class="mt-1.5 text-xs leading-relaxed text-gray-300">{{ body }}</p>
     </div>
     {% endfor %}
   </div>
 
   <!-- Where to send -->
   <div class="mt-14 rounded-2xl border border-white/5 bg-[#111113] p-6 text-center">
-    <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-500">The desk</div>
+    <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">The desk</div>
     <div class="mt-3 flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-6">
       {% for email in lb.brand.submissions_emails %}
       <a href="mailto:{{ email }}?subject=Demo Submission" class="text-base font-semibold text-amber-400 hover:underline">{{ email }}</a>
       {% if not loop.last %}<span class="hidden text-gray-700 sm:inline">·</span>{% endif %}
       {% endfor %}
     </div>
-    <p class="mx-auto mt-3 max-w-sm text-[11px] leading-relaxed text-gray-600">Reviewed by the Street Banker team. No submission fee, ever. We can't reply to everything, but we do play everything.</p>
+    <p class="mx-auto mt-3 max-w-sm text-[11px] leading-relaxed text-gray-300">Reviewed by the Street Banker team. No submission fee, ever. We can't reply to everything, but we do play everything.</p>
   </div>
 
   <div class="h-10"></div>
