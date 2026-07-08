@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Walkthrough - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[860px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Walkthrough</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Ten minutes, start to finish. Every step uses real features on your account — nothing here is staged.</p>
+  </div>
+
+  {% set steps = [
+    ('Find the money', 'Download the sample statement, upload it on Statements, then open Recovery. The engine finds $85.77 of unmatched revenue and coverage gaps automatically — each with an Open Case button.',
+     [('Download sample statement', '/walkthrough/sample-statement.csv'), ('Upload it', '/statements'), ('See the findings', '/recovery')]),
+    ('Work the case', 'Open a case from a finding, mark it submitted, then won with a payout. Watch the Recovered total climb and the notification land.',
+     [('Recovery Cases', '/royalty-recovery/cases'), ('Notifications', '/notifications')]),
+    ('Build the release', 'Create a Smart Link campaign: paste any Spotify track URL into Auto-Scan and watch it fill every platform, the title, and the cover art. Set a future release date, enable fan capture, publish.',
+     [('Create a campaign', '/links/new')]),
+    ('Visit your own link', 'Open the public page — countdown, pre-save capture, tracked streaming buttons. Sign up with a test email and check the Fan CRM: consent logged, intent scored.',
+     [('Your campaigns', '/links'), ('Fan CRM', '/links/fans')]),
+    ('Generate the rollout', 'Create a rollout connected to your campaign: paste lyrics, pick platforms, hit Generate. Dated posts across the full release arc, each with its own tracked link variant.',
+     [('Rollout Studio', '/rollout-studio/new')]),
+    ('Put paperwork behind it', 'Generate a split agreement in the Deal Room — a signable template lands in your Documents vault and a deal appears on the board. Sign it and watch your Trust Score move.',
+     [('Deal Room', '/deal-room'), ('Trust Score', '/trust-score')]),
+    ('Pitch it for sync', 'Create a Sync Clearance Pack with an audio file — the private link is what a music supervisor sees. Then run a lowball offer through the Deal Simulator and read the flags.',
+     [('Sync Packs', '/sync/clearance-packs'), ('Deal Simulator', '/sync/deal-simulator')]),
+    ('Check the business', 'Revenue OS nets your statement income against logged spend. The Growth Score shows what your activity unlocks. The Executive Report packages all of it for a partner.',
+     [('Revenue OS', '/revenue-os'), ('Growth Score', '/qualification'), ('Executive Report', '/reports/executive')]),
+    ('Run it from one screen', 'Command Center pulls every score, alert, and open action into one view — with a Fix-now link on everything. This is the operating system.',
+     [('Command Center', '/command-center')]),
+  ] %}
+
+  <div class="space-y-3">
+    {% for title, body, links in steps %}
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <div class="flex items-start gap-4">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9a24a]/15 text-sm font-black tabular-nums text-[#e8c667]">{{ loop.index }}</span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-bold text-gray-100">{{ title }}</h2>
+          <p class="mt-1 text-xs leading-relaxed text-gray-400">{{ body }}</p>
+          <div class="mt-2.5 flex flex-wrap gap-2">
+            {% for label, href in links %}
+            <a href="{{ href }}" class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">{{ label }} →</a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <p class="text-[10px] text-gray-600">Sample-data pages (Audience, Playlists, Stats, and other locked items) are previews of what connects when distributor and DSP data feeds arrive — they're labeled, never presented as your numbers.</p>
+</div>
+{% endblock %}

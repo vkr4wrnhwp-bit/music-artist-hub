@@ -11,7 +11,7 @@ from royalty_data import (
 
 
 def test_index_renders_landing_page():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
@@ -22,7 +22,7 @@ def test_index_renders_landing_page():
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/").get_data(as_text=True)
     assert 'href="/overview"' in body
     assert "Start Free Scan" in body
@@ -86,20 +86,20 @@ def test_landing_command_desk_shows_all_sources():
 def test_landing_page_includes_feature_cards():
     # Features may render as built-in cards or as the clickable image whose
     # region aria-labels carry the same names -- match case-insensitively.
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/").get_data(as_text=True).lower()
     for name in ["find missing money", "connect everything", "maximize your value", "you stay in control"]:
         assert name in body
 
 
 def test_landing_page_includes_trust_strip():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/").get_data(as_text=True)
     assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" in body
 
 
 def test_landing_includes_lanes_engine_and_pillars():
-    body = create_app().test_client().get("/").get_data(as_text=True)
+    body = _demo().get("/").get_data(as_text=True)
     # Lanes section renders (headline lives in the graphic when an image is set).
     assert 'id="infrastructure"' in body
     assert "Explore The Three Lanes" in body
@@ -121,7 +121,7 @@ def test_landing_pillars_config():
 
 
 def test_scan_recovery_summary_route():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/scan/recovery-summary")
     assert response.status_code == 200
     data = response.get_json()
@@ -133,35 +133,35 @@ def test_scan_recovery_summary_route():
 
 
 def test_all_pages_render():
-    client = create_app().test_client()
+    client = _demo()
     for route in ["/overview", "/royalties", "/catalog", "/connections", "/recovery", "/valuation", "/reports", "/settings"]:
         response = client.get(route)
         assert response.status_code == 200, route
 
 
 def test_dashboard_redirects_to_overview():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/dashboard")
     assert response.status_code == 302
     assert response.headers["Location"] == "/overview"
 
 
 def test_nav_highlights_active_page():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
     assert 'href="/royalties"' in body
     assert "bg-amber-500/10 font-semibold text-amber-400" in body
 
 
 def test_nav_includes_all_eight_routes():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     for href in ["/overview", "/royalties", "/catalog", "/connections", "/recovery", "/valuation", "/reports", "/settings"]:
         assert 'href="{}"'.format(href) in body
 
 
 def test_overview_renders_command_center():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/overview")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
@@ -170,7 +170,7 @@ def test_overview_renders_command_center():
 
 
 def test_overview_includes_goal_card_and_modal():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert 'id="edit-goal-btn"' in body
     assert 'id="goal-modal"' in body
@@ -180,7 +180,7 @@ def test_overview_includes_goal_card_and_modal():
 
 
 def test_overview_includes_health_score_card():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert "Royalty Health Score" in body
     assert "Improve Score" in body
@@ -188,7 +188,7 @@ def test_overview_includes_health_score_card():
 
 
 def test_overview_includes_money_left_card():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert "Money Left on the Table" in body
     assert "Scan Now" in body
@@ -196,7 +196,7 @@ def test_overview_includes_money_left_card():
 
 
 def test_overview_includes_action_center_and_payouts():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert "Action Center" in body
     assert "Recent Payouts" in body
@@ -204,7 +204,7 @@ def test_overview_includes_action_center_and_payouts():
 
 
 def test_overview_includes_last_visit_summary():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert "What Changed Since Your Last Visit" in body
     assert "New royalties collected" in body
@@ -213,20 +213,20 @@ def test_overview_includes_last_visit_summary():
 
 
 def test_overview_includes_date_range_selector():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert 'id="date-range"' in body
 
 
 def test_overview_includes_earnings_trend():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert "Earnings Trend" in body
     assert 'id="earningsChart"' in body
 
 
 def test_recovery_includes_leak_alerts_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Royalty Leak Alerts" in body
     assert 'id="alert-filters"' in body
@@ -235,7 +235,7 @@ def test_recovery_includes_leak_alerts_ui():
 
 
 def test_royalties_page_matches_tracking_dashboard():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
     assert "Track every royalty stream in one place." in body
     assert "Total Royalties" in body
@@ -248,7 +248,7 @@ def test_royalties_page_matches_tracking_dashboard():
 
 
 def test_resolve_alert_returns_result_message():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/alerts/pending-negotiation/resolve")
     assert response.status_code == 200
     data = response.get_json()
@@ -257,13 +257,13 @@ def test_resolve_alert_returns_result_message():
 
 
 def test_resolve_unknown_alert_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/alerts/not-a-real-id/resolve")
     assert response.status_code == 404
 
 
 def test_connections_page_matches_command_center():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/connections").get_data(as_text=True)
     assert "Connect every source. Close every gap. Maximize every dollar." in body
     assert "Connection Health" in body
@@ -273,7 +273,7 @@ def test_connections_page_matches_command_center():
 
 
 def test_connections_table_and_intelligence_column():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/connections").get_data(as_text=True)
     assert "Connection Gaps" in body
     assert "Top Opportunities" in body
@@ -283,7 +283,7 @@ def test_connections_table_and_intelligence_column():
 
 
 def test_connections_has_all_tabs_and_controls():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/connections").get_data(as_text=True)
     for tab in ["All Sources", "Audio Streaming", "Performance", "Mechanical", "Distributors"]:
         assert 'data-tab="{}"'.format(tab) in body
@@ -305,13 +305,13 @@ def test_connections_data_config_shapes():
 
 
 def test_settings_links_to_connections_page():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/settings").get_data(as_text=True)
     assert 'href="/connections"' in body
 
 
 def test_settings_includes_account_profile_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/settings").get_data(as_text=True)
     assert "Account Profile" in body
     assert 'id="profile-form"' in body
@@ -321,7 +321,7 @@ def test_settings_includes_account_profile_ui():
 
 
 def test_settings_includes_notification_preferences_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/settings").get_data(as_text=True)
     assert "Notification Preferences" in body
     assert 'id="notification-list"' in body
@@ -332,14 +332,14 @@ def test_settings_includes_notification_preferences_ui():
 
 
 def test_recovery_includes_scanner_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert 'id="scan-btn"' in body
     assert "Missing Money Scanner" in body
 
 
 def test_scan_endpoint_returns_findings():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/scan/missing-royalties")
     assert response.status_code == 200
     data = response.get_json()
@@ -352,7 +352,7 @@ def test_scan_endpoint_returns_findings():
 
 
 def test_connect_and_disconnect_platform():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/connections/youtube-music/connect")
         assert response.status_code == 200
@@ -367,13 +367,13 @@ def test_connect_and_disconnect_platform():
 
 
 def test_connect_unknown_platform_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/connections/not-a-platform/connect")
     assert response.status_code == 404
 
 
 def test_catalog_page_matches_control_center():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert "Your entire catalog. Organized. Verified. Maximized." in body
     assert "Total Tracks" in body
@@ -384,14 +384,14 @@ def test_catalog_page_matches_control_center():
 
 
 def test_catalog_has_all_five_tabs():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     for tab in ["Tracks", "Releases", "Songwriters", "Publishers", "Splits"]:
         assert 'data-tab="{}"'.format(tab) in body
 
 
 def test_catalog_right_column_and_recently_added():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert "Catalog Health" in body
     assert "Metadata Issues" in body
@@ -401,7 +401,7 @@ def test_catalog_right_column_and_recently_added():
 
 
 def test_catalog_includes_add_release_and_filters():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert 'id="add-release-modal"' in body
     assert 'id="status-filter"' in body
@@ -411,7 +411,7 @@ def test_catalog_includes_add_release_and_filters():
 
 def test_sidebar_account_is_config_driven():
     from catalog_config import get_account
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     account = get_account()
     assert account["name"] in body
@@ -419,14 +419,14 @@ def test_sidebar_account_is_config_driven():
 
 
 def test_base_includes_song_drawer():
-    client = create_app().test_client()
+    client = _demo()
     for route in ["/overview", "/royalties", "/catalog"]:
         body = client.get(route).get_data(as_text=True)
         assert 'id="song-drawer"' in body
 
 
 def test_song_detail_endpoint_returns_full_payload():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/songs/midnight-drive")
     assert response.status_code == 200
     data = response.get_json()
@@ -442,27 +442,27 @@ def test_song_detail_endpoint_returns_full_payload():
 
 
 def test_song_detail_unknown_id_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/songs/not-a-real-song")
     assert response.status_code == 404
 
 
 def test_royalties_includes_payout_calendar():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
     assert "Payout Calendar" in body
     assert "Upcoming total" in body
 
 
 def test_recovery_includes_claim_workflow_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Claim Workflow" in body
     assert "Detected" in body
 
 
 def test_advance_claim_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/claims/youtube-music-uncollected/advance")
         assert response.status_code == 200
@@ -474,7 +474,7 @@ def test_advance_claim_route():
 
 
 def test_reject_claim_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/claims/youtube-music-uncollected/reject")
         assert response.status_code == 200
@@ -484,20 +484,20 @@ def test_reject_claim_route():
 
 
 def test_advance_unknown_claim_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/claims/not-a-real-claim/advance")
     assert response.status_code == 404
 
 
 def test_recovery_includes_smart_recommendations():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Smart Recommendations" in body
     assert "urgency" in body
 
 
 def test_valuation_includes_catalog_value_and_advance_eligibility():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/valuation").get_data(as_text=True)
     assert "Catalog Value Estimate" in body
     assert "Advance Eligibility" in body
@@ -506,7 +506,7 @@ def test_valuation_includes_catalog_value_and_advance_eligibility():
 
 
 def test_add_split_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post(
             "/songs/midnight-drive/splits",
@@ -522,13 +522,13 @@ def test_add_split_route():
 
 
 def test_add_split_missing_fields_returns_400():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/songs/midnight-drive/splits", json={"collaborator": "", "role": "Mixer", "percentage": 10.0})
     assert response.status_code == 400
 
 
 def test_add_split_unknown_song_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post(
         "/songs/not-a-real-song/splits",
         json={"collaborator": "X", "role": "Writer", "percentage": 100.0},
@@ -537,7 +537,7 @@ def test_add_split_unknown_song_returns_404():
 
 
 def test_remove_split_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         client.post("/songs/midnight-drive/splits", json={"collaborator": "Temp", "role": "Mixer", "percentage": 10.0})
         response = client.post("/songs/midnight-drive/splits/3/remove")
@@ -549,7 +549,7 @@ def test_remove_split_route():
 
 
 def test_toggle_split_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/songs/neon-dreams/splits/1/toggle")
         assert response.status_code == 200
@@ -560,13 +560,13 @@ def test_toggle_split_route():
 
 
 def test_toggle_split_unknown_song_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/songs/not-a-real-song/splits/0/toggle")
     assert response.status_code == 404
 
 
 def test_base_includes_split_manager_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/overview").get_data(as_text=True)
     assert 'id="add-split-form"' in body
     assert 'id="split-collaborator"' in body
@@ -574,14 +574,14 @@ def test_base_includes_split_manager_ui():
 
 
 def test_base_includes_collapsible_section_script():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert "section-chevron" in body
     assert "royaltySweep.collapsed." in body
 
 
 def test_recovery_includes_fixes_queue_ui():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Fixes Needed Queue" in body
     assert 'id="fixes-queue-list"' in body
@@ -590,13 +590,13 @@ def test_recovery_includes_fixes_queue_ui():
 
 
 def test_recovery_includes_top_royalty_leaks():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Top Royalty Leaks" in body
 
 
 def test_recovery_includes_command_center_header():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     assert "Estimated Uncollected" in body
     assert "Ready to Claim" in body
@@ -606,7 +606,7 @@ def test_recovery_includes_command_center_header():
 
 
 def test_catalog_releases_tab_lists_releases():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert 'id="tab-Releases"' in body
     assert "The Collection Vol. 1" in body
@@ -614,7 +614,7 @@ def test_catalog_releases_tab_lists_releases():
 
 
 def test_valuation_includes_royalty_forecast():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/valuation").get_data(as_text=True)
     assert "Royalty Forecast" in body
     assert "Conservative" in body
@@ -622,14 +622,14 @@ def test_valuation_includes_royalty_forecast():
 
 
 def test_valuation_includes_catalog_value_tracker():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/valuation").get_data(as_text=True)
     assert "Catalog Value Tracker" in body
     assert 'id="value-tracker-current"' in body
 
 
 def test_catalog_splits_tab_lists_splits():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert 'id="tab-Splits"' in body
     assert "Collaborator" in body
@@ -637,7 +637,7 @@ def test_catalog_splits_tab_lists_splits():
 
 
 def test_catalog_metadata_issues_have_counts():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert "Missing ISRCs" in body
     assert "Unregistered Tracks" in body
@@ -645,7 +645,7 @@ def test_catalog_metadata_issues_have_counts():
 
 
 def test_reports_page_includes_report_library():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/reports").get_data(as_text=True)
     assert "Investor Snapshot" in body
     assert "Recently Generated" in body
@@ -665,7 +665,7 @@ def test_reports_data_config_shapes():
 
 
 def test_epk_page_includes_press_kit():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/epk").get_data(as_text=True)
     assert 'id="epk-document"' in body
     assert "Biography" in body
@@ -675,7 +675,7 @@ def test_epk_page_includes_press_kit():
 
 
 def test_epk_sidebar_and_export():
-    client = create_app().test_client()
+    client = _demo()
     assert 'href="/epk"' in client.get("/links").get_data(as_text=True)
     resp = client.post("/epk/export")
     assert resp.status_code == 200
@@ -698,7 +698,7 @@ def test_epk_data_config_shapes():
 
 
 def test_artwork_page_includes_generator():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/artwork").get_data(as_text=True)
     assert 'id="cover-frame"' in body
     assert "AI Concept" in body
@@ -707,7 +707,7 @@ def test_artwork_page_includes_generator():
 
 
 def test_artwork_generate_endpoint():
-    client = create_app().test_client()
+    client = _demo()
     resp = client.post("/artwork/generate", json={"prompt": "warm ember sunset fire heat"})
     assert resp.status_code == 200
     data = resp.get_json()
@@ -719,7 +719,7 @@ def test_artwork_generate_endpoint():
 def test_smart_links_page_and_create():
     from links_config import reset_smart_links_state
     reset_smart_links_state()
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/links").get_data(as_text=True)
     assert 'id="links-list"' in body
     assert "Create Smart Link" in body
@@ -744,7 +744,7 @@ def test_links_data_config_shapes():
 
 
 def test_publishing_page_includes_compositions():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/publishing").get_data(as_text=True)
     assert "Publishing Administration" in body
     assert "Your Compositions" in body
@@ -767,7 +767,7 @@ def test_publishing_data_config_shapes():
 
 
 def test_tier2_pages_render_and_are_in_nav():
-    client = create_app().test_client()
+    client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
     for href in ("/documents", "/identifiers", "/conflicts", "/releases", "/registration"):
         assert 'href="%s"' % href in nav
@@ -781,30 +781,30 @@ def test_tier2_pages_render_and_are_in_nav():
 
 
 def test_documents_page_content():
-    body = create_app().test_client().get("/documents").get_data(as_text=True)
+    body = _demo().get("/documents").get_data(as_text=True)
     assert "Documents Vault" in body
     assert "Vault Completeness" in body
 
 
 def test_identifiers_page_content():
-    body = create_app().test_client().get("/identifiers").get_data(as_text=True)
+    body = _demo().get("/identifiers").get_data(as_text=True)
     assert "Identifiers" in body
     assert "ISRC" in body and "ISWC" in body and "UPC" in body
 
 
 def test_conflicts_page_content():
-    body = create_app().test_client().get("/conflicts").get_data(as_text=True)
+    body = _demo().get("/conflicts").get_data(as_text=True)
     assert "Rights Conflict Center" in body
 
 
 def test_releases_page_content():
-    body = create_app().test_client().get("/releases").get_data(as_text=True)
+    body = _demo().get("/releases").get_data(as_text=True)
     assert "Release Scheduler" in body
     assert "Readiness Checklist" in body
 
 
 def test_registration_page_and_complete_step():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/registration").get_data(as_text=True)
     assert "Registration Wizard" in body
     # The completion endpoint the page posts to should advance a missing target.
@@ -815,7 +815,7 @@ def test_registration_page_and_complete_step():
 
 
 def test_neighboring_rights_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/neighboring-rights").get_data(as_text=True)
     assert "Neighboring Rights" in body
     assert "SoundExchange" in body
@@ -836,7 +836,7 @@ def test_neighboring_rights_data_config_shapes():
 
 
 def test_sync_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/sync").get_data(as_text=True)
     assert "Sync / Licensing" in body
     assert "Placements" in body
@@ -858,7 +858,7 @@ def test_sync_data_config_shapes():
 
 
 def test_territories_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/territories").get_data(as_text=True)
     assert "Territories" in body
     assert "Earnings by Territory" in body
@@ -878,7 +878,7 @@ def test_territories_data_config_shapes():
 
 
 def test_mechanicals_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/mechanicals").get_data(as_text=True)
     assert "Mechanical Royalties" in body
     assert "Black Box" in body
@@ -904,7 +904,7 @@ def test_mechanicals_agree_with_publishing():
 
 
 def test_funding_page_and_request():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/funding").get_data(as_text=True)
     assert "Advance &amp; Funding" in body
     assert "Available Offers" in body
@@ -930,7 +930,7 @@ def test_funding_offers_derive_from_advance():
 
 
 def test_tax_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/tax").get_data(as_text=True)
     assert "Tax Center" in body
     assert "Suggested Set-Aside" in body
@@ -951,7 +951,7 @@ def test_tax_data_config_shapes():
 def test_disputes_page_content():
     from disputes_config import reset_disputes_state
     reset_disputes_state()
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/disputes").get_data(as_text=True)
     assert "Dispute &amp; Audit Center" in body
     assert "Amount in Dispute" in body
@@ -961,7 +961,7 @@ def test_disputes_page_content():
 def test_disputes_advance_flow():
     from disputes_config import reset_disputes_state, get_disputes_data
     reset_disputes_state()
-    client = create_app().test_client()
+    client = _demo()
     # disp-3 starts at "Filed" (stage_index 0) -> advancing moves to "Submitted".
     resp = client.post("/disputes/disp-3/advance")
     assert resp.status_code == 200
@@ -980,7 +980,7 @@ def test_disputes_data_config_shapes():
 
 
 def test_tier3_pages_render_and_nav():
-    client = create_app().test_client()
+    client = _demo()
     nav = client.get("/links").get_data(as_text=True)
     for href in ("/audience", "/playlists", "/stats"):
         assert 'href="%s"' % href in nav
@@ -1017,7 +1017,7 @@ def test_playlists_data_config_shapes():
 def test_notifications_page_and_mark_read():
     from notifications_config import reset_notifications_state
     reset_notifications_state()
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/notifications").get_data(as_text=True)
     assert "Notifications" in body
     assert 'href="/notifications"' in body
@@ -1028,7 +1028,7 @@ def test_notifications_page_and_mark_read():
 
 def test_global_search_finds_songs_and_sources():
     from search_config import search
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/search").status_code == 200
     assert 'action="/search"' in client.get("/overview").get_data(as_text=True)
     res = search("spotify")
@@ -1038,20 +1038,20 @@ def test_global_search_finds_songs_and_sources():
 
 
 def test_billing_page_content():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/billing").get_data(as_text=True)
     assert "Compare Plans" in body
     assert 'href="/billing"' in body
 
 
 def test_team_page_renders_and_in_nav():
-    client = create_app().test_client()
+    client = _demo()
     assert 'href="/team"' in client.get("/overview").get_data(as_text=True)
     assert client.get("/team").status_code == 200
 
 
 def test_onboarding_page_renders():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/onboarding").get_data(as_text=True)
     assert "Connect your sources" in body
 
@@ -1059,6 +1059,8 @@ def test_onboarding_page_renders():
 def test_real_auth_flow():
     import uuid
     client = create_app().test_client()
+    # One-click demo login is gone; the demo account is password-only.
+    assert client.post("/login/demo").status_code in (302, 404, 405)
     email = "u%s@example.com" % uuid.uuid4().hex[:8]
     assert client.get("/login").status_code == 200
     assert client.get("/signup").status_code == 200
@@ -1073,8 +1075,7 @@ def test_real_auth_flow():
     assert good.status_code == 302
     bad = client.post("/login", data={"email": email, "password": "nope"})
     assert "Incorrect email or password" in bad.get_data(as_text=True)
-    # One-click demo account works.
-    assert client.post("/login/demo").status_code == 302
+    # One-click demo login is retired (password-only demo account).
 
 
 def test_statements_upload_and_real_findings():
@@ -1116,7 +1117,7 @@ def test_statement_engine_math():
 
 
 def test_real_smart_link_redirect_and_click():
-    client = create_app().test_client()
+    client = _demo()
     link = client.post("/links/create", json={"title": "Wire Test", "platforms": ["Spotify"]}).get_json()["link"]
     assert link["real"] and "/l/" in link["url"]
     r = client.get("/l/" + link["slug"])
@@ -1140,7 +1141,7 @@ def test_inbox_persists_submissions():
 
 
 def test_tier5_and_community_pages_render_and_nav():
-    client = create_app().test_client()
+    client = _demo()
     promote_nav = client.get("/links").get_data(as_text=True)
     fan_nav = client.get("/discover").get_data(as_text=True)
     for href in ("/insights", "/benchmark"):
@@ -1176,7 +1177,7 @@ def test_benchmark_uses_real_metrics():
 def test_marketplace_post_flow():
     from community_config import reset_marketplace_state
     reset_marketplace_state()
-    client = create_app().test_client()
+    client = _demo()
     ok = client.post("/marketplace/post", json={"artist": "Me", "need": "Vocalist", "deal_type": "For Fun"})
     assert ok.status_code == 200 and ok.get_json()["ok"]
     bad = client.post("/marketplace/post", json={"artist": "", "need": "", "deal_type": "Nope"})
@@ -1188,7 +1189,7 @@ def test_fan_label_vote_flow():
     from community_config import reset_fan_label_state, get_fan_label_data
     reset_fan_label_state()
     before = {d["id"]: d["votes"] for d in get_fan_label_data()["demos"]}
-    client = create_app().test_client()
+    client = _demo()
     resp = client.post("/fan-label/vote/demo-1")
     assert resp.status_code == 200 and resp.get_json()["votes"] == before["demo-1"] + 1
     assert client.post("/fan-label/vote/nope").status_code == 404
@@ -1196,12 +1197,12 @@ def test_fan_label_vote_flow():
 
 
 def test_fan_dashboard_content():
-    body = create_app().test_client().get("/fans").get_data(as_text=True)
+    body = _demo().get("/fans").get_data(as_text=True)
     assert "Fan Segments" in body and "Fan Leaderboard" in body
 
 
 def test_capital_page_content_and_disclaimer():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/capital").get_data(as_text=True)
     assert 'href="/capital"' in body
     assert "Fan Royalty Passes" in body
@@ -1224,7 +1225,7 @@ def test_capital_data_config_shapes():
 
 
 def test_label_services_pages_and_nav():
-    client = create_app().test_client()
+    client = _demo()
     nav = client.get("/services").get_data(as_text=True)
     assert 'href="/services"' in nav
     assert 'href="/submit"' in nav
@@ -1236,7 +1237,7 @@ def test_label_services_pages_and_nav():
 
 
 def test_label_services_content_from_site():
-    client = create_app().test_client()
+    client = _demo()
     hub = client.get("/services").get_data(as_text=True)
     # Platform branding is Street Banker; the AIW Shopify store is only a link.
     assert "Street Banker" in hub
@@ -1252,7 +1253,7 @@ def test_label_services_content_from_site():
 
 
 def test_landing_links_to_label_services():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/").get_data(as_text=True)
     assert 'href="/services"' in body
 
@@ -1260,7 +1261,7 @@ def test_landing_links_to_label_services():
 def test_network_directory_filters_and_sort():
     from network_config import get_network_data, reset_network_state
     reset_network_state()
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/network").status_code == 200
     # Role filter narrows results to that role only.
     data = get_network_data({"role": "Producer"})
@@ -1276,7 +1277,7 @@ def test_network_directory_filters_and_sort():
 
 
 def test_network_profile_and_playlist_pages():
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/network/nova-reign").status_code == 200
     assert client.get("/network/does-not-exist").status_code == 302  # redirect to /network
     assert client.get("/network/playlist/late-night-synth").status_code == 200
@@ -1288,7 +1289,7 @@ def test_network_profile_and_playlist_pages():
 def test_network_connect_pitch_submit_flows():
     from network_config import reset_network_state
     reset_network_state()
-    client = create_app().test_client()
+    client = _demo()
     assert client.post("/network/kilo-byte/connect").get_json()["status"] == "Pending"
     assert client.post("/network/nope/connect").status_code == 404
     assert client.post("/network/kilo-byte/pitch", json={"song": "Midnight Drive"}).get_json()["ok"]
@@ -1305,7 +1306,7 @@ def test_network_connect_pitch_submit_flows():
 def test_network_shows_and_booking():
     from network_config import reset_network_state
     reset_network_state()
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/network?tab=shows").status_code == 200
     assert "Tour Dates" in client.get("/network/nova-reign").get_data(as_text=True)
     # Enquire works for booking profiles, rejected for non-booking.
@@ -1317,7 +1318,7 @@ def test_network_shows_and_booking():
 def test_network_moments_and_claim():
     from network_config import reset_network_state, get_moment
     reset_network_state()
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/network?tab=moments").status_code == 200
     body = client.get("/network/moment/mo-1").get_data(as_text=True)
     # Watermark/serial + honest deterrent labeling present.
@@ -1335,10 +1336,10 @@ def test_network_moments_and_claim():
 def test_discover_page_and_filters():
     from discover_config import get_discover_data, reset_discover_state
     reset_discover_state()
-    client = create_app().test_client()
+    client = _demo()
     assert client.get("/discover").status_code == 200
     assert 'href="/discover"' in client.get("/discover").get_data(as_text=True)  # fan-world sidebar
-    assert "/discover" in client.get("/login").get_data(as_text=True)  # Continue as a Fan
+    assert "Create a free fan account" in client.get("/login").get_data(as_text=True)
     # Genre filter narrows the feed.
     data = get_discover_data({"genre": "Synthwave"})
     assert data["tracks"] and all(t["genre"] == "Synthwave" for t in data["tracks"])
@@ -1349,7 +1350,7 @@ def test_discover_page_and_filters():
 def test_discover_like_and_follow():
     from discover_config import reset_discover_state
     reset_discover_state()
-    client = create_app().test_client()
+    client = _demo()
     r = client.post("/discover/like/tr-1").get_json()
     assert r["liked"] is True and r["count"] == 1
     assert client.post("/discover/like/tr-1").get_json()["liked"] is False  # toggles off
@@ -1361,8 +1362,8 @@ def test_discover_like_and_follow():
 def test_epk_editable_savable_real():
     import uuid
     client = create_app().test_client()
-    # Anonymous can view the demo kit but cannot save.
-    assert "Make it yours" in client.get("/epk").get_data(as_text=True)
+    # Anonymous users are sent to sign in; nothing renders.
+    assert client.get("/epk").status_code == 302
     assert client.post("/epk/save", json={"tagline": "X"}).status_code == 401
     # Signed-in edits persist across requests.
     client.post("/signup", data={"name": "EPK Artist",
@@ -1416,7 +1417,7 @@ def _fake_odesli(url):
 def test_discover_real_search_offline(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_itunes)
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/discover?q=offline+test+query").get_data(as_text=True)
     assert "Fake Song" in body and "Fake Artist" in body
     assert "preview-play" in body                       # playable preview button
@@ -1426,7 +1427,7 @@ def test_discover_real_search_offline(monkeypatch):
 def test_universal_link_via_odesli_offline(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_odesli)
-    client = create_app().test_client()
+    client = _demo()
     r = client.post("/links/create", json={"title": "Uni", "platforms": ["Spotify"],
                                             "source_url": "https://open.spotify.com/track/offlinetest"})
     link = r.get_json()["link"]
@@ -1447,8 +1448,8 @@ def test_universal_link_via_odesli_offline(monkeypatch):
 
 def test_add_discover_track_to_catalog():
     client = create_app().test_client()
-    # Anonymous adds are rejected so the button can redirect to sign-in.
-    assert client.post("/catalog/add", json={"title": "Neon Ride"}).status_code == 401
+    # Anonymous adds are redirected to sign-in by the login gate.
+    assert client.post("/catalog/add", json={"title": "Neon Ride"}).status_code == 302
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     r = client.post("/catalog/add", json={"title": "Neon Ride", "artist": "Test Artist",
                                            "art": "https://x/300x300bb.jpg", "url": "https://x/t"})
@@ -1470,7 +1471,7 @@ def test_add_discover_track_to_catalog():
 def test_discover_results_have_add_button(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_itunes)
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/discover?q=offline+add+button").get_data(as_text=True)
     assert "add-to-catalog" in body and "+ Catalog" in body
 
@@ -1499,7 +1500,7 @@ def test_catalog_add_pulls_metadata(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
     monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
-    client = create_app().test_client()
+    client = _demo()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     r = client.post("/catalog/add", json={"title": "Meta Song", "artist": "Meta Artist"})
     meta = r.get_json()["meta"]
@@ -1524,7 +1525,7 @@ def test_catalog_add_pulls_metadata(monkeypatch):
 def test_fresh_account_gets_clean_catalog(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
-    client = create_app().test_client()
+    client = _demo()
     client.post("/signup", data={"name": "Clean Artist", "email": "clean@a.com",
                                   "password": "pass1234"})
     client.post("/login", data={"email": "clean@a.com", "password": "pass1234"})
@@ -1568,7 +1569,7 @@ def test_public_epk_share_link():
 
 
 def test_epk_section_visibility_persists():
-    client = create_app().test_client()
+    client = _demo()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     client.get("/epk")  # mints the public slug
     body = client.get("/epk").get_data(as_text=True)
@@ -1591,7 +1592,7 @@ def test_epk_media_assets_and_zip():
     import zipfile
     client = create_app().test_client()
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
-    # Anonymous uploads rejected; unknown kinds rejected.
+    # Anonymous uploads are redirected by the login gate; unknown kinds rejected.
     assert client.post("/epk/asset/logo", data={"asset": (io.BytesIO(png), "a.png")},
                        content_type="multipart/form-data").status_code == 401
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
@@ -1623,7 +1624,7 @@ def test_epk_media_assets_and_zip():
 def test_epk_cover_color_logo_video_press():
     import io
     import music_apis
-    client = create_app().test_client()
+    client = _demo()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     client.get("/epk")
     # Cover color: valid hex persists to the public page; junk is rejected.
@@ -1675,6 +1676,13 @@ def test_epk_press_search(monkeypatch):
 
 
 # --- Street Banker Links: campaign engine ------------------------------------
+
+def _demo(app_obj=None):
+    """App pages now require login; demo account is the showcase."""
+    client = (app_obj or create_app()).test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    return client
+
 
 def _ml_login(app_obj):
     client = app_obj.test_client()
@@ -1807,7 +1815,7 @@ def test_ml_autofill_and_cover_upload(monkeypatch):
     app_obj = create_app()
     # Autofill requires sign-in, then maps Odesli platforms to service keys.
     anon = app_obj.test_client()
-    assert anon.get("/links/autofill?url=https://x").status_code == 401
+    assert anon.get("/links/autofill?url=https://x").status_code == 302
     client = _ml_login(app_obj)
     data = client.get("/links/autofill?url=https://open.spotify.com/track/t").get_json()
     assert data["ok"] and data["title"] == "Fake Song" and data["artist"] == "Fake Artist"
@@ -2031,10 +2039,11 @@ def test_world_switcher_and_public_pages():
     body = client.get("/overview").get_data(as_text=True)
     assert "Statements" in body and "Rollout Studio" not in body   # sweep world nav
     assert client.get("/world/label").headers["Location"] == "/services"
-    # Public pages stay open for signed-out visitors.
+    # Signed-out visitors are sent to login; share pages stay public.
     anon = app_obj.test_client()
-    assert anon.get("/links").status_code == 200
-    assert anon.get("/epk").status_code == 200
+    assert anon.get("/links").status_code == 302
+    assert anon.get("/epk").status_code == 302
+    assert anon.get("/l/nonexistent-slug").status_code in (302, 404)
 
 
 # --- Release OS: qualification, profile, vault, review queue ---------------------
@@ -2221,9 +2230,8 @@ def test_notifications_from_real_events():
     assert "Recovery findings in s.csv" in body
     body = client.get("/links").get_data(as_text=True)
     assert not re.search(r'text-\[#1c1302\]">\d+</span>', body)
-    # Anonymous visitors still get the demo notifications page.
-    anon = app_obj.test_client().get("/notifications").get_data(as_text=True)
-    assert "Notifications" in anon
+    # Anonymous visitors are redirected to login.
+    assert app_obj.test_client().get("/notifications").status_code == 302
 
 
 # --- Documents vault + real identifiers --------------------------------------------
@@ -2543,7 +2551,7 @@ def test_trust_score_from_real_state():
 
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
-    client = create_app().test_client()
+    client = _demo()
     r = client.post("/links/create", json={"title": "Quick", "platforms": ["Spotify"]})
     slug = r.get_json()["link"]["slug"]
     assert client.get("/l/" + slug).status_code == 302
@@ -2568,7 +2576,7 @@ def test_catalog_data_config_shapes():
 
 
 def test_update_fix_status_route():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/recovery").get_data(as_text=True)
     import re
     match = re.search(r'data-fix-id="([^"]+)"', body)
@@ -2582,13 +2590,13 @@ def test_update_fix_status_route():
 
 
 def test_update_fix_status_invalid_status_returns_400():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/fixes/some-id/status", json={"status": "NotAStatus"})
     assert response.status_code == 400
 
 
 def test_registration_wizard_route():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/songs/midnight-drive/registration-wizard")
     assert response.status_code == 200
     data = response.get_json()
@@ -2597,13 +2605,13 @@ def test_registration_wizard_route():
 
 
 def test_registration_wizard_unknown_song_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.get("/songs/not-a-real-song/registration-wizard")
     assert response.status_code == 404
 
 
 def test_complete_registration_wizard_step_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/songs/midnight-drive/registration-wizard/publishing_admin/complete")
         assert response.status_code == 200
@@ -2614,13 +2622,13 @@ def test_complete_registration_wizard_step_route():
 
 
 def test_complete_registration_wizard_step_unknown_song_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/songs/not-a-real-song/registration-wizard/pro/complete")
     assert response.status_code == 404
 
 
 def test_generate_report_route():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/reports/royalty-report/generate")
     assert response.status_code == 200
     data = response.get_json()
@@ -2629,14 +2637,14 @@ def test_generate_report_route():
 
 
 def test_generate_report_unknown_id_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/reports/not-a-report/generate")
     assert response.status_code == 404
 
 
 def test_team_page_includes_collaborator_access_ui():
     # Collaborator access moved from Settings to the dedicated Team page.
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/team").get_data(as_text=True)
     assert "Collaborators" in body
     assert "Jamie Rowe" in body
@@ -2645,7 +2653,7 @@ def test_team_page_includes_collaborator_access_ui():
 
 
 def test_settings_has_quick_links_and_signout():
-    client = create_app().test_client()
+    client = _demo()
     body = client.get("/settings").get_data(as_text=True)
     assert 'href="/team"' in body
     assert 'href="/billing"' in body
@@ -2653,7 +2661,7 @@ def test_settings_has_quick_links_and_signout():
 
 
 def test_invite_collaborator_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post(
             "/collaborators/invite",
@@ -2669,7 +2677,7 @@ def test_invite_collaborator_route():
 
 
 def test_invite_collaborator_invalid_returns_400():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post(
         "/collaborators/invite",
         json={"name": "", "email": "new@example.com", "role": "Viewer", "songs": []},
@@ -2678,7 +2686,7 @@ def test_invite_collaborator_invalid_returns_400():
 
 
 def test_update_collaborator_role_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/collaborators/jamie-rowe/role", json={"role": "Admin"})
         assert response.status_code == 200
@@ -2690,13 +2698,13 @@ def test_update_collaborator_role_route():
 
 
 def test_update_collaborator_role_unknown_id_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/collaborators/not-a-real-id/role", json={"role": "Viewer"})
     assert response.status_code == 404
 
 
 def test_remove_collaborator_route():
-    client = create_app().test_client()
+    client = _demo()
     try:
         response = client.post("/collaborators/marco-velocity/remove")
         assert response.status_code == 200
@@ -2706,7 +2714,7 @@ def test_remove_collaborator_route():
 
 
 def test_remove_collaborator_unknown_id_returns_404():
-    client = create_app().test_client()
+    client = _demo()
     response = client.post("/collaborators/not-a-real-id/remove")
     assert response.status_code == 404
 

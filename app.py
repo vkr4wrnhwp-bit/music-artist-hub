@@ -376,6 +376,13 @@ def create_app():
     _demo = store.get_user_by_email("demo@streetbanker.io")
     if (_demo.get("plan") or "artist") != "label":
         store.set_user_plan(_demo["id"], "label")  # full-access showcase account
+    # The demo/walkthrough account is password-only. Set DEMO_PASSWORD in the
+    # environment to rotate it (recommended on the live deployment).
+    if os.environ.get("DEMO_PASSWORD"):
+        with store.get_db() as _db:
+            _db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                        (generate_password_hash(os.environ["DEMO_PASSWORD"]),
+                         _demo["id"]))
 
     def current_user():
         user_id = session.get("user_id")
@@ -419,12 +426,6 @@ def create_app():
                 return redirect(request.args.get("next") or default)
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
-
-    @app.route("/login/demo", methods=["POST"])
-    def login_demo():
-        user = store.get_user_by_email("demo@streetbanker.io")
-        session["user_id"] = user["id"]
-        return redirect(url_for("onboarding"))
 
     @app.route("/logout", methods=["POST"])
     def logout():
@@ -1299,11 +1300,22 @@ def create_app():
                 "plan_names": plans.PLAN_NAMES,
                 "unread_ntf": store.unread_notifications(user["id"]) if user else 0}
 
+    _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
+                        "/services", "/favicon")
+    _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit"}
+
+    def _is_public_path(path):
+        if path in _PUBLIC_EXACT:
+            return True
+        return any(path.startswith(p) for p in _PUBLIC_PREFIXES)
+
     @app.before_request
     def plan_gate():
         user = current_user()
         if user is None:
-            return None  # signed-out browsing keeps the demo/marketing views
+            if _is_public_path(request.path):
+                return None
+            return redirect(url_for("login", next=request.path))
         tier = plans.required_tier(request.path)
         if tier and not plans.allowed(user.get("plan") or "artist", tier):
             return render_template("upgrade.html", required=tier,
@@ -1802,6 +1814,28 @@ def create_app():
         return render_template("trust_score.html", active_page="trust-score",
                                t=trust_score.calculate(user["id"]),
                                **build_dashboard_context())
+
+    @app.route("/walkthrough")
+    def walkthrough():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("walkthrough.html", active_page="command-center",
+                               **build_dashboard_context())
+
+    @app.route("/walkthrough/sample-statement.csv")
+    def walkthrough_sample_csv():
+        rows = ["Track Title,Store,Net Revenue,Sales Period",
+                "Midnight Drive,Spotify,412.83,2026-04",
+                "Midnight Drive,Apple Music,208.11,2026-04",
+                "Midnight Drive,Spotify,391.20,2026-05",
+                "Neon Dreams,Spotify,146.55,2026-04",
+                "Neon Dreams,Spotify,171.32,2026-05",
+                "Digital Paradise,Apple Music,88.90,2026-05",
+                ",Spotify,64.27,2026-05",
+                ",Apple Music,21.50,2026-04"]
+        return Response("\n".join(rows) + "\n", mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=sample-statement.csv"})
 
     # --- Release OS: qualification, artist profile, vault, review queue --------
 
