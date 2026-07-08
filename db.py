@@ -326,6 +326,15 @@ def init_db():
                 sources_used TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS revenue_expenses (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'other',
+                description TEXT NOT NULL DEFAULT '',
+                amount REAL NOT NULL DEFAULT 0,
+                spend_date TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -876,3 +885,30 @@ def list_twin_generations(user_id, limit=20):
             "SELECT * FROM twin_generations WHERE user_id = ? ORDER BY created DESC LIMIT ?",
             (user_id, limit)).fetchall()
     return [dict(r) for r in rows]
+
+# --- Revenue OS expenses ---------------------------------------------------------
+
+def add_expense(user_id, category, description, amount, spend_date=""):
+    exp_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO revenue_expenses (id, user_id, category, description, amount,"
+            " spend_date, created) VALUES (?,?,?,?,?,?,?)",
+            (exp_id, user_id, category[:40], description[:200], float(amount),
+             spend_date[:10], _now()))
+    return exp_id
+
+
+def list_expenses(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM revenue_expenses WHERE user_id = ?"
+            " ORDER BY spend_date DESC, created DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_expense(user_id, exp_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM revenue_expenses WHERE id = ? AND user_id = ?",
+                         (exp_id, user_id))
+    return cur.rowcount > 0

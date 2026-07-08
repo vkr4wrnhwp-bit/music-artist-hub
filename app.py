@@ -59,6 +59,7 @@ import social_providers
 import command_center as cc
 import qualification
 import sync_simulator
+import trust_score
 import artist_twin as twin
 import plans
 from network_config import (
@@ -1751,6 +1752,55 @@ def create_app():
         return render_template("artist_twin.html", active_page="artist-twin",
                                settings=settings, twin=twin, generated=generated,
                                history=store.list_twin_generations(user["id"]),
+                               **build_dashboard_context())
+
+    _EXPENSE_CATEGORIES = ["production", "mixing_mastering", "artwork", "video",
+                           "marketing_ads", "content", "street_team",
+                           "playlist_press", "travel", "other"]
+
+    @app.route("/revenue-os", methods=["GET", "POST"])
+    def revenue_os():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            f = request.form
+            if f.get("delete_id"):
+                store.delete_expense(user["id"], f["delete_id"])
+            elif (f.get("description") or "").strip() and f.get("amount"):
+                try:
+                    amount = float(f["amount"])
+                except ValueError:
+                    amount = 0
+                if amount > 0:
+                    store.add_expense(
+                        user["id"],
+                        f.get("category") if f.get("category") in _EXPENSE_CATEGORIES else "other",
+                        f["description"].strip(), amount,
+                        (f.get("spend_date") or "").strip())
+            return redirect("/revenue-os")
+        expenses = store.list_expenses(user["id"])
+        total_expenses = sum(e["amount"] for e in expenses)
+        by_category = {}
+        for e in expenses:
+            by_category[e["category"]] = by_category.get(e["category"], 0) + e["amount"]
+        summary = build_royalty_summary(store.get_statement_rows(user["id"]))
+        income = summary["total"] if summary else 0
+        return render_template("revenue_os.html", active_page="revenue-os",
+                               expenses=expenses, total_expenses=total_expenses,
+                               by_category=sorted(by_category.items(),
+                                                  key=lambda x: x[1], reverse=True),
+                               income=income, net=round(income - total_expenses, 2),
+                               summary=summary, categories=_EXPENSE_CATEGORIES,
+                               **build_dashboard_context())
+
+    @app.route("/trust-score")
+    def trust_score_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("trust_score.html", active_page="trust-score",
+                               t=trust_score.calculate(user["id"]),
                                **build_dashboard_context())
 
     # --- Release OS: qualification, artist profile, vault, review queue --------

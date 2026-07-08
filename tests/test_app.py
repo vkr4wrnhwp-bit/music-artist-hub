@@ -1961,8 +1961,8 @@ def test_release_autopilot_and_clean_release():
 
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
-    routes = ["/fraud-sentinel", "/revenue-os", "/capital-score",
-              "/metadata-passport", "/ai-rights", "/trust-score",
+    routes = ["/fraud-sentinel", "/capital-score",
+              "/metadata-passport", "/ai-rights",
               "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
               "/partner-portal", "/royalty-recovery/mlc"]
     for route in routes:
@@ -2473,6 +2473,72 @@ def test_artist_twin_consent_and_generation():
     gens = store_mod.list_twin_generations(user["id"])
     assert gens and gens[0]["kind"] == "press_pitch"
     assert "Press kit" in gens[0]["sources_used"]
+
+
+# --- Revenue OS + trust score ------------------------------------------------------
+
+def test_revenue_os_pnl():
+    import io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "rev%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "R", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    # Real income from a statement, self-reported spend, net computed.
+    csv_rows = (b"Track Title,Store,Net Revenue,Sales Period\n"
+                b"A,Spotify,500.00,2026-04\n"
+                b"B,Apple Music,300.00,2026-05\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv_rows), "s.csv")},
+                content_type="multipart/form-data")
+    client.post("/revenue-os", data={"description": "Mix and master",
+                                     "category": "mixing_mastering", "amount": "350"})
+    client.post("/revenue-os", data={"description": "Meta ads",
+                                     "category": "marketing_ads", "amount": "200"})
+    body = client.get("/revenue-os").get_data(as_text=True)
+    assert "800.00" in body            # real statement income
+    assert "550.00" in body            # tracked spend
+    assert "250.00" in body            # net
+    assert "not financial advice" in body
+    # Deleting an expense updates the ledger.
+    user = store_mod.get_user_by_email(email)
+    exp = store_mod.list_expenses(user["id"])[0]
+    client.post("/revenue-os", data={"delete_id": exp["id"]})
+    assert len(store_mod.list_expenses(user["id"])) == 1
+    # Invalid amounts are ignored.
+    client.post("/revenue-os", data={"description": "junk", "category": "other",
+                                     "amount": "not-a-number"})
+    assert len(store_mod.list_expenses(user["id"])) == 1
+
+
+def test_trust_score_from_real_state():
+    import uuid as _uuid
+    import db as store_mod
+    import trust_score
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "trust%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "T", "email": email, "password": "secret1",
+                                 "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    user = store_mod.get_user_by_email(email)
+    before = trust_score.calculate(user["id"])
+    assert before["verdict"] == "Getting started" and before["blockers"]
+    # Real work moves the score: a signed split agreement.
+    client.post("/deal-room/generate-split", data={
+        "track": "T", "party1_name": "A", "party1_share": "60",
+        "party2_name": "B", "party2_share": "40"})
+    deal = store_mod.list_deals(user["id"])[0]
+    client.post("/deal-room", data={"deal_id": deal["id"], "status": "signed"})
+    after = trust_score.calculate(user["id"])
+    assert after["total"] > before["total"]
+    # Page renders factors, blockers, badge preview, and action shortcuts.
+    body = client.get("/trust-score").get_data(as_text=True)
+    assert "Trust Score" in body and "Blocking Factors" in body
+    assert "Verified by" in body and "Raise trust score" in body
+    assert "not a credit score" in body
 
 
 def test_ml_quick_links_still_work():

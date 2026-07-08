@@ -56,6 +56,7 @@
             ('autopilot', '/releases/autopilot', 'M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6', 'Release Autopilot'),
             ('clean-release', '/releases/clean-release', 'M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M7.5 10l2 2 3.5-4', 'Clean Release'),
             ('qualification', '/qualification', 'M4 16V9M9 16V5M14 16v-8|M3 16h14M14 4l1.5 1.5L18 3', 'Growth Score'),
+            ('trust-score', '/trust-score', 'M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M10 8v3M10 13v.5', 'Trust Score'),
           ]),
           ('Collect', [
             ('overview', '/overview', 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5z|M14 5h2M14 8h3', 'Overview'),
@@ -86,6 +87,7 @@
           ]),
           ('Value', [
             ('valuation', '/valuation', 'M10 3l6 4v6l-6 4-6-4V7z|M10 8v4', 'Valuation'),
+            ('revenue-os', '/revenue-os', 'M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3', 'Revenue OS'),
             ('funding', '/funding', 'M3 6h14v8H3z|M10 8a2 2 0 100 4 2 2 0 000-4zM6 6v0M14 14v0', 'Funding'),
             ('sync', '/sync', 'M4 6h9l-2-2M16 14H7l2 2|M4 6v0M16 14v0', 'Sync / Licensing'),
             ('sync-packs', '/sync/clearance-packs', 'M4 4h12v9H4z|M8 7v4l3-2zM4 16h12', 'Sync Packs'),
@@ -128,7 +130,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],
