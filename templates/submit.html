@@ -159,16 +159,16 @@
         ('knob', '02', 'Tell us who you are', 'A few lines, your numbers if you have them, links to your world. An EPK is perfect.'),
         ('led', '03', 'Press send', 'That\'s it. A human listens. If it\'s a fit, you\'ll hear from us directly.'),
       ] %}
-      <div class="flex flex-col items-center px-6 py-7 text-center">
-        <div class="flex h-20 items-center">
-          {% if hw == 'vu' %}{{ gear.mini_vu(needle=62, cls='h-[72px]') }}
-          {% elif hw == 'knob' %}{{ gear.knob(angle=35, cls='h-[76px] w-[76px]', min_label='DEMO', max_label='MASTER') }}
-          {% else %}{{ gear.led_bars(lit=4, cls='h-[72px]') }}{% endif %}
+      <div class="flex flex-col items-center px-6 py-8 text-center">
+        <div class="flex h-28 items-center">
+          {% if hw == 'vu' %}{{ gear.mini_vu(needle=62, cls='h-28') }}
+          {% elif hw == 'knob' %}{{ gear.knob(angle=35, cls='h-28 w-28', min_label='DEMO', max_label='MASTER') }}
+          {% else %}{{ gear.led_bars(lit=4, cls='h-28') }}{% endif %}
         </div>
-        <div class="mt-3">{{ gear.label_plate(n) }}</div>
-        <div class="mt-3 text-[13px] font-extrabold uppercase tracking-wide text-[#141418]">{{ title }}</div>
+        <div class="mt-4">{{ gear.label_plate(n) }}</div>
+        <div class="mt-3 text-sm font-extrabold uppercase tracking-wide text-[#141418]">{{ title }}</div>
         <span class="mt-1.5 h-0.5 w-8 rounded bg-[#c9a24a]"></span>
-        <p class="mt-2 max-w-[240px] text-xs leading-relaxed text-[#3f3f47]">{{ body }}</p>
+        <p class="mt-2 max-w-[260px] text-[13px] leading-relaxed text-[#3f3f47]">{{ body }}</p>
       </div>
       {% endfor %}
     </div>
