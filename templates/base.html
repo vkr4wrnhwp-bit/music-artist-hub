@@ -55,6 +55,7 @@
             ('actions', '/actions', 'M8 4h8M8 10h8M8 16h8|M4 4l1 1 2-2M4 10l1 1 2-2M4 16l1 1 2-2', 'Actions'),
             ('autopilot', '/releases/autopilot', 'M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6', 'Release Autopilot'),
             ('clean-release', '/releases/clean-release', 'M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M7.5 10l2 2 3.5-4', 'Clean Release'),
+            ('qualification', '/qualification', 'M4 16V9M9 16V5M14 16v-8|M3 16h14M14 4l1.5 1.5L18 3', 'Growth Score'),
           ]),
           ('Collect', [
             ('overview', '/overview', 'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5z|M14 5h2M14 8h3', 'Overview'),
@@ -101,12 +102,15 @@
           ('Label Services', [
             ('services', '/services', 'M4 6h12v10H4z|M4 9h12M8 6V4h4v2', 'Services'),
             ('submit', '/submit', 'M10 4v9M6 8l4-4 4 4|M4 15h12', 'Submit Music'),
+            ('review', '/admin/review', 'M4 5h12v10H4z|M7 9l2 2 4-4M4 8h12', 'Review Queue'),
           ]),
           ('Promote', [
             ('links', '/links', 'M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1', 'Smart Links'),
             ('rollout', '/rollout-studio', 'M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4', 'Rollout Studio'),
             ('epk', '/epk', 'M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12h6M7 15h3', 'Press Kit'),
             ('artwork', '/artwork', 'M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z', 'Cover Art'),
+            ('profile', '/artist-profile', 'M10 4a3 3 0 100 6 3 3 0 000-6z|M4 17c0-3 2.5-5 6-5s6 2 6 5', 'Artist Profile'),
+            ('vault', '/vault', 'M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2', 'Asset Vault'),
           ]),
           ('Account', [
             ('inbox', '/inbox', 'M3 12l3-8h8l3 8v4a1 1 0 01-1 1H4a1 1 0 01-1-1z|M3 12h4l1.5 2h3L13 12h4', 'Inbox'),
@@ -119,7 +123,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release'] %}
+        {% set live_keys = ['statements', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

@@ -37,10 +37,10 @@
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ summary.visits }}</div>
       <div class="text-[10px] text-gray-600">{{ summary.clicks }} service clicks</div>
     </a>
-    <a href="/fraud-sentinel" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Fraud Risk</div>
-      <div class="mt-2 text-2xl font-bold text-gray-500">—</div>
-      <div class="text-[10px] text-gray-600">Sentinel in preview</div>
+    <a href="/qualification" class="rounded-2xl border border-[#c9a24a]/30 bg-[#141210] p-4 transition-colors hover:border-[#c9a24a]/60">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#e8c667]">SB Qualification</div>
+      <div class="mt-2 text-2xl font-black tabular-nums {{ 'text-green-400' if summary.qualification >= 75 else 'text-[#e8c667]' }}">{{ summary.qualification }}</div>
+      <div class="text-[10px] text-gray-600">Growth score — unlocks reach</div>
     </a>
   </div>
 

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Asset Vault - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Asset Vault</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Archive Drawer</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Every creative asset across your press kit, campaigns, and rollouts — one drawer, with where each piece is working.</p>
+    </div>
+    <div class="flex gap-2 text-sm font-semibold">
+      <a href="/epk" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">+ Press assets</a>
+      <a href="/rollout-studio/new" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">+ Rollout assets</a>
+    </div>
+  </div>
+
+  {% if items %}
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {% for a in items %}
+    <div class="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#15130f] to-[#0e0d0b]">
+      {% if a.path and a.type != 'Lyrics' and a.type != 'Video' %}
+      <a href="{{ a.path }}" target="_blank"><img src="{{ a.path }}" alt="{{ a.name }}" class="aspect-[3/2] w-full border-b border-white/5 object-cover"></a>
+      {% else %}
+      <div class="grid aspect-[3/2] place-items-center border-b border-white/5 bg-black/30 text-3xl text-gray-700">{{ '♫' if a.type == 'Lyrics' else '▶' }}</div>
+      {% endif %}
+      <div class="p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-sm font-bold text-gray-100">{{ a.name }}</span>
+          <span class="shrink-0 rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ a.type }}</span>
+        </div>
+        <div class="mt-1 text-[11px] text-gray-500">{{ a.usage }}</div>
+        <div class="mt-2 flex items-center justify-between text-[10px]">
+          <span class="font-bold uppercase {{ 'text-green-400' if a.status in ('Public', 'Released', 'Live') else 'text-gray-500' }}">{{ a.status }}{% if a.date %} · {{ a.date }}{% endif %}</span>
+          <a href="{{ a.manage }}" class="font-bold text-[#e8c667] hover:underline">Manage →</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
+    <div class="text-sm font-bold text-gray-200">The drawer is empty</div>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Upload cover art on a campaign, press assets in the Press Office, or creative into a rollout — everything lands here.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -2038,6 +2038,56 @@ def test_world_switcher_and_public_pages():
     assert anon.get("/epk").status_code == 200
 
 
+# --- Release OS: qualification, profile, vault, review queue ---------------------
+
+def test_qualification_score_from_real_data():
+    import qualification
+    import db as store_mod
+    app_obj = create_app()
+    client = _ml_login(app_obj)
+    user = store_mod.get_user_by_email("demo@streetbanker.io")
+    before = qualification.calculate(user["id"])["total"]
+    # Real work moves the score: publish a fully-set-up campaign.
+    cid = _ml_create(client, title="Qual Drop", release_date="2031-06-01")
+    client.post("/links/%s/publish" % cid)
+    after = qualification.calculate(user["id"])
+    # Other tests may have already saturated some categories in the shared DB.
+    assert after["total"] >= before and after["total"] > 0
+    assert "Fan Capture Enabled" in after["badges"]
+    assert after["recommendation"] in ("Needs work", "Approve — with guidance",
+                                       "High potential")
+    # Page renders meters, unlocks, and action shortcuts.
+    body = client.get("/qualification").get_data(as_text=True)
+    assert "Growth Score" in body and "Release Readiness" in body
+    assert "What Your Score Unlocks" in body and "Raise growth score" in body
+
+
+def test_artist_profile_and_vault():
+    client = _ml_login(create_app())
+    cid = _ml_create(client, title="Sheet Drop")
+    body = client.get("/artist-profile").get_data(as_text=True)
+    assert "Label-Facing One-Sheet" in body and "SB Score" in body
+    assert "Sheet Drop" in body            # campaign history is real
+    assert "Fans owned" in body
+    vault = client.get("/vault").get_data(as_text=True)
+    assert "Archive Drawer" in vault and "Sheet Drop" in vault
+    assert "Cover art" in vault and "Manage" in vault
+
+
+def test_admin_review_queue_label_only():
+    import uuid as _uuid
+    app_obj = create_app()
+    label_client = _ml_login(app_obj)   # demo account holds the Label plan
+    body = label_client.get("/admin/review").get_data(as_text=True)
+    assert "Review Queue" in body and "Synthwave Surfer" in body
+    # Artist-tier accounts cannot see the curation desk.
+    artist = app_obj.test_client()
+    artist.post("/signup", data={"name": "A", "email": "rq%s@x.com" % _uuid.uuid4().hex[:6],
+                                 "password": "secret1", "account_type": "artist"})
+    assert artist.get("/admin/review").status_code == 402
+    assert artist.get("/qualification").status_code == 200  # own score always visible
+
+
 def test_ml_quick_links_still_work():
     # The original quick smart links share /l/ and must be untouched.
     client = create_app().test_client()

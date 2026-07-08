@@ -208,7 +208,9 @@ def get_summary(user_id):
     rollouts = ros.list_campaigns(user_id)
     tracks = mls_catalog_tracks(user_id)
     with_isrc = sum(1 for t in tracks if (t.get("meta") or {}).get("isrc"))
+    import qualification
     return {
+        "qualification": qualification.calculate(user_id)["total"],
         "links_score": round(sum(scores) / len(scores)) if scores else 0,
         "campaign_count": len(campaigns),
         "visits": events.get("page_view", 0),

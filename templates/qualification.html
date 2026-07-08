@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Growth Score - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Qualification</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Growth Score</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Every point is computed from your real account — campaigns, rollouts, fans, metadata, and press kit. Raise the score, unlock more reach.</p>
+    </div>
+    <a href="/artist-profile" class="rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Artist Profile →</a>
+  </div>
+
+  <!-- Console readout -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-6 shadow-[0_0_60px_rgba(201,162,74,0.07)]">
+    <div class="flex flex-wrap items-center justify-between gap-6">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Street Banker Qualification Score</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="text-6xl font-black tabular-nums {{ 'text-green-400' if q.total >= 75 else 'text-[#e8c667]' }}">{{ q.total }}</span>
+          <span class="text-xl text-gray-600">/100</span>
+        </div>
+        <div class="mt-1 text-xs font-bold uppercase tracking-wide {{ 'text-green-400' if q.recommendation == 'High potential' else 'text-[#e8c667]' }}">{{ q.recommendation }}</div>
+      </div>
+      {% if q.badges %}
+      <div class="flex max-w-sm flex-wrap gap-1.5">
+        {% for b in q.badges %}
+        <span class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#e8c667]">{{ b }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <!-- VU meters per category -->
+    <div class="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+      {% for name, pts, note in q.categories %}
+      <div>
+        <div class="flex items-baseline justify-between">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-gray-300">{{ name }}</span>
+          <span class="text-[11px] font-black tabular-nums {{ 'text-green-400' if pts >= 7 else ('text-[#e8c667]' if pts >= 4 else 'text-red-400/80') }}">{{ pts }}/10</span>
+        </div>
+        <div class="mt-1 flex gap-[3px]">
+          {% for i in range(10) %}
+          <span class="h-2.5 flex-1 rounded-[2px] {{ ('bg-green-500' if pts >= 7 else ('bg-[#d8b25a]' if pts >= 4 else 'bg-red-500/70')) if i < pts else 'bg-white/8' }}"></span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <!-- Needs work -->
+    <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">What Needs Work</h2>
+      {% if q.needs_work %}
+      <div class="mt-3 space-y-2.5">
+        {% for name, pts, note in q.needs_work %}
+        <div class="rounded-lg border border-white/5 bg-white/5 p-3">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-gray-100">{{ name }}</span>
+            <span class="text-[11px] font-bold tabular-nums text-[#e8c667]">{{ pts }}/10</span>
+          </div>
+          <div class="mt-0.5 text-[11px] text-gray-400">{{ note }}</div>
+          <form method="post" action="/actions/from-alert" class="mt-2">
+            <input type="hidden" name="title" value="Raise growth score: {{ name }}">
+            <input type="hidden" name="description" value="{{ note }}">
+            <input type="hidden" name="category" value="release">
+            <button class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[10px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create action</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-xs text-green-400">Every category is strong. This account is upstream-ready.</p>
+      {% endif %}
+    </section>
+
+    <!-- Unlocks -->
+    <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">What Your Score Unlocks</h2>
+      <div class="mt-3 space-y-2">
+        {% for label, threshold, met in q.unlocks %}
+        <div class="flex items-center gap-3 rounded-lg border {{ 'border-green-500/20 bg-green-500/[0.04]' if met else 'border-white/5 bg-white/5' }} px-3 py-2.5">
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-black {{ 'bg-green-500/20 text-green-400' if met else 'bg-white/10 text-gray-600' }}">{{ '✓' if met else threshold }}</span>
+          <span class="text-sm font-semibold {{ 'text-gray-100' if met else 'text-gray-500' }}">{{ label }}</span>
+          {% if not met %}<span class="ml-auto text-[10px] font-bold uppercase text-gray-600">at {{ threshold }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <p class="mt-3 text-[10px] text-gray-600">Qualified accounts enter the Street Banker review queue for human curation — this score gets you seen, a person makes the call.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

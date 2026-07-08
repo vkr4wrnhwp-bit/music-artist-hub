@@ -56,6 +56,7 @@ import rollout_engine
 import rollout_store as ros
 import social_providers
 import command_center as cc
+import qualification
 import plans
 from network_config import (
     get_network_data,
@@ -1347,6 +1348,110 @@ def create_app():
     for _route, _name, _blurb, _status, _disc in cc.MODULES:
         if _status == "preview":
             app.add_url_rule(_route, view_func=_module_preview(_route))
+
+    # --- Release OS: qualification, artist profile, vault, review queue --------
+
+    @app.route("/qualification")
+    def qualification_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("qualification.html", active_page="qualification",
+                               q=qualification.calculate(user["id"]),
+                               **build_dashboard_context())
+
+    @app.route("/artist-profile")
+    def artist_profile():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        saved = store.get_epk(user["id"]) or {}
+        assets = [{**a, "label": a["kind"].replace("_", " ").title()}
+                  for a in store.get_epk_assets(user["id"], public_only=False)]
+        ctx = build_dashboard_context()
+        epk_data = get_epk_data(ctx["account"], ctx["catalog_value"],
+                                overrides=saved.get("data"), photo=saved.get("photo"),
+                                assets=assets)
+        campaigns = []
+        for c in mls.list_campaigns(user["id"]):
+            counts = mls.event_counts(c["id"])
+            campaigns.append({**c, "visits": counts.get("page_view", 0),
+                              "clicks": counts.get("service_click", 0),
+                              "fans": counts.get("email_capture", 0)
+                                      + counts.get("presave_notify", 0),
+                              "eff_status": links_engine.effective_status(c)})
+        return render_template("artist_profile.html", active_page="profile",
+                               e=epk_data, q=qualification.calculate(user["id"]),
+                               campaigns=campaigns,
+                               fan_count=len(mls.list_fans(user["id"])),
+                               **ctx)
+
+    @app.route("/vault")
+    def asset_vault():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        items = []
+        for a in store.get_epk_assets(user["id"]):
+            items.append({"name": a["kind"].replace("_", " ").title(), "type": "Press asset",
+                          "path": a["path"], "date": a["updated"][:10],
+                          "usage": "EPK downloads + press outreach",
+                          "status": "Public" if a["public"] else "Private",
+                          "manage": "/epk"})
+        epk = store.get_epk(user["id"]) or {}
+        if epk.get("photo"):
+            items.append({"name": "Artist Photo", "type": "Press asset",
+                          "path": epk["photo"], "date": "", "usage": "EPK hero + profile",
+                          "status": "Public", "manage": "/epk"})
+        for c in mls.list_campaigns(user["id"]):
+            if c.get("cover_url"):
+                items.append({"name": c["title"], "type": "Cover art",
+                              "path": c["cover_url"], "date": c["updated"][:10],
+                              "usage": "Smart link + social cards",
+                              "status": links_engine.effective_status(c),
+                              "manage": "/links/%s/edit" % c["id"]})
+        for r in ros.list_campaigns(user["id"]):
+            for a in ros.list_assets(r["id"]):
+                if a["asset_type"] == "lyrics":
+                    items.append({"name": "%s — Lyrics" % r["title"], "type": "Lyrics",
+                                  "path": "", "date": a["created"][:10],
+                                  "usage": "Lyric posts + video overlays",
+                                  "status": "In rollout",
+                                  "manage": "/rollout-studio/%s" % r["id"]})
+                else:
+                    items.append({"name": "%s — %s" % (r["title"], a["asset_type"].title()),
+                                  "type": a["asset_type"].title(),
+                                  "path": a["file_path"], "date": a["created"][:10],
+                                  "usage": "Rollout content + edit plans",
+                                  "status": "In rollout",
+                                  "manage": "/rollout-studio/%s" % r["id"]})
+        return render_template("vault.html", active_page="vault", items=items,
+                               **build_dashboard_context())
+
+    @app.route("/admin/review")
+    def admin_review():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if (user.get("plan") or "artist") != "label":
+            return render_template("upgrade.html", required="label",
+                                   plans_list=plans.PLANS,
+                                   **build_dashboard_context()), 402
+        with store.get_db() as db:
+            rows = db.execute(
+                "SELECT id, name, email, plan, created FROM users"
+                " WHERE plan != 'fan' ORDER BY created").fetchall()
+        queue = []
+        for row in rows:
+            q = qualification.calculate(row["id"])
+            queue.append({"name": row["name"], "email": row["email"],
+                          "plan": row["plan"], "total": q["total"],
+                          "badges": q["badges"],
+                          "missing": [n for n, _, _ in q["needs_work"]][:3],
+                          "recommendation": q["recommendation"]})
+        queue.sort(key=lambda a: a["total"], reverse=True)
+        return render_template("admin_review.html", active_page="review",
+                               queue=queue, **build_dashboard_context())
 
     # --- Rollout Studio: social rollout campaigns wired into Links ------------
 
