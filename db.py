@@ -101,6 +101,14 @@ def init_db():
                 added TEXT NOT NULL,
                 UNIQUE(user_id, title, artist)
             );
+            CREATE TABLE IF NOT EXISTS epk_assets (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                path TEXT NOT NULL,
+                public INTEGER NOT NULL DEFAULT 1,
+                updated TEXT NOT NULL,
+                PRIMARY KEY (user_id, kind)
+            );
             CREATE TABLE IF NOT EXISTS api_cache (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -338,6 +346,31 @@ def set_epk_slug(user_id, slug):
             "ON CONFLICT(user_id) DO UPDATE SET slug=excluded.slug, updated=excluded.updated",
             (user_id, slug, _now()),
         )
+
+
+def save_epk_asset(user_id, kind, path):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_assets (user_id, kind, path, public, updated) VALUES (?,?,?,1,?) "
+            "ON CONFLICT(user_id, kind) DO UPDATE SET path=excluded.path, updated=excluded.updated",
+            (user_id, kind, path, _now()),
+        )
+
+
+def set_epk_asset_public(user_id, kind, public):
+    with get_db() as db:
+        cur = db.execute("UPDATE epk_assets SET public = ? WHERE user_id = ? AND kind = ?",
+                         (1 if public else 0, user_id, kind))
+    return cur.rowcount > 0
+
+
+def get_epk_assets(user_id, public_only=False):
+    q = "SELECT * FROM epk_assets WHERE user_id = ?"
+    if public_only:
+        q += " AND public = 1"
+    with get_db() as db:
+        rows = db.execute(q, (user_id,)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_epk_by_slug(slug):

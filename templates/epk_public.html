@@ -46,6 +46,7 @@
     </header>
 
     <!-- Public stats -->
+    {% if e.sections_on.stats %}
     <section class="grid grid-cols-2 gap-px border-b border-[#141210]/10 bg-[#141210]/10 sm:grid-cols-2">
       {% for s in [e.stats[0], e.stats[3]] %}
       <div class="bg-[#f7f5f0] px-2 py-6 text-center">
@@ -56,13 +57,19 @@
       {% endfor %}
     </section>
 
+    {% endif %}
+
     <!-- Bio -->
+    {% if e.sections_on.bio %}
     <section class="border-b border-[#141210]/10 py-8">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Biography</h2>
       <p class="mt-3 max-w-2xl text-[15px] leading-relaxed text-[#141210]/85">{{ e.profile.bio }}</p>
     </section>
 
+    {% endif %}
+
     <!-- Top tracks -->
+    {% if e.sections_on.tracks %}
     <section class="border-b border-[#141210]/10 py-8">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Top Tracks</h2>
       <ol class="mt-4 space-y-2">
@@ -75,8 +82,10 @@
       </ol>
     </section>
 
+    {% endif %}
+
     <!-- Press quotes -->
-    {% if e.profile.press %}
+    {% if e.profile.press and e.sections_on.press %}
     <section class="border-b border-[#141210]/10 py-8">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Press</h2>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -107,7 +116,37 @@
     </section>
     {% endif %}
 
+    <!-- Media assets / downloads -->
+    {% if e.sections_on.media and (e.assets or e.video_url) %}
+    <section class="border-b border-[#141210]/10 py-8">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Media Assets</h2>
+        {% if e.assets %}
+        <a href="/epk/{{ slug }}/kit.zip" class="no-print rounded-lg bg-[#141210] px-4 py-2 text-[11px] font-bold text-white hover:bg-[#141210]/85">Download Press Kit (ZIP)</a>
+        {% endif %}
+      </div>
+      {% if e.assets %}
+      <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {% for a in e.assets %}
+        <a href="{{ a.path }}" download class="group block overflow-hidden rounded-xl border border-[#141210]/15 bg-white">
+          <img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
+          <div class="flex items-center justify-between px-2.5 py-2 text-[10px] font-bold"><span>{{ a.label }}</span><span class="text-[#a8862f]">Download ↓</span></div>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if e.video_embed %}
+      <div class="no-print mt-4 aspect-video overflow-hidden rounded-xl border border-[#141210]/15">
+        <iframe src="{{ e.video_embed }}" class="h-full w-full" frameborder="0" allowfullscreen loading="lazy" title="{{ e.name }} video"></iframe>
+      </div>
+      {% elif e.video_url %}
+      <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="no-print mt-4 inline-block rounded-lg border border-[#141210]/20 px-4 py-2 text-xs font-bold hover:bg-[#141210]/5">Watch video ↗</a>
+      {% endif %}
+    </section>
+    {% endif %}
+
     <!-- Contact -->
+    {% if e.sections_on.contact %}
     <section class="py-8">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Contact</h2>
       <div class="mt-4 grid gap-3 sm:grid-cols-3">
@@ -132,6 +171,7 @@
       </div>
       {% endif %}
     </section>
+    {% endif %}
 
   </main>
 

@@ -48,7 +48,9 @@ _SECTIONS = [
     {"key": "tracks", "label": "Top Tracks", "on": True},
     {"key": "press", "label": "Press Quotes", "on": True},
     {"key": "contact", "label": "Contact", "on": True},
+    {"key": "media", "label": "Media Assets", "on": True},
 ]
+_SECTION_KEYS = {s["key"] for s in _SECTIONS}
 
 
 def _fmt_compact(n):
@@ -91,10 +93,26 @@ def normalize_epk_overrides(payload):
         out["press"] = press
     if "show_sweep" in p:
         out["show_sweep"] = bool(p.get("show_sweep"))
+    if "sections_off" in p:
+        out["sections_off"] = [k for k in (p.get("sections_off") or [])
+                               if k in _SECTION_KEYS]
+    video = (p.get("video_url") or "").strip()[:300]
+    if "video_url" in p:
+        out["video_url"] = video if video.startswith("http") else ""
     return out
 
 
-def get_epk_data(account, catalog_value, overrides=None, photo=None):
+def _video_embed(url):
+    """YouTube watch/short URLs become embeddable; anything else stays a link."""
+    if "youtube.com/watch" in url and "v=" in url:
+        vid = url.split("v=")[1].split("&")[0]
+        return "https://www.youtube.com/embed/" + vid
+    if "youtu.be/" in url:
+        return "https://www.youtube.com/embed/" + url.split("youtu.be/")[1].split("?")[0]
+    return None
+
+
+def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None):
     songs = get_songs()
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
@@ -142,6 +160,26 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None):
             if s["label"] == label:
                 social_handles[key] = s["handle"]
 
+    # Section rail: persisted visibility + a readiness status per section.
+    assets = assets or []
+    video_url = (o.get("video_url") or "").strip()
+    off = set(o.get("sections_off") or [])
+    complete = {
+        "bio": bool(profile["bio"]),
+        "stats": True,
+        "tracks": True,
+        "press": bool(profile["press"]),
+        "contact": any(profile["contact"].values()),
+        "media": bool(assets or video_url),
+    }
+    sections = []
+    for s in _SECTIONS:
+        on = s["key"] not in off
+        status = "Hidden" if not on else ("Complete" if complete[s["key"]] else "Needs Info")
+        sections.append({"key": s["key"], "label": s["label"], "on": on,
+                         "status": status})
+    sections_on = {s["key"]: s["on"] for s in sections}
+
     return {
         "name": account["name"],
         "initials": account["initials"],
@@ -153,5 +191,9 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None):
         "top_platform": top_platform,
         "stats": stats,
         "top_tracks": top_tracks,
-        "sections": _SECTIONS,
+        "sections": sections,
+        "sections_on": sections_on,
+        "video_url": video_url,
+        "video_embed": _video_embed(video_url) if video_url else None,
+        "assets": assets,
     }

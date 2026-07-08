@@ -670,7 +670,7 @@ def test_epk_page_includes_press_kit():
     assert 'id="epk-document"' in body
     assert "Biography" in body
     assert "Top Tracks" in body
-    assert "Included Sections" in body
+    assert "Press Kit Sections" in body
     assert "section-toggle" in body
 
 
@@ -1556,6 +1556,59 @@ def test_public_epk_share_link():
     anon = app_obj.test_client()
     assert anon.get("/epk/synthwave-surfer").status_code == 200
     assert anon.get("/epk/no-such-artist").status_code == 404
+
+
+def test_epk_section_visibility_persists():
+    client = create_app().test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    client.get("/epk")  # mints the public slug
+    body = client.get("/epk").get_data(as_text=True)
+    assert "Press Kit Sections" in body and "section-jump" in body
+    assert ">Complete<" in body            # readiness statuses render
+    # Hide press + stats; the editor reflects it and the public page drops them.
+    client.post("/epk/save", json={"sections_off": ["press", "stats"]})
+    body = client.get("/epk").get_data(as_text=True)
+    assert body.count(">Hidden<") == 2
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Indie Wave" not in public and "Total Streams" not in public
+    assert "Biography" in public           # untouched sections stay
+    client.post("/epk/save", json={"sections_off": []})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Indie Wave" in public and "Total Streams" in public
+
+
+def test_epk_media_assets_and_zip():
+    import io
+    import zipfile
+    client = create_app().test_client()
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    # Anonymous uploads rejected; unknown kinds rejected.
+    assert client.post("/epk/asset/logo", data={"asset": (io.BytesIO(png), "a.png")},
+                       content_type="multipart/form-data").status_code == 401
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    client.get("/epk")
+    assert client.post("/epk/asset/nonsense", data={"asset": (io.BytesIO(png), "a.png")},
+                       content_type="multipart/form-data").status_code == 400
+    for kind in ("press_photo", "logo"):
+        r = client.post("/epk/asset/" + kind, data={"asset": (io.BytesIO(png), "a.png")},
+                        content_type="multipart/form-data")
+        assert r.get_json()["ok"]
+    # Public page gains the downloads section and the ZIP bundles both files.
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Media Assets" in public and "Download Press Kit (ZIP)" in public
+    z = zipfile.ZipFile(io.BytesIO(client.get("/epk/synthwave-surfer/kit.zip").data))
+    assert sorted(z.namelist()) == ["synthwave-surfer-logo.png",
+                                    "synthwave-surfer-press-photo.png"]
+    # Making the logo private removes it from the public page and the ZIP.
+    client.post("/epk/asset/logo/visibility", json={"public": False})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Logo" not in public
+    z = zipfile.ZipFile(io.BytesIO(client.get("/epk/synthwave-surfer/kit.zip").data))
+    assert z.namelist() == ["synthwave-surfer-press-photo.png"]
+    # A YouTube link saves and renders as an embed.
+    client.post("/epk/save", json={"video_url": "https://www.youtube.com/watch?v=abc123"})
+    public = client.get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "youtube.com/embed/abc123" in public
 
 
 def test_api_cache_roundtrip():

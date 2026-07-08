@@ -696,20 +696,57 @@ def create_app():
         store.set_epk_slug(user["id"], slug)
         return slug
 
+    _EPK_ASSET_KINDS = [("press_photo", "Press Photo"), ("logo", "Logo"),
+                        ("cover_art", "Cover Art"), ("live_photo", "Live Photo")]
+    _EPK_KIND_LABELS = dict(_EPK_ASSET_KINDS)
+
+    def _labeled_assets(assets):
+        return [{**a, "label": _EPK_KIND_LABELS.get(a["kind"], a["kind"])}
+                for a in assets if a["kind"] in _EPK_KIND_LABELS]
+
     @app.route("/epk")
     def epk():
         ctx = build_dashboard_context()
         user = current_user()
-        overrides, photo = None, None
+        overrides, photo, assets = None, None, []
         if user:
             saved = store.get_epk(user["id"])
             if saved:
                 overrides, photo = saved["data"], saved["photo"]
+            assets = _labeled_assets(store.get_epk_assets(user["id"]))
             ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
+        ctx["asset_kinds"] = _EPK_ASSET_KINDS
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
-                                  overrides=overrides, photo=photo)
+                                  overrides=overrides, photo=photo, assets=assets)
         return render_template("epk.html", active_page="epk", **ctx)
+
+    @app.route("/epk/asset/<kind>", methods=["POST"])
+    def epk_asset_upload(kind):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to upload assets."}), 401
+        if kind not in _EPK_KIND_LABELS:
+            return jsonify({"ok": False, "error": "Unknown asset type."}), 400
+        f = request.files.get("asset")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "error": "Choose an image file."}), 400
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return jsonify({"ok": False, "error": "Use a PNG, JPG, or WebP image."}), 400
+        fname = "epkasset_%s_%s.%s" % (user["id"], kind, ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        path = "/uploads/" + fname
+        store.save_epk_asset(user["id"], kind, path)
+        return jsonify({"ok": True, "path": path})
+
+    @app.route("/epk/asset/<kind>/visibility", methods=["POST"])
+    def epk_asset_visibility(kind):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        public = bool((request.get_json(silent=True) or {}).get("public"))
+        return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
     @app.route("/epk/<slug>")
     def epk_public(slug):
@@ -719,10 +756,35 @@ def create_app():
         ctx = build_dashboard_context()
         name = prof["user_name"]
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
+        assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
-                            overrides=prof["data"], photo=prof["photo"])
+                            overrides=prof["data"], photo=prof["photo"],
+                            assets=assets)
         return render_template("epk_public.html", e=data, slug=slug)
+
+    @app.route("/epk/<slug>/kit.zip")
+    def epk_kit_zip(slug):
+        prof = store.get_epk_by_slug(slug)
+        if prof is None:
+            abort(404)
+        assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        added = 0
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for a in assets:
+                fpath = os.path.join(UPLOADS_DIR, os.path.basename(a["path"]))
+                if os.path.exists(fpath):
+                    ext = fpath.rsplit(".", 1)[-1]
+                    zf.write(fpath, "%s-%s.%s" % (slug, a["kind"].replace("_", "-"), ext))
+                    added += 1
+        if not added:
+            abort(404)
+        buf.seek(0)
+        return Response(buf.read(), mimetype="application/zip", headers={
+            "Content-Disposition": "attachment; filename=%s-press-kit.zip" % slug})
 
     @app.route("/epk/save", methods=["POST"])
     def epk_save():

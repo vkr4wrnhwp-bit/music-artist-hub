@@ -55,7 +55,7 @@
       </header>
 
       <!-- Stats -->
-      <section data-section="stats" class="grid grid-cols-2 gap-px border-b border-[#141210]/10 bg-[#141210]/10 sm:grid-cols-4">
+      <section data-section="stats" class="{{ '' if e.sections_on.stats else 'hidden' }} grid grid-cols-2 gap-px border-b border-[#141210]/10 bg-[#141210]/10 sm:grid-cols-4">
         {% for s in e.stats %}
         <div class="bg-white px-2 py-5 text-center">
           <div class="text-2xl font-black tabular-nums">{{ s.value }}</div>
@@ -66,14 +66,14 @@
       </section>
 
       <!-- Bio -->
-      <section data-section="bio" class="border-b border-[#141210]/10 py-7">
+      <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-[#141210]/10 py-7">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Biography</h3>
         <p class="mt-3 max-w-2xl text-[15px] leading-relaxed text-[#141210]/85">{{ e.profile.bio }}</p>
         <p class="mt-2 text-xs text-[#141210]/55">Strongest platform: <span class="font-bold text-[#141210]">{{ e.top_platform }}</span></p>
       </section>
 
       <!-- Top tracks -->
-      <section data-section="tracks" class="border-b border-[#141210]/10 py-7">
+      <section data-section="tracks" class="{{ '' if e.sections_on.tracks else 'hidden' }} border-b border-[#141210]/10 py-7">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Top Tracks</h3>
         <ol class="mt-4 space-y-2">
           {% for t in e.top_tracks %}
@@ -86,7 +86,7 @@
       </section>
 
       <!-- Press -->
-      <section data-section="press" class="border-b border-[#141210]/10 py-7">
+      <section data-section="press" class="{{ '' if e.sections_on.press else 'hidden' }} border-b border-[#141210]/10 py-7">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Press</h3>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           {% for q in e.profile.press %}
@@ -98,8 +98,32 @@
         </div>
       </section>
 
+      <!-- Media assets -->
+      <section data-section="media" class="border-b border-[#141210]/10 py-7 {{ '' if e.sections_on.media else 'hidden' }}">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Media Assets</h3>
+        {% if e.assets or e.video_url %}
+        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {% for a in e.assets %}
+          <a href="{{ a.path }}" download class="group block overflow-hidden rounded-xl border border-[#141210]/15">
+            <img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
+            <div class="flex items-center justify-between px-2.5 py-2 text-[10px] font-bold"><span>{{ a.label }}</span><span class="text-[#a8862f]">↓</span></div>
+          </a>
+          {% endfor %}
+        </div>
+        {% if e.video_embed %}
+        <div class="mt-4 aspect-video overflow-hidden rounded-xl border border-[#141210]/15">
+          <iframe src="{{ e.video_embed }}" class="h-full w-full" frameborder="0" allowfullscreen loading="lazy" title="Artist video"></iframe>
+        </div>
+        {% elif e.video_url %}
+        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="mt-4 inline-block rounded-lg border border-[#141210]/20 px-4 py-2 text-xs font-bold hover:bg-[#141210]/5">Watch video ↗</a>
+        {% endif %}
+        {% else %}
+        <p class="mt-3 text-xs text-[#141210]/50">No assets uploaded yet — add press photos, a logo, and cover art in the Media Assets panel.</p>
+        {% endif %}
+      </section>
+
       <!-- Contact -->
-      <section data-section="contact" class="pt-7">
+      <section data-section="contact" class="{{ '' if e.sections_on.contact else 'hidden' }} pt-7">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Contact</h3>
         <div class="mt-4 grid gap-3 sm:grid-cols-3">
           {% for label, value in [('Booking', e.profile.contact.booking), ('Press', e.profile.contact.press), ('Management', e.profile.contact.management)] %}
@@ -123,15 +147,19 @@
     <!-- ===== Right rail: sections + editor ===== -->
     <div id="epk-rail" class="space-y-5">
       <section class="rounded-xl border border-[#141210]/10 bg-white p-5 shadow-sm">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#141210]/60">Included Sections</h2>
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#141210]/60">Press Kit Sections</h2>
         <div class="mt-3 space-y-2">
           {% for sec in e.sections %}
-          <label class="flex cursor-pointer items-center justify-between rounded-lg border border-[#141210]/10 bg-[#f7f5f0] px-3 py-2.5">
-            <span class="text-sm font-semibold">{{ sec.label }}</span>
-            <input type="checkbox" class="section-toggle h-4 w-4 accent-[#a8862f]" data-section="{{ sec.key }}" {{ 'checked' if sec.on }}>
-          </label>
+          <div class="flex items-center justify-between gap-2 rounded-lg border border-[#141210]/10 bg-[#f7f5f0] px-3 py-2.5">
+            <button type="button" class="section-jump min-w-0 flex-1 text-left" data-section="{{ sec.key }}">
+              <span class="block truncate text-sm font-semibold">{{ sec.label }}</span>
+              <span class="section-status text-[9px] font-bold uppercase tracking-wide {{ 'text-green-700' if sec.status == 'Complete' else ('text-[#141210]/40' if sec.status == 'Hidden' else 'text-amber-700') }}">{{ sec.status }}</span>
+            </button>
+            <input type="checkbox" class="section-toggle h-4 w-4 shrink-0 accent-[#a8862f]" data-section="{{ sec.key }}" {{ 'checked' if sec.on }} title="Show on public EPK">
+          </div>
           {% endfor %}
         </div>
+        {% if user %}<p class="mt-2 text-[10px] text-[#141210]/45">Unchecked sections are hidden from your public EPK and PDF. Saved with your draft.</p>{% endif %}
       </section>
 
       {% if user %}
@@ -207,6 +235,42 @@
           <div id="save-error" class="hidden text-[11px] font-semibold text-red-600"></div>
         </div>
       </section>
+
+      <!-- Media assets manager -->
+      <section class="rounded-xl border border-[#141210]/10 bg-white p-5 shadow-sm">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#141210]/60">Media Assets</h2>
+        <div class="mt-3 space-y-2">
+          {% set asset_map = {} %}
+          {% for a in epk.assets %}{% if asset_map.update({a.kind: a}) %}{% endif %}{% endfor %}
+          {% for kind, label in asset_kinds %}
+          {% set a = asset_map.get(kind) %}
+          <div class="asset-block flex items-center gap-3 rounded-lg border border-[#141210]/10 bg-[#f7f5f0] p-2.5" data-kind="{{ kind }}">
+            {% if a %}
+            <img src="{{ a.path }}" alt="{{ label }}" class="asset-thumb h-11 w-11 shrink-0 rounded-md object-cover">
+            {% else %}
+            <span class="asset-thumb grid h-11 w-11 shrink-0 place-items-center rounded-md border border-dashed border-[#141210]/25 text-[#141210]/30">+</span>
+            {% endif %}
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold">{{ label }}</div>
+              <div class="asset-status text-[9px] font-bold uppercase tracking-wide {{ 'text-green-700' if a else 'text-amber-700' }}">{{ 'Uploaded' if a else 'Missing' }}</div>
+            </div>
+            <label class="flex shrink-0 cursor-pointer items-center gap-1 text-[9px] font-bold uppercase text-[#141210]/50" title="Show on public EPK">
+              <input type="checkbox" class="asset-public h-3.5 w-3.5 accent-[#a8862f]" data-kind="{{ kind }}" {{ 'checked' if (a and a.public) or not a }}>Public
+            </label>
+            <label class="shrink-0 cursor-pointer rounded-md border border-[#a8862f]/50 bg-[#a8862f]/10 px-2.5 py-1.5 text-[10px] font-bold text-[#7c6220] hover:bg-[#a8862f]/20">
+              {{ 'Replace' if a else 'Upload' }}
+              <input type="file" class="asset-input hidden" data-kind="{{ kind }}" accept=".png,.jpg,.jpeg,.webp">
+            </label>
+          </div>
+          {% endfor %}
+          <div>
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Video URL (YouTube)</label>
+            <input id="f-video" value="{{ epk.video_url }}" placeholder="https://youtube.com/watch?v=..." class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
+          </div>
+          <div id="asset-error" class="hidden text-[11px] font-semibold text-red-600"></div>
+          <p class="text-[10px] text-[#141210]/45">Public assets appear as downloads on your EPK, bundled into the press-kit ZIP. Video saves with your draft.</p>
+        </div>
+      </section>
       {% else %}
       <section class="rounded-xl border border-[#a8862f]/40 bg-white p-5 text-center shadow-sm">
         <div class="text-sm font-black uppercase tracking-wide">Make it yours</div>
@@ -242,6 +306,14 @@
     cb.addEventListener("change", () => {
       const el = document.querySelector('#epk-document [data-section="' + cb.dataset.section + '"]');
       if (el) el.classList.toggle("hidden", !cb.checked);
+    });
+  });
+
+  // Rail: click a section name to scroll the document to it.
+  document.querySelectorAll(".section-jump").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const el = document.querySelector('#epk-document [data-section="' + btn.dataset.section + '"]');
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
@@ -294,6 +366,8 @@
       contact: { booking: v("f-con-booking"), press: v("f-con-press"), management: v("f-con-management") },
       press: [ { quote: v("f-q0"), source: v("f-s0") }, { quote: v("f-q1"), source: v("f-s1") } ],
       show_sweep: document.getElementById("f-show-sweep").checked,
+      video_url: v("f-video"),
+      sections_off: [...document.querySelectorAll(".section-toggle:not(:checked)")].map((cb) => cb.dataset.section),
     };
     try {
       const res = await fetch("/epk/save", {
@@ -304,6 +378,41 @@
       if (res.ok && data.ok) { btn.textContent = "Saved ✓"; setTimeout(() => window.location.reload(), 600); }
       else { err.textContent = data.error || "Could not save."; err.classList.remove("hidden"); btn.disabled = false; btn.textContent = "Save My EPK"; }
     } catch (ex) { btn.disabled = false; btn.textContent = "Save My EPK"; }
+  });
+
+  // Media asset uploads — save immediately, update the block in place.
+  document.querySelectorAll(".asset-input").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const f = input.files[0];
+      const err = document.getElementById("asset-error");
+      err.classList.add("hidden");
+      if (!f) return;
+      const fd = new FormData();
+      fd.append("asset", f);
+      const res = await fetch("/epk/asset/" + input.dataset.kind, { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const block = input.closest(".asset-block");
+        const img = document.createElement("img");
+        img.src = data.path + "?t=" + Date.now();
+        img.className = "asset-thumb h-11 w-11 shrink-0 rounded-md object-cover";
+        block.querySelector(".asset-thumb").replaceWith(img);
+        const status = block.querySelector(".asset-status");
+        status.textContent = "Uploaded";
+        status.className = "asset-status text-[9px] font-bold uppercase tracking-wide text-green-700";
+        input.parentElement.firstChild.textContent = "Replace";
+      } else { err.textContent = data.error || "Upload failed."; err.classList.remove("hidden"); }
+    });
+  });
+
+  // Per-asset public visibility.
+  document.querySelectorAll(".asset-public").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      fetch("/epk/asset/" + cb.dataset.kind + "/visibility", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public: cb.checked }),
+      });
+    });
   });
 
   // Top bar Save Draft mirrors the rail save button.
