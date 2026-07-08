@@ -24,10 +24,25 @@ def db_path():
     )
 
 
+_FALLBACK_WARNED = False
+
+
 @contextmanager
 def get_db():
     path = db_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    except OSError:
+        # DATABASE_PATH points somewhere we cannot create (e.g. the disk
+        # is not mounted yet). Fall back to the local instance dir so the
+        # app still boots — degraded (ephemeral) beats down.
+        global _FALLBACK_WARNED
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "instance", "streetbanker.db")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if not _FALLBACK_WARNED:
+            print("WARNING: DATABASE_PATH unusable; falling back to", path)
+            _FALLBACK_WARNED = True
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
