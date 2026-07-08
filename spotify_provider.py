@@ -108,3 +108,102 @@ def track_id_from_url(url):
     if "open.spotify.com/track/" in (url or ""):
         return url.split("open.spotify.com/track/")[1].split("?")[0].split("/")[0]
     return None
+
+
+# --- Artist Pulse: app-level (client credentials) catalog reads -----------------
+# No fan login involved — these read Spotify's public artist data with the
+# same client id/secret the pre-save flow uses. Redirect URI not required.
+
+PULSE_TOKEN_TTL = 3000       # Spotify app tokens last 3600s; refresh early
+PULSE_DATA_TTL = 6 * 3600    # follower counts move slowly
+
+
+def pulse_configured():
+    return bool(os.environ.get("SPOTIFY_CLIENT_ID")
+                and os.environ.get("SPOTIFY_CLIENT_SECRET"))
+
+
+def app_token():
+    """Client-credentials access token, cached until near expiry."""
+    import db as store
+    tok = store.cache_get("spotify:app_token", PULSE_TOKEN_TTL)
+    if tok:
+        return tok
+    data = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode()
+    out = _http("https://accounts.spotify.com/api/token", data=data,
+                headers=_basic_auth_header())
+    tok = out.get("access_token")
+    if tok:
+        store.cache_set("spotify:app_token", tok)
+    return tok
+
+
+def _api(path, token):
+    return _http("https://api.spotify.com/v1" + path,
+                 headers={"Authorization": "Bearer " + token})
+
+
+def search_artists(q, limit=8):
+    """Live artist search: [{id, name, followers, popularity, image, genres}]."""
+    q = (q or "").strip()
+    if not q or not pulse_configured():
+        return []
+    try:
+        token = app_token()
+        if not token:
+            return []
+        data = _api("/search?" + urllib.parse.urlencode(
+            {"q": q, "type": "artist", "limit": limit}), token)
+    except Exception:
+        return []
+    out = []
+    for a in (data.get("artists") or {}).get("items", []):
+        images = a.get("images") or []
+        out.append({
+            "id": a.get("id"), "name": a.get("name"),
+            "followers": (a.get("followers") or {}).get("total", 0),
+            "popularity": a.get("popularity", 0),
+            "image": images[-1]["url"] if images else "",
+            "genres": (a.get("genres") or [])[:3],
+        })
+    return [a for a in out if a["id"] and a["name"]]
+
+
+def artist_pulse(artist_id):
+    """Live profile + current top tracks for one artist; None on any miss."""
+    import db as store
+    if not artist_id or not pulse_configured():
+        return None
+    key = "pulse:%s" % artist_id
+    cached = store.cache_get(key, PULSE_DATA_TTL)
+    if cached:
+        return cached
+    try:
+        token = app_token()
+        if not token:
+            return None
+        artist = _api("/artists/" + urllib.parse.quote(artist_id), token)
+        top = _api("/artists/%s/top-tracks?market=US"
+                   % urllib.parse.quote(artist_id), token)
+    except Exception:
+        return None
+    if not artist.get("id"):
+        return None
+    images = artist.get("images") or []
+    pulse = {
+        "id": artist["id"],
+        "name": artist.get("name") or "",
+        "followers": (artist.get("followers") or {}).get("total", 0),
+        "popularity": artist.get("popularity", 0),
+        "genres": artist.get("genres") or [],
+        "image": images[0]["url"] if images else "",
+        "url": ((artist.get("external_urls") or {}).get("spotify") or ""),
+        "top_tracks": [{
+            "name": t.get("name") or "",
+            "popularity": t.get("popularity", 0),
+            "album": ((t.get("album") or {}).get("name") or ""),
+            "url": ((t.get("external_urls") or {}).get("spotify") or ""),
+        } for t in (top.get("tracks") or [])[:10]],
+    }
+    store.cache_set(key, pulse)
+    return pulse

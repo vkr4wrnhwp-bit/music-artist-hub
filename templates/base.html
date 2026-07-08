@@ -81,6 +81,7 @@
             ('releases', '/releases', 'M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3', 'Releases'),
           ]),
           ('Grow', [
+            ('pulse', '/pulse', 'M2 10h3l2-5 3 10 3-8 2 3h3', 'Artist Pulse'),
             ('audience', '/audience', 'M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4', 'Audience'),
             ('playlists', '/playlists', 'M4 5h9M4 9h9M4 13h5|M15 11v5a2 2 0 11-2-2', 'Playlists'),
             ('stats', '/stats', 'M4 16V10M9 16V4M14 16v-4|M3 16h14', 'Streaming Stats'),
@@ -130,7 +131,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

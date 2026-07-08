@@ -104,6 +104,13 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS pulse_profiles (
+                user_id TEXT PRIMARY KEY,
+                artist_id TEXT NOT NULL,
+                artist_name TEXT NOT NULL,
+                artist_image TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS catalog_tracks (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -647,6 +654,32 @@ def get_epk_by_slug(slug):
     return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"],
             "slug": row["slug"], "user_id": row["user_id"],
             "user_name": row["user_name"]}
+
+
+# --- Artist Pulse ---------------------------------------------------------------
+
+def save_pulse_profile(user_id, artist_id, artist_name, artist_image=""):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO pulse_profiles (user_id, artist_id, artist_name, artist_image, updated) "
+            "VALUES (?,?,?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET artist_id=excluded.artist_id, "
+            "artist_name=excluded.artist_name, artist_image=excluded.artist_image, "
+            "updated=excluded.updated",
+            (user_id, artist_id, artist_name, artist_image, _now()),
+        )
+
+
+def get_pulse_profile(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM pulse_profiles WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def clear_pulse_profile(user_id):
+    with get_db() as db:
+        db.execute("DELETE FROM pulse_profiles WHERE user_id = ?", (user_id,))
 
 
 # --- Inbox -------------------------------------------------------------------

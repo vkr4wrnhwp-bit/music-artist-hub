@@ -94,6 +94,7 @@ MODULES = [
     ("/fraud-sentinel", "Fraud Sentinel", "Artificial streaming and shady playlist risk monitoring.", "preview", None),
     ("/metadata-passport", "Metadata Passport", "DDEX-ready identifiers, credits, and export readiness.", "preview", None),
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
+    ("/pulse", "Artist Pulse", "Live Spotify followers, popularity, top tracks, and Deezer fans.", "live", None),
     ("/trust-score", "Trust Score", "One verifiable readiness score for partners, labels, and supervisors.", "live", None),
     ("/artist-twin", "Artist Twin", "A private writing agent using only data you approve.", "live", None),
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),

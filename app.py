@@ -49,6 +49,7 @@ from community_config import (
     get_fan_dashboard_data,
 )
 from discover_config import get_discover_data, like_track, follow_artist
+import music_apis
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
                         deezer_track_metadata, musicbrainz_credits, press_mentions)
 import links_engine
@@ -1930,6 +1931,51 @@ def create_app():
         return render_template("trust_score.html", active_page="trust-score",
                                t=trust_score.calculate(user["id"]),
                                **build_dashboard_context())
+
+    @app.route("/pulse")
+    def pulse_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        profile = store.get_pulse_profile(user["id"])
+        pulse, deezer = None, None
+        if profile and spotify.pulse_configured():
+            pulse = spotify.artist_pulse(profile["artist_id"])
+            if pulse:
+                deezer = music_apis.deezer_artist_fans(pulse["name"])
+        return render_template("pulse.html", active_page="pulse",
+                               pulse_configured=spotify.pulse_configured(),
+                               profile=profile, pulse=pulse, deezer=deezer,
+                               **build_dashboard_context())
+
+    @app.route("/pulse/search")
+    def pulse_search():
+        if current_user() is None:
+            return jsonify({"ok": False, "results": []}), 401
+        return jsonify({"ok": True,
+                        "results": spotify.search_artists(request.args.get("q"))})
+
+    @app.route("/pulse/select", methods=["POST"])
+    def pulse_select():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        p = request.get_json(silent=True) or {}
+        artist_id = (p.get("id") or "").strip()[:64]
+        name = (p.get("name") or "").strip()[:120]
+        if not artist_id or not name:
+            return jsonify({"ok": False, "error": "Pick an artist from the search results."}), 400
+        store.save_pulse_profile(user["id"], artist_id, name,
+                                 (p.get("image") or "").strip()[:300])
+        return jsonify({"ok": True})
+
+    @app.route("/pulse/clear", methods=["POST"])
+    def pulse_clear():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        store.clear_pulse_profile(user["id"])
+        return jsonify({"ok": True})
 
     @app.route("/walkthrough")
     def walkthrough():

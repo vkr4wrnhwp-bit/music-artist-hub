@@ -141,6 +141,30 @@ def deezer_track_metadata(title, artist):
     }
 
 
+def deezer_artist_fans(name):
+    """Deezer fan count for an artist by name — a second platform signal
+    for Artist Pulse. Returns {name, fans, url} or None."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    key = "deezerartist:%s" % name.lower()
+    data = store.cache_get(key, DEEZER_TTL)
+    if data is None:
+        url = "https://api.deezer.com/search/artist?" + urllib.parse.urlencode(
+            {"q": name, "limit": 1})
+        try:
+            hits = _fetch_json(url).get("data") or []
+        except Exception:
+            return None
+        data = hits[0] if hits else {}
+        store.cache_set(key, data)
+    if not data.get("id"):
+        return None
+    return {"name": data.get("name") or name,
+            "fans": data.get("nb_fan") or 0,
+            "url": data.get("link") or ""}
+
+
 PRESS_TTL = 24 * 3600  # news results refresh daily
 
 

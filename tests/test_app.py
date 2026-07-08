@@ -1712,6 +1712,62 @@ def test_bandsintown_honest_when_unconfigured(monkeypatch):
     assert "The Fillmore" not in body
 
 
+def _pulse_http(url, data=None, headers=None):
+    if "api/token" in url:
+        return {"access_token": "apptok"}
+    if "/v1/search" in url:
+        return {"artists": {"items": [{
+            "id": "art1", "name": "Art Is War",
+            "followers": {"total": 4321}, "popularity": 41,
+            "images": [{"url": "https://i/img.jpg"}], "genres": ["hip hop"]}]}}
+    if "/top-tracks" in url:
+        return {"tracks": [{"name": "Anthem", "popularity": 55,
+                            "album": {"name": "LP1"},
+                            "external_urls": {"spotify": "https://x/t1"}}]}
+    if "/v1/artists/" in url:
+        return {"id": "art1", "name": "Art Is War",
+                "followers": {"total": 4321}, "popularity": 41,
+                "genres": ["hip hop"], "images": [{"url": "https://i/big.jpg"}],
+                "external_urls": {"spotify": "https://x/artist/art1"}}
+    raise AssertionError("unexpected url: " + url)
+
+
+def test_artist_pulse_live_flow(monkeypatch):
+    import spotify_provider as sp
+    import music_apis
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "cid")
+    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "csec")
+    monkeypatch.setattr(sp, "_http", _pulse_http)
+    monkeypatch.setattr(music_apis, "_fetch_json", lambda url: {"data": [{
+        "id": 9, "name": "Art Is War", "nb_fan": 777,
+        "link": "https://deezer.com/artist/9"}]})
+    client = _demo()
+    # One-time setup state, then search -> select -> live numbers.
+    assert "Find yourself on Spotify" in client.get("/pulse").get_data(as_text=True)
+    res = client.get("/pulse/search?q=art").get_json()
+    assert res["results"][0]["followers"] == 4321
+    assert client.post("/pulse/select", json=res["results"][0]).get_json()["ok"]
+    body = client.get("/pulse").get_data(as_text=True)
+    assert "4,321" in body                       # Spotify followers
+    assert "Anthem" in body and "LP1" in body    # live top tracks
+    assert "777" in body                         # Deezer fans
+    assert "refreshed every 6 hours" in body     # honest sourcing note
+    # Change Artist resets to setup.
+    assert client.post("/pulse/clear").get_json()["ok"]
+    assert "Find yourself on Spotify" in client.get("/pulse").get_data(as_text=True)
+
+
+def test_artist_pulse_honest_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
+    monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
+    client = _demo()
+    body = client.get("/pulse").get_data(as_text=True)
+    assert "Not Connected" in body
+    assert "4,321" not in body                   # never sample numbers
+    # Search endpoint returns empty rather than pretending.
+    assert client.get("/pulse/search?q=art").get_json()["results"] == []
+
+
 # --- Street Banker Links: campaign engine ------------------------------------
 
 def _demo(app_obj=None):
