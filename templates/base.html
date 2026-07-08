@@ -91,19 +91,31 @@
             ('settings', '/settings', 'M10 7a3 3 0 100 6 3 3 0 000-6z|M10 3v2M10 15v2M3 10h2M15 10h2', 'Settings'),
           ]),
         ] %}
+        {# Features that genuinely work today; everything else shows a lock. #}
+        {% set live_keys = ['statements', 'links', 'artwork', 'services', 'submit', 'inbox', 'settings'] %}
         {% for group_name, items in nav_groups %}
         <div class="space-y-1">
           <div class="px-3 text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-600">{{ group_name }}</div>
           {% for key, href, path, label in items %}
-          <a href="{{ href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-400 hover:bg-white/5 hover:text-white' }}">
+          <a href="{{ href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-400 hover:bg-white/5 hover:text-white' }}"{% if key not in live_keys %} title="Demo preview — sample data"{% endif %}>
             <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               {% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
             </svg>
             {{ label }}
+            {% if key not in live_keys %}
+            <svg class="nav-lock ml-auto h-3 w-3 shrink-0 text-gray-600" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-label="Demo preview">
+              <rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 015 0V7"/>
+            </svg>
+            {% endif %}
           </a>
           {% endfor %}
         </div>
         {% endfor %}
+
+        <div class="flex items-center gap-2 px-3 pt-1 text-[9px] uppercase tracking-wider text-gray-600">
+          <svg class="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 015 0V7"/></svg>
+          Demo preview — unlocking soon
+        </div>
       </nav>
 
       {% if account %}
