@@ -18,5 +18,7 @@ services:
       # path together, so the one disk below covers everything.
       - key: DATABASE_PATH
         value: /var/data/streetbanker.db
-    # disk re-added in the next commit, after the Starter upgrade lands
-    # (Render's sync tries disks before plan changes and deadlocks otherwise)
+    disk:
+      name: street-banker-data
+      mountPath: /var/data
+      sizeGB: 1

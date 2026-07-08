@@ -976,7 +976,15 @@ def create_app():
             today=datetime.now(timezone.utc).strftime("%B %d, %Y"))
 
     UPLOADS_DIR = os.path.join(os.path.dirname(store.db_path()), "uploads")
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    try:
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+    except OSError:
+        # DATABASE_PATH points at an unmounted disk — degrade to the local
+        # instance dir (ephemeral) instead of crashing the deploy.
+        UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "instance", "uploads")
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        print("WARNING: uploads dir unusable; falling back to", UPLOADS_DIR)
 
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
