@@ -1,0 +1,107 @@
+{# Rack-gear component kit — brushed-aluminum panels, knobs, VU meters,
+   LEDs, screws, label plates. All code-drawn SVG/CSS so sections can be
+   "rack-mounted" anywhere without image assets.
+
+   Panel usage:
+     <div class="{{ gear.alu_classes() }}" style="{{ gear.alu_style() }}">
+       {{ gear.corner_screws() }} ...content...
+     </div>
+#}
+
+{% macro alu_classes() %}relative overflow-hidden rounded-xl border border-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-2px_3px_rgba(0,0,0,0.18),0_18px_40px_rgba(0,0,0,0.45)]{% endmacro %}
+
+{% macro alu_style() %}background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0px, rgba(0,0,0,0.03) 1px, rgba(255,255,255,0.02) 2px), linear-gradient(180deg, #e2e2e6 0%, #cbcbd0 48%, #b8b8be 52%, #d4d4d9 100%);{% endmacro %}
+
+{% macro screw(cls='h-3 w-3') %}
+<svg viewBox="0 0 12 12" class="{{ cls }}" aria-hidden="true">
+  <circle cx="6" cy="6" r="5" fill="#9a9aa1"/>
+  <circle cx="6" cy="6" r="5" fill="none" stroke="#00000045"/>
+  <circle cx="6" cy="6" r="4" fill="#c9c9cf"/>
+  <line x1="3" y1="6" x2="9" y2="6" stroke="#55555c" stroke-width="1.2" transform="rotate({{ range(0, 180) | random }} 6 6)"/>
+</svg>
+{% endmacro %}
+
+{% macro corner_screws() %}
+<span class="pointer-events-none absolute left-2.5 top-2.5">{{ screw() }}</span>
+<span class="pointer-events-none absolute right-2.5 top-2.5">{{ screw() }}</span>
+<span class="pointer-events-none absolute bottom-2.5 left-2.5">{{ screw() }}</span>
+<span class="pointer-events-none absolute bottom-2.5 right-2.5">{{ screw() }}</span>
+{% endmacro %}
+
+{# Rotary knob with tick ring. angle: -135..135 (pointer position). #}
+{% macro knob(angle=-30, cls='h-16 w-16', min_label='MIN', max_label='MAX') %}
+<svg viewBox="0 0 90 90" class="{{ cls }}" aria-hidden="true">
+  <defs>
+    <radialGradient id="knobmetal" cx="0.35" cy="0.3" r="0.9">
+      <stop offset="0" stop-color="#e6e6ea"/><stop offset="0.6" stop-color="#a8a8b0"/><stop offset="1" stop-color="#7c7c84"/>
+    </radialGradient>
+    <radialGradient id="knobbody" cx="0.4" cy="0.32" r="0.95">
+      <stop offset="0" stop-color="#3c3c42"/><stop offset="0.7" stop-color="#1c1c20"/><stop offset="1" stop-color="#0e0e12"/>
+    </radialGradient>
+  </defs>
+  {% for i in range(11) %}
+  {% set a = -135 + i * 27 %}
+  <line x1="45" y1="6" x2="45" y2="11" stroke="#3a3a40" stroke-width="1.6" transform="rotate({{ a }} 45 45)"/>
+  {% endfor %}
+  <circle cx="45" cy="45" r="29" fill="url(#knobmetal)"/>
+  <circle cx="45" cy="45" r="29" fill="none" stroke="#00000040"/>
+  <circle cx="45" cy="45" r="24" fill="url(#knobbody)"/>
+  <circle cx="45" cy="45" r="24" fill="none" stroke="#ffffff18"/>
+  <line x1="45" y1="45" x2="45" y2="24" stroke="#e8c667" stroke-width="2.6" stroke-linecap="round" transform="rotate({{ angle }} 45 45)"/>
+  <circle cx="45" cy="45" r="2" fill="#0a0a0c"/>
+  {% if min_label %}<text x="12" y="84" font-size="7" font-weight="600" letter-spacing="0.5" fill="#4a4a52" font-family="sans-serif">{{ min_label }}</text>{% endif %}
+  {% if max_label %}<text x="60" y="84" font-size="7" font-weight="600" letter-spacing="0.5" fill="#4a4a52" font-family="sans-serif">{{ max_label }}</text>{% endif %}
+</svg>
+{% endmacro %}
+
+{# Small cream-faced VU meter in a black bezel. needle: 0..100 #}
+{% macro mini_vu(needle=34, cls='h-16') %}
+<svg viewBox="0 0 150 84" class="{{ cls }}" aria-hidden="true">
+  <defs>
+    <linearGradient id="vuface2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6ecc8"/><stop offset="1" stop-color="#dcc389"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="146" height="80" rx="7" fill="#141417"/>
+  <rect x="2" y="2" width="146" height="80" rx="7" fill="none" stroke="#00000060"/>
+  <rect x="9" y="9" width="132" height="66" rx="4" fill="url(#vuface2)"/>
+  <path d="M28 66 A56 56 0 0 1 122 66" fill="none" stroke="#5c4a1e" stroke-width="1.4"/>
+  <path d="M99 34 A56 56 0 0 1 122 66" fill="none" stroke="#b23227" stroke-width="2.4"/>
+  {% for i in range(9) %}
+  {% set a = 3.14159 - (i / 8.0) * 3.14159 %}
+  <line x1="{{ 75 + 50 * cos(a) }}" y1="{{ 66 - 50 * sin(a) }}" x2="{{ 75 + 56 * cos(a) }}" y2="{{ 66 - 56 * sin(a) }}" stroke="{{ '#b23227' if i >= 7 else '#5c4a1e' }}" stroke-width="1.2"/>
+  {% endfor %}
+  <text x="75" y="52" text-anchor="middle" font-size="12" font-weight="700" fill="#3a2f14" font-family="serif" letter-spacing="1.5">VU</text>
+  {% set na = 3.14159 - (needle / 100.0) * 3.14159 %}
+  <line x1="75" y1="66" x2="{{ 75 + 46 * cos(na) }}" y2="{{ 66 - 46 * sin(na) }}" stroke="#16130a" stroke-width="1.8"/>
+  <circle cx="75" cy="66" r="3" fill="#16130a"/>
+</svg>
+{% endmacro %}
+
+{# Vertical LED bar stack (like a signal meter). lit: how many of 5. #}
+{% macro led_bars(lit=4, cls='h-16') %}
+<svg viewBox="0 0 120 84" class="{{ cls }}" aria-hidden="true">
+  <rect x="2" y="2" width="116" height="80" rx="7" fill="#141417"/>
+  <rect x="2" y="2" width="116" height="80" rx="7" fill="none" stroke="#00000060"/>
+  {% for col in range(5) %}
+  {% for row in range(6) %}
+  {% set on = (5 - row) <= (lit + col) % 7 %}
+  <rect x="{{ 22 + col * 17 }}" y="{{ 14 + row * 10 }}" width="10" height="6" rx="1.5"
+        fill="{{ '#e8c667' if on else '#2b2b30' }}" {% if on %}opacity="{{ 0.55 + (row / 10) }}"{% endif %}/>
+  {% endfor %}
+  {% endfor %}
+</svg>
+{% endmacro %}
+
+{# Status LED with label. #}
+{% macro led(color='#7ee083', label='NORMAL', dark=False) %}
+<span class="inline-flex items-center gap-1.5">
+  <span class="h-2 w-2 rounded-full" style="background: {{ color }}; box-shadow: 0 0 6px {{ color }};"></span>
+  <span class="text-[8px] font-semibold uppercase tracking-[0.2em] {{ 'text-gray-400' if dark else 'text-[#4a4a52]' }}">{{ label }}</span>
+</span>
+{% endmacro %}
+
+{# Black engraved label plate (like the PATCHBAY module). #}
+{% macro label_plate(text, cls='') %}
+<span class="inline-block rounded-[4px] border border-black/60 bg-gradient-to-b from-[#242428] to-[#121215] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] {{ cls }}">{{ text }}</span>
+{% endmacro %}
