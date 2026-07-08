@@ -1477,21 +1477,35 @@ def _fake_deezer(url):
         return {"upc": "123456789012", "label": "Test Label", "title": "Test LP",
                 "release_date": "2025-01-10", "nb_tracks": 10,
                 "genres": {"data": [{"name": "Electro"}]}}
+    if "musicbrainz.org/ws/2/isrc/" in url:
+        return {"recordings": [{"id": "rec1"}]}
+    if "musicbrainz.org/ws/2/recording/" in url:
+        return {"relations": [{"work": {"id": "work1"}}]}
+    if "musicbrainz.org/ws/2/work/" in url:
+        return {"relations": [{"type": "composer", "artist": {"name": "Fake Writer"}},
+                              {"type": "publisher", "label": {"name": "Fake Publishing Co"}}]}
     return {"results": []}
 
 
 def test_catalog_add_pulls_metadata(monkeypatch):
     import music_apis
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
+    monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
     client = create_app().test_client()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     r = client.post("/catalog/add", json={"title": "Meta Song", "artist": "Meta Artist"})
     meta = r.get_json()["meta"]
     assert meta["isrc"] == "USTEST2500001" and meta["upc"] == "123456789012"
     assert meta["label"] == "Test Label" and meta["album"] == "Test LP"
+    assert meta["writers"] == ["Fake Writer"]
+    assert meta["publishers"] == ["Fake Publishing Co"]
     body = client.get("/catalog").get_data(as_text=True)
     assert "My Releases" in body and "UPC 123456789012" in body
     assert "ISRC USTEST2500001" in body and "Test Label" in body
+    # Credits populate the Songwriters and Publishers tabs + release row.
+    assert "My Songwriters" in body and "Fake Writer" in body
+    assert "My Publishers" in body and "Fake Publishing Co" in body
+    assert "Written by Fake Writer" in body
     # A failed lookup must never block the save itself.
     monkeypatch.setattr(music_apis, "_fetch_json",
                         lambda url: (_ for _ in ()).throw(Exception("down")))

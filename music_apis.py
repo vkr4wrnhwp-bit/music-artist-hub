@@ -6,12 +6,13 @@ so no test ever touches the network.
 """
 
 import json
+import time
 import urllib.parse
 import urllib.request
 
 import db as store
 
-_TIMEOUT = 6
+_TIMEOUT = 12
 _UA = "StreetBanker/1.0 (team.summitarts@gmail.com)"
 
 ITUNES_TTL = 24 * 3600        # searches refresh daily
@@ -132,6 +133,51 @@ def deezer_track_metadata(title, artist):
         "duration": track.get("duration") or 0,
         "track_count": album.get("nb_tracks") or 0,
     }
+
+
+MUSICBRAINZ_TTL = 30 * 24 * 3600
+_MB = "https://musicbrainz.org/ws/2"
+_WRITER_ROLES = {"composer", "lyricist", "writer"}
+
+
+def musicbrainz_credits(isrc):
+    """Songwriters and publishers for a recording, looked up by ISRC in the
+    open MusicBrainz database (no key, 1 request/second). Returns
+    {"writers": [...], "publishers": [...]} or None."""
+    isrc = (isrc or "").strip().upper()
+    if not isrc:
+        return None
+    key = "mb:" + isrc
+    data = store.cache_get(key, MUSICBRAINZ_TTL)
+    if data is None:
+        try:
+            recs = _fetch_json("%s/isrc/%s?fmt=json" % (_MB, isrc)).get("recordings", [])
+            works, relations = [], []
+            if recs:
+                time.sleep(1.05)  # MusicBrainz rate limit
+                rec = _fetch_json("%s/recording/%s?fmt=json&inc=work-rels" % (_MB, recs[0]["id"]))
+                works = [rel["work"]["id"] for rel in rec.get("relations", [])
+                         if rel.get("work")]
+            if works:
+                time.sleep(1.05)
+                w = _fetch_json("%s/work/%s?fmt=json&inc=artist-rels+label-rels" % (_MB, works[0]))
+                relations = w.get("relations", [])
+            data = {"relations": relations}
+        except Exception:
+            return None
+        store.cache_set(key, data)
+    writers, publishers = [], []
+    for rel in data.get("relations", []):
+        name = ((rel.get("artist") or rel.get("label")) or {}).get("name")
+        if not name:
+            continue
+        bucket = writers if rel.get("type") in _WRITER_ROLES else (
+            publishers if rel.get("type") == "publisher" else None)
+        if bucket is not None and name not in bucket:
+            bucket.append(name)
+    if not writers and not publishers:
+        return None
+    return {"writers": writers, "publishers": publishers}
 
 
 # Display order + branding for the universal landing page.

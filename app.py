@@ -47,7 +47,7 @@ from community_config import (
 )
 from discover_config import get_discover_data, like_track, follow_artist
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
-                        deezer_track_metadata)
+                        deezer_track_metadata, musicbrainz_credits)
 from network_config import (
     get_network_data,
     get_profile,
@@ -559,12 +559,27 @@ def create_app():
                 "release_date": m.get("release_date") or "",
                 "genre": m.get("genre") or "",
                 "total_tracks": m.get("track_count") or 0,
-                "saved_tracks": 0, "isrcs": [],
+                "saved_tracks": 0, "isrcs": [], "writers": [],
             })
             r["saved_tracks"] += 1
             if m.get("isrc"):
                 r["isrcs"].append(m["isrc"])
+            for w in m.get("writers") or []:
+                if w not in r["writers"]:
+                    r["writers"].append(w)
         ctx["my_releases"] = list(releases.values())
+        # Aggregate real songwriter/publisher credits across saved tracks.
+        writers, pubs = {}, {}
+        for t in ctx["my_tracks"]:
+            m = t.get("meta") or {}
+            for name in m.get("writers") or []:
+                writers[name] = writers.get(name, 0) + 1
+            for name in m.get("publishers") or []:
+                pubs.setdefault(name, {"kind": "Publisher", "songs": 0})["songs"] += 1
+            if m.get("label"):
+                pubs.setdefault(m["label"], {"kind": "Label", "songs": 0})["songs"] += 1
+        ctx["my_writers"] = [{"name": n, "songs": c} for n, c in writers.items()]
+        ctx["my_publishers"] = [{"name": n, **v} for n, v in pubs.items()]
         # Real accounts see only their own catalog — the rich sample data is
         # for the demo tour account and signed-out visitors only.
         if user and user["email"] != "demo@streetbanker.io":
@@ -623,6 +638,10 @@ def create_app():
         # The track stays saved even when the lookup finds nothing.
         meta = deezer_track_metadata(track.get("title"), track.get("artist"))
         if meta:
+            # Second hop: the ISRC unlocks songwriter/publisher credits.
+            credits = musicbrainz_credits(meta.get("isrc"))
+            if credits:
+                meta.update(credits)
             store.set_catalog_track_meta(user["id"], track_id, meta)
         return jsonify({"ok": True, "id": track_id, "meta": meta})
 
