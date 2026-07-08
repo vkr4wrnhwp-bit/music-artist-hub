@@ -520,9 +520,18 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 5,
+            "v": 6,
             "var_data_is_real_mount": os.path.ismount("/var/data"),
+            "app_token_check": _app_token_check(),
         })
+
+    def _app_token_check():
+        """Owner-only: does the client-credentials grant actually work?
+        Reports the failure class, never the credentials themselves."""
+        try:
+            return "ok" if spotify.app_token() else "no token in response"
+        except Exception as exc:
+            return "%s: %s" % (type(exc).__name__, exc)
 
     @app.route("/presave/<slug>/start")
     def presave_start(slug):
