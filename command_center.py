@@ -90,7 +90,7 @@ MODULES = [
     ("/sync/deal-simulator", "Sync Deal Simulator", "Evaluate sync terms, flag buyouts, draft counteroffers.", "live", _NOT_LEGAL),
     ("/deal-room", "Deal Room", "Splits, producer and feature agreements, document vault, deal board.", "live", _NOT_LEGAL),
     ("/revenue-os", "Revenue OS", "Real income from statements against tracked spend.", "live", _NOT_FINANCIAL),
-    ("/capital-score", "Capital Readiness Score", "Funding readiness built from catalog health and income consistency.", "preview", _NOT_FINANCIAL),
+    ("/capital-score", "Capital Readiness Score", "Funding readiness built from catalog health and income consistency.", "live", _NOT_FINANCIAL),
     ("/fraud-sentinel", "Fraud Sentinel", "Artificial streaming and shady playlist risk monitoring.", "preview", None),
     ("/metadata-passport", "Metadata Passport", "DDEX-ready identifiers, credits, and export readiness.", "preview", None),
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
@@ -99,7 +99,7 @@ MODULES = [
     ("/artist-twin", "Artist Twin", "A private writing agent using only data you approve.", "live", None),
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
     ("/voice-of-fan", "Voice of Fan", "Fan comments and behavior turned into campaign intelligence.", "preview", None),
-    ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "preview", _NOT_FINANCIAL),
+    ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
     ("/fan-club", "Fan Club", "Memberships, drops, early access, and VIP segments.", "preview", None),
     ("/partner-portal", "Partner Portal", "Label, distributor, and manager access with scoped permissions.", "preview", None),
 ]

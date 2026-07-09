@@ -2193,11 +2193,37 @@ def test_release_autopilot_and_clean_release():
         assert "ready" in body                        # score badge
 
 
+def test_capital_score_and_spend_optimizer_real():
+    import io
+    app_obj = create_app()
+    client = _demo(app_obj)
+    csv = ("title,source,amount,period\n"
+           "A,Spotify,900,2026-01\n"
+           "A,Apple Music,300,2026-02\n"
+           "B,Deezer,150,2026-03\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv.encode()), "cap.csv")},
+                content_type="multipart/form-data")
+    body = client.get("/capital-score").get_data(as_text=True)
+    assert "Capital Readiness" in body
+    assert "$1,350" in body                     # real income on record
+    assert "Illustrative Advance Band" in body
+    assert "not financial advice" in body
+    body = client.get("/spend-optimizer?budget=1000").get_data(as_text=True)
+    assert "Recommended split" in body and "$400.00" in body
+    assert "Don't spend it here" in body
+    # Money features stay behind the Pro wall.
+    artist = app_obj.test_client()
+    artist.post("/login", data={"email": "demo-artist@streetbanker.io",
+                                "password": "sweep"})
+    assert artist.get("/capital-score").status_code == 402
+    assert artist.get("/spend-optimizer").status_code == 402
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
-    routes = ["/fraud-sentinel", "/capital-score",
+    routes = ["/fraud-sentinel",
               "/metadata-passport", "/ai-rights",
-              "/opportunities", "/voice-of-fan", "/spend-optimizer", "/fan-club",
+              "/opportunities", "/voice-of-fan", "/fan-club",
               "/partner-portal", "/royalty-recovery/mlc"]
     for route in routes:
         r = client.get(route)

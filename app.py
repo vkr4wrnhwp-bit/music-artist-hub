@@ -62,6 +62,7 @@ import qualification
 import sync_simulator
 import trust_score
 import bandsintown_provider as bandsintown
+import capital_engine
 import email_provider as emailer
 import spotify_provider as spotify
 import artist_twin as twin
@@ -1749,6 +1750,28 @@ def create_app():
         return render_template("clean_release.html", active_page="clean-release",
                                campaigns=campaigns, c=campaign, checks=checks,
                                score=score, **build_dashboard_context())
+
+    @app.route("/capital-score")
+    def capital_score_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("capital_score.html", active_page="command-center",
+                               cs=capital_engine.capital_score(user["id"]),
+                               **build_dashboard_context())
+
+    @app.route("/spend-optimizer")
+    def spend_optimizer_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        try:
+            budget = max(50.0, min(float(request.args.get("budget") or 500), 100000.0))
+        except ValueError:
+            budget = 500.0
+        return render_template("spend_optimizer.html", active_page="command-center",
+                               plan=capital_engine.spend_plan(user["id"], budget),
+                               **build_dashboard_context())
 
     # Preview modules: registered honestly, one generic page each.
     def _module_preview(route):
