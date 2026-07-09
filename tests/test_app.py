@@ -1732,6 +1732,19 @@ def _pulse_http(url, data=None, headers=None):
     raise AssertionError("unexpected url: " + url)
 
 
+def test_login_page_has_partner_demo_box():
+    client = create_app().test_client()
+    body = client.get("/login").get_data(as_text=True)
+    # A visible demo entrance: prefilled demo email + password-only form.
+    assert "Partner Demo" in body
+    assert 'value="demo@streetbanker.io"' in body
+    assert "Demo password" in body
+    # And the flow it drives actually signs in.
+    r = client.post("/login", data={"email": "demo@streetbanker.io",
+                                    "password": "sweep"})
+    assert r.status_code == 302 and "/command-center" in r.headers["Location"]
+
+
 def test_artist_pulse_live_flow(monkeypatch):
     import spotify_provider as sp
     import music_apis
