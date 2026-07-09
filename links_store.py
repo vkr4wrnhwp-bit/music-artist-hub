@@ -245,6 +245,16 @@ def list_fans(user_id, query=""):
     return [dict(r) for r in rows]
 
 
+def campaign_fans(campaign_id):
+    """Fans who consented on this campaign (deduped, with email)."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT DISTINCT f.* FROM ml_fans f "
+            "JOIN ml_consents c ON c.fan_id = f.id "
+            "WHERE c.campaign_id = ? AND f.email != ''", (campaign_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def add_consent(fan_id, campaign_id, consent_type, consent_text):
     with get_db() as db:
         db.execute(

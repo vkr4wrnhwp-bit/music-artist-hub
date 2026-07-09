@@ -62,6 +62,7 @@ import qualification
 import sync_simulator
 import trust_score
 import bandsintown_provider as bandsintown
+import email_provider as emailer
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -484,9 +485,33 @@ def create_app():
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
+    def _send_release_emails(campaign):
+        """Once per campaign, on the first page view after release: email
+        every consented fan the listen link. Env-gated on RESEND_API_KEY."""
+        if (not emailer.configured() or links_engine.is_prerelease(campaign)
+                or (campaign.get("settings") or {}).get("release_email_sent")):
+            return
+        # Claim the flag before sending so concurrent page views can't double-send.
+        settings = dict(campaign.get("settings") or {})
+        settings["release_email_sent"] = True
+        mls.update_campaign(campaign["id"], campaign["user_id"],
+                            {"settings": settings})
+        listen_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
+        html = emailer.release_email_html(
+            campaign["title"], campaign.get("artist_name") or "",
+            listen_url, campaign.get("cover_url") or "")
+        sent = sum(1 for f in mls.campaign_fans(campaign["id"])
+                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html))
+        if sent:
+            store.notify(campaign["user_id"], "fan",
+                         "Release emails sent: %s" % campaign["title"],
+                         "%d fan%s notified with the listen link." % (sent, "" if sent == 1 else "s"),
+                         "/links/%s/analytics" % campaign["id"])
+
     def _process_due_presaves(campaign):
         """Lazy release-day conversion: whenever a released campaign page is
         hit, complete a small batch of pending pre-saves. No cron needed."""
+        _send_release_emails(campaign)
         if not spotify.configured() or links_engine.is_prerelease(campaign):
             return
         dest = next((d for d in mls.get_destinations(campaign["id"])

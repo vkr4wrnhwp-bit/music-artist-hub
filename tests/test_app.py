@@ -1781,6 +1781,68 @@ def test_artist_pulse_honest_when_unconfigured(monkeypatch):
     assert client.get("/pulse/search?q=art").get_json()["results"] == []
 
 
+def test_release_day_emails(monkeypatch):
+    import db as store_mod
+    import links_store as mls
+    import email_provider as emailer
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    sent = []
+    monkeypatch.setattr(emailer, "_http",
+                        lambda url, payload, headers: sent.append(payload) or {"id": "em1"})
+    app_obj = create_app()
+    client = _demo(app_obj)
+    r = client.post("/links/new", data={
+        "title": "Email Drop", "release_date": "2031-01-01",
+        "email_capture": "1", "consent_text": "ok",
+        "dest_spotify": "https://open.spotify.com/track/T1"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    slug = mls.get_campaign(cid)["slug"]
+    anon = app_obj.test_client()
+    # Fan subscribes pre-release; no email yet.
+    anon.post("/l/%s/subscribe" % slug, data={"email": "notifyme@example.net"})
+    anon.get("/l/" + slug)
+    assert sent == []
+    # Release day: first page view emails the fan exactly once.
+    with store_mod.get_db() as conn:
+        conn.execute("UPDATE ml_campaigns SET release_date = ? WHERE id = ?",
+                     ("2020-01-01", cid))
+    anon.get("/l/" + slug)
+    assert len(sent) == 1
+    assert sent[0]["to"] == ["notifyme@example.net"]
+    assert "Email Drop is out now" == sent[0]["subject"]
+    assert "/l/" + slug in sent[0]["html"]        # listen link points home
+    # Second view never double-sends; owner got a notification.
+    anon.get("/l/" + slug)
+    assert len(sent) == 1
+    owner = mls.get_campaign(cid)["user_id"]
+    notes = [n for n in store_mod.list_notifications(owner)
+             if "Release emails sent" in n["title"]]
+    assert len(notes) == 1 and "1 fan" in notes[0]["body"]
+
+
+def test_release_emails_never_send_unconfigured(monkeypatch):
+    import db as store_mod
+    import links_store as mls
+    import email_provider as emailer
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setattr(emailer, "_http",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not call")))
+    app_obj = create_app()
+    client = _demo(app_obj)
+    r = client.post("/links/new", data={
+        "title": "Quiet Drop", "release_date": "2020-01-01",
+        "email_capture": "1", "consent_text": "ok",
+        "dest_spotify": "https://open.spotify.com/track/T2"})
+    cid = r.headers["Location"].split("/")[2]
+    client.post("/links/%s/publish" % cid)
+    slug = mls.get_campaign(cid)["slug"]
+    anon = app_obj.test_client()
+    anon.post("/l/%s/subscribe" % slug, data={"email": "notifyme@example.net"})
+    anon.get("/l/" + slug)      # released view: no key -> no send, no crash
+    assert not emailer.configured()
+
+
 # --- Street Banker Links: campaign engine ------------------------------------
 
 def _demo(app_obj=None):
