@@ -104,6 +104,17 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS disputes (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                dispute_type TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                amount REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'open',
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS team_members (
                 id TEXT PRIMARY KEY,
                 owner_id TEXT NOT NULL,
@@ -708,6 +719,37 @@ def list_pulse_snapshots(user_id, limit=90):
             "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
             (user_id, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+# --- Disputes ----------------------------------------------------------------------
+
+def add_dispute(user_id, platform, dispute_type, description, amount):
+    dispute_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO disputes (id, user_id, platform, dispute_type, description,"
+            " amount, status, created, updated) VALUES (?,?,?,?,?,?,'open',?,?)",
+            (dispute_id, user_id, platform[:60], dispute_type[:40],
+             description[:1000], float(amount or 0), now, now))
+    return dispute_id
+
+
+def list_disputes(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM disputes WHERE user_id = ? ORDER BY "
+            "CASE status WHEN 'open' THEN 0 WHEN 'submitted' THEN 1 ELSE 2 END, "
+            "updated DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_dispute_status(user_id, dispute_id, status):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE disputes SET status = ?, updated = ? WHERE id = ? AND user_id = ?",
+            (status, _now(), dispute_id, user_id))
+    return cur.rowcount > 0
 
 
 # --- Team ------------------------------------------------------------------------

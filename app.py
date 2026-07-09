@@ -64,6 +64,7 @@ import trust_score
 import bandsintown_provider as bandsintown
 import capital_engine
 import royalty_types
+import insights_engine
 import email_provider as emailer
 import spotify_provider as spotify
 import artist_twin as twin
@@ -2708,9 +2709,12 @@ def create_app():
 
     @app.route("/insights")
     def insights():
-        ctx = build_dashboard_context()
-        ctx["insights"] = get_insights_data(ctx["smart_recommendations"])
-        return render_template("insights.html", active_page="insights", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("insights.html", active_page="insights",
+                               items=insights_engine.build_insights(user["id"]),
+                               **build_dashboard_context())
 
     @app.route("/benchmark")
     def benchmark():
@@ -3211,18 +3215,60 @@ def create_app():
                     "connected": p.status == "connected"} for p in catalog[:8]]
         return render_template("onboarding.html", sources=sources)
 
+    _DISPUTE_TYPES = ["missing payment", "wrong split", "content claim",
+                      "takedown", "metadata error", "chargeback", "other"]
+    _DISPUTE_STATUSES = ["open", "submitted", "resolved", "rejected"]
+
     @app.route("/disputes")
     def disputes():
-        ctx = build_dashboard_context()
-        ctx["disputes"] = get_disputes_data()
-        return render_template("disputes.html", active_page="disputes", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        items = store.list_disputes(user["id"])
+        return render_template("disputes.html", active_page="disputes",
+                               disputes=items, types=_DISPUTE_TYPES,
+                               statuses=_DISPUTE_STATUSES,
+                               open_count=sum(1 for d in items
+                                              if d["status"] in ("open", "submitted")),
+                               disputed_total=round(sum(
+                                   d["amount"] for d in items
+                                   if d["status"] in ("open", "submitted")), 2),
+                               recovered_total=round(sum(
+                                   d["amount"] for d in items
+                                   if d["status"] == "resolved"), 2),
+                               **build_dashboard_context())
 
-    @app.route("/disputes/<dispute_id>/advance", methods=["POST"])
-    def advance_dispute_route(dispute_id):
-        dispute = advance_dispute(dispute_id)
-        if dispute is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "stage": dispute["stage"], "resolved": dispute["resolved"]})
+    @app.route("/disputes/new", methods=["POST"])
+    def dispute_new():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        platform = (request.form.get("platform") or "").strip()
+        dtype = request.form.get("dispute_type") or ""
+        if not platform or dtype not in _DISPUTE_TYPES:
+            return jsonify({"ok": False, "error": "Name the platform and pick a type."}), 400
+        try:
+            amount = max(0.0, float(request.form.get("amount") or 0))
+        except ValueError:
+            amount = 0.0
+        store.add_dispute(user["id"], platform, dtype,
+                          (request.form.get("description") or "").strip(), amount)
+        return jsonify({"ok": True})
+
+    @app.route("/disputes/<dispute_id>/status", methods=["POST"])
+    def dispute_status(dispute_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        status = (request.get_json(silent=True) or {}).get("status") or ""
+        if status not in _DISPUTE_STATUSES:
+            return jsonify({"ok": False, "error": "Unknown status."}), 400
+        ok = store.set_dispute_status(user["id"], dispute_id, status)
+        if ok and status == "resolved":
+            store.notify(user["id"], "money", "Dispute resolved",
+                         "Marked resolved — log the payout in Revenue OS if money moved.",
+                         "/disputes")
+        return jsonify({"ok": ok})
 
     @app.route("/settings")
     def settings():

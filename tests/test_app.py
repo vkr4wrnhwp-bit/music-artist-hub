@@ -960,35 +960,33 @@ def test_tax_data_config_shapes():
     assert {t["form"] for t in data["tax_profile"]} == {"W-9", "W-8BEN"}
 
 
-def test_disputes_page_content():
-    from disputes_config import reset_disputes_state
-    reset_disputes_state()
-    client = _demo()
+def test_disputes_real_tracker():
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Disp", "email": "disp@example.net",
+                                 "password": "disppass"})
+    client.post("/plan/switch", data={"plan": "pro"})
     body = client.get("/disputes").get_data(as_text=True)
-    assert "Dispute &amp; Audit Center" in body
-    assert "Amount in Dispute" in body
-    assert 'href="/disputes"' in body
-
-
-def test_disputes_advance_flow():
-    from disputes_config import reset_disputes_state, get_disputes_data
-    reset_disputes_state()
-    client = _demo()
-    # disp-3 starts at "Filed" (stage_index 0) -> advancing moves to "Submitted".
-    resp = client.post("/disputes/disp-3/advance")
-    assert resp.status_code == 200
-    assert resp.get_json()["stage"] == "Submitted"
-    assert client.post("/disputes/nope/advance").status_code == 404
-    reset_disputes_state()
-
-
-def test_disputes_data_config_shapes():
-    from disputes_config import get_disputes_data, reset_disputes_state
-    reset_disputes_state()
-    data = get_disputes_data()
-    assert data["stages"] == ["Filed", "Submitted", "Under Review", "Resolved"]
-    open_amt = round(sum(d["amount"] for d in data["disputes"] if not d["resolved"]), 2)
-    assert data["summary"]["amount_in_dispute"] == open_amt
+    assert "Dispute Tracker" in body and "Nothing in dispute" in body
+    # Log a dispute -> shows on the board with the amount in dispute.
+    r = client.post("/disputes/new", data={
+        "platform": "DistroKid", "dispute_type": "missing payment",
+        "amount": "230.50", "description": "March payout never arrived."})
+    assert r.get_json()["ok"]
+    body = client.get("/disputes").get_data(as_text=True)
+    assert "DistroKid" in body and "$230.50" in body
+    # Resolve it -> moves to recovered, notification lands.
+    uid = store_mod.get_user_by_email("disp@example.net")["id"]
+    did = store_mod.list_disputes(uid)[0]["id"]
+    assert client.post("/disputes/%s/status" % did,
+                       json={"status": "resolved"}).get_json()["ok"]
+    body = client.get("/disputes").get_data(as_text=True)
+    assert body.count("$230.50") >= 2               # resolved tile + row
+    assert not client.post("/disputes/%s/status" % did,
+                           json={"status": "bogus"}).get_json()["ok"]
+    assert any("Dispute resolved" in n["title"]
+               for n in store_mod.list_notifications(uid))
 
 
 def test_tier3_pages_render_and_nav():
@@ -1166,15 +1164,26 @@ def test_tier5_and_community_pages_render_and_nav():
     assert ">Community<" in fan_nav
 
 
-def test_insights_ranked_and_consolidated():
-    from insights_config import get_insights_data
-    from app import build_dashboard_context
-    data = get_insights_data(build_dashboard_context()["smart_recommendations"])
-    impacts = [i["impact"] for i in data["insights"]]
-    assert impacts == sorted(impacts, reverse=True)
-    # Consolidates more than one category (recovery + publishing/etc).
-    assert data["summary"]["categories"] >= 2
-    assert data["summary"]["total_impact"] == round(sum(impacts), 2)
+def test_insights_computed_from_real_data():
+    import io
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Ins", "email": "ins@example.net",
+                                 "password": "inspass"})
+    # Fresh account: honest starting insight, no fabricated observations.
+    body = client.get("/insights").get_data(as_text=True)
+    assert "No income data yet" in body
+    assert "not a language model" in body
+    # Concentrated income -> the risk insight appears with real numbers.
+    client.post("/plan/switch", data={"plan": "pro"})
+    csv = ("title,source,amount,period\n"
+           "A,Spotify,900,2026-01\n"
+           "A,ASCAP,100,2026-01\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv.encode()), "i.csv")},
+                content_type="multipart/form-data")
+    body = client.get("/insights").get_data(as_text=True)
+    assert "Income concentration" in body and "90%" in body
+    assert "Uncollected royalty streams" in body and "Mechanical" in body
 
 
 def test_benchmark_uses_real_metrics():

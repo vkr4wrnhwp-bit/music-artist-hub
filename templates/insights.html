@@ -1,51 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}AI Insights - Royalty Sweep{% endblock %}
-
-{% set ins = insights %}
+{% block title %}Insights - Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-[1200px] space-y-5">
+<div class="mx-auto max-w-[900px] space-y-5">
   <div>
-    <h1 class="text-2xl font-semibold uppercase tracking-tight">AI Insights</h1>
-    <p class="mt-1 text-sm text-gray-500">Every recoverable opportunity across your account, ranked by estimated impact.</p>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Insights</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Insights</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">What a sharp manager would spot in your numbers. Every insight is computed from your real data by rules — it cites where it came from and links to the move.</p>
   </div>
 
-  <div class="grid grid-cols-3 gap-3">
-    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Opportunity</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(ins.summary.total_impact) }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Insights</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ ins.summary.count }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Categories</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ ins.summary.categories }}</div>
-    </div>
-  </div>
-
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Ranked Opportunities</h2>
-    <div class="mt-4 space-y-2">
-      {% for i in ins.insights %}
-      <a href="{{ i.route }}" class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-3 transition-colors hover:border-amber-500/30 hover:bg-white/10">
-        <span class="w-6 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="flex flex-wrap items-center gap-2">
-            <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ i.tone }}">{{ i.category }}</span>
-            <span class="text-sm font-semibold text-gray-100">{{ i.title }}</span>
-          </span>
-        </span>
-        <span class="shrink-0 text-sm font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(i.impact) }}</span>
-        <span class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400">{{ i.cta }}</span>
-      </a>
-      {% endfor %}
-      {% if not ins.insights %}
-      <div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-600">No open opportunities — you're fully optimized.</div>
-      {% endif %}
-    </div>
+  {% if not items %}
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-6">
+    <p class="text-sm text-gray-300">Not enough data to say anything useful yet — and we won't pretend otherwise. Upload statements, run campaigns, and link Artist Pulse; insights appear as the numbers do.</p>
   </section>
+  {% else %}
+
+  {% set kind_style = {
+    'risk': ('border-red-500/25', 'text-red-400/90', '⚠'),
+    'money': ('border-[#c9a24a]/40', 'text-[#e8c667]', '$'),
+    'promo': ('border-green-500/25', 'text-green-400', '▶'),
+    'fans': ('border-[#c9a24a]/40', 'text-[#e8c667]', '♥'),
+    'growth': ('border-green-500/25', 'text-green-400', '↗'),
+    'hygiene': ('border-white/15', 'text-gray-300', '✓'),
+    'start': ('border-[#c9a24a]/40', 'text-[#e8c667]', '→'),
+  } %}
+  <div class="space-y-3">
+    {% for i in items %}
+    {% set style = kind_style.get(i.kind, kind_style['hygiene']) %}
+    <section class="rounded-2xl border {{ style[0] }} bg-[#111113] p-5">
+      <div class="flex items-start gap-4">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/5 text-base font-black {{ style[1] }}">{{ style[2] }}</span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-bold {{ style[1] }}">{{ i.title }}</h2>
+          <p class="mt-1 text-xs leading-relaxed text-gray-300">{{ i.body }}</p>
+          <a href="{{ i.href }}" class="mt-2.5 inline-block rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">{{ i.label }} →</a>
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <p class="px-1 text-[11px] text-gray-500">Computed by rules over your account data — not a language model, not predictions, not financial advice.</p>
 </div>
 {% endblock %}
