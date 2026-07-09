@@ -19,14 +19,9 @@
 
   <!-- 1. TOP NAVIGATION -->
   <header class="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 py-5">
-    <a href="/" class="flex items-center gap-2.5">
-      <span class="grid h-9 w-9 place-items-center rounded-md bg-[#141210]">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d8b25a" stroke-width="1.6" stroke-linejoin="round"><path d="M4 10l5 4 5-7 5 7 5-4v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/></svg>
-      </span>
-      <span class="leading-none">
-        <span class="block text-sm font-extrabold tracking-[0.2em] text-[#141210]">{{ config.nav.logo.primary }}</span>
-        <span class="mt-0.5 block text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.nav.logo.secondary }}</span>
-      </span>
+    <a href="/" class="flex flex-col items-start leading-none">
+      <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ config.nav.logo.primary }}" class="h-9 w-auto">
+      <span class="mt-1 pl-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.nav.logo.secondary }}</span>
     </a>
     <nav class="hidden items-center gap-8 text-[13px] font-medium text-[#4a463e] lg:flex">
       {% for link in config.nav.links %}
@@ -242,8 +237,8 @@
   <footer class="mt-14 border-t border-black/10 py-12">
     <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
       <div>
-        <div class="text-sm font-extrabold tracking-[0.2em]">{{ config.footer.logo.primary }}</div>
-        <div class="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.footer.logo.secondary }}</div>
+        <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ config.footer.logo.primary }}" class="h-9 w-auto">
+        <div class="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.footer.logo.secondary }}</div>
         <p class="mt-4 max-w-xs text-xs leading-relaxed text-[#6b6459]">{{ config.footer.description }}</p>
         <div class="mt-4 flex gap-3 text-[11px] font-semibold text-[#6b6459]">
           {% for soc in config.footer.socials %}<a href="{{ soc.href }}" target="_blank" rel="noopener noreferrer" class="hover:text-[#141210]">{{ soc.label }}</a>{% endfor %}
