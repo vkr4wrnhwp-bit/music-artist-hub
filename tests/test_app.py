@@ -929,13 +929,26 @@ def test_funding_offers_derive_from_advance():
         assert round(o["amount"] + o["cost"], 2) == o["total_repayable"]
 
 
-def test_tax_page_content():
-    client = _demo()
+def test_tax_page_real_income_by_year():
+    import io
+    app_obj = create_app()
+    client = _demo(app_obj)
+    # Empty state points at Statements.
     body = client.get("/tax").get_data(as_text=True)
     assert "Tax Center" in body
-    assert "Suggested Set-Aside" in body
-    assert "Taxpayer Forms" in body
-    assert 'href="/tax"' in body
+    assert ("Upload a royalty statement" in body) or ("Total Reported Income" in body)
+    # Upload a statement -> real per-year totals appear.
+    csv = ("title,source,amount,period\n"
+           "Song A,Spotify,700.00,2026-01\n"
+           "Song A,Apple Music,50.25,2026-02\n"
+           "Song B,Spotify,10.00,2025-11\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv.encode()), "tax.csv")},
+                content_type="multipart/form-data")
+    body = client.get("/tax").get_data(as_text=True)
+    assert "2026" in body and "$750.25" in body
+    assert "2025" in body and "$10.00" in body
+    assert "Over $600" in body            # 1099 flag only on the big year
+    assert "not tax advice" in body
 
 
 def test_tax_data_config_shapes():
@@ -2943,14 +2956,84 @@ def test_generate_report_unknown_id_returns_404():
     assert response.status_code == 404
 
 
-def test_team_page_includes_collaborator_access_ui():
-    # Collaborator access moved from Settings to the dedicated Team page.
+def test_team_real_invite_flow(monkeypatch):
+    import db as store_mod
+    import email_provider as emailer
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    sent = []
+    monkeypatch.setattr(emailer, "_http",
+                        lambda url, payload, headers: sent.append(payload) or {"id": "e"})
+    app_obj = create_app()
+    owner = _demo(app_obj)
+    assert "Invite someone" in owner.get("/team").get_data(as_text=True)
+    r = owner.post("/team/invite", data={"email": "roadie@example.net",
+                                         "role": "assistant"}).get_json()
+    assert r["ok"] and r["emailed"] and "/team/join/" in r["link"]
+    assert sent[0]["to"] == ["roadie@example.net"]
+    token = r["link"].split("/team/join/")[1]
+    # Duplicate invite blocked.
+    assert not owner.post("/team/invite", data={"email": "roadie@example.net",
+                                                "role": "manager"}).get_json()["ok"]
+    # Join publicly, creating an account; roster flips to Active.
+    joiner = app_obj.test_client()
+    assert "Accept Invite" in joiner.get("/team/join/" + token).get_data(as_text=True)
+    assert joiner.post("/team/join/" + token, data={
+        "name": "Roadie", "password": "roadpass"}).status_code == 302
+    body = owner.get("/team").get_data(as_text=True)
+    assert "Roadie" in body and "Active" in body
+    # Token is single-use; member can be removed.
+    assert "Invite not found" in app_obj.test_client().get(
+        "/team/join/" + token).get_data(as_text=True)
+    owner_id = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    mid = store_mod.list_team(owner_id)[0]["id"]
+    assert owner.post("/team/%s/remove" % mid).get_json()["ok"]
+
+
+def test_password_reset_flow(monkeypatch):
+    import email_provider as emailer
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    sent = []
+    monkeypatch.setattr(emailer, "_http",
+                        lambda url, payload, headers: sent.append(payload) or {"id": "e"})
+    app_obj = create_app()
+    c = app_obj.test_client()
+    c.post("/signup", data={"name": "PW Tester", "email": "pwtest@example.net",
+                            "password": "oldpass"})
+    anon = app_obj.test_client()
+    assert "Forgot password?" in anon.get("/login").get_data(as_text=True)
+    r = anon.post("/forgot", data={"email": "pwtest@example.net"})
+    assert "reset link is on its way" in r.get_data(as_text=True)
+    token = sent[0]["html"].split("/reset/")[1].split('"')[0]
+    # Unknown email: identical response, nothing sent.
+    anon.post("/forgot", data={"email": "ghost@example.net"})
+    assert len(sent) == 1
+    # Reset signs you in; old password stops working.
+    assert anon.post("/reset/" + token,
+                     data={"password": "newpass"}).status_code == 302
+    assert b"Incorrect" in app_obj.test_client().post(
+        "/login", data={"email": "pwtest@example.net", "password": "oldpass"}).data
+    assert app_obj.test_client().post(
+        "/login", data={"email": "pwtest@example.net",
+                        "password": "newpass"}).status_code == 302
+    assert "Link expired" in app_obj.test_client().get(
+        "/reset/bogus").get_data(as_text=True)
+
+
+def test_legal_pages_public():
+    client = create_app().test_client()
+    for path, needle in (("/terms", "Terms of Service"), ("/privacy", "Privacy Policy")):
+        body = client.get(path).get_data(as_text=True)
+        assert needle in body and "Last updated" in body
+
+
+def test_stats_page_real_only(monkeypatch):
+    monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
+    monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
     client = _demo()
-    body = client.get("/team").get_data(as_text=True)
-    assert "Collaborators" in body
-    assert "Jamie Rowe" in body
-    assert 'id="invite-name"' in body
-    assert 'id="invite-email"' in body
+    body = client.get("/stats").get_data(as_text=True)
+    # Honest: no platform numbers without credentials, no fake stream counts.
+    assert "Not Connected" in body
+    assert "Cross-platform performance" not in body
 
 
 def test_settings_has_quick_links_and_signout():

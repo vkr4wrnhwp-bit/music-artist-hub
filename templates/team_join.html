@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join a team - Street Banker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#0a0a0b] text-gray-200 antialiased">
+  <div class="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center px-4">
+    <div class="mb-8 text-center">
+      <div class="text-xl font-bold tracking-[0.3em] text-gray-100">STREET BANKER</div>
+      <div class="mt-1 text-[10px] uppercase tracking-[0.2em] text-amber-500/70">Artist Infrastructure</div>
+    </div>
+
+    <div class="w-full rounded-2xl border border-white/10 bg-[#111113] p-6">
+      {% if invalid %}
+      <h1 class="text-lg font-bold text-white">Invite not found</h1>
+      <p class="mt-2 text-sm text-gray-400">This invite link is invalid, already used, or was revoked. Ask the artist to send a new one.</p>
+      <a href="/login" class="mt-4 block text-center text-xs font-semibold text-amber-400 hover:underline">← Sign in</a>
+      {% else %}
+      <h1 class="text-lg font-bold text-white">Join {{ invite.owner_name }}'s team</h1>
+      <p class="mt-1 text-sm text-gray-500">You've been invited as their <span class="font-bold text-amber-400">{{ invite.role }}</span> ({{ invite.email }}).</p>
+      {% if error %}
+      <div class="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">{{ error }}</div>
+      {% endif %}
+      <form method="post" class="mt-4 space-y-3">
+        {% if not has_account %}
+        <div>
+          <label for="name" class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Your name</label>
+          <input type="text" id="name" name="name" required autofocus
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+        </div>
+        <div>
+          <label for="password" class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Choose a password</label>
+          <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+        </div>
+        {% else %}
+        <p class="text-xs text-gray-400">You already have a Street Banker account with this email — accepting links it to the team.</p>
+        {% endif %}
+        <button type="submit" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/25">Accept Invite</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="mt-5 text-center text-[11px] text-gray-600"><a href="/terms" class="hover:text-gray-400">Terms</a> · <a href="/privacy" class="hover:text-gray-400">Privacy</a></p>
+  </div>
+</body>
+</html>

@@ -20,6 +20,15 @@ def _pts(value, full):
     return min(round(10 * value / full), 10)
 
 
+def _pulse_momentum(user_id):
+    """Verified Spotify popularity from the latest Artist Pulse snapshot.
+    Popularity 60 = full marks — realistic ceiling for an independent act."""
+    if store.get_pulse_profile(user_id) is None:
+        return 0
+    snaps = store.list_pulse_snapshots(user_id, limit=1)
+    return _pts((snaps[-1].get("popularity", 0) if snaps else 0), 60)
+
+
 def calculate(user_id):
     campaigns = [c for c in mls.list_campaigns(user_id) if not c.get("archived_at")]
     scores = [links_engine.calculate_street_banker_score(
@@ -63,8 +72,9 @@ def calculate(user_id):
                                            + (2 if epk_data.get("press") else 0)
                                            + (1 if (epk_data.get("contact") or {}) else 0), 5),
          "Complete your EPK: bio, press quotes, and contact info."),
-        ("Streaming Momentum", _pts(traffic, 50),
-         "Real link traffic is the signal — share your campaign links."),
+        ("Streaming Momentum", max(_pts(traffic, 50), _pulse_momentum(user_id)),
+         "Real link traffic and verified Spotify presence are the signal — "
+         "share your campaign links and connect Artist Pulse."),
         ("Catalog Depth", _pts(len(tracks) + len(campaigns), 6),
          "Build the catalog: more releases, more tracked campaigns."),
     ]

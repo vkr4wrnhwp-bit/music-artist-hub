@@ -19,6 +19,17 @@ def _pts(value, full):
     return min(round(10 * value / full), 10)
 
 
+def _pulse_pts(user_id):
+    """Live-verifiable public presence: Spotify profile linked via Artist
+    Pulse (5), with real followers on record (3) and growth tracked (2)."""
+    if store.get_pulse_profile(user_id) is None:
+        return 0
+    snaps = store.list_pulse_snapshots(user_id)
+    latest = snaps[-1] if snaps else {}
+    return (5 + (3 if latest.get("followers", 0) > 0 else 0)
+            + (2 if len(snaps) >= 2 else 0))
+
+
 def calculate(user_id):
     tracks = store.get_catalog_tracks(user_id)
     with_isrc = sum(1 for t in tracks if (t.get("meta") or {}).get("isrc"))
@@ -64,9 +75,13 @@ def calculate(user_id):
          "Create campaign variants so every promo channel is measured."),
         ("Catalog depth", _pts(len(tracks) + len(campaigns), 6),
          "Keep releasing — depth compounds trust."),
+        ("Verified platform presence", _pulse_pts(user_id),
+         "Link your Spotify profile on Artist Pulse — partners can verify "
+         "your numbers are real."),
     ]
 
-    total = sum(pts for _, pts, _ in factors)
+    # Eleven factors of 10; normalized so the total stays a 0-100 score.
+    total = round(sum(pts for _, pts, _ in factors) * 100 / (len(factors) * 10))
     blockers = [(name, pts, note) for name, pts, note in factors if pts < 5]
     if total >= 80:
         verdict = "Partner-ready"

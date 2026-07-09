@@ -444,6 +444,91 @@ def create_app():
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
 
+    def _reset_serializer():
+        from itsdangerous import URLSafeTimedSerializer
+        return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="pw-reset")
+
+    @app.route("/forgot", methods=["GET", "POST"])
+    def forgot_password():
+        sent, error = False, None
+        if request.method == "POST":
+            if not emailer.configured():
+                error = ("Password reset email isn't enabled on this server yet. "
+                         "Contact the site owner to reset your password.")
+            else:
+                email = (request.form.get("email") or "").strip().lower()
+                user = store.get_user_by_email(email) if "@" in email else None
+                if user:
+                    token = _reset_serializer().dumps(user["id"])
+                    link = request.url_root.rstrip("/") + "/reset/" + token
+                    emailer.send(
+                        email, "Reset your Street Banker password",
+                        '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
+                        "<h2>Reset your password</h2>"
+                        "<p>Someone (hopefully you) asked to reset the password for this "
+                        "Street Banker account. The link works for 1 hour.</p>"
+                        '<p><a href="%s" style="display:inline-block;background:#d8b25a;'
+                        'color:#1c1302;font-weight:bold;padding:12px 24px;border-radius:8px;'
+                        'text-decoration:none;">Choose a new password</a></p>'
+                        "<p style=\"color:#777;font-size:12px;\">If you didn't ask for this, "
+                        "ignore this email — your password is unchanged.</p></div>" % link)
+                # Same response either way: never confirm whether an email exists.
+                sent = True
+        return render_template("forgot.html", sent=sent, error=error)
+
+    @app.route("/reset/<token>", methods=["GET", "POST"])
+    def reset_password(token):
+        from itsdangerous import BadSignature, SignatureExpired
+        try:
+            user_id = _reset_serializer().loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return render_template("reset.html", invalid=True, error=None)
+        user = store.get_user(user_id)
+        if user is None:
+            return render_template("reset.html", invalid=True, error=None)
+        error = None
+        if request.method == "POST":
+            password = request.form.get("password") or ""
+            if len(password) < 6:
+                error = "Use a password of 6+ characters."
+            else:
+                store.set_user_password(user_id, generate_password_hash(password))
+                session["user_id"] = user_id
+                return redirect("/command-center" if (user.get("plan") or "artist") != "fan"
+                                else "/discover")
+        return render_template("reset.html", invalid=False, error=error)
+
+    @app.route("/terms")
+    def terms():
+        return render_template("legal.html", title="Terms of Service",
+                               updated="July 9, 2026", sections=[
+            ("The service", "Street Banker provides software tools for independent artists: royalty statement analysis, smart links, press kits, fan capture, and related workflows. We provide software, not professional services — nothing in the app is legal, financial, or tax advice."),
+            ("Your account", "You're responsible for your account credentials and for the accuracy of the data you upload. You must be 13 or older (16 in the EU) to create an account."),
+            ("Your content", "You keep all rights to the music, artwork, statements, and other material you upload. You grant us only the license needed to store, process, and display it back to you and to the people you share it with (public press kits, smart links, sync packs)."),
+            ("Fan data", "Fan emails and pre-save data captured through your campaigns belong to your account. You agree to use them lawfully — including honoring the consent language shown at capture and applicable anti-spam law."),
+            ("Acceptable use", "No unlawful content, no infringing uploads, no abusing the platform to send spam, and no attempts to breach or overload the service."),
+            ("Paid plans", "Paid tiers unlock additional features. Fees, billing cadence, and cancellation terms are shown at checkout. You can cancel anytime; access continues through the paid period."),
+            ("Estimates and simulations", "Catalog valuations, recovery estimates, deal simulations, and scores are informational estimates computed from your data. They are not offers, appraisals, or professional advice."),
+            ("Termination", "You can delete your account at any time. We may suspend accounts that violate these terms."),
+            ("Warranty & liability", "The service is provided as-is. To the maximum extent permitted by law, our liability is limited to the amount you paid us in the 12 months before a claim."),
+            ("Changes", "We'll post updates to these terms here and note the date above. Continued use after changes means acceptance."),
+        ])
+
+    @app.route("/privacy")
+    def privacy():
+        return render_template("legal.html", title="Privacy Policy",
+                               updated="July 9, 2026", sections=[
+            ("What we collect", "Account data (name, email, hashed password), the content you upload (statements, artwork, documents), campaign analytics (link clicks, referrers), and — when you connect them — data from services you authorize, like Spotify artist stats."),
+            ("Fan data you capture", "When a fan subscribes or pre-saves on your campaign pages, we store their email or Spotify identity with a consent record, on your behalf. Artists control this data; we process it. Pre-save tokens are encrypted at rest and deleted after the release-day save completes."),
+            ("What we don't do", "We don't sell personal data. We don't use your uploads to train AI models. We don't read fan tokens for anything beyond the save and the consented email."),
+            ("Service providers", "We use Render (hosting), Resend (email delivery), and public music APIs (Spotify, Deezer, iTunes, Odesli, MusicBrainz, Bandsintown) to provide features you invoke. Each receives only what's needed for that feature."),
+            ("Cookies", "We use a single session cookie to keep you signed in. No advertising trackers."),
+            ("Retention & deletion", "Your data stays while your account is active. Ask us to delete your account and we remove your data within 30 days, except records we must keep by law."),
+            ("Your rights", "Depending on where you live (GDPR, CCPA), you can request access, correction, export, or deletion of your personal data — email us and we'll handle it."),
+            ("Security", "Passwords are hashed, fan tokens are encrypted, and data lives on access-controlled infrastructure. No system is perfect; we'll notify affected users of any breach as required by law."),
+            ("Contact", "Privacy questions and requests: team.summitarts@gmail.com."),
+        ])
+
     @app.route("/logout", methods=["POST"])
     def logout():
         session.pop("user_id", None)
@@ -1502,8 +1587,10 @@ def create_app():
                 "unread_ntf": store.unread_notifications(user["id"]) if user else 0}
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
-                        "/services", "/favicon", "/presave/")
-    _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit"}
+                        "/services", "/favicon", "/presave/", "/reset/",
+                        "/team/join/")
+    _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
+                     "/terms", "/privacy"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -2027,6 +2114,9 @@ def create_app():
             pulse = spotify.artist_pulse(profile["artist_id"])
             if pulse:
                 deezer = music_apis.deezer_artist_fans(pulse["name"])
+                store.record_pulse_snapshot(user["id"], pulse["followers"],
+                                            pulse["popularity"],
+                                            (deezer or {}).get("fans", 0))
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
@@ -2679,9 +2769,34 @@ def create_app():
 
     @app.route("/stats")
     def stats():
-        ctx = build_dashboard_context()
-        ctx["stats"] = get_stats_data()
-        return render_template("stats.html", active_page="stats", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        profile = store.get_pulse_profile(user["id"])
+        pulse, deezer = None, None
+        if profile and spotify.pulse_configured():
+            pulse = spotify.artist_pulse(profile["artist_id"])
+            if pulse:
+                deezer = music_apis.deezer_artist_fans(pulse["name"])
+                store.record_pulse_snapshot(user["id"], pulse["followers"],
+                                            pulse["popularity"],
+                                            (deezer or {}).get("fans", 0))
+        snapshots = store.list_pulse_snapshots(user["id"])
+        # Real engagement from tracked smart links.
+        clicks = pageviews = presaves = 0
+        for c in mls.list_campaigns(user["id"]):
+            n = mls.event_counts(c["id"])
+            pageviews += n.get("pageview", 0)
+            clicks += n.get("click", 0)
+            presaves += store.count_spotify_presaves(c["id"]).get("pending", 0) + \
+                store.count_spotify_presaves(c["id"]).get("completed", 0)
+        return render_template("stats.html", active_page="stats",
+                               pulse_configured=spotify.pulse_configured(),
+                               profile=profile, pulse=pulse, deezer=deezer,
+                               snapshots=snapshots,
+                               link_stats={"pageviews": pageviews, "clicks": clicks,
+                                           "presaves": presaves},
+                               **build_dashboard_context())
 
     @app.route("/funding")
     def funding():
@@ -2810,9 +2925,29 @@ def create_app():
 
     @app.route("/tax")
     def tax():
-        ctx = build_dashboard_context()
-        ctx["tax"] = get_tax_data()
-        return render_template("tax.html", active_page="tax", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        rows = store.get_statement_rows(user["id"])
+        years = {}
+        for r in rows:
+            year = (r.get("period") or "")[:4]
+            if not (len(year) == 4 and year.isdigit()):
+                year = "Undated"
+            y = years.setdefault(year, {"total": 0.0, "sources": {}, "rows": 0})
+            y["total"] += r["amount"]
+            y["rows"] += 1
+            src = r.get("source") or "Unknown"
+            y["sources"][src] = y["sources"].get(src, 0.0) + r["amount"]
+        year_list = sorted([
+            {"year": k, "total": round(v["total"], 2), "rows": v["rows"],
+             "sources": sorted(v["sources"].items(), key=lambda s: -s[1]),
+             "over_600": v["total"] >= 600}
+            for k, v in years.items()], key=lambda y: y["year"], reverse=True)
+        return render_template("tax.html", active_page="tax",
+                               years=year_list,
+                               grand_total=round(sum(y["total"] for y in year_list), 2),
+                               **build_dashboard_context())
 
     @app.route("/billing")
     def billing():
@@ -2821,9 +2956,83 @@ def create_app():
         ctx["plan_cards"] = plans.PLANS
         return render_template("billing.html", active_page="billing", **ctx)
 
+    _TEAM_ROLES = ("manager", "accountant", "publicist", "attorney", "assistant")
+
     @app.route("/team")
     def team():
-        return render_template("team.html", active_page="team", **build_dashboard_context())
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("team.html", active_page="team",
+                               members=store.list_team(user["id"]),
+                               roles=_TEAM_ROLES,
+                               email_configured=emailer.configured(),
+                               **build_dashboard_context())
+
+    @app.route("/team/invite", methods=["POST"])
+    def team_invite():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        email = (request.form.get("email") or "").strip().lower()
+        role = request.form.get("role") or "manager"
+        if "@" not in email or role not in _TEAM_ROLES:
+            return jsonify({"ok": False, "error": "Enter a valid email and pick a role."}), 400
+        if email == user["email"]:
+            return jsonify({"ok": False, "error": "That's you — no invite needed."}), 400
+        invite = store.add_team_invite(user["id"], email, role)
+        if invite is None:
+            return jsonify({"ok": False, "error": "That email is already on your team."}), 400
+        link = request.url_root.rstrip("/") + "/team/join/" + invite["invite_token"]
+        emailed = False
+        if emailer.configured():
+            emailed = emailer.send(
+                email, "%s invited you to their Street Banker team" % user["name"],
+                '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
+                "<h2>You're invited</h2>"
+                "<p><strong>%s</strong> added you to their Street Banker team as their "
+                "<strong>%s</strong>.</p>"
+                '<p><a href="%s" style="display:inline-block;background:#d8b25a;color:#1c1302;'
+                'font-weight:bold;padding:12px 24px;border-radius:8px;text-decoration:none;">'
+                "Accept the invite</a></p></div>" % (user["name"], role, link))
+        return jsonify({"ok": True, "link": link, "emailed": emailed})
+
+    @app.route("/team/join/<token>", methods=["GET", "POST"])
+    def team_join(token):
+        invite = store.get_team_invite(token)
+        if invite is None:
+            return render_template("team_join.html", invalid=True, invite=None, error=None)
+        error = None
+        if request.method == "POST":
+            existing = store.get_user_by_email(invite["email"])
+            if existing:
+                member_id = existing["id"]
+            else:
+                name = (request.form.get("name") or "").strip()
+                password = request.form.get("password") or ""
+                if not name or len(password) < 6:
+                    error = "Enter your name and a password of 6+ characters."
+                    return render_template("team_join.html", invalid=False,
+                                           invite=invite, error=error)
+                member_id = store.create_user(invite["email"], name,
+                                              generate_password_hash(password))
+            store.accept_team_invite(token, member_id)
+            store.notify(invite["owner_id"], "team",
+                         "Team invite accepted",
+                         "%s joined your team as %s." % (invite["email"], invite["role"]),
+                         "/team")
+            session["user_id"] = member_id
+            return redirect("/command-center")
+        return render_template("team_join.html", invalid=False, invite=invite,
+                               has_account=store.get_user_by_email(invite["email"]) is not None,
+                               error=None)
+
+    @app.route("/team/<member_id>/remove", methods=["POST"])
+    def team_remove(member_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": store.remove_team_member(user["id"], member_id)})
 
     @app.route("/onboarding")
     def onboarding():

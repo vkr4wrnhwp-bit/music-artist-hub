@@ -1,55 +1,96 @@
 {% extends "base.html" %}
-{% import "landing/_cards.html" as logos %}
 
-{% block title %}Streaming Stats - Royalty Sweep{% endblock %}
-
-{% set st = stats %}
+{% block title %}Streaming Stats - Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-[1400px] space-y-5">
+<div class="mx-auto max-w-[1000px] space-y-5">
   <div>
-    <h1 class="text-2xl font-semibold uppercase tracking-tight">Streaming Stats</h1>
-    <p class="mt-1 text-sm text-gray-500">Cross-platform performance across everywhere your music earns.</p>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Stats</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Streaming Stats</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Only real numbers: your live platform presence from Artist Pulse, tracked over time, plus engagement from your own smart links.</p>
   </div>
 
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Streams</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(st.summary.total_streams) }}</div>
-    </div>
-    <div class="rounded-2xl border border-green-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Total Earnings</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">${{ "{:,.2f}".format(st.summary.total_earnings) }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Platforms</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ st.summary.platforms }}</div>
-    </div>
-    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Top Platform</div>
-      <div class="mt-2 truncate text-lg font-bold text-amber-400">{{ st.summary.top_platform }}</div>
-    </div>
-  </div>
-
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">By Platform</h2>
-    <div class="mt-4 space-y-3">
-      {% for p in st.platforms %}
-      {% set pct = (p.earnings / st.max_earnings * 100) if st.max_earnings else 0 %}
-      <div class="rounded-xl border border-white/5 bg-white/5 p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          {{ logos.platform_logo(p.logo, "h-7 w-7") }}
-          <span class="min-w-0 flex-1">
-            <span class="block text-sm font-semibold text-gray-100">{{ p.name }}</span>
-            <span class="text-[11px] text-gray-500">{{ "{:,}".format(p.streams) }} streams · {{ p.share_pct }}% of earnings</span>
-          </span>
-          <span class="shrink-0 text-sm font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(p.earnings) }}</span>
-        </div>
-        <div class="mt-2 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-amber-500" style="width: {{ pct }}%;"></div></div>
-      </div>
-      {% endfor %}
-    </div>
-    <p class="mt-3 text-[11px] text-gray-600">Earnings and total streams are from your catalog. Per-platform stream counts are apportioned by each platform's earnings share.</p>
+  {% if not pulse_configured %}
+  <section class="rounded-2xl border border-amber-500/30 bg-[#141209] p-6">
+    <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Not Connected</div>
+    <p class="mt-2 max-w-xl text-sm text-gray-300">Platform stats read live data with the Spotify API credentials on the server — not configured here, so nothing to show.</p>
   </section>
+  {% elif not profile %}
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-6">
+    <p class="text-sm text-gray-300">Pick your artist on <a href="/pulse" class="font-bold text-[#e8c667] hover:underline">Artist Pulse</a> first — every visit after that records a daily snapshot, and this page becomes your growth history.</p>
+  </section>
+  {% else %}
+
+  <!-- Current numbers -->
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Spotify Followers</div>
+      <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">{{ "{:,}".format(pulse.followers) if pulse else "—" }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Spotify Popularity</div>
+      <div class="mt-1 text-2xl font-black tabular-nums">{{ pulse.popularity if pulse else "—" }}<span class="text-sm text-gray-600">/100</span></div>
+    </div>
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Deezer Fans</div>
+      <div class="mt-1 text-2xl font-black tabular-nums">{{ "{:,}".format(deezer.fans) if deezer else "—" }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Days Tracked</div>
+      <div class="mt-1 text-2xl font-black tabular-nums">{{ snapshots|length }}</div>
+    </div>
+  </div>
+
+  <!-- Growth history -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
+    <div class="flex items-baseline justify-between">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Follower Growth — {{ profile.artist_name }}</h2>
+      <span class="text-[10px] text-gray-500">One snapshot per day, taken live from Spotify</span>
+    </div>
+    {% if snapshots|length >= 2 %}
+    <div class="mt-4 h-64"><canvas id="growth-chart"></canvas></div>
+    {% else %}
+    <p class="mt-4 text-sm text-gray-400">Tracking started {{ "today" if snapshots else "— visit Artist Pulse to record your first snapshot" }}. The growth chart draws itself once there are two or more days of history; check back tomorrow.</p>
+    {% endif %}
+  </section>
+
+  <!-- Owned engagement -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Your Link Engagement — all time</h2>
+    <div class="mt-3 grid grid-cols-3 gap-3">
+      <div><div class="text-2xl font-black tabular-nums">{{ "{:,}".format(link_stats.pageviews) }}</div><div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Page Views</div></div>
+      <div><div class="text-2xl font-black tabular-nums">{{ "{:,}".format(link_stats.clicks) }}</div><div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Platform Clicks</div></div>
+      <div><div class="text-2xl font-black tabular-nums text-[#e8c667]">{{ "{:,}".format(link_stats.presaves) }}</div><div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Pre-Saves</div></div>
+    </div>
+    <p class="mt-3 text-[11px] text-gray-500">Counted from your own tracked smart links — first-party data, not platform estimates.</p>
+  </section>
+
+  <p class="px-1 text-[11px] text-gray-500">Per-track stream counts require distributor data feeds and are not shown until a real connection exists. Everything on this page is live or first-party.</p>
+  {% endif %}
 </div>
+
+{% if snapshots and snapshots|length >= 2 %}
+<script>
+  new Chart(document.getElementById("growth-chart"), {
+    type: "line",
+    data: {
+      labels: {{ snapshots | map(attribute="day") | list | tojson }},
+      datasets: [
+        { label: "Spotify followers", data: {{ snapshots | map(attribute="followers") | list | tojson }},
+          borderColor: "#d8b25a", backgroundColor: "rgba(216,178,90,0.12)", fill: true, tension: 0.3 },
+        { label: "Deezer fans", data: {{ snapshots | map(attribute="deezer_fans") | list | tojson }},
+          borderColor: "#60a5fa", backgroundColor: "transparent", tension: 0.3 }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#9ca3af", font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: "#6b7280", font: { size: 9 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: { ticks: { color: "#6b7280", font: { size: 9 } }, grid: { color: "rgba(255,255,255,0.06)" } }
+      }
+    }
+  });
+</script>
+{% endif %}
 {% endblock %}

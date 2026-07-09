@@ -75,7 +75,7 @@
         <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-500 backdrop-blur focus:border-white/40 focus:outline-none">
         <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302]" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
       </div>
-      <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }}{% if c.settings.get('privacy_url') %} <a href="{{ c.settings.get('privacy_url') }}" class="underline" target="_blank" rel="noopener">Privacy</a>{% endif %}</p>
+      <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
       <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
     </form>
     {% endif %}
@@ -105,7 +105,7 @@
           <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
           <button type="submit" class="shrink-0 rounded-xl px-4 py-3 text-sm font-black text-[#1c1302]" style="background: {{ accent }};">Join</button>
         </div>
-        <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }}{% if c.settings.get('privacy_url') %} <a href="{{ c.settings.get('privacy_url') }}" class="underline" target="_blank" rel="noopener">Privacy</a>{% endif %}</p>
+        <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
         <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
       </form>
     </div>

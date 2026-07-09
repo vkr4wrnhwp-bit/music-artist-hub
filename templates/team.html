@@ -1,105 +1,84 @@
 {% extends "base.html" %}
 
-{% block title %}Team - Royalty Sweep{% endblock %}
+{% block title %}Team - Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-3xl space-y-5">
+<div class="mx-auto max-w-[900px] space-y-5">
   <div>
-    <h1 class="text-2xl font-semibold uppercase tracking-tight">Team</h1>
-    <p class="mt-1 text-sm text-gray-500">Manage collaborator access and per-song permissions. (No real enforcement — permission shape only.)</p>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Team</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Team</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Invite the people who run your business with you — manager, accountant, publicist. Invites are real: they get an email, create their own login, and show up here.</p>
   </div>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Collaborators</h2>
-    <div id="team-list" class="mt-4 space-y-2">
-      {% for c in collaborators %}
-      <div class="collab-row flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-3" data-id="{{ c.id }}">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">
-          {{ c.name.split(' ')|map('first')|join|upper }}
-        </span>
+  <!-- Invite -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Invite someone</h2>
+    <form id="invite-form" class="mt-3 flex flex-wrap gap-2">
+      <input name="email" type="email" required placeholder="their@email.com" class="w-full min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none sm:w-auto">
+      <select name="role" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-200 focus:border-[#c9a24a] focus:outline-none">
+        {% for r in roles %}<option value="{{ r }}">{{ r|capitalize }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Send Invite</button>
+    </form>
+    <div id="invite-result" class="mt-3 hidden rounded-lg border px-3 py-2.5 text-xs"></div>
+    {% if not email_configured %}
+    <p class="mt-2 text-[11px] text-gray-500">Email sending isn't enabled on this server — you'll get a link to send them yourself.</p>
+    {% endif %}
+  </section>
+
+  <!-- Roster -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Your team</h2>
+    {% if members %}
+    <div class="mt-3 divide-y divide-white/5">
+      {% for m in members %}
+      <div class="flex flex-wrap items-center gap-3 py-3" id="member-{{ m.id }}">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#c9a24a]/15 text-sm font-black text-[#e8c667]">{{ (m.member_name or m.email)[0]|upper }}</span>
         <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold text-gray-100">{{ c.name }}</div>
-          <div class="text-[11px] text-gray-500">{{ c.email }}{% if c.songs %} · {{ c.songs|join(', ') }}{% endif %}</div>
+          <div class="truncate text-sm font-bold">{{ m.member_name or m.email }}</div>
+          <div class="text-[11px] text-gray-500">{{ m.email }} · {{ m.role|capitalize }}</div>
         </div>
-        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ 'border-green-500/20 bg-green-500/10 text-green-400' if c.status == 'Active' else 'border-amber-500/20 bg-amber-500/10 text-amber-400' }}">{{ c.status }}</span>
-        <select class="collab-role shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-200 focus:border-amber-500/50 focus:outline-none">
-          {% for role in collaborator_roles %}<option value="{{ role }}" {{ 'selected' if role == c.role }}>{{ role }}</option>{% endfor %}
-        </select>
-        <button type="button" class="collab-remove shrink-0 rounded-md border border-white/10 px-2 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">Remove</button>
+        {% if m.status == 'active' %}
+        <span class="rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-green-400">Active</span>
+        {% else %}
+        <span class="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Invited</span>
+        {% endif %}
+        <button data-id="{{ m.id }}" class="remove-btn rounded-lg border border-red-500/30 px-3 py-1.5 text-[11px] font-bold text-red-400/90 hover:bg-red-500/10">Remove</button>
       </div>
       {% endfor %}
     </div>
-    <div id="team-empty" class="{{ 'hidden' if collaborators else '' }} mt-3 rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No collaborators yet.</div>
+    {% else %}
+    <p class="mt-3 text-sm text-gray-500">No team yet. Invite your first person above — they'll appear here the moment they accept.</p>
+    {% endif %}
   </section>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Invite Collaborator</h2>
-    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <input id="invite-name" placeholder="Name" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
-      <input id="invite-email" placeholder="Email" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
-      <select id="invite-role" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none">
-        {% for role in collaborator_roles %}<option value="{{ role }}">{{ role }}</option>{% endfor %}
-      </select>
-      <button type="button" id="invite-btn" class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/20">Send Invite</button>
-    </div>
-    <div id="invite-error" class="mt-2 hidden text-[11px] font-semibold text-red-400"></div>
-  </section>
+  <p class="px-1 text-[11px] text-gray-500">Team members get their own login and appear on your roster with their role. Scoped access to your reports and dashboards ships with the Partner Portal — roles are recorded now so permissions apply the day it lands.</p>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-  const ROLES = {{ collaborator_roles | tojson }};
-
-  function bindRow(row) {
-    row.querySelector(".collab-role").addEventListener("change", async (e) => {
-      await fetch(`/collaborators/${row.dataset.id}/role`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: e.target.value }),
-      });
-      flashHighlight(row);
-    });
-    row.querySelector(".collab-remove").addEventListener("click", async () => {
-      const res = await fetch(`/collaborators/${row.dataset.id}/remove`, { method: "POST" });
-      if (res.ok) {
-        row.remove();
-        if (!document.querySelectorAll(".collab-row").length) document.getElementById("team-empty").classList.remove("hidden");
-      }
-    });
-  }
-  document.querySelectorAll(".collab-row").forEach(bindRow);
-
-  document.getElementById("invite-btn").addEventListener("click", async () => {
-    const name = document.getElementById("invite-name").value.trim();
-    const email = document.getElementById("invite-email").value.trim();
-    const role = document.getElementById("invite-role").value;
-    const err = document.getElementById("invite-error");
-    err.classList.add("hidden");
-    if (!name || !email) { err.textContent = "Name and email are required."; err.classList.remove("hidden"); return; }
-    const res = await fetch("/collaborators/invite", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, role, songs: [] }),
-    });
+  document.getElementById("invite-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await fetch("/team/invite", { method: "POST", body: new FormData(e.target) });
     const data = await res.json();
-    if (!res.ok || !data.ok) { err.textContent = data.error || "Could not invite."; err.classList.remove("hidden"); return; }
-    const c = data.collaborator;
-    document.getElementById("team-empty").classList.add("hidden");
-    const row = document.createElement("div");
-    row.className = "collab-row flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-3";
-    row.dataset.id = c.id;
-    const initials = c.name.split(" ").map((w) => w[0]).join("").toUpperCase();
-    row.innerHTML =
-      '<span class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">' + escapeHtml(initials) + '</span>' +
-      '<div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-100">' + escapeHtml(c.name) + '</div><div class="text-[11px] text-gray-500">' + escapeHtml(c.email) + '</div></div>' +
-      '<span class="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">' + escapeHtml(c.status) + '</span>' +
-      '<select class="collab-role shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-200 focus:border-amber-500/50 focus:outline-none">' +
-        ROLES.map((r) => '<option value="' + r + '"' + (r === c.role ? ' selected' : '') + '>' + r + '</option>').join("") + '</select>' +
-      '<button type="button" class="collab-remove shrink-0 rounded-md border border-white/10 px-2 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">Remove</button>';
-    document.getElementById("team-list").appendChild(row);
-    bindRow(row);
-    flashHighlight(row);
-    document.getElementById("invite-name").value = "";
-    document.getElementById("invite-email").value = "";
+    const box = document.getElementById("invite-result");
+    box.classList.remove("hidden");
+    if (data.ok) {
+      box.className = "mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-xs text-green-400";
+      if (data.emailed) {
+        box.textContent = "Invite emailed. They'll appear on the roster when they accept.";
+        setTimeout(() => window.location.reload(), 1800);
+      } else {
+        box.innerHTML = 'Invite created — email isn\'t enabled, so send them this link: <span class="break-all font-mono text-gray-300">' + data.link + "</span>";
+        setTimeout(() => window.location.reload(), 9000);
+      }
+    } else {
+      box.className = "mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400";
+      box.textContent = data.error || "Could not send the invite.";
+    }
   });
+  document.querySelectorAll(".remove-btn").forEach((b) => b.addEventListener("click", async () => {
+    const res = await fetch("/team/" + b.dataset.id + "/remove", { method: "POST" });
+    if ((await res.json()).ok) document.getElementById("member-" + b.dataset.id).remove();
+  }));
 </script>
 {% endblock %}

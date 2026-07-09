@@ -104,6 +104,26 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS team_members (
+                id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'manager',
+                status TEXT NOT NULL DEFAULT 'invited',
+                invite_token TEXT UNIQUE,
+                member_user_id TEXT,
+                created TEXT NOT NULL,
+                joined TEXT,
+                UNIQUE(owner_id, email)
+            );
+            CREATE TABLE IF NOT EXISTS pulse_snapshots (
+                user_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                followers INTEGER NOT NULL DEFAULT 0,
+                popularity INTEGER NOT NULL DEFAULT 0,
+                deezer_fans INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, day)
+            );
             CREATE TABLE IF NOT EXISTS pulse_profiles (
                 user_id TEXT PRIMARY KEY,
                 artist_id TEXT NOT NULL,
@@ -423,6 +443,12 @@ def set_user_plan(user_id, plan):
         db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))
 
 
+def set_user_password(user_id, password_hash):
+    with get_db() as db:
+        db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                   (password_hash, user_id))
+
+
 def get_user_by_email(email):
     with get_db() as db:
         row = db.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
@@ -654,6 +680,79 @@ def get_epk_by_slug(slug):
     return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"],
             "slug": row["slug"], "user_id": row["user_id"],
             "user_name": row["user_name"]}
+
+
+# --- Pulse snapshots (real growth history) ----------------------------------------
+
+def record_pulse_snapshot(user_id, followers, popularity, deezer_fans):
+    """One snapshot per user per day; later same-day calls refresh it."""
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO pulse_snapshots (user_id, day, followers, popularity, deezer_fans) "
+            "VALUES (?,?,?,?,?) "
+            "ON CONFLICT(user_id, day) DO UPDATE SET followers=excluded.followers, "
+            "popularity=excluded.popularity, deezer_fans=excluded.deezer_fans",
+            (user_id, day, followers, popularity, deezer_fans))
+
+
+def list_pulse_snapshots(user_id, limit=90):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
+            (user_id, limit)).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+# --- Team ------------------------------------------------------------------------
+
+def add_team_invite(owner_id, email, role):
+    """Create an invite; returns the row or None if already on the team."""
+    member_id = uuid.uuid4().hex
+    token = uuid.uuid4().hex
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created) "
+                "VALUES (?,?,?,?,'invited',?,?)",
+                (member_id, owner_id, email.lower().strip(), role, token, _now()))
+    except sqlite3.IntegrityError:
+        return None
+    return {"id": member_id, "invite_token": token}
+
+
+def list_team(owner_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT t.*, u.name AS member_name FROM team_members t "
+            "LEFT JOIN users u ON u.id = t.member_user_id "
+            "WHERE t.owner_id = ? ORDER BY t.created", (owner_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_team_invite(token):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT t.*, u.name AS owner_name FROM team_members t "
+            "JOIN users u ON u.id = t.owner_id "
+            "WHERE t.invite_token = ? AND t.status = 'invited'", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def accept_team_invite(token, member_user_id):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE team_members SET status = 'active', member_user_id = ?, "
+            "joined = ?, invite_token = NULL WHERE invite_token = ? AND status = 'invited'",
+            (member_user_id, _now(), token))
+    return cur.rowcount > 0
+
+
+def remove_team_member(owner_id, member_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM team_members WHERE id = ? AND owner_id = ?",
+                         (member_id, owner_id))
+    return cur.rowcount > 0
 
 
 # --- Artist Pulse ---------------------------------------------------------------
