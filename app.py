@@ -1052,9 +1052,63 @@ def create_app():
 
     @app.route("/connections")
     def connections():
-        ctx = build_dashboard_context()
-        ctx["conn"] = get_connections_data()
-        return render_template("connections.html", active_page="connections", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        pulse_profile = store.get_pulse_profile(user["id"])
+        statements = store.get_statements(user["id"])
+        integrations = [
+            {"name": "Spotify", "kind": "Live API",
+             "on": spotify.pulse_configured(),
+             "detail": ("Powers Artist Pulse, real pre-saves, and artist search."
+                        if spotify.pulse_configured() else
+                        "Server credentials not configured."),
+             "action": ("/pulse", "Open Artist Pulse")},
+            {"name": "Your Spotify profile", "kind": "Artist link",
+             "on": bool(pulse_profile),
+             "detail": ("Linked: %s — followers and popularity track daily."
+                        % pulse_profile["artist_name"]) if pulse_profile
+             else "Pick your artist on Artist Pulse to start tracking.",
+             "action": ("/pulse", "Link on Artist Pulse")},
+            {"name": "Deezer", "kind": "Public API",
+             "on": True,
+             "detail": "Fan counts and track identifiers — no key needed.",
+             "action": ("/pulse", "See fan count")},
+            {"name": "Email (Resend)", "kind": "Delivery",
+             "on": emailer.configured(),
+             "detail": ("Release-day fan emails, team invites, and password "
+                        "resets send from %s." % emailer.sender())
+             if emailer.configured() else "RESEND_API_KEY not set on the server.",
+             "action": ("/links", "Campaigns that use it")},
+            {"name": "Bandsintown", "kind": "Events API",
+             "on": bandsintown.configured(),
+             "detail": ("Tour dates flow onto your public EPK automatically."
+                        if bandsintown.configured() else
+                        "Awaiting app_id from Bandsintown support — tour dates "
+                        "light up on the EPK the day it arrives."),
+             "action": ("/epk", "EPK tour section")},
+            {"name": "Royalty statements", "kind": "Your uploads",
+             "on": bool(statements),
+             "detail": ("%d statement%s uploaded — powering Royalties, Recovery, "
+                        "Tax, and Capital." % (len(statements),
+                                               "" if len(statements) == 1 else "s"))
+             if statements else "Upload CSVs — they power the entire money engine.",
+             "action": ("/statements", "Upload statements")},
+            {"name": "iTunes / Odesli / MusicBrainz", "kind": "Public APIs",
+             "on": True,
+             "detail": "Catalog search, universal links, credits — no keys needed.",
+             "action": ("/catalog", "Search the catalog")},
+        ]
+        # Not honest to pretend these connect today.
+        unavailable = [
+            ("Distributor analytics (DistroKid, TuneCore, CD Baby)",
+             "Per-track stream counts and listener data need distributor feeds — no public API exists yet."),
+            ("PRO / MLC registrations (ASCAP, BMI, MLC)",
+             "Registration status requires society data access."),
+        ]
+        return render_template("connections.html", active_page="connections",
+                               integrations=integrations, unavailable=unavailable,
+                               **build_dashboard_context())
 
     @app.route("/recovery")
     def recovery():

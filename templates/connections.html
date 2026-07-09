@@ -1,457 +1,52 @@
 {% extends "base.html" %}
-{% import "landing/_cards.html" as logos %}
 
-{% block title %}Connections - Royalty Sweep{% endblock %}
-
-{% set cn = conn %}
-{% set sm = cn.summary %}
-
-{% set tone_text = {'green': 'text-green-400', 'amber': 'text-amber-400', 'red': 'text-red-400', 'gold': 'text-amber-300'} %}
-{% set tone_dot = {'green': 'bg-green-500', 'amber': 'bg-amber-500', 'red': 'bg-red-500', 'gold': 'bg-amber-400'} %}
-{% set tone_hex = {'green': '#22c55e', 'amber': '#eab308', 'red': '#ef4444', 'gold': '#f59e0b'} %}
-
-{% macro sparkline(points, color) %}
-{%- set mx = points | max if points | max > 0 else 1 -%}
-<svg viewBox="0 0 90 24" class="h-6 w-24" preserveAspectRatio="none">
-  {%- set pts = [] -%}
-  {%- for v in points -%}{%- set _ = pts.append('%s,%s'|format((loop.index0 / (points|length - 1) * 88 + 1)|round(1), (22 - (v / mx * 18))|round(1))) -%}{%- endfor -%}
-  <polyline points="{{ pts | join(' ') }}" fill="none" stroke="{{ color }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" {{ 'stroke-dasharray="2 2"' | safe if points | max == 0 else '' }}/>
-</svg>
-{% endmacro %}
+{% block title %}Connections - Street Banker{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-[1400px] space-y-5">
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-semibold uppercase tracking-tight">Connections</h1>
-      <p class="mt-1 text-sm text-gray-500">Connect every source. Close every gap. Maximize every dollar.</p>
-    </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <button type="button" id="refresh-all-btn" class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#111113] px-4 py-2 text-sm font-semibold text-gray-200 transition-colors hover:bg-white/5">
-        <svg id="refresh-icon" class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4v4h-4M5 16v-4h4"/><path d="M15 8a6 6 0 00-10-2M5 12a6 6 0 0010 2"/></svg>
-        Refresh All
-      </button>
-      <button type="button" id="add-connection-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"/></svg>
-        Add Connection
-      </button>
-    </div>
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Connections</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Connections</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">The true state of every data source this account runs on — what's live, what's waiting, and what honestly can't connect yet.</p>
   </div>
 
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-    {% set hcolor = '#22c55e' if sm.connection_health >= 75 else ('#eab308' if sm.connection_health >= 50 else '#ef4444') %}
-    <button type="button" class="metric-card flex items-center gap-4 rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25" data-set-status="Action Required">
-      <div class="relative h-16 w-16 shrink-0">
-        <svg viewBox="0 0 100 60" class="h-full w-full">
-          <path d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="#262626" stroke-width="7" stroke-linecap="round"/>
-          <path d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="{{ hcolor }}" stroke-width="7" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="{{ (132 * (1 - sm.connection_health / 100)) | round(1) }}"/>
-        </svg>
-        <div class="absolute inset-x-0 bottom-0 text-center"><div class="text-lg font-bold tabular-nums">{{ sm.connection_health }}</div><div class="text-[8px] text-gray-500">/100</div></div>
-      </div>
-      <div class="min-w-0">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Connection Health</div>
-        <div class="mt-1 text-sm font-semibold text-green-400">{{ sm.connection_health_status }}</div>
-        <div class="mt-0.5 text-[11px] leading-tight text-gray-500">A few gaps may be costing you.</div>
-      </div>
-    </button>
-
-    <button type="button" class="metric-card rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25" data-set-status="Connected">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Connected Sources</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ sm.connected_sources }} <span class="text-base text-gray-500">/ {{ sm.total_sources }}</span></div>
-      <div class="mt-1 text-[11px] text-gray-500">{{ sm.connected_pct }}% of available sources</div>
-      <div class="mt-2 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-green-500" style="width: {{ sm.connected_pct }}%;"></div></div>
-    </button>
-
-    <button type="button" class="metric-card rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25" data-set-status="Connected">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Active Data Flows</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ sm.active_data_flows }}</div>
-      <div class="mt-1 text-[11px] text-gray-500">Sources sending data</div>
-      {{ sparkline([8,14,10,18,12,20,15,22,17,24], '#22c55e') }}
-    </button>
-
-    <a href="/recovery?focus=missing-from-connections" class="metric-card rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Missing Royalties Found</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(sm.missing_royalties_found) }}</div>
-      <div class="mt-1 text-[11px] text-gray-500">From unconnected sources</div>
-    </a>
-
-    <a href="/valuation?source=connections" class="metric-card rounded-2xl border border-white/5 bg-[#111113] p-4 text-left transition-colors hover:border-amber-500/25">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Potential Yearly Value</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">${{ "{:,}".format(sm.potential_yearly_value) }}+</div>
-      <div class="mt-1 text-[11px] text-gray-500">From optimizing connections</div>
-      {{ sparkline([4,6,5,9,8,12,11,16,15,20], '#22c55e') }}
-    </a>
-  </div>
-
-  <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-    <div class="rounded-2xl border border-white/5 bg-[#111113]">
-      <div class="border-b border-white/5 px-4 pt-4">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Connected Sources</h2>
-        <div class="mt-3 flex flex-wrap items-center gap-1">
-          {% for tab in cn.tabs %}
-          {% set tab_count = cn.sources | length if tab == 'All Sources' else (cn.sources | selectattr('category', 'equalto', tab) | list | length) %}
-          <button type="button" class="conn-tab rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if loop.first else 'border-white/10 text-gray-500 hover:text-gray-300' }}" data-tab="{{ tab }}">
-            {{ tab }} <span class="ml-1 text-[10px] text-gray-500">{{ tab_count }}</span>
-          </button>
-          {% endfor %}
-          <div class="ml-auto flex items-center gap-2">
-            <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
-              <svg class="h-3.5 w-3.5 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg>
-              <input id="source-search" type="text" placeholder="Search sources..." class="w-32 bg-transparent text-xs text-gray-100 placeholder:text-gray-600 focus:outline-none">
-            </div>
-            <select id="status-filter" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-300 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-              {% for o in cn.status_options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
-            </select>
+  <!-- Live integrations -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Data sources</h2>
+    <div class="mt-3 divide-y divide-white/5">
+      {% for i in integrations %}
+      <div class="flex flex-wrap items-center gap-3 py-3.5">
+        <span class="relative flex h-2.5 w-2.5 shrink-0">
+          {% if i.on %}<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500/60"></span>{% endif %}
+          <span class="relative inline-flex h-2.5 w-2.5 rounded-full {{ 'bg-green-500' if i.on else 'bg-gray-600' }}"></span>
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <span class="text-sm font-bold">{{ i.name }}</span>
+            <span class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-600">{{ i.kind }}</span>
           </div>
+          <div class="text-xs text-gray-400">{{ i.detail }}</div>
         </div>
+        <span class="rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide {{ 'border-green-500/30 bg-green-500/10 text-green-400' if i.on else 'border-white/15 text-gray-500' }}">{{ 'Connected' if i.on else 'Not connected' }}</span>
+        <a href="{{ i.action[0] }}" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">{{ i.action[1] }} →</a>
       </div>
-
-      <div class="overflow-x-auto px-4 pb-4">
-        <table class="w-full text-left text-sm">
-          <thead>
-            <tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">
-              <th class="py-2 pr-4 font-medium">Source</th>
-              <th class="py-2 pr-4 font-medium">Category</th>
-              <th class="py-2 pr-4 font-medium">Status</th>
-              <th class="py-2 pr-4 font-medium">Last Data Received</th>
-              <th class="py-2 pr-4 font-medium">Data Flow</th>
-              <th class="py-2 pr-4 font-medium"></th>
-              <th class="py-2 text-right font-medium">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in cn.sources %}
-            <tr class="source-row cursor-pointer border-b border-white/5 transition-colors last:border-0 hover:bg-white/5"
-                data-id="{{ s.id }}" data-name="{{ s.name }}" data-category="{{ s.category }}" data-status="{{ s.status }}"
-                data-detail="{{ s.status_detail }}" data-last="{{ s.last_relative }}" data-lastdate="{{ s.last_data or 'Never' }}"
-                data-unit="{{ s.unit }}" data-count="{{ s.count }}" data-amount="{{ '%.2f'|format(s.amount) }}" data-missing="{{ s.missing }}"
-                data-action="{{ s.action.type }}" data-tone="{{ s.tone }}"
-                data-issues="{{ s.issues | tojson | forceescape }}">
-              <td class="py-2.5 pr-4">
-                <div class="flex items-center gap-2.5">
-                  {{ logos.platform_logo(s.logo, 'h-8 w-8') }}
-                  <div class="min-w-0">
-                    <div class="truncate font-semibold text-gray-100">{{ s.name }}</div>
-                    <div class="text-[11px] text-gray-600">{{ s.sublabel }}</div>
-                  </div>
-                </div>
-              </td>
-              <td class="py-2.5 pr-4 text-gray-400">{{ s.category }}</td>
-              <td class="py-2.5 pr-4">
-                <div class="inline-flex items-center gap-1.5 text-xs font-semibold {{ tone_text[s.tone] }}">
-                  <span class="h-1.5 w-1.5 rounded-full {{ tone_dot[s.tone] }}"></span>{{ s.status }}
-                </div>
-                <div class="text-[11px] text-gray-600">{{ s.status_detail }}</div>
-              </td>
-              <td class="py-2.5 pr-4">
-                <div class="text-gray-300">{{ s.last_data or '—' }}</div>
-                <div class="text-[11px] text-gray-600">{{ s.last_relative }}</div>
-              </td>
-              <td class="py-2.5 pr-4">
-                {% if s.count > 0 %}
-                <div class="text-gray-300">{{ "{:,}".format(s.count) }} {{ s.unit }}</div>
-                <div class="text-[11px] font-semibold text-amber-400">${{ "{:,.2f}".format(s.amount) }}</div>
-                {% else %}
-                <div class="text-gray-600">—</div>
-                {% endif %}
-              </td>
-              <td class="py-2.5 pr-4">{{ sparkline(s.sparkline, s.spark_color) }}</td>
-              <td class="py-2.5 text-right">
-                <button type="button" class="source-action rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20" data-action="{{ s.action.type }}">{{ s.action.label }}</button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        <div id="sources-empty" class="hidden py-8 text-center text-xs text-gray-600">No sources match these filters.</div>
-        <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
-          <span>Showing 1 to {{ cn.sources | length }} of {{ sm.total_sources }} sources</span>
-          <div class="flex items-center gap-1">
-            {% for pg in ['‹', '1', '2', '3', '4', '›'] %}
-            <span class="rounded-md border border-white/10 px-2 py-1 {{ 'bg-amber-500/15 text-amber-400' if pg == '1' else 'text-gray-500' }}">{{ pg }}</span>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
+      {% endfor %}
     </div>
+  </section>
 
-    <aside class="space-y-4">
-      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Connection Gaps</h2>
-        <div class="mt-3 flex items-center gap-4">
-          <div class="relative h-24 w-24 shrink-0">
-            <svg viewBox="0 0 42 42" class="h-full w-full -rotate-90">
-              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#262626" stroke-width="5"/>
-              {% set circ = 99.9 %}
-              {% set gtotal = cn.gaps.breakdown | sum(attribute='count') %}
-              {% set offset = [0] %}
-              {% for b in cn.gaps.breakdown %}
-              {% set frac = b.count / gtotal if gtotal else 0 %}
-              <circle cx="21" cy="21" r="15.9" fill="none" stroke="{{ tone_hex[b.tone] }}" stroke-width="5"
-                      stroke-dasharray="{{ (frac * circ)|round(2) }} {{ (circ - frac * circ)|round(2) }}"
-                      stroke-dashoffset="{{ (-offset[0])|round(2) }}"/>
-              {% set _ = offset.__setitem__(0, offset[0] + frac * circ) %}
-              {% endfor %}
-            </svg>
-            <div class="absolute inset-0 flex flex-col items-center justify-center">
-              <div class="text-xl font-bold tabular-nums">{{ cn.gaps.total }}</div>
-              <div class="text-[8px] uppercase tracking-widest text-gray-500">to resolve</div>
-            </div>
-          </div>
-          <div class="min-w-0 flex-1 space-y-1.5">
-            {% for b in cn.gaps.breakdown %}
-            <button type="button" class="gap-row flex w-full items-center gap-2 text-left text-[11px] transition-opacity hover:opacity-80" data-status="{{ b.label }}">
-              <span class="h-2 w-2 shrink-0 rounded-full {{ tone_dot[b.tone] }}"></span>
-              <span class="flex-1 text-gray-400">{{ b.label }}</span>
-              <span class="font-semibold text-gray-200">{{ b.count }}</span>
-            </button>
-            {% endfor %}
-          </div>
-        </div>
-        <button type="button" id="view-all-gaps" class="mt-3 w-full rounded-md border border-amber-500/30 bg-amber-500/10 py-2 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">View All Gaps</button>
-      </section>
+  <!-- Honestly unavailable -->
+  <section class="rounded-2xl border border-white/10 bg-[#0f0e0c] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Not connectable yet — and we won't fake them</h2>
+    <div class="mt-3 space-y-2">
+      {% for name, why in unavailable %}
+      <div class="rounded-lg border border-white/10 bg-black/30 px-4 py-3">
+        <div class="text-xs font-bold text-gray-300">{{ name }}</div>
+        <div class="mt-0.5 text-xs text-gray-500">{{ why }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 
-      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Top Opportunities</h2>
-        <div class="mt-3 space-y-2">
-          {% for o in cn.opportunities %}
-          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 p-2.5">
-            {{ logos.platform_logo(o.logo, 'h-8 w-8') }}
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-xs font-semibold text-gray-100">{{ o.title }}</div>
-              <div class="truncate text-[11px] text-gray-500">{{ o.description }}</div>
-              <div class="text-[11px] font-semibold text-amber-400">Est. Value: ${{ "{:,}".format(o.estimated_value) }}+/yr</div>
-            </div>
-            <button type="button" class="opp-btn shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20"
-                    data-action="{{ o.action_type }}" data-source="{{ o.source }}">{{ o.cta }}</button>
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-
-      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Recent Activity</h2>
-        <div class="mt-3 space-y-1">
-          {% set act_tone = {'success': 'text-green-400', 'warning': 'text-amber-400', 'info': 'text-blue-400'} %}
-          {% for a in cn.recent_activity %}
-          <button type="button" class="activity-row flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5" data-source="{{ a.source }}">
-            <span class="{{ act_tone.get(a.status, 'text-gray-400') }}">
-              {% if a.status == 'success' %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0z" clip-rule="evenodd"/></svg>
-              {% else %}<svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 15v.5"/></svg>{% endif %}
-            </span>
-            <span class="min-w-0 flex-1 truncate text-xs text-gray-200">{{ a.title }}</span>
-            <span class="shrink-0 text-[11px] text-gray-600">{{ a.timestamp }}</span>
-          </button>
-          {% endfor %}
-        </div>
-      </section>
-    </aside>
-  </div>
+  <p class="px-1 text-[11px] text-gray-500">Every "Connected" badge on this page reflects a real, working integration — server credentials, a live public API, or data you've uploaded.</p>
 </div>
-
-<div id="conn-drawer-backdrop" class="fixed inset-0 z-40 hidden bg-black/70"></div>
-<aside id="conn-drawer" class="fixed right-0 top-0 z-50 h-full w-full max-w-md translate-x-full overflow-y-auto border-l border-white/10 bg-[#111113] p-6 transition-transform duration-300">
-  <div class="flex items-start justify-between">
-    <div>
-      <div id="cn-title" class="text-lg font-bold tracking-tight"></div>
-      <div id="cn-subtitle" class="mt-1 text-xs text-gray-500"></div>
-    </div>
-    <button type="button" id="cn-close" class="rounded-md border border-white/10 p-1.5 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
-    </button>
-  </div>
-  <div id="cn-body" class="mt-5 space-y-4"></div>
-</aside>
-
-<div id="conn-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
-  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-[#111113] p-6">
-    <div class="flex items-start justify-between">
-      <h3 id="cm-title" class="text-sm font-semibold tracking-tight"></h3>
-      <button type="button" id="cm-close" class="text-gray-500 hover:text-gray-300">
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
-      </button>
-    </div>
-    <div id="cm-body" class="mt-4"></div>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  const statusFilter = document.getElementById("status-filter");
-  const sourceSearch = document.getElementById("source-search");
-  let activeCategory = "All Sources";
-
-  function applyFilters() {
-    const st = statusFilter.value;
-    const q = (sourceSearch.value || "").trim().toLowerCase();
-    let visible = 0;
-    document.querySelectorAll(".source-row").forEach((row) => {
-      let show = true;
-      if (activeCategory !== "All Sources" && row.dataset.category !== activeCategory) show = false;
-      if (st !== "All Statuses" && row.dataset.status !== st) show = false;
-      if (q) {
-        const hay = (row.dataset.name + " " + row.dataset.category + " " + row.dataset.status).toLowerCase();
-        if (!hay.includes(q)) show = false;
-      }
-      row.classList.toggle("hidden", !show);
-      if (show) visible++;
-    });
-    document.getElementById("sources-empty").classList.toggle("hidden", visible > 0);
-  }
-  statusFilter.addEventListener("change", applyFilters);
-  sourceSearch.addEventListener("input", applyFilters);
-
-  document.querySelectorAll(".conn-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      activeCategory = tab.dataset.tab;
-      document.querySelectorAll(".conn-tab").forEach((t) => {
-        const active = t === tab;
-        t.className = "conn-tab rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors " +
-          (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-500 hover:text-gray-300");
-      });
-      applyFilters();
-    });
-  });
-
-  document.querySelectorAll(".metric-card[data-set-status]").forEach((card) => {
-    card.addEventListener("click", () => { statusFilter.value = card.dataset.setStatus; applyFilters(); });
-  });
-
-  document.querySelectorAll(".gap-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      const label = row.dataset.status;
-      statusFilter.value = (label === "All Good") ? "Connected" : label;
-      applyFilters();
-    });
-  });
-  document.getElementById("view-all-gaps").addEventListener("click", () => {
-    statusFilter.value = "All Statuses";
-    document.querySelectorAll(".source-row").forEach((row) => {
-      row.classList.toggle("hidden", row.dataset.status === "Connected");
-    });
-  });
-
-  const drawer = document.getElementById("conn-drawer");
-  const drawerBackdrop = document.getElementById("conn-drawer-backdrop");
-  function closeDrawer() { drawer.classList.add("translate-x-full"); drawerBackdrop.classList.add("hidden"); }
-  function fact(label, value, cls) {
-    return '<div class="rounded-lg border border-white/5 bg-white/5 p-2.5"><div class="text-[10px] uppercase tracking-widest text-gray-600">' + label + '</div><div class="mt-0.5 text-sm font-semibold ' + (cls || "") + '">' + (value || "—") + "</div></div>";
-  }
-  function openSourceDrawer(row) {
-    const d = row.dataset;
-    document.getElementById("cn-title").textContent = d.name;
-    document.getElementById("cn-subtitle").textContent = d.category + " · " + d.status;
-    let issues = [];
-    try { issues = JSON.parse(d.issues); } catch (e) {}
-    const amount = "$" + Number(d.amount).toLocaleString(undefined, {minimumFractionDigits:2});
-    const missing = "$" + Number(d.missing).toLocaleString(undefined, {minimumFractionDigits:2});
-    const coverage = d.count > 0 ? Number(d.count).toLocaleString() + " " + d.unit : "No data received";
-    let html = '<div class="grid grid-cols-2 gap-2">' + fact("Status", d.status + " · " + d.detail) + fact("Last synced", d.lastdate) +
-      fact("Data coverage", coverage) + fact("Royalties received", amount, "text-amber-400") + "</div>";
-    html += '<div class="rounded-lg border border-red-500/10 bg-red-500/5 p-3"><div class="text-[10px] uppercase tracking-widest text-gray-600">Estimated missing royalties</div><div class="mt-0.5 text-lg font-bold text-red-400">' + missing + "</div></div>";
-    html += '<div><div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Active issues</div><div class="mt-2 space-y-1.5">';
-    if (issues.length === 0) html += '<div class="text-xs text-green-400">No active issues.</div>';
-    issues.forEach((iss) => {
-      html += '<div class="rounded-lg border px-3 py-1.5 text-[11px] ' + (iss.severity === "critical" ? "border-red-500/15 text-red-300" : "border-amber-500/15 text-amber-300") + '">' + iss.title + "</div>";
-    });
-    html += "</div></div>";
-    html += '<div class="grid grid-cols-2 gap-2 pt-1">' +
-      '<button class="refresh-source rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400">Refresh Source</button>' +
-      '<button class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400">Manage Connection</button>' +
-      '<a href="/recovery" class="rounded-md border border-white/10 px-3 py-2 text-center text-xs font-semibold text-gray-200">Fix Gaps</a>' +
-      '<a href="/royalties" class="rounded-md border border-white/10 px-3 py-2 text-center text-xs font-semibold text-gray-200">View Royalties</a></div>';
-    document.getElementById("cn-body").innerHTML = html;
-    drawerBackdrop.classList.remove("hidden");
-    drawer.classList.remove("translate-x-full");
-  }
-  document.getElementById("cn-close").addEventListener("click", closeDrawer);
-  drawerBackdrop.addEventListener("click", closeDrawer);
-
-  const modal = document.getElementById("conn-modal");
-  const cmTitle = document.getElementById("cm-title");
-  const cmBody = document.getElementById("cm-body");
-  function closeModal() { modal.classList.add("hidden"); modal.classList.remove("flex"); }
-  function openModal(html, title) {
-    cmTitle.textContent = title;
-    cmBody.innerHTML = html;
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
-    cmBody.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closeModal));
-  }
-  document.getElementById("cm-close").addEventListener("click", closeModal);
-  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-
-  function modalButtons(primary) {
-    return '<div class="mt-4 flex justify-end gap-2"><button data-close class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:bg-white/5">Cancel</button>' +
-      '<button data-close class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20">' + primary + "</button></div>";
-  }
-
-  function runAction(type, sourceName) {
-    if (type === "review_splits") { window.location.href = "/catalog"; return; }
-    if (type === "add_connection") {
-      openModal('<p class="text-xs text-gray-500">Connect <span class="font-semibold text-gray-200">' + (sourceName || "a new source") + '</span> to start receiving royalty data. You may need to authorize access.</p>' + modalButtons("Connect"), "Add Connection");
-    } else if (type === "fix_gaps") {
-      openModal('<p class="text-xs text-gray-500">Resolve detected gaps for <span class="font-semibold text-gray-200">' + sourceName + '</span>.</p>' +
-        '<div class="mt-3 space-y-1.5 text-xs">' +
-        '<label class="flex items-center gap-2 text-gray-300"><input type="checkbox" checked> Fix unmatched recordings</label>' +
-        '<label class="flex items-center gap-2 text-gray-300"><input type="checkbox"> Register missing works</label>' +
-        '<label class="flex items-center gap-2 text-gray-300"><input type="checkbox"> Review split data</label></div>' + modalButtons("Mark Resolved"), "Fix Gaps");
-    } else if (type === "invite") {
-      openModal('<p class="text-xs text-gray-500">Invite to <span class="font-semibold text-gray-200">' + sourceName + '</span> is pending. Resend or cancel below.</p>' +
-        '<div class="mt-4 flex justify-end gap-2"><button data-close class="rounded-md border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:bg-white/5">Cancel Invite</button>' +
-        '<button data-close class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20">Resend Invite</button></div>', "Invite Source");
-    } else if (type === "reconnect") {
-      openModal('<p class="text-xs text-gray-500"><span class="font-semibold text-gray-200">' + sourceName + '</span> needs to be reconnected — its login has expired or a sync error occurred.</p>' + modalButtons("Reconnect"), "Reconnect Source");
-    }
-  }
-
-  document.querySelectorAll(".source-row").forEach((row) => {
-    row.addEventListener("click", (e) => {
-      const btn = e.target.closest(".source-action");
-      if (btn) { e.stopPropagation();
-        if (btn.dataset.action === "manage") openSourceDrawer(row);
-        else runAction(btn.dataset.action, row.dataset.name);
-      } else {
-        openSourceDrawer(row);
-      }
-    });
-  });
-
-  document.querySelectorAll(".opp-btn").forEach((btn) => {
-    btn.addEventListener("click", () => runAction(btn.dataset.action, btn.dataset.source));
-  });
-
-  document.querySelectorAll(".activity-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      const match = [...document.querySelectorAll(".source-row")].find((r) => r.dataset.name === row.dataset.source);
-      if (match) openSourceDrawer(match);
-    });
-  });
-
-  document.getElementById("add-connection-btn").addEventListener("click", () => runAction("add_connection", null));
-
-  document.getElementById("refresh-all-btn").addEventListener("click", (e) => {
-    const btn = e.currentTarget;
-    const icon = document.getElementById("refresh-icon");
-    btn.disabled = true;
-    icon.classList.add("animate-spin");
-    setTimeout(() => {
-      icon.classList.remove("animate-spin");
-      btn.disabled = false;
-      document.querySelectorAll(".source-row").forEach((row) => {
-        if (row.dataset.status === "Connected") {
-          const rel = row.querySelector("td:nth-child(4) .text-\\[11px\\]");
-          if (rel) rel.textContent = "just now";
-        }
-      });
-    }, 1100);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!drawer.classList.contains("translate-x-full")) closeDrawer();
-    if (!modal.classList.contains("hidden")) closeModal();
-  });
-</script>
 {% endblock %}

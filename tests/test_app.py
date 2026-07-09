@@ -262,46 +262,19 @@ def test_resolve_unknown_alert_returns_404():
     assert response.status_code == 404
 
 
-def test_connections_page_matches_command_center():
+def test_connections_true_status_board(monkeypatch):
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "cid")
+    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "csec")
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("BANDSINTOWN_APP_ID", raising=False)
     client = _demo()
     body = client.get("/connections").get_data(as_text=True)
-    assert "Connect every source. Close every gap. Maximize every dollar." in body
-    assert "Connection Health" in body
-    assert "Connected Sources" in body
-    assert "Missing Royalties Found" in body
-    assert "Potential Yearly Value" in body
-
-
-def test_connections_table_and_intelligence_column():
-    client = _demo()
-    body = client.get("/connections").get_data(as_text=True)
-    assert "Connection Gaps" in body
-    assert "Top Opportunities" in body
-    assert "Recent Activity" in body
-    assert "SoundExchange" in body
-    assert "TikTok SoundOn" in body
-
-
-def test_connections_has_all_tabs_and_controls():
-    client = _demo()
-    body = client.get("/connections").get_data(as_text=True)
-    for tab in ["All Sources", "Audio Streaming", "Performance", "Mechanical", "Distributors"]:
-        assert 'data-tab="{}"'.format(tab) in body
-    assert 'data-tab="YouTube &amp; Social"' in body
-    assert 'id="refresh-all-btn"' in body
-    assert 'id="add-connection-btn"' in body
-    assert 'id="status-filter"' in body
-
-
-def test_connections_data_config_shapes():
-    from connections_config import get_connections_data
-    data = get_connections_data()
-    assert len(data["sources"]) == 8
-    assert data["summary"]["connected_pct"] == 75
-    statuses = {s["status"] for s in data["sources"]}
-    assert {"Connected", "Partial Connection", "Not Connected", "Invite Sent"} <= statuses
-    assert len(data["opportunities"]) == 3
-    assert len(data["recent_activity"]) == 4
+    # Real statuses, not mock health scores.
+    assert "Spotify" in body and "Bandsintown" in body
+    assert "Connected" in body and "Not connected" in body
+    assert "RESEND_API_KEY not set" in body        # honest env truth
+    assert "we won" in body                        # unavailable section header
+    assert "Connection Health" not in body         # old mock gone
 
 
 def test_settings_links_to_connections_page():
@@ -2196,7 +2169,10 @@ def test_release_autopilot_and_clean_release():
 def test_capital_score_and_spend_optimizer_real():
     import io
     app_obj = create_app()
-    client = _demo(app_obj)
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Cap Tester", "email": "cap@example.net",
+                                 "password": "cappass"})
+    client.post("/plan/switch", data={"plan": "pro"})
     csv = ("title,source,amount,period\n"
            "A,Spotify,900,2026-01\n"
            "A,Apple Music,300,2026-02\n"
