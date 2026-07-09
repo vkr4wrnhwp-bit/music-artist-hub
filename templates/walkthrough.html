@@ -17,7 +17,7 @@
       <div id="wt-continue" class="mt-0.5 truncate text-sm font-bold text-[#e8c667]">Step 1</div>
       <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="wt-progress" class="h-full rounded-full bg-[#d8b25a] transition-all" style="width: 0%"></div></div>
     </div>
-    <button onclick="sbStartTour()" class="shrink-0 rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">▶ Start guided tour</button>
+    <button id="wt-start" class="shrink-0 rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">▶ Start guided tour</button>
     <button id="wt-jump" class="shrink-0 rounded-lg border border-[#c9a24a]/50 px-4 py-2.5 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/15">Checklist →</button>
   </div>
   <p class="text-xs text-gray-400">The guided tour puts a guide bar at the bottom of your screen and takes you page to page — it tells you what to do on each screen and waits for you. The checklist below is the same tour in overview form.</p>
@@ -149,6 +149,7 @@
     document.getElementById("wt-reset").addEventListener("click", () => {
       done.clear(); save(); paint(); window.scrollTo({ top: 0, behavior: "smooth" });
     });
+    document.getElementById("wt-start").addEventListener("click", () => window.sbStartTour());
 
     paint();
   })();
