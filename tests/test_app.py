@@ -1745,6 +1745,47 @@ def test_login_page_has_partner_demo_box():
     assert r.status_code == 302 and "/walkthrough" in r.headers["Location"]
 
 
+def test_tier_demo_accounts():
+    app_obj = create_app()
+    # Login page offers all four tier demos.
+    body = app_obj.test_client().get("/login").get_data(as_text=True)
+    for email in ("demo@streetbanker.io", "demo-pro@streetbanker.io",
+                  "demo-artist@streetbanker.io", "demo-fan@streetbanker.io"):
+        assert email in body
+    # Each signs in with the shared password and lands on its tour.
+    for email, landing in (("demo@streetbanker.io", "/walkthrough"),
+                           ("demo-pro@streetbanker.io", "/walkthrough"),
+                           ("demo-artist@streetbanker.io", "/walkthrough"),
+                           ("demo-fan@streetbanker.io", "/discover")):
+        r = app_obj.test_client().post("/login", data={
+            "email": email, "password": "sweep"})
+        assert r.status_code == 302 and r.headers["Location"].endswith(landing)
+    # The tiers actually gate: artist demo hits the paywall on a Pro page.
+    artist = app_obj.test_client()
+    artist.post("/login", data={"email": "demo-artist@streetbanker.io",
+                                "password": "sweep"})
+    assert artist.get("/overview").status_code == 402
+    fan = app_obj.test_client()
+    fan.post("/login", data={"email": "demo-fan@streetbanker.io",
+                             "password": "sweep"})
+    assert fan.get("/links").status_code == 402
+
+
+def test_walkthrough_is_a_guided_tour():
+    app_obj = create_app()
+    artist = app_obj.test_client()
+    artist.post("/login", data={"email": "demo-artist@streetbanker.io",
+                                "password": "sweep"})
+    wt = artist.get("/walkthrough").get_data(as_text=True)
+    # Continue bar, per-step done buttons, and progress machinery.
+    assert "Your progress" in wt and "Continue" in wt
+    assert "Done — next step" in wt and "wt-step-9" in wt
+    assert 'target="_blank"' in wt          # steps never lose your place
+    assert "Pro plan" in wt                 # artist tier sees the gate chips
+    label = _demo(app_obj)
+    assert "Pro plan</span>" not in label.get("/walkthrough").get_data(as_text=True)
+
+
 def test_artist_pulse_live_flow(monkeypatch):
     import spotify_provider as sp
     import music_apis

@@ -43,12 +43,18 @@
 
       <a href="/signup" class="mt-2 block w-full rounded-lg border border-white/10 px-4 py-2.5 text-center text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5">Create a free fan account</a>
 
-      <!-- Partner demo: full Label-plan tour, gated by the demo password -->
+      <!-- Partner demo: one account per tier, gated by the demo password -->
       <form method="post" class="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
-        <input type="hidden" name="email" value="demo@streetbanker.io">
         <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400/80">Partner Demo</div>
-        <p class="mt-1 text-xs text-gray-400">Tour the full app with sample data. Enter the demo password you were given.</p>
-        <div class="mt-2.5 flex gap-2">
+        <p class="mt-1 text-xs text-gray-400">Tour the app with sample data. Pick the plan to see exactly what it includes.</p>
+        <div class="mt-2.5 grid grid-cols-4 gap-1.5 text-center text-[11px] font-bold">
+          {% for value, label in [('demo@streetbanker.io', 'Label'), ('demo-pro@streetbanker.io', 'Pro'), ('demo-artist@streetbanker.io', 'Artist'), ('demo-fan@streetbanker.io', 'Fan')] %}
+          <label class="cursor-pointer rounded-lg border border-white/10 px-1 py-2 text-gray-400 transition-colors has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/15 has-[:checked]:text-amber-400">
+            <input type="radio" name="email" value="{{ value }}" class="sr-only" {{ 'checked' if loop.first }}>{{ label }}
+          </label>
+          {% endfor %}
+        </div>
+        <div class="mt-2 flex gap-2">
           <input type="password" name="password" placeholder="Demo password" autocomplete="off"
                  class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
           <button type="submit" class="shrink-0 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-bold text-amber-400 hover:bg-amber-500/30">View Demo</button>

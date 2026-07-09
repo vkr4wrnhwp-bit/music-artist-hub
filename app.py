@@ -373,20 +373,25 @@ def create_app():
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
 
     store.init_db()
-    # Seed a one-click demo account so partners can tour without signing up.
-    if store.get_user_by_email("demo@streetbanker.io") is None:
-        store.create_user("demo@streetbanker.io", "Synthwave Surfer",
-                          generate_password_hash("sweep"))
-    _demo = store.get_user_by_email("demo@streetbanker.io")
-    if (_demo.get("plan") or "artist") != "label":
-        store.set_user_plan(_demo["id"], "label")  # full-access showcase account
-    # The demo/walkthrough account is password-only. Set DEMO_PASSWORD in the
-    # environment to rotate it (recommended on the live deployment).
-    if os.environ.get("DEMO_PASSWORD"):
-        with store.get_db() as _db:
-            _db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
-                        (generate_password_hash(os.environ["DEMO_PASSWORD"]),
-                         _demo["id"]))
+    # Seed one demo account per tier so partners can tour exactly what each
+    # plan buys. All share the demo password; DEMO_PASSWORD rotates them all.
+    _DEMO_ACCOUNTS = [
+        ("demo@streetbanker.io", "Synthwave Surfer", "label"),
+        ("demo-pro@streetbanker.io", "Synthwave Surfer (Pro)", "pro"),
+        ("demo-artist@streetbanker.io", "Synthwave Surfer (Artist)", "artist"),
+        ("demo-fan@streetbanker.io", "Demo Fan", "fan"),
+    ]
+    for _email, _name, _plan in _DEMO_ACCOUNTS:
+        if store.get_user_by_email(_email) is None:
+            store.create_user(_email, _name, generate_password_hash("sweep"))
+        _acct = store.get_user_by_email(_email)
+        if (_acct.get("plan") or "artist") != _plan:
+            store.set_user_plan(_acct["id"], _plan)
+        if os.environ.get("DEMO_PASSWORD"):
+            with store.get_db() as _db:
+                _db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                            (generate_password_hash(os.environ["DEMO_PASSWORD"]),
+                             _acct["id"]))
 
     def current_user():
         user_id = session.get("user_id")
@@ -426,11 +431,15 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
-                if email == "demo@streetbanker.io":
+                is_demo = (email == "demo@streetbanker.io"
+                           or email.startswith("demo-") and email.endswith("@streetbanker.io"))
+                if (user.get("plan") or "artist") == "fan":
+                    default = "/discover"
+                elif is_demo:
                     # The demo IS the walkthrough — land partners on the tour.
                     default = "/walkthrough"
                 else:
-                    default = "/discover" if (user.get("plan") or "artist") == "fan" else "/command-center"
+                    default = "/command-center"
                 return redirect(request.args.get("next") or default)
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
@@ -2055,6 +2064,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         return render_template("walkthrough.html", active_page="command-center",
+                               user_plan=(user.get("plan") or "artist"),
                                **build_dashboard_context())
 
     @app.route("/walkthrough/sample-statement.csv")
