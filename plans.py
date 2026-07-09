@@ -36,7 +36,8 @@ WORLDS = [
 # are never listed here, so they stay open.
 _ARTIST_PATHS = ("/links", "/rollout-studio", "/artwork", "/command-center",
                  "/actions", "/releases", "/audience", "/playlists", "/stats",
-                 "/insights", "/benchmark", "/pulse", "/qualification", "/artist-profile",
+                 "/insights", "/benchmark", "/pulse", "/metadata-passport",
+                 "/qualification", "/artist-profile",
                  "/vault", "/artist-twin", "/trust-score")
 _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes",
               "/publishing", "/mechanicals", "/neighboring-rights", "/territories",

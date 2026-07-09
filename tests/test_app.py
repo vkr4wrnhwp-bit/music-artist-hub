@@ -2195,10 +2195,32 @@ def test_capital_score_and_spend_optimizer_real():
     assert artist.get("/spend-optimizer").status_code == 402
 
 
+def test_metadata_passport_real():
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "MP Tester", "email": "mp@example.net",
+                                 "password": "mppass"})
+    uid = store_mod.get_user_by_email("mp@example.net")["id"]
+    # Empty state points at the catalog.
+    assert "Add your first track" in client.get("/metadata-passport").get_data(as_text=True)
+    tid = store_mod.add_catalog_track(uid, {"title": "Passport Song",
+                                            "artist": "Art Is War"})
+    store_mod.set_catalog_track_meta(uid, tid, {
+        "isrc": "USX9P2100001", "upc": "0198001", "label": "AIW Records",
+        "release_date": "2026-01-01", "album": "LP1",
+        "writers": ["V. Kaye"], "publishers": []})
+    body = client.get("/metadata-passport").get_data(as_text=True)
+    assert "Catalog Completeness" in body and "Passport Song" in body
+    assert "6/7 fields" in body                       # real completeness math
+    assert "✕ Publishers" in body and "✓ ISRC" in body
+    csv = client.get("/metadata-passport/export.csv").get_data(as_text=True)
+    assert "USX9P2100001" in csv and "V. Kaye" in csv
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
-    routes = ["/fraud-sentinel",
-              "/metadata-passport", "/ai-rights",
+    routes = ["/fraud-sentinel", "/ai-rights",
               "/opportunities", "/voice-of-fan", "/fan-club",
               "/partner-portal", "/royalty-recovery/mlc"]
     for route in routes:

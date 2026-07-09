@@ -92,7 +92,7 @@ MODULES = [
     ("/revenue-os", "Revenue OS", "Real income from statements against tracked spend.", "live", _NOT_FINANCIAL),
     ("/capital-score", "Capital Readiness Score", "Funding readiness built from catalog health and income consistency.", "live", _NOT_FINANCIAL),
     ("/fraud-sentinel", "Fraud Sentinel", "Artificial streaming and shady playlist risk monitoring.", "preview", None),
-    ("/metadata-passport", "Metadata Passport", "DDEX-ready identifiers, credits, and export readiness.", "preview", None),
+    ("/metadata-passport", "Metadata Passport", "Identifier and credit completeness per track, with a clean export.", "live", None),
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
     ("/pulse", "Artist Pulse", "Live Spotify followers, popularity, top tracks, and Deezer fans.", "live", None),
     ("/trust-score", "Trust Score", "One verifiable readiness score for partners, labels, and supervisors.", "live", None),

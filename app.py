@@ -1805,6 +1805,57 @@ def create_app():
                                campaigns=campaigns, c=campaign, checks=checks,
                                score=score, **build_dashboard_context())
 
+    _PASSPORT_FIELDS = [("isrc", "ISRC"), ("upc", "UPC"), ("label", "Label"),
+                        ("release_date", "Release date"), ("album", "Album"),
+                        ("writers", "Songwriters"), ("publishers", "Publishers")]
+
+    def _passport_rows(user_id):
+        rows = []
+        for t in store.get_catalog_tracks(user_id):
+            meta = t.get("meta") or {}
+            fields = [{"key": k, "label": lbl, "ok": bool(meta.get(k)),
+                       "value": (", ".join(meta[k]) if isinstance(meta.get(k), list)
+                                 else (meta.get(k) or ""))}
+                      for k, lbl in _PASSPORT_FIELDS]
+            done = sum(1 for f in fields if f["ok"])
+            rows.append({"track": t, "fields": fields, "done": done,
+                         "total": len(fields),
+                         "pct": round(100 * done / len(fields))})
+        return rows
+
+    @app.route("/metadata-passport")
+    def metadata_passport():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        rows = _passport_rows(user["id"])
+        overall = round(sum(r["pct"] for r in rows) / len(rows)) if rows else 0
+        return render_template("metadata_passport.html", active_page="identifiers",
+                               rows=rows, overall=overall,
+                               field_labels=[lbl for _, lbl in _PASSPORT_FIELDS],
+                               **build_dashboard_context())
+
+    @app.route("/metadata-passport/export.csv")
+    def metadata_passport_export():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import csv as _csv
+        import io as _io
+        buf = _io.StringIO()
+        w = _csv.writer(buf)
+        w.writerow(["title", "artist", "album", "isrc", "upc", "label",
+                    "release_date", "writers", "publishers"])
+        for t in store.get_catalog_tracks(user["id"]):
+            m = t.get("meta") or {}
+            w.writerow([t["title"], t["artist"], m.get("album") or t["album"],
+                        m.get("isrc") or "", m.get("upc") or "",
+                        m.get("label") or "", m.get("release_date") or "",
+                        "; ".join(m.get("writers") or []),
+                        "; ".join(m.get("publishers") or [])])
+        return Response(buf.getvalue(), mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=metadata-passport.csv"})
+
     @app.route("/capital-score")
     def capital_score_page():
         user = current_user()
