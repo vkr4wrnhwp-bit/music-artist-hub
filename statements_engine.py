@@ -25,6 +25,8 @@ _AMOUNT_COLS = {"amount", "revenue", "earnings", "royalty", "royalties", "net",
                 "amount due", "net amount", "earnings (usd)", "royalty amount"}
 _PERIOD_COLS = {"period", "date", "month", "statement period", "sales period",
                 "reporting period", "sale month", "accounting period"}
+_TERRITORY_COLS = {"territory", "country", "region", "market", "country code",
+                   "country of sale", "sales territory"}
 
 
 def _match(headers, aliases):
@@ -70,6 +72,7 @@ def parse_statement(data, filename="statement.csv"):
     col_source = _match(headers, _SOURCE_COLS)
     col_amount = _match(headers, _AMOUNT_COLS)
     col_period = _match(headers, _PERIOD_COLS)
+    col_territory = _match(headers, _TERRITORY_COLS)
     if not col_amount:
         return {"rows": [], "columns": {}, "skipped": 0,
                 "error": "Couldn't find an amount/revenue column. Headers seen: " + ", ".join(headers)}
@@ -85,11 +88,13 @@ def parse_statement(data, filename="statement.csv"):
             "source": ((raw.get(col_source) or "").strip() if col_source else "") or "Unknown source",
             "amount": amount,
             "period": (raw.get(col_period) or "").strip() if col_period else "",
+            "territory": (raw.get(col_territory) or "").strip() if col_territory else "",
         })
 
     return {
         "rows": rows,
-        "columns": {"title": col_title, "source": col_source, "amount": col_amount, "period": col_period},
+        "columns": {"title": col_title, "source": col_source, "amount": col_amount,
+                    "period": col_period, "territory": col_territory},
         "skipped": skipped,
         "error": None if rows else "No usable rows found.",
     }

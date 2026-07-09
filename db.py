@@ -397,6 +397,11 @@ def init_db():
             );
             """
         )
+        # Migration: optional territory column on statement rows.
+        try:
+            db.execute("ALTER TABLE statement_rows ADD COLUMN territory TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: universal-link metadata on smart links.
         try:
             db.execute("ALTER TABLE smart_links ADD COLUMN meta TEXT")
@@ -472,8 +477,9 @@ def save_statement(user_id, filename, rows):
             (statement_id, user_id, filename, _now(), len(rows), total),
         )
         db.executemany(
-            "INSERT INTO statement_rows (statement_id, title, source, amount, period) VALUES (?,?,?,?,?)",
-            [(statement_id, r.get("title"), r.get("source"), r["amount"], r.get("period")) for r in rows],
+            "INSERT INTO statement_rows (statement_id, title, source, amount, period, territory) VALUES (?,?,?,?,?,?)",
+            [(statement_id, r.get("title"), r.get("source"), r["amount"],
+              r.get("period"), r.get("territory") or "") for r in rows],
         )
     return statement_id
 

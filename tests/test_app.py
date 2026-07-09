@@ -716,14 +716,27 @@ def test_links_data_config_shapes():
     assert data["platforms"]
 
 
-def test_publishing_page_includes_compositions():
-    client = _demo()
+def _rtype_client(app_obj, email):
+    import io
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "RT", "email": email, "password": "rtpass1"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    csv = ("title,source,amount,period,territory\n"
+           "Song A,Spotify,500,2026-01,US\n"
+           "Song A,ASCAP,120,2026-01,US\n"
+           "Song B,The MLC,45,2026-02,\n"
+           "Song B,SoundExchange,60,2026-02,GB\n")
+    client.post("/statements", data={"statement": (io.BytesIO(csv.encode()), "rt.csv")},
+                content_type="multipart/form-data")
+    return client
+
+
+def test_publishing_page_real_classification():
+    client = _rtype_client(create_app(), "rt-pub@example.net")
     body = client.get("/publishing").get_data(as_text=True)
-    assert "Publishing Administration" in body
-    assert "Your Compositions" in body
-    assert "Performance Income" in body
-    assert "Registration Gaps" in body
-    assert 'href="/publishing"' in body
+    assert "Performance / Publishing" in body
+    assert "ASCAP" in body and "$120.00" in body
+    assert "Spotify" not in body.split("By source")[1][:600]  # streams stay out
 
 
 def test_publishing_data_config_shapes():
@@ -795,13 +808,11 @@ def test_registration_page_and_complete_step():
     assert data["ok"] and data["wizard"]["status"]["mlc"] is True
 
 
-def test_neighboring_rights_page_content():
-    client = _demo()
+def test_neighboring_rights_page_real():
+    client = _rtype_client(create_app(), "rt-nb@example.net")
     body = client.get("/neighboring-rights").get_data(as_text=True)
     assert "Neighboring Rights" in body
-    assert "SoundExchange" in body
-    assert "Collection Societies" in body
-    assert 'href="/neighboring-rights"' in body
+    assert "SoundExchange" in body and "$60.00" in body
 
 
 def test_neighboring_rights_data_config_shapes():
@@ -838,12 +849,13 @@ def test_sync_data_config_shapes():
     assert data["summary"]["sync_income"] == live
 
 
-def test_territories_page_content():
-    client = _demo()
+def test_territories_page_real():
+    client = _rtype_client(create_app(), "rt-terr@example.net")
     body = client.get("/territories").get_data(as_text=True)
     assert "Territories" in body
-    assert "Earnings by Territory" in body
-    assert 'href="/territories"' in body
+    assert "US" in body and "$620.00" in body      # Spotify + ASCAP both US
+    assert "GB" in body and "$60.00" in body
+    assert "no imputed geography" in body
 
 
 def test_territories_data_config_shapes():
@@ -858,12 +870,18 @@ def test_territories_data_config_shapes():
     assert round(sum(t["uncollected"] for t in data["territories"]), 2) == data["summary"]["uncollected_total"]
 
 
-def test_mechanicals_page_content():
-    client = _demo()
+def test_mechanicals_page_real():
+    client = _rtype_client(create_app(), "rt-mech@example.net")
     body = client.get("/mechanicals").get_data(as_text=True)
-    assert "Mechanical Royalties" in body
-    assert "Black Box" in body
-    assert 'href="/mechanicals"' in body
+    assert "Mechanical" in body
+    assert "The MLC" in body and "$45.00" in body
+    # Empty stream shows honest guidance for a fresh account with no uploads.
+    fresh = create_app().test_client()
+    fresh.post("/signup", data={"name": "F", "email": "rt-fresh@example.net",
+                                "password": "rtpass1"})
+    fresh.post("/plan/switch", data={"plan": "pro"})
+    body = fresh.get("/mechanicals").get_data(as_text=True)
+    assert "that's the finding" in body and "The MLC pays" in body
 
 
 def test_mechanicals_data_config_shapes():

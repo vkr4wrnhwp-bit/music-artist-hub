@@ -63,6 +63,7 @@ import sync_simulator
 import trust_score
 import bandsintown_provider as bandsintown
 import capital_engine
+import royalty_types
 import email_provider as emailer
 import spotify_provider as spotify
 import artist_twin as twin
@@ -2670,17 +2671,21 @@ def create_app():
         link["platform_count"] = len((meta or {}).get("links", {}))
         return jsonify({"ok": True, "link": link})
 
+    def _royalty_type_page(bucket, active):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("royalty_type.html", active_page=active,
+                               rt=royalty_types.type_report(user["id"], bucket),
+                               **build_dashboard_context())
+
     @app.route("/publishing")
     def publishing():
-        ctx = build_dashboard_context()
-        ctx["publishing"] = get_publishing_data()
-        return render_template("publishing.html", active_page="publishing", **ctx)
+        return _royalty_type_page("publishing", "publishing")
 
     @app.route("/neighboring-rights")
     def neighboring_rights():
-        ctx = build_dashboard_context()
-        ctx["neighboring"] = get_neighboring_rights_data()
-        return render_template("neighboring_rights.html", active_page="neighboring", **ctx)
+        return _royalty_type_page("neighboring", "neighboring")
 
     @app.route("/sync")
     def sync():
@@ -2690,15 +2695,16 @@ def create_app():
 
     @app.route("/territories")
     def territories():
-        ctx = build_dashboard_context()
-        ctx["territories"] = get_territories_data()
-        return render_template("territories.html", active_page="territories", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("territories.html", active_page="territories",
+                               tr=royalty_types.territory_report(user["id"]),
+                               **build_dashboard_context())
 
     @app.route("/mechanicals")
     def mechanicals():
-        ctx = build_dashboard_context()
-        ctx["mechanicals"] = get_mechanicals_data()
-        return render_template("mechanicals.html", active_page="mechanicals", **ctx)
+        return _royalty_type_page("mechanical", "mechanicals")
 
     @app.route("/insights")
     def insights():
