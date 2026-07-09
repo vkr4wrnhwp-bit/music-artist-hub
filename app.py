@@ -524,11 +524,28 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 7,
+            "v": 8,
             "var_data_is_real_mount": os.path.ismount("/var/data"),
             "app_token_check": _app_token_check(),
             "search_check": _search_check(),
+            "artist_check": _probe("/artists/3TVXtAsR1Inumwj472S9r4"),
+            "toptracks_check": _probe(
+                "/artists/3TVXtAsR1Inumwj472S9r4/top-tracks?market=US"),
         })
+
+    def _probe(path):
+        """Owner-only: raw API attempt, reporting the exact failure."""
+        try:
+            spotify._api(path, spotify.app_token())
+            return "ok"
+        except Exception as exc:
+            detail = ""
+            if hasattr(exc, "read"):
+                try:
+                    detail = " body=" + exc.read().decode("utf-8", "replace")[:150]
+                except Exception:
+                    pass
+            return "%s: %s%s" % (type(exc).__name__, exc, detail)
 
     def _app_token_check():
         """Owner-only: does the client-credentials grant actually work?

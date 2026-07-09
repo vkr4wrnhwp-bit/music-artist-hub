@@ -183,10 +183,13 @@ def artist_pulse(artist_id):
         if not token:
             return None
         artist = _api("/artists/" + urllib.parse.quote(artist_id), token)
+    except Exception:
+        return None
+    try:
         top = _api("/artists/%s/top-tracks?market=US"
                    % urllib.parse.quote(artist_id), token)
     except Exception:
-        return None
+        top = {}  # top tracks are a bonus, never the whole pulse
     if not artist.get("id"):
         return None
     images = artist.get("images") or []
