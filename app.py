@@ -2,7 +2,7 @@ import math
 import os
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from flask import (Flask, Response, abort, jsonify, redirect, render_template,
                    request, session, url_for)
@@ -3016,7 +3016,43 @@ def create_app():
 
     @app.route("/releases")
     def releases():
-        return render_template("releases.html", active_page="releases", **build_dashboard_context())
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        today = date.today().isoformat()
+        events = []
+        for c in mls.list_campaigns(user["id"]):
+            if c.get("archived_at") or not c.get("release_date"):
+                continue
+            events.append({"date": c["release_date"], "kind": "release",
+                           "title": c["title"],
+                           "detail": "%s release day" % (c.get("release_type") or "single"),
+                           "href": "/links/%s" % c["id"],
+                           "status": c["status"]})
+        for r in ros.list_campaigns(user["id"]):
+            for p in ros.list_posts(r["id"]):
+                if not p.get("scheduled_date"):
+                    continue
+                events.append({"date": p["scheduled_date"], "kind": "post",
+                               "title": "%s post — %s" % (p.get("platform", "").title(),
+                                                          r["title"]),
+                               "detail": (p.get("caption") or "")[:90],
+                               "href": "/rollout-studio/%s" % r["id"],
+                               "status": p["status"]})
+        events.sort(key=lambda e: e["date"])
+        upcoming = [e for e in events if e["date"] >= today]
+        past = [e for e in events if e["date"] < today][-15:]
+        # Group upcoming by month for the calendar rail.
+        months = []
+        for e in upcoming:
+            label = e["date"][:7]
+            if not months or months[-1]["month"] != label:
+                months.append({"month": label, "events": []})
+            months[-1]["events"].append(e)
+        return render_template("releases.html", active_page="releases",
+                               months=months, past=past,
+                               total_upcoming=len(upcoming),
+                               **build_dashboard_context())
 
     @app.route("/registration")
     def registration():

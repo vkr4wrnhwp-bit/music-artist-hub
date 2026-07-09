@@ -770,10 +770,18 @@ def test_conflicts_page_content():
     assert "Rights Conflict Center" in body
 
 
-def test_releases_page_content():
-    body = _demo().get("/releases").get_data(as_text=True)
+def test_releases_real_calendar():
+    import links_store as mls
+    app_obj = create_app()
+    client = _demo(app_obj)
+    client.post("/links/new", data={"title": "Calendar Drop",
+                                    "release_date": "2031-03-15",
+                                    "dest_spotify": "https://open.spotify.com/track/x"})
+    body = client.get("/releases").get_data(as_text=True)
     assert "Release Scheduler" in body
-    assert "Readiness Checklist" in body
+    assert "2031-03" in body and "Calendar Drop" in body   # real campaign date
+    assert "release day" in body
+    assert "Readiness Checklist" not in body               # old mock gone
 
 
 def test_registration_page_and_complete_step():
