@@ -1778,10 +1778,14 @@ def test_walkthrough_is_a_guided_tour():
                                 "password": "sweep"})
     wt = artist.get("/walkthrough").get_data(as_text=True)
     # Continue bar, per-step done buttons, and progress machinery.
-    assert "Your progress" in wt and "Continue" in wt
+    assert "Your progress" in wt and "Checklist" in wt
     assert "Done — next step" in wt and "wt-step-9" in wt
     assert 'target="_blank"' in wt          # steps never lose your place
     assert "Pro plan" in wt                 # artist tier sees the gate chips
+    # In-app guided tour: launcher on the walkthrough, guide bar on every page.
+    assert "Start guided tour" in wt and "sbStartTour" in wt
+    links = artist.get("/links").get_data(as_text=True)
+    assert 'id="tour-bar"' in links and 'data-plan="artist"' in links
     label = _demo(app_obj)
     assert "Pro plan</span>" not in label.get("/walkthrough").get_data(as_text=True)
 

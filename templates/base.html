@@ -590,6 +590,106 @@
     }
   </script>
 
+  <!-- Guided tour bar: follows the user page-to-page while the tour is active -->
+  <div id="tour-bar" class="fixed inset-x-0 bottom-0 z-50 hidden border-t border-[#c9a24a]/50 bg-[#14100a]/95 px-4 py-3 backdrop-blur" data-plan="{{ user_plan or account.plan or 'label' }}">
+    <div class="mx-auto flex max-w-[1100px] flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="min-w-0 flex-1">
+        <div id="tour-step-label" class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#c9a24a]"></div>
+        <div id="tour-title" class="text-sm font-bold text-gray-100"></div>
+        <div id="tour-tip" class="mt-0.5 text-xs leading-snug text-gray-400"></div>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <button id="tour-back" class="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-400 hover:bg-white/10">← Back</button>
+        <a id="tour-go" class="hidden rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">Take me there →</a>
+        <button id="tour-next" class="hidden rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">Done — next →</button>
+        <button id="tour-exit" class="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-400 hover:bg-white/10" title="Exit tour">✕</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const KEY = "sb-tour";
+      const plan = document.getElementById("tour-bar").dataset.plan;
+      const proOK = plan === "pro" || plan === "label";
+      const ALL = [
+        { path: "/statements", tier: "pro", title: "Find the money",
+          tip: 'Download the <a href="/walkthrough/sample-statement.csv" class="font-bold text-[#e8c667] underline">sample statement</a>, then upload it on this page. The engine reads every line.' },
+        { path: "/recovery", tier: "pro", title: "See the findings",
+          tip: "The engine found $85.77 of unmatched revenue and coverage gaps in that file — each finding has an Open Case button." },
+        { path: "/royalty-recovery/cases", tier: "pro", title: "Work a case",
+          tip: "Open a case, mark it Submitted, then Won with a payout amount. The Recovered total climbs in real time." },
+        { path: "/notifications", tier: "pro", title: "The win lands here",
+          tip: "Every payout, pre-save, and fan capture posts a notification. This is your pulse feed." },
+        { path: "/links/new", tier: "artist", title: "Build a release",
+          tip: "Paste any Spotify track URL into Auto-Scan — it fills every platform, the title, and cover art. Set a future release date, enable fan capture, hit Publish." },
+        { path: "/links", tier: "artist", title: "Your campaign is live",
+          tip: "Open your campaign and visit its public page — countdown, pre-save, tracked buttons. Try subscribing with a test email." },
+        { path: "/links/fans", tier: "artist", title: "You own the fan data",
+          tip: "The email you captured is here with a consent log and an intent score. No platform owns this list — you do." },
+        { path: "/rollout-studio/new", tier: "artist", title: "Generate the rollout",
+          tip: "Connect your campaign, paste lyrics, pick platforms, hit Generate — dated posts across the release arc, each with its own tracked link." },
+        { path: "/deal-room", tier: "pro", title: "Paperwork behind it",
+          tip: "Generate a split agreement — a signable document lands in your vault and a deal appears on the board." },
+        { path: "/trust-score", tier: "pro", title: "Prove you're partner-ready",
+          tip: "Every factor here is verifiable account state. Signing that split agreement just moved it." },
+        { path: "/sync/clearance-packs", tier: "pro", title: "Pitch it for sync",
+          tip: "Create a clearance pack — the private link is exactly what a music supervisor sees." },
+        { path: "/revenue-os", tier: "pro", title: "Check the business",
+          tip: "Statement income against logged spend, per release. This is the honest P&L." },
+        { path: "/command-center", tier: "artist", title: "Run it from one screen",
+          tip: "Every score, alert, and open action with a fix-now link. You've now touched every core system — this is home." },
+      ];
+      const steps = ALL.filter((s) => s.tier === "artist" || proOK);
+
+      function state() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
+      window.sbStartTour = function () {
+        localStorage.setItem(KEY, JSON.stringify({ i: 0 }));
+        window.location.href = steps[0].path;
+      };
+
+      const st = state();
+      if (!st || typeof st.i !== "number") return;
+      const i = Math.min(st.i, steps.length - 1);
+      const step = steps[i];
+      const bar = document.getElementById("tour-bar");
+      bar.classList.remove("hidden");
+      document.body.style.paddingBottom = "96px";
+      document.getElementById("tour-step-label").textContent = "Guided tour · Step " + (i + 1) + " of " + steps.length;
+      document.getElementById("tour-title").textContent = step.title;
+      document.getElementById("tour-tip").innerHTML = step.tip;
+      const here = window.location.pathname === step.path;
+      const go = document.getElementById("tour-go");
+      const next = document.getElementById("tour-next");
+      if (here) {
+        next.classList.remove("hidden");
+        if (i === steps.length - 1) next.textContent = "Finish tour ✓";
+      } else {
+        go.classList.remove("hidden");
+        go.href = step.path;
+      }
+      next.addEventListener("click", () => {
+        if (i >= steps.length - 1) {
+          localStorage.removeItem(KEY);
+          window.location.href = "/walkthrough";
+        } else {
+          localStorage.setItem(KEY, JSON.stringify({ i: i + 1 }));
+          window.location.href = steps[i + 1].path;
+        }
+      });
+      document.getElementById("tour-back").addEventListener("click", () => {
+        if (i > 0) {
+          localStorage.setItem(KEY, JSON.stringify({ i: i - 1 }));
+          window.location.href = steps[i - 1].path;
+        }
+      });
+      document.getElementById("tour-exit").addEventListener("click", () => {
+        localStorage.removeItem(KEY);
+        bar.classList.add("hidden");
+        document.body.style.paddingBottom = "";
+      });
+    })();
+  </script>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>
