@@ -1739,10 +1739,10 @@ def test_login_page_has_partner_demo_box():
     assert "Partner Demo" in body
     assert 'value="demo@streetbanker.io"' in body
     assert "Demo password" in body
-    # And the flow it drives actually signs in.
+    # And the flow it drives signs in and lands on the guided tour.
     r = client.post("/login", data={"email": "demo@streetbanker.io",
                                     "password": "sweep"})
-    assert r.status_code == 302 and "/command-center" in r.headers["Location"]
+    assert r.status_code == 302 and "/walkthrough" in r.headers["Location"]
 
 
 def test_artist_pulse_live_flow(monkeypatch):

@@ -425,7 +425,11 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
-                default = "/discover" if (user.get("plan") or "artist") == "fan" else "/command-center"
+                if email == "demo@streetbanker.io":
+                    # The demo IS the walkthrough — land partners on the tour.
+                    default = "/walkthrough"
+                else:
+                    default = "/discover" if (user.get("plan") or "artist") == "fan" else "/command-center"
                 return redirect(request.args.get("next") or default)
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
