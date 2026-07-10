@@ -2253,6 +2253,59 @@ def test_metadata_passport_real():
     assert "USX9P2100001" in csv and "V. Kaye" in csv
 
 
+def test_statement_dropbox_webhook(monkeypatch):
+    import base64
+    import hashlib
+    import hmac
+    import json
+    import db as store_mod
+    import email_provider as emailer
+    secret_raw = base64.b64encode(b"hooksecret").decode()
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    monkeypatch.setenv("RESEND_WEBHOOK_SECRET", "whsec_" + secret_raw)
+    monkeypatch.setenv("RESEND_INBOUND_DOMAIN", "inbound-t.resend.app")
+    monkeypatch.setattr(emailer, "list_received_attachments", lambda email_id: [
+        {"filename": "sym.csv", "content_type": "text/csv",
+         "download_url": "https://cdn/a1"}])
+    csv = b"title,source,amount,period\nDrop Song,Spotify,321.00,2026-05\n"
+    monkeypatch.setattr(emailer, "download_attachment", lambda url: csv)
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Box", "email": "box@example.net",
+                                 "password": "boxpass"})
+    client.post("/plan/switch", data={"plan": "pro"})
+    body = client.get("/statements").get_data(as_text=True)
+    assert "Your statement drop-box" in body
+    token = body.split("@inbound-t.resend.app")[0].split(">")[-1]
+
+    def sign(payload):
+        signed = "m1.1700000000." + payload
+        sig = base64.b64encode(hmac.new(base64.b64decode(secret_raw),
+                                        signed.encode(), hashlib.sha256).digest()).decode()
+        return {"svix-id": "m1", "svix-timestamp": "1700000000",
+                "svix-signature": "v1," + sig}
+
+    anon = app_obj.test_client()
+    payload = json.dumps({"type": "email.received", "data": {
+        "email_id": "em1", "to": ["%s@inbound-t.resend.app" % token]}})
+    # Forged signatures never ingest.
+    assert anon.post("/webhooks/resend", data=payload, headers={
+        "svix-id": "m1", "svix-timestamp": "1700000000",
+        "svix-signature": "v1,forged"}, content_type="application/json").status_code == 401
+    # Signed webhook lands the CSV in the right account.
+    out = anon.post("/webhooks/resend", data=payload, headers=sign(payload),
+                    content_type="application/json").get_json()
+    assert out["ok"] and out["ingested"] == 1
+    uid = store_mod.get_user_by_email("box@example.net")["id"]
+    assert any(r["title"] == "Drop Song" and r["amount"] == 321.0
+               for r in store_mod.get_statement_rows(uid))
+    # Unknown recipient is ignored, never guessed.
+    p2 = json.dumps({"type": "email.received", "data": {
+        "email_id": "em2", "to": ["stranger@inbound-t.resend.app"]}})
+    assert anon.post("/webhooks/resend", data=p2, headers=sign(p2),
+                     content_type="application/json").get_json()["ignored"]
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
     routes = ["/fraud-sentinel", "/ai-rights",

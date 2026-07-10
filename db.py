@@ -104,6 +104,11 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ingest_tokens (
+                user_id TEXT PRIMARY KEY,
+                token TEXT UNIQUE NOT NULL,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS disputes (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -719,6 +724,27 @@ def list_pulse_snapshots(user_id, limit=90):
             "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
             (user_id, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+# --- Statement drop-box tokens ------------------------------------------------------
+
+def get_or_create_ingest_token(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT token FROM ingest_tokens WHERE user_id = ?",
+                         (user_id,)).fetchone()
+        if row:
+            return row["token"]
+        token = "sb-" + uuid.uuid4().hex[:16]
+        db.execute("INSERT INTO ingest_tokens (user_id, token, created) VALUES (?,?,?)",
+                   (user_id, token, _now()))
+    return token
+
+
+def user_by_ingest_token(token):
+    with get_db() as db:
+        row = db.execute("SELECT user_id FROM ingest_tokens WHERE token = ?",
+                         ((token or "").lower().strip(),)).fetchone()
+    return row["user_id"] if row else None
 
 
 # --- Disputes ----------------------------------------------------------------------

@@ -23,6 +23,16 @@
              class="text-xs text-gray-400 file:mr-3 file:rounded-md file:border file:border-amber-500/30 file:bg-amber-500/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-amber-400 hover:file:bg-amber-500/20 file:border-solid file:cursor-pointer">
       <button type="submit" class="rounded-md border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/25">Upload &amp; Analyze</button>
     </form>
+    {% if drop_box %}
+    <div class="mt-4 rounded-xl border border-[#c9a24a]/30 bg-[#c9a24a]/[0.06] p-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Your statement drop-box</div>
+      <p class="mt-1 text-xs text-gray-400">Forward statement emails (or set an auto-forward rule for your distributor's emails) to this address — CSV attachments parse into your account automatically:</p>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <code id="drop-box-addr" class="rounded-lg bg-black/40 px-3 py-2 text-xs font-bold text-[#e8c667]">{{ drop_box }}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('drop-box-addr').textContent); this.textContent='Copied ✓'; setTimeout(() => this.textContent='Copy', 1500);" class="rounded-lg border border-white/15 px-3 py-2 text-[11px] font-bold text-gray-300 hover:bg-white/10">Copy</button>
+      </div>
+    </div>
+    {% endif %}
     {% if uploads %}
     <div class="mt-4 flex flex-wrap gap-2">
       {% for u in uploads %}

@@ -447,6 +447,54 @@ def create_app():
             error = "Incorrect email or password."
         return render_template("login.html", error=error)
 
+    @app.route("/webhooks/resend", methods=["POST"])
+    def resend_webhook():
+        """Statement drop-box: Resend inbound email -> parsed statements.
+        Env-gated; every request is signature-verified."""
+        if not emailer.inbound_configured():
+            abort(404)
+        body = request.get_data()
+        if not emailer.verify_webhook(request.headers, body):
+            return jsonify({"ok": False, "error": "bad signature"}), 401
+        event = request.get_json(silent=True) or {}
+        if event.get("type") != "email.received":
+            return jsonify({"ok": True, "ignored": True})
+        data = event.get("data") or {}
+        # The recipient's local part is the account's ingest token.
+        user_id = None
+        for rcpt in (data.get("to") or []):
+            token = str(rcpt).split("@")[0].lower().strip()
+            user_id = store.user_by_ingest_token(token)
+            if user_id:
+                break
+        if user_id is None:
+            return jsonify({"ok": True, "ignored": True})
+        ingested, errors = 0, []
+        try:
+            attachments = emailer.list_received_attachments(data.get("email_id")
+                                                            or data.get("id") or "")
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 502
+        for att in attachments:
+            name = att.get("filename") or "statement.csv"
+            if not (name.lower().endswith(".csv")
+                    or "csv" in (att.get("content_type") or "")):
+                continue
+            try:
+                content = emailer.download_attachment(att.get("download_url") or "")
+            except Exception:
+                errors.append(name)
+                continue
+            err = _ingest_statement(user_id, name, content, via="email")
+            if err:
+                errors.append("%s: %s" % (name, err))
+            else:
+                ingested += 1
+        if errors and not ingested:
+            store.notify(user_id, "statement", "Emailed statement failed to parse",
+                         "; ".join(errors)[:300], "/statements")
+        return jsonify({"ok": True, "ingested": ingested, "errors": errors})
+
     def _reset_serializer():
         from itsdangerous import URLSafeTimedSerializer
         return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="pw-reset")
@@ -540,6 +588,27 @@ def create_app():
 
     # --- Statements: real CSV ingestion + recovery findings -------------------
 
+    def _ingest_statement(user_id, filename, data, via=""):
+        """Parse + save + notify. Returns an error string or None."""
+        parsed = parse_statement(data, filename)
+        if parsed["error"]:
+            return parsed["error"]
+        store.save_statement(user_id, filename, parsed["rows"])
+        finding = analyze_statement(parsed["rows"])
+        tag = (" (via email drop-box)" if via == "email" else "")
+        if finding and (finding["unmatched_revenue"] or finding["coverage_gaps"]):
+            store.notify(user_id, "recovery",
+                         "Recovery findings in %s%s" % (filename, tag),
+                         "$%.2f unmatched revenue and %d coverage gap(s) detected."
+                         % (finding["unmatched_revenue"], len(finding["coverage_gaps"])),
+                         "/recovery")
+        else:
+            store.notify(user_id, "statement",
+                         "Statement processed: %s%s" % (filename, tag),
+                         "%d rows parsed, no recovery flags." % len(parsed["rows"]),
+                         "/statements")
+        return None
+
     @app.route("/statements", methods=["GET", "POST"])
     def statements():
         user = current_user()
@@ -551,27 +620,15 @@ def create_app():
             if f is None or not f.filename:
                 error = "Choose a CSV file to upload."
             else:
-                parsed = parse_statement(f.read(), f.filename)
-                if parsed["error"]:
-                    error = parsed["error"]
-                else:
-                    store.save_statement(user["id"], f.filename, parsed["rows"])
-                    finding = analyze_statement(parsed["rows"])
-                    if finding and (finding["unmatched_revenue"] or finding["coverage_gaps"]):
-                        store.notify(user["id"], "recovery",
-                                     "Recovery findings in %s" % f.filename,
-                                     "$%.2f unmatched revenue and %d coverage gap(s) detected."
-                                     % (finding["unmatched_revenue"], len(finding["coverage_gaps"])),
-                                     "/recovery")
-                    else:
-                        store.notify(user["id"], "statement",
-                                     "Statement processed: %s" % f.filename,
-                                     "%d rows parsed, no recovery flags." % len(parsed["rows"]),
-                                     "/statements")
+                error = _ingest_statement(user["id"], f.filename, f.read())
+                if error is None:
                     return redirect(url_for("statements"))
         ctx = build_dashboard_context()
         ctx["user"] = user
         ctx["error"] = error
+        ctx["drop_box"] = (emailer.inbound_address(
+            store.get_or_create_ingest_token(user["id"]))
+            if emailer.inbound_configured() else None)
         ctx["uploads"] = store.get_statements(user["id"])
         rows = store.get_statement_rows(user["id"])
         ctx["analysis"] = analyze_statement(
@@ -1645,7 +1702,7 @@ def create_app():
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
-                        "/team/join/")
+                        "/team/join/", "/webhooks/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy"}
 
