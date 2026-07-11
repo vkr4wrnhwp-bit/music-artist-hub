@@ -63,14 +63,18 @@
     const box = document.getElementById("invite-result");
     box.classList.remove("hidden");
     if (data.ok) {
-      box.className = "mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-xs text-green-400";
       if (data.emailed) {
-        box.textContent = "Invite emailed. They'll appear on the roster when they accept.";
-        setTimeout(() => window.location.reload(), 1800);
+        box.className = "mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-xs text-green-400";
+        box.innerHTML = 'Invite emailed \u2713 &nbsp;Backup link in case it does not arrive: <span class="break-all font-mono text-gray-300">' + data.link + "</span>";
       } else {
-        box.innerHTML = 'Invite created — email isn\'t enabled, so send them this link: <span class="break-all font-mono text-gray-300">' + data.link + "</span>";
-        setTimeout(() => window.location.reload(), 9000);
+        box.className = "mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400";
+        box.innerHTML = '<span class="font-bold">The email could not be delivered</span> \u2014 the email service only sends to your own address until a domain is verified in Resend. The invite still works: copy this link and send it to them yourself.<div class="mt-2 flex items-center gap-2"><span class="break-all rounded bg-black/40 px-2 py-1 font-mono text-gray-300">' + data.link + '</span><button type="button" id="invite-copy" class="shrink-0 rounded border border-white/20 px-2 py-1 font-bold text-gray-300 hover:bg-white/10">Copy</button></div>';
+        document.getElementById("invite-copy").addEventListener("click", (ev) => {
+          navigator.clipboard.writeText(data.link);
+          ev.target.textContent = "Copied \u2713";
+        });
       }
+      e.target.reset();
     } else {
       box.className = "mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400";
       box.textContent = data.error || "Could not send the invite.";
