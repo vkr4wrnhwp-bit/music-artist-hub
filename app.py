@@ -609,6 +609,28 @@ def create_app():
                          "/statements")
         return None
 
+    @app.route("/statements/dropbox-test", methods=["POST"])
+    def dropbox_test():
+        """Round-trip self-test: email a sample CSV to your own drop-box.
+        It comes back through Resend's webhook like any distributor email."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if not emailer.inbound_configured():
+            return jsonify({"ok": False, "error": "Drop-box not configured."}), 400
+        import base64 as _b64
+        addr = emailer.inbound_address(store.get_or_create_ingest_token(user["id"]))
+        csv = ("title,source,amount,period,territory\n"
+               "Drop-box Test,Street Banker Self-Test,0.01,%s,US\n"
+               % date.today().strftime("%Y-%m"))
+        sent = emailer.send(addr, "Street Banker drop-box self-test",
+                            "<p>Sample statement attached — this email should "
+                            "round-trip into your Statements automatically.</p>",
+                            attachments=[{"filename": "dropbox-test.csv",
+                                          "content": _b64.b64encode(csv.encode()).decode()}])
+        return jsonify({"ok": sent, "address": addr,
+                        "error": None if sent else "Resend did not accept the email."})
+
     @app.route("/statements", methods=["GET", "POST"])
     def statements():
         user = current_user()

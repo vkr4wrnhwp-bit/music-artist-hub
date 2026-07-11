@@ -30,7 +30,26 @@
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <code id="drop-box-addr" class="rounded-lg bg-black/40 px-3 py-2 text-xs font-bold text-[#e8c667]">{{ drop_box }}</code>
         <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('drop-box-addr').textContent); this.textContent='Copied ✓'; setTimeout(() => this.textContent='Copy', 1500);" class="rounded-lg border border-white/15 px-3 py-2 text-[11px] font-bold text-gray-300 hover:bg-white/10">Copy</button>
+        <button type="button" id="dropbox-test-btn" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-2 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Send test statement</button>
       </div>
+      <p id="dropbox-test-msg" class="mt-2 hidden text-[11px]"></p>
+      <script>
+        document.getElementById("dropbox-test-btn").addEventListener("click", async (e) => {
+          e.target.disabled = true;
+          const msg = document.getElementById("dropbox-test-msg");
+          const res = await fetch("/statements/dropbox-test", { method: "POST" });
+          const data = await res.json();
+          msg.classList.remove("hidden");
+          if (data.ok) {
+            msg.className = "mt-2 text-[11px] text-green-400";
+            msg.textContent = "Test statement emailed to your drop-box — it should appear under uploads within a minute. Refresh to check.";
+          } else {
+            msg.className = "mt-2 text-[11px] text-red-400";
+            msg.textContent = data.error || "Could not send.";
+            e.target.disabled = false;
+          }
+        });
+      </script>
     </div>
     {% endif %}
     {% if uploads %}

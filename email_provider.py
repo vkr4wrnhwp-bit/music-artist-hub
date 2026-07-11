@@ -33,14 +33,16 @@ def _http(url, payload, headers):
         return json.loads(body.decode("utf-8")) if body else {}
 
 
-def send(to, subject, html):
-    """One email. True only when Resend accepted it."""
+def send(to, subject, html, attachments=None):
+    """One email (optional attachments: [{filename, content-b64}]).
+    True only when Resend accepted it."""
     if not configured() or not to:
         return False
+    payload = {"from": sender(), "to": [to], "subject": subject, "html": html}
+    if attachments:
+        payload["attachments"] = attachments
     try:
-        out = _http("https://api.resend.com/emails", {
-            "from": sender(), "to": [to], "subject": subject, "html": html,
-        }, {
+        out = _http("https://api.resend.com/emails", payload, {
             "Authorization": "Bearer " + os.environ["RESEND_API_KEY"],
             "Content-Type": "application/json",
         })
