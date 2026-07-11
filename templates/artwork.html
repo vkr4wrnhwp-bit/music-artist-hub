@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Cover Art - Royalty Sweep{% endblock %}
+{% block title %}Cover Studio - Street Banker{% endblock %}
 
 {% set aw = artwork %}
 
@@ -11,42 +11,94 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?{% for g in gfonts %}family={{ g }}&{% endfor %}display=swap">
 {% endif %}
-<div class="mx-auto max-w-[1400px] space-y-5">
-  <div class="flex flex-wrap items-end justify-between gap-4">
+<style>
+  .bebas { font-family: 'Bebas Neue', 'Arial Narrow', sans-serif; letter-spacing: .1em; }
+  /* Workflow plates: the rail is a real sequence — art, then type, then canvas. */
+  .plate { display: flex; align-items: baseline; gap: .75rem; }
+  .plate .no { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; line-height: 1; color: #C9A24A; }
+  .plate .nm { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: .18em; color: #EFE9DC; }
+  .plate .rule { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(201,162,74,.45), rgba(201,162,74,.05)); }
+  /* One slider language everywhere. */
+  .studio input[type="range"] { -webkit-appearance: none; appearance: none; height: 2px; border-radius: 2px;
+    background: rgba(239,233,220,.14); outline: none; }
+  .studio input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 3px; background: #EAC97C; border: 1px solid #7c6220;
+    cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  .studio input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid #EAC97C; outline-offset: 2px; }
+  .studio input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 3px;
+    background: #EAC97C; border: 1px solid #7c6220; cursor: pointer; }
+  .studio input[type="range"]::-moz-range-track { height: 2px; background: rgba(239,233,220,.14); }
+  /* Registration marks: the brand brackets doing print-proof duty. */
+  .proof { position: relative; padding: 18px; }
+  .proof .mark { position: absolute; width: 22px; height: 22px; border: 0 solid #EFE9DC; opacity: .85; }
+  .proof .tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; }
+  .proof .tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; }
+  .proof .bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; }
+  .proof .br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; }
+  .slug { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 10px;
+    letter-spacing: .12em; color: rgba(239,233,220,.45); }
+  .bench { background: radial-gradient(120% 90% at 50% 0%, #16130d 0%, #0c0b09 65%); }
+  @media (prefers-reduced-motion: no-preference) {
+    .proof svg, .proof img { transition: opacity .2s ease; }
+  }
+</style>
+
+<div class="studio mx-auto max-w-[1400px]">
+  <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold uppercase tracking-tight">Cover Art</h1>
-      <p class="mt-1 text-sm text-gray-500">Generate or upload art, place your type, ship the cover.</p>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#C9A24A]">Street Banker · Promote</div>
+      <h1 class="bebas mt-1 text-4xl text-[#EFE9DC]">Cover Studio</h1>
     </div>
-    <div class="flex flex-wrap gap-2">
-      <button type="button" id="save-cover-btn" class="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm font-semibold text-green-400 transition-colors hover:bg-green-500/20">Save Cover to Uploads</button>
-      <button type="button" id="download-svg-btn" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5">Download SVG</button>
-      <button type="button" id="download-png-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Download PNG</button>
-    </div>
+    <p class="max-w-xs text-right text-xs leading-relaxed text-gray-500">Art, then type, then ship. Everything you save lands in your uploads, ready for campaigns and the press kit.</p>
   </div>
-  <p id="cover-save-msg" class="hidden break-all text-[11px]"></p>
 
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-    <!-- Live preview -->
-    <div class="flex items-center justify-center rounded-2xl border border-white/5 bg-[#0e0e10] p-6">
-      <div id="cover-frame" class="w-full max-w-[520px]"></div>
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+
+    <!-- ============ The proofing bench (sticky) ============ -->
+    <div class="lg:sticky lg:top-4 lg:self-start">
+      <div class="bench rounded-2xl border border-[#C9A24A]/20 p-6 sm:p-10">
+        <div class="proof mx-auto w-full max-w-[560px]">
+          <span class="mark tl"></span><span class="mark tr"></span><span class="mark bl"></span><span class="mark br"></span>
+          <div id="cover-frame" class="w-full shadow-[0_30px_80px_rgba(0,0,0,0.7)]"></div>
+        </div>
+        <!-- Print slug: what this proof actually is -->
+        <div class="slug mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center uppercase">
+          <span id="slug-dims">1000 × 1000</span><span class="text-[#C9A24A]">·</span>
+          <span id="slug-font">Grotesk</span><span class="text-[#C9A24A]">·</span>
+          <span id="slug-src">gradient background</span><span class="text-[#C9A24A]">·</span>
+          <span>fonts embed on export</span>
+        </div>
+      </div>
+
+      <!-- Ship it -->
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" id="save-cover-btn" class="flex-1 rounded-xl bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-5 py-3 text-sm font-black uppercase tracking-wide text-[#1c1302] transition-transform hover:scale-[1.01] sm:flex-none">Save cover to uploads</button>
+        <button type="button" id="download-png-btn" class="rounded-xl border border-[#C9A24A]/40 px-4 py-3 text-xs font-bold text-[#EAC97C] hover:bg-[#C9A24A]/10">PNG</button>
+        <button type="button" id="download-svg-btn" class="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5">SVG</button>
+      </div>
+      <p id="cover-save-msg" class="mt-2 hidden break-all text-[11px]"></p>
     </div>
 
-    <!-- Controls -->
-    <div class="space-y-5">
-      <section class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">AI Artwork</h2>
-        <p class="mt-1 text-sm text-gray-500">Describe the cover — a real image generates, plus a matching palette for the template designer.</p>
+    <!-- ============ The workflow rail ============ -->
+    <div class="space-y-6">
+
+      <!-- 01 · ART -->
+      <section class="rounded-2xl border border-[#C9A24A]/15 bg-[#14120E] p-5">
+        <div class="plate"><span class="no">01</span><span class="nm">Art</span><span class="rule"></span></div>
+
+        <p class="mt-3 text-xs text-gray-500">AI Artwork — describe the cover and a real image paints onto the proof.</p>
         <textarea id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
-                  class="mt-3 w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none"></textarea>
-        <button type="button" id="generate-btn" class="mt-2 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Generate Artwork</button>
+                  class="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] placeholder-gray-600 focus:border-[#C9A24A]/60 focus:outline-none"></textarea>
+        <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-[#C9A24A]/40 bg-[#C9A24A]/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#EAC97C] transition-colors hover:bg-[#C9A24A]/20">Generate artwork</button>
         <div id="generate-note" class="mt-2 hidden text-[11px] text-gray-500"></div>
+
         <div id="ai-image-wrap" class="mt-3 hidden">
           <div class="relative overflow-hidden rounded-xl border border-white/10">
             <img id="ai-image" alt="Generated artwork" class="aspect-square w-full object-cover">
-            <div id="ai-loading" class="absolute inset-0 grid place-items-center bg-black/70 text-xs font-bold text-amber-400">Painting… 10–30s</div>
+            <div id="ai-loading" class="absolute inset-0 grid place-items-center bg-black/70 text-xs font-bold text-[#EAC97C]">Painting… 10–30s</div>
           </div>
           <div class="mt-2 flex flex-wrap gap-2">
-            <button type="button" id="ai-save-btn" class="rounded-md bg-amber-500/20 px-3 py-1.5 text-[11px] font-bold text-amber-400 hover:bg-amber-500/30" disabled>Save to My Uploads</button>
+            <button type="button" id="ai-save-btn" class="rounded-md bg-[#C9A24A]/20 px-3 py-1.5 text-[11px] font-bold text-[#EAC97C] hover:bg-[#C9A24A]/30" disabled>Save to My Uploads</button>
             <button type="button" id="ai-again-btn" class="rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10" disabled>Another take</button>
             <button type="button" id="ai-remove-btn" class="hidden rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-400 hover:bg-white/10">Remove from cover</button>
           </div>
@@ -54,64 +106,135 @@
           <div id="ai-remix-wrap" class="mt-3 hidden">
             <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Remix — describe the change</label>
             <div class="mt-1 flex gap-2">
-              <input id="remix-input" placeholder="e.g. make it red and gold, add rain" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
-              <button type="button" id="remix-btn" class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-400 hover:bg-amber-500/20">Remix</button>
+              <input id="remix-input" placeholder="e.g. make it red and gold, add rain" class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-[#EFE9DC] placeholder-gray-600 focus:border-[#C9A24A]/60 focus:outline-none">
+              <button type="button" id="remix-btn" class="shrink-0 rounded-md border border-[#C9A24A]/40 bg-[#C9A24A]/10 px-3 py-2 text-[11px] font-bold text-[#EAC97C] hover:bg-[#C9A24A]/20">Remix</button>
             </div>
             <p class="mt-1 text-[10px] text-gray-600">Re-imagines the same concept with your change — it regenerates rather than editing pixels.</p>
           </div>
-          <p class="mt-2 text-[10px] text-gray-600">Generated by Pollinations.ai — a free community model. Results vary; regenerate until it hits. Saved art can be used as campaign covers and EPK assets.</p>
+          <p class="mt-2 text-[10px] text-gray-600">Generated by Pollinations.ai — a free community model. Results vary; regenerate until it hits.</p>
         </div>
-        <div class="mt-3 border-t border-white/5 pt-3">
-          <label class="block cursor-pointer rounded-md border border-white/15 px-3 py-2 text-center text-[11px] font-bold text-gray-300 hover:bg-white/10">
-            Or upload your own artwork
-            <input type="file" id="art-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
-          </label>
-          <p id="upload-msg" class="mt-1.5 hidden text-[11px]"></p>
+
+        <label class="mt-3 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2.5 text-center text-[11px] font-bold text-gray-300 hover:border-[#C9A24A]/40 hover:text-[#EAC97C]">
+          Or upload your own artwork
+          <input type="file" id="art-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
+        </label>
+        <p id="upload-msg" class="mt-1.5 hidden text-[11px]"></p>
+
+        <!-- Image adjust: appears once art is on the proof -->
+        <div id="image-controls" class="mt-4 hidden border-t border-white/5 pt-4">
+          <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Fit the image</div>
+          <div class="mt-3 space-y-3">
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Darken (for text)</span><span id="scrim-val" class="text-[#EAC97C]">28%</span></div>
+              <input type="range" id="img-scrim" min="0" max="80" value="28" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Zoom</span><span id="zoom-val" class="text-[#EAC97C]">100%</span></div>
+              <input type="range" id="img-zoom" min="100" max="250" value="100" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan horizontal</span><span id="panx-val" class="text-[#EAC97C]">50%</span></div>
+              <input type="range" id="img-panx" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan vertical</span><span id="pany-val" class="text-[#EAC97C]">50%</span></div>
+              <input type="range" id="img-pany" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- Image controls (live once art is on the cover) -->
-      <section id="image-controls" class="hidden rounded-2xl border border-white/5 bg-[#111113] p-5">
-        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Image</label>
-        <div class="mt-3 space-y-2.5">
-          <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Darken (for text)</span><span id="scrim-val">28%</span></div>
-            <input type="range" id="img-scrim" min="0" max="80" value="28" class="w-full accent-amber-500">
-          </div>
-          <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Zoom</span><span id="zoom-val">100%</span></div>
-            <input type="range" id="img-zoom" min="100" max="250" value="100" class="w-full accent-amber-500">
-          </div>
-          <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan horizontal</span><span id="panx-val">50%</span></div>
-            <input type="range" id="img-panx" min="0" max="100" value="50" class="w-full accent-amber-500">
-          </div>
-          <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan vertical</span><span id="pany-val">50%</span></div>
-            <input type="range" id="img-pany" min="0" max="100" value="50" class="w-full accent-amber-500">
-          </div>
+      <!-- 02 · TYPE -->
+      <section class="rounded-2xl border border-[#C9A24A]/15 bg-[#14120E] p-5">
+        <div class="plate"><span class="no">02</span><span class="nm">Type</span><span class="rule"></span>
+          <button type="button" id="text-reset-btn" class="text-[10px] font-bold uppercase tracking-wide text-gray-500 hover:text-[#EAC97C]">Reset</button>
         </div>
-      </section>
 
-      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5 space-y-4">
-        <div>
+        <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title <span class="normal-case text-gray-600">(use / for a line break)</span></label>
           <input id="title-input" value="{{ aw.quick_titles[0] if aw.quick_titles else 'Untitled' }}"
-                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
           <div class="mt-2 flex flex-wrap gap-1.5">
             {% for t in aw.quick_titles %}
-            <button type="button" class="quick-title-btn rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-gray-400 transition-colors hover:text-amber-400" data-title="{{ t }}">{{ t }}</button>
+            <button type="button" class="quick-title-btn rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-gray-400 transition-colors hover:border-[#C9A24A]/40 hover:text-[#EAC97C]" data-title="{{ t }}">{{ t }}</button>
             {% endfor %}
           </div>
         </div>
-        <div>
+        <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Artist</label>
           <input id="artist-input" value="{{ aw.artist }}"
-                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
         </div>
 
-        <div>
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Colorway</label>
+        <div class="mt-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Typeface</label>
+          <select id="font-select" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
+            {% for f in aw.fonts %}<option value="{{ f.id }}" style="font-family: {{ f.stack }};">{{ f.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <span class="text-[9px] uppercase tracking-wide text-gray-600">Title color</span>
+            <input type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+          </div>
+          <div>
+            <span class="text-[9px] uppercase tracking-wide text-gray-600">Artist color</span>
+            <input type="color" id="artist-color" value="#d8b25a" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+          </div>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <div class="flex overflow-hidden rounded-lg border border-white/10">
+            {% for al, label in [('left', 'Left'), ('center', 'Center'), ('right', 'Right')] %}
+            <button type="button" class="align-btn px-3 py-1.5 text-[10px] font-bold uppercase text-gray-400 hover:text-[#EAC97C]" data-align="{{ al }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+          <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
+            <input type="checkbox" id="upper-toggle" checked class="h-3.5 w-3.5 accent-[#C9A24A]">CAPS
+          </label>
+          <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
+            <input type="checkbox" id="shadow-toggle" checked class="h-3.5 w-3.5 accent-[#C9A24A]">Shadow
+          </label>
+        </div>
+
+        <div class="mt-4 space-y-3">
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Title size</span><span id="size-val" class="text-[#EAC97C]">100%</span></div>
+            <input type="range" id="text-size" min="40" max="220" value="100" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Artist size</span><span id="asize-val" class="text-[#EAC97C]">100%</span></div>
+            <input type="range" id="artist-size" min="50" max="220" value="100" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Letter spacing</span><span id="ls-val" class="text-[#EAC97C]">0</span></div>
+            <input type="range" id="letter-spacing" min="0" max="24" value="0" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Horizontal</span><span id="posx-val" class="text-[#EAC97C]">—</span></div>
+            <input type="range" id="text-x" min="0" max="100" value="50" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Vertical</span><span id="posy-val" class="text-[#EAC97C]">—</span></div>
+            <input type="range" id="text-y" min="8" max="95" value="58" class="mt-1 w-full">
+          </div>
+        </div>
+      </section>
+
+      <!-- 03 · CANVAS -->
+      <section class="rounded-2xl border border-[#C9A24A]/15 bg-[#14120E] p-5">
+        <div class="plate"><span class="no">03</span><span class="nm">Canvas</span><span class="rule"></span></div>
+
+        <div class="mt-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Size</label>
+          <select id="aspect-select" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
+            {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }} — {{ a.w }}×{{ a.h }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Colorway <span class="normal-case text-gray-600">(background when no art, accent always)</span></label>
           <div id="colorway-row" class="mt-2 flex flex-wrap gap-2">
             {% for c in aw.colorways %}
             <button type="button" class="colorway-btn h-9 w-9 rounded-lg border-2 transition-transform hover:scale-105 {{ 'border-amber-400' if loop.first else 'border-transparent' }}"
@@ -121,79 +244,12 @@
           </div>
         </div>
 
-        <div>
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Template</label>
+        <div class="mt-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Layout preset</label>
           <div id="template-row" class="mt-2 grid grid-cols-2 gap-1.5">
             {% for t in aw.templates %}
             <button type="button" class="template-btn rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if loop.first else 'border-white/10 text-gray-400 hover:text-gray-200' }}" data-template="{{ t.id }}">{{ t.name }}</button>
             {% endfor %}
-          </div>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between">
-            <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Text</label>
-            <button type="button" id="text-reset-btn" class="text-[10px] font-bold text-gray-500 hover:text-amber-400">Reset</button>
-          </div>
-          <div class="mt-2 grid grid-cols-2 gap-3">
-            <div>
-              <span class="text-[9px] uppercase tracking-wide text-gray-600">Title color</span>
-              <input type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
-            </div>
-            <div>
-              <span class="text-[9px] uppercase tracking-wide text-gray-600">Artist color</span>
-              <input type="color" id="artist-color" value="#d8b25a" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
-            </div>
-          </div>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <div class="flex overflow-hidden rounded-md border border-white/10">
-              {% for al, label in [('left', 'Left'), ('center', 'Center'), ('right', 'Right')] %}
-              <button type="button" class="align-btn px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:text-amber-400" data-align="{{ al }}">{{ label }}</button>
-              {% endfor %}
-            </div>
-            <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
-              <input type="checkbox" id="upper-toggle" checked class="h-3.5 w-3.5 accent-amber-500">CAPS
-            </label>
-            <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
-              <input type="checkbox" id="shadow-toggle" checked class="h-3.5 w-3.5 accent-amber-500">Shadow
-            </label>
-          </div>
-          <div class="mt-3 space-y-2.5">
-            <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Title size</span><span id="size-val">100%</span></div>
-              <input type="range" id="text-size" min="40" max="220" value="100" class="w-full accent-amber-500">
-            </div>
-            <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Artist size</span><span id="asize-val">100%</span></div>
-              <input type="range" id="artist-size" min="50" max="220" value="100" class="w-full accent-amber-500">
-            </div>
-            <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Letter spacing</span><span id="ls-val">0</span></div>
-              <input type="range" id="letter-spacing" min="0" max="24" value="0" class="w-full accent-amber-500">
-            </div>
-            <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Horizontal</span><span id="posx-val">—</span></div>
-              <input type="range" id="text-x" min="0" max="100" value="50" class="w-full accent-amber-500">
-            </div>
-            <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Vertical</span><span id="posy-val">—</span></div>
-              <input type="range" id="text-y" min="8" max="95" value="58" class="w-full accent-amber-500">
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Font</label>
-            <select id="font-select" class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
-              {% for f in aw.fonts %}<option value="{{ f.id }}" style="font-family: {{ f.stack }};">{{ f.name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Aspect</label>
-            <select id="aspect-select" class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
-              {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
-            </select>
           </div>
         </div>
       </section>
@@ -246,7 +302,6 @@
     const artistSize = titleSize * 0.32 * state.artistScale;
     const lineGap = titleSize * 1.05;
 
-    // Anchor: explicit alignment wins, else the template's habit.
     const align = state.align || ({ center: "center", bottom: "left" }[t.align] || "left");
     const anchor = { left: "start", center: "middle", right: "end" }[align];
     const ax = { left: W * 0.06, center: W / 2, right: W * 0.94 }[align];
@@ -263,7 +318,6 @@
     const artistEl = artist
       ? `<text x="${cx}" y="${baseY + (lines.length - 1) * lineGap + titleSize * 0.75}" text-anchor="${anchor}" fill="${artistColor}" font-family="${f.stack}" font-size="${artistSize}" letter-spacing="4"${fx}>${escapeXml(artist)}</text>` : "";
 
-    // Photo layer: zoom scales the slice box, pan slides it.
     let imageEl = "";
     if (state.image) {
       const iw = W * state.zoom / 100, ih = H * state.zoom / 100;
@@ -300,6 +354,11 @@
       b.classList.toggle("bg-amber-500/15", active);
       b.classList.toggle("text-amber-400", active);
     });
+    // The print slug stays true to the proof.
+    const a = byId(ASPECTS, state.aspect);
+    document.getElementById("slug-dims").textContent = a.w + " × " + a.h;
+    document.getElementById("slug-font").textContent = byId(FONTS, state.font).name;
+    document.getElementById("slug-src").textContent = state.image ? "art placed" : "gradient background";
   }
 
   async function setDesignerImage(url) {
@@ -430,7 +489,7 @@
       if (data.ok) {
         setColorway(data.suggestion.colorway_id);
         setTemplate(data.suggestion.template_id);
-        note.textContent = data.image_url ? "Matching palette applied to the template designer below." : "Describe the cover first — then a real image generates.";
+        note.textContent = data.image_url ? "Matching palette applied below." : "Describe the cover first — then a real image generates.";
         note.classList.remove("hidden");
         if (data.image_url) {
           lastPrompt = document.getElementById("prompt-input").value.trim();
@@ -441,7 +500,7 @@
       }
     } finally {
       btn.disabled = false;
-      btn.textContent = "Generate Artwork";
+      btn.textContent = "Generate artwork";
     }
   }
   document.getElementById("generate-btn").addEventListener("click", generateArt);
@@ -582,18 +641,18 @@
       const data = await res.json();
       msg.classList.remove("hidden");
       if (data.ok) {
-        msg.className = "break-all text-[11px] text-green-400";
+        msg.className = "mt-2 break-all text-[11px] text-green-400";
         msg.textContent = "Finished cover saved ✓ — " + data.path + " is ready to use as a campaign cover or EPK asset.";
         btn.textContent = "Saved ✓";
-        setTimeout(() => { btn.textContent = "Save Cover to Uploads"; btn.disabled = false; }, 2000);
+        setTimeout(() => { btn.textContent = "Save cover to uploads"; btn.disabled = false; }, 2000);
         return;
       }
       throw new Error(data.error || "save failed");
     } catch (err) {
       msg.classList.remove("hidden");
-      msg.className = "break-all text-[11px] text-red-400";
+      msg.className = "mt-2 break-all text-[11px] text-red-400";
       msg.textContent = "Couldn't save the cover: " + err.message;
-      btn.textContent = "Save Cover to Uploads";
+      btn.textContent = "Save cover to uploads";
       btn.disabled = false;
     }
   });
