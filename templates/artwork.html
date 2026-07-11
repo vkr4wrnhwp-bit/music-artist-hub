@@ -152,18 +152,36 @@
 
         <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title <span class="normal-case text-gray-600">(use / for a line break)</span></label>
-          <input id="title-input" value="{{ aw.quick_titles[0] if aw.quick_titles else 'Untitled' }}"
+          <input id="title-input" value="Untitled" placeholder="Your release title"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            {% for t in aw.quick_titles %}
-            <button type="button" class="quick-title-btn rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-gray-400 transition-colors hover:border-[#C9A24A]/40 hover:text-[#EAC97C]" data-title="{{ t }}">{{ t }}</button>
-            {% endfor %}
-          </div>
         </div>
         <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Artist</label>
           <input id="artist-input" value="{{ aw.artist }}"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
+          <label class="mt-2 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2 text-center text-[10px] font-bold text-gray-400 hover:border-[#C9A24A]/40 hover:text-[#EAC97C]">
+            Upload band logo (PNG with transparency works best)
+            <input type="file" id="logo-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
+          </label>
+          <p id="logo-msg" class="mt-1 hidden text-[11px]"></p>
+          <div id="logo-controls" class="mt-2 hidden space-y-3 rounded-lg border border-white/5 bg-black/20 p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Logo on cover</span>
+              <button type="button" id="logo-remove" class="text-[10px] font-bold text-gray-500 hover:text-red-400">Remove</button>
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Logo size</span><span id="lsize-val" class="text-[#EAC97C]">24%</span></div>
+              <input type="range" id="logo-size" min="5" max="70" value="24" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Logo horizontal</span><span id="lx-val" class="text-[#EAC97C]">50%</span></div>
+              <input type="range" id="logo-x" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Logo vertical</span><span id="ly-val" class="text-[#EAC97C]">16%</span></div>
+              <input type="range" id="logo-y" min="0" max="100" value="16" class="mt-1 w-full">
+            </div>
+          </div>
         </div>
 
         <div class="mt-3">
@@ -212,12 +230,20 @@
             <input type="range" id="letter-spacing" min="0" max="24" value="0" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Horizontal</span><span id="posx-val" class="text-[#EAC97C]">—</span></div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Title horizontal</span><span id="posx-val" class="text-[#EAC97C]">—</span></div>
             <input type="range" id="text-x" min="0" max="100" value="50" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Vertical</span><span id="posy-val" class="text-[#EAC97C]">—</span></div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Title vertical</span><span id="posy-val" class="text-[#EAC97C]">—</span></div>
             <input type="range" id="text-y" min="8" max="95" value="58" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Artist horizontal</span><span id="ax-val" class="text-[#EAC97C]">—</span></div>
+            <input type="range" id="artist-x" min="0" max="100" value="50" class="mt-1 w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Artist vertical</span><span id="ay-val" class="text-[#EAC97C]">—</span></div>
+            <input type="range" id="artist-y" min="0" max="100" value="66" class="mt-1 w-full">
           </div>
         </div>
       </section>
@@ -234,7 +260,15 @@
         </div>
 
         <div class="mt-3">
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Colorway <span class="normal-case text-gray-600">(background when no art, accent always)</span></label>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Background color <span class="normal-case text-gray-600">(when no art is placed)</span></label>
+          <div class="mt-1 flex items-center gap-2">
+            <input type="color" id="bg-color" value="#141210" class="h-9 w-16 cursor-pointer rounded border border-white/10 bg-transparent">
+            <button type="button" id="bg-clear" class="rounded-md border border-white/15 px-3 py-2 text-[10px] font-bold text-gray-400 hover:bg-white/10">Use gradient instead</button>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Gradient colorway <span class="normal-case text-gray-600">(background + accent)</span></label>
           <div id="colorway-row" class="mt-2 flex flex-wrap gap-2">
             {% for c in aw.colorways %}
             <button type="button" class="colorway-btn h-9 w-9 rounded-lg border-2 transition-transform hover:scale-105 {{ 'border-amber-400' if loop.first else 'border-transparent' }}"
@@ -276,6 +310,8 @@
     textScale: 1, artistScale: 1, textX: null, textY: null,
     align: null, upper: true, shadow: true, letterSpacing: 0,
     image: null, scrim: 28, zoom: 100, panX: 50, panY: 50,
+    bgCustom: null, artistX: null, artistY: null,
+    logo: null, logoSize: 24, logoX: 50, logoY: 16,
   };
 
   const byId = (arr, id) => arr.find((x) => x.id === id) || arr[0];
@@ -315,8 +351,16 @@
 
     const titleEl = lines.map((line, i) =>
       `<text x="${cx}" y="${baseY + i * lineGap}" text-anchor="${anchor}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800" letter-spacing="${state.letterSpacing}"${fx}>${escapeXml(line)}</text>`).join("");
+    const acx = state.artistX !== null ? W * (state.artistX / 100) : cx;
+    const acy = state.artistY !== null ? H * (state.artistY / 100)
+      : baseY + (lines.length - 1) * lineGap + titleSize * 0.75;
     const artistEl = artist
-      ? `<text x="${cx}" y="${baseY + (lines.length - 1) * lineGap + titleSize * 0.75}" text-anchor="${anchor}" fill="${artistColor}" font-family="${f.stack}" font-size="${artistSize}" letter-spacing="4"${fx}>${escapeXml(artist)}</text>` : "";
+      ? `<text x="${acx}" y="${acy}" text-anchor="${anchor}" fill="${artistColor}" font-family="${f.stack}" font-size="${artistSize}" letter-spacing="4"${fx}>${escapeXml(artist)}</text>` : "";
+    let logoEl = "";
+    if (state.logo) {
+      const box = W * state.logoSize / 100;
+      logoEl = `<image href="${state.logo}" x="${W * state.logoX / 100 - box / 2}" y="${H * state.logoY / 100 - box / 2}" width="${box}" height="${box}" preserveAspectRatio="xMidYMid meet"/>`;
+    }
 
     let imageEl = "";
     if (state.image) {
@@ -335,8 +379,8 @@
       <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="${c.from}"/><stop offset="1" stop-color="${c.to}"/>
       </linearGradient>${shadow}</defs>
-      <rect width="${W}" height="${H}" fill="url(#bg)"/>
-      ${state.image ? imageEl : motif}${titleEl}${artistEl}
+      <rect width="${W}" height="${H}" fill="${state.bgCustom || 'url(#bg)'}"/>
+      ${state.image ? imageEl : (state.bgCustom ? "" : motif)}${logoEl}${titleEl}${artistEl}
     </svg>`;
   }
 
@@ -349,6 +393,7 @@
     const rm = document.getElementById("ai-remove-btn");
     if (rm) rm.classList.toggle("hidden", !state.image);
     document.getElementById("image-controls").classList.toggle("hidden", !state.image);
+    document.getElementById("logo-controls").classList.toggle("hidden", !state.logo);
     document.querySelectorAll(".align-btn").forEach((b) => {
       const active = b.dataset.align === state.align;
       b.classList.toggle("bg-amber-500/15", active);
@@ -381,12 +426,6 @@
   document.getElementById("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
   document.getElementById("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
   document.getElementById("aspect-select").addEventListener("change", (e) => { state.aspect = e.target.value; render(); });
-
-  document.querySelectorAll(".quick-title-btn").forEach((b) => b.addEventListener("click", () => {
-    state.title = b.dataset.title;
-    document.getElementById("title-input").value = b.dataset.title;
-    render();
-  }));
 
   function setColorway(id) {
     state.colorway = id;
@@ -432,7 +471,11 @@
   document.getElementById("text-reset-btn").addEventListener("click", () => {
     Object.assign(state, { titleColor: null, artistColor: null, textScale: 1,
       artistScale: 1, textX: null, textY: null, align: null, upper: true,
-      shadow: true, letterSpacing: 0 });
+      shadow: true, letterSpacing: 0, artistX: null, artistY: null });
+    document.getElementById("ax-val").textContent = "—";
+    document.getElementById("ay-val").textContent = "—";
+    document.getElementById("artist-x").value = 50;
+    document.getElementById("artist-y").value = 66;
     document.getElementById("title-color").value = "#ffffff";
     document.getElementById("artist-color").value = "#d8b25a";
     const resets = [["text-size", 100, "size-val", "100%"], ["artist-size", 100, "asize-val", "100%"],
@@ -444,6 +487,40 @@
     document.getElementById("upper-toggle").checked = true;
     document.getElementById("shadow-toggle").checked = true;
     render();
+  });
+
+  // Independent artist position + band logo + custom background
+  slider("artist-x", "ax-val", (v) => state.artistX = v);
+  slider("artist-y", "ay-val", (v) => state.artistY = v);
+  slider("logo-size", "lsize-val", (v) => state.logoSize = v);
+  slider("logo-x", "lx-val", (v) => state.logoX = v);
+  slider("logo-y", "ly-val", (v) => state.logoY = v);
+  document.getElementById("bg-color").addEventListener("input", (e) => { state.bgCustom = e.target.value; render(); });
+  document.getElementById("bg-clear").addEventListener("click", () => { state.bgCustom = null; render(); });
+  document.getElementById("logo-remove").addEventListener("click", () => { state.logo = null; render(); });
+
+  document.getElementById("logo-upload").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const msg = document.getElementById("logo-msg");
+    msg.classList.remove("hidden");
+    msg.className = "mt-1 text-[11px] text-gray-400";
+    msg.textContent = "Uploading logo…";
+    const fd = new FormData();
+    fd.append("art", file);
+    const res = await fetch("/artwork/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      const blob = await (await fetch(data.path)).blob();
+      state.logo = await new Promise((r0) => { const r = new FileReader(); r.onloadend = () => r0(r.result); r.readAsDataURL(blob); });
+      msg.className = "mt-1 text-[11px] text-green-400";
+      msg.textContent = "Logo on the cover ✓ — size and position it below.";
+      render();
+    } else {
+      msg.className = "mt-1 text-[11px] text-red-400";
+      msg.textContent = data.error || "Upload failed.";
+    }
+    e.target.value = "";
   });
 
   // Image controls
