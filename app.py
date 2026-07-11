@@ -1,5 +1,6 @@
 import math
 import os
+import urllib.parse
 import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timezone
@@ -1518,8 +1519,44 @@ def create_app():
     @app.route("/artwork/generate", methods=["POST"])
     def artwork_generate():
         payload = request.get_json(silent=True) or {}
-        suggestion = suggest_from_prompt(payload.get("prompt", ""))
-        return jsonify({"ok": True, "suggestion": suggestion})
+        prompt = (payload.get("prompt") or "").strip()[:300]
+        suggestion = suggest_from_prompt(prompt)
+        image_url = None
+        if prompt:
+            # Real AI image via Pollinations.ai — free community model, no key.
+            # The browser loads the URL directly so slow generations never
+            # tie up a server worker.
+            import random
+            image_url = ("https://image.pollinations.ai/prompt/"
+                         + urllib.parse.quote(prompt + ", album cover art, square, "
+                                              "no text, high detail")
+                         + "?width=1024&height=1024&nologo=true&seed=%d"
+                         % random.randint(1, 10 ** 9))
+        return jsonify({"ok": True, "suggestion": suggestion,
+                        "image_url": image_url})
+
+    @app.route("/artwork/save", methods=["POST"])
+    def artwork_save():
+        """Pull a generated image into the user's uploads so it can be used
+        as campaign cover art or an EPK asset."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to save artwork."}), 401
+        payload = request.get_json(silent=True) or {}
+        url = (payload.get("url") or "").strip()
+        if not url.startswith("https://image.pollinations.ai/"):
+            return jsonify({"ok": False, "error": "Only generated images can be saved."}), 400
+        try:
+            data = music_apis.fetch_image_bytes(url)
+        except Exception:
+            return jsonify({"ok": False, "error": "Couldn't download the image — "
+                                                  "generate it again and retry."}), 502
+        if not data or len(data) > 8 * 1024 * 1024:
+            return jsonify({"ok": False, "error": "Image missing or too large."}), 400
+        fname = "aiart_%s_%d.jpg" % (user["id"], int(datetime.now(timezone.utc).timestamp()))
+        with open(os.path.join(UPLOADS_DIR, fname), "wb") as f:
+            f.write(data)
+        return jsonify({"ok": True, "path": "/uploads/" + fname})
 
     def _ml_campaign_card(c):
         counts = mls.event_counts(c["id"])

@@ -674,7 +674,7 @@ def test_artwork_page_includes_generator():
     client = _demo()
     body = client.get("/artwork").get_data(as_text=True)
     assert 'id="cover-frame"' in body
-    assert "AI Concept" in body
+    assert "AI Artwork" in body and "Pollinations.ai" in body
     assert "colorway-btn" in body
     assert 'href="/artwork"' in body
 
@@ -2402,6 +2402,31 @@ def test_stripe_absent_keeps_honest_demo_switching(monkeypatch):
     assert client.post("/webhooks/stripe", data="{}").status_code == 404
     r = client.post("/billing/checkout", data={"plan": "pro"})
     assert r.status_code == 302        # falls back to /billing, never fakes
+
+
+def test_ai_artwork_generate_and_save(monkeypatch):
+    import music_apis
+    app_obj = create_app()
+    client = _demo(app_obj)
+    # Generate: real image URL from the free model + palette suggestion.
+    data = client.post("/artwork/generate", json={
+        "prompt": "moody midnight synthwave"}).get_json()
+    assert data["ok"]
+    assert data["image_url"].startswith("https://image.pollinations.ai/prompt/")
+    assert "moody%20midnight%20synthwave" in data["image_url"]
+    assert "nologo=true" in data["image_url"]
+    assert data["suggestion"]["colorway_id"]
+    # Empty prompt: suggestion only, never a fake image.
+    assert client.post("/artwork/generate", json={}).get_json()["image_url"] is None
+    # Save: downloads the generated image into the user's uploads.
+    monkeypatch.setattr(music_apis, "fetch_image_bytes",
+                        lambda url, timeout=60: b"\xff\xd8fakejpegbytes")
+    out = client.post("/artwork/save", json={"url": data["image_url"]}).get_json()
+    assert out["ok"] and out["path"].startswith("/uploads/aiart_")
+    assert client.get(out["path"]).status_code == 200
+    # Only generated-image URLs are fetchable — no proxying arbitrary hosts.
+    bad = client.post("/artwork/save", json={"url": "https://evil.example/x.jpg"})
+    assert bad.status_code == 400
 
 
 def test_preview_modules_are_honest():

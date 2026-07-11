@@ -25,6 +25,13 @@ def _fetch_json(url):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def fetch_image_bytes(url, timeout=60):
+    """Raw image download (used by the artwork generator save). Seam for tests."""
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
 def _fetch_text(url):
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
