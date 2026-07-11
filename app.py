@@ -710,7 +710,13 @@ def create_app():
                 else:
                     store.resolve_spotify_presave(p["id"], "retry", "Save failed")
             except Exception as exc:
-                store.resolve_spotify_presave(p["id"], "retry", str(exc))
+                detail = str(exc)
+                if hasattr(exc, "read"):
+                    try:
+                        detail += " " + exc.read().decode("utf-8", "replace")[:150]
+                    except Exception:
+                        pass
+                store.resolve_spotify_presave(p["id"], "retry", detail)
 
     @app.route("/presave/diag")
     def presave_diag():
@@ -794,6 +800,20 @@ def create_app():
                 except Exception:
                     pass
             return "%s: %s%s" % (type(exc).__name__, exc, detail)
+
+    @app.route("/presave/retry-reset", methods=["POST"])
+    def presave_retry_reset():
+        """Owner tool: re-arm pending/failed pre-saves on own campaigns after
+        fixing an external cause (e.g. Spotify allowlist)."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        with store.get_db() as conn:
+            cur = conn.execute(
+                "UPDATE spotify_presaves SET retry_count = 0, status = 'pending' "
+                "WHERE status != 'completed' AND campaign_id IN "
+                "(SELECT id FROM ml_campaigns WHERE user_id = ?)", (user["id"],))
+        return jsonify({"ok": True, "reset": cur.rowcount})
 
     @app.route("/presave/<slug>/start")
     def presave_start(slug):
