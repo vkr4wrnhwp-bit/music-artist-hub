@@ -2429,6 +2429,36 @@ def test_ai_artwork_generate_and_save(monkeypatch):
     assert bad.status_code == 400
 
 
+def test_artwork_studio_upload_and_controls():
+    import io
+    app_obj = create_app()
+    client = _demo(app_obj)
+    body = client.get("/artwork").get_data(as_text=True)
+    # Text controls + upload + remix all ship.
+    for needle in ('id="title-color"', 'id="artist-color"', 'id="text-size"',
+                   'id="text-x"', 'id="text-y"', 'id="art-upload"',
+                   'id="remix-btn"', "re-imagines the same concept"):
+        assert needle.lower() in body.lower(), needle
+    # Upload lands in the user's uploads and serves back.
+    r = client.post("/artwork/upload", data={
+        "art": (io.BytesIO(b"\x89PNGfake"), "mycover.png")},
+        content_type="multipart/form-data")
+    out = r.get_json()
+    assert out["ok"] and out["path"].startswith("/uploads/artup_")
+    assert client.get(out["path"]).status_code == 200
+    # Wrong types are rejected.
+    r = client.post("/artwork/upload", data={
+        "art": (io.BytesIO(b"MZ"), "virus.exe")}, content_type="multipart/form-data")
+    assert r.status_code == 400
+    # Remix reuses a seed deterministically.
+    a = client.post("/artwork/generate", json={"prompt": "neon skyline",
+                                               "seed": 777}).get_json()
+    b = client.post("/artwork/generate", json={"prompt": "neon skyline, add rain",
+                                               "seed": 777}).get_json()
+    assert "seed=777" in a["image_url"] and "seed=777" in b["image_url"]
+    assert "add%20rain" in b["image_url"]
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
     routes = ["/fraud-sentinel", "/ai-rights",

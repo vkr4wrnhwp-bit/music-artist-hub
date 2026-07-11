@@ -1521,19 +1521,40 @@ def create_app():
         payload = request.get_json(silent=True) or {}
         prompt = (payload.get("prompt") or "").strip()[:300]
         suggestion = suggest_from_prompt(prompt)
-        image_url = None
+        image_url, seed = None, None
         if prompt:
             # Real AI image via Pollinations.ai — free community model, no key.
             # The browser loads the URL directly so slow generations never
-            # tie up a server worker.
+            # tie up a server worker. A remix reuses the seed so the model
+            # re-imagines the same concept with the requested changes.
             import random
+            try:
+                seed = int(payload.get("seed"))
+            except (TypeError, ValueError):
+                seed = random.randint(1, 10 ** 9)
             image_url = ("https://image.pollinations.ai/prompt/"
                          + urllib.parse.quote(prompt + ", album cover art, square, "
                                               "no text, high detail")
-                         + "?width=1024&height=1024&nologo=true&seed=%d"
-                         % random.randint(1, 10 ** 9))
+                         + "?width=1024&height=1024&nologo=true&seed=%d" % seed)
         return jsonify({"ok": True, "suggestion": suggestion,
-                        "image_url": image_url})
+                        "image_url": image_url, "seed": seed})
+
+    @app.route("/artwork/upload", methods=["POST"])
+    def artwork_upload():
+        """Bring your own cover art into the designer."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to upload artwork."}), 401
+        f = request.files.get("art")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "error": "Choose an image file."}), 400
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return jsonify({"ok": False, "error": "Use a PNG, JPG, or WebP image."}), 400
+        fname = "artup_%s_%d.%s" % (user["id"],
+                                    int(datetime.now(timezone.utc).timestamp()), ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        return jsonify({"ok": True, "path": "/uploads/" + fname})
 
     @app.route("/artwork/save", methods=["POST"])
     def artwork_save():
