@@ -3022,7 +3022,9 @@ def test_spotify_presave_oauth_flow(monkeypatch):
         conn.execute("UPDATE ml_campaigns SET release_date = ? WHERE id = ?",
                      ("2020-01-01", cid))
     saved = []
-    monkeypatch.setattr(sp, "refresh_access", lambda rt: "fresh")
+    monkeypatch.setattr(sp, "refresh_access_full",
+                        lambda rt: {"access_token": "fresh",
+                                    "scope": "user-library-modify user-read-email"})
     monkeypatch.setattr(sp, "save_track",
                         lambda at, tid: saved.append((at, tid)) or True)
     anon.get("/l/" + slug)

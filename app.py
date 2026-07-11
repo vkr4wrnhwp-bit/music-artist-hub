@@ -699,8 +699,9 @@ def create_app():
                 store.resolve_spotify_presave(p["id"], "retry", "No Spotify track URL on campaign")
                 continue
             try:
-                access = spotify.refresh_access(
+                grant = spotify.refresh_access_full(
                     spotify.decrypt_token(p["refresh_token_enc"]))
+                access = grant.get("access_token")
                 if access and spotify.save_track(access, track_id):
                     store.resolve_spotify_presave(p["id"], "completed")
                     store.notify(campaign["user_id"], "fan",
@@ -713,9 +714,13 @@ def create_app():
                 detail = str(exc)
                 if hasattr(exc, "read"):
                     try:
-                        detail += " " + exc.read().decode("utf-8", "replace")[:150]
+                        detail += " " + exc.read().decode("utf-8", "replace")[:120]
                     except Exception:
                         pass
+                try:
+                    detail += " scope=" + (grant.get("scope") or "none")
+                except Exception:
+                    pass
                 store.resolve_spotify_presave(p["id"], "retry", detail)
 
     @app.route("/presave/diag")

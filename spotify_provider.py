@@ -88,6 +88,14 @@ def refresh_access(refresh_token):
     return out.get("access_token")
 
 
+def refresh_access_full(refresh_token):
+    """Like refresh_access but keeps the whole response (incl. scope)."""
+    data = urllib.parse.urlencode({
+        "grant_type": "refresh_token", "refresh_token": refresh_token}).encode()
+    return _http("https://accounts.spotify.com/api/token", data=data,
+                 headers=_basic_auth_header())
+
+
 def get_me(access_token):
     """Fan's Spotify id + email (email scope is consented in the OAuth screen)."""
     return _http("https://api.spotify.com/v1/me",
@@ -96,9 +104,10 @@ def get_me(access_token):
 
 def save_track(access_token, track_id):
     req = urllib.request.Request(
-        "https://api.spotify.com/v1/me/tracks?ids=" + urllib.parse.quote(track_id),
-        data=b"", method="PUT",
-        headers={"Authorization": "Bearer " + access_token})
+        "https://api.spotify.com/v1/me/tracks",
+        data=json.dumps({"ids": [track_id]}).encode(), method="PUT",
+        headers={"Authorization": "Bearer " + access_token,
+                 "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
         return resp.status in (200, 201)
 
