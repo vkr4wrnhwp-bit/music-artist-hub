@@ -5,6 +5,12 @@
 {% set aw = artwork %}
 
 {% block content %}
+{% set gfonts = aw.fonts | selectattr("google", "defined") | map(attribute="google") | list %}
+{% if gfonts %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{% for g in gfonts %}family={{ g }}&{% endfor %}display=swap">
+{% endif %}
 <div class="mx-auto max-w-[1400px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
@@ -134,7 +140,7 @@
           <div>
             <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Font</label>
             <select id="font-select" class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
-              {% for f in aw.fonts %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+              {% for f in aw.fonts %}<option value="{{ f.id }}" style="font-family: {{ f.stack }};">{{ f.name }}</option>{% endfor %}
             </select>
           </div>
           <div>
@@ -212,6 +218,7 @@
       : `style="width:100%;height:auto;display:block"`;
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${sizeAttrs}>
+      ${forExport && state._fontCss ? state._fontCss : ""}
       <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="${c.from}"/><stop offset="1" stop-color="${c.to}"/>
       </linearGradient></defs>
@@ -421,6 +428,31 @@
     }
   });
 
+  // Font embedding for exports: fetch the woff2 once, cache as data URI.
+  const fontEmbedCache = {};
+  async function fontFaceCss() {
+    const f = byId(FONTS, state.font);
+    if (!f.google) return "";
+    if (fontEmbedCache[f.id] !== undefined) return fontEmbedCache[f.id];
+    try {
+      const css = await (await fetch("https://fonts.googleapis.com/css2?family=" + f.google + "&display=swap")).text();
+      const m = css.match(/src:\s*url\((https:[^)]+\.woff2)\)/);
+      if (!m) throw new Error("no woff2");
+      const blob = await (await fetch(m[1])).blob();
+      const dataUri = await new Promise((res) => {
+        const r = new FileReader();
+        r.onloadend = () => res(r.result);
+        r.readAsDataURL(blob);
+      });
+      const family = f.stack.match(/'([^']+)'/)[1];
+      const weight = (css.match(/font-weight:\s*(\d+)/) || [0, "400"])[1];
+      fontEmbedCache[f.id] = `<style>@font-face{font-family:'${family}';src:url(${dataUri}) format('woff2');font-weight:${weight};}</style>`;
+    } catch (e) {
+      fontEmbedCache[f.id] = "";   // export falls back to the stack's system font
+    }
+    return fontEmbedCache[f.id];
+  }
+
   // Downloads
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -431,11 +463,13 @@
   }
   const safeName = () => (state.title || "cover").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cover";
 
-  document.getElementById("download-svg-btn").addEventListener("click", () => {
+  document.getElementById("download-svg-btn").addEventListener("click", async () => {
+    state._fontCss = await fontFaceCss();
     downloadBlob(new Blob([buildSvg(true)], { type: "image/svg+xml" }), safeName() + "-cover.svg");
   });
 
-  document.getElementById("download-png-btn").addEventListener("click", () => {
+  document.getElementById("download-png-btn").addEventListener("click", async () => {
+    state._fontCss = await fontFaceCss();
     const a = byId(ASPECTS, state.aspect);
     const img = new Image();
     const svgBlob = new Blob([buildSvg(true)], { type: "image/svg+xml" });

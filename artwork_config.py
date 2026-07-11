@@ -28,10 +28,24 @@ TEMPLATES = [
     {"id": "minimal", "name": "Minimal", "align": "center", "motif": "none"},
 ]
 
+# "google" is the css2 family parameter; those load on the page for the
+# preview and get embedded (as data-URI @font-face) into PNG/SVG exports.
 FONTS = [
     {"id": "grotesk", "name": "Grotesk", "stack": "'Arial Black', 'Helvetica Neue', sans-serif"},
     {"id": "serif", "name": "Editorial Serif", "stack": "Georgia, 'Times New Roman', serif"},
     {"id": "mono", "name": "Mono", "stack": "'Courier New', monospace"},
+    {"id": "anton", "name": "Poster Block", "stack": "'Anton', Impact, sans-serif", "google": "Anton"},
+    {"id": "bebas", "name": "Tall Caps", "stack": "'Bebas Neue', 'Arial Narrow', sans-serif", "google": "Bebas+Neue"},
+    {"id": "oswald", "name": "Condensed", "stack": "'Oswald', 'Arial Narrow', sans-serif", "google": "Oswald:wght@600"},
+    {"id": "playfair", "name": "Fashion Serif", "stack": "'Playfair Display', Georgia, serif", "google": "Playfair+Display:wght@700"},
+    {"id": "abril", "name": "Fat Serif", "stack": "'Abril Fatface', Georgia, serif", "google": "Abril+Fatface"},
+    {"id": "righteous", "name": "Retro Round", "stack": "'Righteous', sans-serif", "google": "Righteous"},
+    {"id": "monoton", "name": "Neon Outline", "stack": "'Monoton', cursive", "google": "Monoton"},
+    {"id": "marker", "name": "Marker", "stack": "'Permanent Marker', cursive", "google": "Permanent+Marker"},
+    {"id": "special", "name": "Typewriter Grunge", "stack": "'Special Elite', 'Courier New', monospace", "google": "Special+Elite"},
+    {"id": "rye", "name": "Western", "stack": "'Rye', serif", "google": "Rye"},
+    {"id": "blackletter", "name": "Blackletter", "stack": "'UnifrakturMaguntia', serif", "google": "UnifrakturMaguntia"},
+    {"id": "horror", "name": "Horror", "stack": "'Creepster', cursive", "google": "Creepster"},
 ]
 
 ASPECTS = [
