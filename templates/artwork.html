@@ -152,7 +152,7 @@
 
         <div class="mt-3">
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title <span class="normal-case text-gray-600">(use / for a line break)</span></label>
-          <input id="title-input" value="Untitled" placeholder="Your release title"
+          <input id="title-input" value="" placeholder="Your release title"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] focus:border-[#C9A24A]/60 focus:outline-none">
         </div>
         <div class="mt-3">
@@ -263,29 +263,11 @@
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Background color <span class="normal-case text-gray-600">(when no art is placed)</span></label>
           <div class="mt-1 flex items-center gap-2">
             <input type="color" id="bg-color" value="#141210" class="h-9 w-16 cursor-pointer rounded border border-white/10 bg-transparent">
-            <button type="button" id="bg-clear" class="rounded-md border border-white/15 px-3 py-2 text-[10px] font-bold text-gray-400 hover:bg-white/10">Use gradient instead</button>
+            <button type="button" id="bg-clear" class="rounded-md border border-white/15 px-3 py-2 text-[10px] font-bold text-gray-400 hover:bg-white/10">Default gradient</button>
           </div>
         </div>
 
-        <div class="mt-3">
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Gradient colorway <span class="normal-case text-gray-600">(background + accent)</span></label>
-          <div id="colorway-row" class="mt-2 flex flex-wrap gap-2">
-            {% for c in aw.colorways %}
-            <button type="button" class="colorway-btn h-9 w-9 rounded-lg border-2 transition-transform hover:scale-105 {{ 'border-amber-400' if loop.first else 'border-transparent' }}"
-                    data-colorway="{{ c.id }}" title="{{ c.name }}"
-                    style="background: linear-gradient(135deg, {{ c.from }}, {{ c.to }});"></button>
-            {% endfor %}
-          </div>
-        </div>
 
-        <div class="mt-3">
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Layout preset</label>
-          <div id="template-row" class="mt-2 grid grid-cols-2 gap-1.5">
-            {% for t in aw.templates %}
-            <button type="button" class="template-btn rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if loop.first else 'border-white/10 text-gray-400 hover:text-gray-200' }}" data-template="{{ t.id }}">{{ t.name }}</button>
-            {% endfor %}
-          </div>
-        </div>
       </section>
     </div>
   </div>
@@ -300,8 +282,8 @@
   const ASPECTS = {{ aw.aspects | tojson }};
 
   const state = {
-    colorway: COLORWAYS[0].id,
-    template: TEMPLATES[0].id,
+    colorway: "gold",
+    template: "minimal",
     font: FONTS[0].id,
     aspect: ASPECTS[0].id,
     title: document.getElementById("title-input").value,
@@ -323,7 +305,8 @@
     const a = byId(ASPECTS, state.aspect);
     const W = a.w, H = a.h;
     const cook = (s) => state.upper ? s.toUpperCase() : s;
-    const lines = cook(state.title || "Untitled").split("/").map(l => l.trim()).filter(Boolean).slice(0, 4);
+    const lines = cook(state.title || "").split("/").map(l => l.trim()).filter(Boolean).slice(0, 4);
+    const lineCount = Math.max(lines.length, 1);
     const artist = cook(state.artist || "");
 
     let motif = "";
@@ -343,7 +326,7 @@
     const ax = { left: W * 0.06, center: W / 2, right: W * 0.94 }[align];
     const cx = state.textX !== null ? W * (state.textX / 100) : ax;
     const baseY = state.textY !== null ? H * (state.textY / 100)
-      : (t.align === "bottom" ? H * 0.84 : H * 0.55) - (lines.length - 1) * lineGap * 0.5;
+      : (t.align === "bottom" ? H * 0.84 : H * 0.55) - (lineCount - 1) * lineGap * 0.5;
 
     const shadow = state.shadow
       ? `<filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${Math.max(2, titleSize*0.03)}" stdDeviation="${Math.max(3, titleSize*0.06)}" flood-color="black" flood-opacity="0.6"/></filter>` : "";
@@ -353,7 +336,7 @@
       `<text x="${cx}" y="${baseY + i * lineGap}" text-anchor="${anchor}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800" letter-spacing="${state.letterSpacing}"${fx}>${escapeXml(line)}</text>`).join("");
     const acx = state.artistX !== null ? W * (state.artistX / 100) : cx;
     const acy = state.artistY !== null ? H * (state.artistY / 100)
-      : baseY + (lines.length - 1) * lineGap + titleSize * 0.75;
+      : baseY + (lineCount - 1) * lineGap + titleSize * 0.75;
     const artistEl = artist
       ? `<text x="${acx}" y="${acy}" text-anchor="${anchor}" fill="${artistColor}" font-family="${f.stack}" font-size="${artistSize}" letter-spacing="4"${fx}>${escapeXml(artist)}</text>` : "";
     let logoEl = "";
@@ -426,27 +409,6 @@
   document.getElementById("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
   document.getElementById("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
   document.getElementById("aspect-select").addEventListener("change", (e) => { state.aspect = e.target.value; render(); });
-
-  function setColorway(id) {
-    state.colorway = id;
-    document.querySelectorAll(".colorway-btn").forEach((b) => {
-      b.classList.toggle("border-amber-400", b.dataset.colorway === id);
-      b.classList.toggle("border-transparent", b.dataset.colorway !== id);
-    });
-    render();
-  }
-  document.querySelectorAll(".colorway-btn").forEach((b) => b.addEventListener("click", () => setColorway(b.dataset.colorway)));
-
-  function setTemplate(id) {
-    state.template = id;
-    document.querySelectorAll(".template-btn").forEach((b) => {
-      const active = b.dataset.template === id;
-      b.className = "template-btn rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors " +
-        (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-400 hover:text-gray-200");
-    });
-    render();
-  }
-  document.querySelectorAll(".template-btn").forEach((b) => b.addEventListener("click", () => setTemplate(b.dataset.template)));
 
   // Text controls
   const slider = (id, valId, fn, suffix = "%") => document.getElementById(id).addEventListener("input", (e) => {
@@ -564,9 +526,7 @@
       });
       const data = await res.json();
       if (data.ok) {
-        setColorway(data.suggestion.colorway_id);
-        setTemplate(data.suggestion.template_id);
-        note.textContent = data.image_url ? "Matching palette applied below." : "Describe the cover first — then a real image generates.";
+        note.textContent = data.image_url ? "" : "Describe the cover first — then a real image generates.";
         note.classList.remove("hidden");
         if (data.image_url) {
           lastPrompt = document.getElementById("prompt-input").value.trim();
