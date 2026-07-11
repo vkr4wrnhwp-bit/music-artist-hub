@@ -83,9 +83,25 @@
   <p class="px-1 text-[11px] text-gray-600">Demo only — no payment method is stored or charged. Plan changes are not billed.</p>
 </div>
 
-  <!-- Plan tiers (demo switching until Stripe) -->
+  {% set real_checkout = stripe_live and not is_demo_account %}
+
+  {% if request.args.get('upgraded') %}
+  <section class="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-center">
+    <div class="text-sm font-black uppercase tracking-wide text-green-400">Payment received — welcome aboard</div>
+    <p class="mt-1 text-xs text-gray-300">Your plan activates the moment Stripe confirms (usually seconds). If your tier hasn't switched yet, refresh in a moment.</p>
+  </section>
+  {% endif %}
+
+  <!-- Plan tiers -->
   <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Your Plan</h2>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Your Plan</h2>
+      {% if real_checkout and user and user.stripe_customer_id %}
+      <form method="post" action="/billing/portal">
+        <button class="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Manage Billing (card, cancel, invoices)</button>
+      </form>
+      {% endif %}
+    </div>
     <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {% for key, name, price, blurb, includes in plan_cards %}
       <div class="flex flex-col rounded-xl border {{ 'border-[#c9a24a]/60 bg-black/30' if key == user_plan else 'border-white/10 bg-[#111113]' }} p-4">
@@ -96,14 +112,25 @@
         <div class="mt-1 text-xl font-black">{{ price }}</div>
         <p class="mt-1 flex-1 text-[11px] text-gray-400">{{ blurb }}</p>
         {% if key != user_plan %}
+        {% if real_checkout and key != 'fan' %}
+        <form method="post" action="/billing/checkout" class="mt-3">
+          <input type="hidden" name="plan" value="{{ key }}">
+          <button class="w-full rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-3 py-1.5 text-[11px] font-black text-[#1c1302]">Subscribe — {{ price }}</button>
+        </form>
+        {% elif not real_checkout %}
         <form method="post" action="/plan/switch" class="mt-3">
           <input type="hidden" name="plan" value="{{ key }}">
           <button class="w-full rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/20">Switch (demo)</button>
         </form>
         {% endif %}
+        {% endif %}
       </div>
       {% endfor %}
     </div>
-    <p class="mt-3 text-[10px] text-gray-600">Demo plan switching — no payment is taken. Real billing arrives with Stripe.</p>
+    {% if real_checkout %}
+    <p class="mt-3 text-[10px] text-gray-600">Checkout and card handling run entirely on Stripe — no payment details touch this server. Cancel anytime from Manage Billing; downgrades keep all your data.</p>
+    {% else %}
+    <p class="mt-3 text-[10px] text-gray-600">Demo plan switching — no payment is taken.</p>
+    {% endif %}
   </section>
 {% endblock %}

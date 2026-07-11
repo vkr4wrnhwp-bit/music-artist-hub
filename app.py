@@ -63,6 +63,7 @@ import sync_simulator
 import trust_score
 import bandsintown_provider as bandsintown
 import capital_engine
+import stripe_provider as stripe_billing
 import royalty_types
 import insights_engine
 import email_provider as emailer
@@ -1755,16 +1756,100 @@ def create_app():
         session["world"] = world
         return redirect(homes[world])
 
+    def _is_demo_email(email):
+        return (email == "demo@streetbanker.io"
+                or (email.startswith("demo-") and email.endswith("@streetbanker.io")))
+
+    @app.context_processor
+    def _billing_flags():
+        user = current_user()
+        return {"stripe_live": stripe_billing.configured(),
+                "is_demo_account": bool(user and _is_demo_email(user["email"]))}
+
     @app.route("/plan/switch", methods=["POST"])
     def plan_switch():
         user = current_user()
         if user is None:
             return login_required_redirect()
         plan = request.form.get("plan") or ""
+        # With Stripe live, paid tiers go through real checkout — the demo
+        # accounts keep instant switching so the tier demos still work.
+        if (stripe_billing.configured() and plan in stripe_billing.PRICES
+                and not _is_demo_email(user["email"])):
+            return redirect("/billing")
         if plan in plans.TIER_RANK:
-            # Demo plan switching -- real payments arrive with Stripe.
             store.set_user_plan(user["id"], plan)
         return redirect(request.referrer or "/billing")
+
+    @app.route("/billing/checkout", methods=["POST"])
+    def billing_checkout():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        plan = request.form.get("plan") or ""
+        if not stripe_billing.configured() or plan not in stripe_billing.PRICES:
+            return redirect("/billing")
+        session_obj = stripe_billing.create_checkout_session(
+            user["id"], user["email"], plan, request.url_root.rstrip("/"))
+        if not session_obj or not session_obj.get("url"):
+            return render_template("billing_error.html",
+                                   message="Stripe couldn't start checkout — try again "
+                                           "in a minute or contact support.",
+                                   **build_dashboard_context()), 502
+        return redirect(session_obj["url"], code=303)
+
+    @app.route("/billing/portal", methods=["POST"])
+    def billing_portal():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if not (stripe_billing.configured() and user.get("stripe_customer_id")):
+            return redirect("/billing")
+        session_obj = stripe_billing.create_portal_session(
+            user["stripe_customer_id"], request.url_root.rstrip("/") + "/billing")
+        if not session_obj or not session_obj.get("url"):
+            return redirect("/billing")
+        return redirect(session_obj["url"], code=303)
+
+    @app.route("/webhooks/stripe", methods=["POST"])
+    def stripe_webhook():
+        if not stripe_billing.webhook_configured():
+            abort(404)
+        body = request.get_data()
+        if not stripe_billing.verify_webhook(
+                request.headers.get("Stripe-Signature", ""), body):
+            return jsonify({"ok": False, "error": "bad signature"}), 401
+        event = request.get_json(silent=True) or {}
+        etype = event.get("type") or ""
+        obj = (event.get("data") or {}).get("object") or {}
+        if etype == "checkout.session.completed":
+            user_id = obj.get("client_reference_id")
+            plan = (obj.get("metadata") or {}).get("plan")
+            if user_id and store.get_user(user_id) and plan in stripe_billing.PRICES:
+                store.set_user_plan(user_id, plan)
+                store.set_stripe_ids(user_id, obj.get("customer"),
+                                     obj.get("subscription"))
+                store.notify(user_id, "billing",
+                             "Welcome to %s" % plans.PLAN_NAMES.get(plan, plan),
+                             "Your subscription is active — every %s feature is "
+                             "unlocked." % plans.PLAN_NAMES.get(plan, plan),
+                             "/command-center")
+        elif etype == "customer.subscription.deleted":
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            if user:
+                store.set_user_plan(user["id"], "fan")
+                store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
+                store.notify(user["id"], "billing", "Subscription ended",
+                             "Your plan moved to the free Fan tier. Your data is "
+                             "untouched — resubscribe anytime to unlock it again.",
+                             "/billing")
+        elif etype == "invoice.payment_failed":
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            if user:
+                store.notify(user["id"], "billing", "Payment failed",
+                             "Stripe couldn't charge your card. Update it in "
+                             "Manage Billing to keep your plan.", "/billing")
+        return jsonify({"ok": True})
 
     # --- Artist OS: Command Center, Actions, Autopilot, Clean Release ----------
 
@@ -3204,9 +3289,13 @@ def create_app():
 
     @app.route("/billing")
     def billing():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
         ctx = build_dashboard_context()
         ctx["billing"] = get_billing_data(ctx["account"])
         ctx["plan_cards"] = plans.PLANS
+        ctx["user"] = user
         return render_template("billing.html", active_page="billing", **ctx)
 
     _TEAM_ROLES = ("manager", "accountant", "publicist", "attorney", "assistant")

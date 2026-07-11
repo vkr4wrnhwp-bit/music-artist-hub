@@ -413,6 +413,12 @@ def init_db():
             );
             """
         )
+        # Migration: Stripe billing identifiers on users.
+        for _col in ("stripe_customer_id", "stripe_subscription_id"):
+            try:
+                db.execute("ALTER TABLE users ADD COLUMN %s TEXT" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: optional territory column on statement rows.
         try:
             db.execute("ALTER TABLE statement_rows ADD COLUMN territory TEXT NOT NULL DEFAULT ''")
@@ -462,6 +468,21 @@ def create_user(email, name, password_hash):
 def set_user_plan(user_id, plan):
     with get_db() as db:
         db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))
+
+
+def set_stripe_ids(user_id, customer_id, subscription_id):
+    with get_db() as db:
+        db.execute("UPDATE users SET stripe_customer_id = ?, stripe_subscription_id = ? "
+                   "WHERE id = ?", (customer_id, subscription_id, user_id))
+
+
+def user_by_stripe_customer(customer_id):
+    if not customer_id:
+        return None
+    with get_db() as db:
+        row = db.execute("SELECT * FROM users WHERE stripe_customer_id = ?",
+                         (customer_id,)).fetchone()
+    return dict(row) if row else None
 
 
 def set_user_password(user_id, password_hash):

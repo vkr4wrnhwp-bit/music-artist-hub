@@ -2306,6 +2306,78 @@ def test_statement_dropbox_webhook(monkeypatch):
                      content_type="application/json").get_json()["ignored"]
 
 
+def _stripe_sig(payload, secret=b"whsec_stripetest"):
+    import hashlib
+    import hmac
+    import time
+    t = str(int(time.time()))
+    sig = hmac.new(secret, ("%s.%s" % (t, payload)).encode(),
+                   hashlib.sha256).hexdigest()
+    return {"Stripe-Signature": "t=%s,v1=%s" % (t, sig)}
+
+
+def test_stripe_checkout_and_webhooks(monkeypatch):
+    import json
+    import db as store_mod
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
+    calls = []
+    monkeypatch.setattr(sb, "_http", lambda path, fields: calls.append(
+        (path, fields)) or {"id": "cs_1", "url": "https://checkout.stripe.com/c/1"})
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Payer", "email": "payer2@example.net",
+                                 "password": "paypass"})
+    # Real accounts see real checkout, not the demo switch.
+    body = client.get("/billing").get_data(as_text=True)
+    assert "Subscribe — $29/mo" in body and "Switch (demo)" not in body
+    r = client.post("/billing/checkout", data={"plan": "pro"})
+    assert r.status_code == 303 and "checkout.stripe.com" in r.headers["Location"]
+    path, fields = calls[0]
+    assert path == "/v1/checkout/sessions"
+    assert fields["line_items[0][price_data][unit_amount]"] == "2900"
+    assert fields["mode"] == "subscription"
+    # Paid demo switching is blocked for real users when Stripe is live.
+    uid = store_mod.get_user_by_email("payer2@example.net")["id"]
+    client.post("/plan/switch", data={"plan": "label"})
+    assert store_mod.get_user(uid)["plan"] != "label"
+    # Webhook: signature required; completed checkout activates the plan.
+    anon = app_obj.test_client()
+    payload = json.dumps({"type": "checkout.session.completed", "data": {"object": {
+        "client_reference_id": uid, "customer": "cus_t9", "subscription": "sub_t9",
+        "metadata": {"plan": "pro"}}}})
+    assert anon.post("/webhooks/stripe", data=payload,
+                     headers={"Stripe-Signature": "t=1,v1=forged"},
+                     content_type="application/json").status_code == 401
+    anon.post("/webhooks/stripe", data=payload, headers=_stripe_sig(payload),
+              content_type="application/json")
+    u = store_mod.get_user(uid)
+    assert u["plan"] == "pro" and u["stripe_customer_id"] == "cus_t9"
+    assert "Manage Billing" in client.get("/billing").get_data(as_text=True)
+    # Cancellation downgrades to the free tier, data untouched.
+    p2 = json.dumps({"type": "customer.subscription.deleted",
+                     "data": {"object": {"customer": "cus_t9"}}})
+    anon.post("/webhooks/stripe", data=p2, headers=_stripe_sig(p2),
+              content_type="application/json")
+    assert store_mod.get_user(uid)["plan"] == "fan"
+
+
+def test_stripe_absent_keeps_honest_demo_switching(monkeypatch):
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "NoPay", "email": "nopay@example.net",
+                                 "password": "nopaypass"})
+    body = client.get("/billing").get_data(as_text=True)
+    assert "Switch (demo)" in body and "Subscribe —" not in body
+    assert "no payment is taken" in body
+    assert client.post("/webhooks/stripe", data="{}").status_code == 404
+    r = client.post("/billing/checkout", data={"plan": "pro"})
+    assert r.status_code == 302        # falls back to /billing, never fakes
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
     routes = ["/fraud-sentinel", "/ai-rights",

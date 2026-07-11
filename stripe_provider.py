@@ -1,0 +1,94 @@
+"""Stripe billing — real subscriptions behind the tier walls.
+
+Env-gated like every provider: without STRIPE_SECRET_KEY the app keeps
+its labeled demo plan-switching and never pretends to charge anyone.
+Checkout uses Stripe-hosted pages (no card data ever touches this
+server); webhooks are signature-verified. `_http` is the test seam.
+"""
+
+import hashlib
+import hmac
+import json
+import os
+import time
+import urllib.parse
+import urllib.request
+
+_TIMEOUT = 20
+
+# Tier -> (monthly cents, display name). Keep in sync with plans.PLANS.
+PRICES = {
+    "artist": (900, "Street Banker Artist"),
+    "pro": (2900, "Street Banker Pro"),
+    "label": (9900, "Street Banker Label"),
+}
+
+
+def configured():
+    return bool(os.environ.get("STRIPE_SECRET_KEY"))
+
+
+def webhook_configured():
+    return bool(os.environ.get("STRIPE_WEBHOOK_SECRET"))
+
+
+def _http(path, fields):
+    """Form-encoded POST to the Stripe API — tests monkeypatch this."""
+    req = urllib.request.Request(
+        "https://api.stripe.com" + path,
+        data=urllib.parse.urlencode(fields).encode(),
+        headers={"Authorization": "Bearer " + os.environ["STRIPE_SECRET_KEY"],
+                 "Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def create_checkout_session(user_id, email, plan, base_url):
+    """Hosted subscription checkout for one tier. Returns the session or None."""
+    if plan not in PRICES or not configured():
+        return None
+    cents, name = PRICES[plan]
+    fields = {
+        "mode": "subscription",
+        "client_reference_id": user_id,
+        "customer_email": email,
+        "success_url": base_url + "/billing?upgraded=1",
+        "cancel_url": base_url + "/billing",
+        "metadata[plan]": plan,
+        "subscription_data[metadata][plan]": plan,
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": str(cents),
+        "line_items[0][price_data][recurring][interval]": "month",
+        "line_items[0][price_data][product_data][name]": name,
+    }
+    try:
+        return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
+def create_portal_session(customer_id, return_url):
+    """Stripe-hosted billing portal (cancel, card update, invoices)."""
+    try:
+        return _http("/v1/billing_portal/sessions",
+                     {"customer": customer_id, "return_url": return_url})
+    except Exception:
+        return None
+
+
+def verify_webhook(sig_header, body, tolerance=600):
+    """Stripe-Signature check: HMAC-SHA256 of '{t}.{body}' with the secret."""
+    secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    if not (secret and sig_header):
+        return False
+    parts = dict(p.split("=", 1) for p in sig_header.split(",") if "=" in p)
+    t = parts.get("t", "")
+    if not t.isdigit() or abs(time.time() - int(t)) > tolerance:
+        return False
+    payload = body.decode("utf-8") if isinstance(body, bytes) else body
+    expected = hmac.new(secret.encode(), ("%s.%s" % (t, payload)).encode(),
+                        hashlib.sha256).hexdigest()
+    sigs = [p.split("=", 1)[1] for p in sig_header.split(",")
+            if p.startswith("v1=")]
+    return any(hmac.compare_digest(expected, s) for s in sigs)

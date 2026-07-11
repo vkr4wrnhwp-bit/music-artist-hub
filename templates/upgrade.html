@@ -25,15 +25,20 @@
         {% endfor %}
       </ul>
       {% if key != user_plan %}
-      <form method="post" action="/plan/switch" class="mt-4">
+      {% set real_checkout = stripe_live and not is_demo_account and key != 'fan' %}
+      <form method="post" action="{{ '/billing/checkout' if real_checkout else '/plan/switch' }}" class="mt-4">
         <input type="hidden" name="plan" value="{{ key }}">
-        <button class="w-full rounded-lg {{ 'bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] text-[#1c1302]' if key == required else 'border border-white/15 text-gray-200 hover:bg-white/5' }} px-4 py-2 text-xs font-bold">Switch to {{ name }}</button>
+        <button class="w-full rounded-lg {{ 'bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] text-[#1c1302]' if key == required else 'border border-white/15 text-gray-200 hover:bg-white/5' }} px-4 py-2 text-xs font-bold">{{ ('Subscribe — ' + price) if real_checkout else ('Switch to ' + name) }}</button>
       </form>
       {% endif %}
     </div>
     {% endfor %}
   </div>
 
-  <p class="text-center text-[10px] text-gray-600">Demo plan switching — no payment is taken. Real billing arrives with Stripe. Prices shown are placeholders you control.</p>
+  {% if stripe_live and not is_demo_account %}
+  <p class="text-center text-[10px] text-gray-600">Checkout runs on Stripe — no payment details touch this server. Cancel anytime; your data stays either way.</p>
+  {% else %}
+  <p class="text-center text-[10px] text-gray-600">Demo plan switching — no payment is taken.</p>
+  {% endif %}
 </div>
 {% endblock %}
