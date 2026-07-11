@@ -104,11 +104,11 @@ def get_me(access_token):
 
 def save_track(access_token, track_id):
     # Spotify's Feb 2026 migration deprecated PUT /me/tracks for dev-mode
-    # apps (bare 403); the generic library endpoint takes URIs instead.
+    # apps (bare 403); the generic library endpoint takes URIs in the query.
     req = urllib.request.Request(
-        "https://api.spotify.com/v1/me/library",
-        data=json.dumps({"uris": ["spotify:track:" + track_id]}).encode(),
-        method="PUT",
+        "https://api.spotify.com/v1/me/library?" + urllib.parse.urlencode(
+            {"uris": "spotify:track:" + track_id}),
+        data=b"", method="PUT",
         headers={"Authorization": "Bearer " + access_token,
                  "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:

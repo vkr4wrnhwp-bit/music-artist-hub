@@ -737,8 +737,9 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 11,
+            "v": 12,
             "presave_states": _presave_states(user["id"]),
+            "stripe_activity": _stripe_activity(),
             "STRIPE_SECRET_KEY": bool(os.environ.get("STRIPE_SECRET_KEY")),
             "STRIPE_WEBHOOK_SECRET": bool(os.environ.get("STRIPE_WEBHOOK_SECRET")),
             "RESEND_WEBHOOK_SECRET": bool(os.environ.get("RESEND_WEBHOOK_SECRET")),
@@ -781,6 +782,18 @@ def create_app():
             out.append({"slug": r["slug"], "status": r["status"],
                         "retries": r["retry_count"], "error": (r["error"] or "")[:120]})
         return out
+
+    def _stripe_activity():
+        """Owner-only: proof the billing webhook fired — counts only."""
+        with store.get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM users WHERE stripe_customer_id IS NOT NULL "
+                "AND stripe_customer_id != ''").fetchone()
+            plans_row = conn.execute(
+                "SELECT plan, COUNT(*) AS n FROM users WHERE stripe_customer_id IS NOT NULL "
+                "AND stripe_customer_id != '' GROUP BY plan").fetchall()
+        return {"customers": row["n"],
+                "plans": {r["plan"]: r["n"] for r in plans_row}}
 
     def _app_token_check():
         """Owner-only: does the client-credentials grant actually work?
