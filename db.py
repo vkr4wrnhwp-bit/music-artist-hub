@@ -1171,7 +1171,9 @@ def delete_expense(user_id, exp_id):
 # --- Spotify pre-saves -----------------------------------------------------------
 
 def add_spotify_presave(campaign_id, spotify_user_id, email, refresh_token_enc):
-    """Returns the presave id, or None if this fan already pre-saved."""
+    """Returns the presave id, or None if this fan already pre-saved.
+    A repeat authorization refreshes the stored token and re-arms delivery
+    (unless already completed) — fans re-consenting is a fix, not a no-op."""
     presave_id = uuid.uuid4().hex
     try:
         with get_db() as db:
@@ -1181,6 +1183,12 @@ def add_spotify_presave(campaign_id, spotify_user_id, email, refresh_token_enc):
                 (presave_id, campaign_id, spotify_user_id, email,
                  refresh_token_enc, _now()))
     except sqlite3.IntegrityError:
+        with get_db() as db:
+            db.execute(
+                "UPDATE spotify_presaves SET refresh_token_enc = ?, retry_count = 0,"
+                " status = 'pending', error = '' "
+                "WHERE campaign_id = ? AND spotify_user_id = ? AND status != 'completed'",
+                (refresh_token_enc, campaign_id, spotify_user_id))
         return None
     return presave_id
 
