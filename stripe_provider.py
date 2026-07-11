@@ -68,6 +68,48 @@ def create_checkout_session(user_id, email, plan, base_url):
         return None
 
 
+def _http_get(path):
+    req = urllib.request.Request(
+        "https://api.stripe.com" + path,
+        headers={"Authorization": "Bearer " + os.environ["STRIPE_SECRET_KEY"]})
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def active_subscription_for_email(email):
+    """Look up an active subscription by customer email — the webhook-less
+    fallback so a completed checkout can always be claimed in-app.
+    Returns {customer_id, subscription_id, plan} or None."""
+    if not configured() or not email:
+        return None
+    try:
+        customers = _http_get("/v1/customers?" + urllib.parse.urlencode(
+            {"email": email, "limit": 5})).get("data", [])
+        for cust in customers:
+            subs = _http_get("/v1/subscriptions?" + urllib.parse.urlencode(
+                {"customer": cust["id"], "status": "active", "limit": 5})).get("data", [])
+            for sub in subs:
+                plan = (sub.get("metadata") or {}).get("plan")
+                if plan not in PRICES:
+                    # Fall back to matching the product name we created.
+                    items = (sub.get("items") or {}).get("data") or []
+                    for it in items:
+                        nickname = ((it.get("price") or {}).get("nickname") or "")
+                        for key, (_, name) in PRICES.items():
+                            if name in nickname:
+                                plan = key
+                    if plan not in PRICES:
+                        for key in PRICES:
+                            if (sub.get("description") or "").lower().find(key) >= 0:
+                                plan = key
+                if plan in PRICES:
+                    return {"customer_id": cust["id"],
+                            "subscription_id": sub["id"], "plan": plan}
+        return None
+    except Exception:
+        return None
+
+
 def create_portal_session(customer_id, return_url):
     """Stripe-hosted billing portal (cancel, card update, invoices)."""
     try:

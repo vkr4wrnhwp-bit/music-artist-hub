@@ -1855,6 +1855,26 @@ def create_app():
                                    **build_dashboard_context()), 502
         return redirect(session_obj["url"], code=303)
 
+    @app.route("/billing/sync", methods=["POST"])
+    def billing_sync():
+        """Webhook-less fallback: claim a completed Stripe checkout by
+        matching an active subscription to the signed-in account's email."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if not stripe_billing.configured():
+            return redirect("/billing")
+        found = stripe_billing.active_subscription_for_email(user["email"])
+        if found:
+            store.set_user_plan(user["id"], found["plan"])
+            store.set_stripe_ids(user["id"], found["customer_id"],
+                                 found["subscription_id"])
+            store.notify(user["id"], "billing",
+                         "Welcome to %s" % plans.PLAN_NAMES.get(found["plan"]),
+                         "Subscription synced from Stripe — everything is unlocked.",
+                         "/command-center")
+        return redirect("/billing" + ("?upgraded=1" if found else "?sync=none"))
+
     @app.route("/billing/portal", methods=["POST"])
     def billing_portal():
         user = current_user()

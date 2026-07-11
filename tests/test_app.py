@@ -2363,6 +2363,32 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
     assert store_mod.get_user(uid)["plan"] == "fan"
 
 
+def test_billing_sync_claims_completed_checkout(monkeypatch):
+    import db as store_mod
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Sync", "email": "sync@example.net",
+                                 "password": "syncpass"})
+    # Nothing found: honest message, no plan change.
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: None)
+    r = client.post("/billing/sync")
+    assert r.headers["Location"].endswith("?sync=none")
+    uid = store_mod.get_user_by_email("sync@example.net")["id"]
+    assert store_mod.get_user(uid)["plan"] == "artist"
+    # Active sub in Stripe: plan applies, ids stored, notification lands.
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+        "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "artist"}
+        if email == "sync@example.net" else None)
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+        "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "pro"})
+    r = client.post("/billing/sync")
+    assert "upgraded=1" in r.headers["Location"]
+    u = store_mod.get_user(uid)
+    assert u["plan"] == "pro" and u["stripe_customer_id"] == "cus_s1"
+
+
 def test_stripe_absent_keeps_honest_demo_switching(monkeypatch):
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
