@@ -726,7 +726,8 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 10,
+            "v": 11,
+            "presave_states": _presave_states(user["id"]),
             "STRIPE_SECRET_KEY": bool(os.environ.get("STRIPE_SECRET_KEY")),
             "STRIPE_WEBHOOK_SECRET": bool(os.environ.get("STRIPE_WEBHOOK_SECRET")),
             "RESEND_WEBHOOK_SECRET": bool(os.environ.get("RESEND_WEBHOOK_SECRET")),
@@ -755,6 +756,20 @@ def create_app():
                 except Exception:
                     pass
             return "%s: %s%s" % (type(exc).__name__, exc, detail)
+
+    def _presave_states(user_id):
+        """Owner-only: status/retries/error per pre-save on own campaigns."""
+        out = []
+        with store.get_db() as conn:
+            rows = conn.execute(
+                "SELECT sp.status, sp.retry_count, sp.error, mc.slug "
+                "FROM spotify_presaves sp JOIN ml_campaigns mc ON mc.id = sp.campaign_id "
+                "WHERE mc.user_id = ? ORDER BY sp.created DESC LIMIT 10",
+                (user_id,)).fetchall()
+        for r in rows:
+            out.append({"slug": r["slug"], "status": r["status"],
+                        "retries": r["retry_count"], "error": (r["error"] or "")[:120]})
+        return out
 
     def _app_token_check():
         """Owner-only: does the client-credentials grant actually work?
