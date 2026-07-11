@@ -2437,7 +2437,13 @@ def test_artwork_studio_upload_and_controls():
     # Text controls + upload + remix all ship.
     for needle in ('id="title-color"', 'id="artist-color"', 'id="text-size"',
                    'id="text-x"', 'id="text-y"', 'id="art-upload"',
-                   'id="remix-btn"', "re-imagines the same concept"):
+                   'id="remix-btn"', "re-imagines the same concept",
+                   # full studio: alignment, case/shadow, spacing, artist size,
+                   # image zoom/pan/darken, save-finished-cover, line breaks
+                   'id="upper-toggle"', 'id="shadow-toggle"',
+                   'id="letter-spacing"', 'id="artist-size"',
+                   'id="img-scrim"', 'id="img-zoom"', 'id="img-panx"',
+                   'id="save-cover-btn"', "use / for a line break"):
         assert needle.lower() in body.lower(), needle
     # Upload lands in the user's uploads and serves back.
     r = client.post("/artwork/upload", data={

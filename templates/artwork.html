@@ -15,13 +15,15 @@
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold uppercase tracking-tight">Cover Art</h1>
-      <p class="mt-1 text-sm text-gray-500">Design release artwork from templates, or generate a concept from a prompt.</p>
+      <p class="mt-1 text-sm text-gray-500">Generate or upload art, place your type, ship the cover.</p>
     </div>
     <div class="flex flex-wrap gap-2">
+      <button type="button" id="save-cover-btn" class="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm font-semibold text-green-400 transition-colors hover:bg-green-500/20">Save Cover to Uploads</button>
       <button type="button" id="download-svg-btn" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5">Download SVG</button>
       <button type="button" id="download-png-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Download PNG</button>
     </div>
   </div>
+  <p id="cover-save-msg" class="hidden break-all text-[11px]"></p>
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
     <!-- Live preview -->
@@ -68,9 +70,32 @@
         </div>
       </section>
 
+      <!-- Image controls (live once art is on the cover) -->
+      <section id="image-controls" class="hidden rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Image</label>
+        <div class="mt-3 space-y-2.5">
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Darken (for text)</span><span id="scrim-val">28%</span></div>
+            <input type="range" id="img-scrim" min="0" max="80" value="28" class="w-full accent-amber-500">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Zoom</span><span id="zoom-val">100%</span></div>
+            <input type="range" id="img-zoom" min="100" max="250" value="100" class="w-full accent-amber-500">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan horizontal</span><span id="panx-val">50%</span></div>
+            <input type="range" id="img-panx" min="0" max="100" value="50" class="w-full accent-amber-500">
+          </div>
+          <div>
+            <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Pan vertical</span><span id="pany-val">50%</span></div>
+            <input type="range" id="img-pany" min="0" max="100" value="50" class="w-full accent-amber-500">
+          </div>
+        </div>
+      </section>
+
       <section class="rounded-2xl border border-white/5 bg-[#111113] p-5 space-y-4">
         <div>
-          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title</label>
+          <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Title <span class="normal-case text-gray-600">(use / for a line break)</span></label>
           <input id="title-input" value="{{ aw.quick_titles[0] if aw.quick_titles else 'Untitled' }}"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
           <div class="mt-2 flex flex-wrap gap-1.5">
@@ -120,10 +145,31 @@
               <input type="color" id="artist-color" value="#d8b25a" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
             </div>
           </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <div class="flex overflow-hidden rounded-md border border-white/10">
+              {% for al, label in [('left', 'Left'), ('center', 'Center'), ('right', 'Right')] %}
+              <button type="button" class="align-btn px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:text-amber-400" data-align="{{ al }}">{{ label }}</button>
+              {% endfor %}
+            </div>
+            <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
+              <input type="checkbox" id="upper-toggle" checked class="h-3.5 w-3.5 accent-amber-500">CAPS
+            </label>
+            <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
+              <input type="checkbox" id="shadow-toggle" checked class="h-3.5 w-3.5 accent-amber-500">Shadow
+            </label>
+          </div>
           <div class="mt-3 space-y-2.5">
             <div>
-              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Size</span><span id="size-val">100%</span></div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Title size</span><span id="size-val">100%</span></div>
               <input type="range" id="text-size" min="40" max="220" value="100" class="w-full accent-amber-500">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Artist size</span><span id="asize-val">100%</span></div>
+              <input type="range" id="artist-size" min="50" max="220" value="100" class="w-full accent-amber-500">
+            </div>
+            <div>
+              <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Letter spacing</span><span id="ls-val">0</span></div>
+              <input type="range" id="letter-spacing" min="0" max="24" value="0" class="w-full accent-amber-500">
             </div>
             <div>
               <div class="flex justify-between text-[9px] uppercase tracking-wide text-gray-600"><span>Horizontal</span><span id="posx-val">—</span></div>
@@ -171,7 +217,9 @@
     title: document.getElementById("title-input").value,
     artist: document.getElementById("artist-input").value,
     titleColor: null, artistColor: null,
-    textScale: 1, textX: null, textY: null,
+    textScale: 1, artistScale: 1, textX: null, textY: null,
+    align: null, upper: true, shadow: true, letterSpacing: 0,
+    image: null, scrim: 28, zoom: 100, panX: 50, panY: 50,
   };
 
   const byId = (arr, id) => arr.find((x) => x.id === id) || arr[0];
@@ -182,37 +230,48 @@
     const f = byId(FONTS, state.font);
     const a = byId(ASPECTS, state.aspect);
     const W = a.w, H = a.h;
-    const title = (state.title || "Untitled").toUpperCase();
-    const artist = (state.artist || "").toUpperCase();
+    const cook = (s) => state.upper ? s.toUpperCase() : s;
+    const lines = cook(state.title || "Untitled").split("/").map(l => l.trim()).filter(Boolean).slice(0, 4);
+    const artist = cook(state.artist || "");
 
     let motif = "";
     if (t.motif === "ring") motif = `<circle cx="${W/2}" cy="${H*0.4}" r="${Math.min(W,H)*0.28}" fill="none" stroke="${c.accent}" stroke-width="6" opacity="0.55"/>`;
     else if (t.motif === "bar") motif = `<rect x="0" y="${H*0.72}" width="${W}" height="8" fill="${c.accent}"/>`;
     else if (t.motif === "lines") motif = `<g stroke="${c.accent}" stroke-width="5" opacity="0.5">${[0,1,2].map(i=>`<line x1="${W*0.1}" y1="${H*0.30+i*22}" x2="${W*0.42}" y2="${H*0.30+i*22}"/>`).join("")}</g>`;
 
-    let titleEl, artistEl;
     const titleColor = state.titleColor || c.text;
     const artistColor = state.artistColor || c.accent;
-    const titleSize = Math.min(W, H) * (title.length > 14 ? 0.085 : 0.12) * state.textScale;
-    if (state.textX !== null || state.textY !== null) {
-      // Manual placement: anchored block wherever the sliders point.
-      const cx = W * ((state.textX === null ? 50 : state.textX) / 100);
-      const cy = H * ((state.textY === null ? 58 : state.textY) / 100);
-      titleEl = `<text x="${cx}" y="${cy}" text-anchor="middle" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
-      artistEl = `<text x="${cx}" y="${cy + titleSize * 0.7}" text-anchor="middle" fill="${artistColor}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
-    } else if (t.align === "center") {
-      titleEl = `<text x="${W/2}" y="${H*0.58}" text-anchor="middle" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
-      artistEl = `<text x="${W/2}" y="${H*0.66}" text-anchor="middle" fill="${artistColor}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
-    } else if (t.align === "bottom") {
-      titleEl = `<text x="${W*0.06}" y="${H*0.88}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
-      artistEl = `<text x="${W*0.06}" y="${H*0.94}" fill="${artistColor}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
-    } else {
-      titleEl = `<text x="${W*0.1}" y="${H*0.55}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800">${escapeXml(title)}</text>`;
-      artistEl = `<text x="${W*0.1}" y="${H*0.62}" fill="${artistColor}" font-family="${f.stack}" font-size="${titleSize*0.32}" letter-spacing="4">${escapeXml(artist)}</text>`;
+    const longest = Math.max(...lines.map(l => l.length), 1);
+    const titleSize = Math.min(W, H) * (longest > 14 ? 0.085 : 0.12) * state.textScale;
+    const artistSize = titleSize * 0.32 * state.artistScale;
+    const lineGap = titleSize * 1.05;
+
+    // Anchor: explicit alignment wins, else the template's habit.
+    const align = state.align || ({ center: "center", bottom: "left" }[t.align] || "left");
+    const anchor = { left: "start", center: "middle", right: "end" }[align];
+    const ax = { left: W * 0.06, center: W / 2, right: W * 0.94 }[align];
+    const cx = state.textX !== null ? W * (state.textX / 100) : ax;
+    const baseY = state.textY !== null ? H * (state.textY / 100)
+      : (t.align === "bottom" ? H * 0.84 : H * 0.55) - (lines.length - 1) * lineGap * 0.5;
+
+    const shadow = state.shadow
+      ? `<filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${Math.max(2, titleSize*0.03)}" stdDeviation="${Math.max(3, titleSize*0.06)}" flood-color="black" flood-opacity="0.6"/></filter>` : "";
+    const fx = state.shadow ? ` filter="url(#ds)"` : "";
+
+    const titleEl = lines.map((line, i) =>
+      `<text x="${cx}" y="${baseY + i * lineGap}" text-anchor="${anchor}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800" letter-spacing="${state.letterSpacing}"${fx}>${escapeXml(line)}</text>`).join("");
+    const artistEl = artist
+      ? `<text x="${cx}" y="${baseY + (lines.length - 1) * lineGap + titleSize * 0.75}" text-anchor="${anchor}" fill="${artistColor}" font-family="${f.stack}" font-size="${artistSize}" letter-spacing="4"${fx}>${escapeXml(artist)}</text>` : "";
+
+    // Photo layer: zoom scales the slice box, pan slides it.
+    let imageEl = "";
+    if (state.image) {
+      const iw = W * state.zoom / 100, ih = H * state.zoom / 100;
+      const ix = -(iw - W) * state.panX / 100, iy = -(ih - H) * state.panY / 100;
+      imageEl = `<image href="${state.image}" x="${ix}" y="${iy}" width="${iw}" height="${ih}" preserveAspectRatio="xMidYMid slice"/>` +
+        (state.scrim > 0 ? `<rect width="${W}" height="${H}" fill="black" opacity="${state.scrim / 100}"/>` : "");
     }
 
-    // Export gets real pixel dimensions; the on-page preview scales to its
-    // container via CSS (width:100%) so it can't overflow onto the controls.
     const sizeAttrs = forExport
       ? `width="${W}" height="${H}"`
       : `style="width:100%;height:auto;display:block"`;
@@ -221,9 +280,9 @@
       ${forExport && state._fontCss ? state._fontCss : ""}
       <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="${c.from}"/><stop offset="1" stop-color="${c.to}"/>
-      </linearGradient></defs>
+      </linearGradient>${shadow}</defs>
       <rect width="${W}" height="${H}" fill="url(#bg)"/>
-      ${state.image ? `<image href="${state.image}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="black" opacity="0.28"/>` : motif}${titleEl}${artistEl}
+      ${state.image ? imageEl : motif}${titleEl}${artistEl}
     </svg>`;
   }
 
@@ -235,6 +294,12 @@
     document.getElementById("cover-frame").innerHTML = buildSvg(false);
     const rm = document.getElementById("ai-remove-btn");
     if (rm) rm.classList.toggle("hidden", !state.image);
+    document.getElementById("image-controls").classList.toggle("hidden", !state.image);
+    document.querySelectorAll(".align-btn").forEach((b) => {
+      const active = b.dataset.align === state.align;
+      b.classList.toggle("bg-amber-500/15", active);
+      b.classList.toggle("text-amber-400", active);
+    });
   }
 
   async function setDesignerImage(url) {
@@ -252,7 +317,7 @@
     render();
   }
 
-  // Wire controls
+  // Wire basics
   document.getElementById("title-input").addEventListener("input", (e) => { state.title = e.target.value; render(); });
   document.getElementById("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
   document.getElementById("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
@@ -285,8 +350,51 @@
   }
   document.querySelectorAll(".template-btn").forEach((b) => b.addEventListener("click", () => setTemplate(b.dataset.template)));
 
+  // Text controls
+  const slider = (id, valId, fn, suffix = "%") => document.getElementById(id).addEventListener("input", (e) => {
+    fn(+e.target.value);
+    document.getElementById(valId).textContent = e.target.value + suffix;
+    render();
+  });
+  document.getElementById("title-color").addEventListener("input", (e) => { state.titleColor = e.target.value; render(); });
+  document.getElementById("artist-color").addEventListener("input", (e) => { state.artistColor = e.target.value; render(); });
+  slider("text-size", "size-val", (v) => state.textScale = v / 100);
+  slider("artist-size", "asize-val", (v) => state.artistScale = v / 100);
+  slider("letter-spacing", "ls-val", (v) => state.letterSpacing = v, "");
+  slider("text-x", "posx-val", (v) => state.textX = v);
+  slider("text-y", "posy-val", (v) => state.textY = v);
+  document.querySelectorAll(".align-btn").forEach((b) => b.addEventListener("click", () => {
+    state.align = state.align === b.dataset.align ? null : b.dataset.align;
+    render();
+  }));
+  document.getElementById("upper-toggle").addEventListener("change", (e) => { state.upper = e.target.checked; render(); });
+  document.getElementById("shadow-toggle").addEventListener("change", (e) => { state.shadow = e.target.checked; render(); });
+
+  document.getElementById("text-reset-btn").addEventListener("click", () => {
+    Object.assign(state, { titleColor: null, artistColor: null, textScale: 1,
+      artistScale: 1, textX: null, textY: null, align: null, upper: true,
+      shadow: true, letterSpacing: 0 });
+    document.getElementById("title-color").value = "#ffffff";
+    document.getElementById("artist-color").value = "#d8b25a";
+    const resets = [["text-size", 100, "size-val", "100%"], ["artist-size", 100, "asize-val", "100%"],
+                    ["letter-spacing", 0, "ls-val", "0"], ["text-x", 50, "posx-val", "—"], ["text-y", 58, "posy-val", "—"]];
+    for (const [id, v, valId, label] of resets) {
+      document.getElementById(id).value = v;
+      document.getElementById(valId).textContent = label;
+    }
+    document.getElementById("upper-toggle").checked = true;
+    document.getElementById("shadow-toggle").checked = true;
+    render();
+  });
+
+  // Image controls
+  slider("img-scrim", "scrim-val", (v) => state.scrim = v);
+  slider("img-zoom", "zoom-val", (v) => state.zoom = v);
+  slider("img-panx", "panx-val", (v) => state.panX = v);
+  slider("img-pany", "pany-val", (v) => state.panY = v);
+
   // AI artwork: real image via Pollinations + palette suggestion
-  let currentAiUrl = null;
+  let currentAiUrl = null, lastPrompt = null, lastSeed = null;
   const aiWrap = document.getElementById("ai-image-wrap");
   const aiImg = document.getElementById("ai-image");
   const aiLoading = document.getElementById("ai-loading");
@@ -297,7 +405,9 @@
     currentAiUrl = url;
     aiWrap.classList.remove("hidden");
     aiLoading.classList.remove("hidden");
+    aiLoading.textContent = "Painting… 10–30s";
     aiSave.disabled = true;
+    aiSave.textContent = "Save to My Uploads";
     aiAgain.disabled = true;
     document.getElementById("ai-saved-msg").classList.add("hidden");
     aiImg.onload = () => { aiLoading.classList.add("hidden"); aiSave.disabled = false; aiAgain.disabled = false; setDesignerImage(url); };
@@ -338,38 +448,6 @@
   aiAgain.addEventListener("click", generateArt);
   document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
 
-  // Text controls
-  document.getElementById("title-color").addEventListener("input", (e) => { state.titleColor = e.target.value; render(); });
-  document.getElementById("artist-color").addEventListener("input", (e) => { state.artistColor = e.target.value; render(); });
-  document.getElementById("text-size").addEventListener("input", (e) => {
-    state.textScale = e.target.value / 100;
-    document.getElementById("size-val").textContent = e.target.value + "%";
-    render();
-  });
-  document.getElementById("text-x").addEventListener("input", (e) => {
-    state.textX = +e.target.value;
-    document.getElementById("posx-val").textContent = e.target.value + "%";
-    render();
-  });
-  document.getElementById("text-y").addEventListener("input", (e) => {
-    state.textY = +e.target.value;
-    document.getElementById("posy-val").textContent = e.target.value + "%";
-    render();
-  });
-  document.getElementById("text-reset-btn").addEventListener("click", () => {
-    state.titleColor = null; state.artistColor = null;
-    state.textScale = 1; state.textX = null; state.textY = null;
-    document.getElementById("title-color").value = "#ffffff";
-    document.getElementById("artist-color").value = "#d8b25a";
-    document.getElementById("text-size").value = 100;
-    document.getElementById("text-x").value = 50;
-    document.getElementById("text-y").value = 58;
-    document.getElementById("size-val").textContent = "100%";
-    document.getElementById("posx-val").textContent = "—";
-    document.getElementById("posy-val").textContent = "—";
-    render();
-  });
-
   // Upload your own artwork straight into the designer
   document.getElementById("art-upload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -394,7 +472,6 @@
   });
 
   // Remix: same seed, same concept, your change appended
-  let lastPrompt = null, lastSeed = null;
   document.getElementById("remix-btn").addEventListener("click", async () => {
     const change = document.getElementById("remix-input").value.trim();
     if (!change || !lastPrompt) return;
@@ -453,7 +530,27 @@
     return fontEmbedCache[f.id];
   }
 
-  // Downloads
+  // Rasterize the current cover at export resolution.
+  async function coverPngBlob() {
+    state._fontCss = await fontFaceCss();
+    const a = byId(ASPECTS, state.aspect);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const svgBlob = new Blob([buildSvg(true)], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(svgBlob);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = a.w; canvas.height = a.h;
+        canvas.getContext("2d").drawImage(img, 0, 0, a.w, a.h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("raster failed")), "image/png");
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("svg load failed")); };
+      img.src = url;
+    });
+  }
+
+  // Downloads + save-to-app
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -469,19 +566,36 @@
   });
 
   document.getElementById("download-png-btn").addEventListener("click", async () => {
-    state._fontCss = await fontFaceCss();
-    const a = byId(ASPECTS, state.aspect);
-    const img = new Image();
-    const svgBlob = new Blob([buildSvg(true)], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(svgBlob);
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = a.w; canvas.height = a.h;
-      canvas.getContext("2d").drawImage(img, 0, 0, a.w, a.h);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => downloadBlob(blob, safeName() + "-cover.png"), "image/png");
-    };
-    img.src = url;
+    try { downloadBlob(await coverPngBlob(), safeName() + "-cover.png"); } catch (e) {}
+  });
+
+  document.getElementById("save-cover-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById("cover-save-msg");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      const blob = await coverPngBlob();
+      const fd = new FormData();
+      fd.append("art", blob, safeName() + "-cover.png");
+      const res = await fetch("/artwork/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      msg.classList.remove("hidden");
+      if (data.ok) {
+        msg.className = "break-all text-[11px] text-green-400";
+        msg.textContent = "Finished cover saved ✓ — " + data.path + " is ready to use as a campaign cover or EPK asset.";
+        btn.textContent = "Saved ✓";
+        setTimeout(() => { btn.textContent = "Save Cover to Uploads"; btn.disabled = false; }, 2000);
+        return;
+      }
+      throw new Error(data.error || "save failed");
+    } catch (err) {
+      msg.classList.remove("hidden");
+      msg.className = "break-all text-[11px] text-red-400";
+      msg.textContent = "Couldn't save the cover: " + err.message;
+      btn.textContent = "Save Cover to Uploads";
+      btn.disabled = false;
+    }
   });
 
   render();
