@@ -2344,11 +2344,47 @@ def create_app():
         if user is None:
             return login_required_redirect()
         title = (request.form.get("title") or "").strip()
-        if title:
-            store.add_club_drop(user["id"], title,
-                                (request.form.get("body") or "").strip(),
-                                (request.form.get("link_url") or "").strip())
-        return redirect("/fan-club")
+        if not title:
+            return redirect("/fan-club")
+        body = (request.form.get("body") or "").strip()
+        store.add_club_drop(user["id"], title, body,
+                            (request.form.get("link_url") or "").strip())
+        club = store.get_fan_club(user["id"])
+        if not emailer.configured() or not club:
+            return redirect("/fan-club?posted=1&email_off=1")
+        import html as _html
+        notified = failed = 0
+        slug = _ensure_epk_slug(user)
+        base = request.url_root.rstrip("/")
+        for m in store.list_club_members(user["id"])[:200]:
+            if m["status"] != "active":
+                continue
+            token = _club_serializer().dumps(
+                {"artist_id": user["id"], "email": m["member_email"]})
+            link = base + "/club/" + slug + "/members?token=" + token
+            ok = emailer.send(
+                m["member_email"],
+                "%s: new members-only drop" % (club["name"] or "Fan club"),
+                '<div style="font-family:sans-serif;max-width:480px">'
+                '<p style="color:#a37c2a;font-weight:800;letter-spacing:2px;'
+                'text-transform:uppercase;font-size:11px">%s</p>'
+                '<h2 style="margin:6px 0 12px">%s</h2>%s'
+                '<p style="margin-top:18px"><a href="%s" style="background:#d8b25a;'
+                'color:#1c1302;padding:11px 20px;border-radius:8px;'
+                'text-decoration:none;font-weight:800">Open the drop</a></p>'
+                '<p style="color:#888;font-size:12px">This link signs you '
+                'straight in and works for 7 days.</p></div>'
+                % (_html.escape(user["name"] or "Your artist"),
+                   _html.escape(title),
+                   ('<p style="color:#444">%s</p>' % _html.escape(body[:300])
+                    if body else ""),
+                   link))
+            if ok:
+                notified += 1
+            else:
+                failed += 1
+        return redirect("/fan-club?posted=1&notified=%d&failed=%d"
+                        % (notified, failed))
 
     @app.route("/fan-club/drops/<drop_id>/delete", methods=["POST"])
     def fan_club_drop_delete(drop_id):
@@ -3818,9 +3854,52 @@ def create_app():
                          "/disputes")
         return jsonify({"ok": ok})
 
+    def _backup_allowed(user):
+        """Full-database export: never for the shared demo accounts. A real
+        label-tier account qualifies, or whoever OWNER_EMAIL names."""
+        if user is None:
+            return False
+        owner_email = (os.environ.get("OWNER_EMAIL") or "").lower()
+        if owner_email and user["email"].lower() == owner_email:
+            return True
+        return (user.get("plan") or "") == "label" and not _is_demo_email(user["email"])
+
     @app.route("/settings")
     def settings():
-        return render_template("settings.html", active_page="settings", **build_dashboard_context())
+        return render_template("settings.html", active_page="settings",
+                               can_backup=_backup_allowed(current_user()),
+                               **build_dashboard_context())
+
+    @app.route("/backup")
+    def backup_download():
+        import sqlite3 as _sq
+        import tempfile
+        import zipfile
+        from flask import send_file
+        user = current_user()
+        if not _backup_allowed(user):
+            abort(404)
+        # Consistent snapshot via SQLite's backup API, not a raw file copy.
+        snap = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        snap.close()
+        src = _sq.connect(store.db_path())
+        dst = _sq.connect(snap.name)
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+        buf = tempfile.TemporaryFile()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(snap.name, "streetbanker.db")
+            for root, _dirs, files in os.walk(UPLOADS_DIR):
+                for fname in files:
+                    full = os.path.join(root, fname)
+                    z.write(full, "uploads/" + os.path.relpath(full, UPLOADS_DIR))
+        os.unlink(snap.name)
+        buf.seek(0)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return send_file(buf, mimetype="application/zip", as_attachment=True,
+                         download_name="streetbanker-backup-%s.zip" % stamp)
 
     @app.route("/scan/missing-royalties", methods=["POST"])
     def scan_missing_royalties():

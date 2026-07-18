@@ -3607,3 +3607,72 @@ def test_club_checkout_instant_access(monkeypatch):
     anon = app_obj.test_client()
     assert anon.get("/club/%s?joined=1&session_id=cs_fake" % slug).status_code == 200
     assert "Member access" in anon.get("/club/%s/members" % slug).get_data(as_text=True)
+
+
+def test_drop_notifications(monkeypatch):
+    import db as store_mod
+    import email_provider as emailer_mod
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    outbox = []
+    monkeypatch.setattr(emailer_mod, "send",
+                        lambda to, subject, html, attachments=None:
+                        outbox.append((to, subject, html)) or to.endswith("@ok.example"))
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/fan-club", data={"name": "Notify Club", "price": "5",
+                                   "blurb": "b", "perks": "Early drops",
+                                   "active": "1"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    for m in store_mod.list_club_members(uid):  # shared-DB leftovers
+        if m["status"] == "active" and m["stripe_subscription_id"]:
+            store_mod.cancel_club_member_by_subscription(m["stripe_subscription_id"])
+    store_mod.add_club_member(uid, "n1@ok.example", "cus_n1", "sub_n1")
+    store_mod.add_club_member(uid, "n2@blocked.example", "cus_n2", "sub_n2")
+    store_mod.add_club_member(uid, "n3@ok.example", "cus_n3", "sub_n3")
+    store_mod.cancel_club_member_by_subscription("sub_n3")
+    r = artist.post("/fan-club/drops", data={"title": "Notify Test Drop",
+                                             "body": "Fresh for members."})
+    # Two active members contacted; the sandbox-blocked one reported honestly.
+    assert "notified=1" in r.headers["Location"]
+    assert "failed=1" in r.headers["Location"]
+    tos = sorted(t for t, _s, _h in outbox)
+    assert tos == ["n1@ok.example", "n2@blocked.example"]
+    to, subject, html = [m for m in outbox if m[0] == "n1@ok.example"][0]
+    assert "Notify Club" in subject and "/members?token=" in html
+    # The emailed magic link actually signs the member in.
+    path = html.split('href="')[1].split('"')[0].replace("http://localhost", "")
+    fan = app_obj.test_client()
+    assert fan.get(path).status_code == 302
+    slug = store_mod.get_epk(uid)["slug"]
+    assert "Notify Test Drop" in fan.get(
+        "/club/%s/members" % slug).get_data(as_text=True)
+    banner = artist.get("/fan-club?posted=1&notified=1&failed=1").get_data(as_text=True)
+    assert "Emailed 1 member" in banner and "couldn't be delivered" in banner
+
+
+def test_backup_download(monkeypatch):
+    import io as _io
+    import zipfile
+    import db as store_mod
+    app_obj = create_app()
+    # The shared demo account must NOT be able to exfiltrate the database.
+    demo = _demo(app_obj)
+    assert demo.get("/backup").status_code == 404
+    assert "Download backup" not in demo.get("/settings").get_data(as_text=True)
+    # A real label-tier account can.
+    owner = app_obj.test_client()
+    owner.post("/signup", data={"name": "Owner", "email": "real-owner@example.net",
+                                "password": "ownerpass1"})
+    store_mod.set_user_plan(
+        store_mod.get_user_by_email("real-owner@example.net")["id"], "label")
+    assert "Download backup" in owner.get("/settings").get_data(as_text=True)
+    r = owner.get("/backup")
+    assert r.status_code == 200 and r.mimetype == "application/zip"
+    names = zipfile.ZipFile(_io.BytesIO(r.data)).namelist()
+    assert "streetbanker.db" in names
+    # OWNER_EMAIL opens the door for any tier.
+    monkeypatch.setenv("OWNER_EMAIL", "cheap-owner@example.net")
+    cheap = app_obj.test_client()
+    cheap.post("/signup", data={"name": "C", "email": "cheap-owner@example.net",
+                                "password": "cheappass1"})
+    assert cheap.get("/backup").status_code == 200

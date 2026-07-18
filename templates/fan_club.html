@@ -10,6 +10,19 @@
     <p class="mt-1 max-w-2xl text-sm text-gray-400">A paid membership your biggest fans subscribe to monthly — real recurring income through Stripe, and every member lands in your Fan CRM.</p>
   </div>
 
+  {% if request.args.get('posted') %}
+  {% set n = request.args.get('notified', 0) | int %}
+  {% set f = request.args.get('failed', 0) | int %}
+  <div class="rounded-2xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm">
+    <span class="font-bold text-green-400">Drop posted.</span>
+    {% if n %}<span class="text-gray-300"> Emailed {{ n }} member{{ 's' if n != 1 }} their access link.</span>{% endif %}
+    {% if request.args.get('email_off') %}<span class="text-gray-400"> Member emails are off until Resend is configured — members will see it when they open the area.</span>{% endif %}
+  </div>
+  {% if f %}
+  <div class="rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-400/90">{{ f }} member email{{ 's' if f != 1 }} couldn't be delivered — the email service only sends to your own address until a domain is verified in Resend. Members can still sign in from the club page.</div>
+  {% endif %}
+  {% endif %}
+
   <div class="grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
       <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Monthly Recurring</div>
