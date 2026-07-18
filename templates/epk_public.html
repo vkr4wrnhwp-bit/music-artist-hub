@@ -181,6 +181,27 @@
       </section>
       {% endif %}
 
+      <!-- Merch (stitched to the artist's store) -->
+      {% if e.store_url or e.merch %}
+      <section class="py-12">
+        <div class="flex items-center gap-5">
+          <h2 class="shrink-0 text-[10px] font-bold uppercase tracking-[0.4em] text-[#a8862f]">Merch</h2>
+          <div class="rule w-full"></div>
+          {% if e.store_url %}<a href="{{ e.store_url }}" target="_blank" rel="noopener" class="shrink-0 text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f] hover:underline">Full store ↗</a>{% endif %}
+        </div>
+        {% if e.merch %}
+        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+          {% for item in e.merch %}
+          <a href="{{ item.url }}" target="_blank" rel="noopener" class="flex items-baseline justify-between gap-4 border border-[#141210]/15 px-5 py-4 transition-colors hover:bg-[#141210] hover:text-white">
+            <span class="serif text-lg font-semibold">{{ item.title }}</span>
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-[0.2em] text-[#a8862f]">{{ item.price or 'Shop' }} ↗</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
       <!-- Royalty Sweep intelligence (optional, artist-controlled) -->
       {% if e.show_sweep %}
       <section class="my-12 bg-[#141210] px-8 py-9 text-white sm:px-10">

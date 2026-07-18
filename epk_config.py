@@ -109,6 +109,18 @@ def normalize_epk_overrides(payload):
         out["video_url"] = video if video.startswith("http") else ""
     if "bandsintown_artist" in p:
         out["bandsintown_artist"] = (p.get("bandsintown_artist") or "").strip()[:100]
+    store_url = (p.get("store_url") or "").strip()[:300]
+    if "store_url" in p:
+        out["store_url"] = store_url if store_url.startswith("http") else ""
+    merch = []
+    for item in (p.get("merch") or [])[:4]:
+        title = (item.get("title") or "").strip()[:80]
+        url = (item.get("url") or "").strip()[:300]
+        if title and url.startswith("http"):
+            merch.append({"title": title, "url": url,
+                          "price": (item.get("price") or "").strip()[:20]})
+    if "merch" in p:
+        out["merch"] = merch
     return out
 
 
@@ -223,4 +235,6 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "bg_color": o.get("bg_color") or "#141210",
         "bandsintown_artist": (o.get("bandsintown_artist") or "").strip(),
         "tour_dates": tour_dates,
+        "store_url": (o.get("store_url") or "").strip(),
+        "merch": o.get("merch") or [],
     }

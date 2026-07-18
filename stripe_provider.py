@@ -110,6 +110,32 @@ def active_subscription_for_email(email):
         return None
 
 
+def create_club_checkout(artist_id, club_name, price_cents, member_email,
+                         slug, base_url):
+    """Fan-club membership checkout: recurring monthly, tagged so the
+    webhook can route it to the right artist's roster."""
+    if not configured():
+        return None
+    fields = {
+        "mode": "subscription",
+        "customer_email": member_email,
+        "success_url": base_url + "/club/" + slug + "?joined=1",
+        "cancel_url": base_url + "/club/" + slug,
+        "metadata[kind]": "fan_club",
+        "metadata[artist_id]": artist_id,
+        "metadata[member_email]": member_email,
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": str(int(price_cents)),
+        "line_items[0][price_data][recurring][interval]": "month",
+        "line_items[0][price_data][product_data][name]": (club_name or "Fan Club")[:100],
+    }
+    try:
+        return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
 def create_portal_session(customer_id, return_url):
     """Stripe-hosted billing portal (cancel, card update, invoices)."""
     try:

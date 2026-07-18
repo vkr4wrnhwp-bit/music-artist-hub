@@ -916,8 +916,10 @@ def create_app():
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
                 _process_due_presaves(campaign)
+            owner_epk = store.get_epk(campaign["user_id"]) or {}
             return render_template(
                 "link_campaign.html", c=campaign,
+                store_url=((owner_epk.get("data") or {}).get("store_url") or ""),
                 spotify_presave=spotify.configured(),
                 presave_state=(request.args.get("presave") or ""),
                 destinations=mls.get_destinations(campaign["id"], active_only=True),
@@ -1840,7 +1842,7 @@ def create_app():
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
-                        "/team/join/", "/webhooks/")
+                        "/team/join/", "/webhooks/", "/club/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy"}
 
@@ -1957,7 +1959,20 @@ def create_app():
         event = request.get_json(silent=True) or {}
         etype = event.get("type") or ""
         obj = (event.get("data") or {}).get("object") or {}
-        if etype == "checkout.session.completed":
+        if etype == "checkout.session.completed" and \
+                (obj.get("metadata") or {}).get("kind") == "fan_club":
+            meta = obj.get("metadata") or {}
+            artist_id = meta.get("artist_id")
+            email = (meta.get("member_email") or "").lower()
+            if artist_id and store.get_user(artist_id) and email:
+                store.add_club_member(artist_id, email, obj.get("customer"),
+                                      obj.get("subscription"))
+                fan_id = mls.upsert_fan(artist_id, email, None)
+                mls.add_consent(fan_id, None, "fan_club",
+                                "Paid fan club membership via Stripe checkout.")
+                store.notify(artist_id, "fan", "New fan club member",
+                             "%s joined your fan club." % email, "/fan-club")
+        elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             plan = (obj.get("metadata") or {}).get("plan")
             if user_id and store.get_user(user_id) and plan in stripe_billing.PRICES:
@@ -1970,6 +1985,13 @@ def create_app():
                              "unlocked." % plans.PLAN_NAMES.get(plan, plan),
                              "/command-center")
         elif etype == "customer.subscription.deleted":
+            # Fan club cancellations first — they aren't plan subscriptions.
+            artist_id = store.cancel_club_member_by_subscription(obj.get("id"))
+            if artist_id:
+                store.notify(artist_id, "fan", "Fan club member left",
+                             "A membership was canceled — the fan stays in your CRM.",
+                             "/fan-club")
+                return jsonify({"ok": True})
             user = store.user_by_stripe_customer(obj.get("customer"))
             if user:
                 store.set_user_plan(user["id"], "fan")
@@ -2156,6 +2178,108 @@ def create_app():
                         "; ".join(m.get("publishers") or [])])
         return Response(buf.getvalue(), mimetype="text/csv", headers={
             "Content-Disposition": "attachment; filename=metadata-passport.csv"})
+
+    # --- Fan Club: recurring fan memberships through Stripe ---------------------
+
+    @app.route("/fan-club", methods=["GET", "POST"])
+    def fan_club():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            try:
+                price = max(1.0, min(float(request.form.get("price") or 5), 500.0))
+            except ValueError:
+                price = 5.0
+            perks = [p.strip() for p in (request.form.get("perks") or "").splitlines()
+                     if p.strip()][:8]
+            store.save_fan_club(user["id"], (request.form.get("name") or "").strip(),
+                                (request.form.get("blurb") or "").strip(),
+                                round(price * 100), perks,
+                                request.form.get("active") == "1")
+            return redirect("/fan-club")
+        club = store.get_fan_club(user["id"])
+        members = store.list_club_members(user["id"])
+        active_members = [m for m in members if m["status"] == "active"]
+        slug = _ensure_epk_slug(user)
+        return render_template("fan_club.html", active_page="fan-club-admin",
+                               club=club, members=members,
+                               active_count=len(active_members),
+                               mrr=round(len(active_members)
+                                         * (club["price_cents"] if club else 0) / 100, 2),
+                               club_url="/club/" + slug,
+                               stripe_live=stripe_billing.configured(),
+                               **build_dashboard_context())
+
+    @app.route("/club/<slug>")
+    def club_public(slug):
+        prof = store.get_epk_by_slug(slug)
+        club = store.get_fan_club(prof["user_id"]) if prof else None
+        if prof is None or club is None or not club["active"]:
+            abort(404)
+        return render_template("club_public.html", club=club, slug=slug,
+                               artist_name=prof["user_name"],
+                               joined=bool(request.args.get("joined")),
+                               stripe_live=stripe_billing.configured())
+
+    @app.route("/club/<slug>/join", methods=["POST"])
+    def club_join(slug):
+        prof = store.get_epk_by_slug(slug)
+        club = store.get_fan_club(prof["user_id"]) if prof else None
+        if prof is None or club is None or not club["active"]:
+            abort(404)
+        email = (request.form.get("email") or "").strip().lower()
+        if "@" not in email or not stripe_billing.configured():
+            return redirect("/club/" + slug)
+        session_obj = stripe_billing.create_club_checkout(
+            prof["user_id"], club["name"], club["price_cents"], email, slug,
+            request.url_root.rstrip("/"))
+        if not session_obj or not session_obj.get("url"):
+            return redirect("/club/" + slug)
+        return redirect(session_obj["url"], code=303)
+
+    # --- Partner Portal: team roles open real (read-only) doors ------------------
+
+    @app.route("/portal")
+    def portal():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("portal.html", active_page="portal",
+                               memberships=store.list_portal_memberships(user["id"]),
+                               **build_dashboard_context())
+
+    @app.route("/portal/<owner_id>")
+    def portal_view(owner_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        membership = store.get_portal_membership(user["id"], owner_id)
+        if membership is None:
+            abort(404)
+        role = membership["role"]
+        money = None
+        if role in ("manager", "accountant", "attorney"):
+            rows = store.get_statement_rows(owner_id)
+            money = {"total": round(sum(r["amount"] for r in rows), 2),
+                     "rows": len(rows),
+                     "statements": len(store.get_statements(owner_id))}
+        promo = None
+        if role in ("manager", "publicist", "assistant"):
+            campaigns = [c for c in mls.list_campaigns(owner_id)
+                         if not c.get("archived_at")]
+            clicks = views = 0
+            for c in campaigns:
+                n = mls.event_counts(c["id"])
+                views += n.get("page_view", 0) + n.get("pageview", 0)
+                clicks += n.get("service_click", 0) + n.get("click", 0)
+            promo = {"campaigns": len(campaigns), "views": views, "clicks": clicks,
+                     "fans": len(mls.list_fans(owner_id))}
+        return render_template("portal_view.html", active_page="portal",
+                               m=membership, role=role, money=money, promo=promo,
+                               trust=trust_score.calculate(owner_id)["total"],
+                               growth=qualification.calculate(owner_id)["total"],
+                               **build_dashboard_context())
 
     @app.route("/capital-score")
     def capital_score_page():

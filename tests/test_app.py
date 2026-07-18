@@ -2466,11 +2466,98 @@ def test_artwork_studio_upload_and_controls():
     assert "add%20rain" in b["image_url"]
 
 
+def test_fan_club_full_loop(monkeypatch):
+    import json
+    import db as store_mod
+    import links_store as mls
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
+    monkeypatch.setattr(sb, "_http", lambda path, fields: {
+        "id": "cs_c", "url": "https://checkout.stripe.com/c/club"})
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    # Configure and open the club.
+    artist.post("/fan-club", data={"name": "Inner Circle T", "price": "7.5",
+                                   "blurb": "b", "perks": "Early drops",
+                                   "active": "1"})
+    body = artist.get("/fan-club").get_data(as_text=True)
+    assert "Open for members" in body
+    slug = body.split("/club/")[1].split('"')[0]
+    # Public page + join -> Stripe checkout.
+    anon = app_obj.test_client()
+    pub = anon.get("/club/" + slug).get_data(as_text=True)
+    assert "Inner Circle T" in pub and "Early drops" in pub
+    r = anon.post("/club/%s/join" % slug, data={"email": "clubfan@example.net"})
+    assert r.status_code == 303 and "checkout.stripe.com" in r.headers["Location"]
+    # Signed webhook lands the member in the roster and the Fan CRM.
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    payload = json.dumps({"type": "checkout.session.completed", "data": {"object": {
+        "customer": "cus_ct", "subscription": "sub_ct",
+        "metadata": {"kind": "fan_club", "artist_id": uid,
+                     "member_email": "clubfan@example.net"}}}})
+    anon.post("/webhooks/stripe", data=payload, headers=_stripe_sig(payload),
+              content_type="application/json")
+    assert any(m["member_email"] == "clubfan@example.net"
+               for m in store_mod.list_club_members(uid))
+    assert mls.list_fans(uid, "clubfan@example.net")
+    # Cancellation flips status without touching the artist's plan.
+    p2 = json.dumps({"type": "customer.subscription.deleted",
+                     "data": {"object": {"id": "sub_ct", "customer": "cus_ct"}}})
+    anon.post("/webhooks/stripe", data=p2, headers=_stripe_sig(p2),
+              content_type="application/json")
+    canceled = [m for m in store_mod.list_club_members(uid)
+                if m["member_email"] == "clubfan@example.net"][0]
+    assert canceled["status"] == "canceled"
+    assert store_mod.get_user(uid)["plan"] == "label"
+
+
+def test_partner_portal_role_scoping():
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    uid_body = artist.post("/team/invite", data={
+        "email": "portal-acct@example.net", "role": "accountant"}).get_json()
+    tok = uid_body["link"].split("/team/join/")[1]
+    member = app_obj.test_client()
+    member.post("/team/join/" + tok, data={"name": "Books", "password": "bookpass"})
+    body = member.get("/portal").get_data(as_text=True)
+    assert "accountant" in body
+    import db as store_mod
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    view = member.get("/portal/" + uid).get_data(as_text=True)
+    assert "read-only" in view and "Money" in view
+    assert "Promotion" not in view          # accountants don't see promo
+    # Non-members are shut out entirely.
+    stranger = app_obj.test_client()
+    stranger.post("/signup", data={"name": "S", "email": "portal-stranger@example.net",
+                                   "password": "strange1"})
+    assert stranger.get("/portal/" + uid).status_code == 404
+
+
+def test_shopify_merch_stitch():
+    import links_store as mls
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    assert artist.post("/epk/save", json={
+        "store_url": "https://artiswar.myshopify.com",
+        "merch": [{"title": "Logo Tee", "price": "$30",
+                   "url": "https://artiswar.myshopify.com/products/tee"}]}).get_json()["ok"]
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    slug = store_mod.get_epk(uid)["slug"]
+    pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
+    assert "Merch" in pub and "Logo Tee" in pub and "Full store" in pub
+    # The store button rides along on live smart-link pages.
+    live = [c for c in mls.list_campaigns(uid) if c["status"] == "live"]
+    if live:
+        lp = app_obj.test_client().get("/l/" + live[0]["slug"]).get_data(as_text=True)
+        assert "Merch Store" in lp
+
+
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
     routes = ["/fraud-sentinel", "/ai-rights",
-              "/opportunities", "/voice-of-fan", "/fan-club",
-              "/partner-portal", "/royalty-recovery/mlc"]
+              "/opportunities", "/voice-of-fan", "/royalty-recovery/mlc"]
     for route in routes:
         r = client.get(route)
         assert r.status_code == 200, route

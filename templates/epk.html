@@ -329,6 +329,21 @@
             <img id="video-thumb" src="{{ epk.video_thumb or '' }}" alt="Video thumbnail" class="mt-2 {{ '' if epk.video_thumb else 'hidden' }} aspect-video w-full rounded-md border border-[#141210]/15 object-cover">
           </div>
           <div>
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Merch Store URL (Shopify or any store)</label>
+            <input id="f-store" value="{{ epk.store_url }}" placeholder="https://your-store.myshopify.com" class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Featured Merch (up to 4 — name, price, product link)</label>
+            {% for i in range(4) %}
+            {% set item = epk.merch[i] if epk.merch|length > i else None %}
+            <div class="mt-1.5 grid grid-cols-[1fr_72px_1fr] gap-1.5">
+              <input id="f-m{{ i }}-title" value="{{ item.title if item else '' }}" placeholder="Tee, vinyl, hoodie…" class="rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-2.5 py-1.5 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
+              <input id="f-m{{ i }}-price" value="{{ item.price if item else '' }}" placeholder="$30" class="rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-2.5 py-1.5 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
+              <input id="f-m{{ i }}-url" value="{{ item.url if item else '' }}" placeholder="https://…/products/…" class="rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-2.5 py-1.5 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
+            </div>
+            {% endfor %}
+          </div>
+          <div>
             <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Bandsintown Artist Name</label>
             <input id="f-bandsintown" value="{{ epk.bandsintown_artist }}" placeholder="Exact name on Bandsintown" {{ 'disabled' if not bandsintown_configured }} class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none disabled:opacity-50">
             <p class="mt-1 text-[10px] text-[#141210]/45">{{ 'Upcoming shows from your Bandsintown profile appear in the Tour Dates section automatically.' if bandsintown_configured else 'Live tour dates connect through Bandsintown — not enabled on this server yet.' }}</p>
@@ -434,6 +449,8 @@
       show_sweep: document.getElementById("f-show-sweep").checked,
       video_url: v("f-video"),
       bandsintown_artist: v("f-bandsintown"),
+      store_url: v("f-store"),
+      merch: [0, 1, 2, 3].map((i) => ({ title: v("f-m" + i + "-title"), price: v("f-m" + i + "-price"), url: v("f-m" + i + "-url") })),
       bg_color: v("f-bg"),
       sections_off: [...document.querySelectorAll(".section-toggle:not(:checked)")].map((cb) => cb.dataset.section),
     };

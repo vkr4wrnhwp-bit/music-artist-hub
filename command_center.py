@@ -100,8 +100,8 @@ MODULES = [
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
     ("/voice-of-fan", "Voice of Fan", "Fan comments and behavior turned into campaign intelligence.", "preview", None),
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
-    ("/fan-club", "Fan Club", "Memberships, drops, early access, and VIP segments.", "preview", None),
-    ("/partner-portal", "Partner Portal", "Label, distributor, and manager access with scoped permissions.", "preview", None),
+    ("/fan-club", "Fan Club", "Paid monthly memberships through Stripe, wired into the Fan CRM.", "live", None),
+    ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

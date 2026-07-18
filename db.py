@@ -104,6 +104,25 @@ def init_db():
                 photo TEXT,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS fan_clubs (
+                user_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                blurb TEXT NOT NULL DEFAULT '',
+                price_cents INTEGER NOT NULL DEFAULT 500,
+                perks TEXT NOT NULL DEFAULT '[]',
+                active INTEGER NOT NULL DEFAULT 0,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS club_members (
+                id TEXT PRIMARY KEY,
+                artist_id TEXT NOT NULL,
+                member_email TEXT NOT NULL,
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                created TEXT NOT NULL,
+                UNIQUE(artist_id, member_email)
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -745,6 +764,89 @@ def list_pulse_snapshots(user_id, limit=90):
             "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
             (user_id, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+# --- Fan Club ----------------------------------------------------------------------
+
+def save_fan_club(user_id, name, blurb, price_cents, perks, active):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO fan_clubs (user_id, name, blurb, price_cents, perks, active, updated) "
+            "VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, "
+            "price_cents=excluded.price_cents, perks=excluded.perks, active=excluded.active, "
+            "updated=excluded.updated",
+            (user_id, name[:80], blurb[:500], int(price_cents),
+             json.dumps(perks[:8]), 1 if active else 0, _now()))
+
+
+def get_fan_club(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM fan_clubs WHERE user_id = ?", (user_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["perks"] = json.loads(d["perks"] or "[]")
+    return d
+
+
+def add_club_member(artist_id, member_email, customer_id, subscription_id):
+    member_id = uuid.uuid4().hex
+    email = (member_email or "").lower().strip()
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO club_members (id, artist_id, member_email, stripe_customer_id,"
+                " stripe_subscription_id, status, created) VALUES (?,?,?,?,?,'active',?)",
+                (member_id, artist_id, email, customer_id, subscription_id, _now()))
+    except sqlite3.IntegrityError:
+        with get_db() as db:
+            db.execute(
+                "UPDATE club_members SET status='active', stripe_customer_id=?,"
+                " stripe_subscription_id=? WHERE artist_id=? AND member_email=?",
+                (customer_id, subscription_id, artist_id, email))
+        return None
+    return member_id
+
+
+def list_club_members(artist_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM club_members WHERE artist_id = ? ORDER BY created DESC",
+            (artist_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def cancel_club_member_by_subscription(subscription_id):
+    """Returns the artist_id whose member canceled, or None."""
+    with get_db() as db:
+        row = db.execute("SELECT artist_id FROM club_members WHERE stripe_subscription_id = ?",
+                         (subscription_id,)).fetchone()
+        if row:
+            db.execute("UPDATE club_members SET status='canceled' "
+                       "WHERE stripe_subscription_id = ?", (subscription_id,))
+    return row["artist_id"] if row else None
+
+
+def list_portal_memberships(member_user_id):
+    """Teams this user belongs to (active), with the owner's name."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT t.owner_id, t.role, u.name AS owner_name FROM team_members t "
+            "JOIN users u ON u.id = t.owner_id "
+            "WHERE t.member_user_id = ? AND t.status = 'active' ORDER BY t.created",
+            (member_user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_portal_membership(member_user_id, owner_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT t.*, u.name AS owner_name FROM team_members t "
+            "JOIN users u ON u.id = t.owner_id "
+            "WHERE t.member_user_id = ? AND t.owner_id = ? AND t.status = 'active'",
+            (member_user_id, owner_id)).fetchone()
+    return dict(row) if row else None
 
 
 # --- Statement drop-box tokens ------------------------------------------------------
