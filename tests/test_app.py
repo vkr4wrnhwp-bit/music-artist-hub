@@ -3533,3 +3533,77 @@ def test_webhook_auto_setup(monkeypatch):
         headers={"Stripe-Signature": "t=%s,v1=%s" % (t, sig)})
     assert resp.get_json()["ok"]
     store_mod.set_kv("stripe_webhook_secret", "")  # shared-DB cleanup
+
+
+def test_club_members_area(monkeypatch):
+    import db as store_mod
+    import email_provider as emailer_mod
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    sent = {}
+    monkeypatch.setattr(emailer_mod, "send",
+                        lambda to, subject, html, attachments=None:
+                        sent.update({"to": to, "html": html}) or True)
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/fan-club", data={"name": "Members Test Club", "price": "5",
+                                   "blurb": "b", "perks": "Early drops",
+                                   "active": "1"})
+    artist.post("/fan-club/drops", data={"title": "Secret Demo v1",
+                                         "body": "Members hear it first.",
+                                         "link_url": "https://example.net/demo"})
+    assert "Secret Demo v1" in artist.get("/fan-club").get_data(as_text=True)
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    slug = store_mod.get_epk(uid)["slug"]
+    store_mod.add_club_member(uid, "vip@example.net", "cus_v", "sub_vip")
+    fan = app_obj.test_client()
+    # The gate never leaks drop content.
+    gate = fan.get("/club/%s/members" % slug).get_data(as_text=True)
+    assert "Member access" in gate and "Secret Demo v1" not in gate
+    # Magic link -> signed in -> feed visible.
+    r = fan.post("/club/%s/members/link" % slug, data={"email": "vip@example.net"})
+    assert "sent=1" in r.headers["Location"] and sent["to"] == "vip@example.net"
+    token_path = sent["html"].split('href="')[1].split('"')[0].replace(
+        "http://localhost", "")
+    assert fan.get(token_path).status_code == 302
+    feed = fan.get("/club/%s/members" % slug).get_data(as_text=True)
+    assert "Secret Demo v1" in feed and "vip@example.net" in feed
+    # A non-member request gets the same neutral message but no email.
+    before = dict(sent)
+    r = fan.post("/club/%s/members/link" % slug, data={"email": "nobody@example.net"})
+    assert "sent=1" in r.headers["Location"] and sent == before
+    # Cancellation locks the door again.
+    store_mod.cancel_club_member_by_subscription("sub_vip")
+    locked = fan.get("/club/%s/members" % slug).get_data(as_text=True)
+    assert "Secret Demo v1" not in locked
+    # Drop removal.
+    drop_id = store_mod.list_club_drops(uid)[0]["id"]
+    artist.post("/fan-club/drops/%s/delete" % drop_id)
+    assert store_mod.list_club_drops(uid) == []
+
+
+def test_club_checkout_instant_access(monkeypatch):
+    import db as store_mod
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/fan-club", data={"name": "Members Test Club", "price": "5",
+                                   "blurb": "b", "perks": "Early drops",
+                                   "active": "1"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    slug = store_mod.get_epk(uid)["slug"]
+    monkeypatch.setattr(sb, "get_checkout_session", lambda sid: {
+        "payment_status": "paid", "customer": "cus_now", "subscription": "sub_now",
+        "metadata": {"kind": "fan_club", "artist_id": uid,
+                     "member_email": "instant@example.net"}}
+        if sid == "cs_good" else None)
+    fan = app_obj.test_client()
+    # The success redirect verifies with Stripe and signs the member in.
+    r = fan.get("/club/%s?joined=1&session_id=cs_good" % slug)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/members")
+    assert store_mod.get_active_club_member(uid, "instant@example.net")
+    assert fan.get("/club/%s/members" % slug).status_code == 200
+    # A bogus session id grants nothing — plain join page, no membership.
+    anon = app_obj.test_client()
+    assert anon.get("/club/%s?joined=1&session_id=cs_fake" % slug).status_code == 200
+    assert "Member access" in anon.get("/club/%s/members" % slug).get_data(as_text=True)

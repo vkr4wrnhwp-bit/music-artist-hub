@@ -1977,13 +1977,14 @@ def create_app():
             artist_id = meta.get("artist_id")
             email = (meta.get("member_email") or "").lower()
             if artist_id and store.get_user(artist_id) and email:
-                store.add_club_member(artist_id, email, obj.get("customer"),
-                                      obj.get("subscription"))
+                new_id = store.add_club_member(artist_id, email, obj.get("customer"),
+                                               obj.get("subscription"))
                 fan_id = mls.upsert_fan(artist_id, email, None)
-                mls.add_consent(fan_id, None, "fan_club",
-                                "Paid fan club membership via Stripe checkout.")
-                store.notify(artist_id, "fan", "New fan club member",
-                             "%s joined your fan club." % email, "/fan-club")
+                if new_id:  # replayed events and rejoins shouldn't re-notify
+                    mls.add_consent(fan_id, None, "fan_club",
+                                    "Paid fan club membership via Stripe checkout.")
+                    store.notify(artist_id, "fan", "New fan club member",
+                                 "%s joined your fan club." % email, "/fan-club")
         elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             plan = (obj.get("metadata") or {}).get("plan")
@@ -2216,6 +2217,7 @@ def create_app():
         slug = _ensure_epk_slug(user)
         return render_template("fan_club.html", active_page="fan-club-admin",
                                club=club, members=members,
+                               drops=store.list_club_drops(user["id"]),
                                active_count=len(active_members),
                                mrr=round(len(active_members)
                                          * (club["price_cents"] if club else 0) / 100, 2),
@@ -2229,6 +2231,28 @@ def create_app():
         club = store.get_fan_club(prof["user_id"]) if prof else None
         if prof is None or club is None or not club["active"]:
             abort(404)
+        sid = request.args.get("session_id")
+        if sid and request.args.get("joined"):
+            # Trust only what Stripe says about the session, never the URL.
+            sess = stripe_billing.get_checkout_session(sid)
+            meta = (sess or {}).get("metadata") or {}
+            if (sess and sess.get("payment_status") == "paid"
+                    and meta.get("kind") == "fan_club"
+                    and meta.get("artist_id") == prof["user_id"]
+                    and meta.get("member_email")):
+                email = meta["member_email"].lower()
+                new_id = store.add_club_member(
+                    prof["user_id"], email, sess.get("customer"),
+                    sess.get("subscription"))
+                fan_id = mls.upsert_fan(prof["user_id"], email, None)
+                if new_id:
+                    mls.add_consent(fan_id, None, "fan_club",
+                                    "Paid fan club membership via Stripe checkout.")
+                    store.notify(prof["user_id"], "fan", "New fan club member",
+                                 "%s joined your fan club." % email, "/fan-club")
+                session.permanent = True
+                session["club_member_" + prof["user_id"]] = email
+                return redirect("/club/" + slug + "/members")
         return render_template("club_public.html", club=club, slug=slug,
                                artist_name=prof["user_name"],
                                joined=bool(request.args.get("joined")),
@@ -2249,6 +2273,90 @@ def create_app():
         if not session_obj or not session_obj.get("url"):
             return redirect("/club/" + slug)
         return redirect(session_obj["url"], code=303)
+
+    def _club_serializer():
+        from itsdangerous import URLSafeTimedSerializer
+        return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="club-member")
+
+    def _club_or_404(slug):
+        prof = store.get_epk_by_slug(slug)
+        club = store.get_fan_club(prof["user_id"]) if prof else None
+        if prof is None or club is None:
+            abort(404)
+        return prof, club
+
+    @app.route("/club/<slug>/members")
+    def club_members_area(slug):
+        # Members keep access while their subscription is active, even if the
+        # artist later closes the club to new joins.
+        prof, club = _club_or_404(slug)
+        token = request.args.get("token")
+        if token:
+            from itsdangerous import BadSignature, SignatureExpired
+            try:
+                data = _club_serializer().loads(token, max_age=7 * 86400)
+            except (BadSignature, SignatureExpired):
+                data = None
+            if data and data.get("artist_id") == prof["user_id"]:
+                session.permanent = True
+                session["club_member_" + prof["user_id"]] = data.get("email", "")
+            return redirect("/club/" + slug + "/members")
+        email = session.get("club_member_" + prof["user_id"])
+        member = store.get_active_club_member(prof["user_id"], email) if email else None
+        if member is None:
+            return render_template("club_members.html", mode="gate", club=club,
+                                   slug=slug, artist_name=prof["user_name"],
+                                   email_live=emailer.configured(),
+                                   sent=request.args.get("sent"),
+                                   email_error=request.args.get("email_error"))
+        return render_template("club_members.html", mode="feed", club=club,
+                               slug=slug, artist_name=prof["user_name"],
+                               member_email=email,
+                               drops=store.list_club_drops(prof["user_id"]))
+
+    @app.route("/club/<slug>/members/link", methods=["POST"])
+    def club_members_link(slug):
+        prof, club = _club_or_404(slug)
+        email = (request.form.get("email") or "").strip().lower()
+        member = (store.get_active_club_member(prof["user_id"], email)
+                  if "@" in email else None)
+        if member:
+            token = _club_serializer().dumps(
+                {"artist_id": prof["user_id"], "email": email})
+            link = (request.url_root.rstrip("/") + "/club/" + slug
+                    + "/members?token=" + token)
+            ok = emailer.send(
+                email, "Your %s access link" % (club["name"] or "fan club"),
+                '<p>Tap to open the members area for <b>%s</b>:</p>'
+                '<p><a href="%s">%s</a></p>'
+                '<p style="color:#888;font-size:12px">The link works for 7 days '
+                'and keeps you signed in on this device.</p>'
+                % (club["name"] or "the fan club", link, link))
+            if not ok:
+                # Honesty first: the send failed (sandbox until a domain is
+                # verified), so don't tell anyone to go check their inbox.
+                return redirect("/club/" + slug + "/members?email_error=1")
+        return redirect("/club/" + slug + "/members?sent=1")
+
+    @app.route("/fan-club/drops", methods=["POST"])
+    def fan_club_drop_post():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        title = (request.form.get("title") or "").strip()
+        if title:
+            store.add_club_drop(user["id"], title,
+                                (request.form.get("body") or "").strip(),
+                                (request.form.get("link_url") or "").strip())
+        return redirect("/fan-club")
+
+    @app.route("/fan-club/drops/<drop_id>/delete", methods=["POST"])
+    def fan_club_drop_delete(drop_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_club_drop(user["id"], drop_id)
+        return redirect("/fan-club")
 
     # --- Partner Portal: team roles open real (read-only) doors ------------------
 

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Members — {{ club.name or 'Fan Club' }} · {{ artist_name }}</title>
+  <meta name="robots" content="noindex">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#0a0a0b] text-gray-100 antialiased">
+  <main class="mx-auto flex min-h-screen w-full max-w-lg flex-col px-5 pb-10 pt-12">
+    <div class="text-center">
+      <div class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#d8b25a]">{{ artist_name }}</div>
+      <h1 class="mt-2 text-3xl font-black leading-tight">{{ club.name or 'Fan Club' }}</h1>
+      <div class="mt-3 inline-flex items-center gap-2 rounded-full border border-[#d8b25a]/40 bg-[#d8b25a]/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#e8c667]">
+        ★ Members Only
+      </div>
+    </div>
+
+    {% if mode == 'gate' %}
+    <div class="mt-8 rounded-2xl border border-white/10 bg-black/40 p-5">
+      <h2 class="text-sm font-black uppercase tracking-wide">Member access</h2>
+      <p class="mt-1.5 text-xs leading-relaxed text-gray-400">This area is for paying members. Enter the email you joined with and we'll send you a sign-in link — no password needed.</p>
+
+      {% if email_error %}
+      <p class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-300">Your membership checks out, but the access email couldn't be delivered from this server yet. Rejoining through checkout signs you in instantly — you won't be charged twice for an active subscription, or contact {{ artist_name }} directly.</p>
+      {% elif sent %}
+      <p class="mt-3 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-2.5 text-[11px] text-green-300">If that email has an active membership, your access link is on its way. Give it a minute and check spam too.</p>
+      {% endif %}
+
+      {% if email_live %}
+      <form method="post" action="/club/{{ slug }}/members/link" class="mt-4">
+        <input name="email" type="email" required placeholder="the email you joined with"
+               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
+        <button type="submit" class="mt-2 w-full rounded-xl bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302] transition-transform hover:scale-[1.01]">Email my access link</button>
+      </form>
+      {% else %}
+      <p class="mt-4 rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-[11px] leading-relaxed text-gray-400">Access emails aren't switched on for this server yet. If you just joined, the checkout receipt page signs you in automatically — otherwise check back soon.</p>
+      {% endif %}
+
+      <p class="mt-4 text-center text-[11px] text-gray-500">Not a member yet? <a href="/club/{{ slug }}" class="font-bold text-[#e8c667] hover:underline">Join the club</a></p>
+    </div>
+    {% else %}
+    <div class="mt-2 text-center text-[11px] text-gray-500">Signed in as <span class="font-bold text-gray-300">{{ member_email }}</span></div>
+
+    <div class="mt-6 space-y-4">
+      {% for drop in drops %}
+      <article class="rounded-2xl border border-[#d8b25a]/25 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-5">
+        <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-500">{{ drop.created[:10] }}</div>
+        <h2 class="mt-1 text-lg font-black leading-snug">{{ drop.title }}</h2>
+        {% if drop.body %}<p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-300">{{ drop.body }}</p>{% endif %}
+        {% if drop.link_url %}
+        <a href="{{ drop.link_url }}" target="_blank" rel="noopener"
+           class="mt-3 inline-block rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#1c1302]">Open the drop ↗</a>
+        {% endif %}
+      </article>
+      {% else %}
+      <div class="rounded-2xl border border-white/10 bg-black/40 p-6 text-center">
+        <p class="text-sm text-gray-400">No drops posted yet — the moment {{ artist_name }} shares something for members, it lands right here.</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <p class="mt-6 text-center text-[10px] text-gray-600">Your membership renews monthly through Stripe. Cancel anytime from your Stripe receipt emails — access ends when the subscription does.</p>
+    {% endif %}
+
+    <footer class="mt-auto pt-10 text-center">
+      <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100">
+        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-500">Powered by</span>
+        <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto">
+      </a>
+    </footer>
+  </main>
+</body>
+</html>

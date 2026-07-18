@@ -123,6 +123,14 @@ def init_db():
                 created TEXT NOT NULL,
                 UNIQUE(artist_id, member_email)
             );
+            CREATE TABLE IF NOT EXISTS club_drops (
+                id TEXT PRIMARY KEY,
+                artist_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                link_url TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -847,6 +855,40 @@ def cancel_club_member_by_subscription(subscription_id):
             db.execute("UPDATE club_members SET status='canceled' "
                        "WHERE stripe_subscription_id = ?", (subscription_id,))
     return row["artist_id"] if row else None
+
+
+def get_active_club_member(artist_id, member_email):
+    email = (member_email or "").lower().strip()
+    with get_db() as db:
+        row = db.execute(
+            "SELECT * FROM club_members WHERE artist_id = ? AND member_email = ? "
+            "AND status = 'active'", (artist_id, email)).fetchone()
+    return dict(row) if row else None
+
+
+def add_club_drop(artist_id, title, body, link_url):
+    drop_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO club_drops (id, artist_id, title, body, link_url, created) "
+            "VALUES (?,?,?,?,?,?)",
+            (drop_id, artist_id, title[:120], body[:4000], (link_url or "")[:300], _now()))
+    return drop_id
+
+
+def list_club_drops(artist_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM club_drops WHERE artist_id = ? ORDER BY created DESC",
+            (artist_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_club_drop(artist_id, drop_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM club_drops WHERE id = ? AND artist_id = ?",
+                         (drop_id, artist_id))
+    return cur.rowcount > 0
 
 
 def list_portal_memberships(member_user_id):

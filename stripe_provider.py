@@ -134,7 +134,8 @@ def create_club_checkout(artist_id, club_name, price_cents, member_email,
     fields = {
         "mode": "subscription",
         "customer_email": member_email,
-        "success_url": base_url + "/club/" + slug + "?joined=1",
+        "success_url": base_url + "/club/" + slug
+                       + "?joined=1&session_id={CHECKOUT_SESSION_ID}",
         "cancel_url": base_url + "/club/" + slug,
         "metadata[kind]": "fan_club",
         "metadata[artist_id]": artist_id,
@@ -147,6 +148,18 @@ def create_club_checkout(artist_id, club_name, price_cents, member_email,
     }
     try:
         return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
+def get_checkout_session(session_id):
+    """Retrieve a checkout session — lets the success redirect grant fan-club
+    access instantly instead of waiting on the webhook."""
+    if not configured() or not session_id:
+        return None
+    try:
+        return _http_get("/v1/checkout/sessions/"
+                         + urllib.parse.quote(session_id, safe=""))
     except Exception:
         return None
 
