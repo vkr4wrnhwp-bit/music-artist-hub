@@ -3489,3 +3489,47 @@ def test_get_landing_config_has_swappable_hero_visual():
     assert config["hero_visual"]["recovery_opportunities"]
     assert len(config["hero"]["headline"]) == 4
     assert len(config["features"]) == 4
+
+
+def test_webhook_auto_setup(monkeypatch):
+    import hashlib as _hashlib
+    import hmac as _hmac
+    import json as _json
+    import time as _time
+    import db as store_mod
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    created, deleted = {}, []
+    monkeypatch.setattr(sb, "_http_get", lambda path: {"data": [
+        {"id": "we_old", "url": "http://localhost/webhooks/stripe"}]})
+    monkeypatch.setattr(sb, "_http_delete",
+                        lambda path: deleted.append(path) or {"deleted": True})
+    monkeypatch.setattr(sb, "_http", lambda path, fields: (
+        created.update(fields) or {"id": "we_new", "secret": "whsec_kvstored"}))
+    app_obj = create_app()
+    outsider = app_obj.test_client()
+    outsider.post("/signup", data={"name": "O", "email": "webhook-outsider@example.net",
+                                   "password": "outside1"})
+    assert outsider.post("/billing/webhook-setup").status_code == 404
+    artist = _demo(app_obj)
+    # Owner sees the one-click card while the webhook is missing.
+    assert "Set up webhook automatically" in artist.get("/billing").get_data(as_text=True)
+    r = artist.post("/billing/webhook-setup")
+    assert r.status_code == 302 and "webhook=ok" in r.headers["Location"]
+    assert deleted == ["/v1/webhook_endpoints/we_old"]  # stale endpoint replaced
+    assert created["enabled_events[0]"] == "checkout.session.completed"
+    assert store_mod.get_kv("stripe_webhook_secret") == "whsec_kvstored"
+    assert sb.webhook_configured()
+    assert "active" in artist.get("/billing").get_data(as_text=True)
+    # A webhook signed with the stored secret verifies with no env secret.
+    payload = _json.dumps({"type": "invoice.payment_failed",
+                           "data": {"object": {"customer": "cus_none"}}})
+    t = str(int(_time.time()))
+    sig = _hmac.new(b"whsec_kvstored", ("%s.%s" % (t, payload)).encode(),
+                    _hashlib.sha256).hexdigest()
+    resp = app_obj.test_client().post(
+        "/webhooks/stripe", data=payload, content_type="application/json",
+        headers={"Stripe-Signature": "t=%s,v1=%s" % (t, sig)})
+    assert resp.get_json()["ok"]
+    store_mod.set_kv("stripe_webhook_secret", "")  # shared-DB cleanup

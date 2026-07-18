@@ -28,8 +28,23 @@ def configured():
     return bool(os.environ.get("STRIPE_SECRET_KEY"))
 
 
+WEBHOOK_EVENTS = ("checkout.session.completed",
+                  "customer.subscription.deleted",
+                  "invoice.payment_failed")
+
+
+def _stored_webhook_secret():
+    """Signing secret saved by the in-app webhook setup. Lazy import keeps
+    this module import-safe before the database exists."""
+    try:
+        import db
+        return db.get_kv("stripe_webhook_secret") or ""
+    except Exception:
+        return ""
+
+
 def webhook_configured():
-    return bool(os.environ.get("STRIPE_WEBHOOK_SECRET"))
+    return bool(os.environ.get("STRIPE_WEBHOOK_SECRET") or _stored_webhook_secret())
 
 
 def _http(path, fields):
@@ -145,18 +160,58 @@ def create_portal_session(customer_id, return_url):
         return None
 
 
+def _http_delete(path):
+    req = urllib.request.Request(
+        "https://api.stripe.com" + path, method="DELETE",
+        headers={"Authorization": "Bearer " + os.environ["STRIPE_SECRET_KEY"]})
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def setup_webhook_endpoint(base_url):
+    """Owner one-click: create our webhook endpoint on the connected Stripe
+    account and keep the signing secret in app_kv on the server — it never
+    travels through a dashboard copy-paste. Returns summary dict or None."""
+    if not configured():
+        return None
+    url = base_url + "/webhooks/stripe"
+    try:
+        existing = _http_get("/v1/webhook_endpoints?limit=100").get("data", [])
+        for ep in existing:
+            # A secret is only revealed at creation, so stale endpoints for
+            # our URL are unverifiable — replace instead of accumulating.
+            if ep.get("url") == url:
+                _http_delete("/v1/webhook_endpoints/" + ep["id"])
+        fields = {"url": url, "description": "Street Banker (auto-configured in-app)"}
+        for i, ev in enumerate(WEBHOOK_EVENTS):
+            fields["enabled_events[%d]" % i] = ev
+        created = _http("/v1/webhook_endpoints", fields)
+        if not (created.get("id") and created.get("secret")):
+            return None
+        import db
+        db.set_kv("stripe_webhook_secret", created["secret"])
+        return {"id": created["id"], "url": url, "events": len(WEBHOOK_EVENTS)}
+    except Exception:
+        return None
+
+
 def verify_webhook(sig_header, body, tolerance=600):
-    """Stripe-Signature check: HMAC-SHA256 of '{t}.{body}' with the secret."""
-    secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-    if not (secret and sig_header):
+    """Stripe-Signature check: HMAC-SHA256 of '{t}.{body}' with the secret.
+    Accepts the env secret or the one saved by in-app webhook setup."""
+    secrets = [s for s in (os.environ.get("STRIPE_WEBHOOK_SECRET", ""),
+                           _stored_webhook_secret()) if s]
+    if not (secrets and sig_header):
         return False
     parts = dict(p.split("=", 1) for p in sig_header.split(",") if "=" in p)
     t = parts.get("t", "")
     if not t.isdigit() or abs(time.time() - int(t)) > tolerance:
         return False
     payload = body.decode("utf-8") if isinstance(body, bytes) else body
-    expected = hmac.new(secret.encode(), ("%s.%s" % (t, payload)).encode(),
-                        hashlib.sha256).hexdigest()
     sigs = [p.split("=", 1)[1] for p in sig_header.split(",")
             if p.startswith("v1=")]
-    return any(hmac.compare_digest(expected, s) for s in sigs)
+    for secret in secrets:
+        expected = hmac.new(secret.encode(), ("%s.%s" % (t, payload)).encode(),
+                            hashlib.sha256).hexdigest()
+        if any(hmac.compare_digest(expected, s) for s in sigs):
+            return True
+    return False

@@ -738,11 +738,12 @@ def create_app():
             "configured": spotify.configured(),
             "DATABASE_PATH_set": bool(os.environ.get("DATABASE_PATH")),
             "db_path_in_use": store.db_path(),
-            "v": 12,
+            "v": 13,
             "presave_states": _presave_states(user["id"]),
             "stripe_activity": _stripe_activity(),
             "STRIPE_SECRET_KEY": bool(os.environ.get("STRIPE_SECRET_KEY")),
             "STRIPE_WEBHOOK_SECRET": bool(os.environ.get("STRIPE_WEBHOOK_SECRET")),
+            "webhook_secret_stored": bool(store.get_kv("stripe_webhook_secret")),
             "RESEND_WEBHOOK_SECRET": bool(os.environ.get("RESEND_WEBHOOK_SECRET")),
             "RESEND_INBOUND_DOMAIN": os.environ.get("RESEND_INBOUND_DOMAIN", ""),
             "RESEND_API_KEY": bool(os.environ.get("RESEND_API_KEY")),
@@ -1934,6 +1935,17 @@ def create_app():
                          "Subscription synced from Stripe — everything is unlocked.",
                          "/command-center")
         return redirect("/billing" + ("?upgraded=1" if found else "?sync=none"))
+
+    @app.route("/billing/webhook-setup", methods=["POST"])
+    def billing_webhook_setup():
+        # Owner-only: the server creates the Stripe webhook endpoint itself
+        # and keeps the signing secret in app_kv — no dashboard copy-paste.
+        user = current_user()
+        if user is None or (user.get("plan") or "") != "label":
+            abort(404)
+        result = stripe_billing.setup_webhook_endpoint(
+            request.url_root.rstrip("/"))
+        return redirect("/billing?webhook=" + ("ok" if result else "fail"))
 
     @app.route("/billing/portal", methods=["POST"])
     def billing_portal():
@@ -3555,6 +3567,7 @@ def create_app():
         ctx["billing"] = get_billing_data(ctx["account"])
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
+        ctx["webhook_live"] = stripe_billing.webhook_configured()
         return render_template("billing.html", active_page="billing", **ctx)
 
     _TEAM_ROLES = ("manager", "accountant", "publicist", "attorney", "assistant")

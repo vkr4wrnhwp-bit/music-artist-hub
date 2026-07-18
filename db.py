@@ -430,6 +430,11 @@ def init_db():
                 value TEXT NOT NULL,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS app_kv (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             """
         )
         # Migration: Stripe billing identifiers on users.
@@ -667,6 +672,22 @@ def cache_set(key, value):
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value, created=excluded.created",
             (key, json.dumps(value), _now()),
         )
+
+
+def get_kv(key, default=None):
+    """Plain server-side key/value store (no TTL) — e.g. secrets that must
+    survive deploys without a trip through the Render dashboard."""
+    with get_db() as db:
+        row = db.execute("SELECT value FROM app_kv WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_kv(key, value):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO app_kv (key, value, updated) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated=excluded.updated",
+            (key, value, _now()))
 
 
 # --- EPK profiles --------------------------------------------------------------

@@ -138,5 +138,23 @@
     {% else %}
     <p class="mt-3 text-[10px] text-gray-600">Demo plan switching — no payment is taken.</p>
     {% endif %}
+
+    {% if stripe_live and user and user.plan == 'label' %}
+    <div class="mt-4 border-t border-white/10 pt-4">
+      {% if request.args.get('webhook') == 'ok' %}
+      <p class="mb-3 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-2 text-[11px] text-green-400">Webhook created on your Stripe account — payments, cancellations, and failed charges now sync automatically.</p>
+      {% elif request.args.get('webhook') == 'fail' %}
+      <p class="mb-3 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">Stripe wouldn't create the webhook. Check that the secret key in Render is valid, then try again.</p>
+      {% endif %}
+      {% if webhook_live %}
+      <p class="text-[11px] text-gray-400">Stripe webhook: <span class="font-bold text-green-500">active</span> — subscriptions, fan-club joins, and cancellations sync automatically.</p>
+      {% else %}
+      <p class="text-[11px] text-amber-400/90">The Stripe webhook isn't set up yet, so plan changes and fan-club joins rely on the manual sync button. One click below has the server create the endpoint on your Stripe account and keep the signing secret on the server.</p>
+      <form method="post" action="/billing/webhook-setup" class="mt-2">
+        <button class="rounded-lg border border-amber-500/40 px-3 py-1.5 text-[11px] font-bold text-amber-300 hover:bg-amber-500/10">Set up webhook automatically</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
   </section>
 {% endblock %}
