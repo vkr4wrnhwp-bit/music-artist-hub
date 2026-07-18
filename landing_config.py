@@ -30,6 +30,7 @@ def get_landing_config():
             "logo": {"primary": "STREET BANKER", "secondary": "ARTIST INFRASTRUCTURE"},
             "links": [
                 {"label": "Platform", "href": "/overview"},
+                {"label": "Distribution", "href": "/services/distribution"},
                 {"label": "Solutions", "href": "#services"},
                 {"label": "Resources", "href": "/reports"},
                 {"label": "Company", "href": "#infrastructure"},
@@ -51,6 +52,7 @@ def get_landing_config():
             ),
             "ctas": [
                 {"label": "Start Free Scan", "href": "/overview", "variant": "primary"},
+                {"label": "Distribute Your Music", "href": "/submit", "variant": "secondary"},
                 {"label": "See How It Works", "href": "#features", "variant": "secondary"},
             ],
             "value_points": [
@@ -226,7 +228,8 @@ def get_landing_config():
                             "Earn from TikTok, YouTube, Instagram & Facebook UGC (Content ID)",
                             "Unlimited collaborator splits + real-time analytics (incl. TikTok)",
                             "Playlist pitching, publishing, neighboring rights & royalty advances"],
-                "cta": {"label": "Explore Distribution", "href": "/services/distribution"},
+                "cta": {"label": "Sign Up for Distribution", "href": "/submit"},
+                "secondary_cta": {"label": "Explore Distribution", "href": "/services/distribution"},
                 "visual": {"type": "stats", "items": [
                     {"value": "200+", "label": "Platforms"}, {"value": "2,500", "label": "Retailers"},
                     {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Analytics"}]},

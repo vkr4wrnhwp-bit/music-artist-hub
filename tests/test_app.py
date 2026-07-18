@@ -3676,3 +3676,13 @@ def test_backup_download(monkeypatch):
     cheap.post("/signup", data={"name": "C", "email": "cheap-owner@example.net",
                                 "password": "cheappass1"})
     assert cheap.get("/backup").status_code == 200
+
+
+def test_homepage_distribution_links():
+    app_obj = create_app()
+    home = app_obj.test_client().get("/").get_data(as_text=True)
+    # Nav, hero, and the distribution pillar all route into the signup funnel.
+    assert 'href="/services/distribution"' in home
+    assert "Distribute Your Music" in home
+    assert "Sign Up for Distribution" in home
+    assert 'href="/submit"' in home
