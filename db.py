@@ -131,6 +131,21 @@ def init_db():
                 link_url TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tour_shows (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                venue TEXT NOT NULL,
+                city TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'hold',
+                notes TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS stage_plots (
+                user_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -889,6 +904,55 @@ def delete_club_drop(artist_id, drop_id):
         cur = db.execute("DELETE FROM club_drops WHERE id = ? AND artist_id = ?",
                          (drop_id, artist_id))
     return cur.rowcount > 0
+
+
+# --- Tour Hub ----------------------------------------------------------------
+
+def add_tour_show(user_id, date, venue, city, notes):
+    show_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO tour_shows (id, user_id, date, venue, city, notes, created) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (show_id, user_id, date[:10], venue[:120], city[:80], notes[:1000], _now()))
+    return show_id
+
+
+def list_tour_shows(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM tour_shows WHERE user_id = ? ORDER BY date, created",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_tour_show_status(user_id, show_id, status):
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_shows SET status = ? WHERE id = ? AND user_id = ?",
+                         (status, show_id, user_id))
+    return cur.rowcount > 0
+
+
+def delete_tour_show(user_id, show_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM tour_shows WHERE id = ? AND user_id = ?",
+                         (show_id, user_id))
+    return cur.rowcount > 0
+
+
+def save_stage_plot(user_id, data):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO stage_plots (user_id, data, updated) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
+            (user_id, json.dumps(data), _now()))
+
+
+def get_stage_plot(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT data FROM stage_plots WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return json.loads(row["data"]) if row else None
 
 
 def list_portal_memberships(member_user_id):

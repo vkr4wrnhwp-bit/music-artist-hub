@@ -2394,6 +2394,77 @@ def create_app():
         store.delete_club_drop(user["id"], drop_id)
         return redirect("/fan-club")
 
+    # --- Tour Hub + Stage Plot ---------------------------------------------------
+
+    _SHOW_STATUSES = ("hold", "confirmed", "advanced", "played", "settled")
+
+    @app.route("/tour")
+    def tour_hub():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        shows = store.list_tour_shows(user["id"])
+        today = datetime.now(timezone.utc).date().isoformat()
+        upcoming = [s for s in shows if s["date"] >= today]
+        return render_template("tour.html", active_page="tour",
+                               shows=shows, statuses=_SHOW_STATUSES,
+                               upcoming_count=len(upcoming),
+                               confirmed_count=len([s for s in shows if s["status"]
+                                                    in ("confirmed", "advanced")]),
+                               next_show=(upcoming[0] if upcoming else None),
+                               **build_dashboard_context())
+
+    @app.route("/tour/add", methods=["POST"])
+    def tour_add():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        date_str = (request.form.get("date") or "").strip()
+        venue = (request.form.get("venue") or "").strip()
+        if date_str and venue:
+            store.add_tour_show(user["id"], date_str, venue,
+                                (request.form.get("city") or "").strip(),
+                                (request.form.get("notes") or "").strip())
+        return redirect("/tour")
+
+    @app.route("/tour/<show_id>/status", methods=["POST"])
+    def tour_status(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        status = request.form.get("status") or ""
+        if status in _SHOW_STATUSES:
+            store.update_tour_show_status(user["id"], show_id, status)
+        return redirect("/tour")
+
+    @app.route("/tour/<show_id>/delete", methods=["POST"])
+    def tour_delete(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_tour_show(user["id"], show_id)
+        return redirect("/tour")
+
+    @app.route("/stage-plot")
+    def stage_plot():
+        import json as _json
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        plot = store.get_stage_plot(user["id"])
+        return render_template("stage_plot.html", active_page="stage-plot",
+                               saved_plot=(_json.dumps(plot) if plot else "null"),
+                               **build_dashboard_context())
+
+    @app.route("/stage-plot/save", methods=["POST"])
+    def stage_plot_save():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        data = request.get_json(silent=True) or {}
+        store.save_stage_plot(user["id"], data)
+        return jsonify({"ok": True})
+
     # --- Partner Portal: team roles open real (read-only) doors ------------------
 
     @app.route("/portal")

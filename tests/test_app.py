@@ -3686,3 +3686,46 @@ def test_homepage_distribution_links():
     assert "Distribute Your Music" in home
     assert "Sign Up for Distribution" in home
     assert 'href="/submit"' in home
+
+
+def test_tour_hub():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    r = artist.post("/tour/add", data={"date": "2026-09-12", "venue": "The Basement",
+                                       "city": "Nashville, TN", "notes": "hometown show"})
+    assert r.status_code == 302
+    body = artist.get("/tour").get_data(as_text=True)
+    assert "The Basement" in body and "Nashville" in body
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    show = [s for s in store_mod.list_tour_shows(uid) if s["venue"] == "The Basement"][0]
+    assert show["status"] == "hold"
+    artist.post("/tour/%s/status" % show["id"], data={"status": "confirmed"})
+    assert [s for s in store_mod.list_tour_shows(uid)
+            if s["id"] == show["id"]][0]["status"] == "confirmed"
+    # A made-up status is rejected.
+    artist.post("/tour/%s/status" % show["id"], data={"status": "hacked"})
+    assert [s for s in store_mod.list_tour_shows(uid)
+            if s["id"] == show["id"]][0]["status"] == "confirmed"
+    artist.post("/tour/%s/delete" % show["id"])
+    assert not [s for s in store_mod.list_tour_shows(uid) if s["id"] == show["id"]]
+
+
+def test_stage_plot_designer():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    page = artist.get("/stage-plot").get_data(as_text=True)
+    assert "Stage Plot Designer" in page and "Input list" in page
+    # Anonymous saves bounce off the login wall.
+    anon = app_obj.test_client().post("/stage-plot/save", json={})
+    assert anon.status_code == 302 and "/login" in anon.headers["Location"]
+    r = artist.post("/stage-plot/save", json={
+        "name": "Plot Save Test", "items": {"drums": 1, "vox": 2},
+        "pos": {"vox-1": [400, 520]}})
+    assert r.get_json()["ok"]
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    plot = store_mod.get_stage_plot(uid)
+    assert plot["items"]["vox"] == 2 and plot["pos"]["vox-1"] == [400, 520]
+    # Saved state comes back embedded on reload.
+    assert "Plot Save Test" in artist.get("/stage-plot").get_data(as_text=True)

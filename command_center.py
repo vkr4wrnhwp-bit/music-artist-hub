@@ -102,6 +102,8 @@ MODULES = [
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
     ("/fan-club", "Fan Club", "Paid monthly memberships through Stripe with a members-only drops area, wired into the Fan CRM.", "live", None),
     ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
+    ("/tour", "Tour Hub", "Your show pipeline: holds through settled, all in one table.", "live", None),
+    ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

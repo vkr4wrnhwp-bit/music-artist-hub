@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Tour Hub - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Touring</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Tour Hub</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Every show, one pipeline: <span class="text-gray-300">hold → confirmed → advanced → played → settled</span>. Keep the status honest and nothing falls through the cracks on show day.</p>
+  </div>
+
+  <div class="grid grid-cols-3 gap-3">
+    <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Upcoming</div>
+      <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">{{ upcoming_count }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Confirmed</div>
+      <div class="mt-1 text-2xl font-black tabular-nums">{{ confirmed_count }}</div>
+    </div>
+    <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Next Show</div>
+      <div class="mt-1 truncate text-sm font-black">{{ next_show.date if next_show else '—' }}</div>
+      <div class="truncate text-[11px] text-gray-500">{{ next_show.venue if next_show else 'Nothing booked yet' }}</div>
+    </div>
+  </div>
+
+  <!-- Add a show -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Add a show</h2>
+    <form method="post" action="/tour/add" class="mt-3 grid gap-3 sm:grid-cols-[140px_1fr_1fr]">
+      <div>
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Date</label>
+        <input name="date" type="date" required
+               class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white focus:border-[#c9a24a] focus:outline-none">
+      </div>
+      <div>
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Venue</label>
+        <input name="venue" required placeholder="The Basement"
+               class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
+      </div>
+      <div>
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">City</label>
+        <input name="city" placeholder="Nashville, TN"
+               class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
+      </div>
+      <div class="sm:col-span-3">
+        <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Notes</label>
+        <input name="notes" placeholder="Contact, guarantee, who booked it — anything you'll need later."
+               class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
+      </div>
+      <div class="sm:col-span-3">
+        <button class="rounded-lg bg-[#d8b25a] px-5 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Add Show</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Pipeline -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Show Pipeline</h2>
+      <a href="/stage-plot" class="text-[11px] font-bold text-[#e8c667] hover:underline">Stage Plot Designer →</a>
+    </div>
+    {% if shows %}
+    <div class="mt-3 divide-y divide-white/5">
+      {% for s in shows %}
+      <div class="flex flex-wrap items-center gap-3 py-3">
+        <div class="w-24 shrink-0 text-sm font-black tabular-nums">{{ s.date }}</div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-bold">{{ s.venue }}</div>
+          <div class="truncate text-[11px] text-gray-500">{{ s.city }}{% if s.notes %} · {{ s.notes }}{% endif %}</div>
+        </div>
+        <form method="post" action="/tour/{{ s.id }}/status" class="shrink-0">
+          <select name="status" onchange="this.form.submit()"
+                  class="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide
+                         {{ 'border-green-500/40 bg-green-500/10 text-green-400' if s.status in ('confirmed', 'advanced')
+                            else 'border-[#c9a24a]/40 bg-[#c9a24a]/10 text-[#e8c667]' if s.status in ('played', 'settled')
+                            else 'border-white/15 bg-black/40 text-gray-300' }}">
+            {% for st in statuses %}
+            <option value="{{ st }}" {{ 'selected' if st == s.status }}>{{ st }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        <form method="post" action="/tour/{{ s.id }}/delete" class="shrink-0">
+          <button class="rounded-lg border border-white/15 px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:border-red-500/40 hover:text-red-400">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="mt-3 text-sm text-gray-500">No shows yet. Add the next one above — even a hold. The pipeline only works if everything's in it.</p>
+    {% endif %}
+  </section>
+
+  <p class="px-1 text-[11px] text-gray-500">Statuses, honestly: <span class="text-gray-400">hold</span> = penciled in, <span class="text-gray-400">confirmed</span> = date locked, <span class="text-gray-400">advanced</span> = venue has your plot and details, <span class="text-gray-400">played</span> = done, <span class="text-gray-400">settled</span> = you got paid.</p>
+</div>
+{% endblock %}
