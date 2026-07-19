@@ -3800,3 +3800,58 @@ def test_settlement_math_and_route():
     page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
     assert "790.00" in page
     assert store_mod.get_tour_show(uid, show["id"])["status"] == "settled"
+
+
+def test_team_up_board(monkeypatch):
+    import db as store_mod
+    import email_provider as emailer_mod
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    outbox = []
+    monkeypatch.setattr(emailer_mod, "send",
+                        lambda to, subject, html, attachments=None:
+                        outbox.append((to, subject, html)) or True)
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tour-board/post", data={
+        "kind": "venue", "title": "Saturday slots open at The Vault",
+        "region": "Charlotte, NC", "window": "Oct 2026", "genre": "indie",
+        "details": "Cap 250, guarantee + door split for the right draw."})
+    body = artist.get("/tour-board").get_data(as_text=True)
+    assert "Saturday slots open at The Vault" in body and "Your listings" in body
+    # A second account replies; the poster gets notified with the contact.
+    other = app_obj.test_client()
+    other.post("/signup", data={"name": "Road Dog", "email": "roaddog@example.net",
+                                "password": "roadpass1"})
+    # Kind filter narrows the open board (checked from a non-poster view,
+    # since "Your listings" always shows your own posts).
+    assert "Saturday slots" not in other.get(
+        "/tour-board?kind=artist").get_data(as_text=True)
+    assert "Saturday slots" in other.get(
+        "/tour-board?kind=venue").get_data(as_text=True)
+    listing = [l for l in store_mod.list_board_listings("venue")
+               if l["title"].startswith("Saturday slots")][0]
+    # Poster can't reply to their own listing.
+    artist.post("/tour-board/%s/reply" % listing["id"], data={
+        "message": "self reply", "contact": "demo@streetbanker.io"})
+    assert store_mod.list_board_replies(listing["id"]) == []
+    r = other.post("/tour-board/%s/reply" % listing["id"], data={
+        "message": "We pull 200 in Charlotte, October works.",
+        "contact": "roaddog@example.net"})
+    assert "replied=1" in r.headers["Location"]
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    notes = store_mod.list_notifications(uid)
+    assert any("Team-Up" in n["title"] and "roaddog@example.net" in n["body"]
+               for n in notes)
+    assert outbox and outbox[-1][0] == "demo@streetbanker.io"
+    # Replies show for the owner, not on the public card for others.
+    assert "We pull 200 in Charlotte" in artist.get(
+        "/tour-board").get_data(as_text=True)
+    assert "We pull 200 in Charlotte" not in other.get(
+        "/tour-board").get_data(as_text=True)
+    # Closing hides it from the open board; delete removes it and replies.
+    artist.post("/tour-board/%s/close" % listing["id"])
+    assert not [l for l in store_mod.list_board_listings()
+                if l["id"] == listing["id"]]
+    artist.post("/tour-board/%s/delete" % listing["id"])
+    assert store_mod.get_board_listing(listing["id"]) is None
+    assert store_mod.list_board_replies(listing["id"]) == []

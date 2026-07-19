@@ -104,6 +104,7 @@ MODULES = [
     ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
     ("/tour", "Tour Hub", "Your show pipeline: holds through settled, all in one table.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
+    ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

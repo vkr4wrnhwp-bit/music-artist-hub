@@ -146,6 +146,26 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tour_board (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                region TEXT NOT NULL DEFAULT '',
+                window TEXT NOT NULL DEFAULT '',
+                genre TEXT NOT NULL DEFAULT '',
+                details TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS tour_board_replies (
+                id TEXT PRIMARY KEY,
+                listing_id TEXT NOT NULL,
+                from_user_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                contact TEXT NOT NULL,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -994,6 +1014,84 @@ def set_show_share_token(user_id, show_id, token):
         cur = db.execute("UPDATE tour_shows SET share_token = ? WHERE id = ? AND user_id = ?",
                          (token, show_id, user_id))
     return cur.rowcount > 0
+
+
+def add_board_listing(user_id, kind, title, region, window, genre, details):
+    listing_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO tour_board (id, user_id, kind, title, region, window,"
+            " genre, details, created) VALUES (?,?,?,?,?,?,?,?,?)",
+            (listing_id, user_id, kind, title[:120], region[:80], window[:80],
+             genre[:60], details[:1000], _now()))
+    return listing_id
+
+
+def list_board_listings(kind=None):
+    """Open listings, newest first, with the poster's name attached."""
+    q = ("SELECT b.*, u.name AS poster_name FROM tour_board b "
+         "JOIN users u ON u.id = b.user_id WHERE b.status = 'open'")
+    args = []
+    if kind in ("artist", "venue"):
+        q += " AND b.kind = ?"
+        args.append(kind)
+    q += " ORDER BY b.created DESC LIMIT 200"
+    with get_db() as db:
+        rows = db.execute(q, args).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_board_listing(listing_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT b.*, u.name AS poster_name FROM tour_board b "
+            "JOIN users u ON u.id = b.user_id WHERE b.id = ?",
+            (listing_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def close_board_listing(user_id, listing_id):
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_board SET status = 'closed' "
+                         "WHERE id = ? AND user_id = ?", (listing_id, user_id))
+    return cur.rowcount > 0
+
+
+def delete_board_listing(user_id, listing_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM tour_board WHERE id = ? AND user_id = ?",
+                         (listing_id, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM tour_board_replies WHERE listing_id = ?",
+                       (listing_id,))
+    return cur.rowcount > 0
+
+
+def list_own_board_listings(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM tour_board WHERE user_id = ? ORDER BY created DESC",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_board_reply(listing_id, from_user_id, message, contact):
+    reply_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO tour_board_replies (id, listing_id, from_user_id,"
+            " message, contact, created) VALUES (?,?,?,?,?,?)",
+            (reply_id, listing_id, from_user_id, message[:1000], contact[:200], _now()))
+    return reply_id
+
+
+def list_board_replies(listing_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT r.*, u.name AS from_name FROM tour_board_replies r "
+            "JOIN users u ON u.id = r.from_user_id WHERE r.listing_id = ? "
+            "ORDER BY r.created", (listing_id,)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_show_by_share_token(token):
