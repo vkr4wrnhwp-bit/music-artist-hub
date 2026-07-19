@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Publishing - Royalty Sweep{% endblock %}
+
+{% set p = publishing %}
+
+{% block content %}
+<div class="mx-auto max-w-[1400px] space-y-5">
+  <div>
+    <h1 class="text-2xl font-semibold uppercase tracking-tight">Publishing Administration</h1>
+    <p class="mt-1 text-sm text-gray-500">Register your compositions and collect both sides of publishing — performance (PRO) and mechanical (MLC).</p>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Uncollected Publishing</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,.2f}".format(p.summary.uncollected_total) }}</div>
+      <div class="mt-1 text-[11px] text-gray-500">Estimated across all works</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Performance Income</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">${{ "{:,.2f}".format(p.summary.performance_total) }}</div>
+      <div class="mt-1 text-[11px] text-gray-500">Collected via PROs</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Mechanical (est.)</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">${{ "{:,.2f}".format(p.summary.mechanical_total) }}</div>
+      <div class="mt-1 text-[11px] text-gray-500">Streaming mechanicals</div>
+    </div>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Works Registered</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">{{ p.summary.pro_registered }}/{{ p.summary.total_works }}</div>
+      <div class="mt-1 text-[11px] text-gray-500">PRO {{ p.summary.pro_pct }}% · MLC {{ p.summary.mlc_pct }}%</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Your Compositions</h2>
+      <p class="mt-1 text-sm text-gray-500">Each work and its registration status across performance and mechanical rights.</p>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-white/5 text-[11px] uppercase tracking-wide text-gray-500">
+              <th class="py-2 pr-4 font-medium">Work</th>
+              <th class="py-2 pr-4 font-medium">ISWC</th>
+              <th class="py-2 pr-4 text-center font-medium">PRO</th>
+              <th class="py-2 pr-4 text-center font-medium">MLC</th>
+              <th class="py-2 pr-4 text-right font-medium">Uncollected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in p.works %}
+            <tr class="border-b border-white/5 last:border-0 align-middle">
+              <td class="py-3 pr-4">
+                <div class="font-semibold text-gray-100">{{ w.title }}</div>
+                <div class="text-[11px] text-gray-500">{{ w.writers | join(', ') }} · {{ w.publisher }}</div>
+              </td>
+              <td class="py-3 pr-4">
+                <span class="text-[11px] {{ 'text-amber-400' if w.iswc_missing else 'text-gray-400' }}">{{ w.iswc }}</span>
+              </td>
+              <td class="py-3 pr-4 text-center">
+                {% if w.pro_registered %}
+                <span class="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400">Registered</span>
+                {% else %}
+                <span class="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">Missing</span>
+                {% endif %}
+              </td>
+              <td class="py-3 pr-4 text-center">
+                {% if w.mlc_registered %}
+                <span class="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400">Registered</span>
+                {% else %}
+                <span class="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">Missing</span>
+                {% endif %}
+              </td>
+              <td class="py-3 pr-4 text-right font-bold tabular-nums {{ 'text-amber-400' if w.uncollected > 0 else 'text-gray-600' }}">
+                ${{ "{:,.2f}".format(w.uncollected) }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Registration Gaps</h2>
+        <p class="mt-1 text-sm text-gray-500">Fix these to unlock uncollected income.</p>
+        <div class="mt-3 space-y-2">
+          {% for issue in p.issues %}
+          {% set tone = {'red':'border-red-500/20 bg-red-500/10 text-red-400','amber':'border-amber-500/20 bg-amber-500/10 text-amber-400'}.get(issue.tone, 'border-white/10 text-gray-400') %}
+          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
+            <span class="text-sm text-gray-200">{{ issue.label }}</span>
+            <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold {{ tone }}">{{ issue.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">How Publishing Pays</h2>
+        <div class="mt-3 space-y-3 text-xs text-gray-400">
+          <div>
+            <div class="font-semibold text-green-400">Performance royalties</div>
+            <p class="mt-0.5">Earned when your song is played publicly (radio, streaming, venues). Collected by your PRO — ASCAP, BMI, or SESAC.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-amber-400">Mechanical royalties</div>
+            <p class="mt-0.5">Earned per reproduction/stream in the US. Collected by The MLC — but only for works registered with them.</p>
+          </div>
+          <p class="text-[11px] text-gray-600">Mechanical and uncollected figures are estimates; PRO/MLC status and performance income are from your catalog.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - Street Banker{% endblock %}
+
+{% set kind_tone = {'fan': 'bg-green-500/15 text-green-400',
+                    'campaign': 'bg-[#c9a24a]/15 text-[#e8c667]',
+                    'rollout': 'bg-[#c9a24a]/15 text-[#e8c667]',
+                    'recovery': 'bg-red-500/15 text-red-400',
+                    'statement': 'bg-white/10 text-gray-400'} %}
+
+{% block content %}
+<div class="mx-auto max-w-[860px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Notifications</h1>
+    <p class="mt-1 max-w-xl text-sm text-gray-400">Real events from your account — fans captured, campaigns going live, rollouts generated, and recovery findings. Viewing this page clears the badge.</p>
+  </div>
+
+  {% if items %}
+  <div class="space-y-2">
+    {% for n in items %}
+    <a href="{{ n.link or '#' }}" class="flex items-start gap-3 rounded-xl border {{ 'border-[#c9a24a]/30 bg-[#141210]' if not n.is_read else 'border-white/5 bg-[#111113] opacity-75' }} p-4 transition-colors hover:border-[#c9a24a]/50">
+      <span class="mt-0.5 shrink-0 rounded-md px-2 py-1 text-[9px] font-bold uppercase {{ kind_tone.get(n.kind, 'bg-white/10 text-gray-400') }}">{{ n.kind }}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-semibold text-gray-100">{{ n.title }}</span>
+        {% if n.body %}<span class="block text-xs text-gray-400">{{ n.body }}</span>{% endif %}
+      </span>
+      <span class="shrink-0 text-[10px] tabular-nums text-gray-600">{{ n.created[:16].replace('T', ' ') }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-12 text-center">
+    <div class="text-sm font-bold text-gray-200">Quiet for now</div>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Notifications land here when real things happen: a fan signs up on your link, a campaign goes live, a rollout is generated, or a statement upload finds money.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

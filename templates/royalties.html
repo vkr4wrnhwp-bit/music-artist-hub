@@ -1,317 +1,184 @@
 {% extends "base.html" %}
+{% import "landing/_cards.html" as logos %}
 
-{% block title %}Royalties - Royalty Sweep by Street Banker{% endblock %}
+{% block title %}Royalties - Royalty Sweep{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-8">
-  <div class="flex items-end justify-between">
+{% set ov = royalties_overview %}
+{% set s = ov.summary %}
+{% set tmax = (earnings_trend | map(attribute=1) | max) if earnings_trend else 1 %}
+
+<div class="mx-auto max-w-6xl space-y-6">
+
+  {% set band_mode = 'royalties' %}
+  {% include "_real_royalty_band.html" %}
+
+  <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight">Royalties</h1>
-      <p class="mt-1 text-sm text-gray-500">Leaks, recommendations, claims, and payouts in one place.</p>
+      <h1 class="text-2xl font-semibold uppercase tracking-tight">Royalties</h1>
+      <p class="mt-1 text-sm text-gray-500">Track every royalty stream in one place.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-sm text-gray-300">
+        <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>
+        <select id="royalties-range" class="bg-transparent font-medium focus:outline-none [color-scheme:dark]">
+          <option>This month</option>
+          <option>Last 3 months</option>
+          <option>Last 6 months</option>
+        </select>
+      </div>
+      <select id="platform-filter" class="rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-sm text-gray-300 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+        <option value="all">All Platforms</option>
+        {% for row in ov.by_source %}
+        <option value="{{ row.name }}">{{ row.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" id="export-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>
+        Export
+      </button>
     </div>
   </div>
 
-  {% set severity_ui = {
-    'High':   'border-red-500/20 bg-red-500/10 text-red-400',
-    'Medium': 'border-amber-500/20 bg-amber-500/10 text-amber-400',
-    'Low':    'border-gray-500/20 bg-gray-500/10 text-gray-400',
-  } %}
-  {% if alerts %}
-  <section id="royalty-leak-alerts">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Leak Alerts</h2>
-      <div id="alert-filters" class="flex flex-wrap gap-1.5">
-        {% for f in ['All', 'High', 'Medium', 'Low', 'Resolved'] %}
-        <button type="button" class="alert-filter-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if f == 'All' else 'border-white/10 text-gray-500 hover:text-gray-300' }}" data-filter="{{ f }}">
-          {{ f }}
-        </button>
-        {% endfor %}
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Total Royalties</div>
+      <div class="mt-3 flex items-end justify-between gap-2">
+        <div>
+          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.total_royalties) }}</div>
+          <div class="mt-1 text-xs font-semibold {{ 'text-green-400' if s.total_change >= 0 else 'text-red-400' }}">{{ '↑' if s.total_change >= 0 else '↓' }} {{ "%.1f"|format(s.total_change|abs) }}% <span class="text-gray-500">vs last month</span></div>
+        </div>
+        <svg viewBox="0 0 80 32" class="h-8 w-20 shrink-0" preserveAspectRatio="none">
+          {% set pts = [] %}
+          {% for _, v in earnings_trend %}{% set _ = pts.append('%s,%s'|format((loop.index0 / (earnings_trend|length - 1) * 80)|round(1), (32 - (v / tmax * 28) - 2)|round(1))) %}{% endfor %}
+          <polyline points="{{ pts | join(' ') }}" fill="none" stroke="#eab308" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
     </div>
 
-    <div id="alert-list" class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-      {% for alert in alerts %}
-      <div class="alert-card rounded-xl border border-white/5 bg-[#111113] p-4"
-           data-alert-id="{{ alert.id }}" data-severity="{{ alert.severity }}" data-status="open">
-        <div class="flex items-start justify-between gap-2">
-          <div class="text-sm font-semibold">{{ alert.title }}</div>
-          <span class="alert-severity-badge shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ severity_ui.get(alert.severity, severity_ui['Low']) }}">
-            {{ alert.severity }}
-          </span>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Payouts Received</div>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <div>
+          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.payouts_received) }}</div>
+          <div class="mt-1 text-xs font-semibold {{ 'text-green-400' if s.payouts_change >= 0 else 'text-red-400' }}">{{ '↑' if s.payouts_change >= 0 else '↓' }} {{ "%.1f"|format(s.payouts_change|abs) }}% <span class="text-gray-500">vs last month</span></div>
         </div>
-        <div class="alert-description mt-1 text-xs text-gray-500">{{ alert.description }}</div>
-        <div class="mt-2 flex items-center justify-between text-[11px] text-gray-600">
-          <span>{{ alert.source }}</span>
-          {% if alert.estimated_impact > 0 %}
-          <span class="font-semibold text-amber-400">${{ "%.2f"|format(alert.estimated_impact) }}</span>
-          {% endif %}
-        </div>
-        <button type="button" class="alert-btn mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-          {{ alert.cta_label }}
-        </button>
-      </div>
-      {% endfor %}
-    </div>
-    <div id="alert-empty" class="mt-3 hidden rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">
-      No alerts in this filter.
-    </div>
-  </section>
-  {% endif %}
-
-  <section id="top-royalty-leaks" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Top Royalty Leaks</h2>
-    <div class="mt-3 space-y-2">
-      {% for leak in top_leaks %}
-      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
-        <span class="w-6 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-semibold">{{ leak.issue_type }}</span>
-          <span class="text-xs text-gray-500">{{ leak.source }}</span>
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-green-500/30 text-green-400">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 6v8M8 8a2 2 0 012-1.5c1 0 2 .6 2 1.5s-1 1.3-2 1.3-2 .5-2 1.4.9 1.4 2 1.4a2 2 0 002-1" stroke-linecap="round"/></svg>
         </span>
-        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ severity_ui.get(leak.confidence, severity_ui['Low']) }}">{{ leak.confidence }} confidence</span>
-        <span class="shrink-0 text-sm font-bold text-amber-400">${{ "%.2f"|format(leak.estimated_value) }}</span>
-        <span class="shrink-0 rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-300">{{ leak.recommended_action }}</span>
       </div>
-      {% endfor %}
-      {% if not top_leaks %}
-      <div class="rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No royalty leaks detected.</div>
-      {% endif %}
     </div>
-  </section>
 
-  {% if smart_recommendations %}
-  {% set urgency_ui = {
-    'High':   'text-red-400',
-    'Medium': 'text-amber-400',
-    'Low':    'text-gray-400',
-  } %}
-  <section id="smart-recommendations" class="rounded-2xl border border-amber-500/10 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Smart Recommendations</h2>
-    <p class="mt-1 text-sm text-gray-500">Every open action across your account, ranked by estimated financial impact.</p>
-    <div class="mt-4 space-y-2">
-      {% for rec in smart_recommendations %}
-      <button type="button" class="smart-rec-row flex w-full items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-left transition-colors hover:bg-white/10"
-              data-target-type="{{ rec.target_type }}" data-target-id="{{ rec.target_id }}">
-        <span class="w-6 shrink-0 text-center text-xs font-bold text-gray-600">{{ loop.index }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-semibold">{{ rec.reason }}</span>
-          <span class="text-xs {{ urgency_ui.get(rec.urgency, 'text-gray-400') }}">{{ rec.urgency }} urgency</span>
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Pending Payouts</div>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <div>
+          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.pending_payouts) }}</div>
+          <div class="mt-1 text-xs text-amber-400">{{ s.pending_count }} upcoming</div>
+        </div>
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-amber-500/30 text-amber-400">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2" stroke-linecap="round"/></svg>
         </span>
-        <span class="shrink-0 text-sm font-bold text-amber-400">${{ "%.2f"|format(rec.estimated_value) }}</span>
-        <span class="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400">{{ rec.cta_label }}</span>
-      </button>
-      {% endfor %}
+      </div>
     </div>
-  </section>
-  {% endif %}
 
-  <section id="fixes-needed-queue" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Fixes Needed Queue</h2>
-    <p class="mt-1 text-sm text-gray-500">Every open royalty, metadata, registration, connection, and split issue in one prioritized list.</p>
-    <div id="fixes-queue-list" class="mt-4 space-y-2">
-      {% for item in fixes_queue %}
-      <div class="fix-item flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-fix-id="{{ item.id }}">
-        <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ severity_ui.get(item.severity, severity_ui['Low']) }}">{{ item.severity }}</span>
-        <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ item.category }}</span>
-        <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ item.title }}</span>
-        {% if item.related_song %}<span class="shrink-0 text-xs text-gray-500">{{ item.related_song }}</span>{% endif %}
-        <span class="shrink-0 text-sm font-bold text-amber-400">${{ "%.2f"|format(item.estimated_impact) }}</span>
-        <span class="fix-status-label shrink-0 w-20 text-right text-[11px] font-semibold text-gray-500">{{ item.status }}</span>
-        <div class="fix-actions flex shrink-0 gap-1.5">
-          <button type="button" class="fix-action-btn rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20" data-action="Assigned">Fix Now</button>
-          <button type="button" class="fix-action-btn rounded-md border border-white/10 px-2 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-white/10" data-action="Assigned">Assign</button>
-          <button type="button" class="fix-action-btn rounded-md border border-white/10 px-2 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400" data-action="Dismissed">Dismiss</button>
-          <button type="button" class="fix-action-btn rounded-md border border-green-500/20 bg-green-500/10 px-2 py-1 text-[11px] font-semibold text-green-400 transition-colors hover:bg-green-500/20" data-action="Complete">Mark Complete</button>
+    <a href="/connections" class="rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/25">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Platforms Connected</div>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <div class="text-2xl font-bold tracking-tight tabular-nums">{{ s.sources_connected }} / {{ s.total_sources }}</div>
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-green-500/30 text-green-400">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1"/></svg>
+        </span>
+      </div>
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <section id="royalties-by-source" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalties by Source</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">
+              <th class="pb-2 font-medium">Source</th>
+              <th class="pb-2 text-right font-medium">Earned</th>
+              <th class="pb-2 text-right font-medium">Change</th>
+              <th class="pb-2 pl-6 font-medium">% of Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ov.by_source %}
+            <tr class="source-row border-b border-white/5 last:border-0" data-source="{{ row.name }}">
+              <td class="py-2.5">
+                <div class="flex items-center gap-2.5">
+                  {{ logos.platform_logo(row.logo, 'h-7 w-7') }}
+                  <span class="font-semibold text-gray-100">{{ row.name }}</span>
+                </div>
+              </td>
+              <td class="py-2.5 text-right font-semibold tabular-nums">${{ "{:,.2f}".format(row.earned) }}</td>
+              <td class="py-2.5 text-right text-xs font-semibold {{ 'text-green-400' if row.change_pct >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if row.change_pct >= 0 else '↓' }} {{ "%.1f"|format(row.change_pct|abs) }}%</td>
+              <td class="py-2.5 pl-6">
+                <div class="flex items-center gap-2">
+                  <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                    <span class="block h-full rounded-full bg-green-500" style="width: {{ row.pct_of_total }}%;"></span>
+                  </span>
+                  <span class="w-8 shrink-0 text-right text-xs font-semibold text-gray-400">{{ row.pct_of_total }}%</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <a href="/connections" class="mt-4 block rounded-md border border-white/10 py-2.5 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-white/5">View All Sources</a>
+    </section>
+
+    <section id="earnings-trend" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Earnings Trend</h2>
+      </div>
+      <div class="mt-3"><canvas id="royaltiesChart" height="150"></canvas></div>
+      <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-4 text-center">
+        <div>
+          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(ov.this_month) }}</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">Total this month</div>
+        </div>
+        <div>
+          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(ov.last_month) }}</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">Last month</div>
+        </div>
+        <div>
+          <div class="text-lg font-bold {{ 'text-green-400' if ov.growth >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if ov.growth >= 0 else '↓' }} {{ "%.1f"|format(ov.growth|abs) }}%</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-600">Growth</div>
         </div>
       </div>
-      {% endfor %}
-      {% if not fixes_queue %}
-      <div class="rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No open fixes — you're all caught up.</div>
-      {% endif %}
-    </div>
-  </section>
+    </section>
+  </div>
 
-  <section id="missing-money-scanner" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Missing Money Scanner</h2>
-        <p class="mt-1 text-sm text-gray-500">Audit connected and unconnected sources for uncollected royalties.</p>
-      </div>
-      <button type="button" id="scan-btn"
-              class="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 103.42 9.81l3.13 3.14a1 1 0 001.42-1.42l-3.14-3.13A5.5 5.5 0 009 3.5zM5.5 9a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z" clip-rule="evenodd"/></svg>
-        Scan Missing Royalties
-      </button>
-    </div>
-
-    <div id="scan-status" class="mt-4 hidden text-sm"></div>
-
-    <div id="scan-results" class="mt-4 hidden overflow-x-auto">
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
-            <th class="py-2 pr-4 font-medium">Source</th>
-            <th class="py-2 pr-4 font-medium">Issue</th>
-            <th class="py-2 pr-4 font-medium">Confidence</th>
-            <th class="py-2 pr-4 text-right font-medium">Est. Value</th>
-            <th class="py-2 pr-4 text-right font-medium">Action</th>
-          </tr>
-        </thead>
-        <tbody id="scan-tbody"></tbody>
-      </table>
-    </div>
-  </section>
-
-  {% set claim_status_ui = {
-    'Detected':    'border-gray-500/20 bg-gray-500/10 text-gray-400',
-    'Needs Info':  'border-amber-500/20 bg-amber-500/10 text-amber-400',
-    'Submitted':   'border-blue-500/20 bg-blue-500/10 text-blue-400',
-    'In Review':   'border-purple-500/20 bg-purple-500/10 text-purple-400',
-    'Approved':    'border-green-500/20 bg-green-500/10 text-green-400',
-    'Paid':        'border-green-500/30 bg-green-500/15 text-green-400',
-    'Rejected':    'border-red-500/20 bg-red-500/10 text-red-400',
-  } %}
-  <section id="claim-workflow" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Claim Workflow</h2>
-    <p class="mt-1 text-sm text-gray-500">Missing royalty issues tracked through to resolution.</p>
-    <div class="mt-4 overflow-x-auto">
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
-            <th class="py-2 pr-4 font-medium">Source</th>
-            <th class="py-2 pr-4 font-medium">Issue</th>
-            <th class="py-2 pr-4 text-right font-medium">Est. Value</th>
-            <th class="py-2 pr-4 font-medium">Status</th>
-            <th class="py-2 pr-4 text-right font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="claims-tbody">
-          {% for c in claims %}
-          <tr class="claim-row border-b border-white/5 last:border-0" data-claim-id="{{ c.id }}" data-status="{{ c.status }}">
-            <td class="py-3 pr-4 font-medium">{{ c.source }}</td>
-            <td class="py-3 pr-4 text-gray-400">{{ c.issue_type }}</td>
-            <td class="py-3 pr-4 text-right font-semibold text-amber-400">${{ "%.2f"|format(c.estimated_value) }}</td>
-            <td class="py-3 pr-4">
-              <span class="claim-status-badge rounded-full border px-2 py-0.5 text-xs font-semibold {{ claim_status_ui.get(c.status, claim_status_ui['Detected']) }}">
-                {{ c.status }}
-              </span>
-            </td>
-            <td class="py-3 pr-4">
-              <div class="claim-actions flex justify-end gap-2">
-                {% if c.status not in ("Paid", "Rejected") %}
-                <button type="button" class="claim-advance-btn rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Advance</button>
-                <button type="button" class="claim-reject-btn rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">Reject</button>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  {% set payout_status_ui = {
-    'Paid':       'border-green-500/20 bg-green-500/10 text-green-400',
-    'Processing': 'border-amber-500/20 bg-amber-500/10 text-amber-400',
-    'Scheduled':  'border-gray-500/20 bg-gray-500/10 text-gray-400',
-    'Delayed':    'border-red-500/20 bg-red-500/10 text-red-400',
-  } %}
   <section id="payout-calendar" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Payout Calendar</h2>
-        <p class="mt-1 text-sm text-gray-500">Upcoming estimated royalty payments across all sources.</p>
-      </div>
-      <div class="text-right">
-        <div class="text-[10px] uppercase tracking-[0.2em] text-gray-600">Upcoming total</div>
-        <div class="text-lg font-bold text-amber-400">${{ "%.2f"|format(upcoming_payout_total) }}</div>
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Payout Calendar</h2>
+      <div class="flex items-center gap-4">
+        <span class="text-[11px] text-gray-500">Upcoming total <span class="font-semibold text-amber-400">${{ "%.2f"|format(upcoming_payout_total) }}</span></span>
+        <a href="/reports" class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:underline">View Full Calendar
+          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+        </a>
       </div>
     </div>
-    <div class="mt-4 overflow-x-auto">
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
-            <th class="py-2 pr-4 font-medium">Source</th>
-            <th class="py-2 pr-4 font-medium">Date</th>
-            <th class="py-2 pr-4 font-medium">Status</th>
-            <th class="py-2 pr-4 text-right font-medium">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in payout_calendar %}
-          <tr class="border-b border-white/5 last:border-0">
-            <td class="py-3 pr-4 font-medium">{{ p.source }}</td>
-            <td class="py-3 pr-4 text-gray-400">{{ p.pay_date.strftime('%b %d, %Y') }}</td>
-            <td class="py-3 pr-4">
-              <span class="rounded-full border px-2 py-0.5 text-xs font-semibold {{ payout_status_ui.get(p.status, payout_status_ui['Scheduled']) }}">
-                {{ p.status }}
-              </span>
-            </td>
-            <td class="py-3 pr-4 text-right font-semibold">${{ "%.2f"|format(p.amount) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="recent-payouts" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Recent Payouts</h2>
-    <table class="mt-3 w-full text-left text-sm">
-      <thead>
-        <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
-          <th class="py-2 pr-4 font-medium">Song</th>
-          <th class="py-2 pr-4 font-medium">Platform</th>
-          <th class="py-2 pr-4 font-medium">Status</th>
-          <th class="py-2 pr-4 text-right font-medium">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for payout in payouts %}
-        <tr class="border-b border-white/5 last:border-0">
-          <td class="py-3 pr-4 font-medium">{{ payout.song }}</td>
-          <td class="py-3 pr-4 text-gray-400">{{ payout.platform }}</td>
-          <td class="py-3 pr-4">
-            <span class="inline-flex items-center gap-2">
-              {% if payout.status == "Paid" %}
-              <span class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.85)]"></span>
-              {% else %}
-              <span class="h-2 w-2 animate-pulse rounded-full bg-amber-500 shadow-[0_0_6px_2px_rgba(245,158,11,0.85)]"></span>
-              {% endif %}
-              <span class="text-gray-300">{{ payout.status }}</span>
-            </span>
-          </td>
-          <td class="py-3 pr-4 text-right font-semibold">${{ "%.2f"|format(payout.amount) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-
-  <section id="royalty-forecast" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Forecast</h2>
-    <div class="mt-4 overflow-x-auto">
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
-            <th class="py-2 pr-4 font-medium">Mode</th>
-            <th class="py-2 pr-4 text-right font-medium">30 Days</th>
-            <th class="py-2 pr-4 text-right font-medium">90 Days</th>
-            <th class="py-2 pr-4 text-right font-medium">12 Months</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for mode, label, cls in [('conservative', 'Conservative', 'text-gray-300'), ('expected', 'Expected', 'text-amber-400'), ('aggressive', 'Aggressive', 'text-green-400')] %}
-          <tr class="border-b border-white/5 last:border-0">
-            <td class="py-3 pr-4 font-medium {{ cls }}">{{ label }}</td>
-            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['30_day']) }}</td>
-            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['90_day']) }}</td>
-            <td class="py-3 pr-4 text-right font-semibold">${{ "{:,.2f}".format(forecast[mode]['12_month']) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {% for p in payout_calendar[:6] %}
+      {% set confirmed = p.status in ('Paid', 'Processing') %}
+      <div class="rounded-xl border border-white/5 bg-white/5 p-3">
+        <div class="flex items-center gap-2">
+          {{ logos.platform_logo(logo_key(p.source), 'h-6 w-6') }}
+          <span class="truncate text-xs font-semibold text-gray-100">{{ p.source }}</span>
+        </div>
+        <div class="mt-2 text-[10px] uppercase tracking-widest text-gray-600">{{ 'Distribution Window' if p.status == 'Processing' else 'Estimated Payout' }}</div>
+        <div class="mt-0.5 text-xs text-gray-400">{{ p.pay_date.strftime('%b %d, %Y') }}</div>
+        <div class="mt-1 text-sm font-bold tabular-nums">${{ "{:,.2f}".format(p.amount) }}</div>
+        <span class="mt-2 inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ 'border-green-500/30 text-green-400' if confirmed else 'border-amber-500/30 text-amber-400' }}">{{ 'Confirmed' if confirmed else 'Estimated' }}</span>
+      </div>
+      {% endfor %}
     </div>
   </section>
 </div>
@@ -319,204 +186,51 @@
 
 {% block scripts %}
 <script>
-  let alertFilter = "All";
+  const royaltiesTrend = {{ earnings_trend | tojson }};
 
-  function applyAlertFilter() {
-    let visibleCount = 0;
-    document.querySelectorAll(".alert-card").forEach((card) => {
-      const severity = card.dataset.severity;
-      const status = card.dataset.status;
-      let visible;
-      if (alertFilter === "All") visible = true;
-      else if (alertFilter === "Resolved") visible = status === "resolved";
-      else visible = severity === alertFilter && status !== "resolved";
-      card.classList.toggle("hidden", !visible);
-      if (visible) visibleCount++;
-    });
-    const emptyEl = document.getElementById("alert-empty");
-    if (emptyEl) emptyEl.classList.toggle("hidden", visibleCount > 0);
-  }
+  new Chart(document.getElementById("royaltiesChart"), {
+    type: "line",
+    data: {
+      labels: royaltiesTrend.map((p) => p[0]),
+      datasets: [{
+        data: royaltiesTrend.map((p) => p[1]),
+        borderColor: "#eab308",
+        backgroundColor: "rgba(234,179,8,0.08)",
+        fill: true, tension: 0.35, pointBackgroundColor: "#eab308", pointRadius: 3,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: {
+          ticks: { color: "#6b7280", font: { size: 10 }, callback: (v) => v >= 1000 ? "$" + (v/1000).toFixed(v % 1000 ? 1 : 0) + "K" : "$" + v },
+          grid: { color: "rgba(255,255,255,0.04)" },
+        },
+      },
+    },
+  });
 
-  document.querySelectorAll(".alert-filter-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      alertFilter = btn.dataset.filter;
-      document.querySelectorAll(".alert-filter-btn").forEach((b) => {
-        const active = b === btn;
-        b.className = "alert-filter-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors " +
-          (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-500 hover:text-gray-300");
-      });
-      applyAlertFilter();
+  document.getElementById("platform-filter").addEventListener("change", (e) => {
+    const val = e.target.value;
+    document.querySelectorAll(".source-row").forEach((row) => {
+      row.classList.toggle("hidden", val !== "all" && row.dataset.source !== val);
     });
   });
 
-  document.querySelectorAll(".alert-card").forEach((card) => {
-    const btn = card.querySelector(".alert-btn");
-    if (!btn) return;
-    btn.addEventListener("click", async () => {
-      const id = card.dataset.alertId;
-      const originalLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "Working...";
-      try {
-        const res = await fetch(`/alerts/${id}/resolve`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          card.querySelector(".alert-description").textContent = data.message;
-          card.classList.add("opacity-60");
-          card.dataset.status = "resolved";
-          const done = document.createElement("span");
-          done.className = "mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-green-400";
-          done.innerHTML = '<svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>Resolved';
-          btn.replaceWith(done);
-          applyAlertFilter();
-        } else {
-          btn.disabled = false;
-          btn.textContent = originalLabel;
-        }
-      } catch (err) {
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-      }
-    });
-  });
-
-  const CONF_UI = {
-    High:   "bg-green-500/10 text-green-400",
-    Medium: "bg-amber-500/10 text-amber-400",
-    Low:    "bg-gray-500/15 text-gray-400",
-  };
-
-  function renderFindings(findings, totalEstimated) {
-    const tbody = document.getElementById("scan-tbody");
-    tbody.innerHTML = "";
-    findings.forEach((f) => {
-      const conf = CONF_UI[f.confidence] || CONF_UI.Low;
-      const tr = document.createElement("tr");
-      tr.className = "border-b border-white/5 last:border-0 align-middle";
-      tr.innerHTML =
-        '<td class="py-3 pr-4 font-medium">' + escapeHtml(f.source) + "</td>" +
-        '<td class="py-3 pr-4 text-gray-400">' + escapeHtml(f.issue_type) + "</td>" +
-        '<td class="py-3 pr-4"><span class="rounded-full px-2 py-0.5 text-xs ' + conf + '">' + escapeHtml(f.confidence) + "</span></td>" +
-        '<td class="py-3 pr-4 text-right font-semibold text-amber-400">' + fmtMoney(f.estimated_value) + "</td>" +
-        '<td class="py-3 pr-4 text-right"></td>';
-      const actionCell = tr.lastElementChild;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-300 transition-colors hover:bg-white/5 hover:text-white";
-      btn.textContent = f.recommended_action;
-      btn.addEventListener("click", () => {
-        const done = document.createElement("span");
-        done.className = "inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-400";
-        done.innerHTML = '<svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>Actioned';
-        btn.replaceWith(done);
-        tr.classList.add("opacity-50");
-      });
-      actionCell.appendChild(btn);
-      tbody.appendChild(tr);
-    });
-
-    const summary = document.getElementById("scan-status");
-    if (!findings.length) {
-      summary.className = "mt-4 text-sm text-green-400";
-      summary.textContent = "No missing royalties found — all connected sources look clean.";
-      document.getElementById("scan-results").classList.add("hidden");
-    } else {
-      summary.className = "mt-4 text-sm text-gray-300";
-      summary.innerHTML = "Found <span class='font-semibold text-amber-400'>" +
-        findings.length + " issue" + (findings.length === 1 ? "" : "s") + "</span> worth an estimated <span class='font-semibold text-amber-400'>" +
-        fmtMoney(totalEstimated) + "</span> in potentially missing royalties.";
-      document.getElementById("scan-results").classList.remove("hidden");
-    }
-    summary.classList.remove("hidden");
-  }
-
-  const scanBtn = document.getElementById("scan-btn");
-  scanBtn.addEventListener("click", async () => {
-    scanBtn.disabled = true;
-    const original = scanBtn.innerHTML;
-    scanBtn.innerHTML = "Scanning...";
-    const status = document.getElementById("scan-status");
-    status.className = "mt-4 text-sm text-gray-500";
-    status.textContent = "Scanning connected and unconnected sources...";
-    status.classList.remove("hidden");
-    document.getElementById("scan-results").classList.add("hidden");
-
-    await new Promise((r) => setTimeout(r, 900));
+  document.getElementById("export-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = "Exporting...";
     try {
-      const res = await fetch("/scan/missing-royalties", { method: "POST" });
+      const res = await fetch("/reports/royalty-report/generate", { method: "POST" });
       const data = await res.json();
-      if (res.ok && data.ok) {
-        renderFindings(data.findings, data.total_estimated);
-      } else {
-        status.className = "mt-4 text-sm text-red-400";
-        status.textContent = "Scan failed. Please try again.";
-      }
+      btn.textContent = data.ok ? "Exported ✓" : "Export";
     } catch (err) {
-      status.className = "mt-4 text-sm text-red-400";
-      status.textContent = "Scan failed. Please try again.";
-    } finally {
-      scanBtn.disabled = false;
-      scanBtn.innerHTML = original;
+      btn.textContent = "Export";
     }
-  });
-
-  const CLAIM_STATUS_UI = {
-    "Detected": "border-gray-500/20 bg-gray-500/10 text-gray-400",
-    "Needs Info": "border-amber-500/20 bg-amber-500/10 text-amber-400",
-    "Submitted": "border-blue-500/20 bg-blue-500/10 text-blue-400",
-    "In Review": "border-purple-500/20 bg-purple-500/10 text-purple-400",
-    "Approved": "border-green-500/20 bg-green-500/10 text-green-400",
-    "Paid": "border-green-500/30 bg-green-500/15 text-green-400",
-    "Rejected": "border-red-500/20 bg-red-500/10 text-red-400",
-  };
-
-  function updateClaimRow(row, status) {
-    row.dataset.status = status;
-    const badge = row.querySelector(".claim-status-badge");
-    badge.className = "claim-status-badge rounded-full border px-2 py-0.5 text-xs font-semibold " +
-      (CLAIM_STATUS_UI[status] || CLAIM_STATUS_UI["Detected"]);
-    badge.textContent = status;
-    if (status === "Paid" || status === "Rejected") {
-      row.querySelector(".claim-actions").innerHTML = "";
-    }
-  }
-
-  async function postClaimAction(row, verb) {
-    const id = row.dataset.claimId;
-    const buttons = row.querySelectorAll(".claim-actions button");
-    buttons.forEach((b) => (b.disabled = true));
-    try {
-      const res = await fetch(`/claims/${id}/${verb}`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        updateClaimRow(row, data.status);
-      }
-    } finally {
-      buttons.forEach((b) => (b.disabled = false));
-    }
-  }
-
-  document.querySelectorAll(".claim-row").forEach((row) => {
-    const advanceBtn = row.querySelector(".claim-advance-btn");
-    const rejectBtn = row.querySelector(".claim-reject-btn");
-    if (advanceBtn) advanceBtn.addEventListener("click", () => postClaimAction(row, "advance"));
-    if (rejectBtn) rejectBtn.addEventListener("click", () => postClaimAction(row, "reject"));
-  });
-
-  document.querySelectorAll(".fix-action-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const row = btn.closest(".fix-item");
-      const fixId = row.dataset.fixId;
-      const action = btn.dataset.action;
-      const res = await fetch(`/fixes/${fixId}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: action }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      row.querySelector(".fix-status-label").textContent = data.status;
-    });
+    setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1800);
   });
 </script>
 {% endblock %}

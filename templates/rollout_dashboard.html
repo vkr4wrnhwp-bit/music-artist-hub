@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Rollout Studio - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1200px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker Rollout Studio</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Rollout Campaigns</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Upload your art, lyrics, and clips — get a dated social rollout with captions, edit plans, and a tracked link on every post.</p>
+    </div>
+    <a href="/rollout-studio/new" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-4 py-2 text-sm font-bold text-[#1c1302] shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
+      New Rollout
+    </a>
+  </div>
+
+  {% if not rollout_user %}
+  <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#c9a24a]/[0.05] p-5 text-sm text-gray-300">
+    <span class="font-bold text-[#e8c667]">Sign in to build rollouts.</span>
+    <a href="/login?next=/rollout-studio" class="ml-2 font-semibold text-[#e8c667] underline">Sign in</a>
+  </div>
+  {% elif campaigns %}
+  <div class="grid gap-4 md:grid-cols-2">
+    {% for c in campaigns %}
+    <a href="/rollout-studio/{{ c.id }}" class="block rounded-2xl border border-white/10 bg-[#111113] p-5 transition-colors hover:border-[#c9a24a]/40">
+      <div class="flex items-center justify-between gap-2">
+        <div class="truncate text-sm font-bold text-gray-100">{{ c.title }}</div>
+        <span class="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if c.status == 'generated' else 'bg-white/10 text-gray-400' }}">{{ c.status }}</span>
+      </div>
+      <div class="mt-1 text-[11px] text-gray-500">{{ c.artist_name }}{% if c.release_date %} · drops {{ c.release_date }}{% endif %} · {{ c.rollout_length }}-day rollout</div>
+      <div class="mt-3 flex gap-4 text-[11px] tabular-nums text-gray-400">
+        <span><span class="font-bold text-gray-200">{{ c.total_posts }}</span> posts</span>
+        <span><span class="font-bold text-green-400">{{ c.counts.get('approved', 0) + c.counts.get('posted', 0) }}</span> approved</span>
+        <span><span class="font-bold text-gray-200">{{ c.counts.get('posted', 0) }}</span> posted</span>
+        <span><span class="font-bold text-[#e8c667]">{{ c.clicks }}</span> link clicks</span>
+        <span><span class="font-bold text-[#e8c667]">{{ c.fans }}</span> fans</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
+    <div class="text-sm font-bold text-gray-200">No rollouts yet</div>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">A rollout turns one release into weeks of scheduled, platform-specific content — every post carrying its own tracked Street Banker Link.</p>
+    <a href="/rollout-studio/new" class="mt-4 inline-block rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-5 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Plan your first rollout</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

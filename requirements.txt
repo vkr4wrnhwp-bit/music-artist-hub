@@ -1,2 +1,5 @@
-pytest
 flask
+gunicorn
+pytest
+segno
+cryptography

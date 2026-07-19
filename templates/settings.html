@@ -1,157 +1,101 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - Royalty Sweep by Street Banker{% endblock %}
+{% block title %}Settings - Royalty Sweep{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-8">
-  <div class="flex items-end justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p class="mt-1 text-sm text-gray-500">Manage your profile, notifications, and connected royalty platforms.</p>
-    </div>
+<div class="mx-auto max-w-[1200px] space-y-5">
+  <div>
+    <h1 class="text-2xl font-semibold uppercase tracking-tight">Settings</h1>
+    <p class="mt-1 text-sm text-gray-500">Manage your profile, notifications, and account.</p>
   </div>
 
-  <section id="account-profile" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Account Profile</h2>
-    <p class="mt-1 text-sm text-gray-500">Your artist profile. Saved on this device.</p>
-    <form id="profile-form" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <label class="block text-xs text-gray-400">
-        Artist / display name
-        <input id="profile-name" type="text" required
-               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
-      </label>
-      <label class="block text-xs text-gray-400">
-        Email
-        <input id="profile-email" type="email" required
-               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
-      </label>
-      <label class="block text-xs text-gray-400">
-        Plan
-        <select id="profile-plan"
-                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-          <option value="Free">Free</option>
-          <option value="Pro">Pro</option>
-          <option value="Label">Label</option>
-        </select>
-      </label>
-      <div class="flex items-end">
-        <button type="submit" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-          Save Profile
-        </button>
-        <span id="profile-saved" class="ml-3 hidden self-center text-[11px] font-semibold text-green-400">Saved</span>
-      </div>
-    </form>
-  </section>
-
-  <section id="notification-preferences" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Notification Preferences</h2>
-    <p class="mt-1 text-sm text-gray-500">Choose what you want to be notified about. Saved on this device.</p>
-    <div id="notification-list" class="mt-4 space-y-2">
-      {% for key, label, detail in [
-        ('leak_high', 'High severity leak alerts', 'Urgent issues like sync failures or expired logins'),
-        ('leak_medium', 'Medium severity leak alerts', 'Uncollected royalties above $250'),
-        ('leak_low', 'Low severity leak alerts', 'Minor or low-value issues'),
-        ('weekly_summary', 'Weekly summary email', 'A recap of royalties, leaks, and catalog value'),
-        ('payout_received', 'Payout received', 'A platform confirms a payout has landed'),
-        ('new_song_detected', 'New song detected', 'A new recording shows up in a connected catalog'),
-      ] %}
-      <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-key="{{ key }}">
-        <div class="min-w-0">
-          <div class="text-sm font-semibold">{{ label }}</div>
-          <div class="text-xs text-gray-500">{{ detail }}</div>
-        </div>
-        <button type="button" class="notification-toggle-btn shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"></button>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section id="collaborator-access" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Collaborator Access</h2>
-    <p class="mt-1 text-sm text-gray-500">Invite collaborators and control what they can see or edit on specific songs.</p>
-
-    <div id="collaborator-list" class="mt-4 space-y-2">
-      {% for c in collaborators %}
-      <div class="collaborator-row flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-collaborator-id="{{ c.id }}">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-semibold">{{ c.name }}</span>
-            <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ 'border-green-500/20 bg-green-500/10 text-green-400' if c.status == 'Active' else 'border-amber-500/20 bg-amber-500/10 text-amber-400' }}">{{ c.status }}</span>
-          </div>
-          <div class="mt-0.5 text-xs text-gray-500">{{ c.email }}</div>
-          <div class="mt-1 flex flex-wrap gap-1">
-            {% for song in c.songs %}
-            <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-gray-400">{{ song }}</span>
-            {% endfor %}
-          </div>
-        </div>
-        <select class="collaborator-role-select rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-          {% for role in collaborator_roles %}
-          <option value="{{ role }}" {{ 'selected' if role == c.role else '' }}>{{ role }}</option>
-          {% endfor %}
-        </select>
-        <button type="button" class="collaborator-remove-btn rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400">
-          Remove
-        </button>
-      </div>
-      {% endfor %}
-      <div id="collaborator-empty" class="{{ 'hidden' if collaborators else '' }} rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-600">No collaborators yet.</div>
-    </div>
-
-    <form id="invite-collaborator-form" class="mt-4 rounded-lg border border-white/5 bg-white/5 p-4">
-      <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Invite a collaborator</div>
-      <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <input type="text" id="invite-name" placeholder="Name" required
-               class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
-        <input type="email" id="invite-email" placeholder="Email" required
-               class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
-        <select id="invite-role" class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-          {% for role in collaborator_roles %}
-          <option value="{{ role }}">{{ role }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="mt-3">
-        <div class="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">Song access</div>
-        <div class="mt-2 flex flex-wrap gap-3">
-          {% for s in songs_summary %}
-          <label class="flex items-center gap-1.5 text-xs text-gray-400">
-            <input type="checkbox" class="invite-song-checkbox" value="{{ s.song.title }}">
-            {{ s.song.title }}
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div class="space-y-5">
+      <section id="account-profile" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Account Profile</h2>
+        <p class="mt-1 text-sm text-gray-500">Your artist profile. Saved on this device.</p>
+        <form id="profile-form" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label class="block text-xs text-gray-400">Artist / display name
+            <input id="profile-name" type="text" required class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
           </label>
+          <label class="block text-xs text-gray-400">Email
+            <input id="profile-email" type="email" required class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+          </label>
+          <label class="block text-xs text-gray-400">Plan
+            <select id="profile-plan" class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+              <option value="Free">Free</option>
+              <option value="Pro">Pro</option>
+              <option value="Label">Label</option>
+            </select>
+          </label>
+          <div class="flex items-end">
+            <button type="submit" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Save Profile</button>
+            <span id="profile-saved" class="ml-3 hidden self-center text-[11px] font-semibold text-green-400">Saved</span>
+          </div>
+        </form>
+      </section>
+
+      <section id="notification-preferences" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Notification Preferences</h2>
+        <p class="mt-1 text-sm text-gray-500">Choose what you want to be notified about. Saved on this device.</p>
+        <div id="notification-list" class="mt-4 space-y-2">
+          {% for key, label, detail in [
+            ('leak_high', 'High severity leak alerts', 'Urgent issues like sync failures or expired logins'),
+            ('leak_medium', 'Medium severity leak alerts', 'Uncollected royalties above $250'),
+            ('leak_low', 'Low severity leak alerts', 'Minor or low-value issues'),
+            ('weekly_summary', 'Weekly summary email', 'A recap of royalties, leaks, and catalog value'),
+            ('payout_received', 'Payout received', 'A platform confirms a payout has landed'),
+            ('new_song_detected', 'New song detected', 'A new recording shows up in a connected catalog'),
+          ] %}
+          <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-key="{{ key }}">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold">{{ label }}</div>
+              <div class="text-xs text-gray-500">{{ detail }}</div>
+            </div>
+            <button type="button" class="notification-toggle-btn shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"></button>
+          </div>
           {% endfor %}
         </div>
-      </div>
-      <button type="submit" class="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        Send Invite
-      </button>
-      <div id="invite-error" class="mt-2 hidden text-[11px] font-semibold text-red-400"></div>
-    </form>
-  </section>
-
-  <section id="platform-connections" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Platform Connections</h2>
-    <p class="mt-1 text-sm text-gray-500">Connect royalty platforms to include them in your totals.</p>
-    <input id="connection-search" type="text" placeholder="Search platforms..."
-           class="mt-4 w-full max-w-sm rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-amber-500/50 focus:outline-none">
-    <div id="connection-list" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {% for p in platform_catalog %}
-      <div class="connection-row flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2"
-           data-platform-id="{{ p.id }}" data-status="{{ p.status }}"
-           data-search="{{ p.platform | lower }} {{ p.royalty_type | lower }}">
-        <div class="min-w-0">
-          <div class="truncate text-sm font-semibold">{{ p.platform }}</div>
-          <div class="text-[10px] uppercase tracking-widest text-gray-600">{{ p.royalty_type }}</div>
-        </div>
-        <div class="flex shrink-0 items-center gap-2.5">
-          <span class="conn-status inline-flex items-center gap-1.5 text-[11px]"></span>
-          <button type="button" class="conn-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors"></button>
-        </div>
-      </div>
-      {% endfor %}
-      <div id="connection-no-results" class="hidden py-6 text-center text-xs text-gray-600 sm:col-span-2 lg:col-span-3">No platforms match your search.</div>
+      </section>
     </div>
-  </section>
+
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Manage</h2>
+        <div class="mt-3 space-y-2">
+          {% for href, label, desc in [
+            ('/connections', 'Platform Connections', 'Connected royalty sources'),
+            ('/team', 'Team Access', 'Collaborators & permissions'),
+            ('/billing', 'Billing', 'Plan, usage, and invoices'),
+          ] %}
+          <a href="{{ href }}" class="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 transition-colors hover:border-amber-500/30">
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-gray-100">{{ label }}</span>
+              <span class="block text-[11px] text-gray-500">{{ desc }}</span>
+            </span>
+            <svg class="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% if can_backup %}
+      <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Backup</h2>
+        <p class="mt-1 text-sm text-gray-400">Download everything — accounts, members, fans, statements, and uploads — as one zip. Keep a copy somewhere safe; a backup you don't have is a backup that doesn't exist.</p>
+        <a href="/backup" class="mt-3 inline-block rounded-lg bg-[#d8b25a] px-4 py-2 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Download backup</a>
+      </section>
+      {% endif %}
+
+      <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Session</h2>
+        <p class="mt-1 text-sm text-gray-500">Demo passkey session.</p>
+        <form method="post" action="/logout" class="mt-3">
+          <button type="submit" class="w-full rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-red-500/10 hover:text-red-400">Sign out</button>
+        </form>
+      </section>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -166,9 +110,7 @@
       if (!raw) return DEFAULT_PROFILE;
       const p = JSON.parse(raw);
       return p && p.name ? p : DEFAULT_PROFILE;
-    } catch (err) {
-      return DEFAULT_PROFILE;
-    }
+    } catch (err) { return DEFAULT_PROFILE; }
   }
 
   function renderProfile() {
@@ -204,9 +146,7 @@
       const raw = localStorage.getItem(NOTIFICATIONS_KEY);
       const saved = raw ? JSON.parse(raw) : {};
       return { ...DEFAULT_NOTIFICATIONS, ...saved };
-    } catch (err) {
-      return { ...DEFAULT_NOTIFICATIONS };
-    }
+    } catch (err) { return { ...DEFAULT_NOTIFICATIONS }; }
   }
 
   function renderNotificationRow(row, enabled) {
@@ -225,118 +165,6 @@
       renderNotificationRow(row, notifications[key]);
       localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
     });
-  });
-
-  document.querySelectorAll(".collaborator-role-select").forEach((select) => {
-    select.addEventListener("change", async () => {
-      const row = select.closest(".collaborator-row");
-      const id = row.dataset.collaboratorId;
-      const previous = select.dataset.previous || select.value;
-      select.disabled = true;
-      try {
-        const res = await fetch(`/collaborators/${id}/role`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: select.value }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) select.value = previous;
-      } catch (err) {
-        select.value = previous;
-      } finally {
-        select.dataset.previous = select.value;
-        select.disabled = false;
-      }
-    });
-  });
-
-  document.querySelectorAll(".collaborator-remove-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const row = btn.closest(".collaborator-row");
-      const id = row.dataset.collaboratorId;
-      btn.disabled = true;
-      btn.textContent = "Removing...";
-      const res = await fetch(`/collaborators/${id}/remove`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        row.remove();
-        if (!document.querySelector(".collaborator-row")) {
-          document.getElementById("collaborator-empty").classList.remove("hidden");
-        }
-      } else {
-        btn.disabled = false;
-        btn.textContent = "Remove";
-      }
-    });
-  });
-
-  document.getElementById("invite-collaborator-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("invite-name").value.trim();
-    const email = document.getElementById("invite-email").value.trim();
-    const role = document.getElementById("invite-role").value;
-    const songs = [...document.querySelectorAll(".invite-song-checkbox:checked")].map((cb) => cb.value);
-    const errorEl = document.getElementById("invite-error");
-    errorEl.classList.add("hidden");
-    const res = await fetch("/collaborators/invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, role, songs }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      errorEl.textContent = (data && data.error) || "Failed to send invite.";
-      errorEl.classList.remove("hidden");
-      return;
-    }
-    window.location.reload();
-  });
-
-  const CONN_UI = {
-    connected:     { badge: "Connected",     dot: "bg-green-500 shadow-[0_0_5px_1px_rgba(34,197,94,0.75)]",  text: "text-green-400", btn: "Disconnect", btnCls: "border-white/10 text-gray-400 hover:bg-white/5 hover:text-gray-200", disabled: false },
-    not_connected: { badge: "Not connected", dot: "bg-gray-600",                                             text: "text-gray-500",  btn: "Connect",    btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-    syncing:       { badge: "Syncing...",    dot: "bg-amber-500 animate-pulse shadow-[0_0_5px_1px_rgba(245,158,11,0.75)]", text: "text-amber-400", btn: "Syncing...", btnCls: "border-white/10 text-gray-600", disabled: true },
-    needs_login:   { badge: "Needs login",   dot: "bg-blue-500 shadow-[0_0_5px_1px_rgba(59,130,246,0.75)]",  text: "text-blue-400",  btn: "Log In",     btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-    error:         { badge: "Error",         dot: "bg-red-500 shadow-[0_0_5px_1px_rgba(239,68,68,0.8)]",     text: "text-red-400",   btn: "Retry",      btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
-  };
-
-  function renderConnectionRow(row) {
-    const ui = CONN_UI[row.dataset.status] || CONN_UI.not_connected;
-    row.querySelector(".conn-status").innerHTML =
-      '<span class="h-1.5 w-1.5 rounded-full ' + ui.dot + '"></span><span class="' + ui.text + '">' + ui.badge + "</span>";
-    const btn = row.querySelector(".conn-btn");
-    btn.textContent = ui.btn;
-    btn.className = "conn-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors " + ui.btnCls;
-    btn.disabled = ui.disabled;
-  }
-
-  document.querySelectorAll(".connection-row").forEach((row) => {
-    renderConnectionRow(row);
-    row.querySelector(".conn-btn").addEventListener("click", async () => {
-      const verb = row.dataset.status === "connected" ? "disconnect" : "connect";
-      const btn = row.querySelector(".conn-btn");
-      btn.disabled = true;
-      btn.textContent = "Working...";
-      try {
-        const res = await fetch(`/connections/${row.dataset.platformId}/${verb}`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          row.dataset.status = data.status;
-        }
-      } catch (err) { /* fall through to re-render */ }
-      renderConnectionRow(row);
-    });
-  });
-
-  document.getElementById("connection-search").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    let visible = 0;
-    document.querySelectorAll(".connection-row").forEach((row) => {
-      const match = !q || row.dataset.search.includes(q);
-      row.classList.toggle("hidden", !match);
-      if (match) visible++;
-    });
-    document.getElementById("connection-no-results").classList.toggle("hidden", visible > 0);
   });
 </script>
 {% endblock %}

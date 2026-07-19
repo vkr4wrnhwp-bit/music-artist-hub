@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ c.title }} · Rollout - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1200px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
+      <p class="mt-1 text-sm text-gray-400">{{ c.artist_name }}{% if c.release_date %} · drops {{ c.release_date }}{% endif %} · {{ c.rollout_length }}-day rollout
+        {% if ml_campaign %} · linked to <a href="/l/{{ ml_campaign.slug }}" target="_blank" class="font-semibold text-[#e8c667] hover:underline">/l/{{ ml_campaign.slug }}</a>{% endif %}</p>
+    </div>
+    <div class="flex flex-wrap gap-2 text-sm font-semibold">
+      <a href="/rollout-studio/{{ c.id }}/posts" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">Posts</a>
+      <a href="/rollout-studio/{{ c.id }}/calendar" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">Calendar</a>
+      <a href="/rollout-studio/{{ c.id }}/performance" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">Performance</a>
+      <a href="/rollout-studio/{{ c.id }}/socials" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">Socials</a>
+      <a href="/rollout-studio" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">← All</a>
+    </div>
+  </div>
+
+  <!-- Next action -->
+  <div class="rounded-2xl border border-[#c9a24a]/40 bg-gradient-to-b from-[#c9a24a]/[0.1] to-transparent p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Recommended next action</div>
+        <div class="mt-1 text-sm font-semibold text-gray-100">{{ next_action }}</div>
+      </div>
+      <form method="post" action="/rollout-studio/{{ c.id }}/generate">
+        <button class="rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-5 py-2.5 text-sm font-bold text-[#1c1302] hover:scale-[1.02]">{{ 'Regenerate Rollout' if posts else 'Generate Rollout' }}</button>
+      </form>
+    </div>
+    {% if posts %}<p class="mt-2 text-[10px] text-amber-400/80">Regenerating replaces all current posts and drafts.</p>{% endif %}
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    {% for label, value in [("Posts", posts | length), ("Approved", counts.get('approved', 0)),
+                             ("Posted", counts.get('posted', 0)),
+                             ("Link clicks", posts | sum(attribute='clicks')),
+                             ("Fans captured", posts | sum(attribute='fans'))] %}
+    <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ label }}</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-[#e8c667]' if loop.last or loop.index == 4 }}">{{ value }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Creative direction -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Creative Direction</h2>
+    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gray-300">{{ direction.summary }}</p>
+    <div class="mt-3 flex flex-wrap gap-1.5">
+      {% for p in direction.pillars %}<span class="rounded-full border border-[#c9a24a]/30 px-2.5 py-1 text-[10px] font-semibold text-[#e8c667]">{{ p }}</span>{% endfor %}
+    </div>
+  </section>
+
+  <!-- Asset library -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Asset Library</h2>
+    {% if assets %}
+    <div class="mt-3 flex flex-wrap gap-3">
+      {% for a in assets %}
+      {% if a.asset_type == 'image' %}
+      <a href="{{ a.file_path }}" target="_blank"><img src="{{ a.file_path }}" alt="art" class="h-24 w-24 rounded-lg border border-white/10 object-cover"></a>
+      {% elif a.asset_type == 'video' %}
+      <a href="{{ a.file_path }}" target="_blank" class="grid h-24 w-24 place-items-center rounded-lg border border-white/10 bg-white/5 text-center text-[10px] font-bold text-gray-300">▶<br>Video</a>
+      {% else %}
+      <div class="max-w-xs rounded-lg border border-white/10 bg-white/5 p-3">
+        <div class="text-[9px] font-bold uppercase tracking-wide text-[#e8c667]">Lyrics</div>
+        <p class="mt-1 line-clamp-3 whitespace-pre-line text-[11px] text-gray-400">{{ a.lyrics_text[:150] }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}<p class="mt-2 text-xs text-gray-600">No assets uploaded.</p>{% endif %}
+  </section>
+
+  <!-- Upcoming posts preview -->
+  {% if posts %}
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Schedule Preview</h2>
+      <a href="/rollout-studio/{{ c.id }}/posts" class="text-[11px] font-semibold text-[#e8c667] hover:underline">Edit all posts →</a>
+    </div>
+    <div class="mt-3 space-y-2">
+      {% for p in posts[:6] %}
+      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs">
+        <span class="w-20 shrink-0 font-bold tabular-nums text-gray-400">{{ p.scheduled_date[5:] }}</span>
+        <span class="w-32 shrink-0 font-semibold text-gray-200">{{ platform_names.get(p.platform, p.platform) }}</span>
+        <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
+        <span class="min-w-0 flex-1 truncate text-gray-400">{{ p.caption }}</span>
+        <span class="shrink-0 text-[10px] font-bold uppercase {{ 'text-green-400' if p.status in ('approved', 'posted') else 'text-gray-500' }}">{{ p.status }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

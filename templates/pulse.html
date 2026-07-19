@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Artist Pulse - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Artist Pulse</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Artist Pulse</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Your live numbers, straight from the platforms — Spotify followers, popularity, and current top tracks, plus your Deezer fan count. No screenshots, no guesswork.</p>
+    </div>
+    {% if profile %}
+    <button id="pulse-clear" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-bold text-gray-300 hover:bg-white/10">Change Artist</button>
+    {% endif %}
+  </div>
+
+  {% if not pulse_configured %}
+  <!-- Honest state: no Spotify credentials on this server -->
+  <section class="rounded-2xl border border-amber-500/30 bg-[#141209] p-6">
+    <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Not Connected</div>
+    <p class="mt-2 max-w-xl text-sm text-gray-300">Artist Pulse reads live data with the Spotify API credentials on the server. They aren't configured here, so there's nothing to show — this page never displays sample numbers as if they were yours.</p>
+  </section>
+
+  {% elif not profile %}
+  <!-- Pick your artist -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-6">
+    <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">One-time setup</div>
+    <h2 class="mt-1 text-lg font-bold">Find yourself on Spotify</h2>
+    <p class="mt-1 max-w-xl text-sm text-gray-400">Search your artist name and pick your profile. Everything on this page then tracks that artist live.</p>
+    <div class="mt-4 flex max-w-md gap-2">
+      <input id="pulse-q" placeholder="Artist name…" class="w-full rounded-lg border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-[#c9a24a] focus:outline-none">
+      <button id="pulse-search" class="shrink-0 rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Search</button>
+    </div>
+    <div id="pulse-results" class="mt-4 grid gap-2 sm:grid-cols-2"></div>
+    <div id="pulse-error" class="mt-3 hidden text-xs font-semibold text-red-400"></div>
+  </section>
+
+  {% elif not pulse %}
+  <section class="rounded-2xl border border-white/10 bg-[#141209] p-6">
+    <p class="text-sm text-gray-300">Spotify didn't return data for <span class="font-bold">{{ profile.artist_name }}</span> just now. That's usually temporary — reload in a minute, or pick the artist again.</p>
+  </section>
+
+  {% else %}
+  <!-- Live pulse -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-6 shadow-[0_0_60px_rgba(201,162,74,0.07)]">
+    <div class="flex flex-wrap items-center gap-5">
+      {% if pulse.image %}<img src="{{ pulse.image }}" alt="{{ pulse.name }}" class="h-20 w-20 rounded-full border border-[#c9a24a]/40 object-cover">{% endif %}
+      <div class="min-w-0">
+        <h2 class="truncate text-2xl font-black">{{ pulse.name }}</h2>
+        {% if pulse.genres %}<div class="mt-1 flex flex-wrap gap-1.5">
+          {% for g in pulse.genres[:4] %}<span class="rounded-full border border-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-300">{{ g }}</span>{% endfor %}
+        </div>{% endif %}
+      </div>
+      {% if pulse.url %}<a href="{{ pulse.url }}" target="_blank" rel="noopener" class="ml-auto rounded-lg border border-[#1DB954]/50 bg-[#1DB954]/10 px-4 py-2 text-xs font-bold text-[#1DB954] hover:bg-[#1DB954]/20">Open on Spotify ↗</a>{% endif %}
+    </div>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-3">
+      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Spotify Followers</div>
+        <div class="mt-1 text-3xl font-black tabular-nums text-[#e8c667]">{{ "{:,}".format(pulse.followers) }}</div>
+      </div>
+      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Popularity Score</div>
+        <div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black tabular-nums">{{ pulse.popularity }}</span><span class="text-sm text-gray-600">/100</span></div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-[#d8b25a]" style="width: {{ pulse.popularity }}%;"></div></div>
+      </div>
+      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Deezer Fans</div>
+        {% if deezer %}
+        <div class="mt-1 text-3xl font-black tabular-nums">{{ "{:,}".format(deezer.fans) }}</div>
+        {% else %}
+        <div class="mt-1 text-sm text-gray-500">No Deezer match found for this name.</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {% if pulse.top_tracks %}
+  <section class="rounded-2xl border border-white/10 bg-[#0f0e0c] p-6">
+    <div class="flex items-baseline justify-between">
+      <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Top Tracks — as Spotify ranks them right now</h3>
+    </div>
+    <div class="mt-4 divide-y divide-white/5">
+      {% for t in pulse.top_tracks %}
+      <div class="flex items-center gap-4 py-2.5">
+        <span class="w-6 shrink-0 text-right text-sm font-black tabular-nums text-gray-600">{{ loop.index }}</span>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-bold">{% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener" class="hover:text-[#e8c667]">{{ t.name }}</a>{% else %}{{ t.name }}{% endif %}</div>
+          <div class="truncate text-[11px] text-gray-500">{{ t.album }}</div>
+        </div>
+        <div class="flex w-32 shrink-0 items-center gap-2">
+          <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-[#d8b25a]" style="width: {{ t.popularity }}%;"></div></div>
+          <span class="w-6 text-right text-[11px] font-bold tabular-nums text-gray-400">{{ t.popularity }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <p class="px-1 text-[11px] text-gray-500">Live data from the Spotify Web API{% if deezer %} and Deezer{% endif %}, refreshed every 6 hours. Popularity is Spotify's own 0–100 signal based on recent plays.</p>
+  {% endif %}
+</div>
+
+<script>
+  const q = document.getElementById("pulse-q");
+  const searchBtn = document.getElementById("pulse-search");
+  if (searchBtn) {
+    const run = async () => {
+      const err = document.getElementById("pulse-error");
+      err.classList.add("hidden");
+      const res = await fetch("/pulse/search?q=" + encodeURIComponent(q.value));
+      const data = await res.json();
+      const box = document.getElementById("pulse-results");
+      box.innerHTML = "";
+      if (!data.results.length) {
+        err.textContent = "No artists found — check the spelling.";
+        err.classList.remove("hidden");
+        return;
+      }
+      data.results.forEach((a) => {
+        const b = document.createElement("button");
+        b.className = "flex items-center gap-3 rounded-xl border border-white/10 bg-black/40 p-3 text-left hover:border-[#c9a24a]/50";
+        b.innerHTML = (a.image ? '<img src="' + a.image + '" class="h-10 w-10 rounded-full object-cover">' : '<span class="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-sm">♪</span>')
+          + '<span class="min-w-0"><span class="block truncate text-sm font-bold"></span>'
+          + '<span class="block text-[11px] text-gray-500">' + a.followers.toLocaleString() + ' followers</span></span>';
+        b.querySelector(".font-bold").textContent = a.name;
+        b.addEventListener("click", async () => {
+          await fetch("/pulse/select", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: a.id, name: a.name, image: a.image }) });
+          window.location.reload();
+        });
+        box.appendChild(b);
+      });
+    };
+    searchBtn.addEventListener("click", run);
+    q.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+  }
+  const clearBtn = document.getElementById("pulse-clear");
+  if (clearBtn) clearBtn.addEventListener("click", async () => {
+    await fetch("/pulse/clear", { method: "POST" });
+    window.location.reload();
+  });
+</script>
+{% endblock %}

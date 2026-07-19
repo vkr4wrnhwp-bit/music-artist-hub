@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Socials · {{ c.title }} - Rollout Studio{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[800px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio · Social Accounts</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Publishing Connections</h1>
+      <p class="mt-1 max-w-xl text-sm text-gray-400">Manual mode works today: copy captions from the Posts page, post them yourself, and mark them posted. Auto-posting activates per platform once API credentials are connected.</p>
+    </div>
+    <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
+  </div>
+
+  <div class="space-y-2">
+    {% for key, name, status in providers %}
+    <div class="flex items-center justify-between rounded-xl border {{ 'border-green-500/25 bg-green-500/[0.04]' if status == 'ready' else 'border-white/10 bg-[#111113]' }} px-4 py-3.5">
+      <div>
+        <div class="text-sm font-bold text-gray-100">{{ name }}</div>
+        {% if status == 'ready' %}
+        <div class="text-[11px] text-green-400">Active — copy captions and assets, mark posts as posted, attribution tracks through each post's link.</div>
+        {% elif status == 'configured' %}
+        <div class="text-[11px] text-[#e8c667]">Credentials detected — OAuth connection flow is next on the roadmap.</div>
+        {% else %}
+        <div class="text-[11px] text-gray-500">Auto-posting requires platform API credentials and app approval. Until then, use manual mode.</div>
+        {% endif %}
+      </div>
+      <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'ready' else ('bg-[#c9a24a]/15 text-[#e8c667]' if status == 'configured' else 'bg-white/10 text-gray-500') }}">{{ status }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <p class="text-[10px] text-gray-600">Platform tokens, when connected, are stored server-side and never exposed to the browser. Every publish attempt will be logged with its platform response.</p>
+</div>
+{% endblock %}

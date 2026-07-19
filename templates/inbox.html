@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Inbox - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl space-y-5">
+  <div>
+    <h1 class="text-2xl font-semibold uppercase tracking-tight">Inbox</h1>
+    <p class="mt-1 text-sm text-gray-500">Playlist submissions, booking enquiries, and marketplace posts — stored for real, not lost on refresh.</p>
+  </div>
+
+  {% set kind_meta = {
+    'playlist_submission': ('Playlist Submission', 'border-green-500/20 bg-green-500/10 text-green-400'),
+    'booking_enquiry': ('Booking Enquiry', 'border-amber-500/20 bg-amber-500/10 text-amber-400'),
+    'marketplace_post': ('Marketplace Post', 'border-blue-500/20 bg-blue-500/10 text-blue-400'),
+  } %}
+
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Received</h2>
+      <span class="text-[11px] text-gray-600">{{ inbox_items | length }} item{{ '' if inbox_items | length == 1 else 's' }}</span>
+    </div>
+    <div class="mt-4 space-y-2">
+      {% for item in inbox_items %}
+      {% set label, tone = kind_meta.get(item.kind, (item.kind, 'border-white/10 text-gray-400')) %}
+      <div class="rounded-xl border border-white/5 bg-white/5 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ tone }}">{{ label }}</span>
+          <span class="text-[10px] text-gray-600">{{ item.created }}</span>
+        </div>
+        <dl class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+          {% for k, v in item.payload.items() if v %}
+          <div class="flex gap-2"><dt class="shrink-0 font-semibold uppercase tracking-wide text-gray-600">{{ k.replace('_', ' ') }}</dt><dd class="min-w-0 truncate text-gray-300">{{ v }}</dd></div>
+          {% endfor %}
+        </dl>
+      </div>
+      {% endfor %}
+      {% if not inbox_items %}
+      <div class="rounded-xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-600">Nothing yet — submissions from the Network and Marketplace land here.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

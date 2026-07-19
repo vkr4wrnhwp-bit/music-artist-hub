@@ -30,6 +30,8 @@ from royalty_data import (
     get_payout_calendar,
     get_platform_balances,
     get_platform_catalog,
+    get_recent_payouts,
+    get_kpis,
     get_royalty_leak_alerts,
     get_smart_recommendations,
     get_song,
@@ -67,9 +69,12 @@ from royalty_data import (
     reset_registration_wizard_state,
     set_fix_status,
     COLLABORATOR_ROLES,
+    get_action_center,
     get_collaborators,
     get_earnings_trend,
+    get_overview_health,
     get_recovery_summary,
+    get_since_last_login_summary,
     invite_collaborator,
     remove_collaborator,
     reset_collaborator_state,
@@ -940,3 +945,75 @@ def test_get_recovery_summary_confidence_pct_in_range():
     trend = get_earnings_trend()
     summary = get_recovery_summary(catalog, songs, trend)
     assert 0 <= summary["confidence_pct"] <= 100
+
+
+def test_get_overview_health_bars_and_score():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    health = get_overview_health(catalog, songs)
+    keys = [b["key"] for b in health["bars"]]
+    assert keys == ["connections", "metadata", "registration", "splits"]
+    assert 0 <= health["score"] <= 100
+    assert all(0 <= b["pct"] <= 100 for b in health["bars"])
+    assert all(b["route"].startswith("/") for b in health["bars"])
+    assert health["band"] in ("Excellent", "Good", "Fair", "At risk")
+
+
+def test_get_overview_health_empty_songs():
+    catalog = get_platform_catalog()
+    health = get_overview_health(catalog, [])
+    assert health["bars"][1]["pct"] == 0
+
+
+def test_get_action_center_routes_and_blend():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    payouts = get_recent_payouts()
+    kpis = get_kpis()
+    balances = get_platform_balances()
+    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
+    items = get_action_center(alerts, payouts, limit=5)
+    assert len(items) <= 5
+    assert all(i["route"].startswith("/") for i in items)
+    assert any(i["kind"] == "success" for i in items)
+    connection_alert = next(i for i in items if "login expired" in i["title"] or "sync failure" in i["title"])
+    assert connection_alert["route"] == "/connections"
+
+
+def test_since_last_login_includes_overview_metrics():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    summary = get_since_last_login_summary(catalog, songs, 12.5, 100000)
+    assert summary["tasks_completed"] == 5
+    assert summary["issues_needing_attention"] >= 0
+    assert summary["catalog_value_increase"] == 12500.0
+
+
+def test_get_royalties_overview_shapes_and_totals():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    trend = get_earnings_trend()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), trend, recent_payout_rows())
+    s = ov["summary"]
+    assert s["total_royalties"] == pytest.approx(total_royalties(balances), abs=0.01)
+    assert s["sources_connected"] == sum(1 for p in catalog if p.status == "connected")
+    assert s["total_sources"] == len(catalog)
+    assert 0 <= sum(r["pct_of_total"] for r in ov["by_source"]) <= 102
+    assert all(r["logo"] for r in ov["by_source"])
+
+
+def test_get_royalties_overview_groups_extra_sources_as_other():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), get_earnings_trend(), recent_payout_rows())
+    if len(balances) > 7:
+        assert ov["by_source"][-1]["name"] == "Other Sources"
+
+
+def test_platform_logo_key_maps_known_and_unknown():
+    from royalty_data import platform_logo_key
+    assert platform_logo_key("Spotify") == "spotify"
+    assert platform_logo_key("The MLC") == "mlc"
+    assert platform_logo_key("Nonexistent Platform") == "other"

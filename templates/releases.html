@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Release Scheduler - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Releases</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Release Scheduler</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Your real release calendar — every campaign release date and every scheduled rollout post, in one timeline.</p>
+    </div>
+    <a href="/links/new" class="rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">+ New Release</a>
+  </div>
+
+  {% if not months and not past %}
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-6">
+    <p class="text-sm text-gray-300">Nothing scheduled yet. <a href="/links/new" class="font-bold text-[#e8c667] hover:underline">Create a campaign</a> with a release date, or <a href="/rollout-studio/new" class="font-bold text-[#e8c667] hover:underline">generate a rollout</a> — everything with a date lands on this calendar automatically.</p>
+  </section>
+  {% else %}
+
+  {% if months %}
+  {% for m in months %}
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">{{ m.month }}</h2>
+    <div class="mt-3 divide-y divide-white/5">
+      {% for e in m.events %}
+      <a href="{{ e.href }}" class="flex items-center gap-4 py-3 transition-colors hover:bg-white/[0.03]">
+        <span class="w-24 shrink-0 text-xs font-black tabular-nums {{ 'text-[#e8c667]' if e.kind == 'release' else 'text-gray-400' }}">{{ e.date }}</span>
+        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg {{ 'bg-[#c9a24a]/15 text-[#e8c667]' if e.kind == 'release' else 'bg-white/5 text-gray-400' }}">
+          {{ '♪' if e.kind == 'release' else '✎' }}
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-bold {{ 'text-[#e8c667]' if e.kind == 'release' }}">{{ e.title }}</span>
+          <span class="block truncate text-[11px] text-gray-500">{{ e.detail }}</span>
+        </span>
+        <span class="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">{{ e.status }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  {% else %}
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <p class="text-sm text-gray-400">No upcoming dates — your next release starts with a <a href="/links/new" class="font-bold text-[#e8c667] hover:underline">new campaign</a>.</p>
+  </section>
+  {% endif %}
+
+  {% if past %}
+  <section class="rounded-2xl border border-white/10 bg-[#0f0e0c] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Recently passed</h2>
+    <div class="mt-3 divide-y divide-white/5 opacity-70">
+      {% for e in past|reverse %}
+      <a href="{{ e.href }}" class="flex items-center gap-4 py-2.5 hover:opacity-100">
+        <span class="w-24 shrink-0 text-xs tabular-nums text-gray-500">{{ e.date }}</span>
+        <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-300">{{ e.title }}</span>
+        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-500">{{ e.status }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  <p class="px-1 text-[11px] text-gray-500">Built from your campaigns and rollout posts — change a date there and this calendar follows.</p>
+</div>
+{% endblock %}
