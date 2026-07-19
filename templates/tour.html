@@ -68,9 +68,10 @@
       <div class="flex flex-wrap items-center gap-3 py-3">
         <div class="w-24 shrink-0 text-sm font-black tabular-nums">{{ s.date }}</div>
         <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-bold">{{ s.venue }}</div>
+          <a href="/tour/{{ s.id }}" class="block truncate text-sm font-bold hover:text-[#e8c667]">{{ s.venue }}</a>
           <div class="truncate text-[11px] text-gray-500">{{ s.city }}{% if s.notes %} · {{ s.notes }}{% endif %}</div>
         </div>
+        <a href="/tour/{{ s.id }}" class="shrink-0 rounded-lg border border-[#c9a24a]/40 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#e8c667] hover:bg-[#c9a24a]/10">Advance</a>
         <form method="post" action="/tour/{{ s.id }}/status" class="shrink-0">
           <select name="status" onchange="this.form.submit()"
                   class="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide

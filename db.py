@@ -491,6 +491,12 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'artist'")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: show advancing data on tour shows.
+        for _col in ("advance TEXT", "settlement TEXT", "share_token TEXT"):
+            try:
+                db.execute("ALTER TABLE tour_shows ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
 def _now():
@@ -953,6 +959,50 @@ def get_stage_plot(user_id):
         row = db.execute("SELECT data FROM stage_plots WHERE user_id = ?",
                          (user_id,)).fetchone()
     return json.loads(row["data"]) if row else None
+
+
+def _show_dict(row):
+    d = dict(row)
+    d["advance"] = json.loads(d.get("advance") or "{}")
+    d["settlement"] = json.loads(d.get("settlement") or "{}")
+    return d
+
+
+def get_tour_show(user_id, show_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM tour_shows WHERE id = ? AND user_id = ?",
+                         (show_id, user_id)).fetchone()
+    return _show_dict(row) if row else None
+
+
+def save_show_advance(user_id, show_id, advance):
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_shows SET advance = ? WHERE id = ? AND user_id = ?",
+                         (json.dumps(advance), show_id, user_id))
+    return cur.rowcount > 0
+
+
+def save_show_settlement(user_id, show_id, settlement):
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_shows SET settlement = ? WHERE id = ? AND user_id = ?",
+                         (json.dumps(settlement), show_id, user_id))
+    return cur.rowcount > 0
+
+
+def set_show_share_token(user_id, show_id, token):
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_shows SET share_token = ? WHERE id = ? AND user_id = ?",
+                         (token, show_id, user_id))
+    return cur.rowcount > 0
+
+
+def get_show_by_share_token(token):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT s.*, u.name AS artist_name FROM tour_shows s "
+            "JOIN users u ON u.id = s.user_id WHERE s.share_token = ?",
+            (token,)).fetchone()
+    return _show_dict(row) if row else None
 
 
 def list_portal_memberships(member_user_id):

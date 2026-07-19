@@ -3729,3 +3729,74 @@ def test_stage_plot_designer():
     assert plot["items"]["vox"] == 2 and plot["pos"]["vox-1"] == [400, 520]
     # Saved state comes back embedded on reload.
     assert "Plot Save Test" in artist.get("/stage-plot").get_data(as_text=True)
+
+
+def test_show_advancer_and_showday(monkeypatch):
+    import db as store_mod
+    import email_provider as emailer_mod
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    outbox = []
+    monkeypatch.setattr(emailer_mod, "send",
+                        lambda to, subject, html, attachments=None:
+                        outbox.append((to, subject, html)) or True)
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tour/add", data={"date": "2026-10-02", "venue": "Advance Test Hall",
+                                   "city": "Memphis, TN"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    show = [s for s in store_mod.list_tour_shows(uid)
+            if s["venue"] == "Advance Test Hall"][0]
+    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
+    assert "Advance Builder" in page and "What we still need" in page
+    artist.post("/tour/%s/advance" % show["id"], data={
+        "contact_name": "Sam Booker", "contact_email": "sam@venue.example",
+        "dayof_contact": "Sam 555-0100", "load_in": "4pm",
+        "set_time": "9pm, 45 min", "deal": "$500 flat", "payout": "cash with Sam"})
+    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
+    # Confirms what's saved, asks only what's missing; core fields unlock
+    # the mark-Advanced button.
+    assert "Sam Booker" in page and "What time are doors?" in page
+    assert "What time is load-in?" not in page
+    assert "mark Advanced" in page
+    # Share link -> public day sheet with logistics but never money.
+    artist.post("/tour/%s/share" % show["id"])
+    token = store_mod.get_tour_show(uid, show["id"])["share_token"]
+    pub = app_obj.test_client().get("/showday/%s" % token)
+    assert pub.status_code == 200
+    text = pub.get_data(as_text=True)
+    assert "Advance Test Hall" in text and "4pm" in text and "555-0100" in text
+    assert "$500" not in text
+    assert app_obj.test_client().get("/showday/nope").status_code == 404
+    # Sending the advance emails the venue contact with the share link.
+    r = artist.post("/tour/%s/send-advance" % show["id"])
+    assert "sent=1" in r.headers["Location"]
+    to, subject, html = outbox[-1]
+    assert to == "sam@venue.example" and "Advance:" in subject and token in html
+    # Someone else's account can't open the show.
+    stranger = app_obj.test_client()
+    stranger.post("/signup", data={"name": "S2", "email": "tour-stranger@example.net",
+                                   "password": "strange2"})
+    assert stranger.get("/tour/%s" % show["id"]).status_code == 404
+
+
+def test_settlement_math_and_route():
+    import touring
+    import db as store_mod
+    t = touring.settlement_totals({"deal_type": "guarantee_split", "guarantee": "500",
+                                   "door_gross": "1000", "split_pct": "20",
+                                   "merch_gross": "300", "merch_cut_pct": "20",
+                                   "expenses": "150"})
+    assert t["door_share"] == 200.0 and t["merch_net"] == 240.0 and t["walk"] == 790.0
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tour/add", data={"date": "2026-10-03", "venue": "Settle Test Room"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    show = [s for s in store_mod.list_tour_shows(uid)
+            if s["venue"] == "Settle Test Room"][0]
+    artist.post("/tour/%s/settlement" % show["id"], data={
+        "deal_type": "guarantee_split", "guarantee": "500", "door_gross": "1000",
+        "split_pct": "20", "merch_gross": "300", "merch_cut_pct": "20",
+        "expenses": "150", "mark_settled": "1"})
+    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
+    assert "790.00" in page
+    assert store_mod.get_tour_show(uid, show["id"])["status"] == "settled"

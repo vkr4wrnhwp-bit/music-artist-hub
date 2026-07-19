@@ -10,6 +10,7 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
+import touring
 from statements_engine import (analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
@@ -1843,7 +1844,7 @@ def create_app():
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
-                        "/team/join/", "/webhooks/", "/club/")
+                        "/team/join/", "/webhooks/", "/club/", "/showday/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy"}
 
@@ -2444,6 +2445,96 @@ def create_app():
             return login_required_redirect()
         store.delete_tour_show(user["id"], show_id)
         return redirect("/tour")
+
+    @app.route("/tour/<show_id>")
+    def tour_show_detail(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        show = store.get_tour_show(user["id"], show_id)
+        if show is None:
+            abort(404)
+        share_url = ((request.url_root.rstrip("/") + "/showday/" + show["share_token"])
+                     if show.get("share_token") else None)
+        return render_template("tour_show.html", active_page="tour", show=show,
+                               fields=touring.ADVANCE_FIELDS,
+                               checklist=touring.checklist(show["advance"]),
+                               prog=touring.progress(show["advance"]),
+                               email_preview=touring.advance_email(
+                                   show, show["advance"],
+                                   user["name"] or "We", share_url),
+                               share_url=share_url,
+                               totals=touring.settlement_totals(show["settlement"]),
+                               email_live=emailer.configured(),
+                               statuses=_SHOW_STATUSES,
+                               **build_dashboard_context())
+
+    @app.route("/tour/<show_id>/advance", methods=["POST"])
+    def tour_show_advance(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        advance = {k: (request.form.get(k) or "").strip()[:300]
+                   for k in touring.FIELD_KEYS}
+        store.save_show_advance(user["id"], show_id, advance)
+        return redirect("/tour/" + show_id)
+
+    @app.route("/tour/<show_id>/settlement", methods=["POST"])
+    def tour_show_settlement(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        settlement = {k: (request.form.get(k) or "").strip()[:60]
+                      for k in ("deal_type", "guarantee", "door_gross", "split_pct",
+                                "merch_gross", "merch_cut_pct", "expenses", "notes")}
+        store.save_show_settlement(user["id"], show_id, settlement)
+        if request.form.get("mark_settled"):
+            store.update_tour_show_status(user["id"], show_id, "settled")
+        return redirect("/tour/" + show_id)
+
+    @app.route("/tour/<show_id>/share", methods=["POST"])
+    def tour_show_share(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.set_show_share_token(user["id"], show_id, uuid.uuid4().hex)
+        return redirect("/tour/" + show_id)
+
+    @app.route("/tour/<show_id>/send-advance", methods=["POST"])
+    def tour_send_advance(show_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        show = store.get_tour_show(user["id"], show_id)
+        if show is None:
+            abort(404)
+        to = (show["advance"].get("contact_email") or "").strip()
+        if not (to and "@" in to and emailer.configured()):
+            return redirect("/tour/" + show_id + "?email_fail=1")
+        share_url = ((request.url_root.rstrip("/") + "/showday/" + show["share_token"])
+                     if show.get("share_token") else None)
+        mail = touring.advance_email(show, show["advance"],
+                                     user["name"] or "The artist", share_url)
+        import html as _html
+        ok = emailer.send(to, mail["subject"],
+                          '<pre style="font-family:inherit;white-space:pre-wrap">%s</pre>'
+                          % _html.escape(mail["body"]))
+        return redirect("/tour/" + show_id + ("?sent=1" if ok else "?email_fail=1"))
+
+    @app.route("/showday/<token>")
+    def showday(token):
+        import json as _json
+        show = store.get_show_by_share_token(token)
+        if show is None:
+            abort(404)
+        adv = show["advance"]
+        schedule = [(label, adv.get(key)) for key, label in (
+            ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
+            ("set_time", "Set"), ("curfew", "Curfew")) if (adv.get(key) or "").strip()]
+        plot = store.get_stage_plot(show["user_id"])
+        return render_template("showday.html", show=show, adv=adv,
+                               schedule=schedule,
+                               plot_json=(_json.dumps(plot) if plot else "null"))
 
     @app.route("/stage-plot")
     def stage_plot():
