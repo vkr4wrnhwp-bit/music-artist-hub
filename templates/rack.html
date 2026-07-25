@@ -3,16 +3,47 @@
 {% block title %}The Rack - Street Banker{% endblock %}
 
 {% block content %}
+<style>
+  /* Faceplate: brushed sheen + corner screws */
+  .plate { position: relative; background-image: linear-gradient(180deg, rgba(255,255,255,0.035), transparent 32%); }
+  .plate::before, .plate::after {
+    content: ''; position: absolute; top: 10px; width: 7px; height: 7px; border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #8a8a8a, #2c2c2c 72%);
+    box-shadow: inset 0 0 2px #000, 0 1px 1px rgba(255,255,255,0.06);
+  }
+  .plate::before { left: 10px; } .plate::after { right: 10px; }
+  /* Machined gold knobs on horizontal sliders (EQ verticals keep native) */
+  input[type=range]:not(.rk-vert) { -webkit-appearance: none; appearance: none; height: 20px; background: transparent; }
+  input[type=range]:not(.rk-vert)::-webkit-slider-runnable-track { height: 4px; border-radius: 9999px; background: linear-gradient(90deg, #34302a, #57431f); }
+  input[type=range]:not(.rk-vert)::-webkit-slider-thumb {
+    -webkit-appearance: none; margin-top: -7px; height: 18px; width: 18px; border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #f3e2ad, #d8b25a 55%, #8a6d1f);
+    border: 2px solid #1c1302; box-shadow: 0 1px 3px rgba(0,0,0,0.65);
+  }
+  input[type=range]:not(.rk-vert)::-moz-range-track { height: 4px; border-radius: 9999px; background: linear-gradient(90deg, #34302a, #57431f); }
+  input[type=range]:not(.rk-vert)::-moz-range-thumb {
+    height: 16px; width: 16px; border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #f3e2ad, #d8b25a 55%, #8a6d1f);
+    border: 2px solid #1c1302;
+  }
+  /* Segmented meter overlay */
+  .rk-seg { position: relative; }
+  .rk-seg::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(10,10,11,0.55) 0 2px, transparent 2px 7px); }
+</style>
+
 <div class="mx-auto max-w-[1150px] space-y-5">
-  <div>
-    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Studio</div>
-    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-400">Real DSP running in your browser — 12-band EQ, tube stage, cab &amp; mic sim, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Studio</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-400">Real DSP running in your browser — 12-band EQ, tube stage, cab &amp; mic sim, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
+    </div>
+    <span class="rounded border border-[#c9a24a]/30 px-2.5 py-1 font-mono text-[10px] tracking-[0.2em] text-[#8a6d1f]">SB-1200 SERIES</span>
   </div>
 
   <!-- Transport -->
-  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-    <div class="flex flex-wrap items-center gap-3">
+  <section class="plate rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
+    <div class="flex flex-wrap items-center gap-3 px-3">
       <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">
         Load audio<input id="rk-file" type="file" accept="audio/*" class="hidden">
       </label>
@@ -25,27 +56,32 @@
   </section>
 
   <!-- Analyzer -->
-  <section class="rounded-2xl border border-white/10 bg-[#0d0c0a] p-4">
-    <canvas id="rk-scope" class="w-full" height="360"></canvas>
-    <p class="mt-2 text-[10px] text-gray-600">Colored lanes mark where each instrument typically lives; the glow is the energy <span class="text-gray-400">your track</span> has there right now. It's honest energy detection — not instrument identification. Solid curve = your EQ; dashed curve = the cab &amp; mic voicing.</p>
+  <section class="plate rounded-2xl border border-white/10 bg-[#0d0c0a] p-4">
+    <canvas id="rk-scope" class="w-full" height="500"></canvas>
+    <p class="mt-2 px-2 text-[10px] text-gray-600">13 zones mark where each instrument typically lives; the glow is the energy <span class="text-gray-400">your track</span> has there right now. It's honest energy detection — not instrument identification. Solid curve = your EQ; dashed curve = the cab &amp; mic voicing.</p>
   </section>
 
   <!-- Modules -->
   <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
     <!-- EQ -->
-    <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
-      <div class="flex items-center justify-between">
+    <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <div class="flex items-center justify-between px-1">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Parametric EQ · 12 Band</h2>
         <label class="flex items-center gap-2 text-[10px] font-bold text-gray-500">Q
           <input id="rk-q" type="range" min="0.4" max="3" step="0.1" value="1" class="w-24 accent-[#c9a24a]">
         </label>
       </div>
-      <div id="rk-eq" class="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-12"></div>
+      <div class="mt-4 flex gap-2">
+        <div class="flex flex-col justify-between pb-[22px] pt-[18px] text-right font-mono text-[9px] leading-none text-gray-600">
+          <span>+12</span><span>0</span><span>−12</span>
+        </div>
+        <div id="rk-eq" class="grid flex-1 grid-cols-6 gap-2 sm:grid-cols-12"></div>
+      </div>
     </section>
 
     <div class="space-y-4">
       <!-- Tube -->
-      <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
+      <section class="plate rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Tube Stage</h2>
         <p class="mt-0.5 text-[10px] text-gray-600">Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
         <div class="mt-3 space-y-2.5">
@@ -59,7 +95,7 @@
       </section>
 
       <!-- Cab & Mic -->
-      <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
+      <section class="plate rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
         <div class="flex items-center justify-between">
           <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Cab &amp; Mic Sim</h2>
           <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
@@ -91,7 +127,7 @@
       </section>
 
       <!-- Compressor -->
-      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-5">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Compressor</h2>
         <div class="mt-3 space-y-2.5">
           <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Threshold <span data-val="thr" class="text-[#e8c667]"></span>
@@ -106,27 +142,27 @@
             <input data-comp="makeup" type="range" min="0" max="12" step="0.5" value="0" class="mt-1 w-full accent-[#c9a24a]"></label>
           <div>
             <div class="flex justify-between text-[9px] font-bold uppercase tracking-wide text-gray-600"><span>Gain reduction</span><span id="rk-grdb">0.0 dB</span></div>
-            <div class="mt-1 h-2 overflow-hidden rounded-full bg-black/60"><div id="rk-gr" class="h-full w-0 rounded-full bg-gradient-to-r from-[#e8c667] to-[#e05252]"></div></div>
+            <div class="rk-seg mt-1 h-2.5 overflow-hidden rounded-full bg-black/60"><div id="rk-gr" class="h-full w-0 rounded-full bg-gradient-to-r from-[#e8c667] to-[#e05252]"></div></div>
           </div>
         </div>
       </section>
 
       <!-- Output -->
-      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-5">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Output</h2>
         <label class="mt-3 block text-[10px] font-bold uppercase tracking-wide text-gray-500">Gain <span data-val="out" class="text-[#e8c667]"></span>
           <input id="rk-out" type="range" min="-24" max="12" step="0.5" value="0" class="mt-1 w-full accent-[#c9a24a]"></label>
         <div class="mt-2">
           <div class="flex justify-between text-[9px] font-bold uppercase tracking-wide text-gray-600"><span>Peak</span><span id="rk-peakdb">−∞</span></div>
-          <div class="mt-1 h-2 overflow-hidden rounded-full bg-black/60"><div id="rk-peak" class="h-full w-0 rounded-full bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+          <div class="rk-seg mt-1 h-2.5 overflow-hidden rounded-full bg-black/60"><div id="rk-peak" class="h-full w-0 rounded-full bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
         </div>
       </section>
     </div>
   </div>
 
   <!-- Presets -->
-  <section class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-    <div class="flex flex-wrap items-center gap-2">
+  <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-4">
+    <div class="flex flex-wrap items-center gap-2 px-2">
       <span class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Presets</span>
       <button data-preset="flat" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Flat</button>
       <button data-preset="warm" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Warm Master</button>
@@ -159,14 +195,19 @@
     {f: 14000, type: "highshelf", label: "14k"}
   ];
   var LANES = [
-    {label: "Kick", lo: 40, hi: 100, color: "#e05252"},
-    {label: "Bass", lo: 50, hi: 250, color: "#e08e52"},
-    {label: "Snare", lo: 150, hi: 400, color: "#e0c452"},
-    {label: "Guitars", lo: 100, hi: 1200, color: "#8fbf5f"},
-    {label: "Keys / Synths", lo: 80, hi: 2000, color: "#5fb8a5"},
-    {label: "Vocals", lo: 120, hi: 1100, color: "#5f9fd6"},
-    {label: "Presence", lo: 2000, hi: 5000, color: "#9d7fd6"},
-    {label: "Air / Cymbals", lo: 6000, hi: 16000, color: "#d67fb8"}
+    {label: "Sub / 808",       lo: 30,   hi: 70,    color: "#c94f4f"},
+    {label: "Kick",            lo: 40,   hi: 100,   color: "#e05252"},
+    {label: "Bass",            lo: 50,   hi: 250,   color: "#e07a3c"},
+    {label: "Synths",          lo: 60,   hi: 2500,  color: "#4fc9b0"},
+    {label: "Toms",            lo: 80,   hi: 300,   color: "#e0a03c"},
+    {label: "Piano / Keys",    lo: 90,   hi: 1800,  color: "#3cc96a"},
+    {label: "Guitars",         lo: 100,  hi: 1200,  color: "#8fbf5f"},
+    {label: "Vocals",          lo: 110,  hi: 1300,  color: "#5f9fd6"},
+    {label: "Snare",           lo: 150,  hi: 400,   color: "#e0c452"},
+    {label: "Strings / Horns", lo: 150,  hi: 2000,  color: "#5fb8d6"},
+    {label: "Presence",        lo: 2000, hi: 5000,  color: "#9d7fd6"},
+    {label: "Hi-Hats",         lo: 3000, hi: 10000, color: "#c97fd6"},
+    {label: "Air / Cymbals",   lo: 6000, hi: 16000, color: "#d67fb8"}
   ];
   // Voicings in the style of classic gear — modeled curves, not measurements.
   var CABS = {
@@ -449,7 +490,7 @@
       var slider = document.createElement("input");
       slider.type = "range"; slider.min = -12; slider.max = 12; slider.step = 0.5;
       slider.value = state.eq[i];
-      slider.className = "accent-[#c9a24a]";
+      slider.className = "rk-vert accent-[#c9a24a]";
       slider.style.writingMode = "vertical-lr";
       slider.style.direction = "rtl";
       slider.style.height = "120px";
@@ -548,7 +589,10 @@
   var g = canvas.getContext("2d");
   var eqCurveDirty = true, eqCurve = null, cabCurve = null;
   var FMIN = 20, FMAX = 20000;
-  function fx(f, w) { return Math.log(f / FMIN) / Math.log(FMAX / FMIN) * w; }
+  var GUT = 108;                       // left gutter for lane labels
+  function fx(f, w) {
+    return GUT + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (w - GUT - 10);
+  }
 
   function responseOf(filters) {
     var n = 200, freqs = new Float32Array(n),
@@ -562,13 +606,22 @@
     return {freqs: freqs, db: total};
   }
 
+  function laneBar(x1, y, x2, h, style) {
+    g.fillStyle = style;
+    if (g.roundRect) {
+      g.beginPath(); g.roundRect(x1, y, Math.max(2, x2 - x1), h, 4); g.fill();
+    } else {
+      g.fillRect(x1, y, Math.max(2, x2 - x1), h);
+    }
+  }
+
   var freqData = null, timeData = null;
   function draw() {
     requestAnimationFrame(draw);
     var w = canvas.clientWidth;
     if (canvas.width !== w) canvas.width = w;
     var h = canvas.height;
-    var laneH = 16, lanesTop = h - LANES.length * laneH - 4;
+    var laneH = 15, lanesTop = h - LANES.length * laneH - 10;
     g.clearRect(0, 0, w, h);
 
     var binHz = ctx ? ctx.sampleRate / (live.analyser.fftSize) : 0;
@@ -579,30 +632,43 @@
       live.analyser.getByteTimeDomainData(timeData);
     }
 
+    // Frequency grid across spectrum AND lanes — one shared axis.
+    g.font = "9px Arial";
+    [50, 100, 250, 500, 1000, 2500, 6000, 12000].forEach(function (f) {
+      var x = fx(f, w);
+      g.fillStyle = "rgba(150,140,120,0.14)";
+      g.fillRect(x, 22, 1, h - 30);
+      g.fillStyle = "rgba(150,140,120,0.6)";
+      g.fillText(f >= 1000 ? (f / 1000) + "k" : f, x + 3, 16);
+    });
+
+    // Spectrum
     if (freqData && playing) {
       g.beginPath();
-      for (var px = 0; px <= w; px += 2) {
-        var f = FMIN * Math.pow(FMAX / FMIN, px / w);
+      for (var px = GUT; px <= w - 10; px += 2) {
+        var f = FMIN * Math.pow(FMAX / FMIN, (px - GUT) / (w - GUT - 10));
         var bin = Math.min(freqData.length - 1, Math.round(f / binHz));
         var v = freqData[bin] / 255;
-        var y = lanesTop - v * (lanesTop - 12);
-        px === 0 ? g.moveTo(px, y) : g.lineTo(px, y);
+        var y = lanesTop - 8 - v * (lanesTop - 34);
+        px === GUT ? g.moveTo(px, y) : g.lineTo(px, y);
       }
-      g.lineTo(w, lanesTop); g.lineTo(0, lanesTop); g.closePath();
-      var grad = g.createLinearGradient(0, 0, 0, lanesTop);
-      grad.addColorStop(0, "rgba(232,198,103,0.55)");
-      grad.addColorStop(1, "rgba(232,198,103,0.06)");
+      g.strokeStyle = "rgba(232,198,103,0.85)"; g.lineWidth = 1.4; g.stroke();
+      g.lineTo(w - 10, lanesTop - 8); g.lineTo(GUT, lanesTop - 8); g.closePath();
+      var grad = g.createLinearGradient(0, 22, 0, lanesTop - 8);
+      grad.addColorStop(0, "rgba(232,198,103,0.42)");
+      grad.addColorStop(1, "rgba(232,198,103,0.04)");
       g.fillStyle = grad; g.fill();
     }
 
+    // EQ + voicing curves (0 dB at 55% of spectrum area, ±12 dB span)
     if (eqCurveDirty && live) {
       eqCurve = responseOf(live.filters);
-      var c = state.cab;
-      cabCurve = (c.on && c.cab !== "direct")
+      var cc = state.cab;
+      cabCurve = (cc.on && cc.cab !== "direct")
         ? responseOf(live.cabMic.cabFilters) : null;
       eqCurveDirty = false;
     }
-    var zero = lanesTop * 0.55, span = lanesTop * 0.35 / 12;
+    var zero = (lanesTop - 8) * 0.55, span = (lanesTop - 8) * 0.35 / 12;
     if (cabCurve) {
       g.beginPath();
       for (var ci = 0; ci < cabCurve.freqs.length; ci++) {
@@ -622,17 +688,15 @@
         i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
       }
       g.strokeStyle = "#f3ead2"; g.lineWidth = 1.5; g.stroke();
-      g.strokeStyle = "rgba(255,255,255,0.12)"; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(0, zero); g.lineTo(w, zero); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.1)"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(GUT, zero); g.lineTo(w - 10, zero); g.stroke();
     }
 
-    g.fillStyle = "rgba(150,140,120,0.5)"; g.font = "9px Arial";
-    [50, 100, 250, 500, 1000, 2500, 6000, 12000].forEach(function (f) {
-      var x = fx(f, w);
-      g.fillRect(x, 10, 1, lanesTop - 10);
-      g.fillText(f >= 1000 ? (f / 1000) + "k" : f, x + 3, 18);
-    });
+    // Divider between spectrum and the instrument chart
+    g.strokeStyle = "rgba(201,162,74,0.25)";
+    g.beginPath(); g.moveTo(0, lanesTop - 2); g.lineTo(w, lanesTop - 2); g.stroke();
 
+    // Instrument lanes — shared x-axis with the spectrum above
     LANES.forEach(function (lane, li) {
       var y = lanesTop + 4 + li * laneH;
       var x1 = fx(lane.lo, w), x2 = fx(lane.hi, w);
@@ -644,16 +708,20 @@
         for (var b = b1; b <= b2; b++) sum += freqData[b];
         energy = (sum / (b2 - b1 + 1)) / 255;
       }
-      g.fillStyle = lane.color + "22";
-      g.fillRect(x1, y, x2 - x1, laneH - 3);
+      g.fillStyle = energy > 0.04 ? lane.color : "rgba(160,150,130,0.55)";
+      g.font = "bold 9px Arial"; g.textAlign = "right";
+      g.fillText(lane.label.toUpperCase(), GUT - 10, y + laneH - 6);
+      g.textAlign = "left";
+      laneBar(x1, y + 2, x2, laneH - 6, lane.color + "26");
       if (energy > 0.04) {
-        g.fillStyle = lane.color + Math.round(Math.min(1, energy * 1.6) * 200 + 55).toString(16).padStart(2, "0");
-        g.fillRect(x1, y, (x2 - x1) * Math.min(1, energy * 1.3), laneH - 3);
+        var alpha = Math.round(Math.min(1, energy * 1.6) * 200 + 55)
+          .toString(16).padStart(2, "0");
+        laneBar(x1, y + 2, x1 + (x2 - x1) * Math.min(1, energy * 1.3), laneH - 6,
+                lane.color + alpha);
       }
-      g.fillStyle = "#cfc6b0"; g.font = "bold 9px Arial";
-      g.fillText(lane.label.toUpperCase(), x1 + 4, y + laneH - 7);
     });
 
+    // Meters
     if (live && playing) {
       var red = live.comp.reduction || 0;
       document.getElementById("rk-gr").style.width = Math.min(100, -red / 20 * 100) + "%";
