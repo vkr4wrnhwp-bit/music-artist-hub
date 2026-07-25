@@ -3909,3 +3909,51 @@ def test_artist_hub():
     # The EPK editor points at the hub.
     assert "Artist Hub" in artist.get("/epk").get_data(as_text=True)
     store_mod.delete_tour_show(uid, show["id"])
+
+
+def test_label_roster():
+    import db as store_mod
+    import plans
+    assert plans.required_tier("/roster") == "label"
+    assert plans.required_tier("/roster/artist/x") == "label"
+    assert plans.required_tier("/roster/join/tok") is None  # invited artists enter free
+    app_obj = create_app()
+    label = _demo(app_obj)  # demo@ is Label tier
+    page = label.get("/roster").get_data(as_text=True)
+    assert "Label Roster" in page and "read-only" in page
+    label.post("/roster/invite", data={"email": "signee@example.net"})
+    page = label.get("/roster").get_data(as_text=True)
+    assert "signee@example.net" in page and "/roster/join/" in page
+    token = page.split("/roster/join/")[1].split('"')[0]
+    # New artist accepts, account created, lands signed in.
+    artist = app_obj.test_client()
+    join = artist.get("/roster/join/" + token).get_data(as_text=True)
+    assert "wants you on their roster" in join and "read-only view" in join
+    r = artist.post("/roster/join/" + token,
+                    data={"name": "Signee One", "password": "signeepass"})
+    assert r.status_code == 302 and "/command-center" in r.headers["Location"]
+    # Artist shows on the roster with real (zero) numbers; label can open them.
+    uid = store_mod.get_user_by_email("signee@example.net")["id"]
+    page = label.get("/roster").get_data(as_text=True)
+    assert "Signee One" in page
+    view = label.get("/roster/artist/%s" % uid).get_data(as_text=True)
+    assert "Roster · read-only" in view and "Statement Revenue" in view
+    # The label got notified.
+    lid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    assert any("Roster invite accepted" in n["title"]
+               for n in store_mod.list_notifications(lid))
+    # Another label can't open this artist.
+    other = app_obj.test_client()
+    other.post("/signup", data={"name": "L2", "email": "otherlabel@example.net",
+                                "password": "labelpass1"})
+    store_mod.set_user_plan(
+        store_mod.get_user_by_email("otherlabel@example.net")["id"], "label")
+    assert other.get("/roster/artist/%s" % uid).status_code == 404
+    # Used invite tokens die.
+    assert "isn't valid anymore" in artist.get(
+        "/roster/join/" + token).get_data(as_text=True)
+    # Remove works.
+    member = [m for m in store_mod.list_roster(lid)
+              if m["email"] == "signee@example.net"][0]
+    label.post("/roster/%s/remove" % member["id"])
+    assert store_mod.get_roster_member(lid, uid) is None

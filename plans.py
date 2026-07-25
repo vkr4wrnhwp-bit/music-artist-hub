@@ -55,6 +55,10 @@ def _matches(path, prefixes):
 def required_tier(path):
     if path == "/epk":  # exact only — /epk/<slug> is the public press page
         return "artist"
+    # /roster/join/<token> stays open to invited artists of any tier.
+    if path == "/roster" or (path.startswith("/roster/")
+                             and not path.startswith("/roster/join/")):
+        return "label"
     if _matches(path, _PRO_PATHS):
         return "pro"
     if _matches(path, _ARTIST_PATHS):
@@ -72,7 +76,7 @@ def world_for_path(path):
         return "sweep"
     if path == "/epk" or _matches(path, _ARTIST_PATHS):
         return "promote"
-    if _matches(path, ("/services", "/submit")):
+    if _matches(path, ("/services", "/submit", "/roster")):
         return "label"
     if _matches(path, ("/discover", "/network", "/fan-label", "/fans",
                        "/marketplace", "/capital")):

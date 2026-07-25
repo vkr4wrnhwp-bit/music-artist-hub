@@ -1845,7 +1845,7 @@ def create_app():
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/@")
+                        "/roster/join/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy"}
 
@@ -2395,6 +2395,114 @@ def create_app():
             return login_required_redirect()
         store.delete_club_drop(user["id"], drop_id)
         return redirect("/fan-club")
+
+    # --- Label Mode: real roster seats for the Label tier -------------------------
+
+    def _artist_snapshot(aid, today):
+        rows = store.get_statement_rows(aid)
+        return {
+            "revenue": round(sum(r["amount"] for r in rows), 2),
+            "statements": len(store.get_statements(aid)),
+            "fans": len(mls.list_fans(aid)),
+            "links": [c for c in mls.list_campaigns(aid)
+                      if c["status"] == "live" and not c.get("archived_at")],
+            "shows": [s for s in store.list_tour_shows(aid)
+                      if s["date"] >= today and s["status"] in ("confirmed", "advanced")],
+        }
+
+    @app.route("/roster")
+    def roster():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        members = store.list_roster(user["id"])
+        today = datetime.now(timezone.utc).date().isoformat()
+        stats, totals = [], {"revenue": 0.0, "fans": 0, "links": 0, "shows": 0}
+        for m in members:
+            if m["status"] != "active" or not m["artist_user_id"]:
+                continue
+            snap = _artist_snapshot(m["artist_user_id"], today)
+            stats.append({"m": m, "revenue": snap["revenue"], "fans": snap["fans"],
+                          "links": len(snap["links"]), "shows": len(snap["shows"])})
+            totals["revenue"] = round(totals["revenue"] + snap["revenue"], 2)
+            totals["fans"] += snap["fans"]
+            totals["links"] += len(snap["links"])
+            totals["shows"] += len(snap["shows"])
+        return render_template("roster.html", active_page="roster",
+                               members=members, stats=stats, totals=totals,
+                               **build_dashboard_context())
+
+    @app.route("/roster/invite", methods=["POST"])
+    def roster_invite():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        email = (request.form.get("email") or "").strip().lower()
+        if "@" in email and email != user["email"].lower():
+            invite = store.add_roster_invite(user["id"], email)
+            if invite and invite.get("invite_token") and emailer.configured():
+                # Best-effort — the join link stays visible on the roster
+                # either way, so a sandbox-blocked send loses nothing.
+                link = (request.url_root.rstrip("/") + "/roster/join/"
+                        + invite["invite_token"])
+                emailer.send(email, "%s wants you on their roster" % user["name"],
+                             '<p><b>%s</b> runs their label on Street Banker and '
+                             'wants to add you to the roster (they see read-only '
+                             'stats, never your login).</p>'
+                             '<p><a href="%s">Accept the invite</a></p>'
+                             % (user["name"], link))
+        return redirect("/roster")
+
+    @app.route("/roster/join/<token>", methods=["GET", "POST"])
+    def roster_join(token):
+        invite = store.get_roster_invite(token)
+        if invite is None:
+            return render_template("roster_join.html", invalid=True,
+                                   invite=None, error=None, has_account=False)
+        if request.method == "POST":
+            existing = store.get_user_by_email(invite["email"])
+            if existing:
+                artist_id = existing["id"]
+            else:
+                name = (request.form.get("name") or "").strip()
+                password = request.form.get("password") or ""
+                if not name or len(password) < 6:
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=False,
+                        error="Enter your name and a password of 6+ characters.")
+                artist_id = store.create_user(invite["email"], name,
+                                              generate_password_hash(password))
+            store.accept_roster_invite(token, artist_id)
+            store.notify(invite["label_id"], "team", "Roster invite accepted",
+                         "%s is now on your roster." % invite["email"], "/roster")
+            session["user_id"] = artist_id
+            return redirect("/command-center")
+        return render_template("roster_join.html", invalid=False, invite=invite,
+                               has_account=store.get_user_by_email(invite["email"]) is not None,
+                               error=None)
+
+    @app.route("/roster/artist/<artist_id>")
+    def roster_artist(artist_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        member = store.get_roster_member(user["id"], artist_id)
+        if member is None:
+            abort(404)
+        today = datetime.now(timezone.utc).date().isoformat()
+        snap = _artist_snapshot(artist_id, today)
+        return render_template("roster_artist.html", active_page="roster",
+                               member=member, snap=snap,
+                               **build_dashboard_context())
+
+    @app.route("/roster/<member_id>/remove", methods=["POST"])
+    def roster_remove(member_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.remove_roster_member(user["id"], member_id)
+        return redirect("/roster")
 
     # --- Artist Hub: the one link-in-bio URL, assembled from real data -----------
 

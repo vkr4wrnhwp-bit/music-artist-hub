@@ -171,6 +171,16 @@ def init_db():
                 contact TEXT NOT NULL,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS roster_members (
+                id TEXT PRIMARY KEY,
+                label_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                artist_user_id TEXT,
+                status TEXT NOT NULL DEFAULT 'invited',
+                invite_token TEXT UNIQUE NOT NULL,
+                created TEXT NOT NULL,
+                UNIQUE(label_id, email)
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -1112,6 +1122,67 @@ def list_board_replies(listing_id):
             "JOIN users u ON u.id = r.from_user_id WHERE r.listing_id = ? "
             "ORDER BY r.created", (listing_id,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def add_roster_invite(label_id, email):
+    email = email.lower().strip()
+    member_id, token = uuid.uuid4().hex, uuid.uuid4().hex
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO roster_members (id, label_id, email, invite_token, created) "
+                "VALUES (?,?,?,?,?)", (member_id, label_id, email, token, _now()))
+    except sqlite3.IntegrityError:
+        with get_db() as db:
+            row = db.execute("SELECT * FROM roster_members WHERE label_id = ? AND email = ?",
+                             (label_id, email)).fetchone()
+        return dict(row) if row else None
+    return {"id": member_id, "email": email, "invite_token": token,
+            "status": "invited"}
+
+
+def get_roster_invite(token):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT r.*, u.name AS label_name FROM roster_members r "
+            "JOIN users u ON u.id = r.label_id "
+            "WHERE r.invite_token = ? AND r.status = 'invited'", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def accept_roster_invite(token, artist_user_id):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE roster_members SET artist_user_id = ?, status = 'active' "
+            "WHERE invite_token = ? AND status = 'invited'",
+            (artist_user_id, token))
+    return cur.rowcount > 0
+
+
+def list_roster(label_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT r.*, u.name AS artist_name, u.plan AS artist_plan "
+            "FROM roster_members r LEFT JOIN users u ON u.id = r.artist_user_id "
+            "WHERE r.label_id = ? ORDER BY r.created", (label_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_roster_member(label_id, artist_user_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT r.*, u.name AS artist_name FROM roster_members r "
+            "JOIN users u ON u.id = r.artist_user_id "
+            "WHERE r.label_id = ? AND r.artist_user_id = ? AND r.status = 'active'",
+            (label_id, artist_user_id)).fetchone()
+    return dict(row) if row else None
+
+
+def remove_roster_member(label_id, member_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM roster_members WHERE id = ? AND label_id = ?",
+                         (member_id, label_id))
+    return cur.rowcount > 0
 
 
 def get_show_by_share_token(token):
