@@ -526,6 +526,13 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'artist'")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: referral engine columns on users.
+        for _col in ("ref_code TEXT", "referred_by TEXT",
+                     "ref_credited INTEGER NOT NULL DEFAULT 0"):
+            try:
+                db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: show advancing data on tour shows.
         for _col in ("advance TEXT", "settlement TEXT", "share_token TEXT"):
             try:
@@ -1122,6 +1129,57 @@ def list_board_replies(listing_id):
             "JOIN users u ON u.id = r.from_user_id WHERE r.listing_id = ? "
             "ORDER BY r.created", (listing_id,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def ensure_ref_code(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT ref_code FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row is None:
+            return None
+        if row["ref_code"]:
+            return row["ref_code"]
+        code = uuid.uuid4().hex[:8]
+        db.execute("UPDATE users SET ref_code = ? WHERE id = ?", (code, user_id))
+    return code
+
+
+def user_by_ref_code(code):
+    if not code:
+        return None
+    with get_db() as db:
+        row = db.execute("SELECT * FROM users WHERE ref_code = ?", (code,)).fetchone()
+    return dict(row) if row else None
+
+
+def set_referred_by(user_id, referrer_id):
+    with get_db() as db:
+        db.execute("UPDATE users SET referred_by = ? WHERE id = ? AND referred_by IS NULL",
+                   (referrer_id, user_id))
+
+
+def mark_ref_credited(user_id):
+    with get_db() as db:
+        db.execute("UPDATE users SET ref_credited = 1 WHERE id = ?", (user_id,))
+
+
+def list_uncredited_referrals(referrer_id):
+    """Referred users who converted to a real paid subscription but whose
+    referrer credit hasn't been applied yet."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, email FROM users WHERE referred_by = ? AND ref_credited = 0 "
+            "AND stripe_subscription_id IS NOT NULL", (referrer_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def referral_stats(referrer_id):
+    with get_db() as db:
+        signups = db.execute("SELECT COUNT(*) AS n FROM users WHERE referred_by = ?",
+                             (referrer_id,)).fetchone()["n"]
+        converted = db.execute(
+            "SELECT COUNT(*) AS n FROM users WHERE referred_by = ? AND ref_credited = 1",
+            (referrer_id,)).fetchone()["n"]
+    return {"signups": signups, "converted": converted}
 
 
 def add_roster_invite(label_id, email):

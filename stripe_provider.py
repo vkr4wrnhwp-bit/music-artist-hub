@@ -58,7 +58,40 @@ def _http(path, fields):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def create_checkout_session(user_id, email, plan, base_url):
+def ensure_referral_coupon():
+    """One 100%-off-first-month coupon, created once and remembered in app_kv."""
+    if not configured():
+        return None
+    try:
+        import db
+        coupon_id = db.get_kv("stripe_ref_coupon")
+        if coupon_id:
+            return coupon_id
+        created = _http("/v1/coupons", {
+            "percent_off": "100", "duration": "once",
+            "name": "Street Banker referral - first month free"})
+        if created.get("id"):
+            db.set_kv("stripe_ref_coupon", created["id"])
+            return created["id"]
+    except Exception:
+        pass
+    return None
+
+
+def credit_customer(customer_id, amount_cents, description):
+    """Negative balance transaction = credit against future invoices."""
+    if not (configured() and customer_id):
+        return False
+    try:
+        out = _http("/v1/customers/%s/balance_transactions" % customer_id,
+                    {"amount": str(-abs(int(amount_cents))), "currency": "usd",
+                     "description": description[:300]})
+        return bool(out.get("id"))
+    except Exception:
+        return False
+
+
+def create_checkout_session(user_id, email, plan, base_url, coupon=None):
     """Hosted subscription checkout for one tier. Returns the session or None."""
     if plan not in PRICES or not configured():
         return None
@@ -77,6 +110,8 @@ def create_checkout_session(user_id, email, plan, base_url):
         "line_items[0][price_data][recurring][interval]": "month",
         "line_items[0][price_data][product_data][name]": name,
     }
+    if coupon:
+        fields["discounts[0][coupon]"] = coupon
     try:
         return _http("/v1/checkout/sessions", fields)
     except Exception:

@@ -147,11 +147,12 @@
             ('billing', '/billing', 'M3 6h14v8H3z|M3 9h14M6 12h3', 'Billing'),
             ('portal', '/portal', 'M4 4h12v12H4z|M4 8h12M8 8v8', 'Partner Portal'),
             ('roster', '/roster', 'M6 7a3 3 0 116 0 3 3 0 01-6 0z|M1 17c1-3 3.5-4 8-4|M13 9h6|M13 13h6|M13 17h4', 'Label Roster'),
+            ('referrals', '/referrals', 'M10 3v14|M3 10h14|M6 6l8 8|M14 6l-8 8', 'Referrals'),
             ('settings', '/settings', 'M10 7a3 3 0 100 6 3 3 0 000-6z|M10 3v2M10 15v2M3 10h2M15 10h2', 'Settings'),
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster', 'referrals'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

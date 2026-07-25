@@ -107,6 +107,7 @@ MODULES = [
     ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
     ("/rack", "The Rack", "Real browser DSP: 12-band EQ, tube stage, cab & mic sim, compressor, WAV export \u2014 nothing is uploaded.", "live", None),
     ("/roster", "Label Mode", "Roster seats for the Label tier: invite artists, see the whole roster's real numbers.", "live", None),
+    ("/referrals", "Referrals", "Give a month, get $9: your link, your signups, credits on your Stripe balance.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

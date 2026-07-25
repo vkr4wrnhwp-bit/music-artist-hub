@@ -3975,3 +3975,66 @@ def test_pwa_install_surface():
     assert 'rel="manifest"' in home and "serviceWorker" in home
     dash = _demo(app_obj).get("/command-center").get_data(as_text=True)
     assert 'rel="manifest"' in dash
+
+
+def test_referral_engine(monkeypatch):
+    import json as _json
+    import db as store_mod
+    import stripe_provider as sb
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
+    calls = []
+
+    def fake_http(path, fields):
+        calls.append((path, dict(fields)))
+        if path == "/v1/coupons":
+            return {"id": "coup_free_month"}
+        if path == "/v1/checkout/sessions":
+            return {"id": "cs_ref", "url": "https://checkout.stripe.com/c/ref"}
+        return {"id": "cbt_1"}
+
+    monkeypatch.setattr(sb, "_http", fake_http)
+    app_obj = create_app()
+    store_mod.set_kv("stripe_ref_coupon", "")  # fresh coupon path per run
+    artist = _demo(app_obj)
+    page = artist.get("/referrals").get_data(as_text=True)
+    assert "/signup?ref=" in page and "first month free" in page
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    code = store_mod.ensure_ref_code(uid)
+    # Friend lands on the ref link, signs up, is attributed.
+    friend = app_obj.test_client()
+    friend.get("/signup?ref=" + code)
+    friend.post("/signup", data={"name": "Referred Ray", "email": "ray@example.net",
+                                 "password": "raypass1"})
+    rid = store_mod.get_user_by_email("ray@example.net")["id"]
+    assert store_mod.get_user(rid)["referred_by"] == uid
+    assert any("Referral signed up" in n["title"]
+               for n in store_mod.list_notifications(uid))
+    # Their first checkout carries the 100%-off-first-month coupon.
+    friend.post("/billing/checkout", data={"plan": "artist"})
+    sess = [f for p, f in calls if p == "/v1/checkout/sessions"][-1]
+    assert sess.get("discounts[0][coupon]") == "coup_free_month"
+    # Conversion webhook: Ray activates, referrer's Stripe balance is credited.
+    store_mod.set_stripe_ids(uid, "cus_referrer", "sub_referrer")
+    payload = _json.dumps({"type": "checkout.session.completed", "data": {"object": {
+        "client_reference_id": rid, "customer": "cus_ray", "subscription": "sub_ray",
+        "metadata": {"plan": "artist"}}}})
+    app_obj.test_client().post("/webhooks/stripe", data=payload,
+                               headers=_stripe_sig(payload),
+                               content_type="application/json")
+    assert store_mod.get_user(rid)["ref_credited"] == 1
+    credit_paths = [p for p, f in calls if "balance_transactions" in p]
+    assert credit_paths and "cus_referrer" in credit_paths[-1]
+    credit_fields = [f for p, f in calls if "balance_transactions" in p][-1]
+    assert credit_fields["amount"] == "-900"
+    assert any("Referral credit applied" in n["title"]
+               for n in store_mod.list_notifications(uid))
+    assert store_mod.referral_stats(uid)["converted"] >= 1
+    # Self-referral is a no-op.
+    solo = app_obj.test_client()
+    solo.get("/signup?ref=" + code)
+    solo.post("/signup", data={"name": "Solo", "email": "solo-ref@example.net",
+                               "password": "solopass1"})
+    sid = store_mod.get_user_by_email("solo-ref@example.net")["id"]
+    assert store_mod.get_user(sid)["referred_by"] == uid  # normal attribution
+    store_mod.set_kv("stripe_ref_coupon", "")  # shared-DB cleanup

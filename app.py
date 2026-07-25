@@ -409,6 +409,8 @@ def create_app():
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
         error = None
+        if request.method == "GET" and request.args.get("ref"):
+            session["ref_code"] = request.args.get("ref")[:16]
         if request.method == "POST":
             name = (request.form.get("name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
@@ -420,6 +422,14 @@ def create_app():
                 if user_id is None:
                     error = "An account with that email already exists."
                 else:
+                    ref = session.pop("ref_code", None) or request.form.get("ref")
+                    referrer = store.user_by_ref_code(ref) if ref else None
+                    if referrer and referrer["id"] != user_id:
+                        store.set_referred_by(user_id, referrer["id"])
+                        store.notify(referrer["id"], "network", "Referral signed up",
+                                     "%s joined from your link. Your $9 credit "
+                                     "applies when they start a paid plan." % email,
+                                     "/referrals")
                     if request.form.get("account_type") == "fan":
                         store.set_user_plan(user_id, "fan")
                         session["user_id"] = user_id
@@ -1909,8 +1919,12 @@ def create_app():
         plan = request.form.get("plan") or ""
         if not stripe_billing.configured() or plan not in stripe_billing.PRICES:
             return redirect("/billing")
+        coupon = (stripe_billing.ensure_referral_coupon()
+                  if user.get("referred_by") and not user.get("stripe_subscription_id")
+                  else None)
         session_obj = stripe_billing.create_checkout_session(
-            user["id"], user["email"], plan, request.url_root.rstrip("/"))
+            user["id"], user["email"], plan, request.url_root.rstrip("/"),
+            coupon=coupon)
         if not session_obj or not session_obj.get("url"):
             return render_template("billing_error.html",
                                    message="Stripe couldn't start checkout — try again "
@@ -1936,7 +1950,49 @@ def create_app():
                          "Welcome to %s" % plans.PLAN_NAMES.get(found["plan"]),
                          "Subscription synced from Stripe — everything is unlocked.",
                          "/command-center")
+            _settle_referrals(user["id"])
         return redirect("/billing" + ("?upgraded=1" if found else "?sync=none"))
+
+    def _settle_referrals(new_payer_id):
+        """After a real paid activation: credit this user's referrer, and pay
+        out credits this user earned as a referrer before they had billing.
+        A credit is only claimed as applied when Stripe accepted it."""
+        payer = store.get_user(new_payer_id)
+        if not payer:
+            return
+        ref_id = payer.get("referred_by")
+        if ref_id and not payer.get("ref_credited"):
+            referrer = store.get_user(ref_id)
+            if referrer and referrer.get("stripe_customer_id"):
+                if stripe_billing.credit_customer(
+                        referrer["stripe_customer_id"], 900,
+                        "Street Banker referral credit: %s" % payer["email"]):
+                    store.mark_ref_credited(new_payer_id)
+                    store.notify(ref_id, "billing", "Referral credit applied",
+                                 "$9.00 landed on your Stripe balance \u2014 %s "
+                                 "started a paid plan." % payer["email"], "/referrals")
+        if payer.get("stripe_customer_id"):
+            for u in store.list_uncredited_referrals(new_payer_id):
+                if stripe_billing.credit_customer(
+                        payer["stripe_customer_id"], 900,
+                        "Street Banker referral credit: %s" % u["email"]):
+                    store.mark_ref_credited(u["id"])
+                    store.notify(new_payer_id, "billing", "Referral credit applied",
+                                 "$9.00 credit for referring %s." % u["email"],
+                                 "/referrals")
+
+    @app.route("/referrals")
+    def referrals():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        code = store.ensure_ref_code(user["id"])
+        return render_template("referrals.html", active_page="referrals",
+                               ref_link=(request.url_root.rstrip("/")
+                                         + "/signup?ref=" + code),
+                               stats=store.referral_stats(user["id"]),
+                               stripe_live=stripe_billing.configured(),
+                               **build_dashboard_context())
 
     @app.route("/billing/webhook-setup", methods=["POST"])
     def billing_webhook_setup():
@@ -1999,6 +2055,7 @@ def create_app():
                              "Your subscription is active — every %s feature is "
                              "unlocked." % plans.PLAN_NAMES.get(plan, plan),
                              "/command-center")
+                _settle_referrals(user_id)
         elif etype == "customer.subscription.deleted":
             # Fan club cancellations first — they aren't plan subscriptions.
             artist_id = store.cancel_club_member_by_subscription(obj.get("id"))
