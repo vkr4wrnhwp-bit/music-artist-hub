@@ -3866,6 +3866,8 @@ def test_rack_page_and_presets():
     assert "Tube Stage" in page and "not instrument identification" in page
     assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
     assert "4×12 Closed-Back" in page and "Ribbon" in page
+    assert "Stem Deck" in page and "won't pretend" in page
+    assert "Remove Center" in page and "Physics, not stem separation" in page
     assert "never leaves this machine" in page
     # Anonymous saves bounce off the login wall.
     anon = app_obj.test_client().post("/rack/save", json={})

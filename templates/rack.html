@@ -160,6 +160,25 @@
     </div>
   </div>
 
+  <!-- Stem Deck -->
+  <section class="plate rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Stem Deck</h2>
+      <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-3 py-1.5 text-[11px] font-black text-[#1c1302] hover:bg-[#e5c878]">
+        Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
+      </label>
+    </div>
+    <p class="mt-1 text-[10px] leading-relaxed text-gray-600">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. True ML stem separation of a finished mix needs GPU-class models — that's not this, and this page won't pretend it is. Stems stay in this tab; nothing uploads.</p>
+    <div id="rk-stems" class="mt-3 space-y-2"></div>
+    <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-white/5 pt-3">
+      <span class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Center (mid/side)</span>
+      <button data-center="normal" class="rk-center rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667]">Normal</button>
+      <button data-center="solo" class="rk-center rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Solo Center</button>
+      <button data-center="remove" class="rk-center rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Remove Center</button>
+      <span class="text-[10px] text-gray-600">The classic mid/side trick on any stereo mix — center-panned vocals solo or vanish. Physics, not stem separation; mono files have no sides to keep.</span>
+    </div>
+  </section>
+
   <!-- Presets -->
   <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-4">
     <div class="flex flex-wrap items-center gap-2 px-2">
@@ -348,6 +367,29 @@
     m.convDry.gain.value = 1 - 0.2 * c.dist;
   }
 
+  function buildCenterMatrix(ac) {
+    // 2x2 gain matrix over L/R — expresses pass-through, mid solo (L+R)/2,
+    // and side solo (L-R)/2 without rebuilding the graph.
+    var split = ac.createChannelSplitter(2), merge = ac.createChannelMerger(2);
+    var m = {input: split, output: merge,
+             ll: ac.createGain(), rl: ac.createGain(),
+             lr: ac.createGain(), rr: ac.createGain()};
+    split.connect(m.ll, 0); split.connect(m.lr, 0);
+    split.connect(m.rl, 1); split.connect(m.rr, 1);
+    m.ll.connect(merge, 0, 0); m.rl.connect(merge, 0, 0);
+    m.lr.connect(merge, 0, 1); m.rr.connect(merge, 0, 1);
+    return m;
+  }
+
+  function voiceCenter(cm) {
+    var mode = state.center || "normal";
+    var v = mode === "solo"   ? [0.5, 0.5, 0.5, 0.5]
+          : mode === "remove" ? [0.5, -0.5, -0.5, 0.5]
+          : [1, 0, 0, 1];
+    cm.ll.gain.value = v[0]; cm.rl.gain.value = v[1];
+    cm.lr.gain.value = v[2]; cm.rr.gain.value = v[3];
+  }
+
   function buildChain(ac, dest) {
     var input = ac.createGain();
     var filters = EQ_BANDS.map(function (b, i) {
@@ -371,7 +413,10 @@
     var outGain = ac.createGain();
     outGain.gain.value = Math.pow(10, state.out / 20);
 
-    var node = input;
+    var centerM = buildCenterMatrix(ac);
+    voiceCenter(centerM);
+    input.connect(centerM.input);
+    var node = centerM.output;
     filters.forEach(function (f) { node.connect(f); node = f; });
     node.connect(tube); tube.connect(wetTube);
     node.connect(dryTube);
@@ -384,7 +429,7 @@
     outGain.connect(dest);
     return {input: input, filters: filters, tube: tube, wetTube: wetTube,
             dryTube: dryTube, cabMic: cabMic, comp: comp, makeup: makeup,
-            outGain: outGain, out: outGain};
+            outGain: outGain, out: outGain, centerM: centerM};
   }
 
   function ensureCtx() {
@@ -413,6 +458,7 @@
       live.wetTube.gain.value = state.tube.mix;
       live.dryTube.gain.value = 1 - state.tube.mix;
       voiceCabMic(live.cabMic);
+      voiceCenter(live.centerM);
       live.comp.threshold.value = state.comp.thr;
       live.comp.ratio.value = state.comp.ratio;
       live.comp.attack.value = state.comp.att;
@@ -453,20 +499,60 @@
     if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
   });
 
+  var stems = [];   // {name, buffer, gain, mute, solo, playGain}
+
+  function stemGainValue(st) {
+    var anySolo = stems.some(function (s) { return s.solo; });
+    if (anySolo) return st.solo ? st.gain : 0;
+    return st.mute ? 0 : st.gain;
+  }
+
+  function refreshStemGains() {
+    stems.forEach(function (st) {
+      if (st.playGain) st.playGain.gain.value = stemGainValue(st);
+    });
+  }
+
   function stop() {
-    if (playing) { try { playing.stop(); } catch (e) {} playing = null; }
+    if (playing) {
+      (Array.isArray(playing) ? playing : [playing]).forEach(function (s) {
+        try { s.stop(); } catch (e) {}
+      });
+      playing = null;
+    }
+    stems.forEach(function (st) { st.playGain = null; });
     playBtn.textContent = "Play";
   }
   playBtn.addEventListener("click", function () {
     if (playing) { stop(); return; }
     ensureCtx().resume();
-    var src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = document.getElementById("rk-loop").checked;
-    src.connect(live.wet); src.connect(live.dry);
-    src.onended = function () { if (playing === src) stop(); };
-    src.start();
-    playing = src; startedAt = ctx.currentTime;
+    var loop = document.getElementById("rk-loop").checked;
+    if (stems.length) {
+      // Deck mode: every stem starts sample-synced through its own gain.
+      var t0 = ctx.currentTime + 0.06;
+      var sources = [];
+      stems.forEach(function (st) {
+        var src = ctx.createBufferSource();
+        src.buffer = st.buffer; src.loop = loop;
+        var gn = ctx.createGain();
+        gn.gain.value = stemGainValue(st);
+        st.playGain = gn;
+        src.connect(gn); gn.connect(live.wet); gn.connect(live.dry);
+        src.start(t0);
+        sources.push(src);
+      });
+      sources[0].onended = function () { if (playing === sources) stop(); };
+      playing = sources;
+    } else {
+      var src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = loop;
+      src.connect(live.wet); src.connect(live.dry);
+      src.onended = function () { if (playing === src) stop(); };
+      src.start();
+      playing = src;
+    }
+    startedAt = ctx.currentTime;
     playBtn.textContent = "Stop";
   });
   abBtn.addEventListener("click", function () {
@@ -475,6 +561,113 @@
     abBtn.classList.toggle("border-[#c9a24a]/60", state.bypass);
     abBtn.classList.toggle("text-[#e8c667]", state.bypass);
     applyState();
+  });
+
+  // ---------- stem deck ----------
+  var stemsWrap = document.getElementById("rk-stems");
+
+  function renderStems() {
+    stemsWrap.innerHTML = "";
+    if (!stems.length) {
+      stemsWrap.innerHTML = '<p class="text-[11px] text-gray-600">No stems loaded. ' +
+        'Add your vocal, drums, bass, and music bounces — then mute what ' +
+        'shouldn\\u0027t be in the mix and export.</p>';
+      return;
+    }
+    stems.forEach(function (st, i) {
+      var row = document.createElement("div");
+      row.className = "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 " +
+        (st.solo ? "border-[#c9a24a]/50 bg-[#c9a24a]/10"
+                 : st.mute ? "border-white/5 bg-black/20 opacity-60"
+                 : "border-white/10 bg-black/30");
+      var name = document.createElement("span");
+      name.className = "min-w-0 flex-1 truncate text-xs font-bold";
+      name.textContent = st.name;
+      var dur = document.createElement("span");
+      dur.className = "text-[10px] tabular-nums text-gray-600";
+      dur.textContent = st.buffer.duration.toFixed(1) + "s";
+      var mute = document.createElement("button");
+      mute.textContent = "M";
+      mute.title = "Mute";
+      mute.className = "h-7 w-7 rounded-md border text-[11px] font-black " +
+        (st.mute ? "border-red-500/50 bg-red-500/20 text-red-400" : "border-white/15 text-gray-400 hover:bg-white/10");
+      mute.addEventListener("click", function () {
+        st.mute = !st.mute; if (st.mute) st.solo = false;
+        renderStems(); refreshStemGains();
+      });
+      var solo = document.createElement("button");
+      solo.textContent = "S";
+      solo.title = "Solo";
+      solo.className = "h-7 w-7 rounded-md border text-[11px] font-black " +
+        (st.solo ? "border-[#c9a24a]/60 bg-[#c9a24a]/20 text-[#e8c667]" : "border-white/15 text-gray-400 hover:bg-white/10");
+      solo.addEventListener("click", function () {
+        st.solo = !st.solo; if (st.solo) st.mute = false;
+        renderStems(); refreshStemGains();
+      });
+      var gain = document.createElement("input");
+      gain.type = "range"; gain.min = 0; gain.max = 1.2; gain.step = 0.02;
+      gain.value = st.gain;
+      gain.className = "w-28 accent-[#c9a24a]";
+      gain.addEventListener("input", function () {
+        st.gain = parseFloat(gain.value); refreshStemGains();
+      });
+      var rm = document.createElement("button");
+      rm.textContent = "\\u00d7";
+      rm.title = "Remove stem";
+      rm.className = "h-7 w-7 rounded-md border border-white/15 text-sm text-gray-500 hover:border-red-500/40 hover:text-red-400";
+      rm.addEventListener("click", function () {
+        stop(); stems.splice(i, 1); renderStems(); syncDeckInfo();
+      });
+      row.appendChild(name); row.appendChild(dur); row.appendChild(gain);
+      row.appendChild(mute); row.appendChild(solo); row.appendChild(rm);
+      stemsWrap.appendChild(row);
+    });
+  }
+
+  function syncDeckInfo() {
+    if (stems.length) {
+      document.getElementById("rk-fileinfo").textContent =
+        stems.length + " stem" + (stems.length > 1 ? "s" : "") +
+        " loaded — deck mode: Play mixes them through the rack.";
+      playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
+    } else if (buffer) {
+      playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
+    } else {
+      document.getElementById("rk-fileinfo").textContent =
+        "No file loaded — drop a WAV/MP3 anywhere on this page.";
+      playBtn.disabled = abBtn.disabled = exportBtn.disabled = true;
+    }
+  }
+
+  document.getElementById("rk-stems-file").addEventListener("change", function (e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    if (!files.length) return;
+    ensureCtx().resume();
+    Promise.all(files.map(function (f) {
+      return f.arrayBuffer()
+        .then(function (ab) { return ctx.decodeAudioData(ab); })
+        .then(function (buf) { return {name: f.name, buffer: buf, gain: 1, mute: false, solo: false, playGain: null}; })
+        .catch(function () { return null; });
+    })).then(function (loaded) {
+      var ok = loaded.filter(Boolean);
+      stems = stems.concat(ok).slice(0, 8);
+      if (loaded.length !== ok.length) statusEl.textContent = "Some files couldn't be decoded.";
+      stop(); renderStems(); syncDeckInfo();
+    });
+    e.target.value = "";
+  });
+
+  document.querySelectorAll(".rk-center").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.center = b.dataset.center;
+      document.querySelectorAll(".rk-center").forEach(function (x) {
+        var on = x.dataset.center === state.center;
+        x.className = "rk-center rounded-lg px-3 py-1.5 text-[11px] font-bold " +
+          (on ? "border border-[#c9a24a]/50 bg-[#c9a24a]/15 text-[#e8c667]"
+              : "border border-white/15 text-gray-300 hover:bg-white/10");
+      });
+      applyState();
+    });
   });
 
   // ---------- controls ----------
@@ -572,6 +765,7 @@
     b.addEventListener("click", function () {
       var p = JSON.parse(JSON.stringify(PRESETS[b.dataset.preset]));
       p.bypass = state.bypass;
+      p.center = state.center || "normal";   // presets voice tone, not routing
       state = p; syncControls(); applyState();
       statusEl.textContent = "Preset loaded.";
     });
@@ -763,17 +957,33 @@
   }
 
   exportBtn.addEventListener("click", function () {
-    if (!buffer) return;
+    if (!buffer && !stems.length) return;
     statusEl.textContent = "Rendering…";
-    var oc = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    // Always render stereo: the center matrix and cab room are stereo tools.
+    var rate = stems.length ? stems[0].buffer.sampleRate : buffer.sampleRate;
+    var len = stems.length
+      ? Math.max.apply(null, stems.map(function (s) { return s.buffer.length; }))
+      : buffer.length;
+    var oc = new OfflineAudioContext(2, len, rate);
     var chain = buildChain(oc, oc.destination);
-    var src = oc.createBufferSource();
-    src.buffer = buffer;
-    src.connect(chain.input);
-    src.start();
+    if (stems.length) {
+      stems.forEach(function (st) {
+        var src = oc.createBufferSource();
+        src.buffer = st.buffer;
+        var gn = oc.createGain();
+        gn.gain.value = stemGainValue(st);
+        src.connect(gn); gn.connect(chain.input);
+        src.start();
+      });
+    } else {
+      var src = oc.createBufferSource();
+      src.buffer = buffer;
+      src.connect(chain.input);
+      src.start();
+    }
     oc.startRendering().then(function (rendered) {
       var a = document.createElement("a");
-      a.download = "rack-processed.wav";
+      a.download = stems.length ? "rack-stem-bounce.wav" : "rack-processed.wav";
       a.href = URL.createObjectURL(encodeWav(rendered));
       a.click();
       statusEl.textContent = "WAV exported — processed copy downloaded.";
@@ -782,8 +992,18 @@
 
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
-                       state: function () { return state; }};
+                       state: function () { return state; },
+                       stems: function () { return stems; },
+                       addStem: function (s) { stems.push(s); renderStems(); syncDeckInfo(); },
+                       stemGainValue: stemGainValue};
   syncControls();
+  renderStems();
+  document.querySelectorAll(".rk-center").forEach(function (x) {
+    var on = x.dataset.center === (state.center || "normal");
+    x.className = "rk-center rounded-lg px-3 py-1.5 text-[11px] font-bold " +
+      (on ? "border border-[#c9a24a]/50 bg-[#c9a24a]/15 text-[#e8c667]"
+          : "border border-white/15 text-gray-300 hover:bg-white/10");
+  });
   draw();
 })();
 </script>
