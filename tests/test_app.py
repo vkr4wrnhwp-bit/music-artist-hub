@@ -3864,6 +3864,8 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     assert "Tube Stage" in page and "not instrument identification" in page
+    assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
+    assert "4×12 Closed-Back" in page and "Ribbon" in page
     assert "never leaves this machine" in page
     # Anonymous saves bounce off the login wall.
     anon = app_obj.test_client().post("/rack/save", json={})
