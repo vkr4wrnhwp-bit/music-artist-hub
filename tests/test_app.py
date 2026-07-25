@@ -3879,3 +3879,33 @@ def test_rack_page_and_presets():
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     assert store_mod.get_rack_preset(uid)["tube"]["mix"] == 0.4
     assert '"drive": 3' in artist.get("/rack").get_data(as_text=True)
+
+
+def test_artist_hub():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    artist.get("/fan-club")  # ensures the EPK slug exists on a fresh DB
+    slug = store_mod.get_epk(uid)["slug"]
+    artist.post("/tour/add", data={"date": "2099-01-15", "venue": "Hub Test Hall",
+                                   "city": "Asheville, NC"})
+    show = [s for s in store_mod.list_tour_shows(uid)
+            if s["venue"] == "Hub Test Hall"][0]
+    artist.post("/tour/%s/status" % show["id"], data={"status": "confirmed"})
+    artist.post("/fan-club", data={"name": "Hub Club", "price": "5", "blurb": "b",
+                                   "perks": "Early drops", "active": "1"})
+    anon = app_obj.test_client()
+    hub = anon.get("/@" + slug).get_data(as_text=True)
+    assert "Synthwave Surfer" in hub
+    assert "Hub Test Hall" in hub                      # confirmed show listed
+    assert "/club/" + slug in hub and "Hub Club" in hub
+    assert "/epk/" + slug in hub                       # press kit doorway
+    assert "Powered by" in hub
+    # Holds stay private: a hold never appears on the public hub.
+    artist.post("/tour/add", data={"date": "2099-02-20", "venue": "Secret Hold Room"})
+    assert "Secret Hold Room" not in anon.get("/@" + slug).get_data(as_text=True)
+    assert anon.get("/@not-a-real-artist").status_code == 404
+    # The EPK editor points at the hub.
+    assert "Artist Hub" in artist.get("/epk").get_data(as_text=True)
+    store_mod.delete_tour_show(uid, show["id"])

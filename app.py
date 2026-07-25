@@ -1844,7 +1844,8 @@ def create_app():
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
-                        "/team/join/", "/webhooks/", "/club/", "/showday/")
+                        "/team/join/", "/webhooks/", "/club/", "/showday/",
+                        "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy"}
 
@@ -2394,6 +2395,28 @@ def create_app():
             return login_required_redirect()
         store.delete_club_drop(user["id"], drop_id)
         return redirect("/fan-club")
+
+    # --- Artist Hub: the one link-in-bio URL, assembled from real data -----------
+
+    @app.route("/@<slug>")
+    def artist_hub(slug):
+        prof = store.get_epk_by_slug(slug)
+        if prof is None:
+            abort(404)
+        uid = prof["user_id"]
+        data = prof["data"]
+        club = store.get_fan_club(uid)
+        campaigns = [c for c in mls.list_campaigns(uid)
+                     if c["status"] == "live" and not c.get("archived_at")]
+        today = datetime.now(timezone.utc).date().isoformat()
+        shows = [s for s in store.list_tour_shows(uid)
+                 if s["date"] >= today and s["status"] in ("confirmed", "advanced")]
+        return render_template("artist_hub.html", prof=prof, data=data,
+                               artist_name=prof["user_name"], slug=slug,
+                               club=(club if club and club["active"] else None),
+                               campaigns=campaigns[:8], shows=shows[:8],
+                               store_url=data.get("store_url", ""),
+                               merch=data.get("merch", []))
 
     # --- Tour Hub + Stage Plot ---------------------------------------------------
 
