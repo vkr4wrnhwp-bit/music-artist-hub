@@ -3855,3 +3855,25 @@ def test_team_up_board(monkeypatch):
     artist.post("/tour-board/%s/delete" % listing["id"])
     assert store_mod.get_board_listing(listing["id"]) is None
     assert store_mod.list_board_replies(listing["id"]) == []
+
+
+def test_rack_page_and_presets():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    page = artist.get("/rack").get_data(as_text=True)
+    assert "The Rack" in page and "12 Band" in page
+    assert "Tube Stage" in page and "not instrument identification" in page
+    assert "never leaves this machine" in page
+    # Anonymous saves bounce off the login wall.
+    anon = app_obj.test_client().post("/rack/save", json={})
+    assert anon.status_code == 302 and "/login" in anon.headers["Location"]
+    # Saved rack round-trips and is embedded on reload.
+    rack = {"eq": [1.5, 0, 0, -2, 0, 0, 0, 0, 0, 0, 1, 0.5], "q": 1.2,
+            "tube": {"drive": 3, "bias": 0.2, "mix": 0.4},
+            "comp": {"thr": -20, "ratio": 3, "att": 0.01, "rel": 0.25, "makeup": 2},
+            "out": -1}
+    assert artist.post("/rack/save", json=rack).get_json()["ok"]
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    assert store_mod.get_rack_preset(uid)["tube"]["mix"] == 0.4
+    assert '"drive": 3' in artist.get("/rack").get_data(as_text=True)

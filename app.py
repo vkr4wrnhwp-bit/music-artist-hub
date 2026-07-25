@@ -2536,6 +2536,25 @@ def create_app():
                                schedule=schedule,
                                plot_json=(_json.dumps(plot) if plot else "null"))
 
+    @app.route("/rack")
+    def rack():
+        import json as _json
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        saved = store.get_rack_preset(user["id"])
+        return render_template("rack.html", active_page="rack",
+                               saved_rack=(_json.dumps(saved) if saved else "null"),
+                               **build_dashboard_context())
+
+    @app.route("/rack/save", methods=["POST"])
+    def rack_save():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        store.save_rack_preset(user["id"], request.get_json(silent=True) or {})
+        return jsonify({"ok": True})
+
     @app.route("/stage-plot")
     def stage_plot():
         import json as _json

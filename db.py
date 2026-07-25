@@ -146,6 +146,11 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS rack_presets (
+                user_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS tour_board (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -977,6 +982,21 @@ def save_stage_plot(user_id, data):
 def get_stage_plot(user_id):
     with get_db() as db:
         row = db.execute("SELECT data FROM stage_plots WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return json.loads(row["data"]) if row else None
+
+
+def save_rack_preset(user_id, data):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO rack_presets (user_id, data, updated) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
+            (user_id, json.dumps(data), _now()))
+
+
+def get_rack_preset(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT data FROM rack_presets WHERE user_id = ?",
                          (user_id,)).fetchone()
     return json.loads(row["data"]) if row else None
 

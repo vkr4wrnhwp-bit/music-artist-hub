@@ -105,6 +105,7 @@ MODULES = [
     ("/tour", "Tour Hub", "Your show pipeline: holds through settled, all in one table.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
     ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
+    ("/rack", "The Rack", "Real browser DSP: 8-band EQ, tube stage, compressor, WAV export \u2014 nothing is uploaded.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

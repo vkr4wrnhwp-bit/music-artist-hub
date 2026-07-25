@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% block title %}The Rack - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1150px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Studio</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Real DSP running in your browser — 8-band EQ, tube stage, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
+  </div>
+
+  <!-- Transport -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">
+        Load audio<input id="rk-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="rk-play" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10" disabled>Play</button>
+      <label class="flex items-center gap-1.5 text-[11px] font-bold text-gray-400"><input id="rk-loop" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">Loop</label>
+      <button id="rk-ab" class="rounded-lg border border-white/15 px-4 py-2 text-xs font-bold text-gray-300 hover:bg-white/10" disabled>Bypass: OFF</button>
+      <span id="rk-fileinfo" class="min-w-0 flex-1 truncate text-[11px] text-gray-500">No file loaded — drop a WAV/MP3 anywhere on this page.</span>
+      <button id="rk-export" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10" disabled>Export WAV</button>
+    </div>
+  </section>
+
+  <!-- Analyzer -->
+  <section class="rounded-2xl border border-white/10 bg-[#0d0c0a] p-4">
+    <canvas id="rk-scope" class="w-full" height="360"></canvas>
+    <p class="mt-2 text-[10px] text-gray-600">Colored lanes mark where each instrument typically lives; the glow is the energy <span class="text-gray-400">your track</span> has there right now. It's honest energy detection — not instrument identification.</p>
+  </section>
+
+  <!-- Modules -->
+  <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+    <!-- EQ -->
+    <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Parametric EQ · 12 Band</h2>
+        <label class="flex items-center gap-2 text-[10px] font-bold text-gray-500">Q
+          <input id="rk-q" type="range" min="0.4" max="3" step="0.1" value="1" class="w-24 accent-[#c9a24a]">
+        </label>
+      </div>
+      <div id="rk-eq" class="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-12"></div>
+    </section>
+
+    <div class="space-y-4">
+      <!-- Tube -->
+      <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-5">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Tube Stage</h2>
+        <p class="mt-0.5 text-[10px] text-gray-600">Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
+        <div class="mt-3 space-y-2.5">
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Drive <span data-val="drive" class="text-[#e8c667]"></span>
+            <input data-tube="drive" type="range" min="1" max="10" step="0.1" value="2" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Bias (even harmonics) <span data-val="bias" class="text-[#e8c667]"></span>
+            <input data-tube="bias" type="range" min="0" max="0.6" step="0.02" value="0.2" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Mix <span data-val="mix" class="text-[#e8c667]"></span>
+            <input data-tube="mix" type="range" min="0" max="1" step="0.05" value="0.3" class="mt-1 w-full accent-[#c9a24a]"></label>
+        </div>
+      </section>
+
+      <!-- Compressor -->
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Compressor</h2>
+        <div class="mt-3 space-y-2.5">
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Threshold <span data-val="thr" class="text-[#e8c667]"></span>
+            <input data-comp="thr" type="range" min="-60" max="0" step="1" value="-24" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Ratio <span data-val="ratio" class="text-[#e8c667]"></span>
+            <input data-comp="ratio" type="range" min="1" max="20" step="0.5" value="3" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Attack <span data-val="att" class="text-[#e8c667]"></span>
+            <input data-comp="att" type="range" min="0.001" max="0.3" step="0.001" value="0.01" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Release <span data-val="rel" class="text-[#e8c667]"></span>
+            <input data-comp="rel" type="range" min="0.05" max="1" step="0.01" value="0.25" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500">Makeup <span data-val="makeup" class="text-[#e8c667]"></span>
+            <input data-comp="makeup" type="range" min="0" max="12" step="0.5" value="0" class="mt-1 w-full accent-[#c9a24a]"></label>
+          <div>
+            <div class="flex justify-between text-[9px] font-bold uppercase tracking-wide text-gray-600"><span>Gain reduction</span><span id="rk-grdb">0.0 dB</span></div>
+            <div class="mt-1 h-2 overflow-hidden rounded-full bg-black/60"><div id="rk-gr" class="h-full w-0 rounded-full bg-gradient-to-r from-[#e8c667] to-[#e05252]"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Output -->
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Output</h2>
+        <label class="mt-3 block text-[10px] font-bold uppercase tracking-wide text-gray-500">Gain <span data-val="out" class="text-[#e8c667]"></span>
+          <input id="rk-out" type="range" min="-24" max="12" step="0.5" value="0" class="mt-1 w-full accent-[#c9a24a]"></label>
+        <div class="mt-2">
+          <div class="flex justify-between text-[9px] font-bold uppercase tracking-wide text-gray-600"><span>Peak</span><span id="rk-peakdb">−∞</span></div>
+          <div class="mt-1 h-2 overflow-hidden rounded-full bg-black/60"><div id="rk-peak" class="h-full w-0 rounded-full bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Presets</span>
+      <button data-preset="flat" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Flat</button>
+      <button data-preset="warm" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Warm Master</button>
+      <button data-preset="vocal" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Vocal Forward</button>
+      <button data-preset="bass" class="rk-preset rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Bass Tight</button>
+      <span class="ml-auto flex gap-2">
+        <button id="rk-save" class="rounded-lg border border-[#c9a24a]/40 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Save my rack</button>
+        <span id="rk-status" class="self-center text-[11px] text-gray-500"></span>
+      </span>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var EQ_BANDS = [
+    {f: 40, type: "lowshelf", label: "40"},
+    {f: 80, type: "peaking", label: "80"},
+    {f: 120, type: "peaking", label: "120"},
+    {f: 250, type: "peaking", label: "250"},
+    {f: 400, type: "peaking", label: "400"},
+    {f: 630, type: "peaking", label: "630"},
+    {f: 1000, type: "peaking", label: "1k"},
+    {f: 1600, type: "peaking", label: "1.6k"},
+    {f: 2500, type: "peaking", label: "2.5k"},
+    {f: 4000, type: "peaking", label: "4k"},
+    {f: 8000, type: "peaking", label: "8k"},
+    {f: 14000, type: "highshelf", label: "14k"}
+  ];
+  var LANES = [
+    {label: "Kick", lo: 40, hi: 100, color: "#e05252"},
+    {label: "Bass", lo: 50, hi: 250, color: "#e08e52"},
+    {label: "Snare", lo: 150, hi: 400, color: "#e0c452"},
+    {label: "Guitars", lo: 100, hi: 1200, color: "#8fbf5f"},
+    {label: "Keys / Synths", lo: 80, hi: 2000, color: "#5fb8a5"},
+    {label: "Vocals", lo: 120, hi: 1100, color: "#5f9fd6"},
+    {label: "Presence", lo: 2000, hi: 5000, color: "#9d7fd6"},
+    {label: "Air / Cymbals", lo: 6000, hi: 16000, color: "#d67fb8"}
+  ];
+  var PRESETS = {
+    flat:  {eq: [0,0,0,0,0,0,0,0,0,0,0,0], q: 1, tube: {drive: 1, bias: 0, mix: 0}, comp: {thr: 0, ratio: 1, att: 0.01, rel: 0.25, makeup: 0}, out: 0},
+    warm:  {eq: [2,1,0,-1.5,0,0,0,0,0,0.5,1,0.5], q: 1, tube: {drive: 3, bias: 0.25, mix: 0.35}, comp: {thr: -18, ratio: 2, att: 0.03, rel: 0.3, makeup: 1}, out: 0},
+    vocal: {eq: [0,0,0,-2,-1,-0.5,0,1,2.5,2,1.5,1], q: 1.2, tube: {drive: 2, bias: 0.15, mix: 0.2}, comp: {thr: -22, ratio: 3, att: 0.01, rel: 0.2, makeup: 2}, out: 0},
+    bass:  {eq: [2,2,-1,-2,-1,0,0,0,0,0,0,0], q: 1.4, tube: {drive: 2.5, bias: 0.2, mix: 0.25}, comp: {thr: -26, ratio: 4, att: 0.005, rel: 0.15, makeup: 2}, out: 0}
+  };
+  var saved = {{ saved_rack | safe }};
+  var state = (saved && saved.eq && saved.eq.length === EQ_BANDS.length)
+    ? saved : JSON.parse(JSON.stringify(PRESETS.flat));
+  state.bypass = false;
+
+  var ctx = null, buffer = null, playing = null, startedAt = 0;
+  var live = null;   // {filters, tube, wetTube, dryTube, comp, outGain, analyser, wet, dry}
+
+  // ---------- chain ----------
+  function tubeCurve(drive, bias) {
+    var n = 2048, c = new Float32Array(n);
+    var norm = Math.tanh(drive);
+    for (var i = 0; i < n; i++) {
+      var x = (i / (n - 1)) * 2 - 1;
+      var shaped = Math.tanh(drive * (x + bias * 0.5 * (1 - Math.abs(x)) * x * x < 0 ? x : x));
+      // Asymmetry: positive half saturates sooner than negative — even harmonics.
+      var d = x >= 0 ? drive * (1 + bias) : drive * (1 - bias * 0.6);
+      c[i] = Math.tanh(d * x) / norm;
+    }
+    return c;
+  }
+
+  function buildChain(ac, dest) {
+    var input = ac.createGain();
+    var filters = EQ_BANDS.map(function (b, i) {
+      var f = ac.createBiquadFilter();
+      f.type = b.type; f.frequency.value = b.f;
+      f.Q.value = state.q; f.gain.value = state.eq[i];
+      return f;
+    });
+    var tube = ac.createWaveShaper();
+    tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
+    tube.oversample = "4x";
+    var wetTube = ac.createGain(); wetTube.gain.value = state.tube.mix;
+    var dryTube = ac.createGain(); dryTube.gain.value = 1 - state.tube.mix;
+    var comp = ac.createDynamicsCompressor();
+    comp.threshold.value = state.comp.thr; comp.ratio.value = state.comp.ratio;
+    comp.attack.value = state.comp.att; comp.release.value = state.comp.rel;
+    comp.knee.value = 6;
+    var makeup = ac.createGain();
+    makeup.gain.value = Math.pow(10, state.comp.makeup / 20);
+    var outGain = ac.createGain();
+    outGain.gain.value = Math.pow(10, state.out / 20);
+
+    var node = input;
+    filters.forEach(function (f) { node.connect(f); node = f; });
+    node.connect(tube); tube.connect(wetTube);
+    node.connect(dryTube);
+    var sum = ac.createGain();
+    wetTube.connect(sum); dryTube.connect(sum);
+    sum.connect(comp); comp.connect(makeup); makeup.connect(outGain);
+    outGain.connect(dest);
+    return {input: input, filters: filters, tube: tube, wetTube: wetTube,
+            dryTube: dryTube, comp: comp, makeup: makeup, outGain: outGain,
+            out: outGain};
+  }
+
+  function ensureCtx() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      live = buildChain(ctx, ctx.destination);
+      live.analyser = ctx.createAnalyser();
+      live.analyser.fftSize = 4096;
+      live.analyser.smoothingTimeConstant = 0.8;
+      live.outGain.connect(live.analyser);
+      // Bypass path: source feeds both; wet/dry gains pick one.
+      live.wet = ctx.createGain(); live.dry = ctx.createGain();
+      live.dry.gain.value = 0;
+      live.wet.connect(live.input);
+      live.dry.connect(ctx.destination);
+      live.dry.connect(live.analyser);
+    }
+    return ctx;
+  }
+
+  function applyState() {
+    if (!live) return;
+    live.filters.forEach(function (f, i) {
+      f.gain.value = state.eq[i]; f.Q.value = state.q;
+    });
+    live.tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
+    live.wetTube.gain.value = state.tube.mix;
+    live.dryTube.gain.value = 1 - state.tube.mix;
+    live.comp.threshold.value = state.comp.thr;
+    live.comp.ratio.value = state.comp.ratio;
+    live.comp.attack.value = state.comp.att;
+    live.comp.release.value = state.comp.rel;
+    live.makeup.gain.value = Math.pow(10, state.comp.makeup / 20);
+    live.outGain.gain.value = Math.pow(10, state.out / 20);
+    live.wet.gain.value = state.bypass ? 0 : 1;
+    live.dry.gain.value = state.bypass ? 1 : 0;
+    eqCurveDirty = true;
+  }
+
+  // ---------- transport ----------
+  var fileInput = document.getElementById("rk-file");
+  var playBtn = document.getElementById("rk-play");
+  var abBtn = document.getElementById("rk-ab");
+  var exportBtn = document.getElementById("rk-export");
+  var statusEl = document.getElementById("rk-status");
+
+  function loadFile(file) {
+    ensureCtx().resume();
+    file.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
+      .then(function (buf) {
+        buffer = buf;
+        document.getElementById("rk-fileinfo").textContent =
+          file.name + " — " + buf.duration.toFixed(1) + "s · " +
+          buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
+        playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
+      })
+      .catch(function () { statusEl.textContent = "Couldn't decode that file."; });
+  }
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+  document.addEventListener("dragover", function (e) { e.preventDefault(); });
+  document.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  function stop() {
+    if (playing) { try { playing.stop(); } catch (e) {} playing = null; }
+    playBtn.textContent = "Play";
+  }
+  playBtn.addEventListener("click", function () {
+    if (playing) { stop(); return; }
+    ensureCtx().resume();
+    var src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = document.getElementById("rk-loop").checked;
+    src.connect(live.wet); src.connect(live.dry);
+    src.onended = function () { if (playing === src) stop(); };
+    src.start();
+    playing = src; startedAt = ctx.currentTime;
+    playBtn.textContent = "Stop";
+  });
+  abBtn.addEventListener("click", function () {
+    state.bypass = !state.bypass;
+    abBtn.textContent = "Bypass: " + (state.bypass ? "ON (raw)" : "OFF");
+    abBtn.classList.toggle("border-[#c9a24a]/60", state.bypass);
+    abBtn.classList.toggle("text-[#e8c667]", state.bypass);
+    applyState();
+  });
+
+  // ---------- controls ----------
+  var eqWrap = document.getElementById("rk-eq");
+  function renderEq() {
+    eqWrap.innerHTML = "";
+    EQ_BANDS.forEach(function (b, i) {
+      var col = document.createElement("div");
+      col.className = "flex flex-col items-center gap-1";
+      var val = document.createElement("div");
+      val.className = "text-[9px] font-bold tabular-nums text-[#e8c667]";
+      val.textContent = (state.eq[i] > 0 ? "+" : "") + state.eq[i].toFixed(1);
+      var slider = document.createElement("input");
+      slider.type = "range"; slider.min = -12; slider.max = 12; slider.step = 0.5;
+      slider.value = state.eq[i];
+      slider.className = "accent-[#c9a24a]";
+      slider.style.writingMode = "vertical-lr";
+      slider.style.direction = "rtl";
+      slider.style.height = "120px";
+      slider.addEventListener("input", function () {
+        state.eq[i] = parseFloat(slider.value);
+        val.textContent = (state.eq[i] > 0 ? "+" : "") + state.eq[i].toFixed(1);
+        applyState();
+      });
+      var lab = document.createElement("div");
+      lab.className = "text-[9px] font-bold uppercase text-gray-500";
+      lab.textContent = b.label;
+      col.appendChild(val); col.appendChild(slider); col.appendChild(lab);
+      eqWrap.appendChild(col);
+    });
+  }
+  document.getElementById("rk-q").addEventListener("input", function (e) {
+    state.q = parseFloat(e.target.value); applyState();
+  });
+  document.querySelectorAll("[data-tube]").forEach(function (el) {
+    el.addEventListener("input", function () {
+      state.tube[el.dataset.tube] = parseFloat(el.value);
+      showVals(); applyState();
+    });
+  });
+  document.querySelectorAll("[data-comp]").forEach(function (el) {
+    el.addEventListener("input", function () {
+      state.comp[el.dataset.comp] = parseFloat(el.value);
+      showVals(); applyState();
+    });
+  });
+  document.getElementById("rk-out").addEventListener("input", function (e) {
+    state.out = parseFloat(e.target.value); showVals(); applyState();
+  });
+  function showVals() {
+    var m = {drive: state.tube.drive.toFixed(1), bias: state.tube.bias.toFixed(2),
+             mix: Math.round(state.tube.mix * 100) + "%",
+             thr: state.comp.thr + " dB", ratio: state.comp.ratio + ":1",
+             att: Math.round(state.comp.att * 1000) + " ms",
+             rel: Math.round(state.comp.rel * 1000) + " ms",
+             makeup: "+" + state.comp.makeup + " dB",
+             out: (state.out > 0 ? "+" : "") + state.out + " dB"};
+    document.querySelectorAll("[data-val]").forEach(function (el) {
+      el.textContent = m[el.dataset.val] || "";
+    });
+  }
+  function syncControls() {
+    renderEq(); showVals();
+    document.getElementById("rk-q").value = state.q;
+    document.querySelectorAll("[data-tube]").forEach(function (el) { el.value = state.tube[el.dataset.tube]; });
+    document.querySelectorAll("[data-comp]").forEach(function (el) { el.value = state.comp[el.dataset.comp]; });
+    document.getElementById("rk-out").value = state.out;
+  }
+  document.querySelectorAll(".rk-preset").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var p = JSON.parse(JSON.stringify(PRESETS[b.dataset.preset]));
+      p.bypass = state.bypass;
+      state = p; syncControls(); applyState();
+      statusEl.textContent = "Preset loaded.";
+    });
+  });
+  document.getElementById("rk-save").addEventListener("click", function () {
+    fetch("/rack/save", {method: "POST", headers: {"Content-Type": "application/json"},
+                         body: JSON.stringify(state)})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { statusEl.textContent = d.ok ? "Rack saved — loads with the page." : "Save failed."; })
+      .catch(function () { statusEl.textContent = "Save failed."; });
+  });
+
+  // ---------- scope ----------
+  var canvas = document.getElementById("rk-scope");
+  var g = canvas.getContext("2d");
+  var eqCurveDirty = true, eqCurve = null;
+  var FMIN = 20, FMAX = 20000;
+  function fx(f, w) { return Math.log(f / FMIN) / Math.log(FMAX / FMIN) * w; }
+
+  function computeEqCurve(w) {
+    if (!live) return null;
+    var n = 200, freqs = new Float32Array(n),
+        mag = new Float32Array(n), ph = new Float32Array(n),
+        total = new Float32Array(n).fill(0);
+    for (var i = 0; i < n; i++) freqs[i] = FMIN * Math.pow(FMAX / FMIN, i / (n - 1));
+    live.filters.forEach(function (f) {
+      f.getFrequencyResponse(freqs, mag, ph);
+      for (var i = 0; i < n; i++) total[i] += 20 * Math.log10(mag[i] || 1e-6);
+    });
+    return {freqs: freqs, db: total};
+  }
+
+  var freqData = null, timeData = null;
+  function draw() {
+    requestAnimationFrame(draw);
+    var w = canvas.clientWidth;
+    if (canvas.width !== w) canvas.width = w;
+    var h = canvas.height;
+    var laneH = 16, lanesTop = h - LANES.length * laneH - 4;
+    g.clearRect(0, 0, w, h);
+
+    var binHz = ctx ? ctx.sampleRate / (live.analyser.fftSize) : 0;
+    if (live && playing) {
+      if (!freqData) { freqData = new Uint8Array(live.analyser.frequencyBinCount);
+                       timeData = new Uint8Array(live.analyser.fftSize); }
+      live.analyser.getByteFrequencyData(freqData);
+      live.analyser.getByteTimeDomainData(timeData);
+    }
+
+    // Spectrum
+    if (freqData && playing) {
+      g.beginPath();
+      for (var px = 0; px <= w; px += 2) {
+        var f = FMIN * Math.pow(FMAX / FMIN, px / w);
+        var bin = Math.min(freqData.length - 1, Math.round(f / binHz));
+        var v = freqData[bin] / 255;
+        var y = lanesTop - v * (lanesTop - 12);
+        px === 0 ? g.moveTo(px, y) : g.lineTo(px, y);
+      }
+      g.lineTo(w, lanesTop); g.lineTo(0, lanesTop); g.closePath();
+      var grad = g.createLinearGradient(0, 0, 0, lanesTop);
+      grad.addColorStop(0, "rgba(232,198,103,0.55)");
+      grad.addColorStop(1, "rgba(232,198,103,0.06)");
+      g.fillStyle = grad; g.fill();
+    }
+
+    // EQ curve (0 dB at 55% height, ±12 dB span)
+    if (eqCurveDirty && live) { eqCurve = computeEqCurve(w); eqCurveDirty = false; }
+    if (eqCurve) {
+      var zero = lanesTop * 0.55, span = lanesTop * 0.35 / 12;
+      g.beginPath();
+      for (var i = 0; i < eqCurve.freqs.length; i++) {
+        var x = fx(eqCurve.freqs[i], w);
+        var y = zero - eqCurve.db[i] * span;
+        i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+      }
+      g.strokeStyle = "#f3ead2"; g.lineWidth = 1.5; g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.12)"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, zero); g.lineTo(w, zero); g.stroke();
+    }
+
+    // Frequency grid labels
+    g.fillStyle = "rgba(150,140,120,0.5)"; g.font = "9px Arial";
+    [50, 100, 250, 500, 1000, 2500, 6000, 12000].forEach(function (f) {
+      var x = fx(f, w);
+      g.fillRect(x, 10, 1, lanesTop - 10);
+      g.fillText(f >= 1000 ? (f / 1000) + "k" : f, x + 3, 18);
+    });
+
+    // Instrument lanes
+    LANES.forEach(function (lane, li) {
+      var y = lanesTop + 4 + li * laneH;
+      var x1 = fx(lane.lo, w), x2 = fx(lane.hi, w);
+      var energy = 0;
+      if (freqData && playing && binHz) {
+        var b1 = Math.max(0, Math.floor(lane.lo / binHz));
+        var b2 = Math.min(freqData.length - 1, Math.ceil(lane.hi / binHz));
+        var sum = 0;
+        for (var b = b1; b <= b2; b++) sum += freqData[b];
+        energy = (sum / (b2 - b1 + 1)) / 255;
+      }
+      g.fillStyle = lane.color + "22";
+      g.fillRect(x1, y, x2 - x1, laneH - 3);
+      if (energy > 0.04) {
+        g.fillStyle = lane.color + Math.round(Math.min(1, energy * 1.6) * 200 + 55).toString(16).padStart(2, "0");
+        g.fillRect(x1, y, (x2 - x1) * Math.min(1, energy * 1.3), laneH - 3);
+      }
+      g.fillStyle = "#cfc6b0"; g.font = "bold 9px Arial";
+      g.fillText(lane.label.toUpperCase(), x1 + 4, y + laneH - 7);
+    });
+
+    // Meters
+    if (live && playing) {
+      var red = live.comp.reduction || 0;
+      document.getElementById("rk-gr").style.width = Math.min(100, -red / 20 * 100) + "%";
+      document.getElementById("rk-grdb").textContent = (-red).toFixed(1) + " dB";
+      if (timeData) {
+        var peak = 0;
+        for (var t = 0; t < timeData.length; t += 4) {
+          peak = Math.max(peak, Math.abs(timeData[t] - 128) / 128);
+        }
+        document.getElementById("rk-peak").style.width = Math.min(100, peak * 100) + "%";
+        document.getElementById("rk-peakdb").textContent =
+          peak > 0.001 ? (20 * Math.log10(peak)).toFixed(1) + " dB" : "−∞";
+      }
+    }
+  }
+
+  // ---------- WAV export ----------
+  function encodeWav(rendered) {
+    var ch = rendered.numberOfChannels, len = rendered.length, rate = rendered.sampleRate;
+    var bytes = 44 + len * ch * 2;
+    var ab = new ArrayBuffer(bytes), dv = new DataView(ab);
+    function str(o, s) { for (var i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, "RIFF"); dv.setUint32(4, bytes - 8, true); str(8, "WAVE");
+    str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+    dv.setUint16(22, ch, true); dv.setUint32(24, rate, true);
+    dv.setUint32(28, rate * ch * 2, true); dv.setUint16(32, ch * 2, true);
+    dv.setUint16(34, 16, true); str(36, "data"); dv.setUint32(40, len * ch * 2, true);
+    var offset = 44;
+    var chans = [];
+    for (var c = 0; c < ch; c++) chans.push(rendered.getChannelData(c));
+    for (var i = 0; i < len; i++) {
+      for (var c2 = 0; c2 < ch; c2++) {
+        var v = Math.max(-1, Math.min(1, chans[c2][i]));
+        dv.setInt16(offset, v < 0 ? v * 32768 : v * 32767, true);
+        offset += 2;
+      }
+    }
+    return new Blob([ab], {type: "audio/wav"});
+  }
+
+  exportBtn.addEventListener("click", function () {
+    if (!buffer) return;
+    statusEl.textContent = "Rendering…";
+    var oc = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    var chain = buildChain(oc, oc.destination);
+    var src = oc.createBufferSource();
+    src.buffer = buffer;
+    src.connect(chain.input);
+    src.start();
+    oc.startRendering().then(function (rendered) {
+      var a = document.createElement("a");
+      a.download = "rack-processed.wav";
+      a.href = URL.createObjectURL(encodeWav(rendered));
+      a.click();
+      statusEl.textContent = "WAV exported — processed copy downloaded.";
+    }).catch(function () { statusEl.textContent = "Render failed — try again."; });
+  });
+
+  window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav, tubeCurve: tubeCurve, state: function () { return state; }};
+  syncControls();
+  draw();
+})();
+</script>
+{% endblock %}
