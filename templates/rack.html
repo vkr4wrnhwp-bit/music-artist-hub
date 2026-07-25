@@ -67,15 +67,16 @@
     <section class="plate rounded-2xl border border-white/10 bg-[#111113] p-5">
       <div class="flex items-center justify-between px-1">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Parametric EQ · 12 Band</h2>
-        <label class="flex items-center gap-2 text-[10px] font-bold text-gray-500">Q
-          <input id="rk-q" type="range" min="0.4" max="3" step="0.1" value="1" class="w-24 accent-[#c9a24a]">
-        </label>
-      </div>
-      <div class="mt-4 flex gap-2">
-        <div class="flex flex-col justify-between pb-[22px] pt-[18px] text-right font-mono text-[9px] leading-none text-gray-600">
-          <span>+12</span><span>0</span><span>−12</span>
+        <div class="flex items-center gap-3">
+          <button id="rk-eq-flat" class="rounded border border-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-gray-500 hover:text-gray-300">Flat</button>
+          <label class="flex items-center gap-2 text-[10px] font-bold text-gray-500">Q
+            <input id="rk-q" type="range" min="0.4" max="3" step="0.1" value="1" class="w-24 accent-[#c9a24a]">
+          </label>
         </div>
-        <div id="rk-eq" class="grid flex-1 grid-cols-6 gap-2 sm:grid-cols-12"></div>
+      </div>
+      <div class="mt-3 rounded-xl border border-white/5 bg-gradient-to-b from-[#0c0b09] to-[#0f0e0c] p-3">
+        <div id="rk-eq" class="grid grid-cols-4 gap-x-1 gap-y-3 sm:grid-cols-6 lg:grid-cols-12"></div>
+        <div class="mt-2 text-center text-[9px] uppercase tracking-[0.25em] text-gray-700">drag · double-click resets · scroll trims</div>
       </div>
     </section>
 
@@ -392,6 +393,10 @@
 
   function buildChain(ac, dest) {
     var input = ac.createGain();
+    // Force stereo before the mid/side split so mono sources duplicate to
+    // both channels instead of landing left-only with a silent right.
+    input.channelCount = 2;
+    input.channelCountMode = "explicit";
     var filters = EQ_BANDS.map(function (b, i) {
       var f = ac.createBiquadFilter();
       f.type = b.type; f.frequency.value = b.f;
@@ -672,33 +677,109 @@
 
   // ---------- controls ----------
   var eqWrap = document.getElementById("rk-eq");
+
+  function knobPt(r, aDeg) {
+    var a = (aDeg - 90) * Math.PI / 180;
+    return [40 + r * Math.cos(a), 40 + r * Math.sin(a)];
+  }
+  function knobArc(r, a0, a1) {
+    var p0 = knobPt(r, a0), p1 = knobPt(r, a1);
+    var large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+    var sweep = a1 > a0 ? 1 : 0;
+    return "M" + p0[0].toFixed(2) + " " + p0[1].toFixed(2) +
+           " A" + r + " " + r + " 0 " + large + " " + sweep + " " +
+           p1[0].toFixed(2) + " " + p1[1].toFixed(2);
+  }
+  function fmtDb(g) {
+    return (g > 0 ? "+" : "") + (g === 0 ? "0.0" : g.toFixed(1));
+  }
+
   function renderEq() {
     eqWrap.innerHTML = "";
     EQ_BANDS.forEach(function (b, i) {
       var col = document.createElement("div");
-      col.className = "flex flex-col items-center gap-1";
+      col.className = "flex flex-col items-center";
       var val = document.createElement("div");
-      val.className = "text-[9px] font-bold tabular-nums text-[#e8c667]";
-      val.textContent = (state.eq[i] > 0 ? "+" : "") + state.eq[i].toFixed(1);
-      var slider = document.createElement("input");
-      slider.type = "range"; slider.min = -12; slider.max = 12; slider.step = 0.5;
-      slider.value = state.eq[i];
-      slider.className = "rk-vert accent-[#c9a24a]";
-      slider.style.writingMode = "vertical-lr";
-      slider.style.direction = "rtl";
-      slider.style.height = "120px";
-      slider.addEventListener("input", function () {
-        state.eq[i] = parseFloat(slider.value);
-        val.textContent = (state.eq[i] > 0 ? "+" : "") + state.eq[i].toFixed(1);
-        applyState();
-      });
+      val.className = "font-mono text-[10px] font-bold tabular-nums";
+      var wrap = document.createElement("div");
+      wrap.style.touchAction = "none";
+      wrap.style.cursor = "ns-resize";
+      wrap.innerHTML =
+        '<svg viewBox="0 0 80 80" width="60" height="60">' +
+        '<defs><radialGradient id="kg' + i + '" cx="0.35" cy="0.3" r="0.9">' +
+        '<stop offset="0" stop-color="#f0dfa8"/><stop offset="0.45" stop-color="#d8b25a"/>' +
+        '<stop offset="0.8" stop-color="#8a6d1f"/><stop offset="1" stop-color="#5c4715"/>' +
+        '</radialGradient></defs>' +
+        '<circle cx="40" cy="40" r="33" fill="none" stroke="#332e22" stroke-width="3" stroke-dasharray="1.8 3.95"/>' +
+        '<path d="' + knobArc(29, -135, 135) + '" fill="none" stroke="#221e16" stroke-width="5" stroke-linecap="round"/>' +
+        '<path class="k-glow" fill="none" stroke-width="9" stroke-linecap="round" opacity="0.22"/>' +
+        '<path class="k-arc" fill="none" stroke-width="4.5" stroke-linecap="round"/>' +
+        '<circle cx="40" cy="40" r="22" fill="url(#kg' + i + ')"/>' +
+        '<circle cx="40" cy="40" r="22" fill="none" stroke="#1c1302" stroke-width="2"/>' +
+        '<circle cx="40" cy="40" r="22" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="0.8"/>' +
+        '<line class="k-ptr" x1="40" y1="40" x2="40" y2="21.5" stroke="#f7efd8" stroke-width="3" stroke-linecap="round"/>' +
+        '<circle cx="40" cy="40" r="2.4" fill="#1c1302"/>' +
+        '</svg>';
+      var svg = wrap.firstChild;
+      var ptr = svg.querySelector(".k-ptr");
+      var arc = svg.querySelector(".k-arc");
+      var glow = svg.querySelector(".k-glow");
       var lab = document.createElement("div");
       lab.className = "text-[9px] font-bold uppercase text-gray-500";
       lab.textContent = b.label;
-      col.appendChild(val); col.appendChild(slider); col.appendChild(lab);
+
+      function paint() {
+        var g2 = state.eq[i];
+        var ang = g2 / 12 * 135;
+        ptr.setAttribute("transform", "rotate(" + ang + " 40 40)");
+        var color = g2 > 0 ? "#e8c667" : "#e07a3c";
+        if (Math.abs(g2) < 0.05) {
+          arc.setAttribute("d", ""); glow.setAttribute("d", "");
+          val.textContent = "0.0";
+          val.style.color = "#6b6459";
+        } else {
+          var d = g2 > 0 ? knobArc(29, 0, ang) : knobArc(29, ang, 0);
+          arc.setAttribute("d", d); arc.setAttribute("stroke", color);
+          glow.setAttribute("d", d); glow.setAttribute("stroke", color);
+          val.textContent = fmtDb(g2);
+          val.style.color = color;
+        }
+      }
+
+      function setVal(v) {
+        v = Math.max(-12, Math.min(12, Math.round(v * 10) / 10));
+        if (v === state.eq[i]) return;
+        state.eq[i] = v;
+        paint(); applyState();
+      }
+
+      var drag = null;
+      wrap.addEventListener("pointerdown", function (e) {
+        drag = {y: e.clientY, v: state.eq[i]};
+        wrap.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      wrap.addEventListener("pointermove", function (e) {
+        if (drag) setVal(drag.v + (drag.y - e.clientY) * 0.12);
+      });
+      wrap.addEventListener("pointerup", function () { drag = null; });
+      wrap.addEventListener("pointercancel", function () { drag = null; });
+      wrap.addEventListener("dblclick", function () { setVal(0); });
+      wrap.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        setVal(state.eq[i] + (e.deltaY < 0 ? 0.5 : -0.5));
+      }, {passive: false});
+
+      paint();
+      col.appendChild(val); col.appendChild(wrap); col.appendChild(lab);
       eqWrap.appendChild(col);
     });
   }
+
+  document.getElementById("rk-eq-flat").addEventListener("click", function () {
+    state.eq = state.eq.map(function () { return 0; });
+    renderEq(); applyState();
+  });
   document.getElementById("rk-q").addEventListener("input", function (e) {
     state.q = parseFloat(e.target.value); applyState();
   });
