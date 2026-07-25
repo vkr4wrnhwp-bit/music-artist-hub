@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0d0c0a">
+  <link rel="apple-touch-icon" href="/static/img/icon-192.png">
+  <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Royalty Sweep by Street Banker{% endblock %}</title>

@@ -3957,3 +3957,21 @@ def test_label_roster():
               if m["email"] == "signee@example.net"][0]
     label.post("/roster/%s/remove" % member["id"])
     assert store_mod.get_roster_member(lid, uid) is None
+
+
+def test_pwa_install_surface():
+    import json as _json
+    app_obj = create_app()
+    anon = app_obj.test_client()
+    sw = anon.get("/sw.js")
+    assert sw.status_code == 200 and b"addEventListener" in sw.data
+    man = anon.get("/static/manifest.json")
+    assert man.status_code == 200
+    data = _json.loads(man.data)
+    assert data["name"] == "Street Banker" and data["display"] == "standalone"
+    assert anon.get("/static/img/icon-512.png").status_code == 200
+    assert anon.get("/static/offline.html").status_code == 200
+    home = anon.get("/").get_data(as_text=True)
+    assert 'rel="manifest"' in home and "serviceWorker" in home
+    dash = _demo(app_obj).get("/command-center").get_data(as_text=True)
+    assert 'rel="manifest"' in dash

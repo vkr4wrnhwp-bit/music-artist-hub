@@ -1847,7 +1847,7 @@ def create_app():
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/roster/join/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
-                     "/terms", "/privacy"}
+                     "/terms", "/privacy", "/sw.js"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -2685,6 +2685,14 @@ def create_app():
             return jsonify({"ok": False}), 401
         store.save_rack_preset(user["id"], request.get_json(silent=True) or {})
         return jsonify({"ok": True})
+
+    @app.route("/sw.js")
+    def service_worker():
+        # Served from the root so the worker's scope covers the whole app.
+        from flask import send_from_directory
+        resp = send_from_directory(os.path.join(app.static_folder, "js"), "sw.js")
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
 
     @app.route("/stage-plot")
     def stage_plot():
