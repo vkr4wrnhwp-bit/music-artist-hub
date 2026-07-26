@@ -246,6 +246,7 @@ def get_landing_config():
             "bare": True,
             "center_buttons": True,
             "buttons_below": [
+                {"label": "Explore Royalty Sweep", "href": "/recovery", "variant": "primary"},
                 {"label": "See Your Connections", "href": "/connections", "variant": "outline-dark"},
             ],
         },
