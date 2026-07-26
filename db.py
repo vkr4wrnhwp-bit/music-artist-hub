@@ -186,6 +186,16 @@ def init_db():
                 created TEXT NOT NULL,
                 UNIQUE(label_id, email)
             );
+            CREATE TABLE IF NOT EXISTS os_tracks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                release_title TEXT NOT NULL DEFAULT '',
+                release_date TEXT NOT NULL DEFAULT '',
+                passport TEXT NOT NULL DEFAULT '{}',
+                lockbox TEXT NOT NULL DEFAULT '{}',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -1200,6 +1210,60 @@ def referral_stats(referrer_id):
             "SELECT COUNT(*) AS n FROM users WHERE referred_by = ? AND ref_credited = 1",
             (referrer_id,)).fetchone()["n"]
     return {"signups": signups, "converted": converted}
+
+
+def _os_track_dict(row):
+    d = dict(row)
+    d["passport"] = json.loads(d.get("passport") or "{}")
+    d["lockbox"] = json.loads(d.get("lockbox") or "{}")
+    return d
+
+
+def add_os_track(user_id, title, release_title="", release_date=""):
+    track_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO os_tracks (id, user_id, title, release_title,"
+            " release_date, created) VALUES (?,?,?,?,?,?)",
+            (track_id, user_id, title[:120], release_title[:120],
+             release_date[:10], _now()))
+    return track_id
+
+
+def list_os_tracks(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM os_tracks WHERE user_id = ? ORDER BY created DESC",
+            (user_id,)).fetchall()
+    return [_os_track_dict(r) for r in rows]
+
+
+def get_os_track(user_id, track_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM os_tracks WHERE id = ? AND user_id = ?",
+                         (track_id, user_id)).fetchone()
+    return _os_track_dict(row) if row else None
+
+
+def update_os_track_passport(user_id, track_id, passport):
+    with get_db() as db:
+        cur = db.execute("UPDATE os_tracks SET passport = ? WHERE id = ? AND user_id = ?",
+                         (json.dumps(passport), track_id, user_id))
+    return cur.rowcount > 0
+
+
+def update_os_track_lockbox(user_id, track_id, lockbox):
+    with get_db() as db:
+        cur = db.execute("UPDATE os_tracks SET lockbox = ? WHERE id = ? AND user_id = ?",
+                         (json.dumps(lockbox), track_id, user_id))
+    return cur.rowcount > 0
+
+
+def delete_os_track(user_id, track_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM os_tracks WHERE id = ? AND user_id = ?",
+                         (track_id, user_id))
+    return cur.rowcount > 0
 
 
 def add_roster_invite(label_id, email):

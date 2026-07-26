@@ -4061,3 +4061,85 @@ def test_light_studio():
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     assert store_mod.get_light_show(uid)["bars"] == 10
     assert "DEVORA set" in artist.get("/lights").get_data(as_text=True)
+
+
+def test_artist_os_engines():
+    import artist_os
+    # Empty passport: criticals red, rest yellow, overall red.
+    track = {"id": "t1", "title": "Night Drive", "passport": {}, "lockbox": {}}
+    rep = artist_os.passport_report(track)
+    assert rep["overall"] == "red" and rep["pct"] == 0
+    crit = [i for i in rep["items"] if i["critical"]]
+    assert crit and all(i["state"] == "red" for i in crit)
+    # Positive words go green; "pending" holds yellow; "blocked" goes red.
+    assert artist_os.field_state("mlc_status", "Registered", False) == "green"
+    assert artist_os.field_state("mlc_status", "pending", False) == "yellow"
+    assert artist_os.field_state("sample_clearance", "blocked", True) == "red"
+    # Clean Release: empty track is blocked (critical reds present).
+    ctx = {"statement_rows": 0, "statement_total": 0, "lanes_with_data": set(),
+           "live_links": 0, "fans": 0, "club_members": 0, "sync_active": False,
+           "release_scheduled": False, "rollout_assets": False}
+    clean = artist_os.clean_release(track, ctx)
+    assert clean["blocked"] and clean["score"] < 60
+    # Fill everything positive -> green passport, unblocked, high score.
+    full = {k: "cleared n/a signed registered"
+            for k, _l, _c, _f in artist_os.PASSPORT_FIELDS}
+    full.update({"audio_ok": "1", "artwork_ok": "1"})
+    box = {d[0]: {"not_applicable": True} for d in artist_os.LOCKBOX_DOCS}
+    track2 = {"id": "t2", "title": "Clean Song", "passport": full, "lockbox": box}
+    rep2 = artist_os.passport_report(track2)
+    assert rep2["overall"] == "green" and rep2["pct"] == 100
+    clean2 = artist_os.clean_release(track2, dict(ctx, live_links=1, fans=5))
+    assert not clean2["blocked"] and clean2["score"] >= 80
+    caps = artist_os.lockbox_report(track2)["caps"]
+    assert caps["release"] and caps["sync"]
+    # Lanes: estimates only exist when statements exist.
+    lanes_dry = artist_os.lane_grid(track, ctx)
+    assert all(l["estimate"] is None for l in lanes_dry)
+    lanes_paid = artist_os.lane_grid(track, dict(ctx, statement_rows=10,
+                                                 statement_total=1000.0))
+    mech = [l for l in lanes_paid if l["key"] == "mechanicals"][0]
+    assert mech["estimate"] == 60.0 and "your own statement" in mech["estimate_basis"]
+    # Action queue: critical rights first.
+    q = artist_os.action_queue([(track, dict(ctx, statement_total=1000.0,
+                                             statement_rows=10))])
+    assert q and q[0]["critical"] and q[0]["urgency"] == "release-blocking"
+    assert any(a["impact"] for a in q)
+    # Certification climbs only on real signals.
+    assert artist_os.certification({"tracks": 0})["level"] == "Unranked"
+    assert artist_os.certification({"tracks": 2, "passport_avg": 95, "clean_avg": 92,
+                                    "lanes_connected": 6, "fans": 50,
+                                    "lockbox_ready": 2, "reds": 0,
+                                    "statement_rows": 12})["level"] == "Upstream Ready"
+
+
+def test_artist_os_tracks_flow():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    page = artist.get("/tracks").get_data(as_text=True)
+    assert "Track Passports" in page and "Street Banker Certified" in page
+    artist.post("/tracks/add", data={"title": "Night Drive OS",
+                                     "release_title": "Midnight EP",
+                                     "release_date": "2026-10-30"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    track = [t for t in store_mod.list_os_tracks(uid)
+             if t["title"] == "Night Drive OS"][0]
+    detail = artist.get("/tracks/%s" % track["id"]).get_data(as_text=True)
+    assert "Metadata Passport" in detail and "Rights Lockbox" in detail
+    assert "Release blocked" in detail or "blocked" in detail
+    # Save a fully positive passport -> state flips green on the page.
+    import artist_os
+    form = {k: "registered / cleared / signed"
+            for k, _l, _c, _f in artist_os.PASSPORT_FIELDS}
+    form.update({"audio_ok": "1", "artwork_ok": "1"})
+    artist.post("/tracks/%s/passport" % track["id"], data=form)
+    detail = artist.get("/tracks/%s" % track["id"]).get_data(as_text=True)
+    assert "Passport green" in detail and "100%" in detail
+    # Stranger can't see it; delete works.
+    stranger = app_obj.test_client()
+    stranger.post("/signup", data={"name": "S3", "email": "os-stranger@example.net",
+                                   "password": "strange3"})
+    assert stranger.get("/tracks/%s" % track["id"]).status_code == 404
+    artist.post("/tracks/%s/delete" % track["id"])
+    assert store_mod.get_os_track(uid, track["id"]) is None

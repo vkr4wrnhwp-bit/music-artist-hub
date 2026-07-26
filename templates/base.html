@@ -129,6 +129,7 @@
             ('links', '/links', 'M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1', 'Smart Links'),
             ('rollout', '/rollout-studio', 'M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4', 'Rollout Studio'),
             ('epk', '/epk', 'M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12h6M7 15h3', 'Press Kit'),
+            ('tracks', '/tracks', 'M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h4', 'Track Passports'),
             ('fan-club-admin', '/fan-club', 'M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z|M10 8v2', 'Fan Club'),
             ('tour', '/tour', 'M3 5h14v11H3z|M3 9h14|M7 3v4|M13 3v4', 'Tour Hub'),
             ('stage-plot', '/stage-plot', 'M4 4h12v8H4z|M2 16h16|M7 12v4|M13 12v4', 'Stage Plot'),
@@ -153,7 +154,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster', 'referrals', 'lights'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster', 'referrals', 'lights', 'tracks'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],

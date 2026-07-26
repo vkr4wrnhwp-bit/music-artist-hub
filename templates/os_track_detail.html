@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{{ track.title }} - Track Passport - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <a href="/tracks" class="text-[11px] font-bold text-gray-500 hover:text-[#e8c667]">← Track Passports</a>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ track.title }}</h1>
+      <p class="mt-0.5 text-sm text-gray-400">{{ track.release_title }}{% if track.release_date %} · {{ track.release_date }}{% endif %}</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide {{ 'border-red-500/40 bg-red-500/10 text-red-400' if passport.overall == 'red' else 'border-amber-500/40 bg-amber-500/10 text-amber-400' if passport.overall == 'yellow' else 'border-green-500/40 bg-green-500/10 text-green-400' }}">Passport {{ passport.overall }} · {{ passport.pct }}%</span>
+      <form method="post" action="/tracks/{{ track.id }}/delete" onsubmit="return confirm('Remove this track and its passport?')">
+        <button class="rounded-lg border border-white/15 px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:border-red-500/40 hover:text-red-400">Remove</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <!-- Passport editor -->
+    <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Metadata Passport</h2>
+      <p class="mt-1 text-xs text-gray-500">Green = release-ready. Yellow = incomplete but fixable. Red = rights issue blocking release. Words like "registered", "cleared", "signed", "n/a" go green; "pending" holds yellow; "blocked" or "unresolved" goes red.</p>
+      <form method="post" action="/tracks/{{ track.id }}/passport" class="mt-4 grid gap-2.5 sm:grid-cols-2">
+        {% for item in passport['items'] %}
+        <div>
+          <label class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+            <span class="h-2 w-2 rounded-full {{ 'bg-red-500' if item.state == 'red' else 'bg-amber-400' if item.state == 'yellow' else 'bg-green-500' }}"></span>
+            {{ item.label }}{% if item.critical %} <span class="text-red-400/70" title="Rights-critical">*</span>{% endif %}
+            {% if item.state != 'green' and item.fix %}
+            <a href="{{ item.fix }}" class="ml-auto rounded border border-[#c9a24a]/40 px-1.5 py-0.5 text-[9px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Fix this</a>
+            {% endif %}
+          </label>
+          <input name="{{ item.key }}" value="{{ item.value }}"
+                 class="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none {{ 'border-red-500/40 bg-red-500/[0.06] focus:border-red-400' if item.state == 'red' else 'border-white/15 bg-black/40 focus:border-[#c9a24a]' }}">
+        </div>
+        {% endfor %}
+        <label class="flex items-center gap-2 text-xs font-bold text-gray-300"><input type="checkbox" name="audio_ok" value="1" {{ 'checked' if track.passport.get('audio_ok') }} class="h-4 w-4 accent-[#c9a24a]">Audio quality confirmed (final master checked)</label>
+        <label class="flex items-center gap-2 text-xs font-bold text-gray-300"><input type="checkbox" name="artwork_ok" value="1" {{ 'checked' if track.passport.get('artwork_ok') }} class="h-4 w-4 accent-[#c9a24a]">Artwork specs confirmed (3000×3000, rights cleared)</label>
+        <div class="sm:col-span-2">
+          <button class="rounded-lg bg-[#d8b25a] px-5 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Save Passport</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Right rail -->
+    <div class="space-y-5">
+      <!-- Clean Release -->
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Clean Release</h2>
+          <span class="text-xl font-black tabular-nums {{ 'text-red-400' if clean.blocked else 'text-[#e8c667]' }}">{{ clean.score }}</span>
+        </div>
+        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div class="h-full rounded-full {{ 'bg-red-500' if clean.blocked else 'bg-gradient-to-r from-[#a37c2a] to-[#e8c667]' }}" style="width: {{ clean.score }}%"></div>
+        </div>
+        {% if clean.blocked %}
+        <p class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">Release blocked — a rights-critical item is red. Fix it in the passport or lockbox before this track ships.</p>
+        {% endif %}
+        <div class="mt-3 space-y-1">
+          {% for item in clean['items'] %}
+          <div class="flex items-center gap-2 text-[11px] {{ 'text-gray-300' if item.state == 'green' else 'text-gray-500' }}">
+            <span class="{{ 'text-green-400' if item.state == 'green' else 'text-red-400' if item.state == 'red' else 'text-amber-400' }}">{{ '✓' if item.state == 'green' else '✕' if item.state == 'red' else '○' }}</span>
+            {{ item.label }}{% if item.critical %}<span class="text-red-400/60">*</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Royalty lanes -->
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Royalty Lanes</h2>
+        <div class="mt-3 space-y-1.5">
+          {% for lane in lanes %}
+          <div class="flex items-center gap-2 text-[11px]">
+            <span class="w-2 h-2 shrink-0 rounded-full {{ 'bg-green-500' if lane.state == 'connected' else 'bg-blue-400' if lane.state in ('in review', 'claimed') else 'bg-gray-600' if lane.state == 'not eligible' else 'bg-amber-400' }}"></span>
+            <span class="min-w-0 flex-1 truncate text-gray-300">{{ lane.label }}</span>
+            <span class="shrink-0 uppercase text-[9px] font-bold {{ 'text-green-400' if lane.state == 'connected' else 'text-gray-500' }}">{{ lane.state }}</span>
+            {% if lane.estimate %}<span class="shrink-0 text-[10px] tabular-nums text-[#e8c667]" title="Estimate sized from {{ lane.estimate_basis }}">~${{ '%.2f' % lane.estimate }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <p class="mt-2 text-[10px] text-gray-600">Estimates only appear where your own statements give a basis — lanes with no data say so.</p>
+      </section>
+
+      <!-- Lockbox -->
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Rights Lockbox</h2>
+        <div class="mt-3 space-y-1.5">
+          {% for doc in lockbox.docs %}
+          <div class="flex items-center gap-2 text-[11px]">
+            <span class="min-w-0 flex-1 truncate text-gray-300">{{ doc.label }}{% if doc.required %}<span class="text-red-400/60">*</span>{% endif %}</span>
+            <span class="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase {{ 'border-green-500/30 text-green-400' if doc.state in ('ready', 'n/a') else 'border-red-500/30 text-red-400' if doc.state == 'declined' else 'border-amber-500/30 text-amber-400' }}">{{ doc.state }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 grid grid-cols-4 gap-1 border-t border-white/5 pt-3 text-center">
+          {% for cap, ok in lockbox.caps.items() %}
+          <div><div class="text-sm {{ 'text-green-400' if ok else 'text-gray-600' }}">{{ '●' if ok else '○' }}</div><div class="text-[8px] uppercase tracking-wide text-gray-600">{{ cap }}</div></div>
+          {% endfor %}
+        </div>
+        <p class="mt-2 text-[10px] text-gray-600">Uploads and collaborator sign-off land in Phase 2 — states here already read the real lockbox record.</p>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

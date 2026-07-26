@@ -11,6 +11,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
 import touring
+import artist_os
 from statements_engine import (analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
@@ -2582,6 +2583,117 @@ def create_app():
                                campaigns=campaigns[:8], shows=shows[:8],
                                store_url=data.get("store_url", ""),
                                merch=data.get("merch", []))
+
+    # --- Artist OS spine: tracks + engines ----------------------------------------
+
+    def _os_ctx(user_id):
+        """Real account signals only — every key names where it came from."""
+        rows = store.get_statement_rows(user_id)
+        campaigns = [c for c in mls.list_campaigns(user_id)
+                     if c["status"] == "live" and not c.get("archived_at")]
+        return {
+            "statement_rows": len(rows),
+            "statement_total": round(sum(r["amount"] for r in rows), 2),
+            "lanes_with_data": set(),          # wired in Phase 3 (lane classifier)
+            "live_links": len(campaigns),
+            "fans": len(mls.list_fans(user_id)),
+            "club_members": len([m for m in store.list_club_members(user_id)
+                                 if m["status"] == "active"]),
+            "sync_active": False,              # wired in Phase 3
+            "release_scheduled": False,        # wired in Phase 4 (Autopilot)
+            "rollout_assets": False,           # wired in Phase 4
+        }
+
+    def _os_summary(user_id, tracks, ctx):
+        if not tracks:
+            return {"tracks": 0, "passport_avg": 0, "clean_avg": 0, "reds": 0,
+                    "lanes_connected": 0, "lockbox_ready": 0,
+                    "fans": ctx["fans"], "statement_rows": ctx["statement_rows"]}
+        reports = [artist_os.passport_report(t) for t in tracks]
+        cleans = [artist_os.clean_release(t, ctx) for t in tracks]
+        boxes = [artist_os.lockbox_report(t) for t in tracks]
+        lanes = artist_os.lane_grid(tracks[0], ctx)
+        return {
+            "tracks": len(tracks),
+            "passport_avg": round(sum(r["pct"] for r in reports) / len(reports)),
+            "clean_avg": round(sum(c["score"] for c in cleans) / len(cleans)),
+            "reds": sum(r["reds"] for r in reports),
+            "lanes_connected": len([l for l in lanes if l["state"] == "connected"]),
+            "lockbox_ready": len([b for b in boxes if b["caps"]["release"]]),
+            "fans": ctx["fans"], "statement_rows": ctx["statement_rows"],
+        }
+
+    @app.route("/tracks")
+    def os_tracks():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        tracks = store.list_os_tracks(user["id"])
+        ctx = _os_ctx(user["id"])
+        rows = [{"t": t,
+                 "passport": artist_os.passport_report(t),
+                 "clean": artist_os.clean_release(t, ctx),
+                 "caps": artist_os.lockbox_report(t)["caps"]}
+                for t in tracks]
+        summary = _os_summary(user["id"], tracks, ctx)
+        return render_template("os_tracks.html", active_page="tracks",
+                               rows=rows, cert=artist_os.certification(summary),
+                               summary=summary,
+                               **build_dashboard_context())
+
+    @app.route("/tracks/add", methods=["POST"])
+    def os_tracks_add():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        title = (request.form.get("title") or "").strip()
+        if title:
+            store.add_os_track(user["id"], title,
+                               (request.form.get("release_title") or "").strip(),
+                               (request.form.get("release_date") or "").strip())
+        return redirect("/tracks")
+
+    @app.route("/tracks/<track_id>")
+    def os_track_detail(track_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None:
+            abort(404)
+        ctx = _os_ctx(user["id"])
+        return render_template("os_track_detail.html", active_page="tracks",
+                               track=track,
+                               passport=artist_os.passport_report(track),
+                               clean=artist_os.clean_release(track, ctx),
+                               lanes=artist_os.lane_grid(track, ctx),
+                               lockbox=artist_os.lockbox_report(track),
+                               fields=artist_os.PASSPORT_FIELDS,
+                               **build_dashboard_context())
+
+    @app.route("/tracks/<track_id>/passport", methods=["POST"])
+    def os_track_passport(track_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None:
+            abort(404)
+        passport = track["passport"]
+        for key, _label, _crit, _fix in artist_os.PASSPORT_FIELDS:
+            passport[key] = (request.form.get(key) or "").strip()[:200]
+        for extra in ("audio_ok", "artwork_ok"):
+            passport[extra] = "1" if request.form.get(extra) else ""
+        store.update_os_track_passport(user["id"], track_id, passport)
+        return redirect("/tracks/" + track_id)
+
+    @app.route("/tracks/<track_id>/delete", methods=["POST"])
+    def os_track_delete(track_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_os_track(user["id"], track_id)
+        return redirect("/tracks")
 
     # --- Tour Hub + Stage Plot ---------------------------------------------------
 
