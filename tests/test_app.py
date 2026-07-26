@@ -98,17 +98,26 @@ def test_landing_page_includes_trust_strip():
     assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" in body
 
 
-def test_landing_includes_lanes_and_engine():
-    """The keeper homepage: white-luxury shell, three lanes, dark engine.
-    The pillar wall and image slots were reverted by user request."""
+def test_landing_includes_lanes_engine_and_pillars():
     body = _demo().get("/").get_data(as_text=True)
+    # Lanes section renders (headline lives in the graphic when an image is set).
     assert 'id="infrastructure"' in body
-    assert "THREE LANES. ONE INFRASTRUCTURE." in body
     assert "Explore The Three Lanes" in body
     assert "THE RECOVERY ENGINE" in body
-    # None of the reverted era leaks back in.
-    assert "Everything Street Banker Is" not in body
-    assert "hero-banner" not in body and "three-lanes.png" not in body
+    # Pillar sections (one per part of the ecosystem) replaced the thin list.
+    assert "Everything Street Banker Is" in body
+    assert "Music Distribution" in body
+    assert "The Industry Network" in body
+
+
+def test_landing_pillars_config():
+    from landing_config import get_landing_config
+    pillars = get_landing_config()["pillars"]
+    assert len(pillars) >= 5
+    # Every pillar links at a real route or on-page target.
+    for p in pillars:
+        assert p["cta"]["href"].startswith("/")
+        assert p["visual"]["type"] in {"stats", "cards", "avatars", "tiles"}
 
 
 def test_scan_recovery_summary_route():
@@ -3708,16 +3717,13 @@ def test_backup_download(monkeypatch):
 
 
 def test_homepage_distribution_links():
-    # Keeper homepage routes into the funnel via /services and /submit;
-    # the distribution signup itself lives one hop away on /services.
     app_obj = create_app()
-    client = app_obj.test_client()
-    home = client.get("/").get_data(as_text=True)
-    assert 'href="/services' in home
+    home = app_obj.test_client().get("/").get_data(as_text=True)
+    # Nav, hero, and the distribution pillar all route into the signup funnel.
+    assert 'href="/services/distribution"' in home
+    assert "Distribute Your Music" in home
+    assert "Sign Up for Distribution" in home
     assert 'href="/submit"' in home
-    services = client.get("/services").get_data(as_text=True)
-    assert 'href="/services/distribution"' in services
-    assert client.get("/services/distribution").status_code == 200
 
 
 def test_tour_hub():
