@@ -74,6 +74,7 @@
   var ctx = null, buffer = null, playing = null;
   var live = null;
   var loadedName = "";
+  var refBuffer = null, refMode = false, refSpec = null;
 
   // ---------- chain ----------
   function tubeCurve(drive, bias) {
@@ -704,6 +705,7 @@
   var playT0 = 0, playOffset = 0;
 
   function duration() {
+    if (refMode && refBuffer) return refBuffer.duration;
     if (stems.length) {
       return Math.max.apply(null, stems.map(function (s) { return s.buffer.duration; }));
     }
@@ -714,6 +716,27 @@
     ensureCtx().resume();
     var loop = document.getElementById("rk-loop").checked;
     offset = Math.max(0, Math.min(offset || 0, Math.max(0, duration() - 0.05)));
+    if (refMode && refBuffer) {
+      // Reference plays completely untouched — straight to the speakers.
+      var rsrc = ctx.createBufferSource();
+      rsrc.buffer = refBuffer;
+      rsrc.loop = loop;
+      rsrc.connect(live.dry);
+      rsrc.onended = function () { if (playing === rsrc) stop(); };
+      live.dry.gain.value = 1; live.wet.gain.value = 0;
+      rsrc.start(0, offset);
+      playing = rsrc;
+      playT0 = ctx.currentTime;
+      playOffset = offset;
+      playBtn.textContent = "Stop";
+      scopeLamp.classList.add("grn");
+      return;
+    }
+    // Leaving ref mode: restore the wet/dry split to the bypass setting.
+    if (live) {
+      live.wet.gain.value = state.bypass ? 0 : 1;
+      live.dry.gain.value = state.bypass ? 1 : 0;
+    }
     if (stems.length) {
       var t0 = ctx.currentTime + 0.06;
       var sources = [];
@@ -763,6 +786,38 @@
     if (playing) { stop(); return; }
     startPlayback(0);
   });
+  // Hold either bypass button to hear the raw file for as long as you hold;
+  // release snaps back to your processed chain. A quick click still toggles.
+  function attachHoldCompare(btn) {
+    var holdT = null, held = false, prev = false;
+    btn.addEventListener("pointerdown", function () {
+      if (btn.disabled) return;
+      holdT = setTimeout(function () {
+        held = true;
+        prev = state.bypass;
+        state.bypass = true;
+        applyState();
+        btn.classList.add("sw-lit");
+        abBtn.textContent = "Bypass: HOLDING (raw)";
+      }, 300);
+    });
+    function release() {
+      clearTimeout(holdT);
+      if (held) {
+        state.bypass = prev;
+        applyState();
+        btn.classList.toggle("sw-lit", state.bypass);
+        abBtn.textContent = "Bypass: " + (state.bypass ? "ON (raw)" : "OFF");
+      }
+    }
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
+    btn.addEventListener("click", function (e) {
+      if (held) { e.stopImmediatePropagation(); e.preventDefault(); held = false; }
+    }, true);
+  }
+  attachHoldCompare(abBtn);
+
   abBtn.addEventListener("click", function () {
     state.bypass = !state.bypass;
     abBtn.textContent = "Bypass: " + (state.bypass ? "ON (raw)" : "OFF");
@@ -1010,6 +1065,7 @@
       dockExp = document.getElementById("rk-export2");
   if (dockPlay) dockPlay.addEventListener("click", function () { playBtn.click(); });
   if (dockAb) dockAb.addEventListener("click", function () { abBtn.click(); });
+  if (dockAb) attachHoldCompare(dockAb);
   if (dockExp) dockExp.addEventListener("click", function () { exportBtn.click(); });
 
   // ---------- SB-11 snippet finder: real energy scan, honest hooks ----------
@@ -1184,6 +1240,76 @@
         (facts.length ? " — " + facts.join(" · ") : ""));
   });
 
+  // ---------- reference track: A/B against a commercial mix ----------
+  var refFileInput = document.getElementById("rk-ref-file");
+  var refBtn = document.getElementById("rk-ref");
+  if (refFileInput) refFileInput.addEventListener("change", function () {
+    var f = refFileInput.files[0];
+    if (!f) return;
+    ensureCtx().resume();
+    f.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
+      .then(function (buf) {
+        refBuffer = buf;
+        refSpec = null;
+        refBtn.disabled = false;
+        refBtn.textContent = "REF: " + f.name.replace(/\.[^.]+$/, "").slice(0, 14);
+        statusEl.textContent = "Reference loaded — toggle REF to A/B against it.";
+      })
+      .catch(function () { statusEl.textContent = "Couldn't decode the reference."; });
+  });
+  if (refBtn) refBtn.addEventListener("click", function () {
+    if (!refBuffer) return;
+    var wasPlaying = !!playing;
+    var pos = playPos();
+    if (playing) stop();
+    refMode = !refMode;
+    refBtn.classList.toggle("sw-lit", refMode);
+    if (wasPlaying) startPlayback(Math.min(pos, Math.max(0, duration() - 0.1)));
+  });
+
+  // ---------- rig export / import (shareable JSON) ----------
+  var rigExp = document.getElementById("rk-rig-export");
+  var rigImp = document.getElementById("rk-rig-import");
+  if (rigExp) rigExp.addEventListener("click", function () {
+    var rig = JSON.parse(JSON.stringify(state));
+    delete rig.bypass;
+    var a = document.createElement("a");
+    a.download = "streetbanker-rig.json";
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(rig, null, 2)],
+                                          {type: "application/json"}));
+    a.click();
+    statusEl.textContent = "Rig exported — send the file to a collaborator.";
+  });
+  if (rigImp) rigImp.addEventListener("change", function () {
+    var f = rigImp.files[0];
+    if (!f) return;
+    f.text().then(function (txt) {
+      var rig = JSON.parse(txt);
+      if (!rig || !Array.isArray(rig.eq) || rig.eq.length !== EQ_BANDS.length) {
+        statusEl.textContent = "That file isn't a Street Banker rig.";
+        return;
+      }
+      rig.bypass = state.bypass;
+      state = rig;
+      ensureFx(state);
+      if (!state.mods) state.mods = {};
+      syncAll(); applyState(); resetCompare();
+      statusEl.textContent = "Rig loaded.";
+    }).catch(function () { statusEl.textContent = "Couldn't read that rig file."; });
+    rigImp.value = "";
+  });
+
+  // ---------- signal-flow strip: click a node, jump to the module ----------
+  document.querySelectorAll(".flow-node").forEach(function (node) {
+    node.addEventListener("click", function () {
+      var target = document.querySelector(node.dataset.target);
+      if (!target) return;
+      target.scrollIntoView({behavior: "smooth", block: "center"});
+      target.classList.add("flow-flash");
+      setTimeout(function () { target.classList.remove("flow-flash"); }, 1600);
+    });
+  });
+
   // ---------- focus mode: hide the app sidebar while dialing in ----------
   var focusBtn = document.getElementById("rk-focus");
   var sideEl = document.querySelector("aside");
@@ -1278,6 +1404,27 @@
       g.fillText(f >= 1000 ? (f / 1000) + "k" : f, x + 3, 16);
     });
 
+    if (freqData && playing && refMode) {
+      // Accumulate the reference's spectral ceiling while it plays.
+      if (!refSpec) refSpec = new Float32Array(freqData.length);
+      for (var rb = 0; rb < freqData.length; rb++) {
+        if (freqData[rb] > refSpec[rb]) refSpec[rb] = freqData[rb];
+      }
+    }
+    if (refSpec && binHz) {
+      // Reference trace: dashed cyan ceiling accumulated from the ref track.
+      g.beginPath();
+      for (var rpx = GUT; rpx <= w - 10; rpx += 3) {
+        var rf = FMIN * Math.pow(FMAX / FMIN, (rpx - GUT) / (w - GUT - 10));
+        var rbin = Math.min(refSpec.length - 1, Math.round(rf / binHz));
+        var rv = refSpec[rbin] / 255;
+        var ry = lanesTop - 8 - rv * (lanesTop - 34);
+        rpx === GUT ? g.moveTo(rpx, ry) : g.lineTo(rpx, ry);
+      }
+      g.setLineDash([3, 3]);
+      g.strokeStyle = "rgba(103,232,249,0.55)"; g.lineWidth = 1; g.stroke();
+      g.setLineDash([]);
+    }
     if (freqData && playing) {
       g.beginPath();
       for (var px = GUT; px <= w - 10; px += 2) {
@@ -1602,7 +1749,15 @@
                        setLane: function (i) { selLane = i; syncZoneUI(); },
                        lanes: LANES, applyState: applyState,
                        seek: seek, playPos: playPos, duration: duration,
-                       renderWave: renderWave, bands: EQ_BANDS};
+                       renderWave: renderWave, bands: EQ_BANDS,
+                       refState: function () {
+                         return {loaded: !!refBuffer, mode: refMode,
+                                 spec: !!refSpec};
+                       },
+                       setRef: function (buf) {
+                         refBuffer = buf; refSpec = null;
+                         if (refBtn) refBtn.disabled = false;
+                       }};
   syncAll();
   renderStems();
   updateGlow();

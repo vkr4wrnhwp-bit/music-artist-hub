@@ -59,6 +59,9 @@
              box-shadow: 0 20px 60px rgba(0,0,0,0.75); color: #d8cdb4; }
   .slot { position: absolute; display: flex; align-items: center; }
   .mods { display: flex; flex-direction: column; gap: 3px; margin-left: auto; }
+  .flow-flash { outline: 2px solid #e8c667; outline-offset: 3px; border-radius: 8px;
+                transition: outline-color 1.2s; }
+  .rk-cmp.sw-lit { box-shadow: inset 0 0 8px rgba(216,178,90,0.35), 0 0 10px rgba(216,178,90,0.45); }
   /* A/B jewel LEDs: which snapshot each unit is playing right now */
   .rk-ledwrap { display: flex; gap: 4px; justify-content: center; }
   .rk-ledwrap b { font-size: 7px; font-weight: 900; color: #4a4234; line-height: 1; }
@@ -77,6 +80,13 @@
       <button id="rk-focus" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide">Focus mode</button>
       <span class="chip">SB-1200 SERIES</span>
     </div>
+  </div>
+
+  <!-- Signal flow: click a node to jump to that stage of the chain -->
+  <div class="mx-auto flex w-full max-w-[760px] flex-wrap items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-500">
+    {% for target, label in [('.chassis', 'Screen'), ('.chassis', 'TS-1 Tube'), ('.chassis', 'SUB-1'), ('.chassis', 'EQ-12'), ('.chassis', 'DYN-1'), ('#sb08', 'Cab & Mic'), ('#sb09', 'FX'), ('#sb10', 'Stems')] %}
+    <button type="button" class="flow-node rounded border border-white/10 px-2 py-1 transition-colors hover:border-[#c9a24a]/50 hover:text-[#e8c667]" data-target="{{ target }}">{{ label }}</button>{% if not loop.last %}<span class="text-[#8a6d1f]">→</span>{% endif %}
+    {% endfor %}
   </div>
 
   <!-- Zone trim: appears when an instrument band on the screen is clicked -->
@@ -249,7 +259,7 @@
   <!-- Companion units -->
   <div class="space-y-0">
     <!-- SB-08 Cab & Mic -->
-    <section class="u u-dark">
+    <section id="sb08" class="u u-dark">
       <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
       <div class="mb-2.5 flex flex-wrap items-center gap-3">
         <span class="chip">SB-08</span>
@@ -285,7 +295,7 @@
     </section>
 
     <!-- SB-09 FX -->
-    <section class="u u-silver">
+    <section id="sb09" class="u u-silver">
       <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
       <div class="grid gap-4 lg:grid-cols-2">
         <div>
@@ -329,7 +339,7 @@
     </section>
 
     <!-- SB-10 Stem Deck -->
-    <section class="u u-dark">
+    <section id="sb10" class="u u-dark">
       <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
       <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3">
@@ -367,6 +377,10 @@
       <button data-preset="vocal" class="rk-preset sw px-3 py-1.5 text-[11px]">Vocal Forward</button>
       <button data-preset="bass" class="rk-preset sw px-3 py-1.5 text-[11px]">Bass Tight</button>
       <button data-preset="guitar" class="rk-preset sw px-3 py-1.5 text-[11px]">Guitar Rig</button>
+      <span class="ml-auto flex gap-1.5">
+        <button id="rk-rig-export" class="sw px-3 py-1.5 text-[11px] text-[#e8c667]" title="Download this whole chain as a JSON rig file to share">Export rig</button>
+        <label class="sw cursor-pointer px-3 py-1.5 text-[11px]" title="Load a rig file from a collaborator">Import rig<input id="rk-rig-import" type="file" accept="application/json,.json" class="hidden"></label>
+      </span>
     </section>
   </div>
   <!-- Sticky transport dock: play, scrub, bypass, level — always in reach -->
@@ -381,11 +395,15 @@
       <button id="rk-ab2" class="sw px-3 py-1.5 text-[10px]" disabled>Bypass: OFF</button>
       <button id="rk-export2" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] sm:block" disabled>Export</button>
       <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
+      <label class="sw hidden cursor-pointer px-2.5 py-1.5 text-[10px] md:block" title="Load a commercial reference track to A/B against — it plays untouched">
+        Load ref<input id="rk-ref-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="rk-ref" class="sw hidden px-2.5 py-1.5 text-[10px] md:block" title="Toggle between your chain and the untouched reference — the dashed cyan trace on the screen is the reference's accumulated spectrum" disabled>REF</button>
     </div>
   </div>
   <div class="h-14"></div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=7"></script>
+<script src="/static/js/rackdsp.js?v=8"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

@@ -3902,7 +3902,10 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=7" in page
+    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=8" in page
+    # v3 workflow layer: flow strip, reference slot, shareable rigs
+    assert 'class="flow-node' in page and 'id="rk-ref"' in page
+    assert 'id="rk-rig-export"' in page and "Import rig" in page
     assert 'data-ksize' in page and 'data-screen' in page
     assert "Harmonic Bank" in page
     # Every module carries power + compare + A/B LEDs; the screen has zone trim.
