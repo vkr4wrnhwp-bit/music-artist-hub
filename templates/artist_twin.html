@@ -106,6 +106,24 @@
       {% endif %}
     </div>
   </div>
+
+  <!-- Strategist Read lives INSIDE the content column — the scripts block
+       renders outside the sidebar layout and must hold scripts only. -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Strategist Read — from your real numbers</h2>
+    <p class="mt-1 text-xs text-gray-500">Every section below reads live account data. Sections without a data source say what unlocks them — nothing is invented.</p>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+      {% for s in strategist %}
+      <div class="rounded-xl border {{ 'border-white/10 bg-black/30' if s.state == 'ready' else 'border-white/5 bg-black/20 opacity-70' }} p-4">
+        <div class="flex items-center gap-2">
+          <span class="h-2 w-2 rounded-full {{ 'bg-green-500' if s.state == 'ready' else 'bg-gray-600' }}"></span>
+          <h3 class="text-[11px] font-bold uppercase tracking-wide {{ 'text-gray-200' if s.state == 'ready' else 'text-gray-500' }}">{{ s.title }}</h3>
+        </div>
+        {% for line in s.lines %}<p class="mt-1.5 text-xs leading-relaxed {{ 'text-gray-300' if s.state == 'ready' else 'text-gray-500' }}">{{ line }}</p>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
 
@@ -165,22 +183,4 @@
     sync();
   })();
 </script>
-
-<div class="mx-auto mt-5 max-w-[1100px]">
-  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
-    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Strategist Read — from your real numbers</h2>
-    <p class="mt-1 text-xs text-gray-500">Every section below reads live account data. Sections without a data source say what unlocks them — nothing is invented.</p>
-    <div class="mt-4 grid gap-3 sm:grid-cols-2">
-      {% for s in strategist %}
-      <div class="rounded-xl border {{ 'border-white/10 bg-black/30' if s.state == 'ready' else 'border-white/5 bg-black/20 opacity-70' }} p-4">
-        <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full {{ 'bg-green-500' if s.state == 'ready' else 'bg-gray-600' }}"></span>
-          <h3 class="text-[11px] font-bold uppercase tracking-wide {{ 'text-gray-200' if s.state == 'ready' else 'text-gray-500' }}">{{ s.title }}</h3>
-        </div>
-        {% for line in s.lines %}<p class="mt-1.5 text-xs leading-relaxed {{ 'text-gray-300' if s.state == 'ready' else 'text-gray-500' }}">{{ line }}</p>{% endfor %}
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-</div>
 {% endblock %}
