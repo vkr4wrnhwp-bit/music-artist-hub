@@ -156,6 +156,36 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS collab_requests (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                genre TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                details TEXT NOT NULL DEFAULT '',
+                terms TEXT NOT NULL DEFAULT '',
+                ref_url TEXT NOT NULL DEFAULT '',
+                closes TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS collab_replies (
+                id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                contact TEXT NOT NULL,
+                proposal TEXT NOT NULL DEFAULT '',
+                ref_url TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS collab_saves (
+                user_id TEXT NOT NULL,
+                request_id TEXT NOT NULL,
+                created TEXT NOT NULL,
+                PRIMARY KEY (user_id, request_id)
+            );
             CREATE TABLE IF NOT EXISTS tour_board (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1090,6 +1120,107 @@ def set_show_share_token(user_id, show_id, token):
         cur = db.execute("UPDATE tour_shows SET share_token = ? WHERE id = ? AND user_id = ?",
                          (token, show_id, user_id))
     return cur.rowcount > 0
+
+
+# --- Collaboration Marketplace ----------------------------------------------------
+
+def add_collab_request(user_id, role, genre, kind, title, details, terms,
+                       ref_url, closes):
+    req_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO collab_requests (id, user_id, role, genre, kind, title,"
+            " details, terms, ref_url, closes, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (req_id, user_id, role[:60], genre[:60], kind, title[:120],
+             details[:1000], terms[:120], ref_url[:300], closes[:10], _now()))
+    return req_id
+
+
+def list_collab_requests(kind=None, role=None, genre=None):
+    """Open requests, newest first, with the poster's name attached."""
+    q = ("SELECT c.*, u.name AS poster_name FROM collab_requests c "
+         "JOIN users u ON u.id = c.user_id WHERE c.status = 'open'")
+    args = []
+    if kind in ("bid", "split", "fun"):
+        q += " AND c.kind = ?"
+        args.append(kind)
+    if role:
+        q += " AND c.role = ?"
+        args.append(role)
+    if genre:
+        q += " AND c.genre = ?"
+        args.append(genre)
+    q += " ORDER BY c.created DESC LIMIT 200"
+    with get_db() as db:
+        rows = db.execute(q, args).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_collab_request(req_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT c.*, u.name AS poster_name FROM collab_requests c "
+            "JOIN users u ON u.id = c.user_id WHERE c.id = ?",
+            (req_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_own_collab_requests(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM collab_requests WHERE user_id = ? "
+            "ORDER BY created DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def close_collab_request(user_id, req_id):
+    with get_db() as db:
+        db.execute("UPDATE collab_requests SET status = 'closed' "
+                   "WHERE id = ? AND user_id = ?", (req_id, user_id))
+
+
+def delete_collab_request(user_id, req_id):
+    with get_db() as db:
+        db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
+                   (req_id, user_id))
+        db.execute("DELETE FROM collab_replies WHERE request_id = ?", (req_id,))
+
+
+def add_collab_reply(req_id, user_id, message, contact, proposal, ref_url):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO collab_replies (id, request_id, user_id, message,"
+            " contact, proposal, ref_url, created) VALUES (?,?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, req_id, user_id, message[:1000], contact[:120],
+             proposal[:120], ref_url[:300], _now()))
+
+
+def list_collab_replies(req_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT r.*, u.name AS applicant_name FROM collab_replies r "
+            "JOIN users u ON u.id = r.user_id WHERE r.request_id = ? "
+            "ORDER BY r.created", (req_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_collab_save(user_id, req_id):
+    """Bookmark toggle -> True when now saved."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM collab_saves WHERE user_id = ? "
+                         "AND request_id = ?", (user_id, req_id))
+        if cur.rowcount:
+            return False
+        db.execute("INSERT INTO collab_saves (user_id, request_id, created) "
+                   "VALUES (?,?,?)", (user_id, req_id, _now()))
+        return True
+
+
+def list_collab_saves(user_id):
+    with get_db() as db:
+        rows = db.execute("SELECT request_id FROM collab_saves WHERE user_id = ?",
+                          (user_id,)).fetchall()
+    return {r["request_id"] for r in rows}
 
 
 def add_board_listing(user_id, kind, title, region, window, genre, details):

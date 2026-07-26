@@ -1197,14 +1197,52 @@ def test_benchmark_uses_real_metrics():
 
 
 def test_marketplace_post_flow():
-    from community_config import reset_marketplace_state
-    reset_marketplace_state()
-    client = _demo()
-    ok = client.post("/marketplace/post", json={"artist": "Me", "need": "Vocalist", "deal_type": "For Fun"})
-    assert ok.status_code == 200 and ok.get_json()["ok"]
-    bad = client.post("/marketplace/post", json={"artist": "", "need": "", "deal_type": "Nope"})
-    assert bad.status_code == 400
-    reset_marketplace_state()
+    """The marketplace is a real db-backed collab board now."""
+    import db as store_mod
+    app_obj = create_app()
+    poster = _demo(app_obj)
+    page = poster.get("/marketplace").get_data(as_text=True)
+    assert "Collab Marketplace" in page and "Nothing here is seeded" in page
+    assert "For Bid" in page and "Royalty Split" in page and "For Fun" in page
+    # Post a real request with terms up front.
+    poster.post("/marketplace/post", data={
+        "kind": "split", "role": "Vocalist", "genre": "Synthwave",
+        "title": "Velvet topline for a midnight cruiser",
+        "details": "90 BPM, minor key.", "terms": "5-15% master",
+        "ref_url": "https://example.com/scratch"})
+    page = poster.get("/marketplace").get_data(as_text=True)
+    assert "Velvet topline" in page and "5-15% master" in page
+    assert "Trust" in page and "Hear the reference track" in page
+    # A second member applies; the poster sees the application + notification.
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    req = store_mod.list_own_collab_requests(uid)[0]
+    applicant = app_obj.test_client()
+    applicant.post("/signup", data={"name": "Top Liner", "email": "topliner@example.net",
+                                    "password": "toplinepass"})
+    # Kind filter tabs actually filter (checked from a non-owner's view —
+    # the poster's own section always lists their requests).
+    assert "Velvet topline" in applicant.get("/marketplace?kind=split").get_data(as_text=True)
+    assert "Velvet topline" not in applicant.get("/marketplace?kind=bid").get_data(as_text=True)
+    r = applicant.post("/marketplace/%s/apply" % req["id"],
+                       data={"message": "I sing airy toplines.",
+                             "contact": "topliner@example.net",
+                             "proposal": "10% master"})
+    assert r.status_code == 302 and "applied=1" in r.headers["Location"]
+    mine = poster.get("/marketplace").get_data(as_text=True)
+    assert "Top Liner" in mine and "10% master" in mine
+    # Applicants can't apply to their own post; saves toggle.
+    own_try = poster.post("/marketplace/%s/apply" % req["id"],
+                          data={"message": "me", "contact": "a@b.c"})
+    assert own_try.status_code == 302
+    assert store_mod.list_collab_replies(req["id"]) and \
+        len(store_mod.list_collab_replies(req["id"])) == 1
+    applicant.post("/marketplace/%s/save" % req["id"])
+    assert req["id"] in store_mod.list_collab_saves(
+        store_mod.get_user_by_email("topliner@example.net")["id"])
+    # Close hides it from the open feed (non-owner view).
+    poster.post("/marketplace/%s/close" % req["id"])
+    assert "Velvet topline" not in applicant.get("/marketplace?kind=split"
+                                               ).get_data(as_text=True)
 
 
 def test_fan_label_vote_flow():

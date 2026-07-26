@@ -81,7 +81,7 @@ LABEL_GROUP = ("Label Services", [
 ])
 COMMUNITY_GROUP = ("Community", [
     ("discover", "/discover", "M10 3a7 7 0 100 14 7 7 0 000-14z|M13 7l-2 4-4 2 2-4z", "Discover (Fans)", "Find artists to follow and support."),
-    ("marketplace", "/marketplace", "M4 7h12l-1 8H5zM4 7l-1-3|M8 11h4", "Feature Marketplace", "Community features and add-ons."),
+    ("marketplace", "/marketplace", "M4 7h12l-1 8H5zM4 7l-1-3|M8 11h4", "Collab Marketplace", "Post or answer real collaboration requests."),
     ("network", "/network", "M10 4a2 2 0 100 4 2 2 0 000-4zM5 13a2 2 0 100 4 2 2 0 000-4zM15 13a2 2 0 100 4 2 2 0 000-4z|M10 8l-4 5M10 8l4 5", "Network", "The artist directory."),
     ("fan-label", "/fan-label", "M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z", "Fan Label", "Back the artists you believe in."),
     ("fans", "/fans", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Fan Dashboard", "Your fan-side home."),

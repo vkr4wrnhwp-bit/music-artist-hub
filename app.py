@@ -4160,21 +4160,127 @@ def create_app():
         ctx["benchmark"] = get_benchmark_data()
         return render_template("benchmark.html", active_page="benchmark", **ctx)
 
+    def _ago(created):
+        try:
+            then = datetime.fromisoformat(created.replace("Z", "+00:00"))
+            if then.tzinfo is None:
+                then = then.replace(tzinfo=timezone.utc)
+            mins = int((datetime.now(timezone.utc) - then).total_seconds() // 60)
+        except (ValueError, AttributeError):
+            return ""
+        if mins < 60:
+            return "just now" if mins < 2 else "%dm ago" % mins
+        if mins < 60 * 48:
+            return "%dh ago" % (mins // 60)
+        return "%dd ago" % (mins // (60 * 24))
+
+    COLLAB_ROLES = ["Vocalist", "Producer", "Songwriter", "Mixing / Mastering",
+                    "Instrumentalist", "Visuals / Cover Art"]
+
     @app.route("/marketplace")
     def marketplace():
-        ctx = build_dashboard_context()
-        ctx["marketplace"] = get_marketplace_data()
-        return render_template("marketplace.html", active_page="marketplace", **ctx)
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        kind = request.args.get("kind") or None
+        role = request.args.get("role") or None
+        genre = (request.args.get("genre") or "").strip() or None
+        reqs = store.list_collab_requests(kind, role, genre)
+        today = datetime.now(timezone.utc).date().isoformat()
+        trust_cache = {}
+        for r in reqs:
+            r["ago"] = _ago(r["created"])
+            if r["user_id"] not in trust_cache:
+                trust_cache[r["user_id"]] = trust_score.calculate(r["user_id"])["total"]
+            r["trust"] = trust_cache[r["user_id"]]
+            r["expired"] = bool(r["closes"]) and r["closes"] < today
+        reqs = [r for r in reqs if not r["expired"]]
+        own = store.list_own_collab_requests(user["id"])
+        return render_template(
+            "marketplace.html", active_page="marketplace",
+            requests=reqs, kind=kind or "", role=role or "", genre=genre or "",
+            roles=COLLAB_ROLES, user=user,
+            saves=store.list_collab_saves(user["id"]),
+            own=own,
+            replies_by_req={r["id"]: store.list_collab_replies(r["id"]) for r in own},
+            **build_dashboard_context())
 
     @app.route("/marketplace/post", methods=["POST"])
     def marketplace_post():
-        p = request.get_json(silent=True) or {}
-        req = post_request(p.get("artist"), p.get("need"), p.get("genre"),
-                           p.get("deal_type"), p.get("detail"))
-        if req is None:
-            return jsonify({"ok": False, "error": "Artist, need, and a valid deal type are required."}), 400
-        store.add_inbox("marketplace_post", {k: v for k, v in req.items() if k != "deal_tone"})
-        return jsonify({"ok": True, "request": req})
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        kind = request.form.get("kind") or ""
+        role = (request.form.get("role") or "").strip()
+        title = (request.form.get("title") or "").strip()
+        if kind in ("bid", "split", "fun") and role and title:
+            store.add_collab_request(
+                user["id"], role,
+                (request.form.get("genre") or "").strip(), kind, title,
+                (request.form.get("details") or "").strip(),
+                (request.form.get("terms") or "").strip(),
+                (request.form.get("ref_url") or "").strip(),
+                (request.form.get("closes") or "").strip())
+        return redirect("/marketplace")
+
+    @app.route("/marketplace/<req_id>/apply", methods=["POST"])
+    def marketplace_apply(req_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        req = store.get_collab_request(req_id)
+        message = (request.form.get("message") or "").strip()
+        contact = (request.form.get("contact") or "").strip()
+        if (req is None or req["status"] != "open"
+                or req["user_id"] == user["id"] or not message
+                or "@" not in contact):
+            return redirect("/marketplace")
+        store.add_collab_reply(req_id, user["id"], message, contact,
+                               (request.form.get("proposal") or "").strip(),
+                               (request.form.get("ref_url") or "").strip())
+        store.notify(req["user_id"], "network",
+                     "New application on your collab request",
+                     "%s applied to “%s” — reach them at %s."
+                     % (user["name"] or "A member", req["title"], contact),
+                     "/marketplace")
+        if emailer.configured():
+            import html as _html
+            owner = store.get_user(req["user_id"])
+            if owner:
+                emailer.send(
+                    owner["email"], "New application on your collab request",
+                    "<p><b>%s</b> applied to “%s”:</p><p>%s</p>"
+                    "<p>Reach them at <a href=\"mailto:%s\">%s</a>.</p>"
+                    % (_html.escape(user["name"] or "A member"),
+                       _html.escape(req["title"]),
+                       _html.escape(message[:500]), _html.escape(contact),
+                       _html.escape(contact)))
+        return redirect("/marketplace?applied=1")
+
+    @app.route("/marketplace/<req_id>/save", methods=["POST"])
+    def marketplace_save(req_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if store.get_collab_request(req_id):
+            store.toggle_collab_save(user["id"], req_id)
+        return redirect("/marketplace")
+
+    @app.route("/marketplace/<req_id>/close", methods=["POST"])
+    def marketplace_close(req_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.close_collab_request(user["id"], req_id)
+        return redirect("/marketplace")
+
+    @app.route("/marketplace/<req_id>/delete", methods=["POST"])
+    def marketplace_delete(req_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_collab_request(user["id"], req_id)
+        return redirect("/marketplace")
 
     @app.route("/discover")
     def discover():
