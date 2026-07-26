@@ -1068,6 +1068,9 @@ def create_app():
             config["hero_visual"] = {**config["hero_visual"], "image": None}
         if not _has_file(config.get("top_banner")):
             config["top_banner"] = None
+        for key in ("hero_image", "ownership_image", "patchbay_image"):
+            if not _has_file(config.get(key)):
+                config[key] = None
 
         return render_template("landing.html", config=config)
 

@@ -49,7 +49,8 @@
 <figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
   <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full h-auto" loading="lazy">
   {% if img.regions %}
-  <div class="absolute inset-0 grid" style="grid-template-columns: repeat({{ img.regions | length }}, minmax(0, 1fr));">
+  {% set nrows = img.rows or 1 %}
+  <div class="absolute inset-0 grid" style="grid-template-columns: repeat({{ (img.regions | length / nrows) | round(0, 'ceil') | int }}, minmax(0, 1fr)); grid-template-rows: repeat({{ nrows }}, minmax(0, 1fr));{% if img.inset_top %} top: {{ img.inset_top }};{% endif %}">
     {% for r in img.regions %}
     <a href="{{ r.href }}" aria-label="{{ r.label }}" title="{{ r.label }}" class="block h-full w-full cursor-pointer"></a>
     {% endfor %}

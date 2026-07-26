@@ -19,11 +19,21 @@ def get_landing_config():
         # Full-width banner graphic pinned to the very top (under the nav,
         # above the hero). Carries its own headline + modules; links into the
         # app. Renders only when the file is on disk.
-        "top_banner": {
-            "src": "/static/img/hero-banner.png",
-            "alt": "Release Music. Build Equity. — Infrastructure for the business of music: distribution, development, asset partnership, and backend intelligence.",
+        "top_banner": None,
+
+        # Full-bleed hero artwork (the user's design; headline, subcopy, and
+        # the four module cards are baked into the image). Real navigation
+        # renders as buttons below it.
+        "hero_image": {
+            "src": "/static/img/sb-hero.jpg",
+            "alt": "Release Music. Build Equity. — Infrastructure for the business of music: distribution, development, finance, physical, merch, and direct-to-fan systems built around artist ownership.",
             "bare": True,
-            "href": "/overview",
+            "center_buttons": True,
+            "buttons_below": [
+                {"label": "Start Free Scan", "href": "/overview", "variant": "primary"},
+                {"label": "Distribute Your Music", "href": "/submit", "variant": "outline-dark"},
+                {"label": "See How It Works", "href": "#features", "variant": "outline-dark"},
+            ],
         },
 
         "nav": {
@@ -66,12 +76,7 @@ def get_landing_config():
             # Photo of the command desk; replaces the built-in SVG panel when
             # present. Whole panel links into the app. Falls back to the SVG
             # until the file is on disk.
-            "image": {
-                "src": "/static/img/command-desk.png",
-                "alt": "Royalty Sweep Command Desk — connected sources, missing royalties found, recovery opportunities",
-                "bare": True,
-                "href": "/overview",
-            },
+            "image": None,
             "title": "ROYALTY SWEEP",
             "label": "COMMAND DESK",
             "center": {
@@ -121,14 +126,19 @@ def get_landing_config():
         # (left to right) rather than a duplicate button. Drop the file at
         # this path; falls back to the built-in cards until it exists.
         "features_image": {
-            "src": "/static/img/features.png",
-            "alt": "Find Missing Money · Connect Everything · Maximize Your Value · You Stay In Control",
+            "src": "/static/img/sb-engines.jpg",
+            "alt": "One Platform. Multiple Engines. — Distribution Engine, Artist Development, Asset Partnership, Direct-to-Fan, Catalog Engine, Backend Intelligence",
             "bare": True,
+            "rows": 2,
+            # Region grid mirrors the 2x3 panel layout baked into the art;
+            # each panel clicks through to its real module.
             "regions": [
-                {"label": "Find Missing Money", "href": "/recovery"},
-                {"label": "Connect Everything", "href": "/connections"},
-                {"label": "Maximize Your Value", "href": "/valuation"},
-                {"label": "You Stay In Control", "href": "/catalog"},
+                {"label": "Distribution Engine", "href": "/services/distribution"},
+                {"label": "Artist Development", "href": "/audience"},
+                {"label": "Asset Partnership", "href": "/capital"},
+                {"label": "Direct-to-Fan", "href": "/fan-club"},
+                {"label": "Catalog Engine", "href": "/catalog"},
+                {"label": "Backend Intelligence", "href": "/insights"},
             ],
         },
 
@@ -159,8 +169,8 @@ def get_landing_config():
             # Engagement buttons render BELOW it (the art has no empty space
             # to safely overlay). Drop the file at this exact path.
             "image": {
-                "src": "/static/img/three-lanes.png",
-                "alt": "The Three Distro Lanes — 01 Distribution, 02 Development, 03 Partnership",
+                "src": "/static/img/sb-distro-lanes.jpg",
+                "alt": "The Three Distro Lanes — 01 Distribution: release the record. 02 Development: build the artist. 03 Partnership: build the asset.",
                 "bare": True,          # borderless, blends on the white page
                 "center_buttons": True,
                 "buttons_below": [
@@ -201,17 +211,32 @@ def get_landing_config():
             # Photo panel for the right side; overlay sits in the dark
             # bottom-left area so the VU meters stay uncovered. Falls back to
             # the built-in engine rack until the file is on disk.
-            "image": {
-                "src": "/static/img/recovery-engine.png",
-                "alt": "Royalty Sweep recovery engine — analog VU meters and rack gear",
-                "height_class": "h-full min-h-[240px]",  # fill the box, minimal margin
-                "overlay": {
-                    "position": "bottom-left",
-                    "heading": "347 Matches",
-                    "subtext": "Scan Complete",
-                    "buttons": [{"label": "View Results", "href": "/recovery", "variant": "gold"}],
-                },
-            },
+            "image": None,
+        },
+
+        # The record as an artist-owned system (flat-lay artwork; words are
+        # in the image, navigation is real buttons).
+        "ownership_image": {
+            "src": "/static/img/sb-ownership.jpg",
+            "alt": "From Release to Ownership. — every record can expand into a real artist-owned system: merch, fan access, licensing, royalties, catalog.",
+            "bare": True,
+            "center_buttons": True,
+            "buttons_below": [
+                {"label": "Open Your Catalog", "href": "/catalog", "variant": "primary"},
+                {"label": "Start a Fan Club", "href": "/fan-club", "variant": "outline-dark"},
+            ],
+        },
+
+        # Signal-routing patchbay: DSP / Sync / Merch / Fan Data / Catalog /
+        # Revenue all patched into one system.
+        "patchbay_image": {
+            "src": "/static/img/sb-patchbay.jpg",
+            "alt": "Patchbay — DSP, Sync, Merch, Fan Data, Catalog, and Revenue routed through one system.",
+            "bare": True,
+            "center_buttons": True,
+            "buttons_below": [
+                {"label": "See Your Connections", "href": "/connections", "variant": "outline-dark"},
+            ],
         },
 
         # Tiered "what everything is" sections — one per part of the

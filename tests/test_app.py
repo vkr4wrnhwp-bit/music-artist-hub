@@ -17,8 +17,11 @@ def test_index_renders_landing_page():
     body = response.get_data(as_text=True)
     assert "STREET BANKER" in body
     assert "ARTIST INFRASTRUCTURE" in body
-    assert "THE ARTIST" in body  # hero headline
-    assert "ROYALTY SWEEP" in body  # engine section label (or SVG desk)
+    # Hero is the user's full-bleed artwork; the words live in the image,
+    # the navigation lives in real buttons below it.
+    assert "sb-hero.jpg" in body
+    assert "Start Free Scan" in body
+    assert "ROYALTY SWEEP" in body  # engine section label
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():
@@ -84,11 +87,12 @@ def test_landing_command_desk_shows_all_sources():
 
 
 def test_landing_page_includes_feature_cards():
-    # Features may render as built-in cards or as the clickable image whose
-    # region aria-labels carry the same names -- match case-insensitively.
+    # The six-engine artwork replaces the feature cards; each panel is a
+    # clickable region whose aria-label names the module it opens.
     client = _demo()
     body = client.get("/").get_data(as_text=True).lower()
-    for name in ["find missing money", "connect everything", "maximize your value", "you stay in control"]:
+    for name in ["distribution engine", "artist development", "asset partnership",
+                 "direct-to-fan", "catalog engine", "backend intelligence"]:
         assert name in body
 
 
