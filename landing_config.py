@@ -25,7 +25,8 @@ def get_landing_config():
         # the four module cards are baked into the image). Real navigation
         # renders as buttons below it.
         "hero_image": {
-            "src": "/static/img/sb-hero.jpg",
+            "src": "/static/img/sb-hero.jpg?v=2",
+            "blend": True,
             "alt": "Release Music. Build Equity. — Infrastructure for the business of music: distribution, development, finance, physical, merch, and direct-to-fan systems built around artist ownership.",
             "bare": True,
             "center_buttons": True,
@@ -118,7 +119,8 @@ def get_landing_config():
         # (left to right) rather than a duplicate button. Drop the file at
         # this path; falls back to the built-in cards until it exists.
         "features_image": {
-            "src": "/static/img/sb-engines.jpg",
+            "src": "/static/img/sb-engines.jpg?v=2",
+            "blend": True,
             "alt": "One Platform. Multiple Engines. — Distribution Engine, Artist Development, Asset Partnership, Direct-to-Fan, Catalog Engine, Backend Intelligence",
             "bare": True,
             "rows": 2,
@@ -161,7 +163,8 @@ def get_landing_config():
             # Engagement buttons render BELOW it (the art has no empty space
             # to safely overlay). Drop the file at this exact path.
             "image": {
-                "src": "/static/img/sb-distro-lanes.jpg",
+                "src": "/static/img/sb-distro-lanes.jpg?v=2",
+            "blend": True,
                 "alt": "The Three Distro Lanes — 01 Distribution: release the record. 02 Development: build the artist. 03 Partnership: build the asset.",
                 "bare": True,          # borderless, blends on the white page
                 "rows": 3,
@@ -223,7 +226,8 @@ def get_landing_config():
         # The record as an artist-owned system (flat-lay artwork; words are
         # in the image, navigation is real buttons).
         "ownership_image": {
-            "src": "/static/img/sb-ownership.jpg",
+            "src": "/static/img/sb-ownership.jpg?v=2",
+            "blend": True,
             "alt": "From Release to Ownership. — every record can expand into a real artist-owned system: merch, fan access, licensing, royalties, catalog.",
             "bare": True,
             "center_buttons": True,
@@ -236,7 +240,8 @@ def get_landing_config():
         # Signal-routing patchbay: DSP / Sync / Merch / Fan Data / Catalog /
         # Revenue all patched into one system.
         "patchbay_image": {
-            "src": "/static/img/sb-patchbay.jpg",
+            "src": "/static/img/sb-patchbay.jpg?v=2",
+            "blend": True,
             "alt": "Patchbay — DSP, Sync, Merch, Fan Data, Catalog, and Revenue routed through one system.",
             "bare": True,
             "center_buttons": True,

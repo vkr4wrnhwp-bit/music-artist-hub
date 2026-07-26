@@ -14,8 +14,14 @@
     body { font-feature-settings: "ss01"; }
     .ink { color: #141210; }
   </style>
+  <style>
+    /* Page ground matches the artwork's own paper tone so the images sit
+       IN the page instead of ON it; artworks fade into it at the edges. */
+    .imgblend { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+                mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%); }
+  </style>
 </head>
-<body class="min-h-screen bg-white text-[#141210] antialiased">
+<body class="min-h-screen bg-[#f6f3f0] text-[#141210] antialiased">
 {% import "landing/_cards.html" as c %}
 {% import "landing/_home.html" as h %}
 

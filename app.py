@@ -1054,9 +1054,10 @@ def create_app():
         # not-yet-uploaded asset falls back to the built-in visual instead
         # of rendering a broken image.
         def _has_file(img):
-            return bool(img) and os.path.exists(
-                os.path.join(app.static_folder, img["src"].split("/static/", 1)[-1])
-            )
+            if not img:
+                return False
+            rel = img["src"].split("/static/", 1)[-1].split("?", 1)[0]
+            return os.path.exists(os.path.join(app.static_folder, rel))
 
         if not _has_file(config.get("lanes", {}).get("image")):
             config["lanes"] = {**config["lanes"], "image": None}

@@ -28,7 +28,7 @@
   'center': 'inset-0 items-center justify-center text-center bg-black/40',
 } %}
 <figure class="relative overflow-hidden {{ 'h-full' if img.height_class else '' }} {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
-  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full {{ img.height_class or 'h-auto' }} {{ 'object-cover' if img.height_class else '' }}" loading="lazy">
+  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full {{ img.height_class or 'h-auto' }} {{ 'object-cover' if img.height_class else '' }} {{ 'imgblend' if img.blend }}" loading="lazy">
   {% if img.overlay %}
   <figcaption class="absolute flex flex-col gap-3 p-5 sm:p-7 {{ pos.get(img.overlay.position, pos['bottom-left']) }}">
     {% if img.overlay.heading %}<div class="max-w-md text-2xl font-extrabold uppercase leading-tight tracking-tight text-white drop-shadow">{{ img.overlay.heading }}</div>{% endif %}
@@ -47,7 +47,7 @@
    overlay each region so the art stays untouched. ---- #}
 {% macro clickable_image(img) %}
 <figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
-  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full h-auto" loading="lazy">
+  <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full h-auto {{ 'imgblend' if img.blend }}" loading="lazy">
   {% if img.regions %}
   {% set nrows = img.rows or 1 %}
   <div class="absolute inset-0 grid" style="grid-template-columns: repeat({{ (img.regions | length / nrows) | round(0, 'ceil') | int }}, minmax(0, 1fr)); grid-template-rows: repeat({{ nrows }}, minmax(0, 1fr));{% if img.inset_top %} top: {{ img.inset_top }};{% endif %}">
