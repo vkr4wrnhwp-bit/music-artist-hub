@@ -27,9 +27,9 @@
 
   <!-- Stage preview -->
   <section class="rounded-2xl border border-white/10 bg-[#060605] p-4">
-    <canvas id="lx-stage" class="w-full" height="300"></canvas>
+    <canvas id="lx-stage" class="w-full" height="400"></canvas>
     <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-600">
-      <span>Simulation of your rig — outer pairs mirror inward (bar 1 with the last bar, and so on), the way big stages are lit.</span>
+      <span>Audience view, simulated — drag any bar to where it really hangs or sits: truss, floor, side sticks. Pairs mirror outermost-in (bar 1 with the last bar).</span>
       <span class="flex items-center gap-3">
         <label class="flex items-center gap-1.5 font-bold text-gray-400">Bars
           <select id="lx-bars" class="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white"></select>
@@ -61,5 +61,5 @@
 </div>
 
 <script>window.__savedShow = {{ saved_show | safe }};</script>
-<script src="/static/js/lights.js?v=1"></script>
+<script src="/static/js/lights.js?v=2"></script>
 {% endblock %}

@@ -77,46 +77,162 @@
     return out;
   }
 
-  // ---------- stage preview ----------
+  // ---------- stage preview: audience view, draggable bars ----------
   var stage = document.getElementById("lx-stage");
   var g = stage.getContext("2d");
+  var barRects = [];   // hit boxes rebuilt every frame for dragging
+
+  function barPos(i, bars, w, h) {
+    // Normalized positions persist in the show; defaults: truss + floor rows.
+    var key = String(i);
+    if (show.pos && show.pos[key]) return show.pos[key];
+    var top = Math.ceil(bars / 2);
+    if (i <= top) return [0.15 + 0.7 * ((i - 0.5) / top), 0.12];
+    var n = i - top, count = bars - top;
+    return [0.17 + 0.66 * ((n - 0.5) / count), 0.78];
+  }
+
   function drawStage(t) {
     var w = stage.clientWidth;
     if (stage.width !== w) stage.width = w;
     var h = stage.height;
-    g.clearRect(0, 0, w, h);
-    g.fillStyle = "#0a0a0b"; g.fillRect(0, 0, w, h);
+    var bgg = g.createLinearGradient(0, 0, 0, h);
+    bgg.addColorStop(0, "#08080a"); bgg.addColorStop(1, "#111014");
+    g.fillStyle = bgg; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#0d0c10"; g.fillRect(w * 0.1, h * 0.08, w * 0.8, h * 0.5);
+    g.strokeStyle = "#1d1a22";
+    for (var cx = w * 0.12; cx < w * 0.88; cx += 26) {
+      g.beginPath(); g.moveTo(cx, h * 0.08); g.lineTo(cx, h * 0.58); g.stroke();
+    }
+    g.fillStyle = "rgba(239,230,205,0.5)";
+    g.font = "bold " + Math.round(h * 0.07) + "px 'Arial Narrow', Arial";
+    g.textAlign = "center";
+    g.fillText((show.name || "YOUR SET").toUpperCase(), w / 2, h * 0.2);
+    g.textAlign = "left";
+    g.fillStyle = "#17150f";
+    g.beginPath();
+    g.moveTo(w * 0.13, h * 0.58); g.lineTo(w * 0.87, h * 0.58);
+    g.lineTo(w * 0.97, h * 0.9); g.lineTo(w * 0.03, h * 0.9);
+    g.closePath(); g.fill();
+    g.strokeStyle = "#2c2820"; g.stroke();
+
     var looks = lightingAt(t);
     var bars = show.bars;
-    var top = Math.ceil(bars / 2), bottom = bars - top;
-    function row(count, startIdx, y) {
-      var bw = Math.min(120, (w - 80) / count - 20);
-      var total = count * (bw + 20) - 20;
-      var x0 = (w - total) / 2;
-      for (var i = 0; i < count; i++) {
-        var look = looks[startIdx + i - 1];
-        var x = x0 + i * (bw + 20);
-        var col = "rgb(" + look.rgb.join(",") + ")";
-        g.save();
-        g.shadowColor = col; g.shadowBlur = 60 * look.inten;
-        g.globalAlpha = 0.15 + 0.85 * look.inten;
-        g.fillStyle = col;
-        g.fillRect(x, y, bw, 14);
-        g.restore();
-        g.strokeStyle = "#3a3424"; g.strokeRect(x, y, bw, 14);
-        g.fillStyle = "#6b6459"; g.font = "9px Arial";
-        g.fillText(String(startIdx + i), x + 2, y + 26);
+    barRects = [];
+
+    for (var i = 1; i <= bars; i++) {
+      var p = barPos(i, bars, w, h);
+      var bx = p[0] * w, by = p[1] * h;
+      var look = looks[i - 1];
+      var col = look.rgb, a = look.inten;
+      if (a > 0.02) {
+        var down = p[1] < 0.5;
+        var ly = down ? h * 0.86 : h * 0.1;
+        var grad = g.createLinearGradient(bx, by, bx, ly);
+        grad.addColorStop(0, "rgba(" + col.join(",") + "," + (0.5 * a).toFixed(3) + ")");
+        grad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+        g.fillStyle = grad;
+        g.beginPath();
+        g.moveTo(bx - 16, by); g.lineTo(bx + 16, by);
+        g.lineTo(bx + 70, ly); g.lineTo(bx - 70, ly);
+        g.closePath(); g.fill();
+        if (down) {
+          var pool = g.createRadialGradient(bx, h * 0.8, 4, bx, h * 0.8, 80);
+          pool.addColorStop(0, "rgba(" + col.join(",") + "," + (0.35 * a).toFixed(3) + ")");
+          pool.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+          g.fillStyle = pool;
+          g.beginPath(); g.ellipse(bx, h * 0.8, 85, 26, 0, 0, 7); g.fill();
+        }
       }
     }
-    row(top, 1, 40);
-    if (bottom) row(bottom, top + 1, h - 60);
-    g.fillStyle = "#efe6cd"; g.font = "bold 18px 'Arial Narrow', Arial";
-    g.textAlign = "center";
-    g.fillText((show.name || "YOUR SET").toUpperCase(), w / 2, h / 2 + 6);
-    g.textAlign = "left";
+
+    // Backline silhouettes (audience view)
+    g.fillStyle = "#0b0a08"; g.strokeStyle = "#332d20";
+    g.fillRect(w * 0.42, h * 0.5, w * 0.16, h * 0.09);
+    g.strokeRect(w * 0.42, h * 0.5, w * 0.16, h * 0.09);
+    g.beginPath(); g.arc(w * 0.5, h * 0.51, h * 0.045, 0, 7); g.fill(); g.stroke();
+    g.beginPath(); g.arc(w * 0.46, h * 0.53, h * 0.028, 0, 7); g.fill();
+    g.beginPath(); g.arc(w * 0.54, h * 0.53, h * 0.028, 0, 7); g.fill();
+    g.fillRect(w * 0.2, h * 0.52, w * 0.07, h * 0.11);
+    g.strokeRect(w * 0.2, h * 0.52, w * 0.07, h * 0.11);
+    g.fillRect(w * 0.73, h * 0.52, w * 0.07, h * 0.11);
+    g.strokeRect(w * 0.73, h * 0.52, w * 0.07, h * 0.11);
+    g.fillRect(w * 0.62, h * 0.6, w * 0.1, h * 0.025);
+    g.fillRect(w * 0.66, h * 0.62, w * 0.015, h * 0.09);
+    g.fillRect(w * 0.497, h * 0.56, w * 0.006, h * 0.16);
+    g.beginPath(); g.arc(w * 0.5, h * 0.555, h * 0.012, 0, 7); g.fill();
+    g.beginPath();
+    g.moveTo(w * 0.36, h * 0.72); g.lineTo(w * 0.41, h * 0.72);
+    g.lineTo(w * 0.4, h * 0.76); g.lineTo(w * 0.37, h * 0.76);
+    g.closePath(); g.fill(); g.stroke();
+    g.beginPath();
+    g.moveTo(w * 0.59, h * 0.72); g.lineTo(w * 0.64, h * 0.72);
+    g.lineTo(w * 0.63, h * 0.76); g.lineTo(w * 0.6, h * 0.76);
+    g.closePath(); g.fill(); g.stroke();
+
+    // Fixtures on top
+    for (var j = 1; j <= bars; j++) {
+      var p2 = barPos(j, bars, w, h);
+      var x2 = p2[0] * w, y2 = p2[1] * h;
+      var lk = looks[j - 1];
+      var bw = 54, bh = 10;
+      g.save();
+      g.shadowColor = "rgb(" + lk.rgb.join(",") + ")";
+      g.shadowBlur = 26 * lk.inten;
+      g.fillStyle = "#1a1712";
+      g.fillRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
+      g.restore();
+      g.strokeStyle = "#3a3424"; g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
+      for (var s2 = 0; s2 < 6; s2++) {
+        g.fillStyle = lk.inten > 0.02
+          ? "rgba(" + lk.rgb.join(",") + "," + (0.25 + 0.75 * lk.inten).toFixed(2) + ")"
+          : "#26221a";
+        g.beginPath();
+        g.arc(x2 - bw / 2 + 6 + s2 * 8.4, y2, 2.6, 0, 7); g.fill();
+      }
+      g.fillStyle = "#6b6459"; g.font = "9px Arial";
+      g.fillText(String(j), x2 - bw / 2, y2 - 8);
+      barRects.push({i: j, x: x2 - bw / 2 - 6, y: y2 - 14, w: bw + 12, h: 28});
+    }
+
+    // Audience heads: the POV anchor
+    g.fillStyle = "#050505";
+    for (var a2 = 0; a2 < 9; a2++) {
+      var hx = w * (0.06 + 0.11 * a2), hr = h * (0.075 + (a2 % 3) * 0.012);
+      g.beginPath(); g.arc(hx, h + hr * 0.35, hr, Math.PI, 2 * Math.PI); g.fill();
+    }
   }
 
+  // Drag bars anywhere: truss, floor, side sticks — position persists.
+  var dragBar = null;
+  stage.style.touchAction = "none";
+  stage.style.cursor = "grab";
+  stage.addEventListener("pointerdown", function (e) {
+    var r = stage.getBoundingClientRect();
+    var mx = e.clientX - r.left, my = e.clientY - r.top;
+    for (var k = barRects.length - 1; k >= 0; k--) {
+      var b = barRects[k];
+      if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+        dragBar = b.i;
+        stage.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+  stage.addEventListener("pointermove", function (e) {
+    if (dragBar === null) return;
+    var r = stage.getBoundingClientRect();
+    show.pos = show.pos || {};
+    show.pos[String(dragBar)] = [
+      Math.max(0.03, Math.min(0.97, (e.clientX - r.left) / r.width)),
+      Math.max(0.04, Math.min(0.92, (e.clientY - r.top) / stage.height))];
+  });
+  stage.addEventListener("pointerup", function () { dragBar = null; });
+  stage.addEventListener("pointercancel", function () { dragBar = null; });
+
   // ---------- DMX (ENTTEC USB Pro over Web Serial) ----------
+
   function dmxFrame(looks) {
     var data = new Uint8Array(513);        // start code + 512 channels
     var ch = 1;

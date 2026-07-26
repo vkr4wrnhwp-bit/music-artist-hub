@@ -4051,6 +4051,7 @@ def test_light_studio():
     page = artist.get("/lights").get_data(as_text=True)
     assert "Light Studio" in page and "simulation" in page
     assert "ENTTEC" in page and "Web Serial" in page
+    assert "Audience view" in page and "drag any bar" in page
     anon = app_obj.test_client().post("/lights/save", json={})
     assert anon.status_code == 302 and "/login" in anon.headers["Location"]
     show = {"name": "DEVORA set", "bars": 10, "chans": 4,
