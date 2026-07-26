@@ -1856,7 +1856,7 @@ def create_app():
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/roster/join/", "/@")
+                        "/roster/join/", "/sign/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy", "/sw.js"}
 
@@ -2197,9 +2197,13 @@ def create_app():
         selected = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
         campaign = mls.get_campaign(selected, user["id"]) if selected else None
         checks, score = _release_checks(user, campaign) if campaign else ([], 0)
+        osctx = _os_ctx(user["id"])
+        os_rows = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
+                   for t in store.list_os_tracks(user["id"])]
         return render_template("clean_release.html", active_page="clean-release",
                                campaigns=campaigns, c=campaign, checks=checks,
-                               score=score, **build_dashboard_context())
+                               score=score, os_rows=os_rows,
+                               **build_dashboard_context())
 
     _PASSPORT_FIELDS = [("isrc", "ISRC"), ("upc", "UPC"), ("label", "Label"),
                         ("release_date", "Release date"), ("album", "Album"),
@@ -2226,8 +2230,10 @@ def create_app():
             return login_required_redirect()
         rows = _passport_rows(user["id"])
         overall = round(sum(r["pct"] for r in rows) / len(rows)) if rows else 0
+        os_rows = [{"t": t, "rep": artist_os.passport_report(t)}
+                   for t in store.list_os_tracks(user["id"])]
         return render_template("metadata_passport.html", active_page="identifiers",
-                               rows=rows, overall=overall,
+                               rows=rows, overall=overall, os_rows=os_rows,
                                field_labels=[lbl for _, lbl in _PASSPORT_FIELDS],
                                **build_dashboard_context())
 
@@ -2686,6 +2692,90 @@ def create_app():
             passport[extra] = "1" if request.form.get(extra) else ""
         store.update_os_track_passport(user["id"], track_id, passport)
         return redirect("/tracks/" + track_id)
+
+    _LOCKBOX_KEYS = tuple(k for k, _l, _r in artist_os.LOCKBOX_DOCS)
+
+    @app.route("/tracks/<track_id>/lockbox/<doc_key>", methods=["POST"])
+    def os_lockbox_update(track_id, doc_key):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None or doc_key not in _LOCKBOX_KEYS:
+            abort(404)
+        box = track["lockbox"]
+        entry = box.get(doc_key) or {}
+        action = request.form.get("action") or ""
+        if action == "na":
+            entry["not_applicable"] = not entry.get("not_applicable")
+        elif action == "upload":
+            f = request.files.get("file")
+            if f and f.filename:
+                fname = uuid.uuid4().hex + "-" + os.path.basename(f.filename)[-60:]
+                f.save(os.path.join(UPLOADS_DIR, fname))
+                entry["file"] = "/uploads/" + fname
+                entry["not_applicable"] = False
+        elif action in ("approver", "resend"):
+            email = (request.form.get("email") or "").strip().lower()
+            name = (request.form.get("name") or "").strip()
+            if "@" in email:
+                token = uuid.uuid4().hex
+                approvals = entry.setdefault("approvals", [])
+                existing = [a for a in approvals if a.get("email") == email]
+                if action == "resend" and existing:
+                    existing[0]["state"] = "pending"
+                    existing[0]["token"] = token
+                elif not existing:
+                    approvals.append({"name": name[:80], "email": email,
+                                      "state": "pending", "token": token})
+                store.add_sign_token(token, user["id"], track_id, doc_key, email)
+                if emailer.configured():
+                    # Best-effort: the sign link also stays visible on the page.
+                    doc_label = dict((k, l) for k, l, _r in artist_os.LOCKBOX_DOCS)[doc_key]
+                    link = request.url_root.rstrip("/") + "/sign/" + token
+                    emailer.send(email,
+                                 "Signature needed: %s — %s" % (doc_label, track["title"]),
+                                 '<p><b>%s</b> needs your sign-off on the %s for '
+                                 '\u201c%s\u201d.</p><p><a href="%s">Review and sign</a></p>'
+                                 % (user["name"], doc_label.lower(),
+                                    track["title"], link))
+        box[doc_key] = entry
+        store.update_os_track_lockbox(user["id"], track_id, box)
+        return redirect("/tracks/" + track_id)
+
+    @app.route("/sign/<token>", methods=["GET", "POST"])
+    def sign_document(token):
+        row = store.get_sign_token(token)
+        if row is None:
+            return render_template("sign.html", invalid=True, row=None,
+                                   doc_label=None, track=None, done=None)
+        track = store.get_os_track(row["user_id"], row["track_id"])
+        doc_label = dict((k, l) for k, l, _r in artist_os.LOCKBOX_DOCS).get(row["doc_key"])
+        if track is None or doc_label is None:
+            return render_template("sign.html", invalid=True, row=None,
+                                   doc_label=None, track=None, done=None)
+        entry = (track["lockbox"] or {}).get(row["doc_key"]) or {}
+        approval = next((a for a in entry.get("approvals", [])
+                         if a.get("email") == row["email"]), None)
+        if request.method == "POST" and not row["used"] and approval:
+            decision = request.form.get("decision")
+            if decision in ("signed", "declined"):
+                approval["state"] = decision
+                store.update_os_track_lockbox(row["user_id"], row["track_id"],
+                                              track["lockbox"])
+                store.use_sign_token(token)
+                store.notify(row["user_id"], "team",
+                             "%s %s the %s" % (approval.get("name") or row["email"],
+                                               decision, doc_label.lower()),
+                             "Track: %s." % track["title"],
+                             "/tracks/" + row["track_id"])
+                return render_template("sign.html", invalid=False, row=row,
+                                       doc_label=doc_label, track=track,
+                                       done=decision)
+        return render_template("sign.html", invalid=False, row=row,
+                               doc_label=doc_label, track=track,
+                               done=("signed" if row["used"] else None),
+                               file_url=entry.get("file", ""))
 
     @app.route("/tracks/<track_id>/delete", methods=["POST"])
     def os_track_delete(track_id):

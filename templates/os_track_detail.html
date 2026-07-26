@@ -88,11 +88,45 @@
       <!-- Lockbox -->
       <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Rights Lockbox</h2>
-        <div class="mt-3 space-y-1.5">
+        <div class="mt-3 space-y-3">
           {% for doc in lockbox.docs %}
-          <div class="flex items-center gap-2 text-[11px]">
-            <span class="min-w-0 flex-1 truncate text-gray-300">{{ doc.label }}{% if doc.required %}<span class="text-red-400/60">*</span>{% endif %}</span>
-            <span class="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase {{ 'border-green-500/30 text-green-400' if doc.state in ('ready', 'n/a') else 'border-red-500/30 text-red-400' if doc.state == 'declined' else 'border-amber-500/30 text-amber-400' }}">{{ doc.state }}</span>
+          <div class="rounded-lg border border-white/10 bg-black/30 p-2.5">
+            <div class="flex items-center gap-2 text-[11px]">
+              <span class="min-w-0 flex-1 truncate font-bold text-gray-300">{{ doc.label }}{% if doc.required %}<span class="text-red-400/60">*</span>{% endif %}</span>
+              <span class="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase {{ 'border-green-500/30 text-green-400' if doc.state in ('ready', 'n/a') else 'border-red-500/30 text-red-400' if doc.state == 'declined' else 'border-amber-500/30 text-amber-400' }}">{{ doc.state }}</span>
+            </div>
+            {% if doc.file %}<a href="{{ doc.file }}" target="_blank" class="mt-1 block truncate text-[10px] text-[#e8c667] hover:underline">View document ↗</a>{% endif %}
+            {% for a in doc.approvals %}
+            <div class="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
+              <span class="min-w-0 flex-1 truncate">{{ a.name or a.email }}</span>
+              <span class="uppercase font-bold {{ 'text-green-400' if a.state == 'signed' else 'text-red-400' if a.state == 'declined' else 'text-amber-400' }}">{{ a.state }}</span>
+              {% if a.state != 'signed' %}
+              <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}">
+                <input type="hidden" name="action" value="resend"><input type="hidden" name="email" value="{{ a.email }}">
+                <button class="rounded border border-white/15 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 hover:bg-white/10">Resend</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% if not doc.not_applicable %}
+            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" enctype="multipart/form-data" class="flex items-center gap-1">
+                <input type="hidden" name="action" value="upload">
+                <input type="file" name="file" required class="w-32 text-[9px] text-gray-500 file:mr-1 file:rounded file:border-0 file:bg-[#c9a24a]/20 file:px-1.5 file:py-0.5 file:text-[9px] file:font-bold file:text-[#e8c667]">
+                <button class="rounded border border-[#c9a24a]/40 px-1.5 py-0.5 text-[9px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Upload</button>
+              </form>
+              <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" class="flex items-center gap-1">
+                <input type="hidden" name="action" value="approver">
+                <input name="name" placeholder="Name" class="w-16 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-600">
+                <input name="email" type="email" required placeholder="signer@email.com" class="w-28 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-600">
+                <button class="rounded border border-white/15 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 hover:bg-white/10">Request sign-off</button>
+              </form>
+            </div>
+            {% endif %}
+            <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" class="mt-1.5">
+              <input type="hidden" name="action" value="na">
+              <button class="text-[9px] font-bold text-gray-600 hover:text-gray-400">{{ 'Mark applicable again' if doc.not_applicable else 'Not applicable to this track' }}</button>
+            </form>
           </div>
           {% endfor %}
         </div>
@@ -101,7 +135,7 @@
           <div><div class="text-sm {{ 'text-green-400' if ok else 'text-gray-600' }}">{{ '●' if ok else '○' }}</div><div class="text-[8px] uppercase tracking-wide text-gray-600">{{ cap }}</div></div>
           {% endfor %}
         </div>
-        <p class="mt-2 text-[10px] text-gray-600">Uploads and collaborator sign-off land in Phase 2 — states here already read the real lockbox record.</p>
+        <p class="mt-2 text-[10px] text-gray-600">Sign-off requests email a signing link (deliverability limited until the Resend domain is verified — the link also works copied from the signer's row). Capabilities unlock when required docs are uploaded and every signer has signed.</p>
       </section>
     </div>
   </div>

@@ -4143,3 +4143,76 @@ def test_artist_os_tracks_flow():
     assert stranger.get("/tracks/%s" % track["id"]).status_code == 404
     artist.post("/tracks/%s/delete" % track["id"])
     assert store_mod.get_os_track(uid, track["id"]) is None
+
+
+def test_lockbox_signoff_flow(monkeypatch):
+    import io as _io
+    import db as store_mod
+    import email_provider as emailer_mod
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    outbox = []
+    monkeypatch.setattr(emailer_mod, "send",
+                        lambda to, subject, html, attachments=None:
+                        outbox.append((to, subject, html)) or True)
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tracks/add", data={"title": "Lockbox Song"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    track = [t for t in store_mod.list_os_tracks(uid)
+             if t["title"] == "Lockbox Song"][0]
+    tid = track["id"]
+    # Upload a split sheet -> doc becomes ready (no signers yet).
+    r = artist.post("/tracks/%s/lockbox/split_sheet" % tid,
+                    data={"action": "upload",
+                          "file": (_io.BytesIO(b"splits pdf bytes"), "splits.pdf")},
+                    content_type="multipart/form-data")
+    assert r.status_code == 302
+    import artist_os
+    box = artist_os.lockbox_report(store_mod.get_os_track(uid, tid))
+    split = [d for d in box["docs"] if d["key"] == "split_sheet"][0]
+    assert split["state"] == "ready" and split["file"].startswith("/uploads/")
+    # Request a sign-off -> awaiting signatures, email carries the link.
+    artist.post("/tracks/%s/lockbox/split_sheet" % tid,
+                data={"action": "approver", "name": "Producer Pat",
+                      "email": "pat@example.net"})
+    box = artist_os.lockbox_report(store_mod.get_os_track(uid, tid))
+    split = [d for d in box["docs"] if d["key"] == "split_sheet"][0]
+    assert split["state"] == "awaiting signatures"
+    assert outbox and "/sign/" in outbox[-1][2]
+    token = outbox[-1][2].split("/sign/")[1].split('"')[0]
+    # Signer reviews and signs on the public page.
+    signer = app_obj.test_client()
+    page = signer.get("/sign/" + token).get_data(as_text=True)
+    assert "Lockbox Song" in page and "Split sheet" in page
+    signer.post("/sign/" + token, data={"decision": "signed"})
+    box = artist_os.lockbox_report(store_mod.get_os_track(uid, tid))
+    split = [d for d in box["docs"] if d["key"] == "split_sheet"][0]
+    assert split["state"] == "ready"
+    assert any("signed the split sheet" in n["title"]
+               for n in store_mod.list_notifications(uid))
+    # Used token shows the outcome, can't flip the decision.
+    signer.post("/sign/" + token, data={"decision": "declined"})
+    box = artist_os.lockbox_report(store_mod.get_os_track(uid, tid))
+    assert [d for d in box["docs"] if d["key"] == "split_sheet"][0]["state"] == "ready"
+    # N/A the other required docs -> pitch/monetize/release caps unlock.
+    for key in ("beat_license", "sample_clearance", "featured_approval"):
+        artist.post("/tracks/%s/lockbox/%s" % (tid, key), data={"action": "na"})
+    caps = artist_os.lockbox_report(store_mod.get_os_track(uid, tid))["caps"]
+    assert caps["release"] and caps["monetize"] and caps["pitch"]
+    assert signer.get("/sign/not-a-token").status_code == 200  # invalid page, no crash
+    artist.post("/tracks/%s/delete" % tid)
+
+
+def test_os_wiring_on_existing_pages():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tracks/add", data={"title": "Wired Song"})
+    clean = artist.get("/releases/clean-release").get_data(as_text=True)
+    assert "Track Passports · Clean Release" in clean and "Wired Song" in clean
+    passport = artist.get("/metadata-passport").get_data(as_text=True)
+    assert "Per-Track Passports (Artist OS)" in passport and "Wired Song" in passport
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    for t in store_mod.list_os_tracks(uid):
+        if t["title"] == "Wired Song":
+            store_mod.delete_os_track(uid, t["id"])

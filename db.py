@@ -186,6 +186,15 @@ def init_db():
                 created TEXT NOT NULL,
                 UNIQUE(label_id, email)
             );
+            CREATE TABLE IF NOT EXISTS sign_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                track_id TEXT NOT NULL,
+                doc_key TEXT NOT NULL,
+                email TEXT NOT NULL,
+                used INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS os_tracks (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1210,6 +1219,28 @@ def referral_stats(referrer_id):
             "SELECT COUNT(*) AS n FROM users WHERE referred_by = ? AND ref_credited = 1",
             (referrer_id,)).fetchone()["n"]
     return {"signups": signups, "converted": converted}
+
+
+def add_sign_token(token, user_id, track_id, doc_key, email):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO sign_tokens (token, user_id, track_id, doc_key, email,"
+            " created) VALUES (?,?,?,?,?,?)",
+            (token, user_id, track_id, doc_key, email.lower(), _now()))
+
+
+def get_sign_token(token):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT s.*, u.name AS artist_name FROM sign_tokens s "
+            "JOIN users u ON u.id = s.user_id WHERE s.token = ?",
+            (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def use_sign_token(token):
+    with get_db() as db:
+        db.execute("UPDATE sign_tokens SET used = 1 WHERE token = ?", (token,))
 
 
 def _os_track_dict(row):
