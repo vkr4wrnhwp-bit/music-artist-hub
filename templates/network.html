@@ -5,7 +5,25 @@
 {% set nw = network %}
 
 {% macro role_badge(role) %}
-<span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ role }}</span>
+{# Micro-icon per role so the grid scans visually #}
+{% set role_icons = {
+  'Label': 'M10 3a7 7 0 100 14 7 7 0 000-14z|M10 8a2 2 0 100 4 2 2 0 000-4z',
+  'Playlist Curator': 'M4 12v-2a6 6 0 0112 0v2|M3 12h3v5H3zM14 12h3v5h-3z',
+  'Producer': 'M5 4v12M10 4v12M15 4v12|M3 8h4M8 13h4M13 6h4',
+  'Engineer': 'M3 10h2l2-4 3 8 3-6 2 2h2',
+  'Sync Supervisor': 'M4 8h12v8H4z|M4 8l2-4 3 1-2 4M9 5l3 1-2 4M14 6l2 1-2 4',
+  'Artist': 'M8 3h4v8a2 2 0 11-4 0z|M6 9a4 4 0 008 0M10 15v2',
+  'Songwriter': 'M4 16l1-4 8-8 3 3-8 8z|M12 5l3 3',
+  'Manager': 'M4 7h12v9H4z|M8 7V5h4v2M4 11h12',
+  'A&R': 'M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z',
+} %}
+<span class="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+  {%- if role in role_icons -%}
+  <svg class="h-3 w-3 shrink-0 text-[#c9a24a]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    {%- for d in role_icons[role].split('|') %}<path d="{{ d }}"/>{% endfor -%}
+  </svg>
+  {%- endif -%}
+  {{ role }}</span>
 {% endmacro %}
 
 {% macro verified(p) %}
