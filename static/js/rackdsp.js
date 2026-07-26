@@ -63,6 +63,13 @@
   }
   ensureFx(state);
   state.bypass = false;
+  // Per-module power. Off neutralizes that module's processing in BOTH the
+  // live chain and the offline export while the knobs keep their positions.
+  if (!state.mods) state.mods = {};
+  function modOn(m) {
+    if (m === "cab") return !!state.cab.on;
+    return state.mods[m] !== false;
+  }
 
   var ctx = null, buffer = null, playing = null;
   var live = null;
@@ -215,9 +222,10 @@
   }
 
   function voiceSub(m) {
-    m.depth.gain.value = state.sub.depth;
-    m.shake.gain.value = state.sub.shake * 8;
-    m.growl.gain.value = state.sub.growl * 0.7;
+    var on = modOn("sub") ? 1 : 0;
+    m.depth.gain.value = state.sub.depth * on;
+    m.shake.gain.value = state.sub.shake * 8 * on;
+    m.growl.gain.value = state.sub.growl * 0.7 * on;
   }
 
   function buildFx(ac) {
@@ -243,12 +251,12 @@
     fx.delay.delayTime.value = state.dly.time;
     fx.fb.gain.value = state.dly.fb;
     fx.tone.frequency.value = state.dly.tone;
-    fx.dWet.gain.value = state.dly.mix; fx.dDry.gain.value = 1;
+    fx.dWet.gain.value = modOn("dly") ? state.dly.mix : 0; fx.dDry.gain.value = 1;
     var sz = Math.round(state.rev.size * 10) / 10;
     if (fx.irSize !== sz) { fx.conv.buffer = reverbIR(ac, sz); fx.irSize = sz; }
     fx.pre.delayTime.value = state.rev.pre;
     fx.damp.frequency.value = state.rev.damp;
-    fx.rWet.gain.value = state.rev.mix; fx.rDry.gain.value = 1;
+    fx.rWet.gain.value = modOn("rev") ? state.rev.mix : 0; fx.rDry.gain.value = 1;
   }
 
   function buildCenterMatrix(ac) {
@@ -345,33 +353,44 @@
   function updateGlow() {
     var el = document.getElementById("tube-glow");
     if (!el) return;
-    var heat = Math.min(1, ((state.tube.drive - 1) / 9) * (0.25 + 0.75 * state.tube.mix));
+    var heat = modOn("tube")
+      ? Math.min(1, ((state.tube.drive - 1) / 9) * (0.25 + 0.75 * state.tube.mix))
+      : 0;
     el.style.opacity = (0.12 + 0.88 * heat).toFixed(2);
     el.style.boxShadow = "0 0 " + Math.round(3 + heat * 14) + "px rgba(255,156,63," + (heat * 0.7).toFixed(2) + ")";
   }
 
+  /* Voice one chain (live or offline) from state, honoring module power.
+     Off modules read as neutral: EQ gains 0, tube fully dry, comp 1:1 at
+     0dB, sends muted, trim 0dB — knob positions stay untouched. */
+  function voiceChain(c, ac) {
+    var eqOn = modOn("eq"), tubeOn = modOn("tube"), compOn = modOn("comp");
+    c.filters.forEach(function (f, i) {
+      f.gain.value = eqOn ? state.eq[i] : 0; f.Q.value = state.q;
+    });
+    c.tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
+    c.wetTube.gain.value = tubeOn ? state.tube.mix : 0;
+    c.dryTube.gain.value = tubeOn ? 1 - state.tube.mix : 1;
+    voiceCabMic(c.cabMic);
+    voiceCenter(c.centerM);
+    voiceFx(c.fx, ac);
+    voiceSub(c.sub);
+    c.comp.threshold.value = compOn ? state.comp.thr : 0;
+    c.comp.ratio.value = compOn ? state.comp.ratio : 1;
+    c.comp.attack.value = state.comp.att;
+    c.comp.release.value = state.comp.rel;
+    c.makeup.gain.value = Math.pow(10, (compOn ? state.comp.makeup : 0) / 20);
+    c.outGain.gain.value = Math.pow(10, (modOn("out") ? state.out : 0) / 20);
+  }
+
   function applyState() {
     if (live) {
-      live.filters.forEach(function (f, i) {
-        f.gain.value = state.eq[i]; f.Q.value = state.q;
-      });
-      live.tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
-      live.wetTube.gain.value = state.tube.mix;
-      live.dryTube.gain.value = 1 - state.tube.mix;
-      voiceCabMic(live.cabMic);
-      voiceCenter(live.centerM);
-      voiceFx(live.fx, ctx);
-      voiceSub(live.sub);
-      live.comp.threshold.value = state.comp.thr;
-      live.comp.ratio.value = state.comp.ratio;
-      live.comp.attack.value = state.comp.att;
-      live.comp.release.value = state.comp.rel;
-      live.makeup.gain.value = Math.pow(10, state.comp.makeup / 20);
-      live.outGain.gain.value = Math.pow(10, state.out / 20);
+      voiceChain(live, ctx);
       live.wet.gain.value = state.bypass ? 0 : 1;
       live.dry.gain.value = state.bypass ? 1 : 0;
     }
     updateGlow();
+    syncModButtons();
     eqCurveDirty = true;
   }
 
@@ -787,12 +806,56 @@
     });
   });
 
+  // ---------- per-module power + A/B compare ----------
+  var MOD_KEYS = {tube: ["tube"], eq: ["eq", "q"], sub: ["sub"], comp: ["comp"],
+                  cab: ["cab"], dly: ["dly"], rev: ["rev"], out: ["out"]};
+
+  function modSlice(m) {
+    var o = {};
+    MOD_KEYS[m].forEach(function (k) { o[k] = JSON.parse(JSON.stringify(state[k])); });
+    return o;
+  }
+  var cmpA = {};  // per-module snapshot: the "other side" of A/B
+  function resetCompare() {
+    Object.keys(MOD_KEYS).forEach(function (m) { cmpA[m] = modSlice(m); });
+    document.querySelectorAll(".rk-cmp").forEach(function (b) {
+      b.classList.remove("sw-lit");
+    });
+  }
+  function syncModButtons() {
+    document.querySelectorAll(".rk-pwr").forEach(function (b) {
+      var on = modOn(b.dataset.mod);
+      b.classList.toggle("sw-lit", on);
+      b.textContent = on ? "ON" : "OFF";
+    });
+  }
+  document.querySelectorAll(".rk-pwr").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var m = b.dataset.mod;
+      if (m === "cab") state.cab.on = !state.cab.on;
+      else state.mods[m] = state.mods[m] === false;
+      syncAll(); applyState();
+    });
+  });
+  document.querySelectorAll(".rk-cmp").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var m = b.dataset.mod;
+      var cur = modSlice(m);
+      MOD_KEYS[m].forEach(function (k) { state[k] = cmpA[m][k]; });
+      cmpA[m] = cur;
+      b.classList.toggle("sw-lit");
+      syncAll(); applyState();
+    });
+  });
+
   document.querySelectorAll(".rk-preset").forEach(function (b) {
     b.addEventListener("click", function () {
       var p = JSON.parse(JSON.stringify(PRESETS[b.dataset.preset]));
       p.bypass = state.bypass;
       p.center = state.center || "normal";
+      p.mods = state.mods;
       state = p; ensureFx(state); syncAll(); applyState();
+      resetCompare();
       statusEl.textContent = "Preset loaded.";
     });
   });
@@ -830,6 +893,7 @@
   // (the lane legend renders in HTML under the chassis instead).
   var SCREEN = canvas.hasAttribute("data-screen");
   var GUT = SCREEN ? 14 : 108;
+  var selLane = -1, laneHitRects = [];
   var vuPos = 0;
   function fx(f, w) {
     return GUT + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (w - GUT - 10);
@@ -866,8 +930,14 @@
       if (chh && canvas.height !== chh) canvas.height = chh;
     }
     var h = canvas.height;
-    var laneH = SCREEN ? 8 : 15,
-        lanesTop = h - LANES.length * laneH - (SCREEN ? 6 : 10);
+    // In screen mode the lane block adapts to the window height; labels
+    // draw in-canvas whenever the lanes are tall enough to carry them.
+    var laneH = SCREEN
+      ? Math.max(7, Math.min(15, Math.floor(h * 0.52 / LANES.length)))
+      : 15;
+    var laneLabels = !SCREEN || laneH >= 10;
+    GUT = SCREEN ? (laneLabels ? 84 : 14) : 108;
+    var lanesTop = h - LANES.length * laneH - (SCREEN ? 6 : 10);
     g.clearRect(0, 0, w, h);
 
     var binHz = ctx ? ctx.sampleRate / (live.analyser.fftSize) : 0;
@@ -949,10 +1019,13 @@
         for (var b = b1; b <= b2; b++) sum += freqData[b];
         energy = (sum / (b2 - b1 + 1)) / 255;
       }
-      if (!SCREEN) {
-        g.fillStyle = energy > 0.04 ? lane.color : "rgba(160,150,130,0.55)";
-        g.font = "bold 9px Arial"; g.textAlign = "right";
-        g.fillText(lane.label.toUpperCase(), GUT - 10, y + laneH - 6);
+      laneHitRects[li] = [y, laneH];
+      if (laneLabels) {
+        g.fillStyle = li === selLane ? "#e8c667"
+          : energy > 0.04 ? lane.color : "rgba(160,150,130,0.55)";
+        g.font = (SCREEN ? "bold 8px" : "bold 9px") + " Arial";
+        g.textAlign = "right";
+        g.fillText(lane.label.toUpperCase(), GUT - 10, y + laneH - (SCREEN ? 3 : 6));
         g.textAlign = "left";
       }
       var bo = SCREEN ? 1 : 2, bh = laneH - (SCREEN ? 3 : 6);
@@ -962,6 +1035,10 @@
           .toString(16).padStart(2, "0");
         laneBar(x1, y + bo, x1 + (x2 - x1) * Math.min(1, energy * 1.3), bh,
                 lane.color + alpha);
+      }
+      if (li === selLane) {
+        g.strokeStyle = "#e8c667"; g.lineWidth = 1;
+        g.strokeRect(x1 - 2, y + bo - 2, (x2 - x1) + 4, bh + 4);
       }
     });
 
@@ -1018,6 +1095,7 @@
       : buffer.length;
     var oc = new OfflineAudioContext(2, len, rate);
     var chain = buildChain(oc, oc.destination);
+    voiceChain(chain, oc);  // export honors module power exactly like live
     if (stems.length) {
       stems.forEach(function (st) {
         var src = oc.createBufferSource();
@@ -1042,14 +1120,75 @@
     }).catch(function () { statusEl.textContent = "Render failed — try again."; });
   });
 
+  // ---------- zone select: click an instrument lane, trim just its range ----------
+  function zoneBands(lane) {
+    // The EQ bands whose centers sit inside the lane's frequency range;
+    // if none do, the single nearest band takes the trim.
+    var idx = [];
+    EQ_BANDS.forEach(function (b, i) {
+      if (b.f >= lane.lo && b.f <= lane.hi) idx.push(i);
+    });
+    if (!idx.length) {
+      var c = Math.sqrt(lane.lo * lane.hi), best = 0, bd = Infinity;
+      EQ_BANDS.forEach(function (b, i) {
+        var d = Math.abs(Math.log(b.f / c));
+        if (d < bd) { bd = d; best = i; }
+      });
+      idx.push(best);
+    }
+    return idx;
+  }
+  function zoneTrim(delta) {
+    if (selLane < 0) return;
+    zoneBands(LANES[selLane]).forEach(function (i) {
+      state.eq[i] = Math.max(-12, Math.min(12, +(state.eq[i] + delta).toFixed(1)));
+    });
+    renderEq(); applyState(); syncZoneUI();
+  }
+  function syncZoneUI() {
+    var strip = document.getElementById("rk-zone");
+    if (!strip) return;
+    if (selLane < 0) { strip.style.display = "none"; return; }
+    strip.style.display = "flex";
+    var lane = LANES[selLane];
+    var bands = zoneBands(lane).map(function (i) { return EQ_BANDS[i].label; });
+    document.getElementById("rk-zone-name").textContent = lane.label;
+    document.getElementById("rk-zone-name").style.color = lane.color;
+    document.getElementById("rk-zone-bands").textContent =
+      "moves the " + bands.join(" · ") + " Hz band" + (bands.length > 1 ? "s" : "");
+  }
+  canvas.addEventListener("click", function (e) {
+    var r = canvas.getBoundingClientRect();
+    if (!r.width) return;
+    var y = (e.clientY - r.top) * (canvas.height / r.height);
+    var hit = -1;
+    laneHitRects.forEach(function (lr, i) {
+      if (lr && y >= lr[0] && y <= lr[0] + lr[1]) hit = i;
+    });
+    selLane = hit === selLane ? -1 : hit;
+    syncZoneUI();
+  });
+  var zm = document.getElementById("rk-zone-minus"),
+      zp = document.getElementById("rk-zone-plus"),
+      zc = document.getElementById("rk-zone-clear");
+  if (zm) zm.addEventListener("click", function () { zoneTrim(-0.5); });
+  if (zp) zp.addEventListener("click", function () { zoneTrim(0.5); });
+  if (zc) zc.addEventListener("click", function () { selLane = -1; syncZoneUI(); });
+
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
                        state: function () { return state; },
                        stems: function () { return stems; },
                        addStem: function (s) { stems.push(s); renderStems(); syncDeckInfo(); },
-                       stemGainValue: stemGainValue};
+                       stemGainValue: stemGainValue,
+                       modOn: modOn, voiceChain: voiceChain,
+                       zoneBands: zoneBands, zoneTrim: zoneTrim,
+                       setLane: function (i) { selLane = i; syncZoneUI(); },
+                       lanes: LANES, applyState: applyState};
   syncAll();
   renderStems();
   updateGlow();
+  resetCompare();
+  syncModButtons();
   draw();
 })();
