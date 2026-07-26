@@ -3863,9 +3863,10 @@ def test_rack_page_and_presets():
     artist = _demo(app_obj)
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
-    # Photo chassis: the artist-supplied faceplate hosts the live controls.
-    assert "rack-chassis.jpg" in page and "rackdsp.js?v=4" in page
-    assert 'data-screen' in page and 'data-ksize' in page
+    # Drawn Royalty Series chassis: wells wrap the live controls.
+    assert "rackdsp.js?v=4" in page and 'data-ksize' in page
+    assert "Harmonic Bank" in page and "Analog Excellence" in page
+    assert "Built Different" in page and "Sounds Legendary" in page
     assert "Tube Stage" in page and "not instrument identification" in page
     assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
     assert "4×12 Closed-Back" in page and "Ribbon" in page
