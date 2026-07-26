@@ -81,6 +81,8 @@
   var stage = document.getElementById("lx-stage");
   var g = stage.getContext("2d");
   var barRects = [];   // hit boxes rebuilt every frame for dragging
+  var bgImg = new Image();
+  bgImg.src = "/static/img/stage-bg.jpg";   // generated backdrop; drawn scene is the fallback
 
   function barPos(i, bars, w, h) {
     // Normalized positions persist in the show; defaults: truss + floor rows.
@@ -96,25 +98,36 @@
     var w = stage.clientWidth;
     if (stage.width !== w) stage.width = w;
     var h = stage.height;
-    var bgg = g.createLinearGradient(0, 0, 0, h);
-    bgg.addColorStop(0, "#08080a"); bgg.addColorStop(1, "#111014");
-    g.fillStyle = bgg; g.fillRect(0, 0, w, h);
-    g.fillStyle = "#0d0c10"; g.fillRect(w * 0.1, h * 0.08, w * 0.8, h * 0.5);
-    g.strokeStyle = "#1d1a22";
-    for (var cx = w * 0.12; cx < w * 0.88; cx += 26) {
-      g.beginPath(); g.moveTo(cx, h * 0.08); g.lineTo(cx, h * 0.58); g.stroke();
+    var bgReady = bgImg.complete && bgImg.naturalWidth > 0;
+    if (bgReady) {
+      var scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight);
+      var iw = bgImg.naturalWidth * scale, ih = bgImg.naturalHeight * scale;
+      g.drawImage(bgImg, (w - iw) / 2, (h - ih) / 2, iw, ih);
+      var vg = g.createLinearGradient(0, 0, 0, h);
+      vg.addColorStop(0, "rgba(5,5,6,0.35)"); vg.addColorStop(0.4, "rgba(5,5,6,0)");
+      vg.addColorStop(1, "rgba(5,5,6,0.25)");
+      g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    } else {
+      var bgg = g.createLinearGradient(0, 0, 0, h);
+      bgg.addColorStop(0, "#08080a"); bgg.addColorStop(1, "#111014");
+      g.fillStyle = bgg; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#0d0c10"; g.fillRect(w * 0.1, h * 0.08, w * 0.8, h * 0.5);
+      g.strokeStyle = "#1d1a22";
+      for (var cx = w * 0.12; cx < w * 0.88; cx += 26) {
+        g.beginPath(); g.moveTo(cx, h * 0.08); g.lineTo(cx, h * 0.58); g.stroke();
+      }
+      g.fillStyle = "#17150f";
+      g.beginPath();
+      g.moveTo(w * 0.13, h * 0.58); g.lineTo(w * 0.87, h * 0.58);
+      g.lineTo(w * 0.97, h * 0.9); g.lineTo(w * 0.03, h * 0.9);
+      g.closePath(); g.fill();
+      g.strokeStyle = "#2c2820"; g.stroke();
     }
-    g.fillStyle = "rgba(239,230,205,0.5)";
-    g.font = "bold " + Math.round(h * 0.07) + "px 'Arial Narrow', Arial";
+    g.fillStyle = "rgba(239,230,205,0.55)";
+    g.font = "bold " + Math.round(h * 0.06) + "px 'Arial Narrow', Arial";
     g.textAlign = "center";
-    g.fillText((show.name || "YOUR SET").toUpperCase(), w / 2, h * 0.2);
+    g.fillText((show.name || "YOUR SET").toUpperCase(), w / 2, h * 0.1);
     g.textAlign = "left";
-    g.fillStyle = "#17150f";
-    g.beginPath();
-    g.moveTo(w * 0.13, h * 0.58); g.lineTo(w * 0.87, h * 0.58);
-    g.lineTo(w * 0.97, h * 0.9); g.lineTo(w * 0.03, h * 0.9);
-    g.closePath(); g.fill();
-    g.strokeStyle = "#2c2820"; g.stroke();
 
     var looks = lightingAt(t);
     var bars = show.bars;
@@ -126,6 +139,19 @@
       var look = looks[i - 1];
       var col = look.rgb, a = look.inten;
       if (a > 0.02) {
+        var vert = (show.rot || {})[String(i)] === 90;
+        if (vert) {
+          // Side stick: beam sweeps horizontally toward center stage.
+          var ex = bx < w / 2 ? bx + w * 0.42 : bx - w * 0.42;
+          var hgrad = g.createLinearGradient(bx, by, ex, by);
+          hgrad.addColorStop(0, "rgba(" + col.join(",") + "," + (0.5 * a).toFixed(3) + ")");
+          hgrad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+          g.fillStyle = hgrad;
+          g.beginPath();
+          g.moveTo(bx, by - 16); g.lineTo(bx, by + 16);
+          g.lineTo(ex, by + 60); g.lineTo(ex, by - 60);
+          g.closePath(); g.fill();
+        } else {
         var down = p[1] < 0.5;
         var ly = down ? h * 0.86 : h * 0.1;
         var grad = g.createLinearGradient(bx, by, bx, ly);
@@ -143,10 +169,12 @@
           g.fillStyle = pool;
           g.beginPath(); g.ellipse(bx, h * 0.8, 85, 26, 0, 0, 7); g.fill();
         }
+        }
       }
     }
 
-    // Backline silhouettes (audience view)
+    // Backline silhouettes (audience view) — drawn fallback only
+    if (!bgReady) {
     g.fillStyle = "#0b0a08"; g.strokeStyle = "#332d20";
     g.fillRect(w * 0.42, h * 0.5, w * 0.16, h * 0.09);
     g.strokeRect(w * 0.42, h * 0.5, w * 0.16, h * 0.09);
@@ -169,13 +197,15 @@
     g.moveTo(w * 0.59, h * 0.72); g.lineTo(w * 0.64, h * 0.72);
     g.lineTo(w * 0.63, h * 0.76); g.lineTo(w * 0.6, h * 0.76);
     g.closePath(); g.fill(); g.stroke();
+    }
 
     // Fixtures on top
     for (var j = 1; j <= bars; j++) {
       var p2 = barPos(j, bars, w, h);
       var x2 = p2[0] * w, y2 = p2[1] * h;
       var lk = looks[j - 1];
-      var bw = 54, bh = 10;
+      var vert2 = (show.rot || {})[String(j)] === 90;
+      var bw = vert2 ? 10 : 54, bh = vert2 ? 54 : 10;
       g.save();
       g.shadowColor = "rgb(" + lk.rgb.join(",") + ")";
       g.shadowBlur = 26 * lk.inten;
@@ -188,18 +218,23 @@
           ? "rgba(" + lk.rgb.join(",") + "," + (0.25 + 0.75 * lk.inten).toFixed(2) + ")"
           : "#26221a";
         g.beginPath();
-        g.arc(x2 - bw / 2 + 6 + s2 * 8.4, y2, 2.6, 0, 7); g.fill();
+        if (vert2) g.arc(x2, y2 - bh / 2 + 6 + s2 * 8.4, 2.6, 0, 7);
+        else g.arc(x2 - bw / 2 + 6 + s2 * 8.4, y2, 2.6, 0, 7);
+        g.fill();
       }
-      g.fillStyle = "#6b6459"; g.font = "9px Arial";
-      g.fillText(String(j), x2 - bw / 2, y2 - 8);
-      barRects.push({i: j, x: x2 - bw / 2 - 6, y: y2 - 14, w: bw + 12, h: 28});
+      g.fillStyle = "#8a8272"; g.font = "9px Arial";
+      g.fillText(String(j), x2 - bw / 2, y2 - bh / 2 - 4);
+      barRects.push({i: j, x: x2 - bw / 2 - 8, y: y2 - bh / 2 - 8,
+                     w: bw + 16, h: bh + 16});
     }
 
-    // Audience heads: the POV anchor
+    // Audience heads: the POV anchor — drawn fallback only
+    if (!bgReady) {
     g.fillStyle = "#050505";
     for (var a2 = 0; a2 < 9; a2++) {
       var hx = w * (0.06 + 0.11 * a2), hr = h * (0.075 + (a2 % 3) * 0.012);
       g.beginPath(); g.arc(hx, h + hr * 0.35, hr, Math.PI, 2 * Math.PI); g.fill();
+    }
     }
   }
 
@@ -230,6 +265,18 @@
   });
   stage.addEventListener("pointerup", function () { dragBar = null; });
   stage.addEventListener("pointercancel", function () { dragBar = null; });
+  stage.addEventListener("dblclick", function (e) {
+    var r = stage.getBoundingClientRect();
+    var mx = e.clientX - r.left, my = e.clientY - r.top;
+    for (var k = barRects.length - 1; k >= 0; k--) {
+      var b = barRects[k];
+      if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+        show.rot = show.rot || {};
+        show.rot[String(b.i)] = show.rot[String(b.i)] === 90 ? 0 : 90;
+        return;
+      }
+    }
+  });
 
   // ---------- DMX (ENTTEC USB Pro over Web Serial) ----------
 
