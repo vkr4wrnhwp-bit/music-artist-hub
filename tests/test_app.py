@@ -4354,7 +4354,7 @@ def test_os_p4_pages():
     twin_page = artist.get("/artist-twin").get_data(as_text=True)
     assert "Strategist Read" in twin_page and "nothing is invented" in twin_page
     auto = artist.get("/releases/autopilot").get_data(as_text=True)
-    assert "Autopilot Stage" in auto
+    assert "Autopilot Timeline" in auto
     if "Campaign Plan" in auto:  # renders when a campaign exists
         assert "Release Kit" in auto and "a generator, not a chatbot" in auto
     roll = artist.get("/rollout-studio").get_data(as_text=True)         if artist.get("/rollout-studio").status_code == 200 else ""
@@ -4686,3 +4686,98 @@ def test_launch_desk_countdown_alerts_and_filters():
     page = client.get("/desk/launch").get_data(as_text=True)
     assert "Next drop" in page and 'data-date="2099-08-20"' in page
     assert "Release blockers" in page and "Summer Anthem" in page
+
+
+def test_autopilot_timeline_flags_and_kit_export():
+    import uuid as _uuid
+    import db as store_mod
+    import links_store as mls_mod
+    from datetime import date as _date, timedelta as _td
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "ap-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "AP", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    soon = (_date.today() + _td(days=5)).isoformat()
+    cid = mls_mod.create_campaign(uid, "ap-%s" % _uuid.uuid4().hex[:6],
+                                  {"title": "Close Drop",
+                                   "release_date": soon})
+    page = client.get("/releases/autopilot?campaign=%s&days=14"
+                      % cid).get_data(as_text=True)
+    # Timeline with a pulsing current stage + days-left readout.
+    assert "Autopilot Timeline" in page and "ap-live" in page
+    assert "days to release" in page
+    # 5 days out: the 14/10/7-day windows are flagged as already closed.
+    assert page.count("Window passed") == 3
+    # Segmented dial + copy buttons + export.
+    assert 'class="kit-copy' in page and "Export full kit" in page
+    resp = client.get("/releases/autopilot/kit.txt?campaign=%s&days=14" % cid)
+    assert resp.status_code == 200
+    assert "attachment" in resp.headers["Content-Disposition"]
+    body = resp.get_data(as_text=True)
+    assert "RELEASE KIT" in body and "Close Drop" in body
+    assert "CAPTIONS" in body and "14-DAY PLAN" in body
+    assert client.get("/releases/autopilot/kit.txt?campaign=nope").status_code == 404
+
+
+def test_clean_release_nodes_resolve_ping_and_certificate():
+    import uuid as _uuid
+    import db as store_mod
+    import links_store as mls_mod
+    import rollout_store as ros_mod
+    import artist_os as ao
+    from datetime import date as _date, timedelta as _td
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "cr-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Cert Artist", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    soon = (_date.today() + _td(days=10)).isoformat()
+    cid = mls_mod.create_campaign(uid, "cr-%s" % _uuid.uuid4().hex[:6],
+                                  {"title": "Neon Nights",
+                                   "release_date": soon})
+    tid = store_mod.add_os_track(uid, "Neon Nights", "Neon EP", soon)
+    store_mod.update_os_track_passport(uid, tid, {"isrc": "USSB12600009"})
+    ctid = store_mod.add_catalog_track(uid, {"title": "Neon Nights",
+                                             "artist": "Cert Artist"})
+    page = client.get("/releases/clean-release?campaign=%s"
+                      % cid).get_data(as_text=True)
+    # Category nodes + hover JS + passport-pull card with the real value.
+    assert 'class="cat-node' in page and "Release assets" in page
+    assert "Resolve from Track Passport" in page and "USSB12600009" in page
+    # A dated at-risk track pings the inbox exactly once.
+    client.get("/releases/clean-release?campaign=%s" % cid)
+    pings = [n for n in store_mod.list_notifications(uid)
+             if n["kind"] == "release_risk"]
+    assert len(pings) == 1 and "Neon Nights" in pings[0]["title"]
+    # Applying the pull writes the passport value into the catalog record.
+    client.post("/clean-release/resolve", data={"catalog_id": ctid})
+    ct = [t for t in store_mod.get_catalog_tracks(uid) if t["id"] == ctid][0]
+    assert ct["meta"]["isrc"] == "USSB12600009"
+    # Certificate is gated until the track really scores 100...
+    assert client.get("/tracks/%s/certificate" % tid).status_code == 302
+    # ...then unlocks: full passport, lockbox n/a, live link, rollout, fan.
+    full = {k: "registered / cleared / signed"
+            for k, _l, _c, _f in ao.PASSPORT_FIELDS}
+    full.update({"audio_ok": "1", "artwork_ok": "1",
+                 "isrc": "USSB12600009", "upc": "198000000042"})
+    store_mod.update_os_track_passport(uid, tid, full)
+    store_mod.update_os_track_lockbox(
+        uid, tid, {d[0]: {"not_applicable": True} for d in ao.LOCKBOX_DOCS})
+    mls_mod.update_campaign(cid, uid, {"status": "live"})
+    ros_mod.create_campaign(uid, {"title": "Neon Nights",
+                                  "release_date": soon})
+    mls_mod.upsert_fan(uid, "fan-%s@example.net" % _uuid.uuid4().hex[:6], cid)
+    cert = client.get("/tracks/%s/certificate" % tid)
+    assert cert.status_code == 200
+    body = cert.get_data(as_text=True)
+    assert "Certificate of Verification" in body and "100 / 100" in body
+    assert "USSB12600009" in body and "not a legal" in body
+    # A stranger can't pull someone else's certificate.
+    stranger = app_obj.test_client()
+    stranger.post("/signup", data={"name": "X", "email":
+                                   "x-%s@example.net" % _uuid.uuid4().hex[:8],
+                                   "password": "secret1"})
+    assert stranger.get("/tracks/%s/certificate" % tid).status_code == 404
