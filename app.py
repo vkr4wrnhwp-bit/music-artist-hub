@@ -3805,6 +3805,13 @@ def create_app():
         if user is None:
             return login_required_redirect()
         items = []
+        for v in store.list_vault_files(user["id"]):
+            items.append({"name": v["label"] or "Vault file",
+                          "type": v["kind"].replace("_", " ").title(),
+                          "path": v["path"], "date": v["created"][:10],
+                          "usage": "Vault upload — yours to deploy",
+                          "status": "Archived", "manage": "/vault",
+                          "vid": v["id"]})
         for a in store.get_epk_assets(user["id"]):
             items.append({"name": a["kind"].replace("_", " ").title(), "type": "Press asset",
                           "path": a["path"], "date": a["updated"][:10],
@@ -3840,6 +3847,89 @@ def create_app():
                                   "manage": "/rollout-studio/%s" % r["id"]})
         return render_template("vault.html", active_page="vault", items=items,
                                **build_dashboard_context())
+
+    VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
+    VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",
+                  "zip", "pdf", "mp4", "mov")
+
+    @app.route("/vault/upload", methods=["POST"])
+    def vault_upload():
+        """The real vault door: any release asset in, tagged and listed."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to use the vault."}), 401
+        f = request.files.get("file")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "error": "Choose a file."}), 400
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in VAULT_EXTS:
+            return jsonify({"ok": False,
+                            "error": "Use an image, audio, video, zip, or PDF file."}), 400
+        kind = request.form.get("kind") or "file"
+        if kind not in VAULT_KINDS:
+            kind = "file"
+        label = (request.form.get("label") or f.filename.rsplit(".", 1)[0])[:120]
+        fname = "vault_%s_%d.%s" % (user["id"],
+                                    int(datetime.now(timezone.utc).timestamp() * 1000),
+                                    ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        path = "/uploads/" + fname
+        store.add_vault_file(user["id"], path, label, kind)
+        return jsonify({"ok": True, "path": path})
+
+    @app.route("/vault/<file_id>/delete", methods=["POST"])
+    def vault_delete(file_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        path = store.delete_vault_file(user["id"], file_id)
+        if path and path.startswith("/uploads/vault_"):
+            try:
+                os.remove(os.path.join(UPLOADS_DIR, os.path.basename(path)))
+            except OSError:
+                pass
+        return redirect("/vault")
+
+    @app.route("/vault/zip", methods=["POST"])
+    def vault_zip():
+        # Batch download: only paths that genuinely belong to this user's
+        # vault are honored — the vault listing itself is the allowlist.
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        wanted = set(request.form.getlist("paths"))
+        allowed = set()
+        for v in store.list_vault_files(user["id"]):
+            allowed.add(v["path"])
+        for a in store.get_epk_assets(user["id"]):
+            allowed.add(a["path"])
+        epk = store.get_epk(user["id"]) or {}
+        if epk.get("photo"):
+            allowed.add(epk["photo"])
+        for c in mls.list_campaigns(user["id"]):
+            if c.get("cover_url"):
+                allowed.add(c["cover_url"])
+        for r in ros.list_campaigns(user["id"]):
+            for a in ros.list_assets(r["id"]):
+                if a.get("file_path"):
+                    allowed.add(a["file_path"])
+        import io as _io
+        import zipfile
+        buf = _io.BytesIO()
+        added = 0
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in wanted & allowed:
+                if not p.startswith("/uploads/"):
+                    continue
+                fpath = os.path.join(UPLOADS_DIR, os.path.basename(p))
+                if os.path.exists(fpath):
+                    zf.write(fpath, os.path.basename(p))
+                    added += 1
+        if not added:
+            return redirect("/vault")
+        buf.seek(0)
+        return Response(buf.read(), mimetype="application/zip", headers={
+            "Content-Disposition": "attachment; filename=vault-assets.zip"})
 
     @app.route("/admin/review")
     def admin_review():

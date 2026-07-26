@@ -399,11 +399,12 @@
         Load ref<input id="rk-ref-file" type="file" accept="audio/*" class="hidden">
       </label>
       <button id="rk-ref" class="sw hidden px-2.5 py-1.5 text-[10px] md:block" title="Toggle between your chain and the untouched reference — the dashed cyan trace on the screen is the reference's accumulated spectrum" disabled>REF</button>
+      <button id="rk-vault" class="sw hidden px-2.5 py-1.5 text-[10px] text-[#e8c667] lg:block" title="Render the processed master and archive it in your Asset Vault" disabled>→ Vault</button>
     </div>
   </div>
   <div class="h-14"></div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=8"></script>
+<script src="/static/js/rackdsp.js?v=9"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

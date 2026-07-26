@@ -156,6 +156,14 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS vault_files (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'file',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS outreach_items (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1129,6 +1137,37 @@ def set_show_share_token(user_id, show_id, token):
         cur = db.execute("UPDATE tour_shows SET share_token = ? WHERE id = ? AND user_id = ?",
                          (token, show_id, user_id))
     return cur.rowcount > 0
+
+
+# --- Asset Vault uploads ----------------------------------------------------------
+
+def add_vault_file(user_id, path, label, kind):
+    file_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO vault_files (id, user_id, path, label, kind, created) "
+            "VALUES (?,?,?,?,?,?)",
+            (file_id, user_id, path[:300], label[:120], kind[:40], _now()))
+    return file_id
+
+
+def list_vault_files(user_id):
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM vault_files WHERE user_id = ? "
+                          "ORDER BY created DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_vault_file(user_id, file_id):
+    """Removes the record; returns the path so the caller can clean the file."""
+    with get_db() as db:
+        row = db.execute("SELECT path FROM vault_files WHERE id = ? AND user_id = ?",
+                         (file_id, user_id)).fetchone()
+        if row is None:
+            return None
+        db.execute("DELETE FROM vault_files WHERE id = ? AND user_id = ?",
+                   (file_id, user_id))
+    return row["path"]
 
 
 # --- Outreach Pipeline (personal CRM) ---------------------------------------------

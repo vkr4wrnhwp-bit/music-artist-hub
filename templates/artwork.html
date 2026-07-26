@@ -768,8 +768,10 @@
     try {
       const blob = await coverPngBlob();
       const fd = new FormData();
-      fd.append("art", blob, safeName() + "-cover.png");
-      const res = await fetch("/artwork/upload", { method: "POST", body: fd });
+      fd.append("file", blob, safeName() + "-cover.png");
+      fd.append("kind", "cover_art");
+      fd.append("label", (state.title || "Cover") + " — final cover");
+      const res = await fetch("/vault/upload", { method: "POST", body: fd });
       const data = await res.json();
       msg.classList.remove("hidden");
       if (data.ok) {

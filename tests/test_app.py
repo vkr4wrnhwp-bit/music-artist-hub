@@ -3902,7 +3902,7 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=8" in page
+    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=9" in page
     # v3 workflow layer: flow strip, reference slot, shareable rigs
     assert 'class="flow-node' in page and 'id="rk-ref"' in page
     assert 'id="rk-rig-export"' in page and "Import rig" in page
@@ -4513,3 +4513,45 @@ def test_network_upgrades_and_outreach_pipeline():
             if o["id"] == item["id"]][0]["stage"] == "discussion"
     client.post("/network/outreach/%s/delete" % item["id"])
     assert not [o for o in store_mod.list_outreach(uid) if o["id"] == item["id"]]
+
+
+def test_vault_upload_api_and_batch_zip():
+    import io as _io
+    import db as store_mod
+    app_obj = create_app()
+    client = _demo(app_obj)
+    # Anonymous bounces off the login wall.
+    anon = app_obj.test_client().post("/vault/upload")
+    assert anon.status_code == 302 and "/login" in anon.headers["Location"]
+    # Upload a labeled master; it appears on the vault page.
+    r = client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"RIFFfakewav"), "night-drive.wav"),
+        "kind": "master", "label": "Night Drive v2 final"},
+        content_type="multipart/form-data")
+    assert r.status_code == 200 and r.get_json()["ok"]
+    path = r.get_json()["path"]
+    page = client.get("/vault").get_data(as_text=True)
+    assert "Night Drive v2 final" in page and "Vault upload" in page
+    assert "Upload to Vault" in page and 'id="vault-pills"' in page
+    # Bad extension rejected; bogus kind coerced.
+    bad = client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"x"), "evil.exe")}, content_type="multipart/form-data")
+    assert bad.status_code == 400
+    # Batch zip honors only the user's own allowlisted paths.
+    z = client.post("/vault/zip", data={"paths": [path, "/uploads/not-mine.png"]})
+    assert z.status_code == 200
+    assert z.headers["Content-Disposition"].endswith("vault-assets.zip")
+    import zipfile
+    zf = zipfile.ZipFile(_io.BytesIO(z.data))
+    assert len(zf.namelist()) == 1 and zf.namelist()[0].endswith(".wav")
+    # Delete removes the record (and the vault-owned file).
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    vid = [v for v in store_mod.list_vault_files(uid)
+           if v["label"] == "Night Drive v2 final"][0]["id"]
+    client.post("/vault/%s/delete" % vid)
+    assert not [v for v in store_mod.list_vault_files(uid) if v["id"] == vid]
+    # The rack ships its archive button; the studio archives covers.
+    rack = client.get("/rack").get_data(as_text=True)
+    assert 'id="rk-vault"' in rack
+    art = client.get("/artwork").get_data(as_text=True)
+    assert "/vault/upload" in art

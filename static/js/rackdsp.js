@@ -1547,6 +1547,8 @@
       dockAb.classList.toggle("sw-lit", state.bypass);
       dockExp.disabled = exportBtn.disabled;
       if (rolloutBtn) rolloutBtn.disabled = playBtn.disabled;
+      var vb = document.getElementById("rk-vault");
+      if (vb && !vb.dataset.busy) vb.disabled = playBtn.disabled;
       var wc2 = document.getElementById("rk-wave");
       if (wc2 && waveCache) {
         var wg2 = wc2.getContext("2d");
@@ -1601,16 +1603,15 @@
     return new Blob([ab], {type: "audio/wav"});
   }
 
-  exportBtn.addEventListener("click", function () {
-    if (!buffer && !stems.length) return;
-    statusEl.textContent = "Rendering…";
+  // One offline render path shared by the WAV export and the Vault archive.
+  function renderMaster() {
     var rate = stems.length ? stems[0].buffer.sampleRate : buffer.sampleRate;
     var len = stems.length
       ? Math.max.apply(null, stems.map(function (s) { return s.buffer.length; }))
       : buffer.length;
     var oc = new OfflineAudioContext(2, len, rate);
     var chain = buildChain(oc, oc.destination);
-    voiceChain(chain, oc);  // export honors module power exactly like live
+    voiceChain(chain, oc);  // renders honor module power exactly like live
     if (stems.length) {
       stems.forEach(function (st) {
         var src = oc.createBufferSource();
@@ -1626,13 +1627,46 @@
       src.connect(chain.input);
       src.start();
     }
-    oc.startRendering().then(function (rendered) {
+    return oc.startRendering().then(encodeWav);
+  }
+
+  exportBtn.addEventListener("click", function () {
+    if (!buffer && !stems.length) return;
+    statusEl.textContent = "Rendering…";
+    renderMaster().then(function (blob) {
       var a = document.createElement("a");
       a.download = stems.length ? "rack-stem-bounce.wav" : "rack-processed.wav";
-      a.href = URL.createObjectURL(encodeWav(rendered));
+      a.href = URL.createObjectURL(blob);
       a.click();
       statusEl.textContent = "WAV exported — processed copy downloaded.";
     }).catch(function () { statusEl.textContent = "Render failed — try again."; });
+  });
+
+  // Archive the processed master straight into the Asset Vault.
+  var vaultBtn = document.getElementById("rk-vault");
+  if (vaultBtn) vaultBtn.addEventListener("click", function () {
+    if (!buffer && !stems.length) return;
+    statusEl.textContent = "Rendering master for the Vault…";
+    vaultBtn.disabled = true;
+    vaultBtn.dataset.busy = "1";
+    renderMaster().then(function (blob) {
+      var fd = new FormData();
+      var name = (loadedName || "rack-master") + "-master.wav";
+      fd.append("file", blob, name);
+      fd.append("kind", "master");
+      fd.append("label", (loadedName || "Rack master") + " — rack master");
+      return fetch("/vault/upload", {method: "POST", body: fd})
+        .then(function (r) { return r.json(); });
+    }).then(function (d) {
+      statusEl.textContent = d.ok
+        ? "Master archived in the Vault ✓" : (d.error || "Vault save failed.");
+      delete vaultBtn.dataset.busy;
+      vaultBtn.disabled = false;
+    }).catch(function () {
+      statusEl.textContent = "Vault save failed.";
+      delete vaultBtn.dataset.busy;
+      vaultBtn.disabled = false;
+    });
   });
 
   // ---------- zone select: click an instrument lane, trim just its range ----------
