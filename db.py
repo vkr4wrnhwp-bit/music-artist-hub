@@ -164,6 +164,21 @@ def init_db():
                 kind TEXT NOT NULL DEFAULT 'file',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS epk_shares (
+                user_id TEXT PRIMARY KEY,
+                token TEXT NOT NULL,
+                pin TEXT NOT NULL DEFAULT '',
+                expires TEXT NOT NULL DEFAULT '',
+                audio TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS epk_share_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                detail TEXT NOT NULL DEFAULT '',
+                ts TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS onesheet_shares (
                 user_id TEXT PRIMARY KEY,
                 token TEXT NOT NULL,
@@ -1181,6 +1196,82 @@ def delete_vault_file(user_id, file_id):
         db.execute("DELETE FROM vault_files WHERE id = ? AND user_id = ?",
                    (file_id, user_id))
     return row["path"]
+
+# --- EPK pitch share -----------------------------------------------------------
+
+def get_epk_share(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM epk_shares WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["audio"] = json.loads(d["audio"] or "[]")
+    return d
+
+
+def get_epk_share_by_token(token):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM epk_shares WHERE token = ?",
+                         (token,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["audio"] = json.loads(d["audio"] or "[]")
+    return d
+
+
+def upsert_epk_share(user_id, token, pin="", expires="", audio=None):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_shares (user_id, token, pin, expires, audio, created)"
+            " VALUES (?,?,?,?,?,?)"
+            " ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,"
+            " pin=excluded.pin, expires=excluded.expires, audio=excluded.audio",
+            (user_id, token, pin[:16], expires[:10], json.dumps(audio or []),
+             _now()))
+
+
+def delete_epk_share(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT token FROM epk_shares WHERE user_id = ?",
+                         (user_id,)).fetchone()
+        db.execute("DELETE FROM epk_shares WHERE user_id = ?", (user_id,))
+        if row is not None:
+            db.execute("DELETE FROM epk_share_events WHERE token = ?",
+                       (row["token"],))
+
+
+def log_epk_event(token, kind, detail=""):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO epk_share_events (token, kind, detail, ts) VALUES (?,?,?,?)",
+            (token, kind[:20], detail[:120], _now()))
+
+
+def epk_share_stats(token):
+    with get_db() as db:
+        views = db.execute(
+            "SELECT COUNT(*) AS n FROM epk_share_events WHERE token = ?"
+            " AND kind = 'view'", (token,)).fetchone()["n"]
+        plays = db.execute(
+            "SELECT detail, COUNT(*) AS n FROM epk_share_events WHERE token = ?"
+            " AND kind = 'play' GROUP BY detail ORDER BY n DESC",
+            (token,)).fetchall()
+        last = db.execute(
+            "SELECT ts FROM epk_share_events WHERE token = ? AND kind = 'view'"
+            " ORDER BY id DESC LIMIT 1", (token,)).fetchone()
+    return {"views": views, "plays": [(r["detail"], r["n"]) for r in plays],
+            "last_view": last["ts"] if last else ""}
+
+
+def epk_viewed_today(token, day_prefix):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT 1 FROM epk_share_events WHERE token = ? AND kind = 'view'"
+            " AND ts LIKE ? LIMIT 1", (token, day_prefix + "%")).fetchone()
+    return row is not None
+
 
 # --- One-sheet share -----------------------------------------------------------
 

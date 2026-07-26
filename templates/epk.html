@@ -217,6 +217,69 @@
           <p class="mt-1 text-[10px] text-[#141210]/55">One page with your live links, fan club, shows, and merch — put it in every bio.</p>
           <a href="{{ epk_public_url.replace('/epk/', '/@') }}" target="_blank" rel="noopener" class="mt-1 inline-block text-[10px] font-bold text-[#a8862f] hover:underline">View Artist Hub ↗</a>
         </div>
+
+        <!-- Private pitch link: gated, logged, expiring -->
+        <div class="mt-2 rounded-lg border border-[#141210]/70 bg-[#141210] p-3 text-white">
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#d8b25a]">Private pitch link</label>
+            {% if pitch_share %}
+            <span class="text-[10px] text-white/60"><span class="font-black tabular-nums text-[#e5c878]">{{ pitch_stats.views }}</span> open{{ '' if pitch_stats.views == 1 else 's' }}{% if pitch_stats.last_view %} · last {{ pitch_stats.last_view[:16].replace('T', ' ') }} UTC{% endif %}</span>
+            {% endif %}
+          </div>
+          <p class="mt-1 text-[10px] leading-snug text-white/55">For unreleased pitches: same press kit plus a private listening room from your Vault. Opens and first-plays are logged — never how long anyone stayed.</p>
+          {% if pitch_share %}
+          <input readonly value="{{ request.url_root.rstrip('/') }}/pitch/{{ pitch_share.token }}" onclick="this.select()" class="mt-2 w-full rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white/80 focus:outline-none">
+          {% if pitch_stats.plays %}
+          <div class="mt-1.5 space-y-0.5">
+            {% for label, n in pitch_stats.plays %}
+            <div class="flex justify-between text-[10px]"><span class="truncate text-white/70">▸ {{ label }}</span><span class="shrink-0 font-black tabular-nums text-[#e5c878]">{{ n }} play{{ '' if n == 1 else 's' }}</span></div>
+            {% endfor %}
+          </div>
+          {% elif pitch_share.audio %}
+          <p class="mt-1 text-[10px] text-white/45">No plays logged yet.</p>
+          {% endif %}
+          {% endif %}
+          <form method="post" action="/epk/share" class="mt-2 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <input name="pin" inputmode="numeric" value="{{ pitch_share.pin if pitch_share else '' }}" placeholder="PIN (optional)" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white placeholder-white/35 focus:outline-none">
+              <input name="expires" type="date" value="{{ pitch_share.expires if pitch_share else '' }}" title="Link stops working after this date" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white focus:outline-none [color-scheme:dark]">
+            </div>
+            {% if vault_audio %}
+            <div class="flex flex-wrap gap-1.5">
+              {% set picked = (pitch_share.audio | map(attribute='path') | list) if pitch_share else [] %}
+              {% for v in vault_audio %}
+              <label class="flex cursor-pointer items-center gap-1.5 rounded-md border border-white/20 px-2 py-1 text-[10px] text-white/80">
+                <input type="checkbox" name="audio" value="{{ v.id }}" {{ 'checked' if v.path in picked }} class="h-3 w-3 accent-[#d8b25a]">{{ v.label or v.path.split('/')[-1] }}
+              </label>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-[10px] text-white/45">No audio in your Vault yet — archive a master from The Rack or upload one to offer private listening.</p>
+            {% endif %}
+            <div class="flex flex-wrap gap-1.5">
+              <button name="action" value="save" class="rounded-md bg-[#d8b25a] px-3 py-1.5 text-[10px] font-black uppercase text-[#1c1302]">{{ 'Save' if pitch_share else 'Create pitch link' }}</button>
+              {% if pitch_share %}
+              <button name="action" value="regenerate" onclick="return confirm('Old pitch link stops working immediately. Continue?')" class="rounded-md border border-white/25 px-3 py-1.5 text-[10px] font-bold text-white/80">New link</button>
+              <button name="action" value="disable" onclick="return confirm('Disable the pitch link? Its open and play log is deleted.')" class="rounded-md border border-red-400/50 px-3 py-1.5 text-[10px] font-bold text-red-300">Disable</button>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+
+        <!-- Device preview: the real public page at device widths -->
+        <div class="mt-2 rounded-lg border border-[#141210]/15 bg-[#f7f5f0] p-3">
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Device preview — the real page</label>
+            <div class="flex gap-1">
+              <button type="button" id="dev-mobile" class="rounded border border-[#a8862f] bg-[#a8862f]/10 px-2 py-0.5 text-[10px] font-bold text-[#7c6220]">Mobile</button>
+              <button type="button" id="dev-desktop" class="rounded border border-[#141210]/20 px-2 py-0.5 text-[10px] font-bold text-[#141210]/60">Desktop ↗</button>
+            </div>
+          </div>
+          <div id="dev-frame-wrap" class="mt-2 hidden overflow-hidden rounded-xl border-4 border-[#141210] bg-black">
+            <iframe id="dev-frame" title="Mobile preview of your public EPK" class="border-0" style="width: 375px; height: 640px; transform: scale(0.76); transform-origin: top left; margin-bottom: -154px;"></iframe>
+          </div>
+          <p class="mt-1.5 text-[10px] text-[#141210]/45">Loads your actual public EPK — save first, then preview.</p>
+        </div>
         {% endif %}
 
         <div class="mt-3">
@@ -228,6 +291,9 @@
 
         {% set field = 'mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-sm text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none' %}
         <div class="mt-4 space-y-3">
+          <details open class="rounded-lg border border-[#141210]/10 bg-white p-3">
+          <summary class="cursor-pointer select-none text-[10px] font-bold uppercase tracking-[0.2em] text-[#7c6220] marker:text-[#a8862f]">1 · Identity</summary>
+          <div class="mt-2 space-y-3">
           <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Tagline</label>
             <input id="f-tagline" value="{{ e.profile.tagline }}" class="{{ field }}"></div>
           <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Bio</label>
@@ -238,9 +304,13 @@
             <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Genres (comma-sep)</label>
               <input id="f-genres" value="{{ e.profile.genres | join(', ') }}" class="{{ field }}"></div>
           </div>
+          </div>
+          </details>
 
+          <details class="rounded-lg border border-[#141210]/10 bg-white p-3">
+          <summary class="cursor-pointer select-none text-[10px] font-bold uppercase tracking-[0.2em] text-[#7c6220] marker:text-[#a8862f]">2 · Socials &amp; Contact</summary>
           <div>
-            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Socials</label>
+            <label class="mt-2 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Socials</label>
             <div class="mt-1 grid grid-cols-2 gap-2">
               {% for key, ph in [('instagram','Instagram @'), ('tiktok','TikTok @'), ('youtube','YouTube'), ('spotify','Spotify')] %}
               <input id="f-soc-{{ key }}" value="{{ e.social_handles[key] }}" placeholder="{{ ph }}" class="rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none">
@@ -256,9 +326,12 @@
               {% endfor %}
             </div>
           </div>
+          </details>
 
+          <details class="rounded-lg border border-[#141210]/10 bg-white p-3">
+          <summary class="cursor-pointer select-none text-[10px] font-bold uppercase tracking-[0.2em] text-[#7c6220] marker:text-[#a8862f]">3 · Press</summary>
           <div>
-            <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Press quotes</label>
+            <label class="mt-2 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Press quotes</label>
             {% for i in range(2) %}
             {% set q = e.profile.press[i] if e.profile.press | length > i else {'quote': '', 'source': '', 'url': ''} %}
             <div class="mt-1 grid grid-cols-[minmax(0,1fr)_100px] gap-2">
@@ -279,6 +352,7 @@
             <div id="press-results" class="mt-2 hidden max-h-56 space-y-1.5 overflow-y-auto"></div>
             <p class="mt-1.5 text-[10px] text-[#141210]/45">Live news coverage — click “Use” to drop a headline into a quote slot, then edit it down and save.</p>
           </div>
+          </details>
 
           <!-- Cover color -->
           <div>
@@ -323,6 +397,12 @@
             <label class="flex shrink-0 cursor-pointer items-center gap-1 text-[9px] font-bold uppercase text-[#141210]/50" title="Show on public EPK">
               <input type="checkbox" class="asset-public h-3.5 w-3.5 accent-[#a8862f]" data-kind="{{ kind }}" {{ 'checked' if (a and a.public) or not a }}>Public
             </label>
+            {% if vault_images %}
+            <select class="asset-vault w-24 shrink-0 rounded-md border border-[#141210]/15 bg-white px-1 py-1.5 text-[10px] text-[#141210]/70 focus:outline-none" data-kind="{{ kind }}" title="Use an image from your Vault">
+              <option value="">Vault…</option>
+              {% for v in vault_images %}<option value="{{ v.id }}">{{ v.label or v.path.split('/')[-1] }}</option>{% endfor %}
+            </select>
+            {% endif %}
             <label class="shrink-0 cursor-pointer rounded-md border border-[#a8862f]/50 bg-[#a8862f]/10 px-2.5 py-1.5 text-[10px] font-bold text-[#7c6220] hover:bg-[#a8862f]/20">
               {{ 'Replace' if a else 'Upload' }}
               <input type="file" class="asset-input hidden" data-kind="{{ kind }}" accept=".png,.jpg,.jpeg,.webp">
@@ -505,6 +585,42 @@
       });
     });
   });
+
+  // Vault picker: point an asset slot at an image already in the Vault.
+  document.querySelectorAll(".asset-vault").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      if (!sel.value) return;
+      const res = await fetch("/epk/asset/" + sel.dataset.kind + "/from-vault", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vault_id: sel.value }),
+      });
+      const data = await res.json();
+      const block = sel.closest(".asset-block");
+      if (data.ok) {
+        const thumb = block.querySelector(".asset-thumb");
+        const img = document.createElement("img");
+        img.src = data.path; img.className = "asset-thumb h-11 w-11 shrink-0 rounded-md object-cover";
+        thumb.replaceWith(img);
+        const st = block.querySelector(".asset-status");
+        st.textContent = "From Vault"; st.className = "asset-status text-[9px] font-bold uppercase tracking-wide text-green-700";
+      }
+      sel.value = "";
+    });
+  });
+
+  // Device preview: the REAL public page in a phone width / desktop window.
+  const devWrap = document.getElementById("dev-frame-wrap");
+  if (devWrap) {
+    const devFrame = document.getElementById("dev-frame");
+    const publicPath = {{ epk_public_url | tojson }};
+    document.getElementById("dev-mobile").addEventListener("click", () => {
+      devWrap.classList.toggle("hidden");
+      if (!devWrap.classList.contains("hidden") && !devFrame.src) devFrame.src = publicPath;
+    });
+    document.getElementById("dev-desktop").addEventListener("click", () => {
+      window.open(publicPath, "epkDesktopPreview", "width=1280,height=800");
+    });
+  }
 
   // Cover color swatches set the picker.
   document.querySelectorAll(".bg-swatch").forEach((sw) => {

@@ -1422,6 +1422,18 @@ def create_app():
         ctx["user"] = user
         ctx["asset_kinds"] = _EPK_ASSET_KINDS
         ctx["bandsintown_configured"] = bandsintown.configured()
+        share = store.get_epk_share(user["id"]) if user else None
+        ctx["pitch_share"] = share
+        ctx["pitch_stats"] = (store.epk_share_stats(share["token"])
+                              if share else {"views": 0, "plays": [],
+                                             "last_view": ""})
+        vault = store.list_vault_files(user["id"]) if user else []
+        ctx["vault_audio"] = [v for v in vault
+                              if v["path"].rsplit(".", 1)[-1].lower()
+                              in ("wav", "mp3", "flac")]
+        ctx["vault_images"] = [v for v in vault
+                               if v["path"].rsplit(".", 1)[-1].lower()
+                               in ("png", "jpg", "jpeg", "webp")]
         tour = bandsintown.upcoming_events((overrides or {}).get("bandsintown_artist"))
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets,
@@ -1479,6 +1491,115 @@ def create_app():
                             overrides=prof["data"], photo=prof["photo"],
                             assets=assets, tour_dates=tour)
         return render_template("epk_public.html", e=data, slug=slug)
+
+    @app.route("/epk/share", methods=["POST"])
+    def epk_share_save():
+        """Private pitch link settings — audio resolves through the artist's
+        own vault listing, same rule as every other share surface."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        action = request.form.get("action") or "save"
+        if action == "disable":
+            store.delete_epk_share(user["id"])
+            return redirect("/epk")
+        share = store.get_epk_share(user["id"])
+        token = (uuid.uuid4().hex[:20]
+                 if (share is None or action == "regenerate")
+                 else share["token"])
+        pin = "".join(ch for ch in (request.form.get("pin") or "")
+                      if ch.isdigit())[:8]
+        if pin and len(pin) < 4:
+            pin = ""
+        expires = (request.form.get("expires") or "").strip()[:10]
+        vault = {v["id"]: v for v in store.list_vault_files(user["id"])}
+        audio = []
+        for vid in request.form.getlist("audio")[:3]:
+            v = vault.get(vid)
+            if v and v["path"].rsplit(".", 1)[-1].lower() in ("wav", "mp3",
+                                                              "flac"):
+                audio.append({"path": v["path"],
+                              "label": v["label"] or "Untitled"})
+        store.upsert_epk_share(user["id"], token, pin, expires, audio)
+        return redirect("/epk")
+
+    @app.route("/pitch/<token>", methods=["GET", "POST"])
+    def epk_pitch(token):
+        share = store.get_epk_share_by_token(token)
+        if share is None:
+            abort(404)
+        today = datetime.now(timezone.utc).date().isoformat()
+        if share["expires"] and today > share["expires"]:
+            return render_template("link_campaign_unavailable.html"), 410
+        pin_key = "pitch_ok_" + token
+        prof = store.get_epk(share["user_id"])
+        owner = store.get_user(share["user_id"])
+        if share["pin"] and not session.get(pin_key):
+            if request.method == "POST":
+                if (request.form.get("pin") or "").strip() == share["pin"]:
+                    session[pin_key] = True
+                    return redirect("/pitch/" + token)
+                return render_template("sheet_public.html", mode="pin",
+                                       token=token, bad_pin=True,
+                                       gate_title="Private Press Kit",
+                                       artist=(owner or {}).get("name", "")), 403
+            return render_template("sheet_public.html", mode="pin",
+                                   token=token, bad_pin=False,
+                                   gate_title="Private Press Kit",
+                                   artist=(owner or {}).get("name", ""))
+        slug = (prof or {}).get("slug") or _ensure_epk_slug(owner)
+        ctx = build_dashboard_context()
+        name = (owner or {}).get("name", "Artist")
+        initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
+        assets = _labeled_assets(store.get_epk_assets(share["user_id"],
+                                                      public_only=True))
+        tour = bandsintown.upcoming_events(
+            ((prof or {}).get("data") or {}).get("bandsintown_artist"))
+        data = get_epk_data({"name": name, "initials": initials},
+                            ctx["catalog_value"],
+                            overrides=(prof or {}).get("data"),
+                            photo=(prof or {}).get("photo"),
+                            assets=assets, tour_dates=tour)
+        viewer = current_user()
+        if viewer is None or viewer["id"] != share["user_id"]:
+            first_today = not store.epk_viewed_today(token, today)
+            store.log_epk_event(token, "view")
+            if first_today:
+                store.notify(share["user_id"], "pitch",
+                             "Your pitch EPK was opened",
+                             "First open today on the private link. "
+                             "Play counts land on the EPK editor.", "/epk")
+        return render_template("epk_public.html", e=data, slug=slug,
+                               pitch_token=token,
+                               pitch_audio=share["audio"])
+
+    @app.route("/pitch/<token>/play", methods=["POST"])
+    def epk_pitch_play(token):
+        share = store.get_epk_share_by_token(token)
+        if share is None:
+            abort(404)
+        label = ((request.get_json(silent=True) or {}).get("label") or "")[:120]
+        if label in [a["label"] for a in share["audio"]]:
+            store.log_epk_event(token, "play", label)
+            return jsonify({"ok": True})
+        return jsonify({"ok": False}), 400
+
+    @app.route("/epk/asset/<kind>/from-vault", methods=["POST"])
+    def epk_asset_from_vault(kind):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if kind not in _EPK_KIND_LABELS:
+            return jsonify({"ok": False, "error": "Unknown asset type."}), 400
+        vid = (request.get_json(silent=True) or {}).get("vault_id") or ""
+        v = next((v for v in store.list_vault_files(user["id"])
+                  if v["id"] == vid), None)
+        if v is None or v["path"].rsplit(".", 1)[-1].lower() not in (
+                "png", "jpg", "jpeg", "webp"):
+            return jsonify({"ok": False, "error": "Pick an image from your "
+                            "own Vault."}), 400
+        store.save_epk_asset(user["id"], kind, v["path"])
+        return jsonify({"ok": True, "path": v["path"]})
 
     @app.route("/epk/<slug>/kit.zip")
     def epk_kit_zip(slug):
@@ -1944,7 +2065,7 @@ def create_app():
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/rider/", "/roster/join/", "/sign/", "/sheet/", "/@")
+                        "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy", "/sw.js"}
 

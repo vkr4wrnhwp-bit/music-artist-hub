@@ -4940,3 +4940,69 @@ def test_rollout_storyboard_casts_and_safezone():
     client.post("/rollout-studio/%s/storyboard" % cid,
                 data={"post_id": pid, "vault_id": "not-my-vault-id"})
     assert ros_mod.get_post(pid)["asset_id"] is None
+
+
+def test_epk_pitch_share_listening_room_and_vault_assets():
+    import io as _io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "ep-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "EPK Artist", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"riff"), "single.mp3"), "kind": "master",
+        "label": "Lead single"}, content_type="multipart/form-data")
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"png"), "press.png"), "kind": "press_photo",
+        "label": "Press shot"}, content_type="multipart/form-data")
+    vids = {v["label"]: v["id"] for v in store_mod.list_vault_files(uid)}
+    # Editor ships the new rail: pitch panel, device preview, accordions,
+    # vault pickers on asset slots.
+    page = client.get("/epk").get_data(as_text=True)
+    assert "Private pitch link" in page and "Create pitch link" in page
+    assert "Device preview" in page and "asset-vault" in page
+    assert "1 · Identity" in page and "3 · Press" in page
+    # Create a PIN-gated share carrying one vault master.
+    client.post("/epk/share", data={"action": "save", "pin": "2468",
+                                    "audio": [vids["Lead single"]]})
+    share = store_mod.get_epk_share(uid)
+    assert share["pin"] == "2468" and len(share["audio"]) == 1
+    token = share["token"]
+    anon = app_obj.test_client()
+    gate = anon.get("/pitch/" + token).get_data(as_text=True)
+    assert "Private Press Kit" in gate and "Lead single" not in gate
+    assert anon.post("/pitch/" + token,
+                     data={"pin": "9999"}).status_code == 403
+    anon.post("/pitch/" + token, data={"pin": "2468"})
+    room = anon.get("/pitch/" + token).get_data(as_text=True)
+    assert "Private Listening Room" in room and "Lead single" in room
+    # Outside opens are logged and notify the artist; owner opens are not.
+    client.get("/pitch/" + token)
+    assert store_mod.epk_share_stats(token)["views"] == 1
+    assert any("pitch EPK was opened" in n["title"]
+               for n in store_mod.list_notifications(uid))
+    # Play logging accepts only labels on the share.
+    assert anon.post("/pitch/%s/play" % token,
+                     json={"label": "Lead single"}).get_json()["ok"]
+    assert anon.post("/pitch/%s/play" % token,
+                     json={"label": "Fake"}).status_code == 400
+    assert store_mod.epk_share_stats(token)["plays"] == [("Lead single", 1)]
+    page = client.get("/epk").get_data(as_text=True)
+    assert "1 play" in page  # per-track count surfaces on the editor
+    # Vault image feeds an asset slot; an audio file is refused.
+    ok = client.post("/epk/asset/press_photo/from-vault",
+                     json={"vault_id": vids["Press shot"]}).get_json()
+    assert ok["ok"] and ok["path"].startswith("/uploads/")
+    assert client.post("/epk/asset/press_photo/from-vault",
+                       json={"vault_id": vids["Lead single"]}).status_code == 400
+    # Expiry kills the link with 410; disable removes share and its log.
+    client.post("/epk/share", data={"action": "save", "pin": "2468",
+                                    "expires": "2020-01-01",
+                                    "audio": [vids["Lead single"]]})
+    assert anon.get("/pitch/" + token).status_code == 410
+    client.post("/epk/share", data={"action": "disable"})
+    assert store_mod.get_epk_share(uid) is None
+    assert anon.get("/pitch/" + token).status_code == 404

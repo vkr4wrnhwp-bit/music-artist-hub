@@ -202,6 +202,25 @@
       </section>
       {% endif %}
 
+      {% if pitch_audio %}
+      <!-- Private listening room: only on the gated pitch link -->
+      <section class="my-12 bg-[#141210] px-8 py-9 text-white sm:px-10">
+        <div class="h-[2px] w-14 bg-[#d8b25a]"></div>
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-[10px] font-bold uppercase tracking-[0.4em] text-[#d8b25a]">Private Listening Room</h2>
+          <span class="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">Shared with you directly — not public</span>
+        </div>
+        <div class="mt-6 space-y-4">
+          {% for a in pitch_audio %}
+          <div class="rounded-xl border border-white/10 bg-black/30 p-4">
+            <div class="mb-2 text-sm font-bold">{{ a.label }}</div>
+            <audio controls preload="none" src="{{ a.path }}" data-label="{{ a.label }}" class="pitch-audio w-full"></audio>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
       <!-- Royalty Sweep intelligence (optional, artist-controlled) -->
       {% if e.show_sweep %}
       <section class="my-12 bg-[#141210] px-8 py-9 text-white sm:px-10">
@@ -295,5 +314,22 @@
     </div>
   </main>
 
+{% if pitch_token %}
+<script>
+  // Play logging: one event per track per page load, fired on first play.
+  document.querySelectorAll(".pitch-audio").forEach((el) => {
+    let logged = false;
+    el.addEventListener("play", () => {
+      if (logged) return;
+      logged = true;
+      fetch("/pitch/{{ pitch_token }}/play", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({label: el.dataset.label}),
+      }).catch(() => {});
+    });
+  });
+</script>
+{% endif %}
 </body>
 </html>
