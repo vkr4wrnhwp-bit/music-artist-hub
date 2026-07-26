@@ -1,4 +1,5 @@
-"""Config-driven data for the fan-facing Discover section.
+"""
+Config-driven data for the fan-facing Discover section.
 
 A music-fan experience (the "Continue as a Fan" side): browse new music by
 genre and mood, see trending tracks, new releases, artist spotlights, and
@@ -6,6 +7,8 @@ featured playlists. Likes and follows are held in module-level session
 state (reset on restart). Tracks reference real network artists and
 catalog titles; play counts and cover gradients are illustrative.
 """
+
+import os
 
 from royalty_data import get_songs
 
@@ -24,15 +27,15 @@ MOODS = [
 
 # Curated track feed. artist_id links to a /network profile where one exists.
 _TRACKS = [
-    {"id": "tr-1", "title": "Midnight Drive", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 5200000, "from": "#1e1b4b", "to": "#0f172a", "new": False},
-    {"id": "tr-2", "title": "Neon Dreams", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 3100000, "from": "#312e81", "to": "#0f172a", "new": True},
-    {"id": "tr-3", "title": "Afterglow", "artist": "Sable Wynn", "artist_id": "sable-wynn", "genre": "R&B", "mood": "heartbreak", "plays": 980000, "from": "#831843", "to": "#1e3a8a", "new": True},
-    {"id": "tr-4", "title": "Warehouse Set", "artist": "DJ Codec", "artist_id": "dj-codec", "genre": "Techno", "mood": "energetic", "plays": 640000, "from": "#7f1d1d", "to": "#18181b", "new": False},
-    {"id": "tr-5", "title": "Chrome Hearts", "artist": "Kilo Byte", "artist_id": "kilo-byte", "genre": "Electronic", "mood": "energetic", "plays": 410000, "from": "#0e7490", "to": "#0f172a", "new": True},
-    {"id": "tr-6", "title": "Glass Horizon", "artist": "Grid Runner", "artist_id": "grid-runner", "genre": "Synthwave", "mood": "focus", "plays": 220000, "from": "#064e3b", "to": "#0c0a09", "new": True},
-    {"id": "tr-7", "title": "Velvet Static", "artist": "Sable Wynn", "artist_id": "sable-wynn", "genre": "R&B", "mood": "chill", "plays": 175000, "from": "#3b0764", "to": "#111827", "new": False},
-    {"id": "tr-8", "title": "City Lights", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Pop", "mood": "feel-good", "plays": 1250000, "from": "#a16207", "to": "#7c2d12", "new": False},
-    {"id": "tr-9", "title": "Deep Current", "artist": "Marco Velocity", "artist_id": "marco-velocity", "genre": "House", "mood": "chill", "plays": 320000, "from": "#155e75", "to": "#0f172a", "new": True},
+    {"id": "tr-1", "art": "/static/img/discover/tr-1.jpg", "title": "Midnight Drive", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 5200000, "from": "#1e1b4b", "to": "#0f172a", "new": False},
+    {"id": "tr-2", "art": "/static/img/discover/tr-2.jpg", "title": "Neon Dreams", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 3100000, "from": "#312e81", "to": "#0f172a", "new": True},
+    {"id": "tr-3", "art": "/static/img/discover/tr-3.jpg", "title": "Afterglow", "artist": "Sable Wynn", "artist_id": "sable-wynn", "genre": "R&B", "mood": "heartbreak", "plays": 980000, "from": "#831843", "to": "#1e3a8a", "new": True},
+    {"id": "tr-4", "art": "/static/img/discover/tr-4.jpg", "title": "Warehouse Set", "artist": "DJ Codec", "artist_id": "dj-codec", "genre": "Techno", "mood": "energetic", "plays": 640000, "from": "#7f1d1d", "to": "#18181b", "new": False},
+    {"id": "tr-5", "art": "/static/img/discover/tr-5.jpg", "title": "Chrome Hearts", "artist": "Kilo Byte", "artist_id": "kilo-byte", "genre": "Electronic", "mood": "energetic", "plays": 410000, "from": "#0e7490", "to": "#0f172a", "new": True},
+    {"id": "tr-6", "art": "/static/img/discover/tr-6.jpg", "title": "Glass Horizon", "artist": "Grid Runner", "artist_id": "grid-runner", "genre": "Synthwave", "mood": "focus", "plays": 220000, "from": "#064e3b", "to": "#0c0a09", "new": True},
+    {"id": "tr-7", "art": "/static/img/discover/tr-7.jpg", "title": "Velvet Static", "artist": "Sable Wynn", "artist_id": "sable-wynn", "genre": "R&B", "mood": "chill", "plays": 175000, "from": "#3b0764", "to": "#111827", "new": False},
+    {"id": "tr-8", "art": "/static/img/discover/tr-8.jpg", "title": "City Lights", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Pop", "mood": "feel-good", "plays": 1250000, "from": "#a16207", "to": "#7c2d12", "new": False},
+    {"id": "tr-9", "art": "/static/img/discover/tr-9.jpg", "title": "Deep Current", "artist": "Marco Velocity", "artist_id": "marco-velocity", "genre": "House", "mood": "chill", "plays": 320000, "from": "#155e75", "to": "#0f172a", "new": True},
     {"id": "tr-10", "title": "Paper Planes", "artist": "Lila Rose", "artist_id": "lila-rose", "genre": "Pop", "mood": "feel-good", "plays": 88000, "from": "#b45309", "to": "#7c2d12", "new": True},
     {"id": "tr-11", "title": "Low Tide", "artist": "Cass Oram", "artist_id": "cass-oram", "genre": "Ambient", "mood": "focus", "plays": 54000, "from": "#0f766e", "to": "#0c0a09", "new": False},
     {"id": "tr-12", "title": "Backstreet Gold", "artist": "Milo Tran", "artist_id": "milo-tran", "genre": "Hip-Hop", "mood": "energetic", "plays": 210000, "from": "#7c2d12", "to": "#18181b", "new": True},
@@ -103,6 +106,9 @@ def get_discover_data(args=None):
             continue
         seen.add(t["artist_id"])
         spotlights.append({"id": t["artist_id"], "name": t["artist"], "genre": t["genre"],
+                           "avatar": "/static/img/discover/av-%s.jpg" % t["artist_id"]
+                           if os.path.exists(os.path.join("static", "img", "discover",
+                                                          "av-%s.jpg" % t["artist_id"])) else None,
                            "following": t["artist_id"] in _follows,
                            "initials": "".join(p[0] for p in t["artist"].split()[:2]).upper()})
     spotlights = spotlights[:6]
