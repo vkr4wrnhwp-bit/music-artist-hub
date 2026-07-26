@@ -1859,8 +1859,16 @@ def create_app():
         hub = hub_defs.get_hub(hub_key)
         if hub is None:
             abort(404)
+        # The Command desk tiles carry live micro-dashboards — every number
+        # below comes from the same engines that power the full pages.
+        desk = {}
+        if hub_key == "command":
+            desk = {"growth": qualification.calculate(user["id"])["total"],
+                    "trust": trust_score.calculate(user["id"])["total"],
+                    "actions": cc.open_actions(user["id"], limit=3),
+                    "insights": insights_engine.build_insights(user["id"])[:2]}
         return render_template("hub_desk.html", active_page="desk-" + hub_key,
-                               hub=hub, **build_dashboard_context())
+                               hub=hub, desk=desk, **build_dashboard_context())
 
     @app.context_processor
     def inject_plan_context():

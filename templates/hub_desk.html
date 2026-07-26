@@ -26,7 +26,36 @@
         <span class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-500">Preview</span>
         {% endif %}
       </div>
+      {% if desk and key in ('qualification', 'trust-score') %}
+      {# Real score gauge — same engine as the full page #}
+      {% set score = desk.growth if key == 'qualification' else desk.trust %}
+      <div class="mt-2 flex items-center gap-3">
+        <svg viewBox="0 0 80 46" class="h-12 w-20 shrink-0">
+          <path d="M8 42 A32 32 0 0 1 72 42" fill="none" stroke="#2c2820" stroke-width="7" stroke-linecap="round"/>
+          <path d="M8 42 A32 32 0 0 1 72 42" fill="none" stroke="#d8b25a" stroke-width="7" stroke-linecap="round"
+                stroke-dasharray="{{ (score / 100 * 100.5) | round(1) }} 200"/>
+          <text x="40" y="40" text-anchor="middle" font-size="15" font-weight="900" fill="#e8c667">{{ score }}</text>
+        </svg>
+        <span class="text-[10px] leading-snug text-gray-500">{{ desc }}</span>
+      </div>
+      {% elif desk and key == 'actions' and desk.actions %}
+      <div class="mt-2 space-y-1">
+        {% for a in desk.actions %}
+        <div class="flex items-center gap-1.5 truncate text-[11px] text-gray-400">
+          <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ 'bg-red-400' if a.priority == 'high' else ('bg-[#e8c667]' if a.priority == 'medium' else 'bg-gray-600') }}"></span>
+          <span class="truncate">{{ a.title }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% elif desk and key == 'insights' and desk.insights %}
+      <div class="mt-2 space-y-1">
+        {% for i in desk.insights %}
+        <div class="truncate text-[11px] text-gray-400">▸ {{ i.title }}</div>
+        {% endfor %}
+      </div>
+      {% else %}
       <p class="mt-2 text-xs leading-relaxed text-gray-500">{{ desc }}</p>
+      {% endif %}
     </a>
     {% endfor %}
   </div>
