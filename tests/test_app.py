@@ -759,12 +759,12 @@ def test_tier2_pages_render_and_are_in_nav():
     for href in ("/documents", "/identifiers", "/conflicts", "/releases", "/registration"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
-    # Grouped sidebar sections are split across product worlds now.
-    for group in ("Collect", "Catalog", "Value", "Account"):
-        assert ">%s<" % group in nav
+    # Ecosystem Hub model: five collapsible hubs plus Account, on every page.
+    for hub in ("command", "studio", "launch", "stage", "money", "account"):
+        assert 'data-hub="%s"' % hub in nav
     promote_nav = client.get("/links").get_data(as_text=True)
-    for group in ("Grow", "Promote"):
-        assert ">%s<" % group in promote_nav
+    for hub in ("launch", "money"):
+        assert 'data-hub="%s"' % hub in promote_nav
 
 
 def test_documents_page_content():
@@ -1161,7 +1161,7 @@ def test_tier5_and_community_pages_render_and_nav():
     for href in ("/marketplace", "/network", "/fan-label", "/fans"):
         assert 'href="%s"' % href in fan_nav
         assert client.get(href).status_code == 200
-    assert ">Intelligence<" in promote_nav
+    assert 'data-hub="command"' in promote_nav  # Intelligence lives in the Command hub now
     assert ">Community<" in fan_nav
 
 
@@ -2620,9 +2620,9 @@ def test_world_switcher_and_public_pages():
     # Demo account has the Label plan: everything open, switcher rendered.
     body = client.get("/links").get_data(as_text=True)
     assert "/world/sweep" in body and "/world/fan" in body
-    assert "Rollout Studio" in body and "Statements" not in body   # promote world nav
-    body = client.get("/overview").get_data(as_text=True)
-    assert "Statements" in body and "Rollout Studio" not in body   # sweep world nav
+    # Ecosystem Hub model: every artist world carries all five hubs.
+    assert "Rollout Studio" in body and "Statements" in body
+    assert 'data-hub="launch"' in body and 'data-hub="money"' in body
     assert client.get("/world/label").headers["Location"] == "/services"
     # Signed-out visitors are sent to login; share pages stay public.
     anon = app_obj.test_client()
@@ -4404,3 +4404,36 @@ def test_tech_rider_and_rack_handoff():
     rack = artist.get("/rack").get_data(as_text=True)
     assert "Snippet Finder" in rack and 'id="rk-hook-scan"' in rack
     assert "level detection, not taste" in rack and 'id="rk-rollout"' in rack
+
+
+def test_ecosystem_hubs():
+    import hubs as hub_defs
+    # One source of truth: every hub item key is unique and every hub resolves.
+    keys = [k for _hk, _n, _t, items in hub_defs.HUBS for k, *_ in items]
+    assert len(keys) == len(set(keys))
+    assert hub_defs.get_hub("money")["name"] == "Royalty Sweep & Banking"
+    assert hub_defs.get_hub("nope") is None
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    nav = artist.get("/command-center").get_data(as_text=True)
+    # Five collapsible hubs + Account; desk links; collapse JS present.
+    assert nav.count('data-hub=') == 6
+    for hk in ("command", "studio", "launch", "stage", "money"):
+        assert '/desk/%s' % hk in nav
+    assert "hub-tgl" in nav and "sbHubs" in nav
+    # Desk pages render module cards with honest Live/Preview chips.
+    desk = artist.get("/desk/stage").get_data(as_text=True)
+    assert "Live Stage Suite" in desk and "Tour Hub" in desk
+    assert "Light Studio" in desk and "real DMX" in desk.lower() or "DMX" in desk
+    assert artist.get("/desk/nope").status_code == 404
+    money = artist.get("/desk/money").get_data(as_text=True)
+    assert "Money Queue" in money and "Valuation" in money
+    # Fan world keeps its simple nav — no hub machinery.
+    fan = app_obj.test_client()
+    fan.post("/login", data={"email": "demo-fan@streetbanker.io", "password": "sweep"})
+    fnav = fan.get("/discover").get_data(as_text=True)
+    assert "data-hub=" not in fnav and "Community" in fnav
+    # Discover polish: playing visualizer CSS + suggestion empty states.
+    assert "preview-play.playing .viz" in fnav
+    # The creator song drawer can never flash on fan pages pre-Tailwind.
+    assert 'id="song-drawer" style="display:none"' in fnav

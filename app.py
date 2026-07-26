@@ -12,6 +12,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import db as store
 import touring
 import artist_os
+import hubs as hub_defs
 from statements_engine import (analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
@@ -1839,6 +1840,27 @@ def create_app():
         return Response(buf.getvalue(), mimetype="image/svg+xml")
 
     # --- Plan tiers + product worlds -------------------------------------------
+
+    @app.context_processor
+    def inject_hub_context():
+        # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
+        # sidebar and the /desk/<hub> landing pages.
+        return {"hubs_nav": hub_defs.HUBS, "hubs_label": hub_defs.LABEL_GROUP,
+                "hubs_community": hub_defs.COMMUNITY_GROUP,
+                "hubs_account": hub_defs.ACCOUNT_GROUP,
+                "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
+                "live_keys": hub_defs.LIVE_KEYS}
+
+    @app.route("/desk/<hub_key>")
+    def hub_desk(hub_key):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        hub = hub_defs.get_hub(hub_key)
+        if hub is None:
+            abort(404)
+        return render_template("hub_desk.html", active_page="desk-" + hub_key,
+                               hub=hub, **build_dashboard_context())
 
     @app.context_processor
     def inject_plan_context():
