@@ -2146,9 +2146,21 @@ def create_app():
                                  due_date=(f.get("due_date") or "").strip())
             return redirect("/actions")
         status_filter = request.args.get("status") or None
+        all_actions = cc.list_actions(user["id"])
+        done = len([a for a in all_actions if a["status"] == "complete"])
+        active_n = len([a for a in all_actions
+                        if a["status"] in ("new", "in_progress")])
+        stats = {"total": len(all_actions), "complete": done,
+                 "in_progress": len([a for a in all_actions
+                                     if a["status"] == "in_progress"]),
+                 "open": active_n,
+                 "pct": round(100 * done / len(all_actions)) if all_actions else 0}
         return render_template(
             "actions.html", active_page="actions",
             actions=cc.list_actions(user["id"], status_filter),
+            all_actions=all_actions, stats=stats,
+            view=request.args.get("view") or "list",
+            today=datetime.now(timezone.utc).date().isoformat(),
             status_filter=status_filter or "",
             categories=cc.ACTION_CATEGORIES, priorities=cc.ACTION_PRIORITIES,
             **build_dashboard_context())

@@ -29,6 +29,67 @@
     </form>
   </section>
 
+  <!-- Live board stats: every number is your real action list -->
+  {% if stats.total %}
+  <section class="flex flex-wrap items-center gap-5 rounded-2xl border border-[#c9a24a]/20 bg-gradient-to-b from-[#151310] to-[#100f0c] px-5 py-4">
+    <div class="relative h-16 w-16 shrink-0">
+      <svg viewBox="0 0 64 64" class="h-full w-full -rotate-90">
+        <circle cx="32" cy="32" r="26" fill="none" stroke="#2c2820" stroke-width="7"/>
+        <circle cx="32" cy="32" r="26" fill="none" stroke="#d8b25a" stroke-width="7" stroke-linecap="round"
+                stroke-dasharray="{{ (stats.pct / 100 * 163.4) | round(1) }} 200"/>
+      </svg>
+      <div class="absolute inset-0 grid place-items-center text-sm font-black tabular-nums text-[#e8c667]">{{ stats.pct }}%</div>
+    </div>
+    <div class="text-xs text-gray-400"><span class="font-bold text-gray-100">{{ stats.complete }}</span> of {{ stats.total }} complete</div>
+    <div class="text-xs text-gray-400"><span class="font-bold text-[#e8c667]">{{ stats.in_progress }}</span> in progress</div>
+    <div class="text-xs text-gray-400"><span class="font-bold text-gray-100">{{ stats.open }}</span> open</div>
+    <div class="ml-auto flex gap-1.5 text-[11px] font-semibold">
+      <a href="/actions" class="rounded-lg border px-3 py-1.5 {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if view == 'list' else 'border-white/10 text-gray-400 hover:text-gray-200' }}">List</a>
+      <a href="/actions?view=board" class="rounded-lg border px-3 py-1.5 {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if view == 'board' else 'border-white/10 text-gray-400 hover:text-gray-200' }}">Board</a>
+    </div>
+  </section>
+  {% endif %}
+
+  {% macro due_chip(a) -%}
+    {%- if a.due_date -%}
+    {%- set overdue = a.due_date < today and a.status in ('new', 'in_progress') -%}
+    <span class="rounded px-1.5 py-0.5 text-[9px] font-bold tabular-nums {{ 'bg-red-500/15 text-red-400' if overdue else 'bg-white/10 text-gray-400' }}">{{ 'overdue · ' if overdue }}due {{ a.due_date }}</span>
+    {%- endif -%}
+  {%- endmacro %}
+
+  {% if view == 'board' %}
+  <!-- Kanban board: your real actions by status -->
+  <div class="grid gap-3 md:grid-cols-3">
+    {% for col_status, col_label in [('new', 'To do'), ('in_progress', 'In progress'), ('complete', 'Done')] %}
+    <div class="rounded-2xl border border-white/10 bg-[#0f0e0c] p-3">
+      <div class="px-1 text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">{{ col_label }} · {{ all_actions | selectattr('status', 'equalto', col_status) | list | length }}</div>
+      <div class="mt-2 space-y-2">
+        {% for a in all_actions if a.status == col_status %}
+        <div class="rounded-xl border border-white/10 bg-[#151310] p-3">
+          <div class="flex items-start gap-2">
+            <span class="mt-1 h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
+            <div class="min-w-0 flex-1 text-sm font-semibold {{ 'text-gray-500 line-through' if a.status == 'complete' else 'text-gray-100' }}">{{ a.title }}</div>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-1.5">
+            <span class="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-400">{{ a.category.replace('_', ' ') }}</span>
+            {{ due_chip(a) }}
+            <form method="post" class="ml-auto flex gap-1">
+              <input type="hidden" name="action_id" value="{{ a.id }}">
+              {% if a.status == 'new' %}<button name="status" value="in_progress" class="rounded border border-white/15 px-2 py-0.5 text-[9px] font-bold text-gray-300 hover:bg-white/5">Start</button>{% endif %}
+              {% if a.status in ('new', 'in_progress') %}<button name="status" value="complete" class="rounded border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-[9px] font-bold text-green-400 hover:bg-green-500/20">Done</button>
+              {% else %}<button name="status" value="new" class="rounded border border-white/15 px-2 py-0.5 text-[9px] font-semibold text-gray-400 hover:bg-white/5">Reopen</button>{% endif %}
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <div class="rounded-xl border border-dashed border-white/10 py-5 text-center text-[10px] text-gray-600">Empty</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+
   <!-- Filters -->
   <div class="flex flex-wrap gap-1.5 text-[11px] font-semibold">
     {% for s, label in [('', 'All'), ('new', 'New'), ('in_progress', 'In Progress'), ('complete', 'Complete'), ('dismissed', 'Dismissed')] %}
@@ -47,7 +108,7 @@
           {% if a.description %}<div class="text-[11px] text-gray-500">{{ a.description }}</div>{% endif %}
         </div>
         <span class="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-400">{{ a.category.replace('_', ' ') }}</span>
-        {% if a.due_date %}<span class="text-[10px] tabular-nums text-gray-500">due {{ a.due_date }}</span>{% endif %}
+        {{ due_chip(a) }}
         <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if a.status == 'complete' else ('bg-[#c9a24a]/15 text-[#e8c667]' if a.status == 'in_progress' else 'bg-white/10 text-gray-400') }}">{{ a.status.replace('_', ' ') }}</span>
         <form method="post" class="flex shrink-0 gap-1.5">
           <input type="hidden" name="action_id" value="{{ a.id }}">
@@ -67,6 +128,7 @@
   </div>
   {% else %}
   <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-500">No actions here. Create one above, or use “Create action” on any Command Center alert or release check.</div>
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}
