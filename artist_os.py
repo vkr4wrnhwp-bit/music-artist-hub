@@ -348,3 +348,213 @@ def certification(summary):
         next_need = None
     return {"level": level, "next": next_need,
             "ladder": [{"name": n, "passed": p, "need": d} for n, p, d in checks]}
+
+
+# --- Release Autopilot stages ---------------------------------------------------
+
+STAGES = ["Intake", "Clean-up", "Pre-save", "Pitch", "Rollout",
+          "Release week", "Post-release", "Catalog follow-up"]
+
+
+def autopilot_stage(release_date, today):
+    """Which of the eight stages a release is in, from date math alone."""
+    if not release_date:
+        return "Intake"
+    try:
+        from datetime import date as _date
+        rd = _date.fromisoformat(release_date[:10])
+        td = _date.fromisoformat(today[:10])
+    except ValueError:
+        return "Intake"
+    delta = (rd - td).days
+    if delta > 45:
+        return "Clean-up"
+    if delta > 14:
+        return "Pre-save"
+    if delta > 7:
+        return "Pitch"
+    if delta > 0:
+        return "Rollout"
+    if delta >= -6:
+        return "Release week"
+    if delta >= -30:
+        return "Post-release"
+    return "Catalog follow-up"
+
+
+def release_kit(artist, title, date, link_url):
+    """Rule-based release copy — a generator, not a chatbot. Every draft
+    is meant to be edited; [brackets] mark what only the artist knows."""
+    artist = artist or "the artist"
+    title = title or "the single"
+    when = date or "[release date]"
+    link = link_url or "[your smart link]"
+    return {
+        "captions": [
+            "%s. %s. Everything I've got went into this one. Pre-save it now — %s" % (title, when, link),
+            "The next chapter starts %s. \u201c%s\u201d is coming. Link in bio." % (when, title),
+            "You've been asking. \u201c%s\u201d drops %s. Set your alarm." % (title, when),
+        ],
+        "email": {
+            "subject": "\u201c%s\u201d drops %s \u2014 hear it first" % (title, when),
+            "body": ("You're on this list because you actually listen.\n\n"
+                     "\u201c%s\u201d is out %s. Pre-save it here and it lands in "
+                     "your library the second it drops:\n%s\n\n"
+                     "\u2014 %s") % (title, when, link, artist),
+        },
+        "sms": "%s: \u201c%s\u201d drops %s. Save it now \u2192 %s" % (artist, title, when, link),
+        "pitch": ("\u201c%s\u201d \u2014 %s (%s). [One sentence on the sound.] "
+                  "For fans of [comparable artists]. Written by [writers], produced "
+                  "by [producers]. Full metadata and press kit available.") % (title, artist, when),
+        "shorts": [
+            "15s: the hook, captioned lyrics, one location, no cuts.",
+            "20s: studio moment \u2014 the take where it clicked, raw audio up front.",
+            "12s: text-on-screen \u2014 the one line of this song people will quote.",
+        ],
+    }
+
+
+def campaign_plan(days, title, date):
+    """14/30/60-day rollout plan. Windows reference real Street Banker
+    tools; nothing here pretends to be a metric."""
+    title = title or "the single"
+    when = date or "release day"
+    core = [
+        ("Release day", "Everything fires at once",
+         ["Smart link live and pinned everywhere",
+          "Fan club drop with something extra (voice note, demo, story)",
+          "Post the strongest short \u2014 hook up front"]),
+        ("Days 1\u20137 after", "Keep it moving",
+         ["Repost every fan reaction \u2014 reply to all of them",
+          "Second short: a different 15 seconds of the song",
+          "Check Royalty Lanes \u2014 confirm the release is collecting"]),
+    ]
+    pre14 = [
+        ("14 days out", "Announce",
+         ["Announce post with artwork \u2014 pin it",
+          "Pre-save via your smart link on every profile",
+          "Email + SMS the announcement to your fan list"]),
+        ("10 days out", "Tease",
+         ["First short: the hook only",
+          "Behind-the-scenes post \u2014 studio, lyrics page, anything real",
+          "Personally message your top fans from the CRM"]),
+        ("7 days out", "Pitch",
+         ["Submit the Spotify editorial pitch (needs 7 days)",
+          "Send the playlist pitch draft to curators you actually know",
+          "Update the EPK so press finds the new single"]),
+        ("3 days out", "Final push",
+         ["Countdown content daily from here",
+          "Fan club early listen \u2014 members hear it first",
+          "Confirm Clean Release is green \u2014 no red rights issues"]),
+    ]
+    plan = list(pre14)
+    if days >= 30:
+        plan = [
+            ("30 days out", "Foundation",
+             ["Lock the Metadata Passport \u2014 every field green",
+              "Split sheets signed in the Rights Lockbox",
+              "Artwork finalized in Cover Studio"]),
+            ("21 days out", "Warm-up",
+             ["Start posting again if you've been quiet \u2014 3x/week",
+              "Seed the story of the song without naming the date",
+              "Grow the fan list: link-in-bio to your Artist Hub"]),
+        ] + plan
+    if days >= 60:
+        plan = [
+            ("60 days out", "Build the base",
+             ["Book the release-cycle content day \u2014 shoot everything once",
+              "Line up 2\u20133 collaborators or creators for release week",
+              "Set the budget: what goes to ads, what goes to content"]),
+            ("45 days out", "Assets",
+             ["Master delivered and checked in The Rack",
+              "Shorts library: cut 6\u20138 clips before the cycle starts",
+              "Photos + press shots into the EPK"]),
+        ] + plan
+    return {"days": days, "title": title, "date": when,
+            "windows": plan + core,
+            "brief": ("Creator brief \u2014 \u201c%s\u201d: we pay per deliverable, "
+                      "not per follower. 1 short in your own voice using the hook "
+                      "audio, posted between [dates]. No scripts \u2014 your take on "
+                      "the song. [Rate], paid on posting. Tag @[artist]." % title),
+            "ads": [
+                "A/B the hook: same 15s clip, two different opening lines of text.",
+                "Retarget smart-link visitors who didn't pre-save.",
+                "Lookalike off your fan CRM emails \u2014 smallest budget first."]}
+
+
+# --- Artist Twin strategist ------------------------------------------------------
+
+def twin_report(tracks, ctx, pulse_snaps, queue):
+    """A private A&R read on the real account. Sections without a data
+    source say exactly what unlocks them — no invented analysis."""
+    sections = []
+
+    def sec(title, state, lines):
+        sections.append({"title": title, "state": state, "lines": lines})
+
+    reports = [(t, passport_report(t), clean_release(t, ctx)) for t in tracks]
+    if reports:
+        lines = []
+        for t, rep, cln in sorted(reports, key=lambda r: -r[2]["score"])[:3]:
+            lines.append("%s \u2014 Clean Release %d, passport %d%%%s" % (
+                t["title"], cln["score"], rep["pct"],
+                ", BLOCKED on rights" if cln["blocked"] else ""))
+        sec("Release readiness", "ready", lines)
+        best = max(reports, key=lambda r: (not r[2]["blocked"], r[2]["score"], r[1]["pct"]))
+        sec("Best single to lead with", "ready",
+            ["%s \u2014 the cleanest rights and readiness in your catalog right now. "
+             "Lead with what can actually ship." % best[0]["title"]])
+    else:
+        sec("Release readiness", "awaiting",
+            ["Add your songs in Track Passports \u2014 readiness is read from real "
+             "passports and lockboxes, so it starts empty, not invented."])
+        sec("Best single to lead with", "awaiting",
+            ["Unlocks once tracks exist in the spine."])
+
+    if pulse_snaps and len(pulse_snaps) >= 2:
+        new, old = pulse_snaps[0], pulse_snaps[-1]
+        sec("Audience signal (Spotify/Deezer via Pulse)", "ready",
+            ["Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
+             % (old["followers"], new["followers"], old["popularity"],
+                new["popularity"], len(pulse_snaps)),
+             "Real numbers from your connected profiles \u2014 not projections."])
+    else:
+        sec("Audience signal", "awaiting",
+            ["Connect Artist Pulse and this reads your real Spotify followers, "
+             "popularity, and Deezer fans over time."])
+
+    rollout_lines = []
+    if ctx.get("club_members"):
+        rollout_lines.append("You have paying club members \u2014 every release should "
+                             "hit the fan club first, then the public link.")
+    if ctx.get("fans"):
+        rollout_lines.append("%d fans in the CRM: announce by email before socials \u2014 "
+                             "owned channels first." % ctx["fans"])
+    if ctx.get("live_links"):
+        rollout_lines.append("%d live smart link(s): route every bio and post through "
+                             "them so clicks are yours to keep." % ctx["live_links"])
+    sec("Rollout recommendation", "ready" if rollout_lines else "awaiting",
+        rollout_lines or ["Create a smart link and capture fans \u2014 the rollout "
+                          "engine reads what you own."])
+
+    if queue:
+        a = queue[0]
+        sec("Next best action", "ready",
+            ["%s (%s \u2014 %s difficulty)." % (a["problem"], a["urgency"], a["difficulty"]),
+             "The full list lives in the Money Queue."])
+    else:
+        sec("Next best action", "ready",
+            ["Nothing urgent in the queue \u2014 catalog is clean or empty. "
+             "Add tracks to be sure."])
+
+    for title, unlock in [
+        ("Audience match", "external listener analytics (Chartmetric-class data)"),
+        ("City / geo opportunities", "geo data from streaming or ticketing feeds"),
+        ("Comparable artists", "catalog-similarity data from an external provider"),
+        ("Fan sentiment", "comment and message analysis you'd connect explicitly"),
+        ("Cover art feedback", "a finished cover uploaded in Cover Studio"),
+        ("Hook / structure notes", "audio analysis \u2014 planned, not faked"),
+    ]:
+        sec(title, "awaiting", ["Connects when %s lands. Until then this stays "
+                                "empty rather than made up." % unlock])
+    return sections

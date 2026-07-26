@@ -4252,3 +4252,56 @@ def test_os_p3_lanes_and_queue():
     for t in store_mod.list_os_tracks(uid):
         if t["title"] == "Queue Song":
             store_mod.delete_os_track(uid, t["id"])
+
+
+def test_os_p4_generators_and_twin():
+    import artist_os
+    # Stage math walks the whole arc from date deltas alone.
+    assert artist_os.autopilot_stage(None, "2026-07-26") == "Intake"
+    assert artist_os.autopilot_stage("2026-10-01", "2026-07-26") == "Clean-up"
+    assert artist_os.autopilot_stage("2026-08-20", "2026-07-26") == "Pre-save"
+    assert artist_os.autopilot_stage("2026-08-04", "2026-07-26") == "Pitch"
+    assert artist_os.autopilot_stage("2026-07-30", "2026-07-26") == "Rollout"
+    assert artist_os.autopilot_stage("2026-07-24", "2026-07-26") == "Release week"
+    assert artist_os.autopilot_stage("2026-07-01", "2026-07-26") == "Post-release"
+    assert artist_os.autopilot_stage("2026-01-01", "2026-07-26") == "Catalog follow-up"
+    # Release kit uses the real inputs and brackets what only the artist knows.
+    kit = artist_os.release_kit("Synthwave Surfer", "Night Drive",
+                                "2026-10-30", "http://x/l/night-drive")
+    assert "Night Drive" in kit["captions"][0]
+    assert "http://x/l/night-drive" in kit["email"]["body"]
+    assert "[comparable artists]" in kit["pitch"]
+    assert len(kit["sms"]) < 200
+    # Plans grow with the window and never invent metrics.
+    p14 = artist_os.campaign_plan(14, "Night Drive", "2026-10-30")
+    p60 = artist_os.campaign_plan(60, "Night Drive", "2026-10-30")
+    assert len(p60["windows"]) > len(p14["windows"])
+    assert "60 days out" in p60["windows"][0][0]
+    assert "per deliverable" in p60["brief"]
+    # Twin: real sections ready, absent-data sections say their unlock.
+    ctx = {"statement_rows": 0, "statement_total": 0, "lanes_with_data": set(),
+           "live_links": 1, "fans": 12, "club_members": 2, "sync_active": False,
+           "release_scheduled": False, "rollout_assets": False}
+    track = {"id": "t", "title": "Night Drive", "passport": {}, "lockbox": {}}
+    rep = artist_os.twin_report([track], ctx, [], artist_os.action_queue([(track, ctx)]))
+    by_title = {sec["title"]: sec for sec in rep}
+    assert by_title["Release readiness"]["state"] == "ready"
+    assert "Night Drive" in by_title["Best single to lead with"]["lines"][0]
+    assert by_title["Rollout recommendation"]["state"] == "ready"
+    assert by_title["Next best action"]["state"] == "ready"
+    assert by_title["Audience match"]["state"] == "awaiting"
+    assert "Chartmetric" in by_title["Audience match"]["lines"][0]
+    assert by_title["Fan sentiment"]["state"] == "awaiting"
+
+
+def test_os_p4_pages():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    twin_page = artist.get("/artist-twin").get_data(as_text=True)
+    assert "Strategist Read" in twin_page and "nothing is invented" in twin_page
+    auto = artist.get("/releases/autopilot").get_data(as_text=True)
+    assert "Autopilot Stage" in auto
+    if "Campaign Plan" in auto:  # renders when a campaign exists
+        assert "Release Kit" in auto and "a generator, not a chatbot" in auto
+    roll = artist.get("/rollout-studio").get_data(as_text=True)         if artist.get("/rollout-studio").status_code == 200 else ""

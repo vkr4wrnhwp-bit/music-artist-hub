@@ -2184,9 +2184,23 @@ def create_app():
         selected = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
         campaign = mls.get_campaign(selected, user["id"]) if selected else None
         checks, score = _release_checks(user, campaign) if campaign else ([], 0)
+        today = datetime.now(timezone.utc).date().isoformat()
+        stage = artist_os.autopilot_stage(
+            (campaign or {}).get("release_date"), today)
+        plan_days = request.args.get("days")
+        plan_days = int(plan_days) if plan_days in ("14", "30", "60") else 14
+        kit = plan = None
+        if campaign:
+            link_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
+            kit = artist_os.release_kit(user["name"], campaign["title"],
+                                        campaign.get("release_date"), link_url)
+            plan = artist_os.campaign_plan(plan_days, campaign["title"],
+                                           campaign.get("release_date"))
         return render_template("release_autopilot.html", active_page="autopilot",
                                campaigns=campaigns, c=campaign, checks=checks,
-                               score=score, **build_dashboard_context())
+                               score=score, stage=stage, stages=artist_os.STAGES,
+                               kit=kit, plan=plan, plan_days=plan_days,
+                               **build_dashboard_context())
 
     @app.route("/releases/clean-release")
     def clean_release():
@@ -3470,8 +3484,15 @@ def create_app():
                                      do_not_say)
                 store.save_twin_generation(user["id"], kind, text, ", ".join(used))
                 generated = {"kind": kind, "text": text, "used": used}
+        os_tracks_list = store.list_os_tracks(user["id"])
+        osctx = _os_ctx(user["id"])
+        strategist = artist_os.twin_report(
+            os_tracks_list, osctx,
+            store.list_pulse_snapshots(user["id"], limit=30),
+            artist_os.action_queue([(t, osctx) for t in os_tracks_list]))
         return render_template("artist_twin.html", active_page="artist-twin",
                                settings=settings, twin=twin, generated=generated,
+                               strategist=strategist,
                                history=store.list_twin_generations(user["id"]),
                                **build_dashboard_context())
 
