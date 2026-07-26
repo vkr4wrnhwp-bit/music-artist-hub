@@ -2600,12 +2600,13 @@ def create_app():
         return {
             "statement_rows": len(rows),
             "statement_total": round(sum(r["amount"] for r in rows), 2),
-            "lanes_with_data": set(),          # wired in Phase 3 (lane classifier)
+            "lanes_with_data": artist_os.lanes_from_sources(
+                r.get("source") for r in rows),
             "live_links": len(campaigns),
             "fans": len(mls.list_fans(user_id)),
             "club_members": len([m for m in store.list_club_members(user_id)
                                  if m["status"] == "active"]),
-            "sync_active": False,              # wired in Phase 3
+            "sync_active": bool(store.list_sync_packs(user_id)),
             "release_scheduled": False,        # wired in Phase 4 (Autopilot)
             "rollout_assets": False,           # wired in Phase 4
         }
@@ -2692,6 +2693,36 @@ def create_app():
             passport[extra] = "1" if request.form.get(extra) else ""
         store.update_os_track_passport(user["id"], track_id, passport)
         return redirect("/tracks/" + track_id)
+
+    @app.route("/royalty-lanes")
+    def royalty_lanes():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        tracks = store.list_os_tracks(user["id"])
+        ctx = _os_ctx(user["id"])
+        rows = [{"t": t, "lanes": artist_os.lane_grid(t, ctx)} for t in tracks]
+        claimed = len([l for r in rows for l in r["lanes"] if l["state"] == "claimed"])
+        missing_est = round(sum(l["estimate"] or 0 for r in rows for l in r["lanes"]), 2)
+        return render_template("royalty_lanes.html", active_page="royalty-lanes",
+                               rows=rows, lanes=artist_os.LANES,
+                               claimed=claimed, missing_est=missing_est, ctx=ctx,
+                               **build_dashboard_context())
+
+    @app.route("/money-queue")
+    def money_queue():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        tracks = store.list_os_tracks(user["id"])
+        ctx = _os_ctx(user["id"])
+        queue = artist_os.action_queue([(t, ctx) for t in tracks])
+        est_total = round(sum(a["impact"] or 0 for a in queue), 2)
+        criticals = len([a for a in queue if a["critical"]])
+        return render_template("money_queue.html", active_page="money-queue",
+                               queue=queue, est_total=est_total,
+                               criticals=criticals, ctx=ctx,
+                               **build_dashboard_context())
 
     _LOCKBOX_KEYS = tuple(k for k, _l, _r in artist_os.LOCKBOX_DOCS)
 

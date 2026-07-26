@@ -110,6 +110,8 @@ MODULES = [
     ("/referrals", "Referrals", "Give a month, get $9: your link, your signups, credits on your Stripe balance.", "live", None),
     ("/lights", "Light Studio", "Cue your light show to the song — stage preview plus real DMX out to an ENTTEC interface.", "live", None),
     ("/tracks", "Track Passports", "Per-track rights and metadata spine: passport, clean-release score, royalty lanes, lockbox.", "live", None),
+    ("/royalty-lanes", "Royalty Lanes", "Nine lanes per song: claimed, connected, missing, or needs action — from your real statements.", "live", None),
+    ("/money-queue", "Money Queue", "What is costing you money, criticals first — every action names its fix and its basis.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

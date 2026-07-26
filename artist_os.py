@@ -184,9 +184,35 @@ _LANE_SHARE = {"mechanicals": 0.06, "pro": 0.12, "soundexchange": 0.05,
                "neighboring": 0.04, "content_id": 0.05, "ugc": 0.04}
 
 
+def lanes_from_sources(sources):
+    """Map raw statement source names -> lanes with REAL income observed.
+    Pure so it's testable; the classifier does the heavy lifting."""
+    import royalty_types
+    srcs = {(s or "").lower() for s in sources}
+    buckets = {royalty_types.classify(s) for s in srcs}
+    lanes = set()
+    if "recording" in buckets:
+        lanes.add("master")
+    if "mechanical" in buckets:
+        lanes.add("mechanicals")
+    if "publishing" in buckets:
+        lanes.add("pro")
+    if "neighboring" in buckets:
+        lanes.add("neighboring")
+    if any("soundexchange" in s for s in srcs):
+        lanes.add("soundexchange")
+    if any(k in s for s in srcs for k in ("tiktok", "meta", "facebook", "instagram")):
+        lanes.add("ugc")
+    if any("youtube" in s for s in srcs):
+        lanes.add("content_id")
+    return lanes
+
+
 def _lane_state(lane, track, ctx):
     passport = track.get("passport") or {}
     data_lanes = ctx.get("lanes_with_data") or set()
+    if lane in data_lanes:
+        return "claimed"     # real income for this lane appears in statements
     if lane == "master":
         return "connected" if ctx.get("statement_rows") else "missing"
     if lane == "mechanicals":

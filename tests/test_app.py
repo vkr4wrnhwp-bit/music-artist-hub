@@ -4216,3 +4216,39 @@ def test_os_wiring_on_existing_pages():
     for t in store_mod.list_os_tracks(uid):
         if t["title"] == "Wired Song":
             store_mod.delete_os_track(uid, t["id"])
+
+
+def test_os_p3_lanes_and_queue():
+    import artist_os
+    import db as store_mod
+    # Source mapping is pure and real: distributor rows claim master lane etc.
+    lanes = artist_os.lanes_from_sources(
+        ["Spotify", "The MLC", "ASCAP", "SoundExchange", "TikTok", "YouTube"])
+    assert {"master", "mechanicals", "pro", "soundexchange",
+            "ugc", "content_id"} <= lanes
+    assert artist_os.lanes_from_sources([]) == set()
+    # A lane with real income reads "claimed".
+    track = {"id": "x", "title": "Lane Song", "passport": {}, "lockbox": {}}
+    ctx = {"statement_rows": 5, "statement_total": 500.0,
+           "lanes_with_data": {"master", "pro"}, "live_links": 0, "fans": 0,
+           "club_members": 0, "sync_active": False,
+           "release_scheduled": False, "rollout_assets": False}
+    grid = {l["key"]: l for l in artist_os.lane_grid(track, ctx)}
+    assert grid["master"]["state"] == "claimed"
+    assert grid["pro"]["state"] == "claimed"
+    assert grid["mechanicals"]["state"] == "missing"
+    assert grid["mechanicals"]["estimate"] == 30.0
+    # Pages render with the demo's real track.
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tracks/add", data={"title": "Queue Song"})
+    lanes_page = artist.get("/royalty-lanes").get_data(as_text=True)
+    assert "Royalty Lanes" in lanes_page and "Queue Song" in lanes_page
+    queue_page = artist.get("/money-queue").get_data(as_text=True)
+    assert "Missing Money Action Queue" in queue_page
+    assert "Queue Song" in queue_page and "Fix this" in queue_page
+    assert "release-blocking" in queue_page
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    for t in store_mod.list_os_tracks(uid):
+        if t["title"] == "Queue Song":
+            store_mod.delete_os_track(uid, t["id"])

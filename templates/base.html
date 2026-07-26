@@ -76,6 +76,8 @@
             ('royalties', '/royalties', 'M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6', 'Royalties'),
             ('statements', '/statements', 'M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4', 'Statements'),
             ('recovery', '/recovery', 'M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2', 'Recovery'),
+            ('royalty-lanes', '/royalty-lanes', 'M3 5h14|M3 9h14|M3 13h14|M3 17h9', 'Royalty Lanes'),
+            ('money-queue', '/money-queue', 'M4 4h12l-2 5 2 5H4z|M4 14v3', 'Money Queue'),
             ('cases', '/royalty-recovery/cases', 'M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2', 'Recovery Cases'),
             ('disputes', '/disputes', 'M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0', 'Disputes'),
             ('publishing', '/publishing', 'M5 4h7a2 2 0 012 2v10H7a2 2 0 00-2 2V4z|M14 6h1a1 1 0 011 1v11a2 2 0 00-2-2', 'Publishing'),
@@ -154,7 +156,7 @@
           ]),
         ] %}
         {# Features that genuinely work today; everything else shows a lock. #}
-        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster', 'referrals', 'lights', 'tracks'] %}
+        {% set live_keys = ['statements', 'notifications', 'documents', 'identifiers', 'cases', 'deal-room', 'sync-packs', 'deal-simulator', 'artist-twin', 'revenue-os', 'trust-score', 'overview', 'royalties', 'recovery', 'valuation', 'links', 'rollout', 'artwork', 'services', 'submit', 'inbox', 'settings', 'epk', 'discover', 'catalog', 'command-center', 'actions', 'autopilot', 'clean-release', 'qualification', 'profile', 'vault', 'review', 'pulse', 'team', 'stats', 'tax', 'connections', 'releases', 'publishing', 'mechanicals', 'neighboring', 'territories', 'insights', 'disputes', 'fan-club-admin', 'portal', 'tour', 'stage-plot', 'tour-board', 'rack', 'roster', 'referrals', 'lights', 'tracks', 'royalty-lanes', 'money-queue'] %}
         {% set group_worlds = {
           'Command': ['promote', 'sweep', 'label'],
           'Collect': ['sweep'], 'Catalog': ['sweep'], 'Value': ['sweep'],
