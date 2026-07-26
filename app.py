@@ -1867,6 +1867,40 @@ def create_app():
                     "trust": trust_score.calculate(user["id"])["total"],
                     "actions": cc.open_actions(user["id"], limit=3),
                     "insights": insights_engine.build_insights(user["id"])[:2]}
+        elif hub_key == "launch":
+            # Next drop + real blockers: campaign dates, track release dates,
+            # and Clean Release verdicts all come from the user's own records.
+            today = datetime.now(timezone.utc).date().isoformat()
+            drops = sorted(
+                [c for c in mls.list_campaigns(user["id"])
+                 if (c.get("release_date") or "") >= today],
+                key=lambda c: c["release_date"])
+            tracks, ctx, summary, _cert = _os_full(user["id"])
+            alerts = []
+            for t in sorted([t for t in tracks
+                             if (t.get("release_date") or "") >= today],
+                            key=lambda t: t["release_date"]):
+                clean = artist_os.clean_release(t, ctx)
+                passport = artist_os.passport_report(t)
+                if clean["blocked"]:
+                    first_red = next((i["label"] for i in clean["items"]
+                                      if i["state"] == "red"), "rights issue")
+                    alerts.append({"level": "red", "track": t["title"],
+                                   "date": t["release_date"],
+                                   "text": "%s unresolved" % first_red})
+                elif passport["pct"] < 100:
+                    alerts.append({"level": "amber", "track": t["title"],
+                                   "date": t["release_date"],
+                                   "text": "passport %d%% complete"
+                                           % passport["pct"]})
+            desk = {"next_release": drops[0] if drops else None,
+                    "reds": summary["reds"], "alerts": alerts[:4],
+                    "flow": [("Track Passport", "/tracks"),
+                             ("Clean Release", "/releases/clean-release"),
+                             ("Schedule", "/releases"),
+                             ("Smart Link", "/links"),
+                             ("Rollout", "/rollout-studio"),
+                             ("Pulse", "/pulse")]}
         return render_template("hub_desk.html", active_page="desk-" + hub_key,
                                hub=hub, desk=desk, **build_dashboard_context())
 
@@ -1889,7 +1923,7 @@ def create_app():
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/rider/", "/roster/join/", "/sign/", "/@")
+                        "/rider/", "/roster/join/", "/sign/", "/sheet/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy", "/sw.js"}
 
@@ -2902,13 +2936,119 @@ def create_app():
                     if (c.get("release_date") or "") >=
                     datetime.now(timezone.utc).date().isoformat()]
         lanes = artist_os.lane_grid(tracks[0], ctx) if tracks else []
+        share = store.get_onesheet_share(user["id"])
+        vault = store.list_vault_files(user["id"])
+        vault_images = [v for v in vault if v["path"].rsplit(".", 1)[-1].lower()
+                        in ("png", "jpg", "jpeg", "webp", "gif")]
+        vault_audio = [v for v in vault if v["path"].rsplit(".", 1)[-1].lower()
+                       in ("wav", "mp3", "flac")]
+        views = (store.onesheet_view_stats(share["token"])
+                 if share else {"total": 0, "recent": []})
         return render_template("deal_onesheet.html", user=user, cert=cert,
                                summary=summary, reports=reports[:6],
                                pulse=pulse, upcoming=upcoming[:5],
                                lanes_claimed=[l for l in lanes
                                               if l["state"] == "claimed"],
-                               ctx=ctx,
+                               ctx=ctx, share=share, views=views,
+                               vault_images=vault_images,
+                               vault_audio=vault_audio,
                                today=datetime.now(timezone.utc).date().isoformat())
+
+    @app.route("/onesheet/share", methods=["POST"])
+    def onesheet_share_save():
+        """Share settings: everything on the public sheet resolves through the
+        artist's own vault listing — nothing else is reachable by id."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        action = request.form.get("action") or "save"
+        if action == "disable":
+            store.delete_onesheet_share(user["id"])
+            return redirect("/deal-room/onesheet")
+        share = store.get_onesheet_share(user["id"])
+        token = (uuid.uuid4().hex[:20] if (share is None or action == "regenerate")
+                 else share["token"])
+        pin = "".join(c for c in (request.form.get("pin") or "") if c.isdigit())[:8]
+        if pin and len(pin) < 4:
+            pin = ""
+        vault = {v["id"]: v for v in store.list_vault_files(user["id"])}
+        banner = ""
+        pick = request.form.get("banner") or ""
+        if pick in vault and vault[pick]["path"].rsplit(".", 1)[-1].lower() in (
+                "png", "jpg", "jpeg", "webp", "gif"):
+            banner = vault[pick]["path"]
+        audio = []
+        for vid in request.form.getlist("audio")[:3]:
+            v = vault.get(vid)
+            if v and v["path"].rsplit(".", 1)[-1].lower() in ("wav", "mp3", "flac"):
+                audio.append({"path": v["path"],
+                              "label": v["label"] or "Untitled"})
+        store.upsert_onesheet_share(user["id"], token, pin, banner, audio)
+        return redirect("/deal-room/onesheet")
+
+    def _sheet_context(share):
+        owner = store.get_user(share["user_id"])
+        if owner is None:
+            abort(404)
+        tracks, ctx, summary, cert = _os_full(owner["id"])
+        reports = sorted(
+            [{"t": t, "clean": artist_os.clean_release(t, ctx)} for t in tracks],
+            key=lambda r: -r["clean"]["score"])
+        upcoming = [c for c in mls.list_campaigns(owner["id"])
+                    if (c.get("release_date") or "") >=
+                    datetime.now(timezone.utc).date().isoformat()]
+        return owner, summary, cert, reports[:3], upcoming[:3]
+
+    @app.route("/sheet/<token>", methods=["GET", "POST"])
+    def sheet_public(token):
+        share = store.get_onesheet_share_by_token(token)
+        if share is None:
+            abort(404)
+        pin_ok_key = "sheet_ok_" + token
+        if share["pin"] and not session.get(pin_ok_key):
+            if request.method == "POST":
+                if (request.form.get("pin") or "").strip() == share["pin"]:
+                    session[pin_ok_key] = True
+                    return redirect("/sheet/" + token)
+                owner = store.get_user(share["user_id"])
+                return render_template("sheet_public.html", mode="pin",
+                                       token=token, bad_pin=True,
+                                       artist=(owner or {}).get("name", "")), 403
+            owner = store.get_user(share["user_id"])
+            return render_template("sheet_public.html", mode="pin", token=token,
+                                   bad_pin=False,
+                                   artist=(owner or {}).get("name", ""))
+        owner, summary, cert, reports, upcoming = _sheet_context(share)
+        viewer = current_user()
+        if viewer is None or viewer["id"] != owner["id"]:
+            store.log_onesheet_view(token)
+        return render_template("sheet_public.html", mode="sheet", token=token,
+                               owner=owner, summary=summary, cert=cert,
+                               reports=reports, upcoming=upcoming, share=share,
+                               sent=request.args.get("sent") == "1",
+                               today=datetime.now(timezone.utc).date().isoformat())
+
+    @app.route("/sheet/<token>/pitch", methods=["POST"])
+    def sheet_pitch(token):
+        share = store.get_onesheet_share_by_token(token)
+        if share is None:
+            abort(404)
+        if (request.form.get("website") or "").strip():
+            return redirect("/sheet/" + token)  # honeypot: silently drop bots
+        name = (request.form.get("name") or "").strip()[:120]
+        email = (request.form.get("email") or "").strip()[:200]
+        message = (request.form.get("message") or "").strip()[:2000]
+        if "@" not in email or not message:
+            return redirect("/sheet/" + token)
+        owner = store.get_user(share["user_id"])
+        store.add_inbox("onesheet_pitch", {
+            "artist_id": share["user_id"],
+            "artist": (owner or {}).get("name", ""),
+            "name": name, "email": email, "message": message})
+        store.notify(share["user_id"], "pitch",
+                     "One-sheet pitch from %s" % (name or email),
+                     message[:300], "/reports")
+        return redirect("/sheet/" + token + "?sent=1")
 
     _LOCKBOX_KEYS = tuple(k for k, _l, _r in artist_os.LOCKBOX_DOCS)
 

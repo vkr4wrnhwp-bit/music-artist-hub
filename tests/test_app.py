@@ -4599,3 +4599,90 @@ def test_track_passports_pipeline_and_csv_import():
         assert stage in page
     assert 'class="state-pill' in page and 'data-state=' in page
     assert "TIT2" in page and "fromCharCode" in page
+
+
+def test_onesheet_share_pin_views_and_pitch():
+    import io as _io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "os-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Sheet Artist", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    with store_mod.get_db() as db:
+        db.execute("UPDATE users SET plan = 'label' WHERE id = ?", (uid,))
+    # Vault assets feed the public sheet.
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"png"), "band.png"), "kind": "press_photo",
+        "label": "Press banner"}, content_type="multipart/form-data")
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"riff"), "single.wav"), "kind": "master",
+        "label": "Lead single"}, content_type="multipart/form-data")
+    vids = {v["label"]: v["id"] for v in store_mod.list_vault_files(uid)}
+    # The private one-sheet carries the share panel.
+    page = client.get("/deal-room/onesheet").get_data(as_text=True)
+    assert "Shareable One-Sheet" in page and "Create share link" in page
+    client.post("/onesheet/share", data={
+        "action": "save", "pin": "4711", "banner": vids["Press banner"],
+        "audio": [vids["Lead single"]]})
+    share = store_mod.get_onesheet_share(uid)
+    assert share["pin"] == "4711" and share["banner"].startswith("/uploads/")
+    assert share["audio"][0]["label"] == "Lead single"
+    token = share["token"]
+    # Anonymous viewer hits the PIN gate; wrong PIN bounces, right one opens.
+    anon = app_obj.test_client()
+    gate = anon.get("/sheet/" + token).get_data(as_text=True)
+    assert "PIN-protected" in gate and "Lead single" not in gate
+    assert anon.post("/sheet/" + token, data={"pin": "0000"}).status_code == 403
+    anon.post("/sheet/" + token, data={"pin": "4711"})
+    sheet = anon.get("/sheet/" + token).get_data(as_text=True)
+    assert "Artist One-Sheet" in sheet and "Lead single" in sheet
+    assert "Collected Revenue" not in sheet  # money never leaves the house
+    # Views log for outsiders only.
+    client.get("/sheet/" + token)
+    assert store_mod.onesheet_view_stats(token)["total"] == 1
+    # A pitch lands in the inbox and notifies the artist; honeypot drops bots.
+    anon.post("/sheet/%s/pitch" % token, data={
+        "name": "A&R Person", "email": "ar@label.example",
+        "message": "Love the single."})
+    pitches = [i for i in store_mod.get_inbox() if i["kind"] == "onesheet_pitch"
+               and i["payload"].get("artist_id") == uid]
+    assert len(pitches) == 1 and pitches[0]["payload"]["email"] == "ar@label.example"
+    assert store_mod.unread_notifications(uid) >= 1
+    anon.post("/sheet/%s/pitch" % token, data={
+        "website": "spam", "email": "x@y.example", "message": "buy followers"})
+    assert len([i for i in store_mod.get_inbox()
+                if i["kind"] == "onesheet_pitch"
+                and i["payload"].get("artist_id") == uid]) == 1
+    # Regenerating kills the old link; disabling removes share and views.
+    client.post("/onesheet/share", data={"action": "regenerate"})
+    assert anon.get("/sheet/" + token).status_code == 404
+    client.post("/onesheet/share", data={"action": "disable"})
+    assert store_mod.get_onesheet_share(uid) is None
+
+
+def test_launch_desk_countdown_alerts_and_filters():
+    import uuid as _uuid
+    import db as store_mod
+    import links_store as mls_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "ld-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "LD", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    # No scheduled drop: no countdown, but flow strip + pills render.
+    page = client.get("/desk/launch").get_data(as_text=True)
+    assert "Next drop" not in page
+    assert "each stage reads the last one" in page
+    assert 'class="desk-pill' in page and 'data-live="1"' in page
+    # A dated track with an incomplete passport raises a real blocker line.
+    store_mod.add_os_track(uid, "Summer Anthem", "Summer EP", "2099-08-20")
+    mls_mod.create_campaign(uid, "ld-%s" % _uuid.uuid4().hex[:6],
+                            {"title": "Summer Anthem",
+                             "release_date": "2099-08-20"})
+    page = client.get("/desk/launch").get_data(as_text=True)
+    assert "Next drop" in page and 'data-date="2099-08-20"' in page
+    assert "Release blockers" in page and "Summer Anthem" in page

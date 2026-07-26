@@ -164,6 +164,19 @@ def init_db():
                 kind TEXT NOT NULL DEFAULT 'file',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS onesheet_shares (
+                user_id TEXT PRIMARY KEY,
+                token TEXT NOT NULL,
+                pin TEXT NOT NULL DEFAULT '',
+                banner TEXT NOT NULL DEFAULT '',
+                audio TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS onesheet_views (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL,
+                ts TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS outreach_items (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1168,6 +1181,66 @@ def delete_vault_file(user_id, file_id):
         db.execute("DELETE FROM vault_files WHERE id = ? AND user_id = ?",
                    (file_id, user_id))
     return row["path"]
+
+# --- One-sheet share -----------------------------------------------------------
+
+def get_onesheet_share(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM onesheet_shares WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["audio"] = json.loads(d["audio"] or "[]")
+    return d
+
+
+def get_onesheet_share_by_token(token):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM onesheet_shares WHERE token = ?",
+                         (token,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["audio"] = json.loads(d["audio"] or "[]")
+    return d
+
+
+def upsert_onesheet_share(user_id, token, pin="", banner="", audio=None):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO onesheet_shares (user_id, token, pin, banner, audio, created)"
+            " VALUES (?,?,?,?,?,?)"
+            " ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,"
+            " pin=excluded.pin, banner=excluded.banner, audio=excluded.audio",
+            (user_id, token, pin[:16], banner[:300],
+             json.dumps(audio or []), _now()))
+
+
+def delete_onesheet_share(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT token FROM onesheet_shares WHERE user_id = ?",
+                         (user_id,)).fetchone()
+        db.execute("DELETE FROM onesheet_shares WHERE user_id = ?", (user_id,))
+        if row is not None:
+            db.execute("DELETE FROM onesheet_views WHERE token = ?",
+                       (row["token"],))
+
+
+def log_onesheet_view(token):
+    with get_db() as db:
+        db.execute("INSERT INTO onesheet_views (token, ts) VALUES (?,?)",
+                   (token, _now()))
+
+
+def onesheet_view_stats(token):
+    with get_db() as db:
+        total = db.execute("SELECT COUNT(*) AS n FROM onesheet_views WHERE token = ?",
+                           (token,)).fetchone()["n"]
+        recent = db.execute(
+            "SELECT ts FROM onesheet_views WHERE token = ? ORDER BY id DESC LIMIT 20",
+            (token,)).fetchall()
+    return {"total": total, "recent": [r["ts"] for r in recent]}
 
 
 # --- Outreach Pipeline (personal CRM) ---------------------------------------------

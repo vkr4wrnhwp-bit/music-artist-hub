@@ -44,7 +44,8 @@ _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes"
               "/publishing", "/mechanicals", "/neighboring-rights", "/territories",
               "/connections", "/catalog", "/identifiers", "/documents",
               "/conflicts", "/registration", "/valuation", "/funding", "/sync",
-              "/tax", "/reports", "/royalty-recovery", "/deal-room", "/revenue-os",
+              "/tax", "/reports", "/royalty-recovery", "/deal-room", "/onesheet",
+              "/revenue-os",
               "/capital-score", "/spend-optimizer", "/royalty-lanes",
               "/money-queue")
 
