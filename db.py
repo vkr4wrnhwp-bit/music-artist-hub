@@ -316,6 +316,22 @@ def init_db():
                 deezer_fans INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (user_id, day)
             );
+            CREATE TABLE IF NOT EXISTS pulse_peers (
+                user_id TEXT NOT NULL,
+                artist_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                image TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL,
+                PRIMARY KEY (user_id, artist_id)
+            );
+            CREATE TABLE IF NOT EXISTS pulse_peer_snapshots (
+                user_id TEXT NOT NULL,
+                artist_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                followers INTEGER NOT NULL DEFAULT 0,
+                popularity INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, artist_id, day)
+            );
             CREATE TABLE IF NOT EXISTS pulse_profiles (
                 user_id TEXT PRIMARY KEY,
                 artist_id TEXT NOT NULL,
@@ -954,6 +970,52 @@ def list_pulse_snapshots(user_id, limit=90):
         rows = db.execute(
             "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
             (user_id, limit)).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def add_pulse_peer(user_id, artist_id, name, image=""):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO pulse_peers (user_id, artist_id, name, image, created)"
+            " VALUES (?,?,?,?,?)"
+            " ON CONFLICT(user_id, artist_id) DO UPDATE SET name=excluded.name,"
+            " image=excluded.image",
+            (user_id, artist_id[:64], name[:120], image[:300], _now()))
+
+
+def list_pulse_peers(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM pulse_peers WHERE user_id = ? ORDER BY created",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_pulse_peer(user_id, artist_id):
+    with get_db() as db:
+        db.execute("DELETE FROM pulse_peers WHERE user_id = ? AND artist_id = ?",
+                   (user_id, artist_id))
+        db.execute("DELETE FROM pulse_peer_snapshots WHERE user_id = ?"
+                   " AND artist_id = ?", (user_id, artist_id))
+
+
+def record_peer_snapshot(user_id, artist_id, followers, popularity):
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO pulse_peer_snapshots (user_id, artist_id, day,"
+            " followers, popularity) VALUES (?,?,?,?,?)"
+            " ON CONFLICT(user_id, artist_id, day) DO UPDATE SET"
+            " followers=excluded.followers, popularity=excluded.popularity",
+            (user_id, artist_id, day, followers, popularity))
+
+
+def list_peer_snapshots(user_id, artist_id, limit=90):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM pulse_peer_snapshots WHERE user_id = ?"
+            " AND artist_id = ? ORDER BY day DESC LIMIT ?",
+            (user_id, artist_id, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
 
 

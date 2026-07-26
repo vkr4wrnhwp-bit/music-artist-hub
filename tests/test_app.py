@@ -5006,3 +5006,57 @@ def test_epk_pitch_share_listening_room_and_vault_assets():
     client.post("/epk/share", data={"action": "disable"})
     assert store_mod.get_epk_share(uid) is None
     assert anon.get("/pitch/" + token).status_code == 404
+
+
+def test_pulse_peers_trendline_and_milestone(monkeypatch):
+    import uuid as _uuid
+    import db as store_mod
+    import spotify_provider
+    import music_apis
+    monkeypatch.setattr(spotify_provider, "pulse_configured", lambda: True)
+    data = {"me123": {"name": "PU Artist", "image": "", "genres": ["indie"],
+                      "followers": 1200, "popularity": 44, "url": "",
+                      "top_tracks": []},
+            "peerA": {"name": "Peer A", "image": "", "genres": [],
+                      "followers": 5100, "popularity": 51, "url": "",
+                      "top_tracks": []}}
+    monkeypatch.setattr(spotify_provider, "artist_pulse", data.get)
+    monkeypatch.setattr(music_apis, "deezer_artist_fans",
+                        lambda name: {"fans": 130})
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "pu-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "PU", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    store_mod.save_pulse_profile(uid, "me123", "PU Artist", "")
+    # An older sub-1k snapshot so the 1,000-follower milestone is detected.
+    store_mod.record_pulse_snapshot(uid, 900, 40, 100)
+    with store_mod.get_db() as db:
+        db.execute("UPDATE pulse_snapshots SET day = '2026-07-10'"
+                   " WHERE user_id = ?", (uid,))
+    # Peer pinning: no self, cap of three, removable.
+    assert client.post("/pulse/peer/add", json={
+        "id": "me123", "name": "PU Artist"}).status_code == 400
+    assert client.post("/pulse/peer/add", json={
+        "id": "peerA", "name": "Peer A"}).get_json()["ok"]
+    for pid in ("peerB", "peerC"):
+        client.post("/pulse/peer/add", json={"id": pid, "name": pid})
+    over = client.post("/pulse/peer/add", json={"id": "peerD", "name": "D"})
+    assert over.status_code == 400
+    client.post("/pulse/peer/peerB/remove")
+    client.post("/pulse/peer/peerC/remove")
+    store_mod.record_peer_snapshot(uid, "peerA", 4900, 50)
+    with store_mod.get_db() as db:
+        db.execute("UPDATE pulse_peer_snapshots SET day = '2026-07-10'"
+                   " WHERE user_id = ? AND artist_id = 'peerA'", (uid,))
+    page = client.get("/pulse").get_data(as_text=True)
+    # Layered trendline from real snapshots, with the honest no-fake-lines note.
+    assert "Pulse Graph" in page and page.count("<polyline") == 3
+    assert "no line is better than a fake one" in page
+    # Peer Watch: you + peer, both with measured 7-day deltas.
+    assert "Peer A" in page and "(you)" in page
+    assert "+200" in page and "+300" in page
+    # Milestone detected from snapshot history; canvas value safely quoted.
+    assert "Milestone crossed" in page and "1,000" in page
+    assert '"1,000"' in page

@@ -4210,10 +4210,84 @@ def create_app():
                 store.record_pulse_snapshot(user["id"], pulse["followers"],
                                             pulse["popularity"],
                                             (deezer or {}).get("fans", 0))
+        snaps = store.list_pulse_snapshots(user["id"], limit=30)
+        # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
+        # same cadence — a real comparison, not a modeled one.
+        peers = []
+        for peer in store.list_pulse_peers(user["id"]):
+            row = {"artist_id": peer["artist_id"], "name": peer["name"],
+                   "image": peer["image"], "followers": None,
+                   "popularity": None, "delta7": None}
+            if spotify.pulse_configured():
+                live = spotify.artist_pulse(peer["artist_id"])
+                if live:
+                    store.record_peer_snapshot(user["id"], peer["artist_id"],
+                                               live["followers"],
+                                               live["popularity"])
+                    row["followers"] = live["followers"]
+                    row["popularity"] = live["popularity"]
+            history = store.list_peer_snapshots(user["id"], peer["artist_id"])
+            week_ago = (datetime.now(timezone.utc).date()
+                        - timedelta(days=7)).isoformat()
+            base = next((s for s in history if s["day"] <= week_ago),
+                        history[0] if history else None)
+            if base and row["followers"] is not None and base["followers"]:
+                row["delta7"] = row["followers"] - base["followers"]
+            peers.append(row)
+        my_delta7 = None
+        if pulse and snaps:
+            week_ago = (datetime.now(timezone.utc).date()
+                        - timedelta(days=7)).isoformat()
+            base = next((s for s in snaps if s["day"] <= week_ago), snaps[0])
+            if base["followers"]:
+                my_delta7 = pulse["followers"] - base["followers"]
+        # Milestone: the largest round follower number crossed between the
+        # oldest snapshot on file and today — detection, not prediction.
+        milestone = None
+        if pulse and snaps and len(snaps) > 1:
+            start = min(s["followers"] for s in snaps if s["followers"]) \
+                if any(s["followers"] for s in snaps) else 0
+            for level in (1000000, 500000, 100000, 50000, 10000, 5000,
+                          1000, 500, 100):
+                if start < level <= pulse["followers"]:
+                    milestone = level
+                    break
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
+                               snaps=snaps, peers=peers, my_delta7=my_delta7,
+                               milestone=milestone,
                                **build_dashboard_context())
+
+    @app.route("/pulse/peer/add", methods=["POST"])
+    def pulse_peer_add():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        p = request.get_json(silent=True) or {}
+        artist_id = (p.get("id") or "").strip()[:64]
+        name = (p.get("name") or "").strip()[:120]
+        if not artist_id or not name:
+            return jsonify({"ok": False, "error": "Pick an artist from the "
+                            "search results."}), 400
+        profile = store.get_pulse_profile(user["id"])
+        if profile and profile["artist_id"] == artist_id:
+            return jsonify({"ok": False, "error": "That's you — pin someone "
+                            "to compare against."}), 400
+        if len(store.list_pulse_peers(user["id"])) >= 3:
+            return jsonify({"ok": False, "error": "Three peers max — remove "
+                            "one first."}), 400
+        store.add_pulse_peer(user["id"], artist_id, name,
+                             (p.get("image") or "").strip()[:300])
+        return jsonify({"ok": True})
+
+    @app.route("/pulse/peer/<artist_id>/remove", methods=["POST"])
+    def pulse_peer_remove(artist_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        store.delete_pulse_peer(user["id"], artist_id)
+        return jsonify({"ok": True})
 
     @app.route("/pulse/search")
     def pulse_search():
