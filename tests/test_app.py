@@ -4555,3 +4555,47 @@ def test_vault_upload_api_and_batch_zip():
     assert 'id="rk-vault"' in rack
     art = client.get("/artwork").get_data(as_text=True)
     assert "/vault/upload" in art
+
+
+def test_track_passports_pipeline_and_csv_import():
+    import io as _io
+    import uuid as _uuid
+    import db as store_mod
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "pp-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "PP", "email": email,
+                                 "password": "secret1"})
+    # Anonymous import bounces off the login wall.
+    anon = app_obj.test_client().post("/tracks/import")
+    assert anon.status_code == 302 and "/login" in anon.headers["Location"]
+    # Empty catalog: no pipeline strip, but the import control is offered.
+    page = client.get("/tracks").get_data(as_text=True)
+    assert "In catalog" not in page and "Import CSV catalog" in page
+    # CSV import: blank-title rows skipped, known columns land in passports.
+    csv_bytes = ("title,isrc,writers,label,release,release_date\n"
+                 "Gold Chains,USSB12600001,V. Cross; T. Reed,Street Banker,"
+                 "Night Shift,2026-09-01\n"
+                 ",,,,,\n"
+                 "Second Cut,USSB12600002,V. Cross,,,\n").encode()
+    r = client.post("/tracks/import",
+                    data={"csv": (_io.BytesIO(csv_bytes), "catalog.csv")},
+                    content_type="multipart/form-data", follow_redirects=True)
+    assert r.status_code == 200
+    page = r.get_data(as_text=True)
+    assert "Gold Chains" in page and "Second Cut" in page
+    uid = store_mod.get_user_by_email(email)["id"]
+    rows = store_mod.list_os_tracks(uid)
+    assert len(rows) == 2
+    gold = [t for t in rows if t["title"] == "Gold Chains"][0]
+    assert gold["passport"].get("isrc") == "USSB12600001"
+    assert gold["passport"].get("songwriters") == "V. Cross; T. Reed"
+    assert gold["passport"].get("label") == "Street Banker"
+    assert gold["release_title"] == "Night Shift"
+    assert gold["release_date"] == "2026-09-01"
+    # Pipeline strip renders each real-count stage; pills + ID3 reader ship.
+    for stage in ("In catalog", "Metadata complete", "Rights signed",
+                  "Release-ready"):
+        assert stage in page
+    assert 'class="state-pill' in page and 'data-state=' in page
+    assert "TIT2" in page and "fromCharCode" in page

@@ -2738,10 +2738,63 @@ def create_app():
                  "caps": artist_os.lockbox_report(t)["caps"]}
                 for t in tracks]
         summary = _os_summary(user["id"], tracks, ctx)
+        # Pipeline stages, each computed from real row state.
+        pipeline = [
+            ("In catalog", len(rows)),
+            ("Metadata complete", len([r for r in rows
+                                       if r["passport"]["pct"] == 100])),
+            ("Rights signed", len([r for r in rows if r["caps"]["release"]])),
+            ("Release-ready", len([r for r in rows
+                                   if not r["clean"]["blocked"]
+                                   and r["clean"]["score"] >= 80])),
+        ]
         return render_template("os_tracks.html", active_page="tracks",
-                               rows=rows, cert=artist_os.certification(summary),
+                               rows=rows, pipeline=pipeline,
+                               cert=artist_os.certification(summary),
                                summary=summary,
                                **build_dashboard_context())
+
+    # CSV column -> passport field, for catalog migrations.
+    _CSV_PASSPORT = {"isrc": "isrc", "upc": "upc", "writers": "songwriters",
+                     "songwriters": "songwriters", "producers": "producers",
+                     "publishers": "publishers", "pro": "pro",
+                     "label": "label", "master_owner": "master_owner"}
+
+    @app.route("/tracks/import", methods=["POST"])
+    def os_tracks_import():
+        """Bulk CSV import: title required per row; known metadata columns
+        land straight in each new passport."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        f = request.files.get("csv")
+        if f is None or not f.filename:
+            return redirect("/tracks")
+        import csv as _csv
+        import io as _io
+        try:
+            text = f.read().decode("utf-8-sig", errors="replace")
+            reader = _csv.DictReader(_io.StringIO(text))
+            made = 0
+            for row in reader:
+                if made >= 200:
+                    break
+                low = {(k or "").strip().lower(): (v or "").strip()
+                       for k, v in row.items()}
+                title = low.get("title") or low.get("track") or low.get("track_title")
+                if not title:
+                    continue
+                tid = store.add_os_track(user["id"], title[:120],
+                                         (low.get("release") or low.get("album") or "")[:120],
+                                         (low.get("release_date") or low.get("date") or "")[:10])
+                passport = {pf: low[col] for col, pf in _CSV_PASSPORT.items()
+                            if low.get(col)}
+                if passport:
+                    store.update_os_track_passport(user["id"], tid, passport)
+                made += 1
+        except (UnicodeDecodeError, _csv.Error):
+            pass
+        return redirect("/tracks")
 
     @app.route("/tracks/add", methods=["POST"])
     def os_tracks_add():
