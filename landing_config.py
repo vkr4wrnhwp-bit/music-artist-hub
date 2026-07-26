@@ -46,9 +46,8 @@ def get_landing_config():
             "eyebrow": "STREET BANKER",
             "headline": ["THE ARTIST", "BACK OFFICE", "FOR MONEY", "YOU'RE MISSING"],
             "subheadline": (
-                "Street Banker's infrastructure and Royalty Sweep work end-to-end to "
-                "find, collect, and protect the royalties you've earned across every "
-                "platform and territory."
+                "Street Banker's infrastructure and Royalty Sweep work end-to-end "
+                "to find, collect, and protect what you've earned."
             ),
             "ctas": [
                 {"label": "Start Free Scan", "href": "/overview", "variant": "primary"},
@@ -58,7 +57,7 @@ def get_landing_config():
             "value_points": [
                 {"icon": "shield", "title": "No Upfront Fees", "description": "We work on results, not promises."},
                 {"icon": "globe", "title": "Maximum Recovery", "description": "We pursue every source, every territory."},
-                {"icon": "lock", "title": "Artist-Owned System", "description": "You own your data, connections, and catalog."},
+                {"icon": "lock", "title": "Artist-Owned System", "description": "Your masters, your data, your terms."},
             ],
         },
 
@@ -141,7 +140,7 @@ def get_landing_config():
              "description": "All platforms. All territories. One infrastructure.",
              "link": {"label": "Learn More", "href": "/connections"}},
             {"icon": "chart", "texture": "grille", "title": "Maximize Your Value",
-             "description": "More data. More leverage. More recovery.",
+             "description": "More data. More leverage. Higher catalog value.",
              "link": {"label": "Learn More", "href": "/valuation"}},
             {"icon": "lock", "texture": "patchbay", "title": "You Stay In Control",
              "description": "You own your catalog, connections, and future.",
@@ -152,9 +151,8 @@ def get_landing_config():
             "label": "OUR INFRASTRUCTURE",
             "headline": "THREE LANES. ONE INFRASTRUCTURE.",
             "subheadline": (
-                "Street Banker is built on a core system with three integrated lanes. "
-                "Each lane solves a different problem — together, they build complete "
-                "artist infrastructure."
+                "Three integrated lanes, each solving a different problem: "
+                "release it, grow it, own it."
             ),
             "cta": {"label": "Explore The Three Lanes", "href": "/overview"},
             # Full-bleed graphic that carries its own title + all lane detail.
@@ -189,8 +187,8 @@ def get_landing_config():
             "headline": ["THE RECOVERY ENGINE", "POWERING YOUR INFRASTRUCTURE"],
             "subheadline": (
                 "Royalty Sweep is the technology layer inside Street Banker's "
-                "Distribution Lane. It scans, matches, and recovers what others miss — "
-                "so you know more of what you've earned."
+                "Distribution Lane. It scans, matches, and recovers what others "
+                "miss — so you keep more of what you've earned."
             ),
             "cta": {"label": "Explore Royalty Sweep", "href": "/recovery"},
             "engine": {
@@ -221,8 +219,8 @@ def get_landing_config():
         "pillars": [
             {
                 "eyebrow": "STREET BANKER", "title": "Music Distribution",
-                "tagline": "CDs, vinyl, video & digital — everywhere, no setup fees.",
-                "description": "Powered by our Symphonic partnership: your releases reach 200+ platforms and physical retail, earn from social/UGC, and collect everywhere — with real-time data and no upfront fees.",
+                "tagline": "CDs, vinyl, video & digital — everywhere.",
+                "description": "Powered by our Symphonic partnership: releases reach 200+ platforms and physical retail, with social and UGC monetization built in.",
                 "theme": "light",
                 "bullets": ["200+ streaming & download platforms — plus CD, vinyl & music video",
                             "Earn from TikTok, YouTube, Instagram & Facebook UGC (Content ID)",
@@ -249,10 +247,10 @@ def get_landing_config():
             },
             {
                 "eyebrow": "ROYALTY SWEEP", "title": "Recover What You're Owed",
-                "tagline": "The engine that finds money others miss.",
-                "description": "Royalty Sweep scans every source, matches your catalog, and recovers uncollected royalties — publishing, neighboring rights, mechanicals, and more.",
+                "tagline": "Scan. Match. Claim. Paid.",
+                "description": "The recovery layer: your catalog matched against what platforms and societies actually paid, and every gap turned into a claim.",
                 "theme": "dark",
-                "bullets": ["Missing-money scan across every source", "Publishing, neighboring rights & mechanicals",
+                "bullets": ["Full-catalog scan of DSPs, PROs & societies", "Publishing, neighboring rights & mechanicals",
                             "Claims worked through to payout", "Catalog valuation & advance eligibility"],
                 "cta": {"label": "Open Royalty Sweep", "href": "/recovery"},
                 "visual": {"type": "stats", "items": [
@@ -302,7 +300,7 @@ def get_landing_config():
             "label": "SERVICES & SOLUTIONS",
             "headline": "BUILT FOR EVERY STAGE OF YOUR CAREER",
             "items": [
-                {"title": "Royalty Recovery", "description": "Find and collect what you're owed across every source.", "href": "/recovery"},
+                {"title": "Royalty Recovery", "description": "Uncollected royalties, found and filed.", "href": "/recovery"},
                 {"title": "Catalog Management", "description": "Organize, protect, and maximize the value of your catalog.", "href": "/catalog"},
                 {"title": "Sync & Licensing", "description": "Unlock new revenue through sync and commercial use.", "href": "/sync"},
                 {"title": "Reporting & Analytics", "description": "Real-time data. Clear insights. Smarter decisions.", "href": "/reports"},
