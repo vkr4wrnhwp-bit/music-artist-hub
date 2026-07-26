@@ -96,32 +96,28 @@ def test_landing_page_includes_feature_cards():
         assert name in body
 
 
-def test_landing_page_includes_trust_strip():
+def test_landing_page_has_no_placeholder_trust_strip():
+    # The fake-label trust strip was removed for honesty; nothing on the
+    # page may imply endorsements from labels that don't exist.
     client = _demo()
     body = client.get("/").get_data(as_text=True)
-    assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" in body
+    assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" not in body
+    assert "Nightdrive Records" not in body
 
 
-def test_landing_includes_lanes_engine_and_pillars():
+def test_landing_includes_lanes_and_engine():
+    """The design-set homepage: artwork carries the words exactly once,
+    navigation is aria-labeled regions and real buttons."""
     body = _demo().get("/").get_data(as_text=True)
-    # Lanes section renders (headline lives in the graphic when an image is set).
     assert 'id="infrastructure"' in body
-    assert "Explore The Three Lanes" in body
+    assert 'aria-label="Lane 01' in body  # each rack unit clicks through
+    assert body.count("Explore The Three Lanes") == 1
     assert "THE RECOVERY ENGINE" in body
-    # Pillar sections (one per part of the ecosystem) replaced the thin list.
-    assert "Everything Street Banker Is" in body
-    assert "Music Distribution" in body
-    assert "The Industry Network" in body
-
-
-def test_landing_pillars_config():
-    from landing_config import get_landing_config
-    pillars = get_landing_config()["pillars"]
-    assert len(pillars) >= 5
-    # Every pillar links at a real route or on-page target.
-    for p in pillars:
-        assert p["cta"]["href"].startswith("/")
-        assert p["visual"]["type"] in {"stats", "cards", "avatars", "tiles"}
+    # The pillar wall and its placeholder visuals stay gone.
+    assert "Everything Street Banker Is" not in body
+    assert "Nova Reign" not in body
+    # The services strip provides the deep links on the same anchor.
+    assert 'id="services"' in body and "BUILT FOR EVERY STAGE" in body
 
 
 def test_scan_recovery_summary_route():
@@ -3721,13 +3717,15 @@ def test_backup_download(monkeypatch):
 
 
 def test_homepage_distribution_links():
+    # Nav and the hero buttons route into the distribution funnel; the
+    # signup page itself carries the sign-up CTA.
     app_obj = create_app()
-    home = app_obj.test_client().get("/").get_data(as_text=True)
-    # Nav, hero, and the distribution pillar all route into the signup funnel.
+    client = app_obj.test_client()
+    home = client.get("/").get_data(as_text=True)
     assert 'href="/services/distribution"' in home
     assert "Distribute Your Music" in home
-    assert "Sign Up for Distribution" in home
     assert 'href="/submit"' in home
+    assert client.get("/services/distribution").status_code == 200
 
 
 def test_tour_hub():

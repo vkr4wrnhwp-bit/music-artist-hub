@@ -113,14 +113,6 @@ def get_landing_config():
             "recoveries_cta": {"label": "View All Recoveries", "href": "/recovery"},
         },
 
-        "trust": {
-            # Placeholder names only — NOT verified clients or partners.
-            # Replace with real, verified partners before implying endorsement.
-            "heading": "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE",
-            "items": ["Nightdrive Records", "Summit Collective", "Neon District",
-                      "Vantage Group", "Lumen Studios", "Halcyon", "Wavecrest", "+ More"],
-        },
-
         # A single strip graphic that replaces the four feature cards. Its
         # labels/CTAs are baked in, so each quarter is a clickable region
         # (left to right) rather than a duplicate button. Drop the file at
@@ -172,6 +164,15 @@ def get_landing_config():
                 "src": "/static/img/sb-distro-lanes.jpg",
                 "alt": "The Three Distro Lanes — 01 Distribution: release the record. 02 Development: build the artist. 03 Partnership: build the asset.",
                 "bare": True,          # borderless, blends on the white page
+                "rows": 3,
+                # One region per rack unit, top to bottom; labels painted in
+                # the art, so no text repeats below it.
+                "regions": [
+                    {"label": "Lane 01 — Distribution", "href": "/royalties"},
+                    {"label": "Lane 02 — Development", "href": "/audience"},
+                    {"label": "Lane 03 — Partnership", "href": "/capital"},
+                ],
+                "inset_top": "18%",
                 "center_buttons": True,
                 "buttons_below": [
                     {"label": "01 Distribution", "href": "/royalties", "variant": "outline-dark"},
@@ -244,77 +245,7 @@ def get_landing_config():
             ],
         },
 
-        # Tiered "what everything is" sections — one per part of the
-        # ecosystem. Rendered alternating light/dark; each links into its area.
-        "pillars": [
-            {
-                "eyebrow": "LANE 01 · IN DETAIL", "title": "Music Distribution",
-                "tagline": "Lane 01, unpacked: everywhere your record can live.",
-                "description": "Symphonic-powered: 200+ platforms, physical retail, social monetization built in.",
-                "theme": "light",
-                "bullets": ["200+ streaming & download platforms — plus CD, vinyl & music video",
-                            "Earn from TikTok, YouTube, Instagram & Facebook UGC (Content ID)",
-                            "Unlimited collaborator splits + real-time analytics (incl. TikTok)",
-                            "Playlist pitching, publishing, neighboring rights & royalty advances"],
-                "cta": {"label": "Sign Up for Distribution", "href": "/submit"},
-                "secondary_cta": {"label": "Explore Distribution", "href": "/services/distribution"},
-                "visual": {"type": "stats", "items": [
-                    {"value": "200+", "label": "Platforms"}, {"value": "2,500", "label": "Retailers"},
-                    {"value": "$0", "label": "Setup fees"}, {"value": "Live", "label": "Analytics"}]},
-            },
-            {
-                "eyebrow": "STREET BANKER", "title": "Full-Service Label",
-                "tagline": "Distribution, marketing, and management under one roof.",
-                "description": "Strategy, marketing, and management from the team behind the platform.",
-                "theme": "light",
-                "bullets": ["Music marketing to a 200,000+ fan list", "Artist consulting & day-to-day management",
-                            "Branding, apparel, web & advertising", "Sync, licensing & rights support"],
-                "cta": {"label": "See Label Services", "href": "/services"},
-                "visual": {"type": "cards", "items": [
-                    {"title": "Distribution", "desc": "Release. Collect. Report."},
-                    {"title": "Marketing", "desc": "Grow the audience."},
-                    {"title": "Management", "desc": "Build the career."}]},
-            },
-            {
-                "eyebrow": "STREET BANKER", "title": "Value & Fund Your Catalog",
-                "tagline": "Know what it's worth — and unlock capital.",
-                "description": "A live valuation — and advance offers built on it, on your terms.",
-                "theme": "light",
-                "bullets": ["Low / mid / high catalog valuation", "Advance eligibility scoring",
-                            "Comparable offers, side by side", "You keep ownership"],
-                "cta": {"label": "Value My Catalog", "href": "/valuation"},
-                "visual": {"type": "stats", "items": [
-                    {"value": "$296K", "label": "Est. value"}, {"value": "$70K", "label": "Advance"},
-                    {"value": "95", "label": "Score"}, {"value": "18mo", "label": "Term"}]},
-            },
-            {
-                "eyebrow": "COMMUNITY", "title": "The Industry Network",
-                "tagline": "Connect, collaborate, and book.",
-                "description": "A directory of artists, producers, labels, curators, and A&R — connect, pitch tracks, submit to playlists, and enquire about shows.",
-                "theme": "dark",
-                "bullets": ["Search by role, genre & location", "Pitch tracks and submit to playlists",
-                            "Tour dates & booking enquiries", "Mintable Moments — timed collectibles"],
-                "cta": {"label": "Enter the Network", "href": "/network"},
-                "visual": {"type": "avatars", "items": ["Nova Reign", "Kilo Byte", "Echo Lin", "Sable Wynn", "Prism Collective"]},
-            },
-            {
-                "eyebrow": "FOR FANS", "title": "Discover & Collect",
-                "tagline": "A home for fans, not just the industry.",
-                "description": "Fans browse new music by genre and mood, follow artists, collect limited Mintable Moments, and catch shows — all from one door.",
-                "theme": "dark",
-                "bullets": ["Browse by genre & mood", "Follow artists & save tracks",
-                            "Collect limited, watermarked Moments", "RSVP and enquire about shows"],
-                "cta": {"label": "Open Discover", "href": "/discover"},
-                "secondary_cta": {"label": "Continue as a Fan", "href": "/login"},
-                "visual": {"type": "tiles", "items": [
-                    {"name": "Late Night", "from": "#1e1b4b", "to": "#0f172a"},
-                    {"name": "Energetic", "from": "#7f1d1d", "to": "#b45309"},
-                    {"name": "Chill", "from": "#0e7490", "to": "#0f172a"},
-                    {"name": "Focus", "from": "#064e3b", "to": "#0c0a09"}]},
-            },
-        ],
-
-        "services": {
+                "services": {
             "label": "SERVICES & SOLUTIONS",
             "headline": "BUILT FOR EVERY STAGE OF YOUR CAREER",
             "items": [
