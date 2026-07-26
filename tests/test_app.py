@@ -4781,3 +4781,44 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
                                    "x-%s@example.net" % _uuid.uuid4().hex[:8],
                                    "password": "secret1"})
     assert stranger.get("/tracks/%s/certificate" % tid).status_code == 404
+
+
+def test_release_scheduler_lanes_warnings_presets_ics():
+    import uuid as _uuid
+    import db as store_mod
+    import links_store as mls_mod
+    from datetime import date as _date, timedelta as _td
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "rs-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "RS", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    far = (_date.today() + _td(days=40)).isoformat()
+    near = (_date.today() + _td(days=10)).isoformat()
+    rush = (_date.today() + _td(days=3)).isoformat()
+    for slug, title, d in (("far", "Far Drop", far), ("near", "Near Drop", near),
+                           ("rush", "Rush Drop", rush)):
+        mls_mod.create_campaign(uid, "%s-%s" % (slug, _uuid.uuid4().hex[:6]),
+                                {"title": title, "release_date": d})
+    page = client.get("/releases").get_data(as_text=True)
+    # Date-math lead-time warnings: amber under 21 days, red under 7,
+    # nothing for the release with a full runway.
+    assert "Lead-time warnings" in page
+    assert "under the recommended 21-day runway" in page
+    assert "effectively closed" in page
+    assert "Far Drop is" not in page
+    # Swimlanes render one track per campaign; presets are offered.
+    assert "Next 90 days by campaign" in page
+    assert "Standard 30-day" in page and "Surprise drop" in page
+    # Milestones only appear when a preset is chosen — they're derived.
+    assert "nothing is stored or predicted" in page
+    on = client.get("/releases?preset=standard").get_data(as_text=True)
+    assert "Foundation" in on and on.count("days out") > 3
+    # One-way iCal export carries the same derived events.
+    resp = client.get("/releases/calendar.ics?preset=standard")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "BEGIN:VCALENDAR" in body and body.count("BEGIN:VEVENT") >= 3
+    assert "Far Drop" in body
+    assert resp.headers["Content-Disposition"].endswith(".ics")

@@ -3,7 +3,7 @@ import os
 import urllib.parse
 import uuid
 from dataclasses import asdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import (Flask, Response, abort, jsonify, redirect, render_template,
                    request, session, url_for)
@@ -5074,34 +5074,101 @@ def create_app():
     def conflicts():
         return render_template("conflicts.html", active_page="conflicts", **build_dashboard_context())
 
-    @app.route("/releases")
-    def releases():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
+    # Milestone presets are parameterized date math over each campaign's
+    # own release date — nothing is stored, nothing is predicted.
+    _SCHED_PRESETS = {"standard": ("Standard 30-day", 30),
+                      "blitz": ("14-day blitz", 14),
+                      "surprise": ("Surprise drop", 0)}
+
+    def _scheduler_events(user_id, preset):
         today = date.today().isoformat()
         events = []
-        for c in mls.list_campaigns(user["id"]):
+        warnings = []
+        for c in mls.list_campaigns(user_id):
             if c.get("archived_at") or not c.get("release_date"):
                 continue
             events.append({"date": c["release_date"], "kind": "release",
-                           "title": c["title"],
+                           "lane": c["title"], "title": c["title"],
                            "detail": "%s release day" % (c.get("release_type") or "single"),
                            "href": "/links/%s" % c["id"],
                            "status": c["status"]})
-        for r in ros.list_campaigns(user["id"]):
+            try:
+                days_left = (date.fromisoformat(c["release_date"][:10])
+                             - date.today()).days
+            except ValueError:
+                continue
+            if 0 <= days_left < 21:
+                warnings.append({
+                    "campaign": c["title"], "days": days_left,
+                    "level": "red" if days_left < 7 else "amber",
+                    "text": ("inside the 7-day Spotify editorial minimum — "
+                             "the pitch window is effectively closed"
+                             if days_left < 7 else
+                             "under the recommended 21-day runway — pitch "
+                             "and pre-save windows are compressed"),
+                    "href": "/releases/autopilot?campaign=%s" % c["id"]})
+            if days_left > 0 and preset in _SCHED_PRESETS:
+                plan_days = _SCHED_PRESETS[preset][1]
+                if plan_days:
+                    plan = artist_os.campaign_plan(plan_days, c["title"],
+                                                   c["release_date"])
+                    for lbl, sub, tasks in plan["windows"]:
+                        if not lbl.endswith("days out"):
+                            continue
+                        offset = int(lbl.split(" ")[0])
+                        mdate = (date.fromisoformat(c["release_date"][:10])
+                                 - timedelta(days=offset)).isoformat()
+                        if mdate < today:
+                            continue
+                        events.append({
+                            "date": mdate, "kind": "milestone",
+                            "lane": c["title"],
+                            "title": "%s — %s" % (sub, c["title"]),
+                            "detail": tasks[0],
+                            "href": "/releases/autopilot?campaign=%s&days=%d"
+                                    % (c["id"], plan_days),
+                            "status": lbl})
+        for r in ros.list_campaigns(user_id):
             for p in ros.list_posts(r["id"]):
                 if not p.get("scheduled_date"):
                     continue
                 events.append({"date": p["scheduled_date"], "kind": "post",
+                               "lane": r["title"],
                                "title": "%s post — %s" % (p.get("platform", "").title(),
                                                           r["title"]),
                                "detail": (p.get("caption") or "")[:90],
                                "href": "/rollout-studio/%s" % r["id"],
                                "status": p["status"]})
         events.sort(key=lambda e: e["date"])
+        return events, warnings
+
+    @app.route("/releases")
+    def releases():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        preset = request.args.get("preset") or "off"
+        if preset not in _SCHED_PRESETS:
+            preset = "off"
+        today = date.today().isoformat()
+        events, warnings = _scheduler_events(user["id"], preset)
         upcoming = [e for e in events if e["date"] >= today]
         past = [e for e in events if e["date"] < today][-15:]
+        # Swimlanes: one horizontal track per campaign over the next 90 days.
+        horizon = 90
+        lanes = []
+        for e in upcoming:
+            try:
+                off = (date.fromisoformat(e["date"][:10]) - date.today()).days
+            except ValueError:
+                continue
+            if off > horizon:
+                continue
+            lane = next((l for l in lanes if l["name"] == e["lane"]), None)
+            if lane is None:
+                lane = {"name": e["lane"], "events": []}
+                lanes.append(lane)
+            lane["events"].append(dict(e, pct=round(off / horizon * 100, 1)))
         # Group upcoming by month for the calendar rail.
         months = []
         for e in upcoming:
@@ -5110,9 +5177,39 @@ def create_app():
                 months.append({"month": label, "events": []})
             months[-1]["events"].append(e)
         return render_template("releases.html", active_page="releases",
-                               months=months, past=past,
+                               months=months, past=past, lanes=lanes,
+                               warnings=warnings, preset=preset,
+                               presets=_SCHED_PRESETS,
                                total_upcoming=len(upcoming),
                                **build_dashboard_context())
+
+    @app.route("/releases/calendar.ics")
+    def releases_ics():
+        """One-way iCalendar feed of the same derived events — import it
+        into Google/Apple/Outlook. (Two-way sync would need their OAuth
+        apps; this file is honest about being an export.)"""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        preset = request.args.get("preset") or "off"
+        events, _w = _scheduler_events(user["id"], preset)
+        def esc(s):
+            return (s or "").replace("\\", "\\\\").replace(";", "\\;") \
+                            .replace(",", "\\,").replace("\n", "\\n")
+        lines = ["BEGIN:VCALENDAR", "VERSION:2.0",
+                 "PRODID:-//Street Banker//Release Scheduler//EN"]
+        for i, e in enumerate(events):
+            d = e["date"][:10].replace("-", "")
+            lines += ["BEGIN:VEVENT",
+                      "UID:sb-%s-%d@streetbanker" % (d, i),
+                      "DTSTART;VALUE=DATE:" + d,
+                      "SUMMARY:" + esc(e["title"]),
+                      "DESCRIPTION:" + esc(e["detail"]),
+                      "END:VEVENT"]
+        lines.append("END:VCALENDAR")
+        return Response("\r\n".join(lines), mimetype="text/calendar",
+                        headers={"Content-Disposition":
+                                 "attachment; filename=street-banker-releases.ics"})
 
     @app.route("/registration")
     def registration():
