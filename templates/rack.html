@@ -238,6 +238,41 @@
       </div>
     </section>
 
+    <!-- FX: DLY-1 + REV-1 -->
+    <section class="unit p-4 px-7">
+      <div class="screw-b"></div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="badge">DLY-1</span>
+            <span class="sk text-[10px]">Delay</span>
+          </div>
+          <p class="mt-1 text-[10px] text-gray-600">Feedback echo with a tone filter in the loop — darker repeats, like tape.</p>
+          <div class="engrave my-3"></div>
+          <div class="well flex justify-around p-3">
+            <div data-kn="dtime"></div>
+            <div data-kn="dfb"></div>
+            <div data-kn="dtone"></div>
+            <div data-kn="dmix"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="badge">REV-1</span>
+            <span class="sk text-[10px]">Reverb</span>
+          </div>
+          <p class="mt-1 text-[10px] text-gray-600">A synthesized space through a real convolver — honestly generated, not a sampled hall.</p>
+          <div class="engrave my-3"></div>
+          <div class="well flex justify-around p-3">
+            <div data-kn="rsize"></div>
+            <div data-kn="rdamp"></div>
+            <div data-kn="rpre"></div>
+            <div data-kn="rmix"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- SD-8 STEM DECK -->
     <section class="unit p-4 px-7">
       <div class="screw-b"></div>
@@ -280,6 +315,6 @@
   </div>
 </div>
 
-<script src="/static/js/rackdsp.js"></script>
+<script src="/static/js/rackdsp.js?v=2"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

@@ -56,6 +56,11 @@
   var state = (saved && saved.eq && saved.eq.length === EQ_BANDS.length)
     ? saved : JSON.parse(JSON.stringify(PRESETS.flat));
   if (!state.cab) state.cab = JSON.parse(JSON.stringify(DEF_CAB));
+  function ensureFx(s) {
+    if (!s.dly) s.dly = {time: 0.3, fb: 0.3, tone: 5000, mix: 0};
+    if (!s.rev) s.rev = {size: 1.6, damp: 5000, pre: 0.02, mix: 0};
+  }
+  ensureFx(state);
   state.bypass = false;
 
   var ctx = null, buffer = null, playing = null;
@@ -167,6 +172,50 @@
     m.convDry.gain.value = 1 - 0.2 * c.dist;
   }
 
+  function reverbIR(ac, size) {
+    // Seeded decaying noise: the same space every render, live or offline.
+    var rate = ac.sampleRate, len = Math.max(1, Math.floor(rate * size));
+    var buf = ac.createBuffer(2, len, rate);
+    for (var ch = 0; ch < 2; ch++) {
+      var d = buf.getChannelData(ch), rnd = mulberry32(4242 + ch);
+      for (var i = 0; i < len; i++) {
+        d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+      }
+    }
+    return buf;
+  }
+
+  function buildFx(ac) {
+    var fx = {inNode: ac.createGain(), outNode: ac.createGain(),
+              dDry: ac.createGain(), dWet: ac.createGain(),
+              delay: ac.createDelay(2), fb: ac.createGain(),
+              tone: bq(ac, "lowpass", 5000, undefined, 0.7),
+              rDry: ac.createGain(), rWet: ac.createGain(),
+              pre: ac.createDelay(0.2), conv: ac.createConvolver(),
+              damp: bq(ac, "lowpass", 5000, undefined, 0.7), irSize: 0};
+    var mid = ac.createGain();
+    fx.inNode.connect(fx.dDry); fx.dDry.connect(mid);
+    fx.inNode.connect(fx.delay);
+    fx.delay.connect(fx.tone); fx.tone.connect(fx.fb); fx.fb.connect(fx.delay);
+    fx.tone.connect(fx.dWet); fx.dWet.connect(mid);
+    mid.connect(fx.rDry); fx.rDry.connect(fx.outNode);
+    mid.connect(fx.pre); fx.pre.connect(fx.conv); fx.conv.connect(fx.damp);
+    fx.damp.connect(fx.rWet); fx.rWet.connect(fx.outNode);
+    return fx;
+  }
+
+  function voiceFx(fx, ac) {
+    fx.delay.delayTime.value = state.dly.time;
+    fx.fb.gain.value = state.dly.fb;
+    fx.tone.frequency.value = state.dly.tone;
+    fx.dWet.gain.value = state.dly.mix; fx.dDry.gain.value = 1;
+    var sz = Math.round(state.rev.size * 10) / 10;
+    if (fx.irSize !== sz) { fx.conv.buffer = reverbIR(ac, sz); fx.irSize = sz; }
+    fx.pre.delayTime.value = state.rev.pre;
+    fx.damp.frequency.value = state.rev.damp;
+    fx.rWet.gain.value = state.rev.mix; fx.rDry.gain.value = 1;
+  }
+
   function buildCenterMatrix(ac) {
     var split = ac.createChannelSplitter(2), merge = ac.createChannelMerger(2);
     var m = {input: split, output: merge,
@@ -226,11 +275,15 @@
     sum.connect(cabMic.moduleIn);
     voiceCabMic(cabMic);
     cabMic.moduleOut.connect(comp);
-    comp.connect(makeup); makeup.connect(outGain);
+    comp.connect(makeup);
+    var fx = buildFx(ac);
+    voiceFx(fx, ac);
+    makeup.connect(fx.inNode);
+    fx.outNode.connect(outGain);
     outGain.connect(dest);
     return {input: input, filters: filters, tube: tube, wetTube: wetTube,
             dryTube: dryTube, cabMic: cabMic, comp: comp, makeup: makeup,
-            outGain: outGain, out: outGain, centerM: centerM};
+            outGain: outGain, out: outGain, centerM: centerM, fx: fx};
   }
 
   function ensureCtx() {
@@ -268,6 +321,7 @@
       live.dryTube.gain.value = 1 - state.tube.mix;
       voiceCabMic(live.cabMic);
       voiceCenter(live.centerM);
+      voiceFx(live.fx, ctx);
       live.comp.threshold.value = state.comp.thr;
       live.comp.ratio.value = state.comp.ratio;
       live.comp.attack.value = state.comp.att;
@@ -431,6 +485,30 @@
     {kn: "makeup", min: 0, max: 12, def: 0, size: 62, label: "Makeup", wheelStep: 0.5,
      fmt: function (v) { return "+" + v + " dB"; },
      get: function () { return state.comp.makeup; }, set: function (v) { state.comp.makeup = v; }},
+    {kn: "dtime",  min: 0.02, max: 1.2, def: 0.3, size: 60, label: "Time", wheelStep: 0.01,
+     fmt: function (v) { return Math.round(v * 1000) + " ms"; },
+     get: function () { return state.dly.time; }, set: function (v) { state.dly.time = v; }},
+    {kn: "dfb",    min: 0, max: 0.85, def: 0.3, size: 60, label: "Feedback", wheelStep: 0.05,
+     fmt: function (v) { return Math.round(v * 100) + "%"; },
+     get: function () { return state.dly.fb; }, set: function (v) { state.dly.fb = v; }},
+    {kn: "dtone",  min: 500, max: 12000, def: 5000, size: 60, label: "Tone", wheelStep: 250,
+     fmt: function (v) { return v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v); },
+     get: function () { return state.dly.tone; }, set: function (v) { state.dly.tone = v; }},
+    {kn: "dmix",   min: 0, max: 1, def: 0, size: 60, label: "Mix", wheelStep: 0.05,
+     fmt: function (v) { return Math.round(v * 100) + "%"; },
+     get: function () { return state.dly.mix; }, set: function (v) { state.dly.mix = v; }},
+    {kn: "rsize",  min: 0.3, max: 5, def: 1.6, size: 60, label: "Size", wheelStep: 0.1,
+     fmt: function (v) { return v.toFixed(1) + " s"; },
+     get: function () { return state.rev.size; }, set: function (v) { state.rev.size = v; }},
+    {kn: "rdamp",  min: 1000, max: 12000, def: 5000, size: 60, label: "Damping", wheelStep: 250,
+     fmt: function (v) { return (v / 1000).toFixed(1) + "k"; },
+     get: function () { return state.rev.damp; }, set: function (v) { state.rev.damp = v; }},
+    {kn: "rpre",   min: 0, max: 0.08, def: 0.02, size: 60, label: "Pre-delay", wheelStep: 0.005,
+     fmt: function (v) { return Math.round(v * 1000) + " ms"; },
+     get: function () { return state.rev.pre; }, set: function (v) { state.rev.pre = v; }},
+    {kn: "rmix",   min: 0, max: 1, def: 0, size: 60, label: "Mix", wheelStep: 0.05,
+     fmt: function (v) { return Math.round(v * 100) + "%"; },
+     get: function () { return state.rev.mix; }, set: function (v) { state.rev.mix = v; }},
     {kn: "out",    min: -24, max: 12, def: 0, size: 68, label: "Gain", bipolar: true, wheelStep: 0.5,
      fmt: function (v) { return (v > 0 ? "+" : "") + v + " dB"; },
      get: function () { return state.out; }, set: function (v) { state.out = v; }}
@@ -661,7 +739,7 @@
       var p = JSON.parse(JSON.stringify(PRESETS[b.dataset.preset]));
       p.bypass = state.bypass;
       p.center = state.center || "normal";
-      state = p; syncAll(); applyState();
+      state = p; ensureFx(state); syncAll(); applyState();
       statusEl.textContent = "Preset loaded.";
     });
   });

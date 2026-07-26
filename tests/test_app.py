@@ -3868,6 +3868,7 @@ def test_rack_page_and_presets():
     assert "4×12 Closed-Back" in page and "Ribbon" in page
     assert "Stem Deck" in page and "won't pretend" in page
     assert "Remove Center" in page and "Physics, not stem separation" in page
+    assert "DLY-1" in page and "REV-1" in page and "honestly generated" in page
     assert "never leaves this machine" in page
     # Anonymous saves bounce off the login wall.
     anon = app_obj.test_client().post("/rack/save", json={})
