@@ -2479,7 +2479,7 @@ def test_artwork_studio_upload_and_controls():
                    'id="remix-btn"', "re-imagines the same concept",
                    # full studio: alignment, case/shadow, spacing, artist size,
                    # image zoom/pan/darken, save-finished-cover, line breaks
-                   'id="upper-toggle"', 'id="shadow-toggle"',
+                   'id="upper-toggle"', 'id="text-style"',
                    'id="letter-spacing"', 'id="artist-size"',
                    'id="img-scrim"', 'id="img-zoom"', 'id="img-panx"',
                    'id="save-cover-btn"', "use / for a line break"):

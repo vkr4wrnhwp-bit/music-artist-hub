@@ -77,6 +77,12 @@
         <button type="button" id="download-svg-btn" class="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5">SVG</button>
       </div>
       <p id="cover-save-msg" class="mt-2 hidden break-all text-[11px]"></p>
+        <div class="mt-2 flex items-center gap-2">
+          <button type="button" id="allfmt-btn" class="rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-300 hover:border-[#C9A24A]/50 hover:text-[#EAC97C]">Preview all formats</button>
+          <button type="button" id="brand-save" class="rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-300 hover:border-[#C9A24A]/50 hover:text-[#EAC97C]" title="Remembers font, palette, template, and text treatment on this device">Save brand kit</button>
+          <button type="button" id="brand-apply" class="rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-300 hover:border-[#C9A24A]/50 hover:text-[#EAC97C]">Apply brand kit</button>
+        </div>
+        <div id="fmt-strip" class="mt-3 hidden grid-cols-3 gap-3"></div>
     </div>
 
     <!-- ============ The workflow rail ============ -->
@@ -90,8 +96,10 @@
         <textarea id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
                   class="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-[#EFE9DC] placeholder-gray-600 focus:border-[#C9A24A]/60 focus:outline-none"></textarea>
         <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-[#C9A24A]/40 bg-[#C9A24A]/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-[#EAC97C] transition-colors hover:bg-[#C9A24A]/20">Generate artwork</button>
+          <button type="button" id="generate4-btn" class="rounded-lg border border-[#C9A24A]/40 bg-[#C9A24A]/10 px-3 py-2 text-xs font-bold text-[#EAC97C] hover:bg-[#C9A24A]/20">4 variations</button>
         <div id="generate-note" class="mt-2 hidden text-[11px] text-gray-500"></div>
 
+        <div id="ai-grid" class="mt-3 hidden grid-cols-2 gap-2"></div>
         <div id="ai-image-wrap" class="mt-3 hidden">
           <div class="relative overflow-hidden rounded-xl border border-white/10">
             <img id="ai-image" alt="Generated artwork" class="aspect-square w-full object-cover">
@@ -211,9 +219,12 @@
           <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
             <input type="checkbox" id="upper-toggle" checked class="h-3.5 w-3.5 accent-[#C9A24A]">CAPS
           </label>
-          <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-gray-400">
-            <input type="checkbox" id="shadow-toggle" checked class="h-3.5 w-3.5 accent-[#C9A24A]">Shadow
-          </label>
+          <select id="text-style" class="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] font-bold text-gray-300 focus:border-[#C9A24A]/60 focus:outline-none" title="Title treatment">
+            <option value="shadow" selected>Shadow</option>
+            <option value="neon">Neon glow</option>
+            <option value="metallic">Metallic gold</option>
+            <option value="none">Plain</option>
+          </select>
         </div>
 
         <div class="mt-4 space-y-3">
@@ -290,7 +301,7 @@
     artist: document.getElementById("artist-input").value,
     titleColor: null, artistColor: null,
     textScale: 1, artistScale: 1, textX: null, textY: null,
-    align: null, upper: true, shadow: true, letterSpacing: 0,
+    align: null, upper: true, textStyle: "shadow", letterSpacing: 0,
     image: null, scrim: 28, zoom: 100, panX: 50, panY: 50,
     bgCustom: null, artistX: null, artistY: null,
     logo: null, logoSize: 24, logoX: 50, logoY: 16,
@@ -328,12 +339,26 @@
     const baseY = state.textY !== null ? H * (state.textY / 100)
       : (t.align === "bottom" ? H * 0.84 : H * 0.55) - (lineCount - 1) * lineGap * 0.5;
 
-    const shadow = state.shadow
-      ? `<filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${Math.max(2, titleSize*0.03)}" stdDeviation="${Math.max(3, titleSize*0.06)}" flood-color="black" flood-opacity="0.6"/></filter>` : "";
-    const fx = state.shadow ? ` filter="url(#ds)"` : "";
+    let styleDefs = "", fx = "", titleFill = titleColor;
+    if (state.textStyle === "shadow") {
+      styleDefs = `<filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${Math.max(2, titleSize*0.03)}" stdDeviation="${Math.max(3, titleSize*0.06)}" flood-color="black" flood-opacity="0.6"/></filter>`;
+      fx = ` filter="url(#ds)"`;
+    } else if (state.textStyle === "neon") {
+      styleDefs = `<filter id="ds" x="-60%" y="-60%" width="220%" height="220%">` +
+        `<feDropShadow dx="0" dy="0" stdDeviation="${Math.max(4, titleSize*0.10)}" flood-color="${artistColor}" flood-opacity="0.95"/>` +
+        `<feDropShadow dx="0" dy="0" stdDeviation="${Math.max(2, titleSize*0.04)}" flood-color="${artistColor}" flood-opacity="0.9"/></filter>`;
+      fx = ` filter="url(#ds)"`;
+    } else if (state.textStyle === "metallic") {
+      styleDefs = `<linearGradient id="goldtx" x1="0" y1="0" x2="0" y2="1">` +
+        `<stop offset="0" stop-color="#f6e3a3"/><stop offset="0.45" stop-color="#d8b25a"/>` +
+        `<stop offset="0.55" stop-color="#8a6d1f"/><stop offset="1" stop-color="#f0d98c"/></linearGradient>` +
+        `<filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="${Math.max(2, titleSize*0.03)}" stdDeviation="${Math.max(3, titleSize*0.05)}" flood-color="black" flood-opacity="0.7"/></filter>`;
+      fx = ` filter="url(#ds)"`;
+      titleFill = "url(#goldtx)";
+    }
 
     const titleEl = lines.map((line, i) =>
-      `<text x="${cx}" y="${baseY + i * lineGap}" text-anchor="${anchor}" fill="${titleColor}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800" letter-spacing="${state.letterSpacing}"${fx}>${escapeXml(line)}</text>`).join("");
+      `<text x="${cx}" y="${baseY + i * lineGap}" text-anchor="${anchor}" fill="${titleFill}" font-family="${f.stack}" font-size="${titleSize}" font-weight="800" letter-spacing="${state.letterSpacing}"${fx}>${escapeXml(line)}</text>`).join("");
     const acx = state.artistX !== null ? W * (state.artistX / 100) : cx;
     const acy = state.artistY !== null ? H * (state.artistY / 100)
       : baseY + (lineCount - 1) * lineGap + titleSize * 0.75;
@@ -361,7 +386,7 @@
       ${forExport && state._fontCss ? state._fontCss : ""}
       <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="${c.from}"/><stop offset="1" stop-color="${c.to}"/>
-      </linearGradient>${shadow}</defs>
+      </linearGradient>${styleDefs}</defs>
       <rect width="${W}" height="${H}" fill="${state.bgCustom || 'url(#bg)'}"/>
       ${state.image ? imageEl : (state.bgCustom ? "" : motif)}${logoEl}${titleEl}${artistEl}
     </svg>`;
@@ -428,12 +453,45 @@
     render();
   }));
   document.getElementById("upper-toggle").addEventListener("change", (e) => { state.upper = e.target.checked; render(); });
-  document.getElementById("shadow-toggle").addEventListener("change", (e) => { state.shadow = e.target.checked; render(); });
+  document.getElementById("text-style").addEventListener("change", (e) => { state.textStyle = e.target.value; render(); });
+
+  // Every format at once: the same composition reflowed per canvas size.
+  document.getElementById("allfmt-btn").addEventListener("click", () => {
+    const strip = document.getElementById("fmt-strip");
+    if (!strip.classList.contains("hidden")) { strip.classList.add("hidden"); strip.classList.remove("grid"); return; }
+    const keep = state.aspect;
+    strip.innerHTML = ASPECTS.map((a) => {
+      state.aspect = a.id;
+      return `<div class="min-w-0"><div class="rounded-lg border border-white/10 overflow-hidden">${buildSvg(false)}</div><div class="mt-1 text-center text-[9px] uppercase tracking-wide text-gray-600">${a.name} · ${a.w}×${a.h}</div></div>`;
+    }).join("");
+    state.aspect = keep;
+    strip.classList.remove("hidden"); strip.classList.add("grid");
+  });
+
+  // Brand kit: your recurring look, saved on this device.
+  const BRAND_KEY = "sbBrandKit";
+  document.getElementById("brand-save").addEventListener("click", (e) => {
+    const kit = {font: state.font, colorway: state.colorway, template: state.template,
+                 textStyle: state.textStyle, letterSpacing: state.letterSpacing,
+                 upper: state.upper, titleColor: state.titleColor, artistColor: state.artistColor};
+    try { localStorage.setItem(BRAND_KEY, JSON.stringify(kit)); } catch (err) {}
+    e.currentTarget.textContent = "Brand kit saved ✓";
+    setTimeout(() => { document.getElementById("brand-save").textContent = "Save brand kit"; }, 1500);
+  });
+  document.getElementById("brand-apply").addEventListener("click", (e) => {
+    let kit = null;
+    try { kit = JSON.parse(localStorage.getItem(BRAND_KEY) || "null"); } catch (err) {}
+    if (!kit) { e.currentTarget.textContent = "No kit saved yet"; setTimeout(() => { document.getElementById("brand-apply").textContent = "Apply brand kit"; }, 1500); return; }
+    Object.assign(state, kit);
+    document.getElementById("font-select") && (document.getElementById("font-select").value = state.font);
+    document.getElementById("text-style").value = state.textStyle || "shadow";
+    render();
+  });
 
   document.getElementById("text-reset-btn").addEventListener("click", () => {
     Object.assign(state, { titleColor: null, artistColor: null, textScale: 1,
       artistScale: 1, textX: null, textY: null, align: null, upper: true,
-      shadow: true, letterSpacing: 0, artistX: null, artistY: null });
+      textStyle: "shadow", letterSpacing: 0, artistX: null, artistY: null });
     document.getElementById("ax-val").textContent = "—";
     document.getElementById("ay-val").textContent = "—";
     document.getElementById("artist-x").value = 50;
@@ -447,7 +505,7 @@
       document.getElementById(valId).textContent = label;
     }
     document.getElementById("upper-toggle").checked = true;
-    document.getElementById("shadow-toggle").checked = true;
+    document.getElementById("text-style").value = "shadow";
     render();
   });
 
@@ -541,6 +599,43 @@
     }
   }
   document.getElementById("generate-btn").addEventListener("click", generateArt);
+
+  // Four takes at once: same endpoint, four seeds, pick your direction.
+  async function generateFour() {
+    const grid = document.getElementById("ai-grid");
+    const btn = document.getElementById("generate4-btn");
+    const prompt = document.getElementById("prompt-input").value;
+    if (!prompt.trim()) return;
+    btn.disabled = true; btn.textContent = "Painting 4…";
+    grid.classList.remove("hidden"); grid.classList.add("grid");
+    grid.innerHTML = "";
+    for (let i = 0; i < 4; i++) {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40 text-[10px] text-gray-600 transition-colors hover:border-[#C9A24A]";
+      cell.textContent = "painting…";
+      grid.appendChild(cell);
+      try {
+        const res = await fetch("/artwork/generate", {method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({prompt})});
+        const data = await res.json();
+        if (data.ok && data.image_url) {
+          const img = document.createElement("img");
+          img.className = "h-full w-full object-cover";
+          img.src = data.image_url;
+          img.onload = () => { cell.textContent = ""; cell.appendChild(img); };
+          cell.addEventListener("click", () => {
+            grid.querySelectorAll("button").forEach(b => b.classList.remove("border-[#C9A24A]", "border-2"));
+            cell.classList.add("border-[#C9A24A]", "border-2");
+            setDesignerImage(data.image_url);
+          });
+        } else { cell.textContent = "busy — retry"; }
+      } catch (e) { cell.textContent = "failed"; }
+    }
+    btn.disabled = false; btn.textContent = "4 variations";
+  }
+  document.getElementById("generate4-btn").addEventListener("click", generateFour);
   aiAgain.addEventListener("click", generateArt);
   document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
 
@@ -679,7 +774,8 @@
       msg.classList.remove("hidden");
       if (data.ok) {
         msg.className = "mt-2 break-all text-[11px] text-green-400";
-        msg.textContent = "Finished cover saved ✓ — " + data.path + " is ready to use as a campaign cover or EPK asset.";
+        msg.innerHTML = "Finished cover saved ✓ — " + data.path +
+          ' &middot; use it now: <a href="/links" class="font-bold text-[#EAC97C] underline">Smart Links</a> &middot; <a href="/epk" class="font-bold text-[#EAC97C] underline">Press Kit</a>';
         btn.textContent = "Saved ✓";
         setTimeout(() => { btn.textContent = "Save cover to uploads"; btn.disabled = false; }, 2000);
         return;
