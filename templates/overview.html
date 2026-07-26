@@ -17,10 +17,11 @@
 
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold uppercase tracking-tight">Overview</h1>
-      <p class="mt-1 text-sm text-gray-500">Your royalty command center.</p>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Royalty Sweep</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Overview</h1>
+      <p class="mt-1 text-sm text-[#a99e88]">Your royalty command center.</p>
     </div>
-    <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-[#111113] px-3 py-2">
+    <div class="flex items-center gap-2 rounded-lg border border-[#c9a24a]/25 bg-[#151310] px-3 py-2">
       <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>
       <select id="date-range" class="bg-transparent text-sm font-medium text-gray-200 focus:outline-none [color-scheme:dark]">
         <option value="1">This month</option>
@@ -31,9 +32,9 @@
   </div>
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Total Royalties Collected</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Total Royalties Collected</h2>
         <button type="button" id="edit-goal-btn" class="text-[11px] font-semibold text-amber-400 hover:underline">Edit Goal</button>
       </div>
       <div class="mt-3 flex items-center justify-between gap-4">
@@ -80,7 +81,7 @@
         <circle cx="140" cy="40" r="1.4" fill="#fde047" opacity="0.6"/>
       </svg>
       <div class="relative flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Money Left on the Table</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Money Left on the Table</h2>
         <svg class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 9a1 1 0 011-1h.01a1 1 0 010 2H10v2a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/></svg>
       </div>
       <div class="relative mt-3 text-3xl font-bold tracking-tight text-amber-400 tabular-nums">${{ "{:,.2f}".format(money_left.total) }}</div>
@@ -97,9 +98,9 @@
       </div>
     </a>
 
-    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Health Score</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Royalty Health Score</h2>
       </div>
       <div class="mt-3 flex items-center gap-5">
         <div class="relative h-24 w-28 shrink-0">
@@ -142,9 +143,9 @@
   </div>
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-    <a href="/royalties" class="block rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-amber-500/30">
+    <a href="/royalties" class="block rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5 transition-colors hover:border-amber-500/30">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Earnings Trend</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Earnings Trend</h2>
         <span class="text-[11px] text-gray-500" id="trend-range-label">Last 6 months</span>
       </div>
       <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(total) }}</div>
@@ -166,9 +167,9 @@
       </div>
     </a>
 
-    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Action Center</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Action Center</h2>
         <a href="/recovery" class="text-[11px] font-semibold text-amber-400 hover:underline">View All</a>
       </div>
       {% set sev_icon = {
@@ -210,9 +211,9 @@
       'YouTube Content ID': ('bg-[#FF0000]', '<rect x="4" y="7" width="16" height="10" rx="3" fill="white"/><path d="M10.5 9.5l4 2.5-4 2.5z" fill="#FF0000"/>'),
       'SoundExchange':      ('bg-[#F5871F]', '<path d="M5 12h2l2-5 3 10 2-7 1 2h4" stroke="white" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'),
     } %}
-    <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Recent Payouts</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Recent Payouts</h2>
         <a href="/royalties" class="text-[11px] font-semibold text-amber-400 hover:underline">View All</a>
       </div>
       <div class="mt-3 space-y-1">
@@ -241,8 +242,8 @@
     </section>
   </div>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">What Changed Since Your Last Visit</h2>
+  <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">What Changed Since Your Last Visit</h2>
     <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
       {% set lv = since_last_login %}
       {% set metrics = [
