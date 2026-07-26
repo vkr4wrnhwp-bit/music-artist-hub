@@ -84,6 +84,12 @@
   var bgImg = new Image();
   bgImg.src = "/static/img/stage-bg.jpg";   // generated backdrop; drawn scene is the fallback
 
+  function hz(n) {
+    // Cheap deterministic hash for haze specks — stable per bar/particle.
+    var x = Math.sin(n * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
   function barPos(i, bars, w, h) {
     // Normalized positions persist in the show; defaults: truss + floor rows.
     var key = String(i);
@@ -133,6 +139,10 @@
     var bars = show.bars;
     barRects = [];
 
+    // Light adds like real light: additive compositing over the photo.
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    var WIDTHS = [1, 0.62, 0.3], ALPHAS = [0.16, 0.24, 0.4];
     for (var i = 1; i <= bars; i++) {
       var p = barPos(i, bars, w, h);
       var bx = p[0] * w, by = p[1] * h;
@@ -140,38 +150,65 @@
       var col = look.rgb, a = look.inten;
       if (a > 0.02) {
         var vert = (show.rot || {})[String(i)] === 90;
+        var c3;
         if (vert) {
-          // Side stick: beam sweeps horizontally toward center stage.
           var ex = bx < w / 2 ? bx + w * 0.42 : bx - w * 0.42;
-          var hgrad = g.createLinearGradient(bx, by, ex, by);
-          hgrad.addColorStop(0, "rgba(" + col.join(",") + "," + (0.5 * a).toFixed(3) + ")");
-          hgrad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
-          g.fillStyle = hgrad;
-          g.beginPath();
-          g.moveTo(bx, by - 16); g.lineTo(bx, by + 16);
-          g.lineTo(ex, by + 60); g.lineTo(ex, by - 60);
-          g.closePath(); g.fill();
+          for (c3 = 0; c3 < 3; c3++) {
+            var hw = 60 * WIDTHS[c3];
+            var hgrad = g.createLinearGradient(bx, by, ex, by);
+            hgrad.addColorStop(0, "rgba(" + col.join(",") + "," + (ALPHAS[c3] * a).toFixed(3) + ")");
+            hgrad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+            g.fillStyle = hgrad;
+            g.beginPath();
+            g.moveTo(bx, by - 16 * WIDTHS[c3]); g.lineTo(bx, by + 16 * WIDTHS[c3]);
+            g.lineTo(ex, by + hw); g.lineTo(ex, by - hw);
+            g.closePath(); g.fill();
+          }
+          for (var k = 0; k < 7; k++) {
+            var pr = (hz(i * 97 + k) + t * 0.02 * (0.5 + hz(i + k))) % 1;
+            var px = bx + (ex - bx) * pr;
+            var py = by + (hz(i * 31 + k) - 0.5) * 2 * (16 + 44 * pr);
+            g.fillStyle = "rgba(" + col.join(",") + "," + (0.35 * a * (1 - pr)).toFixed(3) + ")";
+            g.beginPath(); g.arc(px, py, 1.6, 0, 7); g.fill();
+          }
         } else {
-        var down = p[1] < 0.5;
-        var ly = down ? h * 0.86 : h * 0.1;
-        var grad = g.createLinearGradient(bx, by, bx, ly);
-        grad.addColorStop(0, "rgba(" + col.join(",") + "," + (0.5 * a).toFixed(3) + ")");
-        grad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
-        g.fillStyle = grad;
-        g.beginPath();
-        g.moveTo(bx - 16, by); g.lineTo(bx + 16, by);
-        g.lineTo(bx + 70, ly); g.lineTo(bx - 70, ly);
-        g.closePath(); g.fill();
-        if (down) {
-          var pool = g.createRadialGradient(bx, h * 0.8, 4, bx, h * 0.8, 80);
-          pool.addColorStop(0, "rgba(" + col.join(",") + "," + (0.35 * a).toFixed(3) + ")");
-          pool.addColorStop(1, "rgba(" + col.join(",") + ",0)");
-          g.fillStyle = pool;
-          g.beginPath(); g.ellipse(bx, h * 0.8, 85, 26, 0, 0, 7); g.fill();
-        }
+          var down = p[1] < 0.5;
+          var ly = down ? h * 0.86 : h * 0.1;
+          for (c3 = 0; c3 < 3; c3++) {
+            var lw = 70 * WIDTHS[c3];
+            var grad = g.createLinearGradient(bx, by, bx, ly);
+            grad.addColorStop(0, "rgba(" + col.join(",") + "," + (ALPHAS[c3] * a).toFixed(3) + ")");
+            grad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+            g.fillStyle = grad;
+            g.beginPath();
+            g.moveTo(bx - 16 * WIDTHS[c3], by); g.lineTo(bx + 16 * WIDTHS[c3], by);
+            g.lineTo(bx + lw, ly); g.lineTo(bx - lw, ly);
+            g.closePath(); g.fill();
+          }
+          for (var k2 = 0; k2 < 7; k2++) {
+            var pr2 = (hz(i * 53 + k2) + t * 0.02 * (0.5 + hz(i * 7 + k2))) % 1;
+            var py2 = by + (ly - by) * pr2;
+            var px2 = bx + (hz(i * 17 + k2) - 0.5) * 2 * (16 + 54 * pr2);
+            g.fillStyle = "rgba(" + col.join(",") + "," + (0.35 * a * (1 - pr2)).toFixed(3) + ")";
+            g.beginPath(); g.arc(px2, py2, 1.6, 0, 7); g.fill();
+          }
+          if (down) {
+            var pool = g.createRadialGradient(bx, h * 0.8, 4, bx, h * 0.8, 90);
+            pool.addColorStop(0, "rgba(" + col.join(",") + "," + (0.4 * a).toFixed(3) + ")");
+            pool.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+            g.fillStyle = pool;
+            g.beginPath(); g.ellipse(bx, h * 0.8, 95, 28, 0, 0, 7); g.fill();
+            // Glossy-deck reflection streak under the pool
+            var refl = g.createLinearGradient(bx, h * 0.8, bx, h * 0.98);
+            refl.addColorStop(0, "rgba(" + col.join(",") + "," + (0.12 * a).toFixed(3) + ")");
+            refl.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+            g.fillStyle = refl;
+            g.fillRect(bx - 24, h * 0.8, 48, h * 0.18);
+          }
         }
       }
     }
+    g.restore();
 
     // Backline silhouettes (audience view) — drawn fallback only
     if (!bgReady) {
@@ -221,6 +258,16 @@
         if (vert2) g.arc(x2, y2 - bh / 2 + 6 + s2 * 8.4, 2.6, 0, 7);
         else g.arc(x2 - bw / 2 + 6 + s2 * 8.4, y2, 2.6, 0, 7);
         g.fill();
+      }
+      if (lk.inten > 0.02) {
+        g.save();
+        g.globalCompositeOperation = "lighter";
+        var bloom = g.createRadialGradient(x2, y2, 1, x2, y2, 30 + 26 * lk.inten);
+        bloom.addColorStop(0, "rgba(" + lk.rgb.join(",") + "," + (0.5 * lk.inten).toFixed(3) + ")");
+        bloom.addColorStop(1, "rgba(" + lk.rgb.join(",") + ",0)");
+        g.fillStyle = bloom;
+        g.beginPath(); g.arc(x2, y2, 30 + 26 * lk.inten, 0, 7); g.fill();
+        g.restore();
       }
       g.fillStyle = "#8a8272"; g.font = "9px Arial";
       g.fillText(String(j), x2 - bw / 2, y2 - bh / 2 - 4);
@@ -469,7 +516,7 @@
 
   window.__lightsTest = {show: function () { return show; },
                          lightingAt: lightingAt, membersOf: membersOf,
-                         dmxFrame: dmxFrame};
+                         dmxFrame: dmxFrame, drawStage: drawStage};
   renderCues();
   loop();
 })();
