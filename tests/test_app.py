@@ -4475,3 +4475,38 @@ def test_ecosystem_hubs():
     assert "preview-play.playing .viz" in fnav
     # The creator song drawer can never flash on fan pages pre-Tailwind.
     assert 'id="song-drawer" style="display:none"' in fnav
+
+
+def test_network_upgrades_and_outreach_pipeline():
+    import db as store_mod
+    app_obj = create_app()
+    client = _demo(app_obj)
+    page = client.get("/network").get_data(as_text=True)
+    # Demo directory is labeled as samples; avatars render; CTAs match roles.
+    assert "illustrative sample profiles" in page and "not real people" in page
+    assert "/static/img/people/p5.jpg" in page
+    assert "Pitch Track" in page and "Submit Demo" in page
+    assert "/network?tab=playlists" in page  # stat cards are quick-jumps
+    # Active filter chips + clear all.
+    filt = client.get("/network?tab=directory&role=Label").get_data(as_text=True)
+    assert "Role: Label" in filt and "Clear all" in filt
+    # Outreach Pipeline: real personal CRM, full lifecycle.
+    client.post("/network/outreach/add",
+                data={"contact": "Midnight Radio", "role": "Curator",
+                      "stage": "pitched", "notes": "sent smart link"})
+    my = client.get("/network?tab=my").get_data(as_text=True)
+    assert "Outreach Pipeline" in my and "Midnight Radio" in my
+    assert "real entries only" in my
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    item = [o for o in store_mod.list_outreach(uid)
+            if o["contact"] == "Midnight Radio"][0]
+    client.post("/network/outreach/%s/stage" % item["id"],
+                data={"stage": "discussion"})
+    assert [o for o in store_mod.list_outreach(uid)
+            if o["id"] == item["id"]][0]["stage"] == "discussion"
+    client.post("/network/outreach/%s/stage" % item["id"],
+                data={"stage": "not-a-stage"})  # invalid stages are ignored
+    assert [o for o in store_mod.list_outreach(uid)
+            if o["id"] == item["id"]][0]["stage"] == "discussion"
+    client.post("/network/outreach/%s/delete" % item["id"])
+    assert not [o for o in store_mod.list_outreach(uid) if o["id"] == item["id"]]

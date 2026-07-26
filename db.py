@@ -156,6 +156,15 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS outreach_items (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                contact TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT '',
+                stage TEXT NOT NULL DEFAULT 'saved',
+                notes TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS collab_requests (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1120,6 +1129,47 @@ def set_show_share_token(user_id, show_id, token):
         cur = db.execute("UPDATE tour_shows SET share_token = ? WHERE id = ? AND user_id = ?",
                          (token, show_id, user_id))
     return cur.rowcount > 0
+
+
+# --- Outreach Pipeline (personal CRM) ---------------------------------------------
+
+OUTREACH_STAGES = ("saved", "pitched", "listened", "discussion", "accepted", "passed")
+
+
+def add_outreach(user_id, contact, role, stage, notes):
+    item_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO outreach_items (id, user_id, contact, role, stage,"
+            " notes, updated) VALUES (?,?,?,?,?,?,?)",
+            (item_id, user_id, contact[:120], role[:60],
+             stage if stage in OUTREACH_STAGES else "saved",
+             notes[:500], _now()))
+    return item_id
+
+
+def list_outreach(user_id):
+    order = {s: i for i, s in enumerate(OUTREACH_STAGES)}
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM outreach_items WHERE user_id = ? "
+                          "ORDER BY updated DESC", (user_id,)).fetchall()
+    return sorted([dict(r) for r in rows],
+                  key=lambda r: order.get(r["stage"], 0))
+
+
+def set_outreach_stage(user_id, item_id, stage):
+    if stage not in OUTREACH_STAGES:
+        return
+    with get_db() as db:
+        db.execute("UPDATE outreach_items SET stage = ?, updated = ? "
+                   "WHERE id = ? AND user_id = ?",
+                   (stage, _now(), item_id, user_id))
+
+
+def delete_outreach(user_id, item_id):
+    with get_db() as db:
+        db.execute("DELETE FROM outreach_items WHERE id = ? AND user_id = ?",
+                   (item_id, user_id))
 
 
 # --- Collaboration Marketplace ----------------------------------------------------

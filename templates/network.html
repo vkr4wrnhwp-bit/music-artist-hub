@@ -17,13 +17,15 @@
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Network</h1>
     <p class="mt-1 text-sm text-gray-500">Find collaborators, labels, curators, and industry contacts — connect, pitch, and submit to playlists.</p>
+    <p class="mt-1 text-[11px] text-gray-600">The directory shows illustrative sample profiles — not real people. Your Outreach Pipeline on the My Network tab is real and private to you.</p>
   </div>
 
+  <!-- Stat cards double as quick-jump filters -->
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Contacts</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.total }}</div></div>
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Roles</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.roles }}</div></div>
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Playlists Accepting</div><div class="mt-2 text-2xl font-bold tabular-nums text-green-400">{{ nw.summary.accepting }}</div></div>
-    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">My Connections</div><div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ nw.summary.connections }}</div></div>
+    <a href="/network?tab=directory" class="rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-white/20"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Contacts</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.total }}</div></a>
+    <a href="/network?tab=directory" class="rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-white/20"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Roles</div><div class="mt-2 text-2xl font-bold tabular-nums">{{ nw.summary.roles }}</div></a>
+    <a href="/network?tab=playlists" class="rounded-2xl border border-white/5 bg-[#111113] p-5 transition-colors hover:border-green-500/40"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Playlists Accepting</div><div class="mt-2 text-2xl font-bold tabular-nums text-green-400">{{ nw.summary.accepting }}</div></a>
+    <a href="/network?tab=my" class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5 transition-colors hover:border-amber-500/40"><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">My Connections</div><div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ nw.summary.connections }}</div></a>
   </div>
 
   <!-- Tabs -->
@@ -52,13 +54,30 @@
     </select>
   </form>
 
-  <div class="text-[11px] text-gray-600">{{ nw.result_count }} result{{ '' if nw.result_count == 1 else 's' }}</div>
+  <!-- Active filter chips -->
+  {% set active_filters = [] %}
+  {% if nw.filters.q %}{% set _ = active_filters.append(('q', 'Search: ' + nw.filters.q)) %}{% endif %}
+  {% if nw.filters.role != 'All' %}{% set _ = active_filters.append(('role', 'Role: ' + nw.filters.role)) %}{% endif %}
+  {% if nw.filters.genre != 'All' %}{% set _ = active_filters.append(('genre', 'Genre: ' + nw.filters.genre)) %}{% endif %}
+  <div class="flex flex-wrap items-center gap-2 text-[11px]">
+    <span class="text-gray-600">{{ nw.result_count }} result{{ '' if nw.result_count == 1 else 's' }}</span>
+    {% for fkey, flabel in active_filters %}
+    {% set qs = [] %}
+    {% if nw.filters.q and fkey != 'q' %}{% set _ = qs.append('q=' + nw.filters.q) %}{% endif %}
+    {% if nw.filters.role != 'All' and fkey != 'role' %}{% set _ = qs.append('role=' + nw.filters.role) %}{% endif %}
+    {% if nw.filters.genre != 'All' and fkey != 'genre' %}{% set _ = qs.append('genre=' + nw.filters.genre) %}{% endif %}
+    <a href="/network?tab=directory{% for q in qs %}&{{ q }}{% endfor %}" class="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 font-semibold text-amber-400 hover:bg-amber-500/20">{{ flabel }} ✕</a>
+    {% endfor %}
+    {% if active_filters %}<a href="/network?tab=directory" class="font-semibold text-gray-500 hover:text-gray-300">Clear all</a>{% endif %}
+  </div>
 
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for p in nw.people %}
     <div class="flex flex-col rounded-2xl border border-white/5 bg-[#111113] p-5">
       <div class="flex items-start gap-3">
-        <a href="/network/{{ p.id }}" class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-amber-500/40 text-sm font-bold text-amber-400">{{ p.initials }}</a>
+        <a href="/network/{{ p.id }}" class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-amber-500/40 text-sm font-bold text-amber-400">
+          {%- if p.avatar %}<img src="{{ p.avatar }}" alt="{{ p.name }}" class="h-full w-full object-cover" loading="lazy">{% else %}{{ p.initials }}{% endif -%}
+        </a>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
             <a href="/network/{{ p.id }}" class="truncate text-sm font-semibold text-gray-100 hover:text-amber-400">{{ p.name }}</a>
@@ -75,8 +94,13 @@
         <span class="text-[11px] text-gray-500">{{ "{:,}".format(p.followers) }} followers</span>
         {% if p.available %}<span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-400"></span>Available</span>{% else %}<span class="text-[10px] text-gray-600">Booked</span>{% endif %}
       </div>
+      {# CTA matches what you'd actually do with this role #}
+      {% set cta = {'Curator': 'Pitch Track', 'A&R': 'Pitch Track', 'Label': 'Submit Demo',
+                    'Engineer': 'Book / Request Quote', 'Producer': 'Book / Request Quote',
+                    'Artist': 'Connect', 'Songwriter': 'Request Co-Write',
+                    'Manager': 'Connect'}.get(p.role, 'View Profile') %}
       <a href="/network/{{ p.id }}" class="mt-3 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        {{ 'Connected' if p.connection == 'Connected' else ('Pending' if p.connection else 'View Profile') }}
+        {{ 'Connected' if p.connection == 'Connected' else ('Pending' if p.connection else cta) }}
       </a>
     </div>
     {% endfor %}
@@ -161,6 +185,49 @@
   {% else %}
   <!-- My Network -->
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+
+    <!-- Outreach Pipeline: YOUR real CRM — every row is something you entered -->
+    <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-5 lg:col-span-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Outreach Pipeline</h2>
+        <span class="text-[10px] text-gray-500">Your private pitch tracker — real entries only, works for anyone on or off Street Banker.</span>
+      </div>
+      <form method="post" action="/network/outreach/add" class="mt-3 flex flex-wrap gap-2">
+        <input name="contact" required placeholder="Who? (curator, label, blog, A&R…)" class="w-56 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-600">
+        <input name="role" placeholder="Role / outlet" class="w-36 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-600">
+        <select name="stage" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white">
+          {% for st in outreach_stages %}<option value="{{ st }}">{{ st | capitalize }}</option>{% endfor %}
+        </select>
+        <input name="notes" placeholder="Notes (track pitched, link, next step…)" class="min-w-[200px] flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-600">
+        <button class="rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">Track it</button>
+      </form>
+      {% if outreach %}
+      <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        {% for st in outreach_stages %}
+        {% set n = outreach | selectattr('stage', 'equalto', st) | list | length %}
+        {% if n %}<span class="rounded-full border {{ 'border-green-500/40 text-green-400' if st == 'accepted' else ('border-red-500/30 text-red-400' if st == 'passed' else 'border-white/10') }} px-2.5 py-1">{{ st }} · {{ n }}</span>{% endif %}
+        {% endfor %}
+      </div>
+      <div class="mt-3 space-y-2">
+        {% for o in outreach %}
+        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2">
+          <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ o.contact }}</span>
+          {% if o.role %}<span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-gray-400">{{ o.role }}</span>{% endif %}
+          {% if o.notes %}<span class="min-w-0 max-w-[40%] truncate text-[11px] text-gray-500" title="{{ o.notes }}">{{ o.notes }}</span>{% endif %}
+          <form method="post" action="/network/outreach/{{ o.id }}/stage">
+            <select name="stage" onchange="this.form.submit()" class="rounded-lg border {{ 'border-green-500/40 text-green-400' if o.stage == 'accepted' else ('border-red-500/30 text-red-400' if o.stage == 'passed' else 'border-white/15 text-gray-200') }} bg-black/40 px-2 py-1 text-[11px]">
+              {% for st in outreach_stages %}<option value="{{ st }}" {{ 'selected' if o.stage == st }}>{{ st | capitalize }}</option>{% endfor %}
+            </select>
+          </form>
+          <form method="post" action="/network/outreach/{{ o.id }}/delete"><button class="text-sm text-gray-600 hover:text-red-400" title="Remove">×</button></form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-[11px] text-gray-600">Nothing tracked yet. Add every pitch you send — playlist, blog, label, sync — and move it through Saved → Pitched → Listened → Discussion → Accepted. This starts empty because it's yours.</p>
+      {% endif %}
+    </section>
+
     <section class="rounded-2xl border border-white/5 bg-[#111113] p-5 lg:col-span-1">
       <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Connections</h2>
       <div class="mt-3 space-y-2">
