@@ -201,6 +201,11 @@ def get_landing_config():
                 "miss — so you keep more of what you've earned."
             ),
             "cta": {"label": "Explore Royalty Sweep", "href": "/recovery"},
+            # The one and only Royalty Sweep pitch on the page — the old
+            # "Recover What You're Owed" pillar was folded in here.
+            "bullets": ["Full-catalog scan of DSPs, PROs & societies",
+                        "Publishing, neighboring rights & mechanicals",
+                        "Claims worked through to payout"],
             "engine": {
                 "status_label": "Scan Complete",
                 "matches_label": "Matches Found",
@@ -243,9 +248,9 @@ def get_landing_config():
         # ecosystem. Rendered alternating light/dark; each links into its area.
         "pillars": [
             {
-                "eyebrow": "STREET BANKER", "title": "Music Distribution",
-                "tagline": "CDs, vinyl, video & digital — everywhere.",
-                "description": "Powered by our Symphonic partnership: releases reach 200+ platforms and physical retail, with social and UGC monetization built in.",
+                "eyebrow": "LANE 01 · IN DETAIL", "title": "Music Distribution",
+                "tagline": "Lane 01, unpacked: everywhere your record can live.",
+                "description": "Symphonic-powered: 200+ platforms, physical retail, social monetization built in.",
                 "theme": "light",
                 "bullets": ["200+ streaming & download platforms — plus CD, vinyl & music video",
                             "Earn from TikTok, YouTube, Instagram & Facebook UGC (Content ID)",
@@ -260,7 +265,7 @@ def get_landing_config():
             {
                 "eyebrow": "STREET BANKER", "title": "Full-Service Label",
                 "tagline": "Distribution, marketing, and management under one roof.",
-                "description": "The Street Banker label team builds artists end-to-end — from release strategy and marketing to consulting and management.",
+                "description": "Strategy, marketing, and management from the team behind the platform.",
                 "theme": "light",
                 "bullets": ["Music marketing to a 200,000+ fan list", "Artist consulting & day-to-day management",
                             "Branding, apparel, web & advertising", "Sync, licensing & rights support"],
@@ -271,21 +276,9 @@ def get_landing_config():
                     {"title": "Management", "desc": "Build the career."}]},
             },
             {
-                "eyebrow": "ROYALTY SWEEP", "title": "Recover What You're Owed",
-                "tagline": "Scan. Match. Claim. Paid.",
-                "description": "The recovery layer: your catalog matched against what platforms and societies actually paid, and every gap turned into a claim.",
-                "theme": "dark",
-                "bullets": ["Full-catalog scan of DSPs, PROs & societies", "Publishing, neighboring rights & mechanicals",
-                            "Claims worked through to payout", "Catalog valuation & advance eligibility"],
-                "cta": {"label": "Open Royalty Sweep", "href": "/recovery"},
-                "visual": {"type": "stats", "items": [
-                    {"value": "$3.3K", "label": "Found"}, {"value": "347", "label": "Matches"},
-                    {"value": "9", "label": "Sources"}, {"value": "192", "label": "Territories"}]},
-            },
-            {
                 "eyebrow": "STREET BANKER", "title": "Value & Fund Your Catalog",
                 "tagline": "Know what it's worth — and unlock capital.",
-                "description": "See a live valuation of your catalog and turn that eligibility into real advance offers, on terms you control.",
+                "description": "A live valuation — and advance offers built on it, on your terms.",
                 "theme": "light",
                 "bullets": ["Low / mid / high catalog valuation", "Advance eligibility scoring",
                             "Comparable offers, side by side", "You keep ownership"],

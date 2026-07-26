@@ -217,6 +217,13 @@
           {% for line in rs.headline %}<span class="block">{{ line }}</span>{% endfor %}
         </h2>
         <p class="mt-4 max-w-md text-sm leading-relaxed text-gray-400">{{ rs.subheadline }}</p>
+        {% if rs.bullets %}
+        <ul class="mt-4 space-y-1.5">
+          {% for b in rs.bullets %}
+          <li class="flex items-baseline gap-2 text-sm text-gray-300"><span class="text-[#d8b25a]">—</span>{{ b }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
         <a href="{{ rs.cta.href }}" class="mt-6 inline-flex items-center gap-2 rounded-md border border-[#d8b25a]/40 bg-[#d8b25a]/10 px-5 py-2.5 text-sm font-semibold text-[#e6c675] transition-colors hover:bg-[#d8b25a]/20">{{ rs.cta.label }}</a>
       </div>
       <!-- Engine visual: photo panel when set, else the built-in rack -->
