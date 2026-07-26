@@ -249,7 +249,12 @@
       g.fillStyle = "#1a1712";
       g.fillRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
       g.restore();
-      g.strokeStyle = "#3a3424"; g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
+      // Double outline: dark halo + gold line reads on any backdrop.
+      g.lineWidth = 4; g.strokeStyle = "rgba(0,0,0,0.85)";
+      g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
+      g.lineWidth = 1.5; g.strokeStyle = "#d8b25a";
+      g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
+      g.lineWidth = 1;
       for (var s2 = 0; s2 < 6; s2++) {
         g.fillStyle = lk.inten > 0.02
           ? "rgba(" + lk.rgb.join(",") + "," + (0.25 + 0.75 * lk.inten).toFixed(2) + ")"
@@ -269,8 +274,10 @@
         g.beginPath(); g.arc(x2, y2, 30 + 26 * lk.inten, 0, 7); g.fill();
         g.restore();
       }
-      g.fillStyle = "#8a8272"; g.font = "9px Arial";
-      g.fillText(String(j), x2 - bw / 2, y2 - bh / 2 - 4);
+      g.fillStyle = "rgba(0,0,0,0.75)";
+      g.fillRect(x2 - bw / 2 - 4, y2 - bh / 2 - 16, 14, 12);
+      g.fillStyle = "#e8c667"; g.font = "bold 9px Arial";
+      g.fillText(String(j), x2 - bw / 2 - 1, y2 - bh / 2 - 7);
       barRects.push({i: j, x: x2 - bw / 2 - 8, y: y2 - bh / 2 - 8,
                      w: bw + 16, h: bh + 16});
     }
