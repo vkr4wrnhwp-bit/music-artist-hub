@@ -100,6 +100,9 @@
             <div class="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
               <span class="min-w-0 flex-1 truncate">{{ a.name or a.email }}</span>
               <span class="uppercase font-bold {{ 'text-green-400' if a.state == 'signed' else 'text-red-400' if a.state == 'declined' else 'text-amber-400' }}">{{ a.state }}</span>
+              {% if a.state == 'pending' and a.token %}
+              <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/sign/{{ a.token }}" class="w-36 rounded border border-white/10 bg-black/50 px-1.5 py-0.5 font-mono text-[8px] text-[#e8c667]" title="Signing link — copy and send it yourself if email can't deliver">
+              {% endif %}
               {% if a.state != 'signed' %}
               <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}">
                 <input type="hidden" name="action" value="resend"><input type="hidden" name="email" value="{{ a.email }}">
