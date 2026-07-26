@@ -994,7 +994,18 @@ def create_app():
                      "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
                      "Via “%s” — consent logged, intent scored." % campaign["title"],
                      "/links/fans")
-        return jsonify({"ok": True, "message": message})
+        # Fan gate: the reward resolves through the owner's own vault listing,
+        # and the link is only handed out after a real capture.
+        reward = None
+        gate_id = settings.get("gate_reward") or ""
+        if gate_id:
+            v = next((v for v in store.list_vault_files(campaign["user_id"])
+                      if v["id"] == gate_id), None)
+            if v:
+                reward = {"url": v["path"],
+                          "label": settings.get("gate_label")
+                          or v["label"] or "Your unlock"}
+        return jsonify({"ok": True, "message": message, "reward": reward})
 
     # --- Reports: real CSV download --------------------------------------------
 
@@ -1602,12 +1613,17 @@ def create_app():
         dests = mls.get_destinations(c["id"])
         score = links_engine.calculate_street_banker_score(c, dests)
         status = links_engine.effective_status(c)
+        # 7-day sparkline: real page-view counts, missing days filled with 0.
+        tl = dict(mls.timeline(c["id"], days=7))
+        spark = [tl.get((date.today() - timedelta(days=i)).isoformat(), 0)
+                 for i in range(6, -1, -1)]
         return {**c, "visits": visits, "clicks": clicks,
                 "ctr": round(100 * clicks / visits, 1) if visits else 0.0,
                 "captures": counts.get("email_capture", 0),
                 "presaves": counts.get("presave_notify", 0),
                 "score": score["total"], "warnings": score["warnings"],
-                "eff_status": status,
+                "eff_status": status, "spark": spark,
+                "spark_max": max(spark) or 1,
                 "status_tone": links_engine.STATUS_TONES.get(status, "gray"),
                 "dest_count": len(dests)}
 
@@ -1640,6 +1656,8 @@ def create_app():
             "privacy_url": (f.get("privacy_url") or "").strip()[:300],
             "cta_text": (f.get("cta_text") or "").strip()[:60],
             "accent": (f.get("accent") or "").strip()[:7],
+            "gate_reward": (f.get("gate_reward") or "").strip()[:64],
+            "gate_label": (f.get("gate_label") or "").strip()[:120],
         }
         uploaded = _ml_cover_upload()
         return {
@@ -1704,6 +1722,7 @@ def create_app():
                 return render_template("links_builder.html", active_page="links",
                                        c=None, destinations=[], engine=links_engine,
                                        error="A campaign title is required.",
+                                       vault_files=store.list_vault_files(user["id"]),
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
@@ -1711,6 +1730,7 @@ def create_app():
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
                                error=None,
+                               vault_files=store.list_vault_files(user["id"]),
                                prefill_title=(request.args.get("title") or "")[:80],
                                rack_facts=(request.args.get("rack") or "")[:160],
                                **build_dashboard_context())
@@ -1738,6 +1758,7 @@ def create_app():
         return render_template("links_builder.html", active_page="links",
                                c=campaign, destinations=dests, engine=links_engine,
                                score=score, error=None,
+                               vault_files=store.list_vault_files(campaign["user_id"]),
                                eff_status=links_engine.effective_status(campaign),
                                **build_dashboard_context())
 

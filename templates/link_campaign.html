@@ -76,6 +76,9 @@
         <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302]" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
       </div>
       <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
+      {% if c.settings.get('gate_reward') %}
+      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
+      {% endif %}
       <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
     </form>
     {% endif %}
@@ -107,6 +110,9 @@
         </div>
         <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
         <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
+            {% if c.settings.get('gate_reward') %}
+      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
+      {% endif %}
       </form>
     </div>
     {% endif %}
@@ -155,6 +161,15 @@
       if (data.ok) {
         form.querySelector(".flex").classList.add("hidden");
         done.textContent = data.message;
+        if (data.reward && data.reward.url) {
+          const a = document.createElement("a");
+          a.href = data.reward.url;
+          a.download = "";
+          a.textContent = "🔓 Download: " + data.reward.label;
+          a.className = "mt-2 block rounded-lg border border-green-500/40 px-3 py-2 text-sm font-black underline";
+          done.appendChild(document.createElement("br"));
+          done.appendChild(a);
+        }
         done.classList.remove("hidden");
       } else {
         done.textContent = data.error || "Something went wrong.";

@@ -4822,3 +4822,61 @@ def test_release_scheduler_lanes_warnings_presets_ics():
     assert "BEGIN:VCALENDAR" in body and body.count("BEGIN:VEVENT") >= 3
     assert "Far Drop" in body
     assert resp.headers["Content-Disposition"].endswith(".ics")
+
+
+def test_smart_links_gate_preview_sparklines_and_variant_ctr():
+    import io as _io
+    import uuid as _uuid
+    import db as store_mod
+    import links_store as mls_mod
+    import insights_engine as ie
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "sl-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "SL", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    # A vault asset becomes the gate reward.
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"zipdata"), "stems.zip"), "kind": "stems",
+        "label": "Unreleased demo pack"}, content_type="multipart/form-data")
+    vid = store_mod.list_vault_files(uid)[0]["id"]
+    resp = client.post("/links/new", data={
+        "title": "Gate Test", "artist_name": "SL", "email_capture": "1",
+        "gate_reward": vid, "gate_label": "Demo pack + presale code",
+        "dest_spotify": "https://open.spotify.com/track/x",
+        "dest_apple_music": "https://music.apple.com/x"})
+    cid = resp.headers["Location"].split("/")[2]
+    camp = mls_mod.get_campaign(cid, uid)
+    assert camp["settings"]["gate_reward"] == vid
+    # Builder: gate picker + the real-page phone preview.
+    page = client.get("/links/%s/edit" % cid).get_data(as_text=True)
+    assert "Fan gate reward" in page and 'id="pv-frame"' in page
+    assert "/l/%s" % camp["slug"] in page
+    # Public page teases the gate; capture returns the reward link.
+    client.post("/links/%s/publish" % cid)
+    anon = app_obj.test_client()
+    public = anon.get("/l/%s" % camp["slug"]).get_data(as_text=True)
+    assert "Unlocks instantly" in public and "Demo pack + presale code" in public
+    sub = anon.post("/l/%s/subscribe" % camp["slug"],
+                    data={"email": "fan@example.net"}).get_json()
+    assert sub["ok"] and sub["reward"]["label"] == "Demo pack + presale code"
+    assert sub["reward"]["url"].startswith("/uploads/")
+    # Clicks feed the 7-day sparkline and the click-split insight.
+    dests = {d["service_key"]: d for d in mls_mod.get_destinations(cid)}
+    for _ in range(18):
+        anon.get("/l/%s/go/%s" % (camp["slug"], dests["apple_music"]["id"]))
+    for _ in range(6):
+        anon.get("/l/%s/go/%s" % (camp["slug"], dests["spotify"]["id"]))
+    cards = client.get("/links").get_data(as_text=True)
+    assert "7-day visits" in cards and "polyline" in cards
+    dom = [i for i in ie.build_insights(uid) if "dominates" in i["title"]]
+    assert len(dom) == 1 and "Apple Music" in dom[0]["body"]
+    assert "75%" in dom[0]["body"]
+    # Variant head-to-head stays honest below the sample threshold.
+    mls_mod.create_variant(cid, "IG bio", "gt-ig-%s" % _uuid.uuid4().hex[:6],
+                           "instagram")
+    mls_mod.create_variant(cid, "TikTok", "gt-tt-%s" % _uuid.uuid4().hex[:6],
+                           "tiktok")
+    vpage = client.get("/links/%s/variants" % cid).get_data(as_text=True)
+    assert "Head to Head" in vpage and "No winner called yet" in vpage

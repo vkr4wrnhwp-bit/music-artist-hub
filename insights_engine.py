@@ -105,4 +105,24 @@ def build_insights(user_id):
                                 "black box.",
                                 "/metadata-passport", "Metadata Passport"))
 
+    # --- Links: where fans actually click through -----------------------------
+    for c in mls.list_campaigns(user_id):
+        if c.get("archived_at"):
+            continue
+        split = mls.breakdown(c["id"], "service_key", "service_click")
+        clicks = sum(n for _k, n in split)
+        if clicks < 20 or not split:
+            continue
+        top_key, top_n = split[0]
+        share = round(100 * top_n / clicks)
+        if share >= 60 and len(split) > 1:
+            out.append(_insight(
+                "observation", "One platform dominates “%s”" % c["title"],
+                "%d%% of this link's %d click-throughs go to %s — measured "
+                "from your own click log. Worth knowing which door your "
+                "fans actually use before you spend anywhere else."
+                % (share, clicks, top_key.replace("_", " ").title()),
+                "/links/%s/analytics" % c["id"], "Link analytics"))
+            break  # one observation of this kind is enough
+
     return out
