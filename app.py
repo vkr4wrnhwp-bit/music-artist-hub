@@ -1709,7 +1709,10 @@ def create_app():
             return redirect("/links/%s/edit" % cid)
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
-                               error=None, **build_dashboard_context())
+                               error=None,
+                               prefill_title=(request.args.get("title") or "")[:80],
+                               rack_facts=(request.args.get("rack") or "")[:160],
+                               **build_dashboard_context())
 
     def _ml_owned(campaign_id):
         user = current_user()
@@ -1856,7 +1859,7 @@ def create_app():
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/roster/join/", "/sign/", "/@")
+                        "/rider/", "/roster/join/", "/sign/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/terms", "/privacy", "/sw.js"}
 
@@ -2965,7 +2968,10 @@ def create_app():
             abort(404)
         share_url = ((request.url_root.rstrip("/") + "/showday/" + show["share_token"])
                      if show.get("share_token") else None)
+        rider_url = ((request.url_root.rstrip("/") + "/rider/" + show["share_token"])
+                     if show.get("share_token") else None)
         return render_template("tour_show.html", active_page="tour", show=show,
+                               rider_url=rider_url,
                                fields=touring.ADVANCE_FIELDS,
                                checklist=touring.checklist(show["advance"]),
                                prog=touring.progress(show["advance"]),
@@ -3043,6 +3049,30 @@ def create_app():
         plot = store.get_stage_plot(show["user_id"])
         return render_template("showday.html", show=show, adv=adv,
                                schedule=schedule,
+                               plot_json=(_json.dumps(plot) if plot else "null"))
+
+    @app.route("/rider/<token>")
+    def tech_rider(token):
+        # Public tech rider for venue staff: stage plot + input list, schedule,
+        # backline, and the lighting rig — everything real, nothing invented.
+        import json as _json
+        show = store.get_show_by_share_token(token)
+        if show is None:
+            abort(404)
+        adv = show["advance"]
+        schedule = [(label, adv.get(key)) for key, label in (
+            ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
+            ("set_time", "Set"), ("curfew", "Curfew")) if (adv.get(key) or "").strip()]
+        plot = store.get_stage_plot(show["user_id"])
+        lightshow = store.get_light_show(show["user_id"])
+        lights = None
+        if lightshow:
+            lights = {"name": lightshow.get("name") or "",
+                      "bars": int(lightshow.get("bars") or 0),
+                      "chans": int(lightshow.get("chans") or 3),
+                      "cues": len(lightshow.get("cues") or [])}
+        return render_template("rider.html", show=show, adv=adv,
+                               schedule=schedule, lights=lights,
                                plot_json=(_json.dumps(plot) if plot else "null"))
 
     @app.route("/lights")

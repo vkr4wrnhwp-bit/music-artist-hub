@@ -344,6 +344,21 @@
       <div id="rk-stems" class="mt-3 space-y-2"></div>
     </section>
 
+    <!-- SB-11 Snippet Finder -->
+    <section class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <span class="chip">SB-11</span>
+          <span class="sk text-[10px]">Snippet Finder</span>
+          <span class="sk sk-sub">Hooks for Reels · Shorts · TikTok</span>
+        </div>
+        <button id="rk-hook-scan" class="sw sw-gold px-3 py-1.5 text-[11px] font-black">Find hooks</button>
+      </div>
+      <p class="note">Scans your track's real energy for the loudest sustained 15- and 30-second stretches — level detection, not taste; trust your ears on the final pick. Preview plays that window, Snippet WAV bounces it through the whole rack, and Vertical video records a 720×1280 WebM with a live spectrum ring (keep this tab visible while it records; phone editors convert WebM to MP4).</p>
+      <div id="rk-hooks" class="mt-3 space-y-2"></div>
+    </section>
+
     <!-- Presets -->
     <section class="u u-dark flex flex-wrap items-center gap-2 py-2.5">
       <span class="sk text-[9px] text-[#8a7c5d]">Presets</span>
@@ -365,11 +380,12 @@
       </div>
       <button id="rk-ab2" class="sw px-3 py-1.5 text-[10px]" disabled>Bypass: OFF</button>
       <button id="rk-export2" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] sm:block" disabled>Export</button>
+      <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
     </div>
   </div>
   <div class="h-14"></div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=6"></script>
+<script src="/static/js/rackdsp.js?v=7"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

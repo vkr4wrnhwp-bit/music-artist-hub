@@ -144,6 +144,14 @@
             <button class="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-400 hover:bg-white/10" title="Rotates the URL — the old link stops working">New link</button>
           </form>
         </div>
+        {% if rider_url %}
+        <div class="mt-4 border-t border-white/5 pt-3">
+          <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Tech Rider (print / PDF)</h3>
+          <p class="mt-1 text-[11px] text-gray-500">Stage plot, input list, schedule, backline, and your light rig on one printable page — email it to the venue's stage manager. Same token as the show-day link.</p>
+          <div class="mt-2 break-all rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-[#e8c667]">{{ rider_url }}</div>
+          <a href="{{ rider_url }}" target="_blank" class="mt-2 inline-block rounded-lg border border-[#c9a24a]/40 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Open Tech Rider ↗</a>
+        </div>
+        {% endif %}
         {% else %}
         <form method="post" action="/tour/{{ show.id }}/share" class="mt-2">
           <button class="rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">Create show-day link</button>

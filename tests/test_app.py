@@ -3864,7 +3864,7 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=6" in page
+    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=7" in page
     assert 'data-ksize' in page and 'data-screen' in page
     assert "Harmonic Bank" in page
     # Every module carries power + compare + A/B LEDs; the screen has zone trim.
@@ -4368,3 +4368,39 @@ def test_os_p5_roster_health_and_export():
                     "red_rights_issues,certification")
     row = [ln for ln in csv_body.splitlines() if "p5artist@example.net" in ln][0]
     assert "Unranked" in row and "P Five" in row
+
+
+def test_tech_rider_and_rack_handoff():
+    import db as store_mod
+    import plans
+    assert plans.required_tier("/rider/tok") is None  # venue staff need no login
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    artist.post("/tour/add", data={"date": "2099-03-01", "venue": "Rider Hall",
+                                   "city": "Denton, TX"})
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    show = [s for s in store_mod.list_tour_shows(uid)
+            if s["venue"] == "Rider Hall"][0]
+    artist.post("/tour/%s/advance" % show["id"],
+                data={"backline": "House provides bass rig + drum shells",
+                      "dayof_contact": "Sam 555-0100", "load_in": "4pm"})
+    artist.post("/tour/%s/share" % show["id"])
+    token = store_mod.get_tour_show(uid, show["id"])["share_token"]
+    # Tour detail surfaces the rider link.
+    detail = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
+    assert "Tech Rider (print / PDF)" in detail and "/rider/" + token in detail
+    # Public rider: no login, real fields only, honest no-boilerplate line.
+    anon = app_obj.test_client()
+    rider = anon.get("/rider/" + token).get_data(as_text=True)
+    assert "Technical Rider" in rider and "Rider Hall" in rider
+    assert "House provides bass rig" in rider and "Sam 555-0100" in rider
+    assert "no boilerplate" in rider and "Print / Save as PDF" in rider
+    assert anon.get("/rider/badtoken").status_code == 404
+    # Rack -> Smart Link handoff prefills the builder honestly.
+    page = artist.get("/links/new?title=Night+Drive&rack=bounced+through+The+Rack"
+                      ).get_data(as_text=True)
+    assert 'value="Night Drive"' in page and "From The Rack" in page
+    # Snippet Finder unit ships on the rack.
+    rack = artist.get("/rack").get_data(as_text=True)
+    assert "Snippet Finder" in rack and 'id="rk-hook-scan"' in rack
+    assert "level detection, not taste" in rack and 'id="rk-rollout"' in rack

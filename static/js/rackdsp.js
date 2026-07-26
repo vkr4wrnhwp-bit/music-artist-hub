@@ -73,6 +73,7 @@
 
   var ctx = null, buffer = null, playing = null;
   var live = null;
+  var loadedName = "";
 
   // ---------- chain ----------
   function tubeCurve(drive, bias) {
@@ -657,6 +658,7 @@
     file.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
       .then(function (buf) {
         buffer = buf;
+        loadedName = file.name.replace(/\.[^.]+$/, "");
         document.getElementById("rk-fileinfo").textContent =
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
           buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
@@ -1010,6 +1012,178 @@
   if (dockAb) dockAb.addEventListener("click", function () { abBtn.click(); });
   if (dockExp) dockExp.addEventListener("click", function () { exportBtn.click(); });
 
+  // ---------- SB-11 snippet finder: real energy scan, honest hooks ----------
+  function scanHooks(len) {
+    var buf = buffer || (stems.length
+      ? stems.reduce(function (a, s) {
+          return s.buffer.duration > a.buffer.duration ? s : a;
+        }, stems[0]).buffer
+      : null);
+    if (!buf || buf.duration <= len + 1) return null;
+    var d = buf.getChannelData(0), rate = buf.sampleRate;
+    var hop = Math.floor(rate / 4);  // 0.25s frames
+    var frames = Math.floor(d.length / hop);
+    var rms = new Float32Array(frames);
+    for (var f = 0; f < frames; f++) {
+      var s = 0, base = f * hop;
+      for (var j = 0; j < hop; j += 16) {
+        var v = d[base + j];
+        s += v * v;
+      }
+      rms[f] = s;
+    }
+    var win = Math.round(len * 4), best = 0, run = 0;
+    for (f = 0; f < win && f < frames; f++) run += rms[f];
+    var bestSum = run;
+    for (f = win; f < frames; f++) {
+      run += rms[f] - rms[f - win];
+      if (run > bestSum) { bestSum = run; best = f - win + 1; }
+    }
+    return {start: best / 4, len: len};
+  }
+  var hookPreviewT = null;
+  function previewHook(h) {
+    seek(h.start);
+    clearTimeout(hookPreviewT);
+    hookPreviewT = setTimeout(function () { if (playing) stop(); }, h.len * 1000 + 100);
+  }
+  function exportHookWav(h) {
+    if (!buffer && !stems.length) return;
+    statusEl.textContent = "Rendering snippet…";
+    var rate = stems.length ? stems[0].buffer.sampleRate : buffer.sampleRate;
+    var oc = new OfflineAudioContext(2, Math.floor(h.len * rate), rate);
+    var chain = buildChain(oc, oc.destination);
+    voiceChain(chain, oc);
+    if (stems.length) {
+      stems.forEach(function (st) {
+        var src = oc.createBufferSource();
+        src.buffer = st.buffer;
+        var gn = oc.createGain();
+        gn.gain.value = stemGainValue(st);
+        src.connect(gn); gn.connect(chain.input);
+        src.start(0, Math.min(h.start, Math.max(0, st.buffer.duration - 0.01)), h.len);
+      });
+    } else {
+      var src = oc.createBufferSource();
+      src.buffer = buffer;
+      src.connect(chain.input);
+      src.start(0, h.start, h.len);
+    }
+    oc.startRendering().then(function (rendered) {
+      var a = document.createElement("a");
+      a.download = (loadedName || "hook") + "-" + h.len + "s.wav";
+      a.href = URL.createObjectURL(encodeWav(rendered));
+      a.click();
+      statusEl.textContent = "Snippet WAV downloaded — processed through the rack.";
+    }).catch(function () { statusEl.textContent = "Snippet render failed."; });
+  }
+  function renderHookVideo(h) {
+    if (!window.MediaRecorder) {
+      statusEl.textContent = "This browser can't record video — use the WAV export.";
+      return;
+    }
+    ensureCtx().resume();
+    var vc = document.createElement("canvas");
+    vc.width = 720; vc.height = 1280;
+    var vg = vc.getContext("2d");
+    var dest = ctx.createMediaStreamDestination();
+    live.outGain.connect(dest);
+    var tracks = vc.captureStream(30).getVideoTracks()
+      .concat(dest.stream.getAudioTracks());
+    var rec;
+    try { rec = new MediaRecorder(new MediaStream(tracks), {mimeType: "video/webm"}); }
+    catch (e) { rec = new MediaRecorder(new MediaStream(tracks)); }
+    var chunks = [];
+    rec.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      try { live.outGain.disconnect(dest); } catch (e) {}
+      var a = document.createElement("a");
+      a.download = (loadedName || "hook") + "-" + h.len + "s-vertical.webm";
+      a.href = URL.createObjectURL(new Blob(chunks, {type: "video/webm"}));
+      a.click();
+      statusEl.textContent = "Vertical video downloaded (WebM — phone editors convert to MP4).";
+      if (playing) stop();
+    };
+    var vFreq = new Uint8Array(live.analyser.frequencyBinCount);
+    var t0 = performance.now();
+    function frame() {
+      if (rec.state !== "recording") return;
+      vg.fillStyle = "#0a0908"; vg.fillRect(0, 0, 720, 1280);
+      live.analyser.getByteFrequencyData(vFreq);
+      var bars = 48, cx = 360, cy = 560, R = 200;
+      for (var b = 0; b < bars; b++) {
+        var bin = Math.floor(Math.pow(b / bars, 1.6) * (vFreq.length * 0.6));
+        var e2 = vFreq[bin] / 255;
+        var a2 = (b / bars) * Math.PI * 2 - Math.PI / 2;
+        vg.strokeStyle = "rgba(216,178,90," + (0.3 + e2 * 0.7).toFixed(2) + ")";
+        vg.lineWidth = 7;
+        vg.beginPath();
+        vg.moveTo(cx + Math.cos(a2) * R, cy + Math.sin(a2) * R);
+        vg.lineTo(cx + Math.cos(a2) * (R + 14 + e2 * 130),
+                  cy + Math.sin(a2) * (R + 14 + e2 * 130));
+        vg.stroke();
+      }
+      vg.textAlign = "center";
+      vg.fillStyle = "#e8c667";
+      vg.font = "900 44px Arial";
+      vg.fillText((loadedName || "Untitled").slice(0, 24).toUpperCase(), 360, 1080);
+      vg.fillStyle = "#8a7c5d";
+      vg.font = "700 18px Arial";
+      vg.fillText("STREET BANKER · ROYALTY SWEEP", 360, 1118);
+      var prog = Math.min(1, (performance.now() - t0) / (h.len * 1000));
+      vg.fillStyle = "rgba(255,255,255,0.12)"; vg.fillRect(60, 1180, 600, 6);
+      vg.fillStyle = "#e8c667"; vg.fillRect(60, 1180, 600 * prog, 6);
+      requestAnimationFrame(frame);
+    }
+    seek(h.start);
+    rec.start();
+    statusEl.textContent = "Recording " + h.len + "s vertical video — keep this tab visible…";
+    frame();
+    setTimeout(function () { if (rec.state === "recording") rec.stop(); }, h.len * 1000 + 200);
+  }
+  var hookBtn = document.getElementById("rk-hook-scan");
+  if (hookBtn) hookBtn.addEventListener("click", function () {
+    var wrap2 = document.getElementById("rk-hooks");
+    wrap2.innerHTML = "";
+    [15, 30].forEach(function (L) {
+      var h = scanHooks(L);
+      if (!h) return;
+      var row = document.createElement("div");
+      row.className = "flex flex-wrap items-center gap-2 rounded border border-white/10 bg-black/30 px-3 py-2";
+      var lab2 = document.createElement("span");
+      lab2.className = "min-w-0 flex-1 text-xs font-bold";
+      lab2.textContent = "Best " + L + "s hook · starts at " + mmss(h.start);
+      row.appendChild(lab2);
+      [["Preview", function () { previewHook(h); }],
+       ["Snippet WAV", function () { exportHookWav(h); }],
+       ["Vertical video", function () { renderHookVideo(h); }]].forEach(function (bd) {
+        var btn = document.createElement("button");
+        btn.className = "sw px-2.5 py-1 text-[10px]";
+        btn.textContent = bd[0];
+        btn.addEventListener("click", bd[1]);
+        row.appendChild(btn);
+      });
+      wrap2.appendChild(row);
+    });
+    if (!wrap2.children.length) {
+      wrap2.innerHTML = '<p class="text-[11px] text-gray-600">Load a track longer than ~16 seconds first.</p>';
+    }
+  });
+
+  // ---------- Rack -> Smart Link handoff ----------
+  var rolloutBtn = document.getElementById("rk-rollout");
+  if (rolloutBtn) rolloutBtn.addEventListener("click", function () {
+    var facts = [];
+    var d = duration();
+    if (d) facts.push(mmss(d));
+    var pk = document.getElementById("rk-peakdb").textContent;
+    if (pk && pk !== "−∞") facts.push("peak " + pk);
+    if (stems.length) facts.push(stems.length + " stems");
+    window.location = "/links/new?title=" + encodeURIComponent(loadedName || "") +
+      "&rack=" + encodeURIComponent("bounced through The Rack" +
+        (facts.length ? " — " + facts.join(" · ") : ""));
+  });
+
   // ---------- focus mode: hide the app sidebar while dialing in ----------
   var focusBtn = document.getElementById("rk-focus");
   var sideEl = document.querySelector("aside");
@@ -1225,6 +1399,7 @@
       dockAb.disabled = abBtn.disabled;
       dockAb.classList.toggle("sw-lit", state.bypass);
       dockExp.disabled = exportBtn.disabled;
+      if (rolloutBtn) rolloutBtn.disabled = playBtn.disabled;
       var wc2 = document.getElementById("rk-wave");
       if (wc2 && waveCache) {
         var wg2 = wc2.getContext("2d");
