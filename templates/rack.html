@@ -238,6 +238,21 @@
       </div>
     </section>
 
+    <!-- SUB-1 FOUNDATION -->
+    <section class="unit p-4 px-7">
+      <div class="screw-b"></div>
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="badge">SUB-1</span>
+        <span class="sk text-[10px]">Foundation</span>
+        <p class="min-w-0 flex-1 text-[10px] text-gray-600">Not a bass boost. Depth is a deep 45Hz shelf, Shake is a 42Hz room resonance, and Growl synthesizes harmonics of your sub so small speakers hear lows they can't physically play — psychoacoustics, not magic. Watch the peak meter: real low end eats headroom fast.</p>
+        <div class="well flex gap-3 p-3">
+          <div data-kn="sdepth"></div>
+          <div data-kn="sgrowl"></div>
+          <div data-kn="sshake"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- FX: DLY-1 + REV-1 -->
     <section class="unit p-4 px-7">
       <div class="screw-b"></div>
@@ -315,6 +330,6 @@
   </div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=2"></script>
+<script src="/static/js/rackdsp.js?v=3"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

@@ -2724,6 +2724,25 @@ def create_app():
                                schedule=schedule,
                                plot_json=(_json.dumps(plot) if plot else "null"))
 
+    @app.route("/lights")
+    def lights():
+        import json as _json
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        saved = store.get_light_show(user["id"])
+        return render_template("lights.html", active_page="lights",
+                               saved_show=(_json.dumps(saved) if saved else "null"),
+                               **build_dashboard_context())
+
+    @app.route("/lights/save", methods=["POST"])
+    def lights_save():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        store.save_light_show(user["id"], request.get_json(silent=True) or {})
+        return jsonify({"ok": True})
+
     @app.route("/rack")
     def rack():
         import json as _json

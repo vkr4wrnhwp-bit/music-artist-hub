@@ -108,6 +108,7 @@ MODULES = [
     ("/rack", "The Rack", "Real browser DSP: 12-band EQ, tube stage, cab & mic sim, compressor, WAV export \u2014 nothing is uploaded.", "live", None),
     ("/roster", "Label Mode", "Roster seats for the Label tier: invite artists, see the whole roster's real numbers.", "live", None),
     ("/referrals", "Referrals", "Give a month, get $9: your link, your signups, credits on your Stripe balance.", "live", None),
+    ("/lights", "Light Studio", "Cue your light show to the song — stage preview plus real DMX out to an ENTTEC interface.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

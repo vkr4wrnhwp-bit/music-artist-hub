@@ -59,6 +59,7 @@
   function ensureFx(s) {
     if (!s.dly) s.dly = {time: 0.3, fb: 0.3, tone: 5000, mix: 0};
     if (!s.rev) s.rev = {size: 1.6, damp: 5000, pre: 0.02, mix: 0};
+    if (!s.sub) s.sub = {depth: 0, growl: 0, shake: 0};
   }
   ensureFx(state);
   state.bypass = false;
@@ -185,6 +186,40 @@
     return buf;
   }
 
+  function buildSub(ac) {
+    // Foundation: protective HP + deep shelf + 42Hz room resonance in the
+    // main path; a parallel band generates harmonics OF the sub region so
+    // small speakers perceive lows they can't reproduce (psychoacoustics).
+    var m = {inNode: ac.createGain(), outNode: ac.createGain(),
+             protect: bq(ac, "highpass", 24, undefined, 0.7),
+             depth: bq(ac, "lowshelf", 45, 0),
+             shake: bq(ac, "peaking", 42, 0, 2.2),
+             band: bq(ac, "lowpass", 120, undefined, 0.7),
+             drive: ac.createWaveShaper(),
+             growlHP: bq(ac, "highpass", 90, undefined, 0.7),
+             growl: ac.createGain()};
+    var n = 1024, c = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var x = (i / (n - 1)) * 2 - 1;
+      // Asymmetric: odd AND even harmonics of the sub band, tube-style.
+      c[i] = Math.tanh(3 * x + 1.1 * x * x) - Math.tanh(1.1 * (i === 0 ? 1 : 1)) * 0;
+    }
+    m.drive.curve = c; m.drive.oversample = "2x";
+    m.growl.gain.value = 0;
+    m.inNode.connect(m.protect); m.protect.connect(m.depth);
+    m.depth.connect(m.shake); m.shake.connect(m.outNode);
+    m.inNode.connect(m.band); m.band.connect(m.drive);
+    m.drive.connect(m.growlHP); m.growlHP.connect(m.growl);
+    m.growl.connect(m.outNode);
+    return m;
+  }
+
+  function voiceSub(m) {
+    m.depth.gain.value = state.sub.depth;
+    m.shake.gain.value = state.sub.shake * 8;
+    m.growl.gain.value = state.sub.growl * 0.7;
+  }
+
   function buildFx(ac) {
     var fx = {inNode: ac.createGain(), outNode: ac.createGain(),
               dDry: ac.createGain(), dWet: ac.createGain(),
@@ -268,6 +303,10 @@
     input.connect(centerM.input);
     var node = centerM.output;
     filters.forEach(function (f) { node.connect(f); node = f; });
+    var sub = buildSub(ac);
+    voiceSub(sub);
+    node.connect(sub.inNode);
+    node = sub.outNode;
     node.connect(tube); tube.connect(wetTube);
     node.connect(dryTube);
     var sum = ac.createGain();
@@ -283,7 +322,7 @@
     outGain.connect(dest);
     return {input: input, filters: filters, tube: tube, wetTube: wetTube,
             dryTube: dryTube, cabMic: cabMic, comp: comp, makeup: makeup,
-            outGain: outGain, out: outGain, centerM: centerM, fx: fx};
+            outGain: outGain, out: outGain, centerM: centerM, fx: fx, sub: sub};
   }
 
   function ensureCtx() {
@@ -322,6 +361,7 @@
       voiceCabMic(live.cabMic);
       voiceCenter(live.centerM);
       voiceFx(live.fx, ctx);
+      voiceSub(live.sub);
       live.comp.threshold.value = state.comp.thr;
       live.comp.ratio.value = state.comp.ratio;
       live.comp.attack.value = state.comp.att;
@@ -485,6 +525,15 @@
     {kn: "makeup", min: 0, max: 12, def: 0, size: 62, label: "Makeup", wheelStep: 0.5,
      fmt: function (v) { return "+" + v + " dB"; },
      get: function () { return state.comp.makeup; }, set: function (v) { state.comp.makeup = v; }},
+    {kn: "sdepth", min: 0, max: 9, def: 0, size: 62, label: "Depth", wheelStep: 0.5,
+     fmt: function (v) { return "+" + v.toFixed(1) + " dB"; },
+     get: function () { return state.sub.depth; }, set: function (v) { state.sub.depth = v; }},
+    {kn: "sgrowl", min: 0, max: 1, def: 0, size: 62, label: "Growl", wheelStep: 0.05,
+     fmt: function (v) { return Math.round(v * 100) + "%"; },
+     get: function () { return state.sub.growl; }, set: function (v) { state.sub.growl = v; }},
+    {kn: "sshake", min: 0, max: 1, def: 0, size: 62, label: "Shake", wheelStep: 0.05,
+     fmt: function (v) { return Math.round(v * 100) + "%"; },
+     get: function () { return state.sub.shake; }, set: function (v) { state.sub.shake = v; }},
     {kn: "dtime",  min: 0.02, max: 1.2, def: 0.3, size: 60, label: "Time", wheelStep: 0.01,
      fmt: function (v) { return Math.round(v * 1000) + " ms"; },
      get: function () { return state.dly.time; }, set: function (v) { state.dly.time = v; }},

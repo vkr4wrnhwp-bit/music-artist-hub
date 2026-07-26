@@ -151,6 +151,11 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS light_shows (
+                user_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS tour_board (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1009,6 +1014,21 @@ def save_rack_preset(user_id, data):
             "INSERT INTO rack_presets (user_id, data, updated) VALUES (?,?,?) "
             "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
             (user_id, json.dumps(data), _now()))
+
+
+def save_light_show(user_id, data):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO light_shows (user_id, data, updated) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
+            (user_id, json.dumps(data), _now()))
+
+
+def get_light_show(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT data FROM light_shows WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return json.loads(row["data"]) if row else None
 
 
 def get_rack_preset(user_id):

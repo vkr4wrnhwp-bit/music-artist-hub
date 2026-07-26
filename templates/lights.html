@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Light Studio - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Touring</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Light Studio</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-400">Cue your light show to the song, exactly like a timecoded tour rig: load the track, drop cues where the music turns, and watch the stage follow. The preview below is a <span class="text-gray-300">simulation</span>; plug an ENTTEC USB DMX interface into this computer and the same cues drive your real fixtures over Web Serial (Chrome/Edge). Your audio stays on this machine.</p>
+  </div>
+
+  <!-- Transport -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">
+        Load song<input id="lx-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="lx-play" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10" disabled>Play</button>
+      <span id="lx-clock" class="font-mono text-sm font-bold tabular-nums text-[#e8c667]">0:00.0</span>
+      <span id="lx-fileinfo" class="min-w-0 flex-1 truncate text-[11px] text-gray-500">No song loaded — cues still preview with the Run button.</span>
+      <button id="lx-run" class="rounded-lg border border-white/15 px-4 py-2 text-xs font-bold text-gray-300 hover:bg-white/10">Run cues only</button>
+      <button id="lx-dmx" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Connect DMX (ENTTEC)</button>
+      <span id="lx-dmx-state" class="text-[10px] text-gray-600">Hardware: not connected — preview only</span>
+    </div>
+  </section>
+
+  <!-- Stage preview -->
+  <section class="rounded-2xl border border-white/10 bg-[#060605] p-4">
+    <canvas id="lx-stage" class="w-full" height="300"></canvas>
+    <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-600">
+      <span>Simulation of your rig — outer pairs mirror inward (bar 1 with the last bar, and so on), the way big stages are lit.</span>
+      <span class="flex items-center gap-3">
+        <label class="flex items-center gap-1.5 font-bold text-gray-400">Bars
+          <select id="lx-bars" class="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white"></select>
+        </label>
+        <label class="flex items-center gap-1.5 font-bold text-gray-400">Fixture
+          <select id="lx-chans" class="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white">
+            <option value="4">Dimmer + RGB (4ch)</option>
+            <option value="3">RGB (3ch)</option>
+          </select>
+        </label>
+      </span>
+    </div>
+  </section>
+
+  <!-- Cues -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Cue List</h2>
+      <div class="flex flex-wrap gap-2">
+        <button id="lx-add" class="rounded-lg bg-[#d8b25a] px-3 py-1.5 text-[11px] font-black text-[#1c1302] hover:bg-[#e5c878]">+ Cue at playhead</button>
+        <button id="lx-blackout" class="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">+ Blackout</button>
+        <button id="lx-save" class="rounded-lg border border-[#c9a24a]/40 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Save show</button>
+        <span id="lx-status" class="self-center text-[11px] text-gray-500"></span>
+      </div>
+    </div>
+    <div id="lx-cues" class="mt-3 space-y-1.5"></div>
+    <p class="mt-3 text-[10px] text-gray-600">Groups: All, mirrored pairs (outermost in), odd/even sides, or a single bar. Fade is seconds from the previous look into this one. DMX addresses run 1 upward, one fixture after another — set your bars to match and daisy-chain as usual.</p>
+  </section>
+</div>
+
+<script>window.__savedShow = {{ saved_show | safe }};</script>
+<script src="/static/js/lights.js?v=1"></script>
+{% endblock %}

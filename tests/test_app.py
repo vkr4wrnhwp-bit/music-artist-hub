@@ -3869,6 +3869,7 @@ def test_rack_page_and_presets():
     assert "Stem Deck" in page and "won't pretend" in page
     assert "Remove Center" in page and "Physics, not stem separation" in page
     assert "DLY-1" in page and "REV-1" in page and "honestly generated" in page
+    assert "SUB-1" in page and "psychoacoustics, not magic" in page
     assert "never leaves this machine" in page
     # Anonymous saves bounce off the login wall.
     anon = app_obj.test_client().post("/rack/save", json={})
@@ -4041,3 +4042,21 @@ def test_referral_engine(monkeypatch):
     sid = store_mod.get_user_by_email("solo-ref@example.net")["id"]
     assert store_mod.get_user(sid)["referred_by"] == uid  # normal attribution
     store_mod.set_kv("stripe_ref_coupon", "")  # shared-DB cleanup
+
+
+def test_light_studio():
+    import db as store_mod
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    page = artist.get("/lights").get_data(as_text=True)
+    assert "Light Studio" in page and "simulation" in page
+    assert "ENTTEC" in page and "Web Serial" in page
+    anon = app_obj.test_client().post("/lights/save", json={})
+    assert anon.status_code == 302 and "/login" in anon.headers["Location"]
+    show = {"name": "DEVORA set", "bars": 10, "chans": 4,
+            "cues": [{"t": 0, "group": "all", "color": "#200000",
+                      "intensity": 10, "fade": 2}]}
+    assert artist.post("/lights/save", json=show).get_json()["ok"]
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    assert store_mod.get_light_show(uid)["bars"] == 10
+    assert "DEVORA set" in artist.get("/lights").get_data(as_text=True)
