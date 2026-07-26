@@ -80,9 +80,9 @@ _demos = []
 
 def _seed_demos():
     return [
-        {"id": "demo-1", "title": "Midnight Tape", "artist": "Nova Reign", "votes": 214},
-        {"id": "demo-2", "title": "Chrome Hearts", "artist": "Kilo Byte", "votes": 158},
-        {"id": "demo-3", "title": "Afterglow", "artist": "Lila Rose", "votes": 97},
+        {"id": "demo-1", "art": "/static/img/fanlabel/midnight-tape.jpg", "title": "Midnight Tape", "artist": "Nova Reign", "votes": 214},
+        {"id": "demo-2", "art": "/static/img/fanlabel/chrome-hearts.jpg", "title": "Chrome Hearts", "artist": "Kilo Byte", "votes": 158},
+        {"id": "demo-3", "art": "/static/img/fanlabel/afterglow.jpg", "title": "Afterglow", "artist": "Lila Rose", "votes": 97},
     ]
 
 
