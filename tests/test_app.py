@@ -3864,13 +3864,17 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=5" in page
+    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=6" in page
     assert 'data-ksize' in page and 'data-screen' in page
     assert "Harmonic Bank" in page
-    # Every module carries power + compare; the screen has zone trim.
+    # Every module carries power + compare + A/B LEDs; the screen has zone trim.
     assert page.count('class="rk-pwr') == 7 and page.count('class="rk-cmp') == 8
-    assert 'id="rk-zone"' in page and "+0.5 dB" in page
-    assert "trim it in 0.5" in page
+    assert page.count('class="rk-ledwrap"') == 8
+    assert 'id="rk-zone"' in page and "+1 dB" in page and "Reset zone" in page
+    assert 'id="rk-gr"' in page  # gain reduction meter on the compressor unit
+    # UX layer: focus mode, sticky transport dock, waveform scrubber.
+    assert 'id="rk-focus"' in page and "Focus mode" in page
+    assert 'id="rk-dock"' in page and 'id="rk-wave"' in page and 'id="rk-play2"' in page
     assert "Tube Stage" in page and "not instrument identification" in page
     assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
     assert "4×12 Closed-Back" in page and "Ribbon" in page

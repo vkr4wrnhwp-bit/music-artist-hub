@@ -409,6 +409,26 @@
   }
   var knobUid = 0;
 
+  // One floating readout shared by every knob: shows the exact value while
+  // dragging or wheeling, fades when released.
+  var knobTip = null, knobTipT = null;
+  function showTip(x, y, text) {
+    if (!knobTip) {
+      knobTip = document.createElement("div");
+      knobTip.style.cssText =
+        "position:fixed;z-index:60;pointer-events:none;padding:3px 9px;" +
+        "border:1px solid #8a6d1f;border-radius:4px;background:#141209;" +
+        "color:#e8c667;font:700 12px/1.4 ui-monospace,monospace;" +
+        "transform:translate(-50%,-135%);box-shadow:0 2px 8px rgba(0,0,0,.6);display:none;";
+      document.body.appendChild(knobTip);
+    }
+    knobTip.textContent = text;
+    knobTip.style.left = x + "px";
+    knobTip.style.top = y + "px";
+    knobTip.style.display = "block";
+  }
+  function hideTip() { if (knobTip) knobTip.style.display = "none"; }
+
   /* makeKnob: one rotary control. opts:
      min/max/def, bipolar (arc from 12 o'clock), size px, label, fmt(v),
      wheelStep, decimals, get(), set(v) -> writes state. Returns {el, sync}. */
@@ -442,7 +462,8 @@
     var arc = svg.querySelector(".k-arc");
     var glow = svg.querySelector(".k-glow");
     var lab = document.createElement("div");
-    lab.className = "text-[9px] font-bold uppercase tracking-wide text-gray-500";
+    lab.className = "text-[9px] font-bold uppercase tracking-wide";
+    lab.style.color = "#b3a684";  // readable on the dark wells
     lab.textContent = opts.label;
 
     function angleOf(v) {
@@ -465,7 +486,7 @@
       }
       val.textContent = opts.fmt(v);
       val.style.color = opts.bipolar
-        ? (Math.abs(v) < 1e-6 ? "#6b6459" : color) : "#e8c667";
+        ? (Math.abs(v) < 1e-6 ? "#9a8f78" : color) : "#e8c667";
     }
     function setVal(v) {
       v = Math.max(opts.min, Math.min(opts.max, v));
@@ -476,20 +497,30 @@
       paint(); applyState();
     }
     var drag = null;
+    function tipText() { return opts.label + "  " + opts.fmt(opts.get()); }
     wrap.addEventListener("pointerdown", function (e) {
-      drag = {y: e.clientY, v: opts.get()};
+      var r = wrap.getBoundingClientRect();
+      drag = {y: e.clientY, v: opts.get(), tx: r.left + r.width / 2, ty: r.top};
       wrap.setPointerCapture(e.pointerId);
+      showTip(drag.tx, drag.ty, tipText());
       e.preventDefault();
     });
     wrap.addEventListener("pointermove", function (e) {
-      if (drag) setVal(drag.v + (drag.y - e.clientY) * (opts.max - opts.min) / 200);
+      if (drag) {
+        setVal(drag.v + (drag.y - e.clientY) * (opts.max - opts.min) / 200);
+        showTip(drag.tx, drag.ty, tipText());
+      }
     });
-    wrap.addEventListener("pointerup", function () { drag = null; });
-    wrap.addEventListener("pointercancel", function () { drag = null; });
+    wrap.addEventListener("pointerup", function () { drag = null; hideTip(); });
+    wrap.addEventListener("pointercancel", function () { drag = null; hideTip(); });
     wrap.addEventListener("dblclick", function () { setVal(opts.def); });
     wrap.addEventListener("wheel", function (e) {
       e.preventDefault();
       setVal(opts.get() + (e.deltaY < 0 ? opts.wheelStep : -opts.wheelStep));
+      var r = wrap.getBoundingClientRect();
+      showTip(r.left + r.width / 2, r.top, tipText());
+      clearTimeout(knobTipT);
+      knobTipT = setTimeout(hideTip, 700);
     }, {passive: false});
     paint();
     col.appendChild(val); col.appendChild(wrap); col.appendChild(lab);
@@ -630,6 +661,7 @@
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
           buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
         playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
+        renderWave();
       })
       .catch(function () { statusEl.textContent = "Couldn't decode that file."; });
   }
@@ -666,10 +698,20 @@
     playBtn.textContent = "Play";
     scopeLamp.classList.remove("grn");
   }
-  playBtn.addEventListener("click", function () {
-    if (playing) { stop(); return; }
+  // Playback tracks its position so the waveform scrubber can seek.
+  var playT0 = 0, playOffset = 0;
+
+  function duration() {
+    if (stems.length) {
+      return Math.max.apply(null, stems.map(function (s) { return s.buffer.duration; }));
+    }
+    return buffer ? buffer.duration : 0;
+  }
+
+  function startPlayback(offset) {
     ensureCtx().resume();
     var loop = document.getElementById("rk-loop").checked;
+    offset = Math.max(0, Math.min(offset || 0, Math.max(0, duration() - 0.05)));
     if (stems.length) {
       var t0 = ctx.currentTime + 0.06;
       var sources = [];
@@ -680,22 +722,44 @@
         gn.gain.value = stemGainValue(st);
         st.playGain = gn;
         src.connect(gn); gn.connect(live.wet); gn.connect(live.dry);
-        src.start(t0);
+        src.start(t0, Math.min(offset, Math.max(0, st.buffer.duration - 0.01)));
         sources.push(src);
       });
       sources[0].onended = function () { if (playing === sources) stop(); };
       playing = sources;
+      playT0 = t0;
     } else {
       var src = ctx.createBufferSource();
       src.buffer = buffer;
       src.loop = loop;
       src.connect(live.wet); src.connect(live.dry);
       src.onended = function () { if (playing === src) stop(); };
-      src.start();
+      src.start(0, offset);
       playing = src;
+      playT0 = ctx.currentTime;
     }
+    playOffset = offset;
     playBtn.textContent = "Stop";
     scopeLamp.classList.add("grn");
+  }
+
+  function playPos() {
+    if (!playing || !ctx) return 0;
+    var d = duration();
+    if (!d) return 0;
+    var p = playOffset + (ctx.currentTime - playT0);
+    return document.getElementById("rk-loop").checked ? p % d : Math.min(p, d);
+  }
+
+  function seek(t) {
+    if (!buffer && !stems.length) return;
+    if (playing) stop();
+    startPlayback(t);
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (playing) { stop(); return; }
+    startPlayback(0);
   });
   abBtn.addEventListener("click", function () {
     state.bypass = !state.bypass;
@@ -752,7 +816,7 @@
       rm.textContent = "×"; rm.title = "Remove stem";
       rm.className = "sw h-7 w-7 text-sm text-gray-500";
       rm.addEventListener("click", function () {
-        stop(); stems.splice(i, 1); renderStems(); syncDeckInfo();
+        stop(); stems.splice(i, 1); renderStems(); syncDeckInfo(); renderWave();
       });
       row.appendChild(name); row.appendChild(dur); row.appendChild(gain);
       row.appendChild(mute); row.appendChild(solo); row.appendChild(rm);
@@ -788,7 +852,7 @@
       var ok = loaded.filter(Boolean);
       stems = stems.concat(ok).slice(0, 8);
       if (loaded.length !== ok.length) statusEl.textContent = "Some files couldn't be decoded.";
-      stop(); renderStems(); syncDeckInfo();
+      stop(); renderStems(); syncDeckInfo(); renderWave();
     });
     e.target.value = "";
   });
@@ -816,11 +880,21 @@
     return o;
   }
   var cmpA = {};  // per-module snapshot: the "other side" of A/B
+  var cmpSide = {};  // which side each module is showing: "A" (yours) or "B" (stored)
+  function syncAbLeds() {
+    document.querySelectorAll(".rk-ledwrap").forEach(function (wsp) {
+      var side = cmpSide[wsp.dataset.mod] || "A";
+      wsp.querySelector(".rk-la").classList.toggle("on", side === "A");
+      wsp.querySelector(".rk-lb").classList.toggle("on", side === "B");
+    });
+  }
   function resetCompare() {
     Object.keys(MOD_KEYS).forEach(function (m) { cmpA[m] = modSlice(m); });
+    cmpSide = {};
     document.querySelectorAll(".rk-cmp").forEach(function (b) {
       b.classList.remove("sw-lit");
     });
+    syncAbLeds();
   }
   function syncModButtons() {
     document.querySelectorAll(".rk-pwr").forEach(function (b) {
@@ -843,7 +917,9 @@
       var cur = modSlice(m);
       MOD_KEYS[m].forEach(function (k) { state[k] = cmpA[m][k]; });
       cmpA[m] = cur;
+      cmpSide[m] = cmpSide[m] === "B" ? "A" : "B";
       b.classList.toggle("sw-lit");
+      syncAbLeds();
       syncAll(); applyState();
     });
   });
@@ -883,6 +959,75 @@
     });
   });
 
+  // ---------- transport dock: waveform scrubber + proxies ----------
+  var waveCache = null;
+
+  function renderWave() {
+    var wc = document.getElementById("rk-wave");
+    if (!wc) return;
+    var buf = stems.length
+      ? stems.reduce(function (a, s) {
+          return s.buffer.duration > a.buffer.duration ? s : a;
+        }, stems[0]).buffer
+      : buffer;
+    var wg = wc.getContext("2d");
+    var W = wc.width = wc.clientWidth || 300, H = wc.height = wc.clientHeight || 40;
+    wg.clearRect(0, 0, W, H);
+    if (!buf) { waveCache = null; return; }
+    var d = buf.getChannelData(0), step = Math.max(1, Math.floor(d.length / W));
+    var hop = Math.max(1, Math.floor(step / 24));
+    wg.strokeStyle = "rgba(216,178,90,0.8)"; wg.lineWidth = 1;
+    wg.beginPath();
+    for (var x = 0; x < W; x++) {
+      var mn = 0, mx = 0;
+      for (var j = x * step; j < (x + 1) * step && j < d.length; j += hop) {
+        var v = d[j];
+        if (v < mn) mn = v; if (v > mx) mx = v;
+      }
+      wg.moveTo(x + 0.5, H / 2 - mx * H * 0.48);
+      wg.lineTo(x + 0.5, H / 2 - mn * H * 0.48 + 0.5);
+    }
+    wg.stroke();
+    waveCache = wg.getImageData(0, 0, W, H);
+  }
+  var waveEl = document.getElementById("rk-wave");
+  if (waveEl) {
+    waveEl.addEventListener("click", function (e) {
+      var d = duration();
+      if (!d) return;
+      var r = waveEl.getBoundingClientRect();
+      seek((e.clientX - r.left) / r.width * d);
+    });
+  }
+  function mmss(s) {
+    s = Math.max(0, Math.floor(s));
+    return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+  }
+  var dockPlay = document.getElementById("rk-play2"),
+      dockAb = document.getElementById("rk-ab2"),
+      dockExp = document.getElementById("rk-export2");
+  if (dockPlay) dockPlay.addEventListener("click", function () { playBtn.click(); });
+  if (dockAb) dockAb.addEventListener("click", function () { abBtn.click(); });
+  if (dockExp) dockExp.addEventListener("click", function () { exportBtn.click(); });
+
+  // ---------- focus mode: hide the app sidebar while dialing in ----------
+  var focusBtn = document.getElementById("rk-focus");
+  var sideEl = document.querySelector("aside");
+  function setFocus(onF) {
+    if (sideEl) sideEl.style.display = onF ? "none" : "";
+    if (focusBtn) {
+      focusBtn.classList.toggle("sw-lit", onF);
+      focusBtn.textContent = onF ? "Exit focus" : "Focus mode";
+    }
+    try { localStorage.setItem("rkFocus", onF ? "1" : ""); } catch (e) {}
+  }
+  if (focusBtn) {
+    focusBtn.addEventListener("click", function () {
+      setFocus(!(sideEl && sideEl.style.display === "none"));
+    });
+    try { if (localStorage.getItem("rkFocus")) setFocus(true); } catch (e) {}
+  }
+
   // ---------- scope ----------
   var canvas = document.getElementById("rk-scope");
   var g = canvas.getContext("2d");
@@ -894,6 +1039,8 @@
   var SCREEN = canvas.hasAttribute("data-screen");
   var GUT = SCREEN ? 14 : 108;
   var selLane = -1, laneHitRects = [];
+  var zeroCache = 0, spanCache = 1, nodeDrag = -1, nodeMoved = false;
+  canvas.style.touchAction = "none";
   var vuPos = 0;
   function fx(f, w) {
     return GUT + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (w - GUT - 10);
@@ -1003,6 +1150,16 @@
       g.strokeStyle = "#f3ead2"; g.lineWidth = 1.5; g.stroke();
       g.strokeStyle = "rgba(255,255,255,0.1)"; g.lineWidth = 1;
       g.beginPath(); g.moveTo(GUT, zero); g.lineTo(w - 10, zero); g.stroke();
+      // Draggable band nodes riding the curve: grab one and pull.
+      zeroCache = zero; spanCache = span;
+      EQ_BANDS.forEach(function (b, ni) {
+        var nx = fx(b.f, w), ny = zero - state.eq[ni] * span;
+        g.beginPath();
+        g.arc(nx, ny, ni === nodeDrag ? 6 : 4.5, 0, 6.2832);
+        g.fillStyle = ni === nodeDrag ? "#f3ead2" : "rgba(232,198,103,0.92)";
+        g.fill();
+        g.strokeStyle = "#1c1302"; g.lineWidth = 1.2; g.stroke();
+      });
     }
 
     g.strokeStyle = "rgba(201,162,74,0.25)";
@@ -1037,7 +1194,9 @@
                 lane.color + alpha);
       }
       if (li === selLane) {
-        g.strokeStyle = "#e8c667"; g.lineWidth = 1;
+        g.fillStyle = "rgba(232,198,103,0.09)";
+        g.fillRect(2, y - 1, w - 4, laneH + 2);
+        g.strokeStyle = "#e8c667"; g.lineWidth = 1.4;
         g.strokeRect(x1 - 2, y + bo - 2, (x2 - x1) + 4, bh + 4);
       }
     });
@@ -1050,6 +1209,40 @@
       needle.setAttribute("transform",
         "rotate(" + (-46 + (vuPos / 20) * 92).toFixed(1) + " 100 100)");
       document.getElementById("rk-grdb").textContent = vuPos.toFixed(1) + " dB";
+    }
+    // Compressor-side gain reduction bar (same real reduction value)
+    var grBar = document.getElementById("rk-gr");
+    if (grBar) {
+      grBar.style.width = Math.min(100, vuPos / 20 * 100) + "%";
+      document.getElementById("rk-grdb2").textContent =
+        vuPos > 0.05 ? "−" + vuPos.toFixed(1) + " dB" : "0.0 dB";
+    }
+    // Transport dock: mirror state, playhead, clock
+    if (dockPlay) {
+      dockPlay.textContent = playing ? "Stop" : "Play";
+      dockPlay.disabled = playBtn.disabled;
+      dockAb.textContent = abBtn.textContent;
+      dockAb.disabled = abBtn.disabled;
+      dockAb.classList.toggle("sw-lit", state.bypass);
+      dockExp.disabled = exportBtn.disabled;
+      var wc2 = document.getElementById("rk-wave");
+      if (wc2 && waveCache) {
+        var wg2 = wc2.getContext("2d");
+        wg2.putImageData(waveCache, 0, 0);
+        var dtot = duration();
+        if (dtot) {
+          var phx = playPos() / dtot * wc2.width;
+          wg2.fillStyle = "#e8c667";
+          wg2.fillRect(phx - 1, 0, 2, wc2.height);
+        }
+      }
+      var timeEl = document.getElementById("rk-time");
+      if (timeEl) {
+        var dtt = duration();
+        timeEl.textContent = mmss(playPos()) + " / " + mmss(dtt);
+      }
+      var pk2 = document.getElementById("rk-peak2");
+      if (pk2) pk2.style.width = document.getElementById("rk-peak").style.width;
     }
     if (live && playing && timeData) {
       var peak = 0;
@@ -1151,13 +1344,55 @@
     if (selLane < 0) { strip.style.display = "none"; return; }
     strip.style.display = "flex";
     var lane = LANES[selLane];
-    var bands = zoneBands(lane).map(function (i) { return EQ_BANDS[i].label; });
+    var idx = zoneBands(lane);
     document.getElementById("rk-zone-name").textContent = lane.label;
     document.getElementById("rk-zone-name").style.color = lane.color;
     document.getElementById("rk-zone-bands").textContent =
-      "moves the " + bands.join(" · ") + " Hz band" + (bands.length > 1 ? "s" : "");
+      idx.map(function (i) {
+        var v = state.eq[i];
+        return EQ_BANDS[i].label + "Hz " + (v > 0 ? "+" : "") + v.toFixed(1);
+      }).join(" · ");
   }
+  function nodeAt(x, y) {
+    var w = canvas.width, best = -1, bd = 144; // 12px grab radius
+    EQ_BANDS.forEach(function (b, i) {
+      var dx = x - fx(b.f, w), dy = y - (zeroCache - state.eq[i] * spanCache);
+      var dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = i; }
+    });
+    return best;
+  }
+  canvas.addEventListener("pointerdown", function (e) {
+    var r = canvas.getBoundingClientRect();
+    if (!r.width) return;
+    var x = (e.clientX - r.left) * (canvas.width / r.width);
+    var y = (e.clientY - r.top) * (canvas.height / r.height);
+    var n = nodeAt(x, y);
+    if (n >= 0) {
+      nodeDrag = n; nodeMoved = false;
+      canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    }
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (nodeDrag < 0) return;
+    var r = canvas.getBoundingClientRect();
+    var y = (e.clientY - r.top) * (canvas.height / r.height);
+    var v = Math.max(-12, Math.min(12, (zeroCache - y) / spanCache));
+    state.eq[nodeDrag] = Math.round(v * 10) / 10;
+    nodeMoved = true;
+    showTip(e.clientX, e.clientY - 16,
+            EQ_BANDS[nodeDrag].label + "Hz  " +
+            (state.eq[nodeDrag] > 0 ? "+" : "") + state.eq[nodeDrag].toFixed(1) + " dB");
+    applyState();
+  });
+  canvas.addEventListener("pointerup", function () {
+    if (nodeDrag >= 0 && nodeMoved) { renderEq(); syncZoneUI(); }
+    nodeDrag = -1;
+    hideTip();
+  });
   canvas.addEventListener("click", function (e) {
+    if (nodeMoved) { nodeMoved = false; return; }  // a node drag, not a lane pick
     var r = canvas.getBoundingClientRect();
     if (!r.width) return;
     var y = (e.clientY - r.top) * (canvas.height / r.height);
@@ -1170,9 +1405,15 @@
   });
   var zm = document.getElementById("rk-zone-minus"),
       zp = document.getElementById("rk-zone-plus"),
+      zz = document.getElementById("rk-zone-zero"),
       zc = document.getElementById("rk-zone-clear");
-  if (zm) zm.addEventListener("click", function () { zoneTrim(-0.5); });
-  if (zp) zp.addEventListener("click", function () { zoneTrim(0.5); });
+  if (zm) zm.addEventListener("click", function () { zoneTrim(-1); });
+  if (zp) zp.addEventListener("click", function () { zoneTrim(1); });
+  if (zz) zz.addEventListener("click", function () {
+    if (selLane < 0) return;
+    zoneBands(LANES[selLane]).forEach(function (i) { state.eq[i] = 0; });
+    renderEq(); applyState(); syncZoneUI();
+  });
   if (zc) zc.addEventListener("click", function () { selLane = -1; syncZoneUI(); });
 
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
@@ -1184,7 +1425,9 @@
                        modOn: modOn, voiceChain: voiceChain,
                        zoneBands: zoneBands, zoneTrim: zoneTrim,
                        setLane: function (i) { selLane = i; syncZoneUI(); },
-                       lanes: LANES, applyState: applyState};
+                       lanes: LANES, applyState: applyState,
+                       seek: seek, playPos: playPos, duration: duration,
+                       renderWave: renderWave, bands: EQ_BANDS};
   syncAll();
   renderStems();
   updateGlow();

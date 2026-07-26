@@ -59,6 +59,11 @@
              box-shadow: 0 20px 60px rgba(0,0,0,0.75); color: #d8cdb4; }
   .slot { position: absolute; display: flex; align-items: center; }
   .mods { display: flex; flex-direction: column; gap: 3px; margin-left: auto; }
+  /* A/B jewel LEDs: which snapshot each unit is playing right now */
+  .rk-ledwrap { display: flex; gap: 4px; justify-content: center; }
+  .rk-ledwrap b { font-size: 7px; font-weight: 900; color: #4a4234; line-height: 1; }
+  .rk-ledwrap b.on.rk-la { color: #e8c667; text-shadow: 0 0 5px rgba(232,198,103,0.9); }
+  .rk-ledwrap b.on.rk-lb { color: #7fbf5f; text-shadow: 0 0 5px rgba(127,191,95,0.9); }
 </style>
 
 <div class="mx-auto max-w-[1150px] space-y-5">
@@ -68,16 +73,20 @@
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
       <p class="mt-1 max-w-2xl text-sm text-gray-400">Real DSP running in your browser — 12-band EQ, tube stage, cab &amp; mic sim, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
     </div>
-    <span class="chip">SB-1200 SERIES</span>
+    <div class="flex items-center gap-2">
+      <button id="rk-focus" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide">Focus mode</button>
+      <span class="chip">SB-1200 SERIES</span>
+    </div>
   </div>
 
   <!-- Zone trim: appears when an instrument band on the screen is clicked -->
   <div id="rk-zone" style="display:none" class="mx-auto w-full max-w-[760px] items-center gap-3 rounded-xl border border-[#c9a24a]/40 bg-[#141209] px-4 py-2.5">
     <span class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Zone</span>
     <span id="rk-zone-name" class="text-sm font-black"></span>
-    <span id="rk-zone-bands" class="text-[10px] text-gray-500"></span>
-    <button id="rk-zone-minus" class="sw px-2.5 py-1 text-xs">−0.5 dB</button>
-    <button id="rk-zone-plus" class="sw px-2.5 py-1 text-xs">+0.5 dB</button>
+    <span id="rk-zone-bands" class="font-mono text-[11px] font-bold tabular-nums text-[#e8c667]"></span>
+    <button id="rk-zone-minus" class="sw px-3 py-1.5 text-sm font-black">−1 dB</button>
+    <button id="rk-zone-plus" class="sw px-3 py-1.5 text-sm font-black">+1 dB</button>
+    <button id="rk-zone-zero" class="sw px-2.5 py-1.5 text-[10px]">Reset zone</button>
     <button id="rk-zone-clear" class="ml-auto sw px-2 py-1 text-[10px]">Done</button>
   </div>
 
@@ -100,6 +109,7 @@
       <div class="mods relative">
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube" title="Compare — swap with your previous tube settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="tube"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
       </div>
     </div>
 
@@ -113,6 +123,7 @@
       <div class="mods">
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub" title="Compare — swap with your previous SUB-1 settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="sub"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
       </div>
     </div>
 
@@ -124,6 +135,7 @@
         <button id="rk-eq-flat" class="sw px-1.5 py-0.5 text-[8px] font-black uppercase">Flat</button>
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq" title="Compare — swap with your previous EQ curve">A/B</button>
+        <span class="rk-ledwrap" data-mod="eq"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
       </div>
     </div>
 
@@ -136,9 +148,16 @@
         <div data-kn="rel" data-ksize="44"></div>
         <div data-kn="makeup" data-ksize="44"></div>
       </div>
+      <!-- Gain reduction, right on the unit: the bar is the compressor working -->
+      <div class="w-28 shrink-0">
+        <div class="flex justify-between text-[8px] font-bold uppercase tracking-wide" style="color:#b3a684;"><span>Gain Red.</span><span id="rk-grdb2" class="tabular-nums text-[#e8c667]">0.0 dB</span></div>
+        <div class="rk-seg mt-1 h-2.5 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-gr" class="h-full w-0 bg-gradient-to-r from-[#e8c667] to-red-500" style="transition: width 80ms linear;"></div></div>
+        <div class="mt-0.5 text-[7px] uppercase tracking-wide" style="color:#7d735c;">moves while audio plays</div>
+      </div>
       <div class="mods">
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp" title="Compare — swap with your previous compressor settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="comp"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
       </div>
     </div>
 
@@ -208,13 +227,14 @@
         <div class="mods !ml-0">
           <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out">ON</button>
           <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out" title="Compare — swap with your previous trim">A/B</button>
+        <span class="rk-ledwrap" data-mod="out"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
         </div>
       </div>
     </div>
   </div>
   </div>
 
-  <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-600">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — to select just that zone and trim it in 0.5&nbsp;dB steps through the real EQ bands underneath. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
+  <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-600">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — then use the gold Zone bar above the rack to trim just that range in 1&nbsp;dB steps; watch its EQ knobs turn as you press. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
 
   <!-- Honest silkscreen -->
   <div class="mx-auto grid max-w-[760px] gap-x-5 gap-y-2 text-[10px] leading-relaxed text-gray-600 sm:grid-cols-2">
@@ -237,6 +257,7 @@
         <span class="ml-auto flex items-center gap-2">
           <label class="flex items-center gap-1.5 text-[10px] font-bold text-[#8a7c5d]"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
           <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="cab" title="Compare — swap with your previous cab &amp; mic setup">A/B</button>
+        <span class="rk-ledwrap" data-mod="cab"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
         </span>
       </div>
       <div class="w2 grid gap-2.5 sm:grid-cols-[1fr_1fr_130px]">
@@ -275,6 +296,7 @@
             <span class="ml-auto flex gap-1.5">
               <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly">ON</button>
               <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly" title="Compare — swap with your previous delay settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="dly"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
             </span>
           </div>
           <div class="w2 flex justify-around">
@@ -292,6 +314,7 @@
             <span class="ml-auto flex gap-1.5">
               <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev">ON</button>
               <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev" title="Compare — swap with your previous reverb settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="rev"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
             </span>
           </div>
           <div class="w2 flex justify-around">
@@ -331,8 +354,22 @@
       <button data-preset="guitar" class="rk-preset sw px-3 py-1.5 text-[11px]">Guitar Rig</button>
     </section>
   </div>
+  <!-- Sticky transport dock: play, scrub, bypass, level — always in reach -->
+  <div id="rk-dock" class="fixed inset-x-0 bottom-0 z-40 border-t border-[#c9a24a]/30 bg-[#0c0b09]/95 px-4 py-2 backdrop-blur">
+    <div class="mx-auto flex max-w-[1100px] items-center gap-3">
+      <button id="rk-play2" class="sw px-4 py-1.5 text-xs font-black" disabled>Play</button>
+      <canvas id="rk-wave" class="h-10 min-w-0 flex-1 cursor-pointer rounded border border-white/10 bg-black/50" title="Click to jump anywhere in the track"></canvas>
+      <span id="rk-time" class="w-24 shrink-0 text-center font-mono text-[10px] tabular-nums text-[#c9bd9c]">0:00 / 0:00</span>
+      <div class="hidden w-28 shrink-0 sm:block">
+        <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak2" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+      </div>
+      <button id="rk-ab2" class="sw px-3 py-1.5 text-[10px]" disabled>Bypass: OFF</button>
+      <button id="rk-export2" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] sm:block" disabled>Export</button>
+    </div>
+  </div>
+  <div class="h-14"></div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=5"></script>
+<script src="/static/js/rackdsp.js?v=6"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
