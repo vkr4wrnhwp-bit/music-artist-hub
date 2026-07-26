@@ -483,7 +483,8 @@
     eqWrap.innerHTML = "";
     EQ_BANDS.forEach(function (b, i) {
       var k = makeKnob({
-        min: -12, max: 12, def: 0, bipolar: true, size: 58,
+        min: -12, max: 12, def: 0, bipolar: true,
+        size: eqWrap.dataset.ksize ? +eqWrap.dataset.ksize : 58,
         label: b.label, wheelStep: 0.5,
         fmt: function (v) { return (v > 0 ? "+" : "") + (v === 0 ? "0.0" : v.toFixed(1)); },
         get: function () { return state.eq[i]; },
@@ -566,16 +567,19 @@
   MOD_KNOBS.forEach(function (spec) {
     var mount = document.querySelector('[data-kn="' + spec.kn + '"]');
     if (!mount) return;
+    if (mount.dataset.ksize) spec = Object.assign({}, spec, {size: +mount.dataset.ksize});
     var k = makeKnob(spec);
     mount.appendChild(k.el);
     modKnobRefs.push(k);
   });
+  var qMount = document.getElementById("kn-q");
   var qKnob = makeKnob({
-    min: 0.4, max: 3, def: 1, size: 44, label: "Q", wheelStep: 0.1,
+    min: 0.4, max: 3, def: 1, label: "Q", wheelStep: 0.1,
+    size: qMount.dataset.ksize ? +qMount.dataset.ksize : 44,
     fmt: function (v) { return v.toFixed(1); },
     get: function () { return state.q; }, set: function (v) { state.q = v; }
   });
-  document.getElementById("kn-q").appendChild(qKnob.el);
+  qMount.appendChild(qKnob.el);
   modKnobRefs.push(qKnob);
 
   function syncAll() {
@@ -821,7 +825,11 @@
   var g = canvas.getContext("2d");
   var eqCurveDirty = true, eqCurve = null, cabCurve = null;
   var FMIN = 20, FMAX = 20000;
-  var GUT = 108;
+  // Screen mode: the canvas lives inside the photo chassis window — it tracks
+  // its slot height, drops the label gutter, and draws slim unlabeled lanes
+  // (the lane legend renders in HTML under the chassis instead).
+  var SCREEN = canvas.hasAttribute("data-screen");
+  var GUT = SCREEN ? 14 : 108;
   var vuPos = 0;
   function fx(f, w) {
     return GUT + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (w - GUT - 10);
@@ -853,8 +861,13 @@
     requestAnimationFrame(draw);
     var w = canvas.clientWidth;
     if (canvas.width !== w) canvas.width = w;
+    if (SCREEN) {
+      var chh = canvas.clientHeight;
+      if (chh && canvas.height !== chh) canvas.height = chh;
+    }
     var h = canvas.height;
-    var laneH = 15, lanesTop = h - LANES.length * laneH - 10;
+    var laneH = SCREEN ? 8 : 15,
+        lanesTop = h - LANES.length * laneH - (SCREEN ? 6 : 10);
     g.clearRect(0, 0, w, h);
 
     var binHz = ctx ? ctx.sampleRate / (live.analyser.fftSize) : 0;
@@ -936,15 +949,18 @@
         for (var b = b1; b <= b2; b++) sum += freqData[b];
         energy = (sum / (b2 - b1 + 1)) / 255;
       }
-      g.fillStyle = energy > 0.04 ? lane.color : "rgba(160,150,130,0.55)";
-      g.font = "bold 9px Arial"; g.textAlign = "right";
-      g.fillText(lane.label.toUpperCase(), GUT - 10, y + laneH - 6);
-      g.textAlign = "left";
-      laneBar(x1, y + 2, x2, laneH - 6, lane.color + "26");
+      if (!SCREEN) {
+        g.fillStyle = energy > 0.04 ? lane.color : "rgba(160,150,130,0.55)";
+        g.font = "bold 9px Arial"; g.textAlign = "right";
+        g.fillText(lane.label.toUpperCase(), GUT - 10, y + laneH - 6);
+        g.textAlign = "left";
+      }
+      var bo = SCREEN ? 1 : 2, bh = laneH - (SCREEN ? 3 : 6);
+      laneBar(x1, y + bo, x2, bh, lane.color + "26");
       if (energy > 0.04) {
         var alpha = Math.round(Math.min(1, energy * 1.6) * 200 + 55)
           .toString(16).padStart(2, "0");
-        laneBar(x1, y + 2, x1 + (x2 - x1) * Math.min(1, energy * 1.3), laneH - 6,
+        laneBar(x1, y + bo, x1 + (x2 - x1) * Math.min(1, energy * 1.3), bh,
                 lane.color + alpha);
       }
     });

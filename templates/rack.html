@@ -4,7 +4,7 @@
 
 {% block content %}
 <style>
-  /* ---- 19" rack chrome ------------------------------------------------ */
+  /* ---- 19" rack chrome (lower units) ---------------------------------- */
   .rack { position: relative; padding: 8px 30px; background: #060605; border-radius: 10px; }
   .rack::before, .rack::after {
     content: ''; position: absolute; top: 6px; bottom: 6px; width: 20px;
@@ -33,7 +33,6 @@
     box-shadow: inset 0 0 2px #000;
   }
   .unit .screw-b::before { left: 9px; } .unit .screw-b::after { right: 9px; }
-  /* Silkscreen lettering + model badges */
   .sk { font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
         text-transform: uppercase; letter-spacing: 0.22em; color: #efe6cd; }
   .badge { display: inline-block; border: 1px solid #8a6d1f; color: #d8b25a;
@@ -41,26 +40,29 @@
            font-weight: 800; letter-spacing: 0.14em; font-size: 10px; }
   .engrave { height: 1px; background: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
              box-shadow: 0 1px 0 rgba(255,255,255,0.05); }
-  /* Recessed control wells */
   .well { border-radius: 3px; border: 1px solid #0a0906;
           background: linear-gradient(180deg, #0b0a07, #0e0d0a);
           box-shadow: inset 0 2px 6px rgba(0,0,0,0.65), inset 0 -1px 0 rgba(255,255,255,0.03); }
-  /* Buttons as hardware switches */
   .sw { border-radius: 3px; border: 1px solid #3a3424; background: linear-gradient(180deg, #221e15, #14120c);
         color: #cfc6b0; font-weight: 700; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.5); }
   .sw:hover { background: linear-gradient(180deg, #292418, #17140d); }
   .sw-gold { border-color: #8a6d1f; background: linear-gradient(180deg, #e5c878, #c9a24a 60%, #a37c2a); color: #1c1302; }
   .sw-gold:hover { filter: brightness(1.06); }
   .sw-lit { border-color: #c9a24a; color: #e8c667; box-shadow: inset 0 0 8px rgba(216,178,90,0.25), 0 0 6px rgba(216,178,90,0.2); }
-  /* Lamps */
   .lamp { width: 8px; height: 8px; border-radius: 9999px; background: #2a2620; box-shadow: inset 0 0 2px #000; }
   .lamp.on { background: radial-gradient(circle at 40% 35%, #ffe9a8, #d8b25a 60%, #7a5c17); box-shadow: 0 0 8px rgba(232,198,103,0.8); }
   .lamp.grn { background: radial-gradient(circle at 40% 35%, #d9ffc9, #7fbf5f 60%, #2e5c1d); box-shadow: 0 0 8px rgba(127,191,95,0.7); }
-  /* Segmented LED meters */
   .rk-seg { position: relative; }
   .rk-seg::after { content: ''; position: absolute; inset: 0;
                    background: repeating-linear-gradient(90deg, rgba(6,6,5,0.7) 0 2px, transparent 2px 7px); }
   select, input[type=email] { color-scheme: dark; }
+
+  /* ---- Photo chassis --------------------------------------------------- */
+  .chassis { position: relative; width: 700px; margin: 0 auto;
+             aspect-ratio: 941 / 1672; border-radius: 8px;
+             background: url('/static/img/rack-chassis.jpg') center / 100% 100% no-repeat;
+             box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #d8cdb4; }
+  .slot { position: absolute; display: flex; align-items: center; justify-content: center; }
 </style>
 
 <div class="mx-auto max-w-[1150px] space-y-5">
@@ -73,183 +75,176 @@
     <span class="badge">SB-1200 SERIES</span>
   </div>
 
+  <!-- ============ PHOTO CHASSIS: every control below is live ============ -->
+  <!-- Controls carry fixed knob sizes, so small screens pan the rack instead of shrinking it. -->
+  <div class="overflow-x-auto">
+  <div class="chassis">
+    <!-- Screen: spectrum + EQ/cab curves + instrument-lane energy strips -->
+    <div class="slot" style="left:10.4%; top:7.8%; width:79.2%; height:14.8%;">
+      <canvas id="rk-scope" data-screen class="h-full w-full" height="240"></canvas>
+    </div>
+
+    <!-- SB-01 Harmonic Bank -> TS-1 Tube Stage -->
+    <div class="slot" style="left:13.6%; top:30.1%; width:72.7%; height:3.2%;">
+      <span id="tube-glow" class="pointer-events-none absolute inset-0 rounded-sm" style="background: radial-gradient(ellipse at 50% 100%, #ff9c3f, #7a3c10 70%, transparent); opacity: 0.1;"></span>
+      <div class="relative flex w-full justify-around" id="tube-knobs">
+        <div data-kn="drive" data-ksize="44"></div>
+        <div data-kn="bias" data-ksize="44"></div>
+        <div data-kn="mix" data-ksize="44"></div>
+      </div>
+    </div>
+
+    <!-- SB-02 Procesis Depth -> SUB-1 Foundation -->
+    <div class="slot justify-around" style="left:13.8%; top:39.5%; width:53.1%; height:3.2%;">
+      <div data-kn="sdepth" data-ksize="42"></div>
+      <div data-kn="sgrowl" data-ksize="42"></div>
+      <div data-kn="sshake" data-ksize="42"></div>
+    </div>
+
+    <!-- SB-03 Tone Bank -> EQ-12 -->
+    <div class="slot" style="left:11.8%; top:48.0%; width:46.9%; height:5.4%;">
+      <div id="rk-eq" data-ksize="26" class="flex w-full items-end justify-center gap-px"></div>
+    </div>
+    <div class="slot gap-2" style="left:63.2%; top:46.5%; width:23.8%; height:3.2%;">
+      <div id="kn-q" data-ksize="28" class="flex items-center"></div>
+      <button id="rk-eq-flat" class="sw px-2 py-1 text-[9px] uppercase tracking-wide">Flat</button>
+    </div>
+    <div class="slot" style="left:63.2%; top:51.0%; width:23.8%; height:3.2%;">
+      <span class="text-center text-[8px] uppercase tracking-[0.2em] text-[#6b5c3d]">drag · dbl-click resets<br>scroll trims</span>
+    </div>
+
+    <!-- SB-04 Dynamics Control -> DYN-1 Compressor + peak meter -->
+    <div class="slot justify-around" style="left:13.8%; top:58.8%; width:35.2%; height:3.4%;">
+      <div data-kn="thr" data-ksize="34"></div>
+      <div data-kn="ratio" data-ksize="34"></div>
+      <div data-kn="att" data-ksize="34"></div>
+      <div data-kn="rel" data-ksize="34"></div>
+      <div data-kn="makeup" data-ksize="34"></div>
+    </div>
+    <div class="slot px-3" style="left:52.4%; top:58.8%; width:32.9%; height:3.4%;">
+      <div class="min-w-0 flex-1">
+        <div class="flex justify-between text-[8px] font-bold uppercase tracking-wide text-[#6b5c3d]"><span>Peak</span><span id="rk-peakdb">−∞</span></div>
+        <div class="rk-seg mt-1 h-2.5 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+      </div>
+    </div>
+
+    <!-- SB-05 Meter Bridge -> file info + VU + lamp/status -->
+    <div class="slot px-2" style="left:14.4%; top:68.1%; width:17.6%; height:3.4%;">
+      <span id="rk-fileinfo" class="w-full truncate text-center text-[8px] leading-tight text-[#8a7c5d]">No file loaded — drop a WAV/MP3 anywhere on this page.</span>
+    </div>
+    <div class="slot" style="left:35.8%; top:66.4%; width:27.2%; height:5.6%;">
+      <!-- VU: needle driven by the compressor's real reduction value -->
+      <svg id="rk-vu" viewBox="0 0 200 112" class="h-full w-full" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="vuGlow" cx="0.5" cy="1" r="1">
+            <stop offset="0" stop-color="#f6ead0"/><stop offset="0.75" stop-color="#e8d9b4"/>
+            <stop offset="1" stop-color="#d5c69e"/>
+          </radialGradient>
+        </defs>
+        <rect x="2" y="2" width="196" height="108" rx="6" fill="#0a0906" stroke="#332d20"/>
+        <rect x="8" y="8" width="184" height="96" rx="4" fill="url(#vuGlow)"/>
+        <g font-family="Arial" font-size="9" fill="#4a4234" text-anchor="middle">
+          <text x="30" y="46">0</text><text x="62" y="30">3</text>
+          <text x="100" y="24">6</text><text x="138" y="30">10</text>
+          <text x="172" y="46">20</text>
+        </g>
+        <path d="M 26 52 A 82 82 0 0 1 174 52" fill="none" stroke="#4a4234" stroke-width="1.5"/>
+        <path d="M 138 33 A 82 82 0 0 1 174 52" fill="none" stroke="#a3402e" stroke-width="2.5"/>
+        <text x="100" y="72" font-family="Arial Narrow, Arial" font-size="10" letter-spacing="3" fill="#6b5c3d" text-anchor="middle">GAIN REDUCTION</text>
+        <text id="rk-grdb" x="100" y="86" font-family="Arial" font-size="10" font-weight="bold" fill="#4a4234" text-anchor="middle">0.0 dB</text>
+        <line id="rk-vu-needle" x1="100" y1="100" x2="100" y2="26" stroke="#7a2c1e" stroke-width="2" stroke-linecap="round" transform="rotate(-42 100 100)"/>
+        <circle cx="100" cy="100" r="5" fill="#2a251c"/>
+      </svg>
+    </div>
+    <div class="slot flex-col gap-1 px-1" style="left:66.8%; top:68.1%; width:18.4%; height:3.4%;">
+      <span id="scope-lamp" class="lamp"></span>
+      <span id="rk-status" class="w-full truncate text-center text-[8px] text-[#8a7c5d]"></span>
+    </div>
+
+    <!-- SB-06 Master Bus Stereo Image -> Center (mid/side) + monitoring -->
+    <div class="slot gap-2" style="left:14.4%; top:76.3%; width:50.5%; height:3.0%;">
+      <span class="sk text-[8px] text-[#8a7c5d]">Center</span>
+      <button data-center="normal" class="rk-center sw sw-lit px-2.5 py-1 text-[10px]">Normal</button>
+      <button data-center="solo" class="rk-center sw px-2.5 py-1 text-[10px]">Solo Center</button>
+      <button data-center="remove" class="rk-center sw px-2.5 py-1 text-[10px]">Remove Center</button>
+    </div>
+    <div class="slot gap-2" style="left:66.8%; top:76.3%; width:18.2%; height:3.0%;">
+      <button id="rk-ab" class="sw px-2.5 py-1 text-[10px]" disabled>Bypass: OFF</button>
+      <label class="flex items-center gap-1 text-[9px] font-bold text-[#8a7c5d]"><input id="rk-loop" type="checkbox" checked class="h-3 w-3 accent-[#c9a24a]">Loop</label>
+    </div>
+
+    <!-- SB-07 Output Stage -> transport + final trim -->
+    <div class="slot gap-1.5" style="left:24.2%; top:85.5%; width:36.7%; height:3.0%;">
+      <label class="sw sw-gold cursor-pointer px-2.5 py-1 text-[10px] font-black">
+        Load audio<input id="rk-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="rk-play" class="sw px-2.5 py-1 text-[10px]" disabled>Play</button>
+      <button id="rk-export" class="sw px-2.5 py-1 text-[10px] text-[#e8c667]" disabled>Export WAV</button>
+    </div>
+    <div class="slot" style="left:62.2%; top:84.6%; width:10.6%; height:4.8%;">
+      <div data-kn="out" data-ksize="36"></div>
+    </div>
+    <div class="slot" style="left:74.0%; top:85.3%; width:11.1%; height:3.4%;">
+      <button id="rk-save" class="sw px-2 py-1 text-[9px] text-[#e8c667]">Save my rack</button>
+    </div>
+  </div>
+  </div>
+
+  <!-- Instrument-lane legend: labels for the screen's color strips -->
+  <div class="mx-auto flex max-w-[700px] flex-wrap justify-center gap-x-3 gap-y-1">
+    {% for lane in [('Sub / 808','#c94f4f'), ('Kick','#e05252'), ('Bass','#e07a3c'), ('Synths','#4fc9b0'),
+                    ('Toms','#e0a03c'), ('Piano / Keys','#3cc96a'), ('Guitars','#8fbf5f'), ('Vocals','#5f9fd6'),
+                    ('Snare','#e0c452'), ('Strings / Horns','#5fb8d6'), ('Presence','#9d7fd6'),
+                    ('Hi-Hats','#c97fd6'), ('Air / Cymbals','#d67fb8')] %}
+    <span class="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-500"><span class="inline-block h-2 w-2 rounded-sm" style="background: {{ lane[1] }}"></span>{{ lane[0] }}</span>
+    {% endfor %}
+  </div>
+
+  <!-- Honest silkscreen: what each module really is -->
+  <div class="mx-auto grid max-w-[700px] gap-x-5 gap-y-2 text-[10px] leading-relaxed text-gray-600 sm:grid-cols-2">
+    <p><span class="text-gray-400">Screen.</span> 13 color strips mark where each instrument typically lives; the glow is the energy your track has there right now. Honest energy detection — not instrument identification. Solid curve = your EQ; dashed = cab &amp; mic voicing.</p>
+    <p><span class="text-gray-400">SB-01 Harmonic Bank · Tube Stage.</span> Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
+    <p><span class="text-gray-400">SB-02 Procesis Depth · SUB-1 Foundation.</span> Not a bass boost: Depth is a deep 45Hz shelf, Shake a 42Hz room resonance, Growl synthesizes sub harmonics so small speakers hear lows they can't play — psychoacoustics, not magic.</p>
+    <p><span class="text-gray-400">SB-03 Tone Bank · EQ-12 Parametric EQ · 12 Band.</span> Drag a knob, double-click resets, scroll trims. Q on the right shapes every band.</p>
+    <p><span class="text-gray-400">SB-06 Master Bus · Center.</span> The classic mid/side trick on any stereo mix — center-panned vocals solo or vanish. Physics, not stem separation; mono files have no sides to keep.</p>
+    <p><span class="text-gray-400">SB-05 / SB-07.</span> The VU needle rides the compressor's real gain reduction; Final Trim is the actual output gain into the peak meter and your WAV export.</p>
+  </div>
+
+  <!-- ============ Companion rack: cab, FX, stems, presets ============ -->
   <div class="rack">
 
-    <!-- TRANSPORT -->
-    <section class="unit p-4 px-7">
-      <div class="screw-b"></div>
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="badge">SB-1200</span>
-        <span class="sk text-[10px]">Transport</span>
-        <span id="scope-lamp" class="lamp"></span>
-        <label class="sw cursor-pointer px-4 py-2 text-xs sw-gold font-black">
-          Load audio<input id="rk-file" type="file" accept="audio/*" class="hidden">
-        </label>
-        <button id="rk-play" class="sw px-4 py-2 text-xs" disabled>Play</button>
-        <label class="flex items-center gap-1.5 text-[11px] font-bold text-gray-400"><input id="rk-loop" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">Loop</label>
-        <button id="rk-ab" class="sw px-4 py-2 text-xs" disabled>Bypass: OFF</button>
-        <span id="rk-fileinfo" class="min-w-0 flex-1 truncate text-[11px] text-gray-500">No file loaded — drop a WAV/MP3 anywhere on this page.</span>
-        <button id="rk-export" class="sw px-4 py-2 text-xs text-[#e8c667]" disabled>Export WAV</button>
-      </div>
-    </section>
-
-    <!-- SCOPE -->
-    <section class="unit p-4 px-7">
-      <div class="screw-b"></div>
-      <div class="mb-2 flex items-center gap-3">
-        <span class="badge">SA-13</span>
-        <span class="sk text-[10px]">Spectrum · Instrument Chart</span>
-      </div>
-      <div class="well p-2">
-        <canvas id="rk-scope" class="w-full" height="500"></canvas>
-      </div>
-      <p class="mt-2 text-[10px] text-gray-600">13 zones mark where each instrument typically lives; the glow is the energy <span class="text-gray-400">your track</span> has there right now. It's honest energy detection — not instrument identification. Solid curve = your EQ; dashed curve = the cab &amp; mic voicing.</p>
-    </section>
-
-    <!-- EQ-12 -->
+    <!-- CM-2 -->
     <section class="unit p-4 px-7">
       <div class="screw-b"></div>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3">
-          <span class="badge">EQ-12</span>
-          <span class="sk text-[10px]">Parametric EQ · 12 Band</span>
+          <span class="badge">CM-2</span>
+          <span class="sk text-[10px]">Cab &amp; Mic Sim</span>
         </div>
-        <div class="flex items-center gap-4">
-          <button id="rk-eq-flat" class="sw px-2.5 py-1 text-[10px] uppercase tracking-wide">Flat</button>
-          <div id="kn-q" class="flex items-center gap-1"></div>
-        </div>
+        <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
       </div>
+      <p class="mt-1 text-[10px] text-gray-600">Voicings in the style of classic cabinets and mics — modeled curves plus a synthesized room, not measurements of any specific hardware.</p>
       <div class="engrave my-3"></div>
-      <div class="well p-3">
-        <div id="rk-eq" class="grid grid-cols-4 gap-x-1 gap-y-3 sm:grid-cols-6 lg:grid-cols-12"></div>
-        <div class="mt-2 text-center text-[9px] uppercase tracking-[0.25em] text-gray-700">drag · double-click resets · scroll trims</div>
-      </div>
-    </section>
-
-    <!-- TS-1 + CM-2 -->
-    <section class="unit p-4 px-7">
-      <div class="screw-b"></div>
-      <div class="grid gap-6 lg:grid-cols-2">
-        <div>
+      <div class="well grid gap-2.5 p-3 sm:grid-cols-[1fr_1fr_140px]">
+        <select id="rk-cab-cab" class="w-full rounded border border-white/15 bg-black/50 px-2.5 py-2 text-xs text-white">
+          <option value="direct">Direct / DI (no cab)</option>
+          <option value="combo112">1×12 Combo</option>
+          <option value="open212">2×12 Open-Back</option>
+          <option value="closed412">4×12 Closed-Back</option>
+          <option value="bass810">8×10 Bass</option>
+        </select>
+        <div class="space-y-2">
+          <select id="rk-cab-mic" class="w-full rounded border border-white/15 bg-black/50 px-2.5 py-2 text-xs text-white">
+            <option value="dynamic">Dynamic (57-style)</option>
+            <option value="ribbon">Ribbon (dark &amp; smooth)</option>
+            <option value="condenser">Condenser (open top)</option>
+          </select>
           <div class="flex items-center gap-3">
-            <span class="badge">TS-1</span>
-            <span class="sk text-[10px]">Tube Stage</span>
-            <span id="tube-glow" class="ml-1 inline-block h-3 w-8 rounded-sm border border-black/60" style="background: radial-gradient(ellipse at 50% 100%, #ff9c3f, #7a3c10 70%, #1c0f04); opacity: 0.1; box-shadow: 0 0 10px rgba(255,156,63,0.0);"></span>
-          </div>
-          <p class="mt-1 text-[10px] text-gray-600">Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
-          <div class="engrave my-3"></div>
-          <div class="well flex justify-around p-3" id="tube-knobs">
-            <div data-kn="drive"></div>
-            <div data-kn="bias"></div>
-            <div data-kn="mix"></div>
+            <label class="flex items-center gap-1 text-[11px] font-bold text-gray-300"><input type="radio" name="rk-axis" value="on" checked class="accent-[#c9a24a]">On-axis</label>
+            <label class="flex items-center gap-1 text-[11px] font-bold text-gray-300"><input type="radio" name="rk-axis" value="off" class="accent-[#c9a24a]">Off-axis</label>
           </div>
         </div>
-        <div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <span class="badge">CM-2</span>
-              <span class="sk text-[10px]">Cab &amp; Mic Sim</span>
-            </div>
-            <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
-          </div>
-          <p class="mt-1 text-[10px] text-gray-600">Voicings in the style of classic cabinets and mics — modeled curves plus a synthesized room, not measurements of any specific hardware.</p>
-          <div class="engrave my-3"></div>
-          <div class="well grid gap-2.5 p-3 sm:grid-cols-[1fr_120px]">
-            <div class="space-y-2">
-              <select id="rk-cab-cab" class="w-full rounded border border-white/15 bg-black/50 px-2.5 py-2 text-xs text-white">
-                <option value="direct">Direct / DI (no cab)</option>
-                <option value="combo112">1×12 Combo</option>
-                <option value="open212">2×12 Open-Back</option>
-                <option value="closed412">4×12 Closed-Back</option>
-                <option value="bass810">8×10 Bass</option>
-              </select>
-              <select id="rk-cab-mic" class="w-full rounded border border-white/15 bg-black/50 px-2.5 py-2 text-xs text-white">
-                <option value="dynamic">Dynamic (57-style)</option>
-                <option value="ribbon">Ribbon (dark &amp; smooth)</option>
-                <option value="condenser">Condenser (open top)</option>
-              </select>
-              <div class="flex items-center gap-3 pt-1">
-                <label class="flex items-center gap-1 text-[11px] font-bold text-gray-300"><input type="radio" name="rk-axis" value="on" checked class="accent-[#c9a24a]">On-axis</label>
-                <label class="flex items-center gap-1 text-[11px] font-bold text-gray-300"><input type="radio" name="rk-axis" value="off" class="accent-[#c9a24a]">Off-axis</label>
-              </div>
-            </div>
-            <div class="flex items-center justify-center" data-kn="dist"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- DYN-1 + OUT-1 -->
-    <section class="unit p-4 px-7">
-      <div class="screw-b"></div>
-      <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
-        <div>
-          <div class="flex items-center gap-3">
-            <span class="badge">DYN-1</span>
-            <span class="sk text-[10px]">Compressor</span>
-          </div>
-          <div class="engrave my-3"></div>
-          <div class="well flex flex-wrap items-center justify-around gap-2 p-3">
-            <div data-kn="thr"></div>
-            <div data-kn="ratio"></div>
-            <div data-kn="att"></div>
-            <div data-kn="rel"></div>
-            <div data-kn="makeup"></div>
-            <!-- VU: needle driven by the compressor's real reduction value -->
-            <div class="relative">
-              <svg id="rk-vu" viewBox="0 0 200 112" width="170" height="95">
-                <defs>
-                  <radialGradient id="vuGlow" cx="0.5" cy="1" r="1">
-                    <stop offset="0" stop-color="#f6ead0"/><stop offset="0.75" stop-color="#e8d9b4"/>
-                    <stop offset="1" stop-color="#d5c69e"/>
-                  </radialGradient>
-                </defs>
-                <rect x="2" y="2" width="196" height="108" rx="6" fill="#0a0906" stroke="#332d20"/>
-                <rect x="8" y="8" width="184" height="96" rx="4" fill="url(#vuGlow)"/>
-                <g font-family="Arial" font-size="9" fill="#4a4234" text-anchor="middle">
-                  <text x="30" y="46">0</text><text x="62" y="30">3</text>
-                  <text x="100" y="24">6</text><text x="138" y="30">10</text>
-                  <text x="172" y="46">20</text>
-                </g>
-                <path d="M 26 52 A 82 82 0 0 1 174 52" fill="none" stroke="#4a4234" stroke-width="1.5"/>
-                <path d="M 138 33 A 82 82 0 0 1 174 52" fill="none" stroke="#a3402e" stroke-width="2.5"/>
-                <text x="100" y="72" font-family="Arial Narrow, Arial" font-size="10" letter-spacing="3" fill="#6b5c3d" text-anchor="middle">GAIN REDUCTION</text>
-                <text id="rk-grdb" x="100" y="86" font-family="Arial" font-size="10" font-weight="bold" fill="#4a4234" text-anchor="middle">0.0 dB</text>
-                <line id="rk-vu-needle" x1="100" y1="100" x2="100" y2="26" stroke="#7a2c1e" stroke-width="2" stroke-linecap="round" transform="rotate(-42 100 100)"/>
-                <circle cx="100" cy="100" r="5" fill="#2a251c"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div>
-          <div class="flex items-center gap-3">
-            <span class="badge">OUT-1</span>
-            <span class="sk text-[10px]">Output</span>
-          </div>
-          <div class="engrave my-3"></div>
-          <div class="well flex items-center gap-4 p-3">
-            <div data-kn="out"></div>
-            <div class="min-w-0 flex-1">
-              <div class="flex justify-between text-[9px] font-bold uppercase tracking-wide text-gray-600"><span>Peak</span><span id="rk-peakdb">−∞</span></div>
-              <div class="rk-seg mt-1 h-3 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SUB-1 FOUNDATION -->
-    <section class="unit p-4 px-7">
-      <div class="screw-b"></div>
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="badge">SUB-1</span>
-        <span class="sk text-[10px]">Foundation</span>
-        <p class="min-w-0 flex-1 text-[10px] text-gray-600">Not a bass boost. Depth is a deep 45Hz shelf, Shake is a 42Hz room resonance, and Growl synthesizes harmonics of your sub so small speakers hear lows they can't physically play — psychoacoustics, not magic. Watch the peak meter: real low end eats headroom fast.</p>
-        <div class="well flex gap-3 p-3">
-          <div data-kn="sdepth"></div>
-          <div data-kn="sgrowl"></div>
-          <div data-kn="sshake"></div>
-        </div>
+        <div class="flex items-center justify-center" data-kn="dist"></div>
       </div>
     </section>
 
@@ -300,16 +295,9 @@
           Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
         </label>
       </div>
-      <p class="mt-1 text-[10px] leading-relaxed text-gray-600">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. True ML stem separation of a finished mix needs GPU-class models — that's not this, and this page won't pretend it is. Stems stay in this tab; nothing uploads.</p>
+      <p class="mt-1 text-[10px] leading-relaxed text-gray-600">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. True ML stem separation of a finished mix needs GPU-class models — that's not this, and this page won't pretend it is. Stems stay in this tab; nothing uploads. The Center (mid/side) switches live on the chassis above, on the Master Bus unit.</p>
       <div class="engrave my-3"></div>
       <div id="rk-stems" class="space-y-2"></div>
-      <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-black/40 pt-3">
-        <span class="sk text-[9px] text-gray-500">Center (mid/side)</span>
-        <button data-center="normal" class="rk-center sw sw-lit px-3 py-1.5 text-[11px]">Normal</button>
-        <button data-center="solo" class="rk-center sw px-3 py-1.5 text-[11px]">Solo Center</button>
-        <button data-center="remove" class="rk-center sw px-3 py-1.5 text-[11px]">Remove Center</button>
-        <span class="text-[10px] text-gray-600">The classic mid/side trick on any stereo mix — center-panned vocals solo or vanish. Physics, not stem separation; mono files have no sides to keep.</span>
-      </div>
     </section>
 
     <!-- PRESETS -->
@@ -321,15 +309,11 @@
         <button data-preset="vocal" class="rk-preset sw px-3 py-1.5 text-[11px]">Vocal Forward</button>
         <button data-preset="bass" class="rk-preset sw px-3 py-1.5 text-[11px]">Bass Tight</button>
         <button data-preset="guitar" class="rk-preset sw px-3 py-1.5 text-[11px]">Guitar Rig</button>
-        <span class="ml-auto flex gap-2">
-          <button id="rk-save" class="sw px-3 py-1.5 text-[11px] text-[#e8c667]">Save my rack</button>
-          <span id="rk-status" class="self-center text-[11px] text-gray-500"></span>
-        </span>
       </div>
     </section>
   </div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=3"></script>
+<script src="/static/js/rackdsp.js?v=4"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
