@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import urllib.parse
@@ -3213,9 +3214,25 @@ def create_app():
         queue = artist_os.action_queue([(t, ctx) for t in tracks])
         est_total = round(sum(a["impact"] or 0 for a in queue), 2)
         criticals = len([a for a in queue if a["critical"]])
+        # Settled tour income: real walk-away totals from settled shows —
+        # money already collected, shown beside the money still missing.
+        tour_income, tour_settled = 0.0, 0
+        for s in store.list_tour_shows(user["id"]):
+            if s["status"] != "settled":
+                continue
+            try:
+                st = json.loads(s.get("settlement") or "{}")
+            except ValueError:
+                continue
+            if st:
+                tour_income = round(
+                    tour_income + touring.settlement_totals(st)["walk"], 2)
+                tour_settled += 1
         return render_template("money_queue.html", active_page="money-queue",
                                queue=queue, est_total=est_total,
                                criticals=criticals, ctx=ctx,
+                               tour_income=tour_income,
+                               tour_settled=tour_settled,
                                **build_dashboard_context())
 
     def _os_full(user_id):
@@ -3466,12 +3483,52 @@ def create_app():
         shows = store.list_tour_shows(user["id"])
         today = datetime.now(timezone.utc).date().isoformat()
         upcoming = [s for s in shows if s["date"] >= today]
+        # Per-show walk-away from each saved settlement — same math the
+        # settlement calculator shows, summed only where numbers exist.
+        pnl = {"guarantee": 0.0, "door_share": 0.0, "merch_net": 0.0,
+               "expenses": 0.0, "walk": 0.0, "count": 0, "settled": 0}
+        for s in shows:
+            try:
+                st = json.loads(s.get("settlement") or "{}")
+            except ValueError:
+                st = {}
+            s["walk"] = None
+            if st and s["status"] in ("played", "settled"):
+                totals = touring.settlement_totals(st)
+                s["walk"] = totals["walk"]
+                for k in ("guarantee", "door_share", "merch_net",
+                          "expenses", "walk"):
+                    pnl[k] = round(pnl[k] + totals[k], 2)
+                pnl["count"] += 1
+                if s["status"] == "settled":
+                    pnl["settled"] += 1
+        # Travel flags: consecutive upcoming dates in different cities with
+        # 0-1 days between them. Date math only — we don't invent drive hours.
+        flags = []
+        route = []
+        prev = None
+        for s in upcoming:
+            gap = None
+            if prev is not None:
+                try:
+                    gap = (date.fromisoformat(s["date"][:10])
+                           - date.fromisoformat(prev["date"][:10])).days
+                except ValueError:
+                    gap = None
+                cities_differ = (prev["city"] and s["city"] and
+                                 prev["city"].casefold() != s["city"].casefold())
+                if gap is not None and gap <= 1 and cities_differ:
+                    flags.append({"a": prev, "b": s, "gap": gap})
+            route.append({"show": s, "gap": gap})
+            prev = s
         return render_template("tour.html", active_page="tour",
                                shows=shows, statuses=_SHOW_STATUSES,
                                upcoming_count=len(upcoming),
                                confirmed_count=len([s for s in shows if s["status"]
                                                     in ("confirmed", "advanced")]),
                                next_show=(upcoming[0] if upcoming else None),
+                               pnl=pnl, flags=flags, route=route,
+                               board=(request.args.get("view") == "board"),
                                **build_dashboard_context())
 
     @app.route("/tour/add", methods=["POST"])

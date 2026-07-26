@@ -26,6 +26,48 @@
     </div>
   </div>
 
+  {% if pnl.count %}
+  <!-- Tour P&L: sums of the settlement math you already entered per show -->
+  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Tour P&amp;L</h2>
+      <span class="text-[10px] text-gray-500">{{ pnl.count }} show{{ '' if pnl.count == 1 else 's' }} with settlement numbers · {{ pnl.settled }} settled — straight sums of what you entered, nothing estimated</span>
+    </div>
+    <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Guarantees</div><div class="mt-0.5 text-lg font-black tabular-nums">${{ '%.2f' % pnl.guarantee }}</div></div>
+      <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Door share</div><div class="mt-0.5 text-lg font-black tabular-nums">${{ '%.2f' % pnl.door_share }}</div></div>
+      <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Merch net</div><div class="mt-0.5 text-lg font-black tabular-nums">${{ '%.2f' % pnl.merch_net }}</div></div>
+      <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Expenses</div><div class="mt-0.5 text-lg font-black tabular-nums text-red-400">-${{ '%.2f' % pnl.expenses }}</div></div>
+      <div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Total walk</div><div class="mt-0.5 text-lg font-black tabular-nums {{ 'text-green-400' if pnl.walk >= 0 else 'text-red-400' }}">${{ '%.2f' % pnl.walk }}</div></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if flags %}
+  <!-- Travel flags: date math only — no invented drive times -->
+  <section class="space-y-1.5 rounded-2xl border border-amber-500/30 bg-[#161207] p-4">
+    <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-amber-400">Routing flags</div>
+    {% for f in flags %}
+    <div class="flex items-center gap-2.5 text-xs">
+      <span class="h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if f.gap == 0 else 'bg-amber-400' }}"></span>
+      <span class="min-w-0 flex-1 text-gray-300"><span class="font-bold">{{ f.a.city }}</span> → <span class="font-bold">{{ f.b.city }}</span> {{ 'on the same day' if f.gap == 0 else 'back to back' }} ({{ f.a.date }} → {{ f.b.date }}) — check the travel time before locking both.</span>
+    </div>
+    {% endfor %}
+    <p class="text-[10px] text-gray-600">Flagged from dates and city names alone — Street Banker doesn't compute drive times, so it flags the pattern instead of guessing hours.</p>
+  </section>
+  {% endif %}
+
+  {% if route | length > 1 %}
+  <!-- Route strip: the run in order, with day gaps -->
+  <div class="flex flex-wrap items-center gap-1 px-1 text-[10px] font-bold uppercase tracking-wide">
+    <span class="tracking-[0.15em] text-gray-500">Route:</span>
+    {% for r in route %}
+    {% if not loop.first %}<span class="text-gray-600">—{{ r.gap }}d→</span>{% endif %}
+    <a href="/tour/{{ r.show.id }}" class="rounded-full border border-[#c9a24a]/30 px-2.5 py-1 text-gray-300 hover:border-[#c9a24a] hover:text-[#e8c667]" title="{{ r.show.date }} · {{ r.show.venue }}">{{ r.show.city or r.show.venue }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <!-- Add a show -->
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
     <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Add a show</h2>
@@ -60,9 +102,39 @@
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Show Pipeline</h2>
-      <span class="flex gap-4"><a href="/stage-plot" class="text-[11px] font-bold text-[#e8c667] hover:underline">Stage Plot Designer →</a><a href="/lights" class="text-[11px] font-bold text-[#e8c667] hover:underline">Light Studio →</a></span>
+      <span class="flex items-center gap-4">
+        <span class="flex gap-1 text-[10px] font-bold uppercase">
+          <a href="/tour" class="rounded-full border px-2.5 py-1 {{ 'border-white/10 text-gray-400 hover:border-[#c9a24a]/40' if board else 'border-[#c9a24a] bg-[#c9a24a]/10 text-gray-200' }}">List</a>
+          <a href="/tour?view=board" class="rounded-full border px-2.5 py-1 {{ 'border-[#c9a24a] bg-[#c9a24a]/10 text-gray-200' if board else 'border-white/10 text-gray-400 hover:border-[#c9a24a]/40' }}">Board</a>
+        </span>
+        <a href="/stage-plot" class="text-[11px] font-bold text-[#e8c667] hover:underline">Stage Plot Designer →</a><a href="/lights" class="text-[11px] font-bold text-[#e8c667] hover:underline">Light Studio →</a></span>
     </div>
-    {% if shows %}
+    {% if shows and board %}
+    <div class="mt-3 grid gap-3 lg:grid-cols-5">
+      {% for st in statuses %}
+      <div class="rounded-xl border border-white/10 bg-black/30 p-2.5">
+        <div class="flex items-baseline justify-between px-1">
+          <span class="text-[9px] font-bold uppercase tracking-[0.2em] {{ 'text-green-400' if st in ('confirmed', 'advanced') else 'text-[#e8c667]' if st in ('played', 'settled') else 'text-gray-400' }}">{{ st }}</span>
+          <span class="text-[10px] font-black tabular-nums text-gray-600">{{ shows | selectattr('status', 'equalto', st) | list | length }}</span>
+        </div>
+        <div class="mt-2 space-y-2">
+          {% for s in shows if s.status == st %}
+          <div class="rounded-lg border border-white/10 bg-[#111113] p-2.5">
+            <a href="/tour/{{ s.id }}" class="block truncate text-xs font-bold hover:text-[#e8c667]">{{ s.venue }}</a>
+            <div class="truncate text-[10px] text-gray-500">{{ s.date }}{% if s.city %} · {{ s.city }}{% endif %}</div>
+            {% if s.walk is not none %}<div class="mt-1 text-[10px] font-black tabular-nums {{ 'text-green-400' if s.walk >= 0 else 'text-red-400' }}">${{ '%.2f' % s.walk }} walk</div>{% endif %}
+            <form method="post" action="/tour/{{ s.id }}/status" class="mt-1.5">
+              <select name="status" onchange="this.form.submit()" class="w-full rounded-md border border-white/10 bg-black/40 px-1.5 py-1 text-[10px] font-bold uppercase text-gray-300 focus:outline-none [color-scheme:dark]">
+                {% for opt in statuses %}<option value="{{ opt }}" {{ 'selected' if opt == st }}>{{ opt }}</option>{% endfor %}
+              </select>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif shows %}
     <div class="mt-3 divide-y divide-white/5">
       {% for s in shows %}
       <div class="flex flex-wrap items-center gap-3 py-3">
@@ -71,6 +143,7 @@
           <a href="/tour/{{ s.id }}" class="block truncate text-sm font-bold hover:text-[#e8c667]">{{ s.venue }}</a>
           <div class="truncate text-[11px] text-gray-500">{{ s.city }}{% if s.notes %} · {{ s.notes }}{% endif %}</div>
         </div>
+        {% if s.walk is not none %}<span class="shrink-0 text-[11px] font-black tabular-nums {{ 'text-green-400' if s.walk >= 0 else 'text-red-400' }}" title="Walk-away from this show's settlement">${{ '%.2f' % s.walk }}</span>{% endif %}
         <a href="/tour/{{ s.id }}" class="shrink-0 rounded-lg border border-[#c9a24a]/40 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#e8c667] hover:bg-[#c9a24a]/10">Advance</a>
         <form method="post" action="/tour/{{ s.id }}/status" class="shrink-0">
           <select name="status" onchange="this.form.submit()"

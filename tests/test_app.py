@@ -5060,3 +5060,48 @@ def test_pulse_peers_trendline_and_milestone(monkeypatch):
     # Milestone detected from snapshot history; canvas value safely quoted.
     assert "Milestone crossed" in page and "1,000" in page
     assert '"1,000"' in page
+
+
+def test_tour_pnl_board_flags_and_money_queue_feed():
+    import uuid as _uuid
+    import db as store_mod
+    from datetime import date as _date, timedelta as _td
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "tr-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Tour", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    with store_mod.get_db() as db:
+        db.execute("UPDATE users SET plan = 'label' WHERE id = ?", (uid,))
+    d1 = (_date.today() + _td(days=10)).isoformat()
+    d2 = (_date.today() + _td(days=11)).isoformat()
+    d3 = (_date.today() + _td(days=15)).isoformat()
+    store_mod.add_tour_show(uid, d1, "The Basement", "Nashville, TN", "")
+    store_mod.add_tour_show(uid, d2, "The Empty Bottle", "Chicago, IL", "")
+    store_mod.add_tour_show(uid, d3, "The Echo", "Los Angeles, CA", "")
+    past = (_date.today() - _td(days=20)).isoformat()
+    settled = store_mod.add_tour_show(uid, past, "Home Show",
+                                      "Nashville, TN", "")
+    store_mod.update_tour_show_status(uid, settled, "settled")
+    store_mod.save_show_settlement(uid, settled, {
+        "deal_type": "guarantee_split", "guarantee": "500",
+        "door_gross": "2000", "split_pct": "20", "merch_gross": "300",
+        "merch_cut_pct": "10", "expenses": "150"})
+    page = client.get("/tour").get_data(as_text=True)
+    # P&L roll-up: 500 guarantee + 400 door + 270 merch - 150 = 1020 walk.
+    assert "Tour P&L" in page and "$1020.00" in page
+    assert "-$150.00" in page and "nothing estimated" in page
+    # Back-to-back different-city dates flag on date math alone.
+    assert "Routing flags" in page and "back to back" in page
+    assert "flags the pattern instead of guessing" in page
+    # Route strip shows the run in order with day gaps.
+    assert "Route:" in page and "—1d→" in page and "—4d→" in page
+    # Board view: one column per status, cards carry the real walk.
+    board = client.get("/tour?view=board").get_data(as_text=True)
+    assert "$1020.00 walk" in board and "The Basement" in board
+    assert board.count('tracking-[0.2em]') >= 5  # five status columns
+    # Money Queue surfaces settled tour income as collected money.
+    mq = client.get("/money-queue").get_data(as_text=True)
+    assert "Settled tour income" in mq and "$1020.00" in mq
+    assert "1 settled show" in mq
