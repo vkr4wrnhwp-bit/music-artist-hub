@@ -112,12 +112,15 @@ def get_post(post_id):
 
 
 def update_post(post_id, fields):
-    allowed = ("caption", "hashtags", "cta", "scheduled_date", "status", "published_url")
+    allowed = ("caption", "hashtags", "cta", "scheduled_date", "status",
+               "published_url", "asset_id")
     sets, vals = [], []
     for key in allowed:
         if key in fields:
             sets.append("%s = ?" % key)
-            vals.append(fields[key] or "")
+            # asset_id may be cleared to NULL; text columns coerce to "".
+            vals.append(fields[key] if key == "asset_id"
+                        else (fields[key] or ""))
     if not sets:
         return False
     sets.append("updated = ?")

@@ -217,3 +217,33 @@ def next_action(campaign, posts, assets):
         return "%d approved post%s ready — post them and mark as posted." % (
             len(approved), "s" if len(approved) != 1 else "")
     return "Rollout is live — watch the performance page for what converts."
+
+
+def platform_casts(caption, hashtags, title, link_url, avoid=None):
+    """Rule-based recasts of one caption for each platform register.
+    Same facts, different shape — a generator, not a chatbot. Phrases on
+    the do-not-say list are stripped before casting."""
+    text = (caption or "").strip()
+    for phrase in (avoid or []):
+        if phrase and phrase.lower() in text.lower():
+            i = text.lower().find(phrase.lower())
+            text = (text[:i] + text[i + len(phrase):]).replace("  ", " ")
+            text = text.strip().lstrip(".,;:-— ").strip()
+            if text:
+                text = text[0].upper() + text[1:]
+    first = text.split(". ")[0].rstrip(".")
+    tags = (hashtags or "").strip()
+    link = link_url or ""
+    casts = [
+        ("tiktok", "TikTok",
+         "%s %s" % (first + ".", "Full song at the link in bio.")
+         + ("\n" + tags if tags else "")),
+        ("instagram_reels", "Instagram",
+         text + "\n\nLink in bio." + ("\n\n" + tags if tags else "")),
+        ("youtube_shorts", "YouTube",
+         "%s\n\n%s%s" % (first + " — " + (title or "new single"),
+                         text, ("\n\nListen: " + link) if link else "")),
+        ("x", "X / Twitter",
+         (first + ". " + link).strip()[:275]),
+    ]
+    return [{"key": k, "name": n, "text": t} for k, n, t in casts]

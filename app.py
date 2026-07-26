@@ -4498,9 +4498,61 @@ def create_app():
                     if campaign.get("ml_campaign_id") else {})
         ml_campaign = (mls.get_campaign(campaign["ml_campaign_id"])
                        if campaign.get("ml_campaign_id") else None)
+        # Per-platform recasts: rule-built from each post's own caption,
+        # the campaign's real tracked link, and the Twin's do-not-say list.
+        user = current_user()
+        twin_cfg = store.get_twin_settings(user["id"]) if user else None
+        avoid = [p.strip() for p in
+                 ((twin_cfg or {}).get("do_not_say") or "").split(",")
+                 if p.strip()]
+        assets = {a["id"]: a for a in ros.list_assets(cid)}
+        for p in posts:
+            v = variants.get(p["variant_id"])
+            link = (request.url_root.rstrip("/") + "/l/" + ml_campaign["slug"]
+                    + "?v=" + v["slug"]) if (v and ml_campaign) else ""
+            p["casts"] = rollout_engine.platform_casts(
+                p["caption"], p["hashtags"], campaign["title"], link, avoid)
+            p["asset"] = assets.get(p["asset_id"])
         return render_template("rollout_posts.html", active_page="rollout",
                                c=campaign, posts=posts, variants=variants,
-                               ml_campaign=ml_campaign,
+                               ml_campaign=ml_campaign, avoid_count=len(avoid),
+                               phase_names=rollout_engine.PHASE_NAMES,
+                               platform_names=rollout_engine.PLATFORM_NAMES,
+                               **build_dashboard_context())
+
+    @app.route("/rollout-studio/<cid>/storyboard", methods=["GET", "POST"])
+    def rollout_storyboard(cid):
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        user = current_user()
+        if request.method == "POST":
+            # Attach a Vault asset to a post: the file is referenced from the
+            # user's own vault listing — nothing else is reachable by id.
+            post = ros.get_post(request.form.get("post_id") or "")
+            vid = request.form.get("vault_id") or ""
+            if post and post["campaign_id"] == cid:
+                if vid == "":
+                    ros.update_post(post["id"], {"asset_id": None})
+                else:
+                    v = next((v for v in store.list_vault_files(user["id"])
+                              if v["id"] == vid), None)
+                    if v:
+                        ext = v["path"].rsplit(".", 1)[-1].lower()
+                        atype = ("video" if ext in ("mp4", "mov")
+                                 else "image" if ext in ("png", "jpg", "jpeg",
+                                                         "webp", "gif")
+                                 else "file")
+                        aid = ros.add_asset(cid, atype, v["path"])
+                        ros.update_post(post["id"], {"asset_id": aid})
+            return redirect("/rollout-studio/%s/storyboard" % cid)
+        posts = _ro_post_attribution(campaign)
+        assets = {a["id"]: a for a in ros.list_assets(cid)}
+        for p in posts:
+            p["asset"] = assets.get(p["asset_id"])
+        vault = store.list_vault_files(user["id"])
+        return render_template("rollout_storyboard.html", active_page="rollout",
+                               c=campaign, posts=posts, vault=vault,
                                phase_names=rollout_engine.PHASE_NAMES,
                                platform_names=rollout_engine.PLATFORM_NAMES,
                                **build_dashboard_context())

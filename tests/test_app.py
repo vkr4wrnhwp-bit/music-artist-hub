@@ -4880,3 +4880,63 @@ def test_smart_links_gate_preview_sparklines_and_variant_ctr():
                            "tiktok")
     vpage = client.get("/links/%s/variants" % cid).get_data(as_text=True)
     assert "Head to Head" in vpage and "No winner called yet" in vpage
+
+
+def test_rollout_storyboard_casts_and_safezone():
+    import io as _io
+    import uuid as _uuid
+    import db as store_mod
+    import rollout_store as ros_mod
+    from datetime import date as _date, timedelta as _td
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "ro-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "RO", "email": email,
+                                 "password": "secret1"})
+    uid = store_mod.get_user_by_email(email)["id"]
+    store_mod.save_twin_settings(uid, [], "premium", "the wait is over")
+    client.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"png"), "press.png"), "kind": "press_photo",
+        "label": "Press shot"}, content_type="multipart/form-data")
+    vid = store_mod.list_vault_files(uid)[0]["id"]
+    rd = (_date.today() + _td(days=14)).isoformat()
+    resp = client.post("/rollout-studio/new", data={
+        "title": "Night Drive", "artist_name": "RO", "release_date": rd,
+        "rollout_length": "14", "goal": "presaves", "tone": "hype",
+        "platforms": ["tiktok", "instagram_reels"]})
+    cid = resp.headers["Location"].split("/")[2]
+    client.post("/rollout-studio/%s/generate" % cid, data={})
+    posts = ros_mod.list_posts(cid)
+    assert posts
+    pid = posts[0]["id"]
+    # Storyboard: heat legend + vault attach that survives the round trip.
+    page = client.get("/rollout-studio/%s/storyboard" % cid).get_data(as_text=True)
+    assert "Heat = this post" in page and "Attach from Vault" in page
+    client.post("/rollout-studio/%s/storyboard" % cid,
+                data={"post_id": pid, "vault_id": vid})
+    p0 = ros_mod.get_post(pid)
+    assets = {a["id"]: a for a in ros_mod.list_assets(cid)}
+    assert p0["asset_id"] in assets
+    assert assets[p0["asset_id"]]["asset_type"] == "image"
+    page = client.get("/rollout-studio/%s/storyboard" % cid).get_data(as_text=True)
+    assert assets[p0["asset_id"]]["file_path"] in page
+    # Posts page: rule-based platform casts honoring do-not-say, safe zones.
+    page = client.get("/rollout-studio/%s/posts" % cid).get_data(as_text=True)
+    assert "Platform casts" in page and "a generator, not a chatbot" in page
+    assert "do-not-say phrase" in page
+    assert "Safe-zone preview" in page and "Not any platform" in page
+    assert "/rollout-studio/%s/storyboard" % cid in page
+    # Detach clears; a stranger's vault id never attaches.
+    client.post("/rollout-studio/%s/storyboard" % cid,
+                data={"post_id": pid, "vault_id": ""})
+    assert ros_mod.get_post(pid)["asset_id"] is None
+    other = app_obj.test_client()
+    other.post("/signup", data={"name": "X", "email":
+                                "x-%s@example.net" % _uuid.uuid4().hex[:8],
+                                "password": "secret1"})
+    other.post("/vault/upload", data={
+        "file": (_io.BytesIO(b"png"), "other.png"), "kind": "press_photo"},
+        content_type="multipart/form-data")
+    client.post("/rollout-studio/%s/storyboard" % cid,
+                data={"post_id": pid, "vault_id": "not-my-vault-id"})
+    assert ros_mod.get_post(pid)["asset_id"] is None

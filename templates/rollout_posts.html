@@ -10,7 +10,10 @@
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
       <p class="mt-1 text-sm text-gray-400">Edit, approve, and post. Manual mode: copy the caption, post it yourself, paste the URL back, mark as posted — attribution still tracks through each post's link.</p>
     </div>
-    <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
+    <div class="flex gap-2">
+      <a href="/rollout-studio/{{ c.id }}/storyboard" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/20">Storyboard</a>
+      <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
+    </div>
   </div>
 
   {% if not posts %}
@@ -42,6 +45,36 @@
         <button type="button" class="copy-post-link shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy Link</button>
         <button type="button" class="copy-caption shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:bg-white/5">Copy Caption</button>
       </div>
+      {% endif %}
+      {% if p.casts %}
+      <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Platform casts — same facts, four registers{% if avoid_count %} · respects your {{ avoid_count }} do-not-say phrase{{ '' if avoid_count == 1 else 's' }}{% endif %}</summary>
+        <p class="mt-1.5 text-[10px] text-gray-500">Rule-built recasts of this post's own caption with your real tracked link injected where the platform carries one — a generator, not a chatbot. Edit before posting.</p>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+          {% for cast in p.casts %}
+          <div class="rounded-lg border border-white/10 bg-black/30 p-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ cast.name }}</span>
+              <button type="button" class="copy-cast rounded border border-white/15 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-400 hover:text-[#e8c667]">Copy</button>
+            </div>
+            <pre class="cast-text mt-1 whitespace-pre-wrap font-sans text-[11px] leading-snug text-gray-300">{{ cast.text }}</pre>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      {% if p.asset and p.asset.asset_type == 'image' and p.asset.file_path %}
+      <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Safe-zone preview — 9:16</summary>
+        <p class="mt-1.5 text-[10px] text-gray-500">Generic vertical-video guides: shaded bands are where most platforms draw their own UI. Not any platform's actual interface.</p>
+        <div class="relative mx-auto mt-2 aspect-[9/16] w-48 overflow-hidden rounded-xl border border-white/15 bg-black">
+          <img src="{{ p.asset.file_path }}" alt="" class="h-full w-full object-cover">
+          <div class="absolute inset-x-0 top-0 h-[12%] bg-red-500/25" title="Top UI zone"></div>
+          <div class="absolute inset-x-0 bottom-0 h-[18%] bg-red-500/25" title="Bottom UI + caption zone"></div>
+          <div class="absolute bottom-[18%] right-0 top-[12%] w-[14%] bg-amber-500/20" title="Action-rail zone"></div>
+          <div class="absolute inset-x-2 bottom-[19%] truncate text-[9px] font-bold text-white drop-shadow">{{ p.caption[:60] }}</div>
+        </div>
+      </details>
       {% endif %}
       {% if p.edit_plan %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
@@ -83,6 +116,13 @@
       const input = btn.parentElement.querySelector(".post-link");
       try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand("copy"); }
       btn.textContent = "Copied ✓"; setTimeout(() => { btn.textContent = "Copy Link"; }, 1500);
+    });
+  });
+  document.querySelectorAll(".copy-cast").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const text = btn.closest("div.rounded-lg").querySelector(".cast-text").innerText;
+      try { await navigator.clipboard.writeText(text); } catch (e) {}
+      btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1500);
     });
   });
   document.querySelectorAll(".copy-caption").forEach((btn) => {
