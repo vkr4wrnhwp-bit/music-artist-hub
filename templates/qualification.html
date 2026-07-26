@@ -16,13 +16,24 @@
   <!-- Console readout -->
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-6 shadow-[0_0_60px_rgba(201,162,74,0.07)]">
     <div class="flex flex-wrap items-center justify-between gap-6">
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Street Banker Qualification Score</div>
-        <div class="mt-1 flex items-baseline gap-2">
-          <span class="text-6xl font-black tabular-nums {{ 'text-green-400' if q.total >= 75 else 'text-[#e8c667]' }}">{{ q.total }}</span>
-          <span class="text-xl text-gray-600">/100</span>
+      <div class="flex items-center gap-5">
+        <!-- Score ring: the arc is your real total -->
+        <div class="relative h-28 w-28 shrink-0">
+          <svg viewBox="0 0 100 100" class="h-full w-full -rotate-90">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#2c2820" stroke-width="9"/>
+            <circle cx="50" cy="50" r="42" fill="none" stroke="{{ '#4ade80' if q.total >= 75 else '#d8b25a' }}" stroke-width="9" stroke-linecap="round"
+                    stroke-dasharray="{{ (q.total / 100 * 263.9) | round(1) }} 400" style="filter: drop-shadow(0 0 6px rgba(216,178,90,0.5));"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span id="q-total" data-total="{{ q.total }}" class="text-3xl font-black tabular-nums {{ 'text-green-400' if q.total >= 75 else 'text-[#e8c667]' }}">{{ q.total }}</span>
+            <span class="text-[10px] text-gray-600">/100</span>
+          </div>
         </div>
-        <div class="mt-1 text-xs font-bold uppercase tracking-wide {{ 'text-green-400' if q.recommendation == 'High potential' else 'text-[#e8c667]' }}">{{ q.recommendation }}</div>
+        <div>
+          <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Street Banker Qualification Score</div>
+          <div class="mt-1 text-xs font-bold uppercase tracking-wide {{ 'text-green-400' if q.recommendation == 'High potential' else 'text-[#e8c667]' }}">{{ q.recommendation }}</div>
+          <div id="q-whatif" class="mt-1.5 hidden text-[11px] font-bold text-sky-400">What-if: <span id="q-whatif-total" class="tabular-nums"></span>/100 with the checked work done</div>
+        </div>
       </div>
       {% if q.badges %}
       <div class="flex max-w-sm flex-wrap gap-1.5">
@@ -63,15 +74,21 @@
             <span class="text-[11px] font-bold tabular-nums text-[#e8c667]">{{ pts }}/10</span>
           </div>
           <div class="mt-0.5 text-[11px] text-gray-400">{{ note }}</div>
-          <form method="post" action="/actions/from-alert" class="mt-2">
-            <input type="hidden" name="title" value="Raise growth score: {{ name }}">
-            <input type="hidden" name="description" value="{{ note }}">
-            <input type="hidden" name="category" value="release">
-            <button class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[10px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create action</button>
-          </form>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <form method="post" action="/actions/from-alert">
+              <input type="hidden" name="title" value="Raise growth score: {{ name }}">
+              <input type="hidden" name="description" value="{{ note }}">
+              <input type="hidden" name="category" value="release">
+              <button class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[10px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create action</button>
+            </form>
+            <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-bold text-sky-400/90">
+              <input type="checkbox" class="whatif-box h-3 w-3 accent-sky-400" data-delta="{{ 10 - pts }}">What if done? (+{{ 10 - pts }})
+            </label>
+          </div>
         </div>
         {% endfor %}
       </div>
+      <p class="mt-3 text-[10px] text-gray-600">The what-if total is straight arithmetic on the real scoring weights — completing the work is still the part that counts.</p>
       {% else %}
       <p class="mt-3 text-xs text-green-400">Every category is strong. This account is upstream-ready.</p>
       {% endif %}
@@ -85,7 +102,8 @@
         <div class="flex items-center gap-3 rounded-lg border {{ 'border-green-500/20 bg-green-500/[0.04]' if met else 'border-white/5 bg-white/5' }} px-3 py-2.5">
           <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-black {{ 'bg-green-500/20 text-green-400' if met else 'bg-white/10 text-gray-600' }}">{{ '✓' if met else threshold }}</span>
           <span class="text-sm font-semibold {{ 'text-gray-100' if met else 'text-gray-500' }}">{{ label }}</span>
-          {% if not met %}<span class="ml-auto text-[10px] font-bold uppercase text-gray-600">at {{ threshold }}</span>{% endif %}
+          {% if not met %}<span class="ml-auto text-[10px] font-bold uppercase text-gray-600">at {{ threshold }} · <span class="text-[#e8c667]">{{ threshold - q.total }} pts away</span></span>
+          {% else %}<span class="ml-auto text-[10px] font-black uppercase tracking-wide text-green-400">♛ unlocked</span>{% endif %}
         </div>
         {% endfor %}
       </div>
@@ -93,4 +111,30 @@
     </section>
   </div>
 </div>
+
+<script>
+  // What-if calculator: pure arithmetic on the real per-category weights.
+  (function () {
+    var totalEl = document.getElementById("q-total");
+    var strip = document.getElementById("q-whatif");
+    var stripTotal = document.getElementById("q-whatif-total");
+    if (!totalEl || !strip) return;
+    var base = parseInt(totalEl.dataset.total, 10) || 0;
+    function recalc() {
+      var extra = 0;
+      document.querySelectorAll(".whatif-box:checked").forEach(function (b) {
+        extra += parseInt(b.dataset.delta, 10) || 0;
+      });
+      if (extra > 0) {
+        stripTotal.textContent = Math.min(100, base + extra);
+        strip.classList.remove("hidden");
+      } else {
+        strip.classList.add("hidden");
+      }
+    }
+    document.querySelectorAll(".whatif-box").forEach(function (b) {
+      b.addEventListener("change", recalc);
+    });
+  })();
+</script>
 {% endblock %}
