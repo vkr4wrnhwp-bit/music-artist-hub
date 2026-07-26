@@ -112,6 +112,7 @@ MODULES = [
     ("/tracks", "Track Passports", "Per-track rights and metadata spine: passport, clean-release score, royalty lanes, lockbox.", "live", None),
     ("/royalty-lanes", "Royalty Lanes", "Nine lanes per song: claimed, connected, missing, or needs action — from your real statements.", "live", None),
     ("/money-queue", "Money Queue", "What is costing you money, criticals first — every action names its fix and its basis.", "live", None),
+    ("/certified", "Street Banker Certified", "Six rungs from Verified to Upstream Ready, every one computed from your real record.", "live", None),
 ]
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)

@@ -4305,3 +4305,54 @@ def test_os_p4_pages():
     if "Campaign Plan" in auto:  # renders when a campaign exists
         assert "Release Kit" in auto and "a generator, not a chatbot" in auto
     roll = artist.get("/rollout-studio").get_data(as_text=True)         if artist.get("/rollout-studio").status_code == 200 else ""
+
+
+def test_os_p5_certified_and_onesheet():
+    import plans
+    assert plans.required_tier("/certified") == "artist"
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    cert = artist.get("/certified").get_data(as_text=True)
+    assert "Street Banker Certified" in cert
+    assert "The Ladder" in cert and "Upstream Ready" in cert
+    assert "computed from your real record" in cert
+    assert "granted, purchased, or faked" in cert  # honesty line
+    artist.post("/tracks/add", data={"title": "Night Drive P5",
+                                     "release_title": "Midnight EP",
+                                     "release_date": "2026-10-30"})
+    sheet = artist.get("/deal-room/onesheet")
+    assert sheet.status_code == 200
+    body = sheet.get_data(as_text=True)
+    assert "Artist One-Sheet" in body
+    assert "Night Drive P5" in body                 # the artist's real OS track
+    assert "from uploaded statements" in body       # revenue names its basis
+    assert "not scored" in body                     # no fake stream integrity
+    assert "[To discuss]" in body                   # never invents the ask
+    assert "Print / Save as PDF" in body
+    # Deal Room links to it.
+    assert "/deal-room/onesheet" in artist.get("/deal-room").get_data(as_text=True)
+
+
+def test_os_p5_roster_health_and_export():
+    import db as store_mod
+    app_obj = create_app()
+    label = _demo(app_obj)  # demo@ is Label tier
+    label.post("/roster/invite", data={"email": "p5artist@example.net"})
+    page = label.get("/roster").get_data(as_text=True)
+    token = page.split("p5artist@example.net")[1].split("/roster/join/")[1].split('"')[0]
+    joiner = app_obj.test_client()
+    r = joiner.post("/roster/join/" + token,
+                    data={"name": "P Five", "password": "pfivepass"})
+    assert r.status_code == 302
+    # Roster row now carries OS health: passport %, red count, cert chip.
+    page = label.get("/roster").get_data(as_text=True)
+    assert "P Five" in page and "% passport" in page and "red" in page
+    assert "Unranked" in page  # fresh artist, no tracks -> honest bottom rung
+    assert "Export roster report (CSV)" in page
+    csv_body = label.get("/roster/export.csv").get_data(as_text=True)
+    head = csv_body.splitlines()[0]
+    assert head == ("artist,email,statement_revenue,fans,live_links,"
+                    "upcoming_shows,tracks,passport_avg_pct,clean_release_avg,"
+                    "red_rights_issues,certification")
+    row = [ln for ln in csv_body.splitlines() if "p5artist@example.net" in ln][0]
+    assert "Unranked" in row and "P Five" in row

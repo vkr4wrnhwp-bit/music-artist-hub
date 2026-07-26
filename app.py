@@ -2496,19 +2496,55 @@ def create_app():
         members = store.list_roster(user["id"])
         today = datetime.now(timezone.utc).date().isoformat()
         stats, totals = [], {"revenue": 0.0, "fans": 0, "links": 0, "shows": 0}
+        calendar = []
         for m in members:
             if m["status"] != "active" or not m["artist_user_id"]:
                 continue
             snap = _artist_snapshot(m["artist_user_id"], today)
+            _t, _c, osum, ocert = _os_full(m["artist_user_id"])
+            for c in mls.list_campaigns(m["artist_user_id"]):
+                rd = c.get("release_date") or ""
+                if rd >= today:
+                    calendar.append({"date": rd, "title": c["title"],
+                                     "artist": m.get("artist_name") or m["email"]})
             stats.append({"m": m, "revenue": snap["revenue"], "fans": snap["fans"],
-                          "links": len(snap["links"]), "shows": len(snap["shows"])})
+                          "links": len(snap["links"]), "shows": len(snap["shows"]),
+                          "os": osum, "cert": ocert["level"]})
             totals["revenue"] = round(totals["revenue"] + snap["revenue"], 2)
             totals["fans"] += snap["fans"]
             totals["links"] += len(snap["links"])
             totals["shows"] += len(snap["shows"])
+        calendar.sort(key=lambda c: c["date"])
         return render_template("roster.html", active_page="roster",
                                members=members, stats=stats, totals=totals,
+                               calendar=calendar[:10],
                                **build_dashboard_context())
+
+    @app.route("/roster/export.csv")
+    def roster_export():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import csv as _csv
+        import io as _io
+        today = datetime.now(timezone.utc).date().isoformat()
+        buf = _io.StringIO()
+        w = _csv.writer(buf)
+        w.writerow(["artist", "email", "statement_revenue", "fans", "live_links",
+                    "upcoming_shows", "tracks", "passport_avg_pct",
+                    "clean_release_avg", "red_rights_issues", "certification"])
+        for m in store.list_roster(user["id"]):
+            if m["status"] != "active" or not m["artist_user_id"]:
+                continue
+            snap = _artist_snapshot(m["artist_user_id"], today)
+            _t, _c, osum, ocert = _os_full(m["artist_user_id"])
+            w.writerow([m.get("artist_name") or "", m["email"], snap["revenue"],
+                        snap["fans"], len(snap["links"]), len(snap["shows"]),
+                        osum["tracks"], osum["passport_avg"], osum["clean_avg"],
+                        osum["reds"], ocert["level"]])
+        return Response(buf.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition":
+                                 "attachment; filename=roster-report.csv"})
 
     @app.route("/roster/invite", methods=["POST"])
     def roster_invite():
@@ -2737,6 +2773,44 @@ def create_app():
                                queue=queue, est_total=est_total,
                                criticals=criticals, ctx=ctx,
                                **build_dashboard_context())
+
+    def _os_full(user_id):
+        tracks = store.list_os_tracks(user_id)
+        ctx = _os_ctx(user_id)
+        summary = _os_summary(user_id, tracks, ctx)
+        return tracks, ctx, summary, artist_os.certification(summary)
+
+    @app.route("/certified")
+    def certified_page():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        tracks, ctx, summary, cert = _os_full(user["id"])
+        return render_template("certified.html", active_page="certified",
+                               cert=cert, summary=summary,
+                               **build_dashboard_context())
+
+    @app.route("/deal-room/onesheet")
+    def deal_onesheet():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        tracks, ctx, summary, cert = _os_full(user["id"])
+        reports = sorted(
+            [{"t": t, "clean": artist_os.clean_release(t, ctx)} for t in tracks],
+            key=lambda r: -r["clean"]["score"])
+        pulse = store.list_pulse_snapshots(user["id"], limit=30)
+        upcoming = [c for c in mls.list_campaigns(user["id"])
+                    if (c.get("release_date") or "") >=
+                    datetime.now(timezone.utc).date().isoformat()]
+        lanes = artist_os.lane_grid(tracks[0], ctx) if tracks else []
+        return render_template("deal_onesheet.html", user=user, cert=cert,
+                               summary=summary, reports=reports[:6],
+                               pulse=pulse, upcoming=upcoming[:5],
+                               lanes_claimed=[l for l in lanes
+                                              if l["state"] == "claimed"],
+                               ctx=ctx,
+                               today=datetime.now(timezone.utc).date().isoformat())
 
     _LOCKBOX_KEYS = tuple(k for k, _l, _r in artist_os.LOCKBOX_DOCS)
 
