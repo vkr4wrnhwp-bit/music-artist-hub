@@ -23,8 +23,18 @@
 </head>
 <body class="min-h-screen bg-[#0a0a0a] text-gray-100">
   <div class="flex min-h-screen flex-col lg:flex-row">
-    <aside class="flex w-full shrink-0 flex-col border-b border-white/5 bg-[#0d0d0f] p-5 lg:h-screen lg:w-60 lg:border-b-0 lg:border-r">
-      <a href="/" class="flex flex-col items-center transition-opacity hover:opacity-80">
+    <aside class="flex w-full shrink-0 flex-col border-b border-white/5 bg-[#0d0d0f] p-4 lg:h-screen lg:w-60 lg:border-b-0 lg:border-r lg:p-5">
+      <!-- Mobile: one compact row - brand + menu toggle -->
+      <div class="flex items-center justify-between lg:hidden">
+        <a href="/overview" class="flex items-center gap-2">
+          <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linejoin="round"><path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/></svg>
+          <span class="text-xs font-bold tracking-[0.25em] text-gray-100">ROYALTY SWEEP</span>
+        </a>
+        <button id="sb-burger" type="button" aria-label="Menu" aria-expanded="false" class="rounded-lg border border-white/15 p-2 text-gray-300">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+        </button>
+      </div>
+      <a href="/" class="hidden flex-col items-center transition-opacity hover:opacity-80 lg:flex">
         <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linejoin="round" class="shrink-0">
           <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
         </svg>
@@ -35,6 +45,7 @@
         <div class="mt-2 text-[8px] uppercase tracking-[0.2em] text-amber-500/70">Track it. Collect it. Sweep it.</div>
       </a>
 
+      <div id="sb-menu" class="hidden lg:contents">
       <form action="/search" method="get" class="mt-6">
         <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 focus-within:border-amber-500/40">
           <svg class="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M17 17l-4-4"/></svg>
@@ -175,8 +186,9 @@
         {% endif %}
       </div>
       {% endif %}
+      </div><!-- /sb-menu -->
     </aside>
-    <main class="flex-1 p-8">
+    <main class="flex-1 p-4 sm:p-6 lg:p-8">
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -677,5 +689,15 @@
   </script>
 
   {% block scripts %}{% endblock %}
+<script>
+  (function () {
+    var b = document.getElementById("sb-burger");
+    var m = document.getElementById("sb-menu");
+    if (b && m) b.addEventListener("click", function () {
+      var open = m.classList.toggle("hidden") === false;
+      b.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  })();
+</script>
 </body>
 </html>
