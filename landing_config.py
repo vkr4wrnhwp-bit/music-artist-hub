@@ -27,6 +27,7 @@ def get_landing_config():
         "hero_image": {
             "src": "/static/img/sb-hero.jpg?v=2",
             "blend": True,
+            "fullbleed": True,
             "alt": "Release Music. Build Equity. — Infrastructure for the business of music: distribution, development, finance, physical, merch, and direct-to-fan systems built around artist ownership.",
             "bare": True,
             "center_buttons": True,
@@ -121,6 +122,7 @@ def get_landing_config():
         "features_image": {
             "src": "/static/img/sb-engines.jpg?v=2",
             "blend": True,
+            "fullbleed": True,
             "alt": "One Platform. Multiple Engines. — Distribution Engine, Artist Development, Asset Partnership, Direct-to-Fan, Catalog Engine, Backend Intelligence",
             "bare": True,
             "rows": 2,
@@ -165,6 +167,7 @@ def get_landing_config():
             "image": {
                 "src": "/static/img/sb-distro-lanes.jpg?v=2",
             "blend": True,
+            "fullbleed": True,
                 "alt": "The Three Distro Lanes — 01 Distribution: release the record. 02 Development: build the artist. 03 Partnership: build the asset.",
                 "bare": True,          # borderless, blends on the white page
                 "rows": 3,
@@ -228,6 +231,7 @@ def get_landing_config():
         "ownership_image": {
             "src": "/static/img/sb-ownership.jpg?v=2",
             "blend": True,
+            "fullbleed": True,
             "alt": "From Release to Ownership. — every record can expand into a real artist-owned system: merch, fan access, licensing, royalties, catalog.",
             "bare": True,
             "center_buttons": True,
@@ -242,6 +246,7 @@ def get_landing_config():
         "patchbay_image": {
             "src": "/static/img/sb-patchbay.jpg?v=2",
             "blend": True,
+            "fullbleed": True,
             "alt": "Patchbay — DSP, Sync, Merch, Fan Data, Catalog, and Revenue routed through one system.",
             "bare": True,
             "center_buttons": True,

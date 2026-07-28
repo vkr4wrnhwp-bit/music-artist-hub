@@ -11,7 +11,7 @@
   'outline-dark': 'border border-black/25 text-[#141210] hover:bg-black/5',
   'outline-light': 'border border-white/25 text-white hover:bg-white/10',
 } %}
-<a href="{{ btn.href }}" class="inline-flex items-center gap-1.5 rounded-md px-5 py-2.5 text-sm font-semibold transition-colors {{ styles.get(btn.variant, styles['primary']) }}">
+<a href="{{ btn.href }}" class="inline-flex items-center justify-center gap-1.5 rounded-md px-5 py-2.5 text-sm font-semibold transition-colors {{ styles.get(btn.variant, styles['primary']) }}">
   {{ btn.label }}
   <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
 </a>
@@ -27,7 +27,7 @@
   'top-left': 'inset-x-0 top-0 items-start text-left bg-gradient-to-b from-black/70 via-black/30 to-transparent',
   'center': 'inset-0 items-center justify-center text-center bg-black/40',
 } %}
-<figure class="relative overflow-hidden {{ 'h-full' if img.height_class else '' }} {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
+<figure class="relative overflow-hidden {{ 'h-full' if img.height_class else '' }} {{ '' if img.bare else 'rounded-xl border border-black/10' }} {{ '-mx-6 sm:mx-0' if img.fullbleed }}">
   <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full {{ img.height_class or 'h-auto' }} {{ 'object-cover' if img.height_class else '' }} {{ 'imgblend' if img.blend }}" loading="lazy">
   {% if img.overlay %}
   <figcaption class="absolute flex flex-col gap-3 p-5 sm:p-7 {{ pos.get(img.overlay.position, pos['bottom-left']) }}">
@@ -38,7 +38,7 @@
   {% endif %}
 </figure>
 {% if img.buttons_below %}
-<div class="mt-5 flex flex-wrap gap-3 {{ 'justify-center' if img.center_buttons }}">{% for b in img.buttons_below %}{{ cta_button(b) }}{% endfor %}</div>
+<div class="mt-4 grid grid-cols-1 gap-2.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-3 {{ 'sm:justify-center' if img.center_buttons }}">{% for b in img.buttons_below %}{{ cta_button(b) }}{% endfor %}</div>
 {% endif %}
 {% endmacro %}
 
@@ -46,7 +46,7 @@
    strip graphic whose own labels/CTAs are baked in. Transparent links
    overlay each region so the art stays untouched. ---- #}
 {% macro clickable_image(img) %}
-<figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }}">
+<figure class="relative overflow-hidden {{ '' if img.bare else 'rounded-xl border border-black/10' }} {{ '-mx-6 sm:mx-0' if img.fullbleed }}">
   <img src="{{ img.src }}" alt="{{ img.alt }}" class="block w-full h-auto {{ 'imgblend' if img.blend }}" loading="lazy">
   {% if img.regions %}
   {% set nrows = img.rows or 1 %}
