@@ -62,15 +62,19 @@
       <img src="{{ hero.image.src }}" alt="{{ hero.image.alt }}" class="block w-full object-cover">
     </figure>
   </section>
+</div>
 
-  <!-- 3. THE THREE LANES -->
-  {% set lanes = config.lanes %}
-  <section id="lanes" class="scroll-mt-6 border-t border-black/10 py-20 lg:py-24">
+<!-- 3. THE THREE LANES — breaks out of the reading column. The rack units
+     are the argument here, so they get the page width rather than sitting
+     in a narrower gutter than the bands above and below. -->
+{% set lanes = config.lanes %}
+<section id="lanes" class="scroll-mt-6 border-t border-black/10 py-20 lg:py-24">
+  <div class="mx-auto max-w-[1800px] px-6 lg:px-8">
     <div class="text-center">
       <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ lanes.heading }}</h2>
       <p class="mt-3 text-sm text-[#5a544a]">{{ lanes.support }}</p>
     </div>
-    <div class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-6">
+    <div class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-8">
       {% for card in lanes.cards %}
       <article class="flex flex-col">
         <img src="{{ card.image }}" alt="{{ card.headline }}" class="block w-full object-cover" loading="lazy">
@@ -86,12 +90,14 @@
       </article>
       {% endfor %}
     </div>
-  </section>
-</div>
+  </div>
+</section>
 
-<!-- 4. ROYALTY SWEEP — the one dark section; the photograph IS the section -->
+<!-- 4. ROYALTY SWEEP — the one dark section; the photograph IS the section.
+     Padding kept tight to the copy: the corridor should frame the words, not
+     run on past them. -->
 {% set sweep = config.sweep %}
-<section class="relative isolate overflow-hidden bg-[#0f0e0c] py-24 text-gray-100 lg:py-32">
+<section class="relative isolate overflow-hidden bg-[#0f0e0c] py-16 text-gray-100 lg:py-20">
   {% if sweep.background %}
   <img src="{{ sweep.background.src }}" alt="{{ sweep.background.alt }}" class="absolute inset-0 -z-10 h-full w-full object-cover" loading="lazy">
   <div class="absolute inset-0 -z-10 bg-[#0f0e0c]/75"></div>
