@@ -52,6 +52,12 @@
   CFG.bands.forEach(function (b) { LABELS[b.key] = b.label; });
 
   var current = { preset: CFG.default_preset, values: {} };
+  /* Which fader the visitor touched last. Used ONLY to break value ties:
+     two priorities at the same height, the recently-moved one leads, so
+     adjusting a fader visibly reaches the recommendation instead of
+     losing every tie to whichever key sorts first alphabetically. */
+  var touchOrder = {};
+  var touchCounter = 0;
   var lastResult = null;
   var committedLaneId = null;      // what the homepage currently reflects
   var createdAt = null;            // preserved across saves
@@ -123,7 +129,10 @@
   function sortedKeys(values) {
     return Object.keys(values).sort(function (a, b) {
       if (values[b] !== values[a]) { return values[b] - values[a]; }
-      return a < b ? -1 : 1;            // stable, so results never flicker
+      var ta = touchOrder[a] || 0;
+      var tb = touchOrder[b] || 0;
+      if (ta !== tb) { return tb - ta; }   // recently-moved wins the tie
+      return a < b ? -1 : 1;               // stable fallback
     });
   }
 
@@ -191,8 +200,21 @@
   }
 
   function recommendModules(values) {
+    /* Two passes over the priority order. Pass one takes each key's
+       FLAGSHIP module only, so the four slots represent four different
+       priorities instead of the top two keys flooding the list with
+       their pairs. Pass two backfills with second modules if flagship
+       collisions left slots open. */
     var out = [];
-    sortedKeys(values).forEach(function (key) {
+    var order = sortedKeys(values);
+    order.forEach(function (key) {
+      var first = (CFG.priority_modules[key] || [])[0];
+      if (first && out.length < CFG.max_modules &&
+          out.indexOf(first) === -1) {
+        out.push(first);
+      }
+    });
+    order.forEach(function (key) {
       (CFG.priority_modules[key] || []).forEach(function (name) {
         if (out.length < CFG.max_modules && out.indexOf(name) === -1) {
           out.push(name);
@@ -540,6 +562,7 @@
   inputs.forEach(function (input) {
     input.addEventListener("input", function () {
       if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+      touchOrder[input.dataset.band] = ++touchCounter;
       var values = readInputs();
       input.setAttribute("aria-valuetext",
         describe(parseInt(input.value, 10)));
@@ -563,6 +586,7 @@
         announce();
         scheduleSave();
       } else {
+        touchOrder = {};              // a preset is a fresh, even board
         animateTo(Object.assign({}, preset.values), id);
       }
       track("artist_eq_preset_selected", { preset: preset.name });
@@ -595,6 +619,7 @@
                           "current custom settings will be replaced.")) {
         return;
       }
+      touchOrder = {};
       var def = presetById(CFG.default_preset);
       animateTo(Object.assign({}, def.values), def.id);
       saveProfile();
