@@ -1,6 +1,7 @@
-# Homepage copy — 2026-07-29
+# Homepage copy - 2026-07-29
 
-Every word on the page, in order.
+Every word on the page, in the order it appears. Generated from
+`landing_config.py`, so it always matches what shipped.
 
 ## 1. Navigation
 
@@ -10,69 +11,64 @@ Every word on the page, in order.
 - Solutions -> `/services`
 - Company -> `/network`
 - Resources -> `/reports`
-- Login -> `/login` (text)
-- Start Free Scan -> `/recovery` (primary)
+- **Login** -> `/login`
+- **Start Free Scan** -> `/recovery`
 
 ## 2. Hero
 
-ARTIST INFRASTRUCTURE
+Eyebrow: ARTIST INFRASTRUCTURE
 
 # THE ARTIST BACK OFFICE.
 
-**Release music. Recover royalties. Build equity.**
+Release music. Recover royalties. Build equity.
 
 Distribution, royalty recovery, campaign tools, and catalog intelligence built around artist ownership.
 
-- [SCAN MY CATALOG](/recovery)
-- [EXPLORE THE PLATFORM](/overview)
+- **SCAN MY CATALOG** -> `/recovery`
+- **EXPLORE THE PLATFORM** -> `/overview`
 
-Distribution · Royalty Recovery · Artist Development
+Proof line: Distribution · Royalty Recovery · Artist Development
+Image: `/static/img/sb-hero-photo.jpg?v=4` - Artist performing to a full crowd
 
-Image: `/static/img/sb-hero-photo.jpg?v=4` — Artist performing to a full crowd
-
-## 3. The Three Lanes
+## 3. The Three Lanes  (full-bleed, max 1800px)
 
 ## THE THREE STREET BANKER LANES
-
 Three paths. One infrastructure.
 
-### 01 · DISTRIBUTION — RELEASE THE RECORD.
-
+### 01 · DISTRIBUTION - RELEASE THE RECORD.
 Global distribution, metadata, reporting, and payouts.
+Explore Distribution -> `/services/distribution`
+Image: `/static/img/sb-lane-01.jpg?v=4`
 
-[Explore Distribution](/services/distribution) · image `/static/img/sb-lane-01.jpg?v=4`
-
-### 02 · DEVELOPMENT — BUILD THE ARTIST.
-
+### 02 · DEVELOPMENT - BUILD THE ARTIST.
 Campaigns, content, fan growth, and release strategy.
+Explore Development -> `/audience`
+Image: `/static/img/sb-lane-02.jpg?v=4`
 
-[Explore Development](/audience) · image `/static/img/sb-lane-02.jpg?v=4`
-
-### 03 · PARTNERSHIP — BUILD THE ASSET.
-
+### 03 · PARTNERSHIP - BUILD THE ASSET.
 Label services, funding, catalog growth, and long-term alignment.
+Explore Partnership -> `/capital`
+Image: `/static/img/sb-lane-03.jpg?v=4`
 
-[Explore Partnership](/capital) · image `/static/img/sb-lane-03.jpg?v=4`
+## 4. Royalty Sweep  (the one dark section)
 
-## 4. Royalty Sweep
-
-ROYALTY SWEEP
+Eyebrow: ROYALTY SWEEP
 
 ## FIND WHAT YOU EARNED. FIX WHAT IS MISSING.
 
 Scan your catalog, identify collection gaps, and track recovery through payout.
 
-[START A FREE SCAN](/recovery)
+- **START A FREE SCAN** -> `/recovery`
 
 No upfront scan fee. Results depend on available catalog and registration data.
-
-Background: `/static/img/sb-band-sweep.jpg?v=1` — Road cases lined along a backstage corridor
+Background: `/static/img/sb-band-sweep.jpg?v=1` - Road cases lined along a backstage corridor
 
 ## 5. Signature Tools
 
 ## EVERYTHING BEHIND THE ARTIST.
-
 Strategy, rights, releases, campaigns, and opportunities in one system.
+
+Five black rack panels, ivory hardware glyphs, two mounting screws each.
 
 - Artist Twin -> `/artist-twin`
 - Release Autopilot -> `/releases/autopilot`
@@ -80,16 +76,16 @@ Strategy, rights, releases, campaigns, and opportunities in one system.
 - Rollout Studio -> `/rollout-studio`
 - Deal Room -> `/deal-room`
 
-## 6. Band
+## 6. Full-bleed band
 
-Full-bleed, no text, no link.
-`/static/img/sb-band.jpg?v=1` — Front-of-house engineers working the desk in front of a full arena
+`/static/img/sb-band-catalog.jpg?v=1` - Archive shelves of master tapes, catalog and merch, each shelf labelled
+No text, no link.
 
 ## 7. Final CTA
 
 ## YOUR MUSIC IS THE PRODUCT. YOUR CATALOG IS THE ASSET.
 
-[START FREE](/signup)
+- **START FREE** -> `/signup`
 
 No upfront scan fee. You keep ownership of your music and data.
 
@@ -99,11 +95,28 @@ No upfront scan fee. You keep ownership of your music and data.
 
 Infrastructure for independent artists and labels.
 
-**Platform** — Overview, Royalty Sweep, Distribution, Artist Twin
-**Solutions** — For Artists, For Labels, Development, Partnership
-**Company** — About, Contact, Partners
-**Legal** — Terms, Privacy, Copyright
+**Platform**
+- Overview -> `/overview`
+- Royalty Sweep -> `/recovery`
+- Distribution -> `/services/distribution`
+- Artist Twin -> `/artist-twin`
 
-Socials: Instagram, X, YouTube, LinkedIn
+**Solutions**
+- For Artists -> `/overview`
+- For Labels -> `/roster`
+- Development -> `/audience`
+- Partnership -> `/capital`
+
+**Company**
+- About -> `/services`
+- Contact -> `/submit`
+- Partners -> `/network`
+
+**Legal**
+- Terms -> `/terms`
+- Privacy -> `/privacy`
+- Copyright -> `/privacy`
+
+Socials: Instagram (https://instagram.com/summitartsgroup), X (https://x.com), YouTube (https://youtube.com), LinkedIn (https://linkedin.com)
 
 © 2026 Street Banker LLC. All rights reserved.

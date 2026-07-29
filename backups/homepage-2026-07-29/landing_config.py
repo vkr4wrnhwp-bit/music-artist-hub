@@ -102,26 +102,56 @@ def get_landing_config():
             "heading": "EVERYTHING BEHIND THE ARTIST.",
             "support": ("Strategy, rights, releases, campaigns, and "
                         "opportunities in one system."),
+            # Every icon is a piece of studio hardware, drawn in the same
+            # vocabulary as the rack units in the lanes above and the road
+            # cases in the band below: knobs, faders, a patchbay, a VU
+            # meter, a flight case. Stroked paths on a 20x20 grid, split on
+            # "|" by the template.
             "items": [
+                # One large knob, pointer turned off the panel index mark.
+                # Two small knobs were tried for the "twin" reading, but a
+                # side-by-side pair only fills a third of the square and
+                # went weak next to the other four.
                 {"name": "Artist Twin", "href": "/artist-twin",
-                 "icon": "M10 3a3 3 0 013 3v1.2a3.2 3.2 0 010 5.6V14a3 3 0 11-6 0v-1.2a3.2 3.2 0 010-5.6V6a3 3 0 013-3z|M10 8.5v3"},
+                 "icon": "M10 3.8a6.2 6.2 0 100 12.4 6.2 6.2 0 100-12.4"
+                         "|M10 10l2.6-2.6|M10 3.8V2.2"},
+                # A fader bank with the scene already set.
                 {"name": "Release Autopilot", "href": "/releases/autopilot",
-                 "icon": "M10 2.5l7 7-7 7-7-7z|M10 7v6M7 10h6"},
+                 "icon": "M6 4.5v11|M10 4.5v11|M14 4.5v11"
+                         "|M4.4 11.5h3.2|M8.4 7.2h3.2|M12.4 9.4h3.2"},
+                # A stencilled label plate with its barcode, like the ones on
+                # the road cases in the artwork. Metadata is the identifier.
+                # Patchbay jacks were tried first: outlined holes small
+                # enough to fit three across close up at this stroke weight.
                 {"name": "Metadata Passport", "href": "/metadata-passport",
-                 "icon": "M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12.5h6"},
+                 "icon": "M3 5.5h14v9H3z"
+                         "|M6.1 8v3M8.7 8v3M11.3 8v3M13.9 8v3"
+                         "|M5.5 12.6h9"},
+                # VU meter: the needle is what a rollout is measured on.
                 {"name": "Rollout Studio", "href": "/rollout-studio",
-                 "icon": "M4 4.5h12v9H4z|M4 13.5l3 3M16 13.5l-3 3|M7.5 8.5l2 2 3.5-3.5"},
+                 "icon": "M3.6 13.4h12.8v2.8H3.6z"
+                         "|M4.9 13.4a5.1 5.1 0 0110.2 0"
+                         "|M10 13.4l1.8-2.5"},
+                # Road case: body, grab handle, and the stencilled label
+                # plate the artwork's own SB-01 cases carry. A lid seam was
+                # tried and cut - at 24px it merged with the plate into one
+                # thick belt. Handle stays wide and shallow so it reads as a
+                # case grip rather than a padlock shackle.
                 {"name": "Deal Room", "href": "/deal-room",
-                 "icon": "M3 7.5h14v8a1 1 0 01-1 1H4a1 1 0 01-1-1z|M7 7.5V5a1 1 0 011-1h4a1 1 0 011 1v2.5"},
+                 "icon": "M3.5 7h13v8h-13z"
+                         "|M7.6 7V6.2a2.4 1.3 0 014.8 0V7"
+                         "|M6.8 10h6.4v2.6H6.8z"},
             ],
         },
 
-        # Thin full-bleed band that separates the tools strip from the
-        # closing statement. No text in the artwork; nothing to click.
+        # Full-bleed band between the tools strip and the closing statement.
+        # The archive wall is the closing line as a photograph: shelves of
+        # masters, catalog and merch. Shelf labels are real categories, not
+        # data, so there is nothing here to mistake for a client's numbers.
         "band_image": {
-            "src": "/static/img/sb-band.jpg?v=1",
-            "alt": "Front-of-house engineers working the desk in front of a "
-                   "full arena",
+            "src": "/static/img/sb-band-catalog.jpg?v=1",
+            "alt": "Archive shelves of master tapes, catalog and merch, "
+                   "each shelf labelled",
         },
 
         "final_cta": {
