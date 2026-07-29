@@ -3866,6 +3866,34 @@ def create_app():
     # public /stem-src URL, and finished stems stream back through us.
     # The key never reaches the browser.
 
+    @app.route("/rack/studio-split/diag")
+    def studio_split_diag():
+        """Why isn't Studio Split showing up? Reports the SHAPE of the
+        environment, never a value: which STEM-ish names exist, how long
+        the key is, and whether it carries stray whitespace or quotes -
+        the three things that silently break a pasted secret. Requires a
+        signed-in account; no secret ever leaves this endpoint."""
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        raw = os.environ.get("STEMSPLIT_API_KEY")
+        names = sorted(k for k in os.environ
+                       if "STEM" in k.upper() or "SPLIT" in k.upper())
+        info = {
+            "configured": stemsplit.configured(),
+            "expected_name": "STEMSPLIT_API_KEY",
+            "matching_env_names": names,
+            "present": raw is not None,
+        }
+        if raw is not None:
+            info.update({
+                "length": len(raw),
+                "has_surrounding_whitespace": raw != raw.strip(),
+                "wrapped_in_quotes": len(raw) > 1 and raw[0] in "'\"",
+                "starts_with_sk": raw.strip().startswith("sk_"),
+            })
+        return jsonify(info)
+
     @app.route("/rack/studio-split", methods=["POST"])
     def studio_split_start():
         user = current_user()

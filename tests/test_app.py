@@ -5446,6 +5446,7 @@ def test_studio_split_is_env_gated_and_honest():
     and the endpoints never pretend. No external call is ever made here -
     only the gating and validation layers are exercised."""
     import io as _io
+    import json
     import os as _os
 
     _os.environ.pop("STEMSPLIT_API_KEY", None)
@@ -5462,8 +5463,19 @@ def test_studio_split_is_env_gated_and_honest():
     assert source_path("../../app.py") is None
     assert source_path("a/b") is None
 
+    # The diagnostic reports shape, never the secret itself.
+    diag = client.get("/rack/studio-split/diag").get_json()
+    assert diag["configured"] is False and diag["present"] is False
+
     _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
     try:
+        diag = client.get("/rack/studio-split/diag").get_json()
+        assert diag["configured"] is True
+        assert diag["length"] == len("test-key-not-real")
+        # No field of the diagnostic may echo the value.
+        assert "test-key-not-real" not in json.dumps(diag)
+        assert app_obj.test_client().get(
+            "/rack/studio-split/diag").status_code in (302, 401)
         page = client.get("/rack").get_data(as_text=True)
         assert "Studio Split" in page
         # The copy admits the one thing this feature does differently.
