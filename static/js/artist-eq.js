@@ -2,8 +2,10 @@
 
    Reads its data from the JSON block the template renders, drives fifteen
    native range inputs, draws the response curve, works out which lane the
-   visitor's own settings point at, and subtly adapts the rest of the
-   homepage (lane card, tool badges, two CTAs) to that result.
+   visitor's own settings point at, and - after the mix settles - commits
+   the whole page to one of five Adaptive Visual Modes: tint variables,
+   hero and banner image crossfades, the signal line, and the one main
+   program CTA, all in a single coordinated switch. The layout never moves.
 
    Everything shown is derived from the sliders in front of the user. No
    figure here is a forecast, an estimate, or a promise.
@@ -41,14 +43,14 @@
   var resetEl = document.getElementById("sbeq-reset");
 
   /* Homepage elements this EQ is allowed to touch. All optional: the EQ
-     works even if a section is edited away later. */
-  var laneCards = Array.prototype.slice.call(
-    document.querySelectorAll("article[data-lane]"));
-  var balancedEl = document.getElementById("sb-lanes-balanced");
-  var toolTiles = Array.prototype.slice.call(
-    document.querySelectorAll("a[data-tool]"));
-  var sweepCta = document.getElementById("sb-sweep-cta");
+     works even if a section is edited away later. The old per-card
+     outlines and badges are gone - the page responds through one
+     coordinated visual mode instead. */
   var finalCta = document.getElementById("sb-final-cta");
+  var signalEl = document.getElementById("sbeq-signal");
+  var heroAdaptive = document.getElementById("sb-hero-adaptive");
+  var bannerAdaptive = document.getElementById("sb-banner-adaptive");
+  var modeNameEl = document.getElementById("sb-mode-name");
 
   var CUSTOM = "custom-mix";
   var LABELS = {};
@@ -259,49 +261,106 @@
     }
   }
 
-  /* --- homepage adaptation -----------------------------------------------
-     Only on lane commit, never per pointer-move: one lane card outline,
-     tool badges, and two CTA text swaps. Nothing moves, hides, or
-     reorders; remove the profile and the page is exactly the default. */
-  function adaptHomepage(lane, modules) {
-    laneCards.forEach(function (card) {
-      var badge = card.querySelector(".sb-lane-badge");
-      var on = card.getAttribute("data-lane") === lane.id;
-      card.classList.toggle("sb-lane-rec", on);
-      if (badge) { badge.hidden = !on; }
-    });
-    if (balancedEl) { balancedEl.hidden = (lane.id !== CFG.integrated.id); }
-    if (balancedEl) {
-      balancedEl.classList.toggle("hidden", lane.id !== CFG.integrated.id);
-    }
+  /* --- Adaptive Visual Modes ---------------------------------------------
+     The homepage responds through ONE coordinated mode switch, never
+     per-element tweaks. Scoring: mean of each mode's member priorities
+     (normalized across group sizes). Recovery is rule-gated - Royalty
+     Recovery in the top two AND >= sweep_first_min - it never wins on
+     score alone. If the top two scored modes sit within mode_tie_gap,
+     the signal is broad and Full-Stack wins. Deterministic: the same
+     fifteen values always produce the same mode. */
+  var MODES_BY_ID = {};
+  CFG.modes.forEach(function (m) { MODES_BY_ID[m.id] = m; });
+  var committedModeId = null;
 
-    toolTiles.forEach(function (tile) {
-      var on = modules.indexOf(tile.getAttribute("data-tool")) !== -1;
-      tile.classList.toggle("sb-tool-rec", on);
-      var badge = tile.querySelector(".sb-tool-badge");
-      if (badge) {
-        badge.hidden = !on;
-        badge.classList.toggle("hidden", !on);
-      }
-    });
-
-    if (sweepCta) {
-      sweepCta.textContent = (lane.id === CFG.sweep_first.id)
-        ? CFG.sweep_cta_recommended
-        : sweepCta.getAttribute("data-default-label");
-    }
-    if (finalCta) {
-      finalCta.textContent = CFG.final_cta_by_lane[lane.id] ||
-        finalCta.getAttribute("data-default-label");
-    }
+  function scoreModes(values) {
+    return CFG.modes.filter(function (m) {
+      return m.keys.length && m.id !== "recovery";
+    }).map(function (m) {
+      var total = 0;
+      m.keys.forEach(function (k) { total += values[k]; });
+      return { mode: m, score: total / m.keys.length };
+    }).sort(function (a, b) { return b.score - a.score; });
   }
 
-  function commitLane(lane, modules) {
-    var changed = lane.id !== committedLaneId;
-    committedLaneId = lane.id;
-    adaptHomepage(lane, modules);
-    if (changed) { track("artist_eq_lane_changed", { lane: lane.name }); }
-    return changed;
+  function computeMode(values) {
+    var order = sortedKeys(values);
+    if (order.slice(0, 2).indexOf("royaltyRecovery") !== -1 &&
+        values.royaltyRecovery >= CFG.sweep_first_min) {
+      return MODES_BY_ID.recovery;
+    }
+    var scored = scoreModes(values);
+    if ((scored[0].score - scored[1].score) < CFG.mode_tie_gap) {
+      return MODES_BY_ID["full-stack"];
+    }
+    /* Hysteresis: keep the incumbent unless the challenger clearly wins. */
+    if (committedModeId && committedModeId !== scored[0].mode.id) {
+      for (var i = 0; i < scored.length; i++) {
+        if (scored[i].mode.id === committedModeId &&
+            scored[0].score - scored[i].score < CFG.mode_switch_margin) {
+          return scored[i].mode;
+        }
+      }
+    }
+    return scored[0].mode;
+  }
+
+  /* Image slots: an adaptive layer sits over each base image and fades in
+     only once its mode file has actually loaded. Missing or failed files
+     leave the current homepage photography untouched - never a blank
+     frame, never a broken-image icon, never a dimension change. */
+  var imageCache = {};
+  function preloadImage(url) {
+    if (imageCache[url]) { return imageCache[url]; }
+    imageCache[url] = new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { resolve(true); };
+      img.onerror = function () { resolve(false); };
+      img.src = url;
+    });
+    return imageCache[url];
+  }
+
+  function applyLayer(layer, url, alt, modeId) {
+    if (!layer) { return; }
+    preloadImage(url).then(function (ok) {
+      if (committedModeId !== modeId) { return; }   // mode moved on
+      if (ok) {
+        layer.src = url;
+        layer.alt = alt;
+        layer.classList.add("sb-adaptive-on");
+      } else {
+        layer.classList.remove("sb-adaptive-on");   // base image shows
+      }
+    });
+  }
+
+  /* One coordinated switch: data attribute (tints), result line, both
+     image layers, mode label, the ONE main program CTA, save, announce. */
+  function commitMode(values) {
+    var mode = computeMode(values);
+    var changed = mode.id !== committedModeId;
+    committedModeId = mode.id;
+    document.body.setAttribute("data-artist-mode", mode.id);
+    if (signalEl) { signalEl.textContent = mode.signal; }
+    if (modeNameEl) { modeNameEl.textContent = mode.name; }
+    if (finalCta) {
+      finalCta.textContent = mode.cta ||
+        finalCta.getAttribute("data-default-label");
+    }
+    applyLayer(heroAdaptive, mode.hero, mode.name + " mode workspace", mode.id);
+    applyLayer(bannerAdaptive, mode.banner, mode.name + " mode", mode.id);
+    if (changed) {
+      track("artist_visual_mode_committed", {
+        mode: mode.id,
+        preset: (presetById(current.preset) || { name: "Custom Mix" }).name,
+        source: CFG.profile_source
+      });
+      /* The commit is the state worth keeping: re-save so the stored
+         activeVisualMode never lags behind what the visitor sees. */
+      scheduleSave();
+    }
+    return mode;
   }
 
   /* --- announcements ------------------------------------------------------ */
@@ -385,6 +444,7 @@
       recommendedLane: lastResult ? lastResult.lane.name : null,
       recommendedModules: lastResult ? lastResult.modules : [],
       firstActions: lastResult ? lastResult.actions : [],
+      activeVisualMode: committedModeId,
       source: CFG.profile_source
     };
   }
@@ -409,11 +469,17 @@
       var raw = window.localStorage.getItem(CFG.storage_key);
       if (raw) {
         var p = JSON.parse(raw);
-        if (p && p.version === CFG.profile_version) {
+        /* v1 (no activeVisualMode) and v2 both restore; the mode is
+           recomputed from priorities when absent or invalid. */
+        if (p && (p.version === 1 || p.version === 2)) {
           var values = validValues(p.priorities);
           if (values) {
             createdAt = (typeof p.createdAt === "string") ? p.createdAt : null;
-            return { values: values, presetName: String(p.preset || "") };
+            var mode = (typeof p.activeVisualMode === "string" &&
+                        MODES_BY_ID[p.activeVisualMode])
+              ? p.activeVisualMode : null;
+            return { values: values, presetName: String(p.preset || ""),
+                     mode: mode };
           }
         }
       }
@@ -459,15 +525,18 @@
     announce();
 
     if (opts.settled || opts.commit) {
-      commitLane(lane, modules);
+      committedLaneId = lane.id;
+      commitMode(values);
     } else {
-      /* keep tool badges live-ish but only re-commit the lane on settle */
+      /* Curve and panel stay live; the page-wide mode switch waits for
+         the mix to settle - at most one mode change per drag. */
       clearTimeout(settleTimer);
       settleTimer = setTimeout(function () {
         var settledLane = recommendLane(current.values);
         lastResult.lane = settledLane;
         renderPanel(settledLane, lastResult.modules, lastResult.actions);
-        commitLane(settledLane, lastResult.modules);
+        committedLaneId = settledLane.id;
+        commitMode(current.values);
         announce();
       }, CFG.settle_ms);
     }
@@ -627,6 +696,9 @@
   if (saved) {
     startValues = saved.values;
     startPreset = presetIdByName(saved.presetName);
+    /* Seeding the saved mode means a near-tied score keeps the mode the
+       visitor last saw, instead of silently flipping on reload. */
+    if (saved.mode) { committedModeId = saved.mode; }
     track("artist_signal_profile_loaded", { preset: saved.presetName });
   } else {
     var def = presetById(CFG.default_preset);
@@ -636,6 +708,13 @@
   writeInputs(startValues);
   update(startValues, startPreset, { commit: true });
   saveProfile();   /* migration writes the new key immediately */
+  /* Transitions arm only after the boot state is painted - a returning
+     visitor sees their mode, not an animation replaying into it. A timer
+     rather than rAF: rAF never fires in a background tab, which would
+     leave transitions disarmed until the first interaction. */
+  setTimeout(function () {
+    document.body.classList.add("sb-mode-ready");
+  }, 150);
 
   if ("IntersectionObserver" in window) {
     var seen = false;

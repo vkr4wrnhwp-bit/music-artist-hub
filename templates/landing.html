@@ -11,12 +11,12 @@
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/artist-eq.css?v=3">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=4">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
 </head>
-<body class="min-h-screen bg-white text-[#141210] antialiased">
+<body class="min-h-screen text-[#141210] antialiased" data-artist-mode="full-stack">
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
@@ -59,8 +59,11 @@
       </div>
       <p class="mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8a8377]">{{ hero.proof }}</p>
     </div>
-    <figure class="order-2 overflow-hidden">
+    <figure class="relative order-2 overflow-hidden">
       <img src="{{ hero.image.src }}" alt="{{ hero.image.alt }}" class="block w-full object-cover">
+      <!-- Adaptive mode layer: fades in only when its mode image has
+           loaded; otherwise the photograph above stays exactly as-is. -->
+      <img id="sb-hero-adaptive" class="sb-adaptive-layer" alt="" aria-hidden="true">
     </figure>
   </section>
 </div>
@@ -68,6 +71,16 @@
 <!-- 3. THE ARTIST EQ — additive: a 15-band priority equaliser. Everything
      that moves is coded; nothing here replaces an existing section. -->
 {% include "partials/artist_eq.html" %}
+
+<!-- Mode banner: visual-only, fixed height, crossfades with the visitor's
+     committed mode. Not a section - no copy, no buttons, no data. -->
+<figure class="mx-auto max-w-6xl px-6 pb-4 lg:px-10" id="sb-mode-banner">
+  <div class="relative h-40 overflow-hidden rounded-md bg-[#e8e6e0] sm:h-56">
+    <img src="{{ config.band_image.src }}" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full object-cover object-left-top" loading="lazy">
+    <img id="sb-banner-adaptive" class="sb-adaptive-layer" alt="" aria-hidden="true">
+    <span class="absolute bottom-2 left-2 rounded-sm bg-[#0f0e0c]/80 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-[#d8b25a]">Your Street Banker Mode — <span id="sb-mode-name">Full Stack</span></span>
+  </div>
+</figure>
 
 <!-- 4. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting
@@ -78,15 +91,10 @@
     <div class="text-center">
       <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ lanes.heading }}</h2>
       <p class="mt-3 text-sm text-[#5a544a]">{{ lanes.support }}</p>
-      <!-- Revealed by the Artist EQ when priorities span all three lanes. -->
-      <p class="mx-auto mt-3 hidden max-w-xs rounded-sm border border-[#a8862f]/50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8a6d1f]" id="sb-lanes-balanced" hidden>Balanced Program — your mix spans all three lanes</p>
     </div>
     <div class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-8">
       {% for card in lanes.cards %}
-      {% set lane_id = ['distribution', 'development', 'partnership'][loop.index0] %}
-      <article class="flex flex-col rounded-md transition-shadow" data-lane="{{ lane_id }}">
-        <!-- Badge the Artist EQ reveals on the recommended lane. -->
-        <p class="sb-lane-badge mb-2 hidden text-[10px] font-bold uppercase tracking-[0.22em] text-[#8a6d1f]" hidden>★ Recommended for your mix</p>
+      <article class="flex flex-col">
         <img src="{{ card.image }}" alt="{{ card.headline }}" class="block w-full object-cover" loading="lazy">
         <div class="mt-6">
           <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ card.label }}</div>
@@ -118,7 +126,7 @@
       {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
     </h2>
     <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-300">{{ sweep.description }}</p>
-    <a href="{{ sweep.cta.href }}" id="sb-sweep-cta" data-default-label="{{ sweep.cta.label }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
+    <a href="{{ sweep.cta.href }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
     <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-400">{{ sweep.note }}</p>
   </div>
 </section>
@@ -134,9 +142,7 @@
     </div>
     <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-5">
       {% for t in tools['items'] %}
-      <a href="{{ t.href }}" data-tool="{{ t.name }}" class="group relative flex flex-col items-center gap-4 rounded-lg px-1 py-6 text-center transition-colors hover:bg-[#141210]/[0.04] sm:px-2">
-        <!-- Revealed by the Artist EQ when this module is in the mix. -->
-        <span class="sb-tool-badge absolute right-1 top-1 hidden rounded-sm border border-[#a8862f]/60 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[#8a6d1f]" hidden>Recommended</span>
+      <a href="{{ t.href }}" class="group flex flex-col items-center gap-4 rounded-lg px-1 py-6 text-center transition-colors hover:bg-[#141210]/[0.04] sm:px-2">
         <!-- A rack module, not a badge: black face, light legend, two
              mounting screws, and a bevel along the top edge where the panel
              catches the light - the same object the lane artwork is made of.
@@ -205,6 +211,6 @@
   </footer>
 </div>
 
-<script src="/static/js/artist-eq.js?v=2" defer></script>
+<script src="/static/js/artist-eq.js?v=3" defer></script>
 </body>
 </html>

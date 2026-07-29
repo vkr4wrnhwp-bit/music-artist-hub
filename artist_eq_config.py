@@ -223,22 +223,68 @@ ACTION_ROUTES = {
 # tags the source so the saved mix can become an Artist Priorities profile.
 CTA = {"label": "BUILD MY PROGRAM", "href": "/signup?source=artist-eq"}
 
-# The final homepage CTA rewrites to the recommended program. Keys are the
-# lane/result ids; the href never changes - only the words do.
-FINAL_CTA_BY_LANE = {
-    "distribution": "BUILD MY DISTRIBUTION PROGRAM",
-    "development": "BUILD MY DEVELOPMENT PROGRAM",
-    "partnership": "BUILD MY PARTNERSHIP PROGRAM",
-    "sweep-first": "START MY RECOVERY PROGRAM",
-    "integrated": "BUILD MY ARTIST PROGRAM",
-}
-SWEEP_CTA_RECOMMENDED = "START YOUR RECOMMENDED SCAN"
+# --- Adaptive Visual Modes ------------------------------------------------
+# Five deterministic modes computed from the fifteen priorities. Scoring is
+# the MEAN of each mode's member priorities (normalized, so a four-band
+# mode and a five-band mode compete on the same 0-10 scale). Recovery is a
+# rule, not a race: Royalty Recovery in the top two AND >= SWEEP_FIRST_MIN.
+# Full-stack fires when the top two mode scores sit within MODE_TIE_GAP.
+# The same EQ configuration always produces the same mode.
+#
+# Each mode carries: the one signal line shown under the recommendation
+# panel, the one main-CTA label, restrained neutral tints (page /
+# secondary / dark - Street Banker gold never changes), and its two
+# optional image slots. Missing images fall back to the current homepage
+# hero and band photography; nothing breaks before the ten files exist.
+MODES = [
+    {"id": "release", "name": "RELEASE",
+     "keys": ["rightsSplits", "distribution", "metadata", "releaseStrategy"],
+     "signal": "YOUR SIGNAL IS RELEASE-FOCUSED.",
+     "cta": "BUILD MY RELEASE PROGRAM",
+     "tints": {"page": "#f3f3f0", "secondary": "#e7e7e2", "dark": "#171717"},
+     "hero": "/static/img/adaptive/hero-release.png",
+     "banner": "/static/img/adaptive/banner-release.png"},
+    {"id": "growth", "name": "GROWTH",
+     "keys": ["content", "audienceGrowth", "fanOwnership", "touringLive",
+              "brand"],
+     "signal": "YOUR SIGNAL IS GROWTH-FOCUSED.",
+     "cta": "BUILD MY GROWTH PROGRAM",
+     "tints": {"page": "#f5efe2", "secondary": "#eadfc9", "dark": "#1b1813"},
+     "hero": "/static/img/adaptive/hero-growth.png",
+     "banner": "/static/img/adaptive/banner-growth.png"},
+    {"id": "recovery", "name": "RECOVERY",
+     "keys": ["royaltyRecovery", "rightsSplits", "metadata", "catalogValue"],
+     "signal": "YOUR SIGNAL IS RECOVERY-FIRST.",
+     "cta": "START MY RECOVERY PROGRAM",
+     "tints": {"page": "#f1eee6", "secondary": "#d9d4c8", "dark": "#101010"},
+     "hero": "/static/img/adaptive/hero-recovery.png",
+     "banner": "/static/img/adaptive/banner-recovery.png"},
+    {"id": "partnership", "name": "PARTNERSHIP",
+     "keys": ["syncLicensing", "funding", "partnerships", "catalogValue",
+              "longTermVision"],
+     "signal": "YOUR SIGNAL IS PARTNERSHIP-READY.",
+     "cta": "BUILD MY PARTNERSHIP PROGRAM",
+     "tints": {"page": "#f4ead5", "secondary": "#dfcfaa", "dark": "#17140f"},
+     "hero": "/static/img/adaptive/hero-partnership.png",
+     "banner": "/static/img/adaptive/banner-partnership.png"},
+    # Full-stack restores the original balanced treatment exactly.
+    {"id": "full-stack", "name": "FULL STACK",
+     "keys": [],
+     "signal": "YOUR SIGNAL NEEDS THE FULL STACK.",
+     "cta": "BUILD MY ARTIST PROGRAM",
+     "tints": {"page": "#ffffff", "secondary": "#f6f3f0", "dark": "#0f0e0c"},
+     "hero": "/static/img/adaptive/hero-full-stack.png",
+     "banner": "/static/img/adaptive/banner-full-stack.png"},
+]
+MODE_TIE_GAP = 0.6          # top two modes closer than this -> full-stack
+MODE_SWITCH_MARGIN = 0.5    # challenger must beat incumbent by this much
+BANNER_LABEL = "YOUR STREET BANKER MODE"
 
 # Storage: the Artist Signal Profile. The old key is read once and
 # migrated; new writes go to the new key only.
 STORAGE_KEY = "streetBankerArtistSignalProfile"
 LEGACY_STORAGE_KEY = "streetBankerArtistEq"
-PROFILE_VERSION = 1
+PROFILE_VERSION = 2   # v2 adds activeVisualMode; v1 profiles still restore
 PROFILE_SOURCE = "homepage_artist_eq"
 
 # Lane hysteresis: a challenger must beat the incumbent by this much
@@ -279,8 +325,10 @@ def get_artist_eq_config():
         "action_count": ACTION_COUNT,
         "action_routes": ACTION_ROUTES,
         "cta": CTA,
-        "final_cta_by_lane": FINAL_CTA_BY_LANE,
-        "sweep_cta_recommended": SWEEP_CTA_RECOMMENDED,
+        "modes": MODES,
+        "mode_tie_gap": MODE_TIE_GAP,
+        "mode_switch_margin": MODE_SWITCH_MARGIN,
+        "banner_label": BANNER_LABEL,
         "storage_key": STORAGE_KEY,
         "legacy_storage_key": LEGACY_STORAGE_KEY,
         "profile_version": PROFILE_VERSION,

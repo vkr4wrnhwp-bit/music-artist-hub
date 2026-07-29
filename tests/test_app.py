@@ -210,11 +210,12 @@ def test_landing_is_seven_editorial_sections():
     assert "FIND WHAT YOU EARNED." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
     assert "YOUR MUSIC IS THE PRODUCT." in body
-    # The archive-shelf band separates the tools strip from the closing line;
-    # it illustrates the catalog claim rather than decorating it.
+    # The archive-shelf band still separates the tools strip from the
+    # closing line. The mode banner higher up reuses the same photograph
+    # as its fallback base, so check the LAST occurrence for the band.
     assert "sb-band-catalog.jpg" in body
-    assert body.index("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
-    assert body.index("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
+    assert body.rindex("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
+    assert body.rindex("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
     # The Sweep section is a photograph with copy over it - no product
     # screenshot, so there are no figures that could read as real data.
     assert "sb-band-sweep.jpg" in body
@@ -5310,10 +5311,19 @@ def test_artist_signal_profile_config_shape():
         assert b["label"]                     # full name preserved
         banks[b["bank"]] += 1
     assert banks == {"foundation": 5, "growth": 5, "opportunity": 5}
-    ids = [l["id"] for l in cfg["lanes"]] + [cfg["sweep_first"]["id"],
-                                             cfg["integrated"]["id"]]
-    for rid in ids:
-        assert cfg["final_cta_by_lane"].get(rid), rid
+    # Five adaptive modes; every scored key is a real band; each mode has
+    # a signal line, a CTA, three tints, and both image slots.
+    keys = {b["key"] for b in cfg["bands"]}
+    assert [m["id"] for m in cfg["modes"]] == [
+        "release", "growth", "recovery", "partnership", "full-stack"]
+    for m in cfg["modes"]:
+        assert set(m["keys"]) <= keys
+        assert m["signal"].startswith("YOUR SIGNAL")
+        assert m["cta"]
+        assert set(m["tints"]) == {"page", "secondary", "dark"}
+        assert m["hero"].startswith("/static/img/adaptive/hero-")
+        assert m["banner"].startswith("/static/img/adaptive/banner-")
+    assert cfg["modes"][-1]["keys"] == []      # full-stack is the tie state
     # Every first action leads to a real route.
     client = _demo()
     for action, href in cfg["action_routes"].items():
@@ -5326,13 +5336,22 @@ def test_homepage_carries_the_signal_profile_hooks():
     assert "Your program updates instantly." in body
     assert "RESET MIX" in body
     assert body.count('class="sbeq-bank"') == 3
-    assert body.count("data-lane=") == 3
-    assert body.count("data-tool=") == 5
-    assert 'id="sb-sweep-cta"' in body and 'id="sb-final-cta"' in body
-    assert 'id="sb-lanes-balanced"' in body
     assert "streetBankerArtistSignalProfile" in body
-    # Defaults render server-side: CTAs show their normal labels until the
-    # visitor's own mix changes them.
+    # The subtle per-card reactions are gone: no lane badges, no tool
+    # badges, no Sweep CTA swap hook. The page responds through one
+    # coordinated visual mode instead.
+    for gone in ["sb-lane-badge", "sb-tool-badge", "sb-sweep-cta",
+                 "sb-lanes-balanced", "data-lane=", "data-tool="]:
+        assert gone not in body, gone
+    # Mode plumbing: centralized state, two adaptive layers, the banner,
+    # the signal line, the one adapting program CTA.
+    assert 'data-artist-mode="full-stack"' in body
+    assert 'id="sb-hero-adaptive"' in body
+    assert 'id="sb-mode-banner"' in body and 'id="sb-banner-adaptive"' in body
+    assert "Your Street Banker Mode" in body
+    assert 'id="sbeq-signal"' in body
+    assert 'id="sb-final-cta"' in body
+    # Defaults render server-side until the visitor's own mix changes them.
     assert "START A FREE SCAN" in body
     assert "START FREE" in body
 

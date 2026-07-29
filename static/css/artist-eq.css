@@ -640,20 +640,79 @@
   .sbeq-screen { padding: 12px 8px 20px 32px; }
 }
 
-/* --- EQ-driven homepage states ----------------------------------------
-   Applied by artist-eq.js to elements elsewhere on the page. Restrained
-   gold plus a visible text badge - never colour alone. */
-article[data-lane].sb-lane-rec {
-  box-shadow: 0 0 0 2px var(--sbeq-gold), 0 10px 28px rgba(168, 134, 47, 0.16);
+/* --- Adaptive Visual Modes ---------------------------------------------
+   One centralized state: body[data-artist-mode]. Each mode sets three
+   restrained neutral variables; Street Banker gold never changes, and no
+   element moves, scales, or reorders. Transitions arm only after boot
+   (.sb-mode-ready), so a returning visitor's mode does not replay as an
+   animation on load. Full-stack IS the original page - white on white. */
+body[data-artist-mode] {
+  --adaptive-page-tint: #ffffff;
+  --adaptive-secondary-tint: #f6f3f0;
+  --adaptive-dark: #0f0e0c;
+  background-color: var(--adaptive-page-tint);
 }
-article[data-lane].sb-lane-rec .sb-lane-badge { display: block; }
-
-a[data-tool].sb-tool-rec {
-  box-shadow: inset 0 0 0 1px rgba(168, 134, 47, 0.55);
+body[data-artist-mode="release"] {
+  --adaptive-page-tint: #f3f3f0;
+  --adaptive-secondary-tint: #e7e7e2;
+  --adaptive-dark: #171717;
 }
-a[data-tool].sb-tool-rec .sb-tool-badge { display: inline-block; }
+body[data-artist-mode="growth"] {
+  --adaptive-page-tint: #f5efe2;
+  --adaptive-secondary-tint: #eadfc9;
+  --adaptive-dark: #1b1813;
+}
+body[data-artist-mode="recovery"] {
+  --adaptive-page-tint: #f1eee6;
+  --adaptive-secondary-tint: #d9d4c8;
+  --adaptive-dark: #101010;
+}
+body[data-artist-mode="partnership"] {
+  --adaptive-page-tint: #f4ead5;
+  --adaptive-secondary-tint: #dfcfaa;
+  --adaptive-dark: #17140f;
+}
+body.sb-mode-ready { transition: background-color 420ms ease; }
 
-/* CTA text swaps are plain text changes; no styling needed. */
+/* The EQ section rides the page tint rather than pinning white. */
+.sbeq { background: var(--adaptive-page-tint, #fff); }
+body.sb-mode-ready .sbeq { transition: background-color 420ms ease; }
+
+/* Adaptive image layers: absolutely positioned over the base photograph,
+   revealed only after their file has loaded. The base image never moves
+   and never unloads, so a missing or failed file costs nothing. */
+.sb-adaptive-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+}
+body.sb-mode-ready .sb-adaptive-layer { transition: opacity 420ms ease; }
+.sb-adaptive-layer.sb-adaptive-on { opacity: 1; }
+
+/* The one clear response line under the recommendation panel. */
+.sbeq-signal {
+  margin: 22px 0 0;
+  font-size: clamp(1rem, 2.6vw, 1.35rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--sbeq-gold);
+}
+body.sb-mode-ready .sbeq-signal { transition: opacity 200ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.sb-mode-ready,
+  body.sb-mode-ready .sbeq,
+  body.sb-mode-ready .sb-adaptive-layer,
+  body.sb-mode-ready .sbeq-signal {
+    transition: none !important;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sbeq * {
