@@ -1050,28 +1050,18 @@ def create_app():
         # command-desk figures are editable there, not injected live.
         config = get_landing_config()
 
-        # Only use a section image if the file is actually on disk, so a
-        # not-yet-uploaded asset falls back to the built-in visual instead
-        # of rendering a broken image.
+        # The hero photo and lane cards are the only homepage images; a
+        # missing file just leaves its slot empty rather than 500-ing.
         def _has_file(img):
             if not img:
                 return False
             rel = img["src"].split("/static/", 1)[-1].split("?", 1)[0]
             return os.path.exists(os.path.join(app.static_folder, rel))
 
-        if not _has_file(config.get("lanes", {}).get("image")):
-            config["lanes"] = {**config["lanes"], "image": None}
-        if not _has_file(config.get("features_image")):
-            config["features_image"] = None
-        if not _has_file(config.get("royalty_sweep", {}).get("image")):
-            config["royalty_sweep"] = {**config["royalty_sweep"], "image": None}
-        if not _has_file(config.get("hero_visual", {}).get("image")):
-            config["hero_visual"] = {**config["hero_visual"], "image": None}
-        if not _has_file(config.get("top_banner")):
-            config["top_banner"] = None
-        for key in ("hero_image", "ownership_image", "patchbay_image"):
-            if not _has_file(config.get(key)):
-                config[key] = None
+        if not _has_file(config["hero"].get("image")):
+            config["hero"] = {**config["hero"], "image": None}
+        if not _has_file(config["sweep"].get("image")):
+            config["sweep"] = {**config["sweep"], "image": None}
 
         return render_template("landing.html", config=config)
 

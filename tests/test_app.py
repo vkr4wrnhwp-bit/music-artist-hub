@@ -17,39 +17,33 @@ def test_index_renders_landing_page():
     body = response.get_data(as_text=True)
     assert "STREET BANKER" in body
     assert "ARTIST INFRASTRUCTURE" in body
-    # Hero is the user's full-bleed artwork; the words live in the image,
-    # the navigation lives in real buttons below it.
-    assert "sb-hero.jpg" in body
-    assert "Start Free Scan" in body
-    assert "ROYALTY SWEEP" in body  # engine section label
+    # Editorial hero: headline in HTML, performer photo beside it.
+    assert "THE ARTIST" in body and "BACK OFFICE." in body
+    assert "sb-hero-photo.jpg" in body
+    assert "SCAN MY CATALOG" in body
+    assert "ROYALTY SWEEP" in body
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():
     client = _demo()
     body = client.get("/").get_data(as_text=True)
     assert 'href="/overview"' in body
-    assert "Start Free Scan" in body
+    assert 'href="/recovery"' in body
     assert "Login" in body
 
 
 def _all_landing_hrefs(config):
+    """Every href the homepage renders, in one flat list."""
     hrefs = [l["href"] for l in config["nav"]["links"]]
     hrefs += [a["href"] for a in config["nav"]["actions"]]
-    hrefs += [cta["href"] for cta in config["hero"]["ctas"]]
-    hrefs += [config["hero_visual"]["recoveries_cta"]["href"]]
-    hrefs += [f["link"]["href"] for f in config["features"]]
-    hrefs += [config["lanes"]["cta"]["href"]]
-    hrefs += [i["href"] for i in config["lanes"]["items"]]
-    hrefs += [config["royalty_sweep"]["cta"]["href"], config["royalty_sweep"]["engine"]["results_cta"]["href"]]
-    hrefs += [s["href"] for s in config["services"]["items"]]
-    for p in config.get("pillars", []):
-        hrefs.append(p["cta"]["href"])
-        if p.get("secondary_cta"):
-            hrefs.append(p["secondary_cta"]["href"])
+    hrefs += [c["href"] for c in config["hero"]["ctas"]]
+    hrefs += [c["link"]["href"] for c in config["lanes"]["cards"]]
+    hrefs.append(config["sweep"]["cta"]["href"])
+    hrefs += [t["href"] for t in config["tools"]["items"]]
+    hrefs.append(config["final_cta"]["cta"]["href"])
     for col in config["footer"]["columns"]:
         hrefs += [l["href"] for l in col["links"]]
     return hrefs
-
 
 def test_landing_page_links_all_resolve():
     """Every landing link points at a real GET route or an on-page anchor
@@ -77,47 +71,34 @@ def test_landing_page_links_all_resolve():
             assert ok, f"unknown route: {href}"
 
 
-def test_landing_command_desk_shows_all_sources():
-    # The command desk lists these sources; when a photo replaces the built-in
-    # SVG the names live in the image, so assert the editable config data.
-    from landing_config import get_landing_config
-    sources = [s["name"] for s in get_landing_config()["hero_visual"]["connected_sources"]]
-    for platform in ["Spotify", "Apple Music", "ASCAP", "BMI", "The MLC", "SoundExchange", "YouTube Content ID"]:
-        assert platform in sources
-
-
 def test_landing_page_includes_feature_cards():
-    # The six-engine artwork replaces the feature cards; each panel is a
-    # clickable region whose aria-label names the module it opens.
-    client = _demo()
-    body = client.get("/").get_data(as_text=True).lower()
-    for name in ["distribution engine", "artist development", "asset partnership",
-                 "direct-to-fan", "catalog engine", "backend intelligence"]:
-        assert name in body
-
-
-def test_landing_page_has_no_placeholder_trust_strip():
-    # The fake-label trust strip was removed for honesty; nothing on the
-    # page may imply endorsements from labels that don't exist.
+    # Signature Tools strip: five real modules, names only, each linking
+    # at its own page.
     client = _demo()
     body = client.get("/").get_data(as_text=True)
-    assert "TRUSTED BY INDEPENDENT ARTISTS AND LABELS WORLDWIDE" not in body
-    assert "Nightdrive Records" not in body
+    for name in ["Artist Twin", "Release Autopilot", "Metadata Passport",
+                 "Rollout Studio", "Deal Room"]:
+        assert name in body
+    for href in ["/artist-twin", "/releases/autopilot", "/metadata-passport",
+                 "/rollout-studio", "/deal-room"]:
+        assert 'href="%s"' % href in body
 
 
-def test_landing_includes_lanes_and_engine():
-    """The design-set homepage: artwork carries the words exactly once,
-    navigation is aria-labeled regions and real buttons."""
+def test_landing_is_seven_editorial_sections():
+    """Seven sections, one message each, no feature directory."""
     body = _demo().get("/").get_data(as_text=True)
-    assert 'id="infrastructure"' in body
-    assert 'aria-label="Lane 01' in body  # each rack unit clicks through
-    assert body.count("Explore The Three Lanes") == 1
-    assert "THE RECOVERY ENGINE" in body
-    # The pillar wall and its placeholder visuals stay gone.
-    assert "Everything Street Banker Is" not in body
-    assert "Nova Reign" not in body
-    # The services strip provides the deep links on the same anchor.
-    assert 'id="services"' in body and "BUILT FOR EVERY STAGE" in body
+    assert "THE THREE STREET BANKER LANES" in body
+    for h in ["RELEASE THE RECORD.", "BUILD THE ARTIST.", "BUILD THE ASSET."]:
+        assert h in body
+    assert "FIND WHAT YOU EARNED." in body
+    assert "EVERYTHING BEHIND THE ARTIST." in body
+    assert "YOUR MUSIC IS THE PRODUCT." in body
+    # Demo figures inside the product visual are labeled, never implied real.
+    assert "ILLUSTRATIVE DEMO DATA" in body
+    # Everything moved deeper into the site stays gone.
+    for old in ["Everything Street Banker Is", "Nightdrive", "ONE PLATFORM",
+                "FROM RELEASE TO OWNERSHIP", "No Upfront Fees"]:
+        assert old not in body
 
 
 def test_scan_recovery_summary_route():
@@ -3518,17 +3499,6 @@ def test_build_landing_hero_reflects_catalog_status():
     assert spotify_node["status_tone"] == "ok"
 
 
-def test_get_landing_config_has_swappable_hero_visual():
-    from landing_config import get_landing_config
-    config = get_landing_config()
-    # Hero visual is swappable via a variant, and command-desk data is editable.
-    assert config["hero_visual"]["variant"] == "commandDesk"
-    assert config["hero_visual"]["connected_sources"]
-    assert config["hero_visual"]["recovery_opportunities"]
-    assert len(config["hero"]["headline"]) == 4
-    assert len(config["features"]) == 4
-
-
 def test_webhook_auto_setup(monkeypatch):
     import hashlib as _hashlib
     import hmac as _hmac
@@ -3717,14 +3687,12 @@ def test_backup_download(monkeypatch):
 
 
 def test_homepage_distribution_links():
-    # Nav and the hero buttons route into the distribution funnel; the
-    # signup page itself carries the sign-up CTA.
+    # Lane 01 and the footer route into the distribution page.
     app_obj = create_app()
     client = app_obj.test_client()
     home = client.get("/").get_data(as_text=True)
     assert 'href="/services/distribution"' in home
-    assert "Distribute Your Music" in home
-    assert 'href="/submit"' in home
+    assert "Explore Distribution" in home
     assert client.get("/services/distribution").status_code == 200
 
 
