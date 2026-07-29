@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/artist-eq.css?v=2">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=3">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -78,10 +78,15 @@
     <div class="text-center">
       <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ lanes.heading }}</h2>
       <p class="mt-3 text-sm text-[#5a544a]">{{ lanes.support }}</p>
+      <!-- Revealed by the Artist EQ when priorities span all three lanes. -->
+      <p class="mx-auto mt-3 hidden max-w-xs rounded-sm border border-[#a8862f]/50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8a6d1f]" id="sb-lanes-balanced" hidden>Balanced Program — your mix spans all three lanes</p>
     </div>
     <div class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-8">
       {% for card in lanes.cards %}
-      <article class="flex flex-col">
+      {% set lane_id = ['distribution', 'development', 'partnership'][loop.index0] %}
+      <article class="flex flex-col rounded-md transition-shadow" data-lane="{{ lane_id }}">
+        <!-- Badge the Artist EQ reveals on the recommended lane. -->
+        <p class="sb-lane-badge mb-2 hidden text-[10px] font-bold uppercase tracking-[0.22em] text-[#8a6d1f]" hidden>★ Recommended for your mix</p>
         <img src="{{ card.image }}" alt="{{ card.headline }}" class="block w-full object-cover" loading="lazy">
         <div class="mt-6">
           <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ card.label }}</div>
@@ -113,7 +118,7 @@
       {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
     </h2>
     <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-300">{{ sweep.description }}</p>
-    <a href="{{ sweep.cta.href }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
+    <a href="{{ sweep.cta.href }}" id="sb-sweep-cta" data-default-label="{{ sweep.cta.label }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
     <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-400">{{ sweep.note }}</p>
   </div>
 </section>
@@ -129,7 +134,9 @@
     </div>
     <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-5">
       {% for t in tools['items'] %}
-      <a href="{{ t.href }}" class="group flex flex-col items-center gap-4 rounded-lg px-1 py-6 text-center transition-colors hover:bg-[#141210]/[0.04] sm:px-2">
+      <a href="{{ t.href }}" data-tool="{{ t.name }}" class="group relative flex flex-col items-center gap-4 rounded-lg px-1 py-6 text-center transition-colors hover:bg-[#141210]/[0.04] sm:px-2">
+        <!-- Revealed by the Artist EQ when this module is in the mix. -->
+        <span class="sb-tool-badge absolute right-1 top-1 hidden rounded-sm border border-[#a8862f]/60 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[#8a6d1f]" hidden>Recommended</span>
         <!-- A rack module, not a badge: black face, light legend, two
              mounting screws, and a bevel along the top edge where the panel
              catches the light - the same object the lane artwork is made of.
@@ -165,7 +172,7 @@
     <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
       {% for line in fin.headline %}<span class="block">{{ line }}</span>{% endfor %}
     </h2>
-    <a href="{{ fin.cta.href }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
+    <a href="{{ fin.cta.href }}" id="sb-final-cta" data-default-label="{{ fin.cta.label }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
     <p class="mx-auto mt-6 max-w-sm text-[12px] leading-relaxed text-[#6b6459]">{{ fin.note }}</p>
   </section>
 
@@ -198,6 +205,6 @@
   </footer>
 </div>
 
-<script src="/static/js/artist-eq.js?v=1" defer></script>
+<script src="/static/js/artist-eq.js?v=2" defer></script>
 </body>
 </html>

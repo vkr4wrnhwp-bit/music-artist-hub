@@ -520,13 +520,78 @@ def create_app():
                 sent = True
             except Exception:
                 sent = False
-        store.add_inbox("demo-access", json.dumps({
+        store.add_inbox("demo-access", {
             "email": email, "workspace": workspace, "password_sent": sent,
-            "requested": datetime.now().isoformat(timespec="seconds")}))
+            "requested": datetime.now().isoformat(timespec="seconds")})
         resp = redirect("/login?demo=%s#tour-rack" % ("sent" if sent else "pending"))
         resp.set_cookie("sb_demo_lead", email, max_age=90 * 24 * 3600,
                         httponly=True, samesite="Lax")
         return resp
+
+    def _clean_signal_profile(raw):
+        """Server-side validation of an Artist Signal Profile.
+
+        Only known priority keys, clamped 0-10; only known module names;
+        strings length-capped. Returns the canonical dict or None - raw
+        client JSON is never stored or echoed."""
+        from artist_eq_config import get_artist_eq_config
+
+        if not isinstance(raw, dict):
+            return None
+        cfg = get_artist_eq_config()
+        keys = [b["key"] for b in cfg["bands"]]
+        labels = {b["key"]: b["label"] for b in cfg["bands"]}
+        prio_in = raw.get("priorities")
+        if not isinstance(prio_in, dict):
+            return None
+        priorities = {}
+        for k in keys:
+            try:
+                v = int(round(float(prio_in.get(k))))
+            except (TypeError, ValueError):
+                return None
+            priorities[k] = max(0, min(10, v))
+
+        def _s(value, cap):
+            return str(value)[:cap] if isinstance(value, str) else ""
+
+        known_lanes = ([l["name"] for l in cfg["lanes"]] +
+                       [cfg["sweep_first"]["name"], cfg["integrated"]["name"]])
+        lane = _s(raw.get("recommendedLane"), 64)
+        if lane not in known_lanes:
+            lane = ""
+        modules = [m for m in (raw.get("recommendedModules") or [])
+                   if isinstance(m, str) and m in cfg["modules"]][:4]
+        actions = [_s(a, 120) for a in (raw.get("firstActions") or [])
+                   if isinstance(a, str)][:3]
+        top = sorted(keys, key=lambda k: -priorities[k])[:3]
+        return {
+            "version": 1,
+            "createdAt": _s(raw.get("createdAt"), 40),
+            "updatedAt": _s(raw.get("updatedAt"), 40),
+            "preset": _s(raw.get("preset"), 32) or "Custom Mix",
+            "priorities": priorities,
+            "topPriorities": [labels[k] for k in top],
+            "recommendedLane": lane,
+            "recommendedModules": modules,
+            "firstActions": actions,
+            "source": "homepage_artist_eq",
+        }
+
+    @app.route("/api/artist-signal-profile", methods=["GET", "POST"])
+    def artist_signal_profile_api():
+        """The saved EQ mix, associated with the signed-in account so the
+        Command Center and Artist Twin can read it server-side."""
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        if request.method == "GET":
+            return jsonify({"profile": store.get_artist_signal_profile(user["id"])})
+        clean = _clean_signal_profile(request.get_json(silent=True))
+        if clean is None:
+            return jsonify({"error": "invalid profile"}), 400
+        store.set_artist_signal_profile(user["id"], clean)
+        return jsonify({"ok": True})
 
     @app.route("/webhooks/resend", methods=["POST"])
     def resend_webhook():
@@ -2131,7 +2196,8 @@ def create_app():
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
-                     "/terms", "/privacy", "/sw.js", "/demo-access"}
+                     "/terms", "/privacy", "/sw.js", "/demo-access",
+                     "/api/artist-signal-profile"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -2361,12 +2427,31 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        signal = store.get_artist_signal_profile(user["id"])
+        signal_ctx = None
+        if signal and isinstance(signal.get("priorities"), dict):
+            from artist_eq_config import get_artist_eq_config
+            band_keys = [b["key"] for b in get_artist_eq_config()["bands"]]
+            vals = [signal["priorities"].get(k, 5) for k in band_keys]
+            # simplified curve: 15 points on a 300x60 canvas
+            pts = " ".join("%d,%d" % (i * 300 // 14, 60 - v * 6)
+                           for i, v in enumerate(vals))
+            updated = (signal.get("_updated") or "")[:10]
+            stale = False
+            try:
+                stale = (datetime.now() -
+                         datetime.fromisoformat(signal["_updated"])).days >= 60
+            except Exception:
+                pass
+            signal_ctx = {"profile": signal, "points": pts,
+                          "updated": updated, "stale": stale}
         return render_template(
             "command_center.html", active_page="command-center",
             summary=cc.get_summary(user["id"]),
             cc_alerts=cc.build_alerts(user["id"]),
             cc_actions=cc.open_actions(user["id"]),
             modules=cc.MODULES,
+            signal=signal_ctx,
             **build_dashboard_context())
 
     @app.route("/actions", methods=["GET", "POST"])
@@ -4261,9 +4346,20 @@ def create_app():
             os_tracks_list, osctx,
             store.list_pulse_snapshots(user["id"], limit=30),
             artist_os.action_queue([(t, osctx) for t in os_tracks_list]))
+        # Artist Signal Profile: priorities the artist set on the homepage
+        # EQ. Selected, not measured - the template labels it that way.
+        signal = store.get_artist_signal_profile(user["id"])
+        signal_ctx = None
+        if signal and signal.get("topPriorities"):
+            signal_ctx = {
+                "top": signal["topPriorities"][:3],
+                "lane": signal.get("recommendedLane") or "",
+                "preset": signal.get("preset") or "Custom Mix",
+                "updated": (signal.get("_updated") or "")[:10],
+            }
         return render_template("artist_twin.html", active_page="artist-twin",
                                settings=settings, twin=twin, generated=generated,
-                               strategist=strategist,
+                               strategist=strategist, signal=signal_ctx,
                                history=store.list_twin_generations(user["id"]),
                                **build_dashboard_context())
 
@@ -5753,7 +5849,11 @@ def create_app():
         catalog = get_platform_catalog()
         sources = [{"name": p.platform, "logo": platform_logo_key(p.platform),
                     "connected": p.status == "connected"} for p in catalog[:8]]
-        return render_template("onboarding.html", sources=sources)
+        eq = get_artist_eq_config()
+        return render_template(
+            "onboarding.html", sources=sources,
+            program_links_json=json.dumps({
+                "modules": eq["modules"], "actions": eq["action_routes"]}))
 
     _DISPUTE_TYPES = ["missing payment", "wrong split", "content claim",
                       "takedown", "metadata error", "chargeback", "other"]

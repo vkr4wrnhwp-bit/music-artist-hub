@@ -1,11 +1,16 @@
-/* The Artist EQ.
+/* The Artist EQ — the Artist Signal Profile control surface.
 
    Reads its data from the JSON block the template renders, drives fifteen
-   native range inputs, draws the response curve, and works out which lane
-   the visitor's own settings point at.
+   native range inputs, draws the response curve, works out which lane the
+   visitor's own settings point at, and subtly adapts the rest of the
+   homepage (lane card, tool badges, two CTAs) to that result.
 
    Everything shown is derived from the sliders in front of the user. No
-   figure here is a forecast, an estimate, or a promise. */
+   figure here is a forecast, an estimate, or a promise.
+
+   Persistence: streetBankerArtistSignalProfile (v1), migrated once from
+   the legacy streetBankerArtistEq key. All stored data is validated and
+   clamped before use, and only ever rendered through textContent. */
 (function () {
   "use strict";
 
@@ -23,6 +28,8 @@
     root.querySelectorAll(".sbeq-range"));
   var presetButtons = Array.prototype.slice.call(
     root.querySelectorAll(".sbeq-preset"));
+  var bankButtons = Array.prototype.slice.call(
+    root.querySelectorAll(".sbeq-bank"));
   var curveLine = document.getElementById("sbeq-curve-line");
   var curveFill = document.getElementById("sbeq-curve-fill");
   var laneEl = document.getElementById("sbeq-lane");
@@ -31,14 +38,28 @@
   var actionsEl = document.getElementById("sbeq-actions");
   var buildEl = document.getElementById("sbeq-build");
   var liveEl = document.getElementById("sbeq-live");
+  var resetEl = document.getElementById("sbeq-reset");
+
+  /* Homepage elements this EQ is allowed to touch. All optional: the EQ
+     works even if a section is edited away later. */
+  var laneCards = Array.prototype.slice.call(
+    document.querySelectorAll("article[data-lane]"));
+  var balancedEl = document.getElementById("sb-lanes-balanced");
+  var toolTiles = Array.prototype.slice.call(
+    document.querySelectorAll("a[data-tool]"));
+  var sweepCta = document.getElementById("sb-sweep-cta");
+  var finalCta = document.getElementById("sb-final-cta");
 
   var CUSTOM = "custom-mix";
+  var LABELS = {};
+  CFG.bands.forEach(function (b) { LABELS[b.key] = b.label; });
+
   var current = { preset: CFG.default_preset, values: {} };
   var lastResult = null;
+  var committedLaneId = null;      // what the homepage currently reflects
+  var createdAt = null;            // preserved across saves
 
-  /* --- analytics ------------------------------------------------------
-     Fires into whatever the site already has. If nothing is installed
-     this is a no-op - we do not add a provider for one component. */
+  /* --- analytics: general names, no priority values --------------------- */
   function track(name, detail) {
     try {
       if (typeof window.gtag === "function") {
@@ -58,9 +79,7 @@
     return null;
   }
 
-  /* --- the curve ------------------------------------------------------
-     Catmull-Rom through the fifteen points, converted to cubic beziers so
-     the line is smooth without overshooting the slider positions. */
+  /* --- the curve --------------------------------------------------------- */
   function pointsFor(values) {
     var pts = [];
     for (var i = 0; i < CFG.bands.length; i++) {
@@ -93,17 +112,17 @@
   }
 
   function drawCurve(values) {
-    var pts = pointsFor(values);
-    var d = smoothPath(pts);
+    var d = smoothPath(pointsFor(values));
     if (curveLine) { curveLine.setAttribute("d", d); }
-    /* Fill sits between the curve and the 0 dB line, so boosts read as
-       lift above centre and cuts as dips below it. */
-    if (curveFill) {
-      curveFill.setAttribute("d", d + "L1200 120L0 120Z");
-    }
+    if (curveFill) { curveFill.setAttribute("d", d + "L1200 120L0 120Z"); }
   }
 
-  /* --- recommendation -------------------------------------------------- */
+  /* --- recommendation ----------------------------------------------------
+     Scoring: each lane's score is the MEAN of its member priorities, so a
+     six-band lane and a four-band lane compete on the same 0-10 scale.
+     Royalty Sweep First is a rule, not a score: Royalty Recovery in the
+     top two AND >= sweep_first_min. Integrated fires when the top two
+     lanes sit inside lane_tie_gap of each other. */
   function sortedKeys(values) {
     return Object.keys(values).sort(function (a, b) {
       if (values[b] !== values[a]) { return values[b] - values[a]; }
@@ -111,14 +130,8 @@
     });
   }
 
-  function recommendLane(values) {
-    var order = sortedKeys(values);
-    var topTwo = order.slice(0, 2);
-    if (topTwo.indexOf("royaltyRecovery") !== -1 &&
-        values.royaltyRecovery >= CFG.sweep_first_min) {
-      return CFG.sweep_first;
-    }
-    var scored = CFG.lanes.map(function (lane) {
+  function scoreLanes(values) {
+    return CFG.lanes.map(function (lane) {
       var total = 0;
       lane.keys.forEach(function (k) { total += values[k]; });
       return {
@@ -126,12 +139,58 @@
         blurb: lane.blurb, score: total / lane.keys.length
       };
     }).sort(function (a, b) { return b.score - a.score; });
+  }
 
+  function recommendLane(values) {
+    var order = sortedKeys(values);
+    if (order.slice(0, 2).indexOf("royaltyRecovery") !== -1 &&
+        values.royaltyRecovery >= CFG.sweep_first_min) {
+      return Object.assign({ score: 10 }, CFG.sweep_first);
+    }
+    var scored = scoreLanes(values);
     if (scored.length > 1 &&
         (scored[0].score - scored[1].score) < CFG.lane_tie_gap) {
-      return CFG.integrated;
+      return Object.assign({ score: scored[0].score }, CFG.integrated);
     }
     return scored[0];
+  }
+
+  /* Hysteresis: the homepage only re-commits to a new lane when the
+     challenger clearly wins mid-drag (by lane_switch_margin beyond the
+     incumbent), or when the sliders settle and the challenger still
+     leads. The curve and the module/action lists stay live. */
+  function laneScoreById(values, id) {
+    if (id === CFG.sweep_first.id || id === CFG.integrated.id) { return null; }
+    var scored = scoreLanes(values);
+    for (var i = 0; i < scored.length; i++) {
+      if (scored[i].id === id) { return scored[i].score; }
+    }
+    return null;
+  }
+
+  function chooseLane(values, settled) {
+    var target = recommendLane(values);
+    if (committedLaneId === null || settled ||
+        target.id === committedLaneId) {
+      return target;
+    }
+    /* Mid-drag: rule-based states switch immediately (they are yes/no,
+       not a score race); scored lanes must clear the margin. */
+    if (target.id === CFG.sweep_first.id || target.id === CFG.integrated.id ||
+        committedLaneId === CFG.sweep_first.id ||
+        committedLaneId === CFG.integrated.id) {
+      return target;
+    }
+    var incumbent = laneScoreById(values, committedLaneId);
+    if (incumbent !== null &&
+        target.score - incumbent < CFG.lane_switch_margin) {
+      /* keep the incumbent for now; the settle pass will decide */
+      var scored = scoreLanes(values);
+      for (var i = 0; i < scored.length; i++) {
+        if (scored[i].id === committedLaneId) { return scored[i]; }
+      }
+    }
+    return target;
   }
 
   function recommendModules(values) {
@@ -158,12 +217,8 @@
     return out;
   }
 
-  function render(values) {
-    var lane = recommendLane(values);
-    var modules = recommendModules(values);
-    var actions = recommendActions(values);
-    lastResult = { lane: lane, modules: modules, actions: actions };
-
+  /* --- the recommendation panel ----------------------------------------- */
+  function renderPanel(lane, modules, actions) {
     if (laneEl) {
       laneEl.textContent = "";
       if (lane.href) {
@@ -188,9 +243,7 @@
           link.textContent = name;
           li.appendChild(link);
         } else {
-          /* Real module, no page of its own yet. Printed as plain text
-             rather than wrapped in a link that would go nowhere. */
-          li.textContent = name;
+          li.textContent = name;   // real module, no page yet - no dead link
         }
         modulesEl.appendChild(li);
       });
@@ -206,7 +259,52 @@
     }
   }
 
-  /* Announce the outcome, not every slider tick. */
+  /* --- homepage adaptation -----------------------------------------------
+     Only on lane commit, never per pointer-move: one lane card outline,
+     tool badges, and two CTA text swaps. Nothing moves, hides, or
+     reorders; remove the profile and the page is exactly the default. */
+  function adaptHomepage(lane, modules) {
+    laneCards.forEach(function (card) {
+      var badge = card.querySelector(".sb-lane-badge");
+      var on = card.getAttribute("data-lane") === lane.id;
+      card.classList.toggle("sb-lane-rec", on);
+      if (badge) { badge.hidden = !on; }
+    });
+    if (balancedEl) { balancedEl.hidden = (lane.id !== CFG.integrated.id); }
+    if (balancedEl) {
+      balancedEl.classList.toggle("hidden", lane.id !== CFG.integrated.id);
+    }
+
+    toolTiles.forEach(function (tile) {
+      var on = modules.indexOf(tile.getAttribute("data-tool")) !== -1;
+      tile.classList.toggle("sb-tool-rec", on);
+      var badge = tile.querySelector(".sb-tool-badge");
+      if (badge) {
+        badge.hidden = !on;
+        badge.classList.toggle("hidden", !on);
+      }
+    });
+
+    if (sweepCta) {
+      sweepCta.textContent = (lane.id === CFG.sweep_first.id)
+        ? CFG.sweep_cta_recommended
+        : sweepCta.getAttribute("data-default-label");
+    }
+    if (finalCta) {
+      finalCta.textContent = CFG.final_cta_by_lane[lane.id] ||
+        finalCta.getAttribute("data-default-label");
+    }
+  }
+
+  function commitLane(lane, modules) {
+    var changed = lane.id !== committedLaneId;
+    committedLaneId = lane.id;
+    adaptHomepage(lane, modules);
+    if (changed) { track("artist_eq_lane_changed", { lane: lane.name }); }
+    return changed;
+  }
+
+  /* --- announcements ------------------------------------------------------ */
   var announceTimer = null;
   function announce() {
     if (!liveEl || !lastResult) { return; }
@@ -218,7 +316,7 @@
     }, 700);
   }
 
-  /* --- slider plumbing ------------------------------------------------- */
+  /* --- slider plumbing ---------------------------------------------------- */
   function readInputs() {
     var values = {};
     inputs.forEach(function (input) {
@@ -252,39 +350,148 @@
     });
   }
 
-  function update(values, presetId) {
+  /* --- the Artist Signal Profile ------------------------------------------ */
+  function clamp(v) {
+    v = Math.round(Number(v));
+    if (isNaN(v)) { return null; }
+    return Math.min(10, Math.max(0, v));
+  }
+
+  function validValues(raw) {
+    if (!raw || typeof raw !== "object") { return null; }
+    var values = {};
+    for (var i = 0; i < CFG.bands.length; i++) {
+      var v = clamp(raw[CFG.bands[i].key]);
+      if (v === null) { return null; }   // every priority must exist
+      values[CFG.bands[i].key] = v;
+    }
+    return values;
+  }
+
+  function buildProfile() {
+    var preset = presetById(current.preset);
+    var top = sortedKeys(current.values).slice(0, 3).map(function (k) {
+      return LABELS[k] || k;
+    });
+    var now = new Date().toISOString();
+    if (!createdAt) { createdAt = now; }
+    return {
+      version: CFG.profile_version,
+      createdAt: createdAt,
+      updatedAt: now,
+      preset: preset ? preset.name : "Custom Mix",
+      priorities: current.values,
+      topPriorities: top,
+      recommendedLane: lastResult ? lastResult.lane.name : null,
+      recommendedModules: lastResult ? lastResult.modules : [],
+      firstActions: lastResult ? lastResult.actions : [],
+      source: CFG.profile_source
+    };
+  }
+
+  function saveProfile() {
+    try {
+      window.localStorage.setItem(CFG.storage_key,
+        JSON.stringify(buildProfile()));
+    } catch (e) { /* private mode or full quota: the EQ still works */ }
+  }
+
+  var saveTimer = null;
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveProfile, CFG.save_debounce_ms);
+  }
+
+  function restoreProfile() {
+    /* New key first; fall back to the legacy key once and migrate. Any
+       malformed, unsupported, or incomplete data is ignored safely. */
+    try {
+      var raw = window.localStorage.getItem(CFG.storage_key);
+      if (raw) {
+        var p = JSON.parse(raw);
+        if (p && p.version === CFG.profile_version) {
+          var values = validValues(p.priorities);
+          if (values) {
+            createdAt = (typeof p.createdAt === "string") ? p.createdAt : null;
+            return { values: values, presetName: String(p.preset || "") };
+          }
+        }
+      }
+      var legacy = window.localStorage.getItem(CFG.legacy_storage_key);
+      if (legacy) {
+        var old = JSON.parse(legacy);
+        var oldValues = validValues(old && old.priorities);
+        if (oldValues) {
+          createdAt = (old && typeof old.savedAt === "string")
+            ? old.savedAt : null;
+          return { values: oldValues,
+                   presetName: String((old && old.preset) || "") };
+        }
+      }
+    } catch (e) { /* storage unavailable or corrupt: use the default */ }
+    return null;
+  }
+
+  function presetIdByName(name) {
+    for (var i = 0; i < CFG.presets.length; i++) {
+      if (CFG.presets[i].name === name) { return CFG.presets[i].id; }
+    }
+    return CUSTOM;
+  }
+
+  /* --- update pipeline ----------------------------------------------------
+     live: curve + panel follow every input; the homepage (lane card and
+     CTA text) waits for a clear win or the settle timer. */
+  var settleTimer = null;
+  function update(values, presetId, opts) {
+    opts = opts || {};
     current.values = values;
     current.preset = presetId;
     drawCurve(values);
-    render(values);
+
+    var lane = chooseLane(values, !!opts.settled);
+    var modules = recommendModules(values);
+    var actions = recommendActions(values);
+    lastResult = { lane: lane, modules: modules, actions: actions };
+
+    renderPanel(lane, modules, actions);
     markPreset(presetId);
     announce();
+
+    if (opts.settled || opts.commit) {
+      commitLane(lane, modules);
+    } else {
+      /* keep tool badges live-ish but only re-commit the lane on settle */
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(function () {
+        var settledLane = recommendLane(current.values);
+        lastResult.lane = settledLane;
+        renderPanel(settledLane, lastResult.modules, lastResult.actions);
+        commitLane(settledLane, lastResult.modules);
+        announce();
+      }, CFG.settle_ms);
+    }
+    scheduleSave();
   }
 
-  /* Presets glide into place, but the glide is decoration only.
-
-     The result is committed before the first frame is ever requested: a
-     background tab, a throttled timer or a browser that never runs an
-     animation frame must still end up with the right sliders and the
-     right recommendation. */
+  /* --- preset glide (decoration only; state commits first) ---------------- */
   var animFrame = null;
   function animateTo(target, presetId) {
     if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
     var from = readInputs();
 
     writeInputs(target);
-    update(target, presetId);
+    update(target, presetId, { commit: true });
 
     if (reduceMotion || typeof window.requestAnimationFrame !== "function") {
       return;
     }
-
     var start = null;
     var DURATION = 420;
     function step(ts) {
       if (start === null) { start = ts; }
       var t = Math.min(1, (ts - start) / DURATION);
-      var e = 1 - Math.pow(1 - t, 3);         // easeOutCubic
+      var e = 1 - Math.pow(1 - t, 3);
       var frame = {};
       Object.keys(target).forEach(function (k) {
         frame[k] = Math.round(from[k] + (target[k] - from[k]) * e);
@@ -302,20 +509,19 @@
     animFrame = requestAnimationFrame(step);
   }
 
-  /* --- events ---------------------------------------------------------- */
+  /* --- events -------------------------------------------------------------- */
   var sliderTrackTimer = null;
   inputs.forEach(function (input) {
     input.addEventListener("input", function () {
-      cancelAnimationFrame(animFrame);
+      if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
       var values = readInputs();
-      input.setAttribute("aria-valuetext", describe(parseInt(input.value, 10)));
-      /* Touching a slider means the mix is now the visitor's own. */
+      input.setAttribute("aria-valuetext",
+        describe(parseInt(input.value, 10)));
       update(values, CUSTOM);
       clearTimeout(sliderTrackTimer);
       sliderTrackTimer = setTimeout(function () {
-        track("artist_eq_slider_changed", {
-          band: input.dataset.band, value: parseInt(input.value, 10)
-        });
+        /* band name only - priority values stay on the user's machine */
+        track("artist_eq_slider_changed", { band: input.dataset.band });
       }, 500);
     });
   });
@@ -326,10 +532,10 @@
       var preset = presetById(id);
       if (!preset) { return; }
       if (!preset.values) {
-        /* Custom Mix keeps whatever the visitor last set. */
         markPreset(CUSTOM);
         current.preset = CUSTOM;
         announce();
+        scheduleSave();
       } else {
         animateTo(Object.assign({}, preset.values), id);
       }
@@ -337,73 +543,100 @@
     });
   });
 
-  if (buildEl) {
-    buildEl.addEventListener("click", function (ev) {
-      var preset = presetById(current.preset);
-      var payload = {
-        preset: preset ? preset.name : "Custom Mix",
-        priorities: current.values,
-        recommendedLane: lastResult ? lastResult.lane.name : null,
-        recommendedModules: lastResult ? lastResult.modules : [],
-        firstActions: lastResult ? lastResult.actions : [],
-        source: "artist-eq",
-        savedAt: new Date().toISOString()
-      };
-      try {
-        window.localStorage.setItem(CFG.storage_key, JSON.stringify(payload));
-      } catch (e) {
-        /* Private mode or a full quota: still continue to signup rather
-           than trapping the visitor on the homepage. */
-      }
-      track("artist_eq_program_built", {
-        preset: payload.preset, lane: payload.recommendedLane
+  /* --- Reset Mix ------------------------------------------------------------
+     Returns the board to the default preset. Resets the mix only: it
+     never touches an account, a connection, or any release/royalty/fan
+     data - there is nothing here that could. Confirmation only when a
+     custom mix has drifted well away from every named preset. */
+  function substantiallyCustom() {
+    if (current.preset !== CUSTOM) { return false; }
+    var best = Infinity;
+    CFG.presets.forEach(function (p) {
+      if (!p.values) { return; }
+      var d = 0;
+      Object.keys(p.values).forEach(function (k) {
+        d += Math.abs((current.values[k] || 0) - p.values[k]);
       });
-      /* Let the link do the navigating - no preventDefault, so the CTA
-         still works if anything above threw. */
-      void ev;
+      best = Math.min(best, d);
+    });
+    return best > 8;
+  }
+
+  if (resetEl) {
+    resetEl.addEventListener("click", function () {
+      if (substantiallyCustom() &&
+          !window.confirm("Reset your mix to the default preset? Your " +
+                          "current custom settings will be replaced.")) {
+        return;
+      }
+      var def = presetById(CFG.default_preset);
+      animateTo(Object.assign({}, def.values), def.id);
+      saveProfile();
+      track("artist_signal_profile_reset", {});
     });
   }
 
-  /* --- boot ------------------------------------------------------------ */
-  function restore() {
-    try {
-      var raw = window.localStorage.getItem(CFG.storage_key);
-      if (!raw) { return null; }
-      var saved = JSON.parse(raw);
-      if (!saved || !saved.priorities) { return null; }
-      var values = {};
-      var ok = true;
-      CFG.bands.forEach(function (b) {
-        var v = saved.priorities[b.key];
-        if (typeof v !== "number" || v < 0 || v > 10) { ok = false; }
-        values[b.key] = Math.min(10, Math.max(0, Math.round(v || 0)));
+  /* --- mobile banks ---------------------------------------------------------
+     Buttons show one bank of five channels below 640px. Values in hidden
+     banks persist; the curve and every recommendation always use all
+     fifteen. Pure show/hide - no slider is ever rebuilt. */
+  function applyBank(bankId) {
+    bankButtons.forEach(function (btn) {
+      btn.setAttribute("aria-pressed",
+        btn.dataset.bank === bankId ? "true" : "false");
+    });
+    Array.prototype.forEach.call(
+      root.querySelectorAll(".sbeq-channel"), function (ch) {
+        if (ch.getAttribute("data-bank") === bankId) {
+          ch.removeAttribute("data-hidden-bank");
+        } else {
+          ch.setAttribute("data-hidden-bank", "");
+        }
       });
-      return ok ? { values: values, preset: saved.preset } : null;
-    } catch (e) { return null; }
+  }
+  bankButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      applyBank(btn.dataset.bank);
+    });
+  });
+  if (bankButtons.length) { applyBank(bankButtons[0].dataset.bank); }
+
+  /* --- Build My Program ----------------------------------------------------- */
+  if (buildEl) {
+    buildEl.addEventListener("click", function () {
+      /* Recalculate at the moment of commitment, then persist the full
+         profile. Only the source indicator rides the URL. */
+      var lane = recommendLane(current.values);
+      lastResult = {
+        lane: lane,
+        modules: recommendModules(current.values),
+        actions: recommendActions(current.values)
+      };
+      saveProfile();
+      track("artist_eq_program_built", {
+        preset: (presetById(current.preset) || { name: "Custom Mix" }).name,
+        lane: lane.name
+      });
+      /* no preventDefault: the link navigates even if anything above threw */
+    });
   }
 
-  function presetIdByName(name) {
-    for (var i = 0; i < CFG.presets.length; i++) {
-      if (CFG.presets[i].name === name) { return CFG.presets[i].id; }
-    }
-    return CUSTOM;
-  }
-
-  var saved = restore();
-  var startValues;
-  var startPreset;
+  /* --- boot ------------------------------------------------------------------ */
+  var saved = restoreProfile();
+  var startValues, startPreset;
   if (saved) {
     startValues = saved.values;
-    startPreset = presetIdByName(saved.preset);
+    startPreset = presetIdByName(saved.presetName);
+    track("artist_signal_profile_loaded", { preset: saved.presetName });
   } else {
     var def = presetById(CFG.default_preset);
     startValues = Object.assign({}, def.values);
     startPreset = def.id;
   }
   writeInputs(startValues);
-  update(startValues, startPreset);
+  update(startValues, startPreset, { commit: true });
+  saveProfile();   /* migration writes the new key immediately */
 
-  /* One view event, the first time the rack actually comes into sight. */
   if ("IntersectionObserver" in window) {
     var seen = false;
     var io = new IntersectionObserver(function (entries) {

@@ -107,6 +107,17 @@
     </div>
   </div>
 
+  {% if signal %}
+  <!-- Artist Signal Profile: priorities the artist SELECTED on the homepage
+       EQ. Framing context only - never presented as measured performance,
+       which is what the Strategist Read below is for. -->
+  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5" id="twin-signal">
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Artist Signal Profile — priorities you selected</h2>
+    <p class="mt-2 text-xs leading-relaxed text-gray-300">Your current highest priority is <span class="font-bold text-[#e8c667]">{{ signal.top[0] }}</span>{% if signal.top | length > 1 %}, followed by {{ signal.top[1:] | join(" and ") }}{% endif %}.{% if signal.lane %} Your selected mix points at the <span class="font-bold">{{ signal.lane }}</span>.{% endif %}</p>
+    <p class="mt-1.5 text-[10px] text-gray-600">Set by you on the Artist EQ ({{ signal.preset }}, {{ signal.updated }}) — a choice, not a measurement. The Strategist Read below uses your real connected data.</p>
+  </section>
+  {% endif %}
+
   <!-- Strategist Read lives INSIDE the content column — the scripts block
        renders outside the sidebar layout and must hold scripts only. -->
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">

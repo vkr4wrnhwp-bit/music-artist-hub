@@ -5259,7 +5259,6 @@ def test_login_remember_device_controls_session_lifetime():
 def test_demo_access_captures_the_lead():
     """The demo password is earned: the request stores an inbox lead and
     marks the browser with a cookie; the honeypot swallows bots."""
-    import json
     import db as store
 
     client = create_app().test_client()
@@ -5269,7 +5268,7 @@ def test_demo_access_captures_the_lead():
     assert "sb_demo_lead=" in r.headers.get("Set-Cookie", "")
     leads = [i for i in store.get_inbox() if i["kind"] == "demo-access"]
     assert leads, "lead was not stored"
-    payload = json.loads(leads[0]["payload"])
+    payload = leads[0]["payload"]      # get_inbox decodes it
     assert payload["email"] == "lead@example.com"
     assert payload["workspace"] == "label"
     assert payload["password_sent"] in (True, False)  # honest about the mailer
@@ -5294,3 +5293,105 @@ def test_login_backend_behaviour_is_unchanged():
                                       "password": "wrong"})
     assert bad.status_code == 200
     assert "Incorrect email or password." in bad.get_data(as_text=True)
+
+
+# --- the Artist Signal Profile --------------------------------------------
+
+def test_artist_signal_profile_config_shape():
+    """Short plate labels + full names + banks; every band belongs to
+    exactly one bank of five; every result id has a final-CTA line."""
+    from artist_eq_config import get_artist_eq_config
+
+    cfg = get_artist_eq_config()
+    banks = {"foundation": 0, "growth": 0, "opportunity": 0}
+    for b in cfg["bands"]:
+        assert b["short"] and b["short"] == b["short"].upper()
+        assert len(b["short"]) <= 9          # one engraved word per channel
+        assert b["label"]                     # full name preserved
+        banks[b["bank"]] += 1
+    assert banks == {"foundation": 5, "growth": 5, "opportunity": 5}
+    ids = [l["id"] for l in cfg["lanes"]] + [cfg["sweep_first"]["id"],
+                                             cfg["integrated"]["id"]]
+    for rid in ids:
+        assert cfg["final_cta_by_lane"].get(rid), rid
+    # Every first action leads to a real route.
+    client = _demo()
+    for action, href in cfg["action_routes"].items():
+        assert client.get(href).status_code < 400, "%s -> %s" % (action, href)
+
+
+def test_homepage_carries_the_signal_profile_hooks():
+    """The EQ adapts the page through wired hooks - no section changed."""
+    body = _demo().get("/").get_data(as_text=True)
+    assert "Your program updates instantly." in body
+    assert "RESET MIX" in body
+    assert body.count('class="sbeq-bank"') == 3
+    assert body.count("data-lane=") == 3
+    assert body.count("data-tool=") == 5
+    assert 'id="sb-sweep-cta"' in body and 'id="sb-final-cta"' in body
+    assert 'id="sb-lanes-balanced"' in body
+    assert "streetBankerArtistSignalProfile" in body
+    # Defaults render server-side: CTAs show their normal labels until the
+    # visitor's own mix changes them.
+    assert "START A FREE SCAN" in body
+    assert "START FREE" in body
+
+
+def test_artist_signal_profile_api_validates():
+    """Anon gets 401; junk is clamped, filtered, and capped server-side."""
+    import db as store_mod
+
+    app_obj = create_app()
+    anon = app_obj.test_client()
+    assert anon.post("/api/artist-signal-profile", json={}).status_code == 401
+
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io",
+                                "password": "sweep"})
+    keys = ["rightsSplits", "royaltyRecovery", "distribution", "metadata",
+            "releaseStrategy", "content", "audienceGrowth", "fanOwnership",
+            "touringLive", "syncLicensing", "funding", "brand",
+            "partnerships", "catalogValue", "longTermVision"]
+    junk = {"priorities": {k: (99 if k == "distribution" else 5) for k in keys},
+            "recommendedLane": "Fake Lane",
+            "recommendedModules": ["Royalty Sweep", "EvilModule"],
+            "firstActions": ["Run your Royalty Sweep", 123, "y" * 500],
+            "preset": "x" * 100}
+    assert client.post("/api/artist-signal-profile", json=junk).status_code == 200
+    p = client.get("/api/artist-signal-profile").get_json()["profile"]
+    assert p["priorities"]["distribution"] == 10
+    assert p["recommendedLane"] == ""
+    assert p["recommendedModules"] == ["Royalty Sweep"]
+    assert len(p["preset"]) <= 32 and len(p["firstActions"][1]) <= 120
+    assert p["source"] == "homepage_artist_eq"
+    # Missing priorities are rejected, not guessed.
+    bad = client.post("/api/artist-signal-profile",
+                      json={"priorities": {"rightsSplits": 5}})
+    assert bad.status_code == 400
+
+
+def test_signal_profile_reaches_dashboard_twin_and_onboarding():
+    """The saved mix shows up where the spec says: Command Center card,
+    Artist Twin selected-priorities context, onboarding program panel."""
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io",
+                                "password": "sweep"})
+    keys = ["rightsSplits", "royaltyRecovery", "distribution", "metadata",
+            "releaseStrategy", "content", "audienceGrowth", "fanOwnership",
+            "touringLive", "syncLicensing", "funding", "brand",
+            "partnerships", "catalogValue", "longTermVision"]
+    client.post("/api/artist-signal-profile", json={
+        "priorities": {k: 6 for k in keys},
+        "recommendedLane": "Development Lane",
+        "recommendedModules": ["Artist Twin"],
+        "firstActions": ["Build your release timeline"], "preset": "Custom Mix"})
+    cc = client.get("/command-center").get_data(as_text=True)
+    assert "Artist Signal Profile" in cc
+    assert "Retune my priorities" in cc and "View my program" in cc
+    tw = client.get("/artist-twin").get_data(as_text=True)
+    assert "priorities you selected" in tw
+    assert "a choice, not a measurement" in tw
+    ob = client.get("/onboarding").get_data(as_text=True)
+    assert 'id="sb-program-ready" hidden' in ob   # hidden until hydrated
+    assert "Your Street Banker program is ready." in ob

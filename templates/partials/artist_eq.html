@@ -16,6 +16,7 @@
       <p class="sbeq-eyebrow">{{ eq.eyebrow }}</p>
       <h2 class="sbeq-title" id="sbeq-heading">{{ eq.heading }}</h2>
       <p class="sbeq-support">{{ eq.support }}</p>
+      <p class="sbeq-instruction">{{ eq.instruction }}</p>
       <div class="sbeq-rule" aria-hidden="true"><span>SB</span></div>
     </header>
 
@@ -27,6 +28,14 @@
                 aria-pressed="false">{{ p.name }}</button>
         {% endfor %}
       </div>
+    </div>
+
+    {# --- mobile banks: five channels at a time below 640px ------------- #}
+    <div class="sbeq-banks" role="group" aria-label="Slider banks" id="sbeq-banks">
+      {% for b in eq.banks %}
+      <button type="button" class="sbeq-bank" data-bank="{{ b.id }}"
+              aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ b.name }}</button>
+      {% endfor %}
     </div>
 
     {# --- rack 1: live response screen --------------------------------- #}
@@ -78,9 +87,12 @@
               <span class="sbeq-scale-mid">0</span>
               <span class="sbeq-scale-lo">&minus;12</span>
             </div>
-            <div class="sbeq-channels">
+            <div class="sbeq-channels" id="sbeq-channels">
               {% for b in eq.bands %}
-              <div class="sbeq-channel">
+              {# Short engraved word on the plate; the full business name
+                 stays in the aria-label, the tooltip, and everything the
+                 recommendation renders. #}
+              <div class="sbeq-channel" data-bank="{{ b.bank }}">
                 <span class="sbeq-hz" aria-hidden="true">{{ b.hz }}</span>
                 <div class="sbeq-slot">
                   <span class="sbeq-detent" aria-hidden="true"></span>
@@ -88,10 +100,11 @@
                          value="5" data-band="{{ b.key }}"
                          id="sbeq-band-{{ b.key }}"
                          aria-label="{{ b.label }} priority"
+                         title="{{ b.label }}"
                          aria-describedby="sbeq-helper">
                 </div>
-                <span class="sbeq-band-label" aria-hidden="true">
-                  {% for line in b.lines %}<span>{{ line }}</span>{% endfor %}
+                <span class="sbeq-band-label" aria-hidden="true" title="{{ b.label }}">
+                  <span>{{ b.short }}</span>
                 </span>
               </div>
               {% endfor %}
@@ -101,7 +114,12 @@
       </div>
     </div>
 
-    <p class="sbeq-helper" id="sbeq-helper">{{ eq.helper }}</p>
+    <div class="sbeq-helper-row">
+      <p class="sbeq-helper" id="sbeq-helper">{{ eq.helper }}</p>
+      {# Reset returns the board to the New Artist preset. It resets the
+         mix only - never an account, a connection, or any data. #}
+      <button type="button" class="sbeq-reset" id="sbeq-reset">{{ eq.reset_label }}</button>
+    </div>
 
     {# --- rack 3: what that adds up to --------------------------------- #}
     <div class="sbeq-rack sbeq-rack--panel">

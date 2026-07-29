@@ -10,39 +10,53 @@ modules serve those priorities, and what to do first.
 """
 
 # --- the fifteen channels ------------------------------------------------
-# `hz` is the engraved frequency on the faceplate; `lines` is the priority
-# label under the slider, pre-split so the plate keeps its rhythm.
+# `hz` is the engraved frequency on the faceplate. `short` is the engraved
+# priority word - one word per channel so fifteen labels stay readable.
+# `label` is the full business name and lives everywhere that has room:
+# aria-labels, tooltips, the recommendation panel, saved profiles.
+# `bank` groups the channel for the mobile view (five sliders at a time).
+# The keys are the stable storage identifiers - display names may evolve,
+# keys never do, or every saved profile orphans.
 BANDS = [
-    {"key": "rightsSplits",    "hz": "25 Hz",   "label": "Rights & Splits",
-     "lines": ["RIGHTS &", "SPLITS"]},
-    {"key": "royaltyRecovery", "hz": "40 Hz",   "label": "Royalty Recovery",
-     "lines": ["ROYALTY", "RECOVERY"]},
-    {"key": "distribution",    "hz": "63 Hz",   "label": "Distribution",
-     "lines": ["DISTRIBUTION"]},
-    {"key": "metadata",        "hz": "100 Hz",  "label": "Metadata",
-     "lines": ["METADATA"]},
-    {"key": "releaseStrategy", "hz": "160 Hz",  "label": "Release Strategy",
-     "lines": ["RELEASE", "STRATEGY"]},
-    {"key": "content",         "hz": "250 Hz",  "label": "Content",
-     "lines": ["CONTENT"]},
-    {"key": "audienceGrowth",  "hz": "400 Hz",  "label": "Audience Growth",
-     "lines": ["AUDIENCE", "GROWTH"]},
-    {"key": "fanOwnership",    "hz": "630 Hz",  "label": "Fan Ownership",
-     "lines": ["FAN", "OWNERSHIP"]},
-    {"key": "touringLive",     "hz": "1 kHz",   "label": "Touring & Live",
-     "lines": ["TOURING &", "LIVE"]},
-    {"key": "syncLicensing",   "hz": "1.6 kHz", "label": "Sync & Licensing",
-     "lines": ["SYNC &", "LICENSING"]},
-    {"key": "funding",         "hz": "2.5 kHz", "label": "Funding",
-     "lines": ["FUNDING"]},
-    {"key": "brand",           "hz": "4 kHz",   "label": "Brand",
-     "lines": ["BRAND"]},
-    {"key": "partnerships",    "hz": "6.3 kHz", "label": "Partnerships",
-     "lines": ["PARTNERSHIPS"]},
-    {"key": "catalogValue",    "hz": "10 kHz",  "label": "Catalog Value",
-     "lines": ["CATALOG", "VALUE"]},
-    {"key": "longTermVision",  "hz": "16 kHz",  "label": "Long-Term Vision",
-     "lines": ["LONG-TERM", "VISION"]},
+    {"key": "rightsSplits",    "hz": "25 Hz",   "short": "RIGHTS",
+     "label": "Rights & Splits",    "bank": "foundation"},
+    {"key": "royaltyRecovery", "hz": "40 Hz",   "short": "ROYALTIES",
+     "label": "Royalty Recovery",   "bank": "foundation"},
+    {"key": "distribution",    "hz": "63 Hz",   "short": "DISTRO",
+     "label": "Distribution",       "bank": "foundation"},
+    {"key": "metadata",        "hz": "100 Hz",  "short": "METADATA",
+     "label": "Metadata",           "bank": "foundation"},
+    {"key": "releaseStrategy", "hz": "160 Hz",  "short": "RELEASE",
+     "label": "Release Strategy",   "bank": "foundation"},
+    {"key": "content",         "hz": "250 Hz",  "short": "CONTENT",
+     "label": "Content & Rollout",  "bank": "growth"},
+    {"key": "audienceGrowth",  "hz": "400 Hz",  "short": "AUDIENCE",
+     "label": "Audience Growth",    "bank": "growth"},
+    {"key": "fanOwnership",    "hz": "630 Hz",  "short": "FANS",
+     "label": "Fan Ownership",      "bank": "growth"},
+    {"key": "touringLive",     "hz": "1 kHz",   "short": "LIVE",
+     "label": "Touring & Live",     "bank": "growth"},
+    {"key": "syncLicensing",   "hz": "1.6 kHz", "short": "SYNC",
+     "label": "Sync & Licensing",   "bank": "opportunity"},
+    {"key": "funding",         "hz": "2.5 kHz", "short": "FUNDING",
+     "label": "Funding & Valuation", "bank": "opportunity"},
+    {"key": "brand",           "hz": "4 kHz",   "short": "BRAND",
+     "label": "Brand Development",  "bank": "growth"},
+    {"key": "partnerships",    "hz": "6.3 kHz", "short": "PARTNERS",
+     "label": "Label Partnerships", "bank": "opportunity"},
+    {"key": "catalogValue",    "hz": "10 kHz",  "short": "CATALOG",
+     "label": "Catalog Value",      "bank": "opportunity"},
+    {"key": "longTermVision",  "hz": "16 kHz",  "short": "VISION",
+     "label": "Long-Term Vision",   "bank": "opportunity"},
+]
+
+# Mobile banks: five channels each, shown one bank at a time below 640px.
+# Membership is an attribute, not a slice - Brand (4 kHz) belongs to
+# Growth even though it sits between two Opportunity frequencies.
+BANKS = [
+    {"id": "foundation", "name": "FOUNDATION"},
+    {"id": "growth", "name": "GROWTH"},
+    {"id": "opportunity", "name": "OPPORTUNITY"},
 ]
 
 # --- presets -------------------------------------------------------------
@@ -183,10 +197,57 @@ PRIORITY_ACTIONS = {
 }
 ACTION_COUNT = 3
 
+# Every first action leads somewhere real. Used by the onboarding program
+# panel to turn the three actions into links; anything unmapped renders as
+# plain text rather than a dead link.
+ACTION_ROUTES = {
+    "Confirm ownership and collaborator splits": "/releases/clean-release",
+    "Connect your royalty sources": "/connections",
+    "Run your Royalty Sweep": "/recovery",
+    "Prepare your next release": "/releases/autopilot",
+    "Complete your Metadata Passport": "/metadata-passport",
+    "Build your release timeline": "/releases/autopilot",
+    "Generate your rollout campaign": "/rollout-studio",
+    "Connect audience analytics": "/audience",
+    "Set up your fan capture system": "/fans",
+    "Build your Tour Hub": "/tour",
+    "Prepare a sync-ready rights pack": "/sync/clearance-packs",
+    "Review funding readiness": "/funding",
+    "Complete your Artist Twin profile": "/artist-twin",
+    "Build your Deal Room": "/deal-room",
+    "Run a catalog valuation": "/valuation",
+    "Create your 12-month artist plan": "/command-center",
+}
+
 # Where BUILD MY PROGRAM continues to. Reuses the existing signup flow and
 # tags the source so the saved mix can become an Artist Priorities profile.
 CTA = {"label": "BUILD MY PROGRAM", "href": "/signup?source=artist-eq"}
-STORAGE_KEY = "streetBankerArtistEq"
+
+# The final homepage CTA rewrites to the recommended program. Keys are the
+# lane/result ids; the href never changes - only the words do.
+FINAL_CTA_BY_LANE = {
+    "distribution": "BUILD MY DISTRIBUTION PROGRAM",
+    "development": "BUILD MY DEVELOPMENT PROGRAM",
+    "partnership": "BUILD MY PARTNERSHIP PROGRAM",
+    "sweep-first": "START MY RECOVERY PROGRAM",
+    "integrated": "BUILD MY ARTIST PROGRAM",
+}
+SWEEP_CTA_RECOMMENDED = "START YOUR RECOMMENDED SCAN"
+
+# Storage: the Artist Signal Profile. The old key is read once and
+# migrated; new writes go to the new key only.
+STORAGE_KEY = "streetBankerArtistSignalProfile"
+LEGACY_STORAGE_KEY = "streetBankerArtistEq"
+PROFILE_VERSION = 1
+PROFILE_SOURCE = "homepage_artist_eq"
+
+# Lane hysteresis: a challenger must beat the incumbent by this much
+# (normalized 0-10 scale) to switch mid-drag; anything closer waits for
+# the settle timer, so the recommendation never flickers under a moving
+# slider.
+LANE_SWITCH_MARGIN = 0.5
+SETTLE_MS = 600
+SAVE_DEBOUNCE_MS = 500
 
 
 def get_artist_eq_config():
@@ -196,8 +257,11 @@ def get_artist_eq_config():
         "heading": "WHAT MATTERS MOST TO YOUR ART?",
         "support": ("Tune your priorities and Street Banker will build your "
                     "recommended path."),
+        "instruction": ("Choose a preset or adjust the mix yourself. "
+                        "Your program updates instantly."),
         "helper": "Lower = less important · Higher = more important",
         "bands": BANDS,
+        "banks": BANKS,
         "presets": PRESETS,
         "default_preset": DEFAULT_PRESET,
         "lanes": LANES,
@@ -205,13 +269,23 @@ def get_artist_eq_config():
         "sweep_first_min": SWEEP_FIRST_MIN,
         "integrated": INTEGRATED,
         "lane_tie_gap": LANE_TIE_GAP,
+        "lane_switch_margin": LANE_SWITCH_MARGIN,
+        "settle_ms": SETTLE_MS,
+        "save_debounce_ms": SAVE_DEBOUNCE_MS,
         "modules": MODULES,
         "priority_modules": PRIORITY_MODULES,
         "max_modules": MAX_MODULES,
         "priority_actions": PRIORITY_ACTIONS,
         "action_count": ACTION_COUNT,
+        "action_routes": ACTION_ROUTES,
         "cta": CTA,
+        "final_cta_by_lane": FINAL_CTA_BY_LANE,
+        "sweep_cta_recommended": SWEEP_CTA_RECOMMENDED,
         "storage_key": STORAGE_KEY,
+        "legacy_storage_key": LEGACY_STORAGE_KEY,
+        "profile_version": PROFILE_VERSION,
+        "profile_source": PROFILE_SOURCE,
         "columns": ["YOUR LANE", "YOUR RECOMMENDED MODULES",
                     "YOUR FIRST THREE ACTIONS"],
+        "reset_label": "RESET MIX",
     }

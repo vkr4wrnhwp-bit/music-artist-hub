@@ -62,6 +62,14 @@
   color: var(--sbeq-muted);
 }
 
+.sbeq-instruction {
+  margin: 8px auto 0;
+  max-width: 30rem;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #8a8377;
+}
+
 /* Hairline with the SB mark, as engraved on the reference plate. */
 .sbeq-rule {
   display: flex;
@@ -137,6 +145,48 @@
 .sbeq-preset:focus-visible {
   outline: 2px solid var(--sbeq-gold-dark);
   outline-offset: 2px;
+}
+
+/* --- mobile banks: Foundation / Growth / Opportunity ------------------- */
+/* Desktop shows all fifteen channels; below 640px one bank of five shows
+   at a time. All fifteen values persist - hiding a channel never clears
+   its slider, and the curve and recommendations always use all fifteen. */
+.sbeq-banks { display: none; }
+
+@media (max-width: 640px) {
+  .sbeq-banks {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .sbeq-bank {
+    flex: 1;
+    padding: 11px 4px;
+    border: 1px solid rgba(20, 18, 16, 0.3);
+    border-radius: 3px;
+    background: #fff;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sbeq-ink);
+    cursor: pointer;
+  }
+  /* Active bank: fill + leading bar, never gold alone. */
+  .sbeq-bank[aria-pressed="true"] {
+    background: var(--sbeq-ink);
+    border-color: var(--sbeq-ink);
+    color: #fff;
+    box-shadow: inset 3px 0 0 var(--sbeq-gold);
+  }
+  .sbeq-bank:focus-visible {
+    outline: 2px solid var(--sbeq-gold-dark);
+    outline-offset: 2px;
+  }
+  /* Five visible channels means no internal scroll is needed. */
+  .sbeq-plate-inner { min-width: 0; }
+  .sbeq-channel[data-hidden-bank] { display: none; }
 }
 
 /* --- rack chassis ----------------------------------------------------- */
@@ -310,6 +360,10 @@
   height: var(--sbeq-track-h);
   margin: 10px 0 8px;
   border-radius: 3px;
+  /* Slight machined recess around the track - depth, not decoration. */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.02) 12%,
+              rgba(0, 0, 0, 0.02) 88%, rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 
 /* Gold detent at 0 dB, matching the engraved centre mark. */
@@ -355,6 +409,8 @@
 
 /* The cap. Narrow along travel, wide across it - a graphic-EQ slider cap,
    not a fader knob. The dark band is the index line. */
+/* Dark graphite cap, narrow gold position line across the middle - the
+   index the eye reads position from, matching the gold-as-signal rule. */
 .sbeq-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 13px;
@@ -362,9 +418,11 @@
   margin-top: -12.5px;
   border-radius: 2px;
   background: linear-gradient(to right,
-      #f4f2ee 0 34%, #26221c 34% 50%, #cfcac1 50% 66%, #f1efeb 66% 100%);
+      #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%),
+    linear-gradient(180deg, #4a453f, #26231f);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55),
-              inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+              inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.6);
   transition: filter 120ms ease;
 }
 .sbeq-range::-moz-range-thumb {
@@ -373,9 +431,11 @@
   border: none;
   border-radius: 2px;
   background: linear-gradient(to right,
-      #f4f2ee 0 34%, #26221c 34% 50%, #cfcac1 50% 66%, #f1efeb 66% 100%);
+      #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%),
+    linear-gradient(180deg, #4a453f, #26231f);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55),
-              inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+              inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 
 .sbeq-range:hover::-webkit-slider-thumb { filter: brightness(1.08); }
@@ -400,20 +460,48 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: 8.5px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 800;
   line-height: 1.25;
-  letter-spacing: 0.03em;
-  color: #241f19;
+  letter-spacing: 0.06em;
+  color: #35312b;
   text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);   /* engraved */
 }
+.sbeq-hz { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6); }
 
+.sbeq-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 12px;
+}
 .sbeq-helper {
-  margin: 12px 0 0;
+  margin: 0;
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--sbeq-muted);
   text-align: center;
+}
+/* Reset is quiet on purpose: it must never compete with Build My Program. */
+.sbeq-reset {
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #8a8377;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sbeq-reset:hover { color: var(--sbeq-gold-dark); }
+.sbeq-reset:focus-visible {
+  outline: 2px solid var(--sbeq-gold-dark);
+  outline-offset: 2px;
 }
 
 /* --- rack 3: the recommendation --------------------------------------- */
@@ -551,6 +639,21 @@
   .sbeq-preset { flex: 0 0 auto; padding: 12px 15px; }
   .sbeq-screen { padding: 12px 8px 20px 32px; }
 }
+
+/* --- EQ-driven homepage states ----------------------------------------
+   Applied by artist-eq.js to elements elsewhere on the page. Restrained
+   gold plus a visible text badge - never colour alone. */
+article[data-lane].sb-lane-rec {
+  box-shadow: 0 0 0 2px var(--sbeq-gold), 0 10px 28px rgba(168, 134, 47, 0.16);
+}
+article[data-lane].sb-lane-rec .sb-lane-badge { display: block; }
+
+a[data-tool].sb-tool-rec {
+  box-shadow: inset 0 0 0 1px rgba(168, 134, 47, 0.55);
+}
+a[data-tool].sb-tool-rec .sb-tool-badge { display: inline-block; }
+
+/* CTA text swaps are plain text changes; no styling needed. */
 
 @media (prefers-reduced-motion: reduce) {
   .sbeq * {

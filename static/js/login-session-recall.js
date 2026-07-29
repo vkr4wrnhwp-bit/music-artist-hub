@@ -6,7 +6,8 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "streetBankerArtistEq";
+  var STORAGE_KEY = "streetBankerArtistSignalProfile";
+  var LEGACY_STORAGE_KEY = "streetBankerArtistEq";
 
   function track(name, detail) {
     try {
@@ -115,7 +116,8 @@
   /* --- YOUR MIX IS READY ------------------------------------------------ */
   function readMix() {
     try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
+      var raw = window.localStorage.getItem(STORAGE_KEY) ||
+                window.localStorage.getItem(LEGACY_STORAGE_KEY);
       if (!raw) { return null; }
       var mix = JSON.parse(raw);
       if (!mix || typeof mix !== "object") { return null; }

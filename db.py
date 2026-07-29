@@ -98,6 +98,11 @@ def init_db():
                 payload TEXT NOT NULL,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS artist_signal_profiles (
+                user_id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS epk_profiles (
                 user_id TEXT PRIMARY KEY,
                 data TEXT NOT NULL DEFAULT '{}',
@@ -1971,6 +1976,36 @@ def add_inbox(kind, payload):
             "INSERT INTO inbox (id, kind, payload, created) VALUES (?,?,?,?)",
             (uuid.uuid4().hex, kind, json.dumps(payload), _now()),
         )
+
+
+# --- Artist Signal Profile ---------------------------------------------------
+# One profile per user: the priorities they set on the homepage Artist EQ,
+# validated by the API before it ever reaches here. Payload is the canonical
+# profile dict; `updated` mirrors its updatedAt for cheap staleness checks.
+
+def set_artist_signal_profile(user_id, profile):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO artist_signal_profiles (user_id, payload, updated) "
+            "VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET "
+            "payload = excluded.payload, updated = excluded.updated",
+            (user_id, json.dumps(profile), _now()),
+        )
+
+
+def get_artist_signal_profile(user_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT payload, updated FROM artist_signal_profiles "
+            "WHERE user_id = ?", (user_id,)).fetchone()
+    if not row:
+        return None
+    try:
+        profile = json.loads(row["payload"])
+    except Exception:
+        return None
+    profile["_updated"] = row["updated"]
+    return profile
 
 
 def get_inbox():
