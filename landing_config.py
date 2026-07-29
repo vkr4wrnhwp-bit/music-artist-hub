@@ -64,20 +64,20 @@ def get_landing_config():
                                  "and payouts."),
                  "link": {"label": "Explore Distribution",
                           "href": "/services/distribution"},
-                 "image": "/static/img/sb-lane-01.jpg?v=4"},
+                 "image": "/static/img/sb-lane-01.jpg?v=5"},
                 {"label": "02 · DEVELOPMENT",
                  "headline": "BUILD THE ARTIST.",
                  "description": ("Campaigns, content, fan growth, and "
                                  "release strategy."),
                  "link": {"label": "Explore Development",
                           "href": "/audience"},
-                 "image": "/static/img/sb-lane-02.jpg?v=4"},
+                 "image": "/static/img/sb-lane-02.jpg?v=5"},
                 {"label": "03 · PARTNERSHIP",
                  "headline": "BUILD THE ASSET.",
                  "description": ("Label services, funding, catalog growth, "
                                  "and long-term alignment."),
                  "link": {"label": "Explore Partnership", "href": "/capital"},
-                 "image": "/static/img/sb-lane-03.jpg?v=4"},
+                 "image": "/static/img/sb-lane-03.jpg?v=5"},
             ],
         },
 
