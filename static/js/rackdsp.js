@@ -74,6 +74,7 @@
   var ctx = null, buffer = null, playing = null;
   var live = null;
   var loadedName = "";
+  var loadedFile = null;   // the original bytes, for Studio Split uploads
   var refBuffer = null, refMode = false, refSpec = null;
 
   // ---------- chain ----------
@@ -659,6 +660,7 @@
     file.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
       .then(function (buf) {
         buffer = buf;
+        loadedFile = file;
         loadedName = file.name.replace(/\.[^.]+$/, "");
         document.getElementById("rk-fileinfo").textContent =
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
@@ -666,6 +668,8 @@
         playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
         var rsBtn = document.getElementById("rk-roughsplit");
         if (rsBtn && window.SBRoughSplit) { rsBtn.disabled = false; }
+        var ssBtn = document.getElementById("rk-studiosplit");
+        if (ssBtn) { ssBtn.disabled = false; }
         renderWave();
       })
       .catch(function () { statusEl.textContent = "Couldn't decode that file."; });
@@ -1341,6 +1345,86 @@
       wrap2.innerHTML = '<p class="note">Load a track longer than ~16 seconds first.</p>';
     }
   });
+
+  // ---------- Studio Split: StemSplit quality tier ----------------------
+  // Renders only when the server says the key is configured. Uploads the
+  // ORIGINAL file (no re-encode), then polls the server proxy; finished
+  // stems stream back through the server and drop into the same lanes.
+  // The status line says plainly that this one leaves the tab.
+  var studioBtn = document.getElementById("rk-studiosplit");
+  var studioRunning = false;
+
+  function studioDone(err) {
+    studioRunning = false;
+    if (studioBtn) studioBtn.disabled = !loadedFile;
+    if (roughLamp) roughLamp.classList.remove("on");
+    if (err) roughNote("Studio Split failed: " + err, 0);
+  }
+
+  function studioLanes(jobId) {
+    var order = [["Vocals (studio)", "vocals"], ["Drums (studio)", "drums"],
+                 ["Bass (studio)", "bass"], ["Instruments (studio)", "other"]];
+    roughNote("Studio Split done — downloading four stems…", 0.9);
+    Promise.all(order.map(function (pair) {
+      return fetch("/rack/studio-split/" + jobId + "/stem/" + pair[1])
+        .then(function (r) {
+          if (!r.ok) { throw new Error(pair[1] + " download failed"); }
+          return r.arrayBuffer();
+        })
+        .then(function (ab) { return ctx.decodeAudioData(ab); })
+        .then(function (buf) {
+          return { name: pair[0], buffer: buf, gain: 1,
+                   mute: false, solo: false, studio: true };
+        });
+    })).then(function (lanes) {
+      stems = stems.filter(function (st) { return !st.studio; });
+      lanes.forEach(function (st) { stems.push(st); });
+      roughNote("Studio stems on the deck — processed by StemSplit.", 1);
+      studioDone();
+      renderStems(); syncDeckInfo(); renderWave();
+    }).catch(function (e) { studioDone(e.message); });
+  }
+
+  function studioPoll(jobId, tries) {
+    if (tries > 200) { studioDone("timed out — retry in a minute"); return; }
+    fetch("/rack/studio-split/" + jobId)
+      .then(function (r) { return r.json(); })
+      .then(function (st) {
+        if (st.error) { throw new Error(st.error); }
+        if (st.status === "COMPLETED") { studioLanes(jobId); return; }
+        if (st.status === "FAILED" || st.status === "EXPIRED") {
+          throw new Error("StemSplit reported " + st.status);
+        }
+        var p = Math.max(0.05, Math.min(0.85, (st.progress || 0) / 100));
+        roughNote("Studio Split running at StemSplit… " +
+          Math.round(p * 100) + "%", p);
+        setTimeout(function () { studioPoll(jobId, tries + 1); }, 4000);
+      })
+      .catch(function (e) { studioDone(e.message); });
+  }
+
+  if (studioBtn) {
+    studioBtn.addEventListener("click", function () {
+      if (studioRunning || roughRunning || !loadedFile) return;
+      studioRunning = true;
+      studioBtn.disabled = true;
+      if (roughLamp) roughLamp.classList.add("on");
+      ensureCtx();
+      roughNote("Uploading to StemSplit for separation — this track " +
+        "leaves this tab for processing.", 0.02);
+      var fd = new FormData();
+      fd.append("audio", loadedFile, loadedFile.name);
+      fetch("/rack/studio-split", { method: "POST", body: fd })
+        .then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok) { throw new Error(j.error || ("HTTP " + r.status)); }
+            return j;
+          });
+        })
+        .then(function (j) { studioPoll(j.job, 0); })
+        .catch(function (e) { studioDone(e.message); });
+    });
+  }
 
   /* Boot: the deck and the scanner show their hardware before any file
      arrives - dormant lanes, not blank wells. */

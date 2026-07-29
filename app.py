@@ -20,6 +20,7 @@ from statements_engine import (analyze as analyze_statement, parse_statement,
 
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
+import stemsplit_provider as stemsplit
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
@@ -2192,6 +2193,7 @@ def create_app():
                 "unread_ntf": store.unread_notifications(user["id"]) if user else 0}
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
+                        "/stem-src/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@")
@@ -3855,7 +3857,82 @@ def create_app():
         saved = store.get_rack_preset(user["id"])
         return render_template("rack.html", active_page="rack",
                                saved_rack=(_json.dumps(saved) if saved else "null"),
+                               studio_split=stemsplit.configured(),
                                **build_dashboard_context())
+
+    # ---- Studio Split: StemSplit.io quality tier for the Stem Deck -------
+    # Env-gated on STEMSPLIT_API_KEY. The one Deck feature that uploads:
+    # the track is parked under a token, StemSplit fetches it from the
+    # public /stem-src URL, and finished stems stream back through us.
+    # The key never reaches the browser.
+
+    @app.route("/rack/studio-split", methods=["POST"])
+    def studio_split_start():
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        if not stemsplit.configured():
+            return jsonify({"error": "Studio Split isn't configured on this "
+                            "server yet."}), 503
+        f = request.files.get("audio")
+        if f is None or not f.filename:
+            return jsonify({"error": "no audio file"}), 400
+        data = f.read()
+        if len(data) > stemsplit.MAX_UPLOAD:
+            return jsonify({"error": "file too large - bounce an MP3 first"}), 413
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in (".wav", ".mp3", ".flac", ".m4a"):
+            return jsonify({"error": "use WAV, MP3, FLAC or M4A"}), 400
+        token, path = stemsplit.park_source(data, ext)
+        source_url = request.url_root.rstrip("/") + "/stem-src/" + token
+        job_id, err = stemsplit.create_job(source_url)
+        if err:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            return jsonify({"error": "StemSplit rejected the job: " + err}), 502
+        stemsplit.remember_source(job_id, path)
+        return jsonify({"job": job_id})
+
+    @app.route("/stem-src/<token>")
+    def stem_src(token):
+        from flask import send_file
+
+        path = stemsplit.source_path(token)
+        if not path:
+            return "", 404
+        return send_file(path)
+
+    @app.route("/rack/studio-split/<job_id>")
+    def studio_split_status(job_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        if not stemsplit.configured():
+            return jsonify({"error": "not configured"}), 503
+        status, err = stemsplit.job_status(job_id)
+        if err:
+            return jsonify({"error": err}), 502
+        return jsonify(status)
+
+    @app.route("/rack/studio-split/<job_id>/stem/<stem>")
+    def studio_split_stem(job_id, stem):
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        if not stemsplit.configured():
+            return jsonify({"error": "not configured"}), 503
+        if stem not in ("vocals", "drums", "bass", "other", "instrumental"):
+            return jsonify({"error": "unknown stem"}), 400
+        url, err = stemsplit.stem_url(job_id, stem)
+        if err:
+            return jsonify({"error": err}), 502
+        upstream = stemsplit.open_stream(url)
+        return app.response_class(
+            upstream,
+            mimetype=upstream.headers.get("Content-Type", "audio/mpeg"),
+            direct_passthrough=True)
 
     @app.route("/rack/save", methods=["POST"])
     def rack_save():

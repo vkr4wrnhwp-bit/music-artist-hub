@@ -5439,3 +5439,42 @@ def test_rack_rough_split_ships_honestly():
     for banned in ["fetch(", "XMLHttpRequest", "WebSocket"]:
         assert banned not in js, banned
     assert "Fitzgerald" in js            # the algorithm is named, not vague
+
+
+def test_studio_split_is_env_gated_and_honest():
+    """StemSplit quality tier: invisible without the key, honest with it,
+    and the endpoints never pretend. No external call is ever made here -
+    only the gating and validation layers are exercised."""
+    import io as _io
+    import os as _os
+
+    _os.environ.pop("STEMSPLIT_API_KEY", None)
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io",
+                                "password": "sweep"})
+    page = client.get("/rack").get_data(as_text=True)
+    assert "rk-studiosplit" not in page          # unconfigured -> not rendered
+    assert client.post("/rack/studio-split", data={}).status_code == 503
+    assert client.get("/stem-src/deadbeef").status_code == 404
+    # Path tricks never resolve to files.
+    from stemsplit_provider import source_path
+    assert source_path("../../app.py") is None
+    assert source_path("a/b") is None
+
+    _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
+    try:
+        page = client.get("/rack").get_data(as_text=True)
+        assert "Studio Split" in page
+        # The copy admits the one thing this feature does differently.
+        assert "uploads your track" in page
+        assert "processed by StemSplit" in page
+        assert client.post("/rack/studio-split", data={}).status_code == 400
+        r = client.post("/rack/studio-split",
+                        data={"audio": (_io.BytesIO(b"x"), "notes.txt")})
+        assert r.status_code == 400              # extension whitelist
+        # Anonymous callers meet the global login gate first.
+        assert app_obj.test_client().post(
+            "/rack/studio-split", data={}).status_code in (302, 401)
+    finally:
+        _os.environ.pop("STEMSPLIT_API_KEY", None)

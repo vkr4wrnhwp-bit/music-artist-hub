@@ -382,12 +382,15 @@
         <span class="flex items-center gap-1.5">
           <span id="rk-roughsplit-lamp" class="lamp" title="Lit while a split is running"></span>
           <button id="rk-roughsplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Split the loaded track into four rough lanes — classical DSP, right here in this tab">Rough Split</button>
+          {% if studio_split %}
+          <button id="rk-studiosplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Demucs-class separation by StemSplit — this one uploads the track for processing">Studio Split</button>
+          {% endif %}
           <label class="sw sw-gold cursor-pointer px-3 py-1.5 text-[11px] font-black">
             Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
           </label>
         </span>
       </div>
-      <p class="note">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.</p>
+      <p class="note">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.{% if studio_split %} <b>Studio Split</b> is the quality tier: Demucs-class separation processed by StemSplit — the one Deck feature that uploads your track (to their servers, for the split, billed to this site's StemSplit account).{% endif %}</p>
       <div id="rk-roughsplit-wrap" class="mt-2 hidden">
         <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-roughsplit-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
         <p id="rk-roughsplit-status" class="note mt-1 text-[#e8c667]"></p>
@@ -451,6 +454,6 @@
 </div>
 
 <script src="/static/js/roughsplit.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=12"></script>
+<script src="/static/js/rackdsp.js?v=13"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
