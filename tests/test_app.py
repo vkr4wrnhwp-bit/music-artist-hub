@@ -1504,7 +1504,7 @@ def test_discover_page_and_filters():
     client = _demo()
     assert client.get("/discover").status_code == 200
     assert 'href="/discover"' in client.get("/discover").get_data(as_text=True)  # fan-world sidebar
-    assert "Create a free fan account" in client.get("/login").get_data(as_text=True)
+    assert "Create a free fan account" in client.get("/login").get_data(as_text=True)  # fan row on Session Recall
     # Genre filter narrows the feed.
     data = get_discover_data({"genre": "Synthwave"})
     assert data["tracks"] and all(t["genre"] == "Synthwave" for t in data["tracks"])
@@ -1900,10 +1900,15 @@ def _pulse_http(url, data=None, headers=None):
 def test_login_page_has_partner_demo_box():
     client = create_app().test_client()
     body = client.get("/login").get_data(as_text=True)
-    # A visible demo entrance: prefilled demo email + password-only form.
-    assert "Partner Demo" in body
-    assert 'value="demo@streetbanker.io"' in body
+    # The Tour rack: four workspace radios, the demo password stays
+    # server-side until a lead requests it, and the have-password form
+    # still drives the same demo sign-in.
+    assert "B. TOUR STREET BANKER" in body
+    assert body.count('name="lsr-workspace"') == 4
+    assert "REQUEST DEMO ACCESS" in body
+    assert "OPEN SAMPLE WORKSPACE" in body
     assert "Demo password" in body
+    assert "sweep" not in body          # never ship the password client-side
     # And the flow it drives signs in and lands on the guided tour.
     r = client.post("/login", data={"email": "demo@streetbanker.io",
                                     "password": "sweep"})
@@ -1912,11 +1917,17 @@ def test_login_page_has_partner_demo_box():
 
 def test_tier_demo_accounts():
     app_obj = create_app()
-    # Login page offers all four tier demos.
+    # Login page offers all four tier demos as workspace radios; the
+    # component script maps each to its demo account.
     body = app_obj.test_client().get("/login").get_data(as_text=True)
+    for value in ('value="artist"', 'value="pro"', 'value="label"',
+                  'value="fan"'):
+        assert value in body
+    import io
+    js = io.open("static/js/login-session-recall.js", encoding="utf-8").read()
     for email in ("demo@streetbanker.io", "demo-pro@streetbanker.io",
                   "demo-artist@streetbanker.io", "demo-fan@streetbanker.io"):
-        assert email in body
+        assert email in js
     # Each signs in with the shared password and lands on its tour.
     for email, landing in (("demo@streetbanker.io", "/walkthrough"),
                            ("demo-pro@streetbanker.io", "/walkthrough"),
@@ -5199,3 +5210,87 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
     mq = client.get("/money-queue").get_data(as_text=True)
     assert "Settled tour income" in mq and "$1020.00" in mq
     assert "1 settled show" in mq
+
+
+# --- /login: Session Recall -----------------------------------------------
+
+def test_login_session_recall_page():
+    """The rebuilt /login: racks in order, real form, no invented claims."""
+    body = create_app().test_client().get("/login").get_data(as_text=True)
+    assert "RETURN TO YOUR DESK." in body
+    assert "A. SESSION RECALL" in body
+    assert "RECALL MY DESK" in body
+    assert "B. TOUR STREET BANKER" in body
+    assert "YOUR MIX IS READY" in body          # rendered hidden until JS
+    assert 'id="lsr-mix" hidden' in body
+    # Real form wiring the backend already expects.
+    assert 'name="email"' in body and 'name="password"' in body
+    assert 'autocomplete="current-password"' in body
+    assert 'name="remember"' in body
+    # Four workspaces, secondary rows, security line, minimal footer.
+    for w in ["ARTIST", "PRO", "LABEL", "FAN"]:
+        assert w in body
+    assert "CREATE ACCOUNT" in body and "GO TO FAN EXPERIENCE" in body
+    assert "Secure account access. Demo workspaces contain sample data." in body
+    assert 'href="/forgot"' in body and 'href="/terms"' in body
+    # No unverified security marketing, no implementation language.
+    for banned in ["SOC 2", "bank-grade", "end-to-end", "hashed",
+                   "encryption at rest", "never share your information"]:
+        assert banned not in body, banned
+
+
+def test_login_remember_device_controls_session_lifetime():
+    """Checked -> 31-day cookie (has an Expires); unchecked -> browser
+    session cookie (no Expires). The credential check itself is untouched."""
+    app_obj = create_app()
+    client = app_obj.test_client()
+    r = client.post("/login", data={"email": "demo@streetbanker.io",
+                                    "password": "sweep", "remember": "1"})
+    assert r.status_code == 302
+    cookie = r.headers.get("Set-Cookie", "")
+    assert "Expires=" in cookie
+    client2 = app_obj.test_client()
+    r2 = client2.post("/login", data={"email": "demo@streetbanker.io",
+                                      "password": "sweep"})
+    assert r2.status_code == 302
+    assert "Expires=" not in r2.headers.get("Set-Cookie", "")
+
+
+def test_demo_access_captures_the_lead():
+    """The demo password is earned: the request stores an inbox lead and
+    marks the browser with a cookie; the honeypot swallows bots."""
+    import json
+    import db as store
+
+    client = create_app().test_client()
+    r = client.post("/demo-access", data={"email": "lead@example.com",
+                                          "workspace": "label"})
+    assert r.status_code == 302
+    assert "sb_demo_lead=" in r.headers.get("Set-Cookie", "")
+    leads = [i for i in store.get_inbox() if i["kind"] == "demo-access"]
+    assert leads, "lead was not stored"
+    payload = json.loads(leads[0]["payload"])
+    assert payload["email"] == "lead@example.com"
+    assert payload["workspace"] == "label"
+    assert payload["password_sent"] in (True, False)  # honest about the mailer
+    # Bots fill the honeypot; nothing is stored for them.
+    before = len([i for i in store.get_inbox() if i["kind"] == "demo-access"])
+    client.post("/demo-access", data={"email": "bot@example.com",
+                                      "workspace": "artist", "company": "x"})
+    after = len([i for i in store.get_inbox() if i["kind"] == "demo-access"])
+    assert after == before
+    # Junk email is bounced, not stored.
+    r3 = client.post("/demo-access", data={"email": "not-an-email"})
+    assert "demo=error" in r3.headers.get("Location", "")
+
+
+def test_login_backend_behaviour_is_unchanged():
+    """The redesign is presentation: same fields, same errors, same routing."""
+    client = create_app().test_client()
+    ok = client.post("/login", data={"email": "demo@streetbanker.io",
+                                     "password": "sweep"})
+    assert ok.status_code == 302 and "/walkthrough" in ok.headers["Location"]
+    bad = client.post("/login", data={"email": "demo@streetbanker.io",
+                                      "password": "wrong"})
+    assert bad.status_code == 200
+    assert "Incorrect email or password." in bad.get_data(as_text=True)

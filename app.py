@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import time
 import urllib.parse
 import uuid
 from dataclasses import asdict
@@ -451,6 +452,10 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
+                # "Remember this device": a real 31-day session, only when
+                # asked for. Unchecked keeps the browser-session cookie.
+                if request.form.get("remember"):
+                    session.permanent = True
                 is_demo = (email == "demo@streetbanker.io"
                            or email.startswith("demo-") and email.endswith("@streetbanker.io"))
                 if (user.get("plan") or "artist") == "fan":
@@ -462,7 +467,66 @@ def create_app():
                     default = "/command-center"
                 return redirect(request.args.get("next") or default)
             error = "Incorrect email or password."
-        return render_template("login.html", error=error)
+        return render_template(
+            "login.html", error=error,
+            # Tour-rack state: was demo access just requested, and is this
+            # browser already a known lead (cookie set by /demo-access)?
+            demo_state=request.args.get("demo"),
+            demo_lead=request.cookies.get("sb_demo_lead"))
+
+    # One lead per IP per half-minute is plenty; this only guards the
+    # public capture form against dumb floods, not determined abuse.
+    _demo_access_seen = {}
+
+    @app.route("/demo-access", methods=["POST"])
+    def demo_access():
+        """Demo password is earned, not shown: leave an email, the lead is
+        stored in the owner's inbox, and if the mailer is live the password
+        goes out automatically. A cookie marks the browser as a known lead
+        so the tour rack switches to its password state."""
+        # Honeypot: real visitors never see this field.
+        if request.form.get("company"):
+            return redirect("/login#tour-rack")
+        email = (request.form.get("email") or "").strip().lower()
+        workspace = (request.form.get("workspace") or "artist").strip().lower()
+        if workspace not in ("artist", "pro", "label", "fan"):
+            workspace = "artist"
+        if not email or "@" not in email or len(email) > 254:
+            return redirect("/login?demo=error#tour-rack")
+        ip = (request.headers.get("X-Forwarded-For", request.remote_addr or "?")
+              .split(",")[0].strip())
+        now = time.time()
+        if now - _demo_access_seen.get(ip, 0) < 30:
+            resp = redirect("/login?demo=pending#tour-rack")
+            resp.set_cookie("sb_demo_lead", email, max_age=90 * 24 * 3600,
+                            httponly=True, samesite="Lax")
+            return resp
+        _demo_access_seen[ip] = now
+
+        sent = False
+        if emailer.configured():
+            try:
+                pw = os.environ.get("DEMO_PASSWORD", "sweep")
+                emailer.send(
+                    email,
+                    "Your Street Banker demo access",
+                    "<p>Thanks for your interest in Street Banker.</p>"
+                    "<p>Your demo password: <strong>%s</strong></p>"
+                    "<p>Sign in at <a href='https://street-banker.onrender.com/login'>"
+                    "street-banker.onrender.com/login</a>, pick the <strong>%s</strong> "
+                    "workspace in Tour Street Banker, and enter the password.</p>"
+                    "<p>The demo is illustrative sample data - no account is "
+                    "created and nothing is shared.</p>" % (pw, workspace.title()))
+                sent = True
+            except Exception:
+                sent = False
+        store.add_inbox("demo-access", json.dumps({
+            "email": email, "workspace": workspace, "password_sent": sent,
+            "requested": datetime.now().isoformat(timespec="seconds")}))
+        resp = redirect("/login?demo=%s#tour-rack" % ("sent" if sent else "pending"))
+        resp.set_cookie("sb_demo_lead", email, max_age=90 * 24 * 3600,
+                        httponly=True, samesite="Lax")
+        return resp
 
     @app.route("/webhooks/resend", methods=["POST"])
     def resend_webhook():
@@ -2067,7 +2131,7 @@ def create_app():
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
-                     "/terms", "/privacy", "/sw.js"}
+                     "/terms", "/privacy", "/sw.js", "/demo-access"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:

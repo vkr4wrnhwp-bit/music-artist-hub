@@ -1,77 +1,74 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in - Street Banker</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background:
-      radial-gradient(ellipse 70% 45% at 50% -5%, rgba(201,162,74,0.13), transparent 65%),
-      #0b0a09; }
-    .plaque-frame { border: 1px solid rgba(201,162,74,0.55);
-      outline: 1px solid rgba(201,162,74,0.22); outline-offset: 4px;
-      box-shadow: 0 24px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.05); }
-  </style>
+  <meta name="description" content="Sign in to manage your releases, royalties, fans, and catalog.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/login-session-recall.css?v=2">
 </head>
-<body class="min-h-screen text-[#e8e6e1] antialiased">
-  <div class="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center px-4 py-10">
-    <div class="mb-8 text-center">
-      <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="mx-auto h-16 w-auto">
-      <div class="mt-2 text-[10px] uppercase tracking-[0.3em] text-[#c9a24a]">Artist Infrastructure</div>
+<body class="lsr">
+
+  <main class="lsr-page">
+
+    <!-- 1. wordmark + intro -->
+    <header class="lsr-intro">
+      <a href="/" class="lsr-brand">
+        <img src="/static/img/streetbanker-logo-dark.svg" alt="Street Banker">
+        <span>ARTIST INFRASTRUCTURE</span>
+      </a>
+      <h1 class="lsr-title">RETURN TO YOUR DESK.</h1>
+      <p class="lsr-support">Sign in to manage your releases, royalties, fans, and catalog.</p>
+    </header>
+
+    <!-- 2. A. SESSION RECALL -->
+    {% include "partials/login_session_recall.html" %}
+
+    <!-- 3. YOUR MIX IS READY - rendered hidden; the script reveals it only
+         when a valid saved Artist EQ mix exists in this browser. -->
+    {% include "partials/login_artist_eq_recall.html" %}
+
+    <!-- 4. B. TOUR STREET BANKER -->
+    {% include "partials/login_demo_tour.html" %}
+
+    <!-- 5. new-account and fan rows -->
+    <div class="lsr-rows">
+      <section class="lsr-row" aria-labelledby="lsr-new-h">
+        <div>
+          <h2 class="lsr-row-title" id="lsr-new-h">NEW HERE?</h2>
+          <p class="lsr-row-sub">Create your account and build your back office.</p>
+        </div>
+        <a class="lsr-row-btn" href="/signup">CREATE ACCOUNT</a>
+      </section>
+      <section class="lsr-row" aria-labelledby="lsr-fan-h">
+        <div>
+          <h2 class="lsr-row-title" id="lsr-fan-h">CONTINUE AS A FAN</h2>
+          <p class="lsr-row-sub">Create a free fan account for fan features and drops.</p>
+        </div>
+        <a class="lsr-row-btn" href="/signup">GO TO FAN EXPERIENCE</a>
+      </section>
     </div>
 
-    <div class="plaque-frame w-full rounded-2xl bg-gradient-to-b from-[#161310] to-[#0e0d0a] p-6">
-      <h1 class="text-lg font-bold text-white">Artist Portal</h1>
-      <p class="mt-1 text-sm text-[#a99e88]">Sign in to your account.</p>
+    <!-- 6. security statement -->
+    <p class="lsr-security">
+      <span class="lsr-security-mark" aria-hidden="true"></span>
+      Secure account access. Demo workspaces contain sample data.
+    </p>
 
-      {% if error %}
-      <div class="mt-4 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">{{ error }}</div>
-      {% endif %}
+    <!-- 7. minimal footer -->
+    <footer class="lsr-footer">
+      <nav aria-label="Legal">
+        <a href="/terms">Terms</a><span aria-hidden="true">·</span>
+        <a href="/privacy">Privacy</a><span aria-hidden="true">·</span>
+        <a href="/submit">Contact</a>
+      </nav>
+      <p>&copy; 2026 Street Banker LLC. All rights reserved.</p>
+    </footer>
 
-      <form method="post" class="mt-4 space-y-3">
-        <div>
-          <label for="email" class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#b3a684]">Email</label>
-          <input type="email" id="email" name="email" autofocus autocomplete="email"
-                 class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-100 focus:border-[#c9a24a] focus:outline-none">
-        </div>
-        <div>
-          <label for="password" class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#b3a684]">Password</label>
-          <input type="password" id="password" name="password" autocomplete="current-password"
-                 class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-100 focus:border-[#c9a24a] focus:outline-none">
-        </div>
-        <button type="submit" class="w-full rounded-lg bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-4 py-2.5 text-sm font-black uppercase tracking-wide text-[#1c1302] transition-transform hover:scale-[1.01]">Sign In</button>
-      </form>
+    <p class="lsr-sr" id="lsr-live" aria-live="polite" role="status"></p>
+  </main>
 
-      <p class="mt-3 text-center text-xs text-[#a99e88]">New here? <a href="/signup" class="font-semibold text-[#e8c667] hover:underline">Create an account</a> · <a href="/forgot" class="text-[#c9bd9c] hover:text-[#e8c667] hover:underline">Forgot password?</a></p>
-
-      <div class="my-4 flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#8a7c5d]">
-        <span class="h-px flex-1 bg-gradient-to-r from-transparent via-[#c9a24a]/40 to-transparent"></span>OR<span class="h-px flex-1 bg-gradient-to-r from-transparent via-[#c9a24a]/40 to-transparent"></span>
-      </div>
-
-      <a href="/signup" class="mt-2 block w-full rounded-lg border border-[#c9a24a]/35 px-4 py-2.5 text-center text-sm font-semibold text-[#e8c667] transition-colors hover:bg-[#c9a24a]/10">Create a free fan account</a>
-
-      <!-- Partner demo: one account per tier, gated by the demo password -->
-      <form method="post" class="mt-4 rounded-xl border border-[#c9a24a]/30 bg-[#c9a24a]/[0.06] p-4">
-        <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Partner Demo</div>
-        <p class="mt-1 text-xs text-[#c9bd9c]">Tour the app with sample data. Pick the plan to see exactly what it includes.</p>
-        <div class="mt-2.5 grid grid-cols-4 gap-1.5 text-center text-[11px] font-bold">
-          {% for value, label in [('demo@streetbanker.io', 'Label'), ('demo-pro@streetbanker.io', 'Pro'), ('demo-artist@streetbanker.io', 'Artist'), ('demo-fan@streetbanker.io', 'Fan')] %}
-          <label class="cursor-pointer rounded-lg border border-white/15 px-1 py-2 text-[#c9bd9c] transition-colors has-[:checked]:border-[#c9a24a] has-[:checked]:bg-[#c9a24a]/15 has-[:checked]:text-[#e8c667]">
-            <input type="radio" name="email" value="{{ value }}" class="sr-only" {{ 'checked' if loop.first }}>{{ label }}
-          </label>
-          {% endfor %}
-        </div>
-        <div class="mt-2 flex gap-2">
-          <input type="password" name="password" placeholder="Demo password" autocomplete="off"
-                 class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-gray-100 placeholder-[#8a7c5d] focus:border-[#c9a24a] focus:outline-none">
-          <button type="submit" class="shrink-0 rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">View Demo</button>
-        </div>
-      </form>
-    </div>
-
-    <p class="mt-5 text-center text-[11px] text-[#8a7c5d]">Accounts are real (stored securely with hashed passwords).<br>The demo account tours the app with sample data.</p>
-    <p class="mt-2 text-center text-[11px] text-[#8a7c5d]"><a href="/terms" class="hover:text-[#c9bd9c]">Terms</a> · <a href="/privacy" class="hover:text-[#c9bd9c]">Privacy</a></p>
-  </div>
+  <script src="/static/js/login-session-recall.js?v=2" defer></script>
 </body>
 </html>
