@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -64,7 +65,11 @@
   </section>
 </div>
 
-<!-- 3. THE THREE LANES — breaks out of the reading column. The rack units
+<!-- 3. THE ARTIST EQ — additive: a 15-band priority equaliser. Everything
+     that moves is coded; nothing here replaces an existing section. -->
+{% include "partials/artist_eq.html" %}
+
+<!-- 4. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting
      in a narrower gutter than the bands above and below. -->
 {% set lanes = config.lanes %}
@@ -93,7 +98,7 @@
   </div>
 </section>
 
-<!-- 4. ROYALTY SWEEP — the one dark section; the photograph IS the section.
+<!-- 5. ROYALTY SWEEP — the one dark section; the photograph IS the section.
      Padding kept tight to the copy: the corridor should frame the words, not
      run on past them. -->
 {% set sweep = config.sweep %}
@@ -115,7 +120,7 @@
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
-  <!-- 5. SIGNATURE TOOLS -->
+  <!-- 6. SIGNATURE TOOLS -->
   {% set tools = config.tools %}
   <section id="tools" class="scroll-mt-6 py-20 lg:py-24">
     <div class="text-center">
@@ -154,7 +159,7 @@
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
-  <!-- 6. FINAL CTA -->
+  <!-- 7. FINAL CTA -->
   {% set fin = config.final_cta %}
   <section class="py-24 text-center lg:py-32">
     <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
@@ -164,7 +169,7 @@
     <p class="mx-auto mt-6 max-w-sm text-[12px] leading-relaxed text-[#6b6459]">{{ fin.note }}</p>
   </section>
 
-  <!-- 7. MINIMAL FOOTER -->
+  <!-- 8. MINIMAL FOOTER -->
   {% set f = config.footer %}
   <footer class="border-t border-black/10 py-14">
     <div class="grid grid-cols-2 gap-10 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
@@ -193,5 +198,6 @@
   </footer>
 </div>
 
+<script src="/static/js/artist-eq.js?v=1" defer></script>
 </body>
 </html>

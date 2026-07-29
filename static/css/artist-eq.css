@@ -1,0 +1,561 @@
+/* The Artist EQ — rack hardware built entirely in CSS.
+
+   Scoped under .sbeq so nothing here can reach the rest of the homepage.
+   Palette is the homepage's own: ivory page, near-black chassis, brushed
+   silver faceplate, one gold accent. No blue, no glow effects, no cards.
+
+   Headings deliberately follow the homepage's heavy uppercase sans rather
+   than the serif in the design reference — the page has no serif anywhere
+   else and introducing one here would read as a bolted-on section. */
+
+.sbeq {
+  --sbeq-ink: #141210;
+  --sbeq-muted: #5a544a;
+  --sbeq-gold: #d8b25a;
+  --sbeq-gold-dark: #8a6d1f;
+  --sbeq-chassis-a: #211d17;
+  --sbeq-chassis-b: #0e0c09;
+  --sbeq-screen: #0b0a08;
+  --sbeq-track-h: 168px;
+  background: #f6f3f0;
+  color: var(--sbeq-ink);
+  padding: 72px 0 80px;
+}
+
+.sbeq-inner {
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 0 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .sbeq { padding: 96px 0 104px; }
+  .sbeq-inner { padding: 0 2.5rem; }
+}
+
+/* --- heading ---------------------------------------------------------- */
+.sbeq-head { text-align: center; }
+
+.sbeq-eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--sbeq-gold-dark);
+}
+
+.sbeq-title {
+  margin: 18px 0 0;
+  font-size: clamp(1.65rem, 5vw, 2.75rem);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.sbeq-support {
+  margin: 14px auto 0;
+  max-width: 34rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--sbeq-muted);
+}
+
+/* Hairline with the SB mark, as engraved on the reference plate. */
+.sbeq-rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 26px auto 0;
+  max-width: 240px;
+  color: var(--sbeq-gold-dark);
+}
+.sbeq-rule::before,
+.sbeq-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.45;
+}
+.sbeq-rule span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+/* --- presets ---------------------------------------------------------- */
+.sbeq-presets-wrap {
+  margin-top: 34px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.sbeq-presets-wrap::-webkit-scrollbar { display: none; }
+
+.sbeq-presets {
+  display: flex;
+  gap: 10px;
+  min-width: min-content;
+  padding-bottom: 2px;
+}
+
+.sbeq-preset {
+  flex: 1 0 auto;
+  padding: 14px 18px;
+  border: 1px solid rgba(138, 109, 31, 0.45);
+  border-radius: 3px;
+  background: #fffefc;
+  color: var(--sbeq-ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease,
+              transform 90ms ease, box-shadow 140ms ease;
+}
+
+.sbeq-preset:hover { border-color: var(--sbeq-gold-dark); background: #fff; }
+
+/* Physical switch: the button actually depresses. */
+.sbeq-preset:active { transform: translateY(1px); }
+
+/* Selection is marked by fill, weight AND a leading bar - never by gold
+   alone, so it survives a colour-blind or greyscale read. */
+.sbeq-preset[aria-pressed="true"] {
+  background: var(--sbeq-ink);
+  border-color: var(--sbeq-ink);
+  color: #f6f3f0;
+  box-shadow: inset 3px 0 0 var(--sbeq-gold);
+}
+
+.sbeq-preset:focus-visible {
+  outline: 2px solid var(--sbeq-gold-dark);
+  outline-offset: 2px;
+}
+
+/* --- rack chassis ----------------------------------------------------- */
+.sbeq-rack {
+  position: relative;
+  margin-top: 20px;
+  padding: 14px 42px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--sbeq-chassis-a), var(--sbeq-chassis-b));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13),
+              inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+              0 10px 26px rgba(20, 18, 16, 0.18);
+}
+
+/* Rack-ear mounting screws, four to a unit. */
+.sbeq-screw {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #b9b3a8, #6d675d 62%, #3a352e);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+              0 1px 1px rgba(255, 255, 255, 0.08);
+}
+.sbeq-screw::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 1.5px;
+  background: rgba(20, 18, 16, 0.75);
+  transform: rotate(38deg);
+}
+.sbeq-screw--tl { top: 12px; left: 14px; }
+.sbeq-screw--bl { bottom: 12px; left: 14px; }
+.sbeq-screw--tr { top: 12px; right: 14px; }
+.sbeq-screw--br { bottom: 12px; right: 14px; }
+
+/* --- rack 1: the response screen -------------------------------------- */
+.sbeq-screen {
+  position: relative;
+  border-radius: 3px;
+  background: var(--sbeq-screen);
+  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.16),
+              inset 0 2px 14px rgba(0, 0, 0, 0.9);
+  padding: 16px 12px 24px 40px;
+}
+
+.sbeq-curve { display: block; width: 100%; height: 150px; }
+
+@media (min-width: 768px) { .sbeq-curve { height: 190px; } }
+
+.sbeq-grid line {
+  stroke: rgba(216, 178, 90, 0.13);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.sbeq-zero {
+  stroke: rgba(236, 232, 222, 0.34);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sbeq-curve-line {
+  fill: none;
+  stroke: var(--sbeq-gold);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px rgba(216, 178, 90, 0.5));
+}
+
+.sbeq-curve-fill { fill: rgba(216, 178, 90, 0.09); stroke: none; }
+
+.sbeq-screen-unit,
+.sbeq-screen-tick {
+  position: absolute;
+  left: 8px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgba(216, 178, 90, 0.75);
+}
+.sbeq-screen-unit { top: 14px; left: 10px; writing-mode: vertical-rl; }
+.sbeq-screen-tick--hi { top: 12px; left: 22px; }
+.sbeq-screen-tick--mid { top: 50%; left: 26px; transform: translateY(-50%); }
+.sbeq-screen-tick--lo { bottom: 30px; left: 20px; }
+
+.sbeq-screen-freqs {
+  display: grid;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  margin-top: 8px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: rgba(216, 178, 90, 0.7);
+  text-align: center;
+}
+.sbeq-screen-hz { position: absolute; right: 10px; bottom: 8px; }
+
+/* --- rack 2: the faceplate -------------------------------------------- */
+.sbeq-plate {
+  border-radius: 3px;
+  /* Brushed metal: a broad tonal sweep with a fine vertical grain over it. */
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.5) 0 1px,
+      rgba(0, 0, 0, 0.035) 1px 3px),
+    linear-gradient(180deg, #f4f3f1 0%, #d9d6d0 42%, #c6c2bb 58%, #eceae6 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  padding: 14px 10px 12px;
+}
+
+.sbeq-plate-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sbeq-plate-inner {
+  display: flex;
+  gap: 10px;
+  /* Fifteen channels need room; below this the plate scrolls rather than
+     crushing the labels. */
+  min-width: 720px;
+}
+
+.sbeq-scale {
+  position: relative;
+  flex: 0 0 34px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #4a453d;
+}
+.sbeq-scale span { position: absolute; right: 0; }
+.sbeq-scale-unit { top: 2px; right: 2px; color: var(--sbeq-gold-dark); }
+.sbeq-scale-hi { top: 30px; }
+.sbeq-scale-mid { top: 50%; transform: translateY(-50%); margin-top: 6px; }
+.sbeq-scale-lo { bottom: 62px; }
+
+.sbeq-channels {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.sbeq-channel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.sbeq-hz {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #2c2822;
+  white-space: nowrap;
+}
+
+/* --- the slider ------------------------------------------------------- */
+.sbeq-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--sbeq-track-h);
+  margin: 10px 0 8px;
+  border-radius: 3px;
+}
+
+/* Gold detent at 0 dB, matching the engraved centre mark. */
+.sbeq-detent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 1.5px;
+  background: var(--sbeq-gold-dark);
+  opacity: 0.65;
+  transform: translate(-50%, -50%);
+}
+
+/* Native range rotated upright: real keyboard, touch and AT support for
+   free, which a div-based slider would have to reimplement badly. */
+.sbeq-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--sbeq-track-h);
+  height: 34px;
+  margin: 0;
+  background: transparent;
+  transform: rotate(-90deg);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.sbeq-range::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #16130f, #35302a);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.95),
+              0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.sbeq-range::-moz-range-track {
+  height: 7px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #16130f, #35302a);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.95),
+              0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* The cap. Narrow along travel, wide across it - a graphic-EQ slider cap,
+   not a fader knob. The dark band is the index line. */
+.sbeq-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 32px;
+  margin-top: -12.5px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      #f4f2ee 0 34%, #26221c 34% 50%, #cfcac1 50% 66%, #f1efeb 66% 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+  transition: filter 120ms ease;
+}
+.sbeq-range::-moz-range-thumb {
+  width: 13px;
+  height: 32px;
+  border: none;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      #f4f2ee 0 34%, #26221c 34% 50%, #cfcac1 50% 66%, #f1efeb 66% 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+}
+
+.sbeq-range:hover::-webkit-slider-thumb { filter: brightness(1.08); }
+.sbeq-range:active::-webkit-slider-thumb { filter: brightness(0.94); }
+.sbeq-range:hover::-moz-range-thumb { filter: brightness(1.08); }
+
+.sbeq-range:focus { outline: none; }
+.sbeq-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--sbeq-gold-dark);
+  outline-offset: 2px;
+}
+.sbeq-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--sbeq-gold-dark);
+  outline-offset: 2px;
+}
+/* Belt and braces: ring the slot too, so focus is obvious on the plate. */
+.sbeq-slot:has(.sbeq-range:focus-visible) {
+  box-shadow: 0 0 0 2px var(--sbeq-gold-dark);
+}
+
+.sbeq-band-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  color: #241f19;
+  text-align: center;
+}
+
+.sbeq-helper {
+  margin: 12px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--sbeq-muted);
+  text-align: center;
+}
+
+/* --- rack 3: the recommendation --------------------------------------- */
+.sbeq-panel { padding: 6px 4px 4px; }
+
+.sbeq-cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 26px;
+}
+
+@media (min-width: 860px) {
+  .sbeq-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+  }
+  .sbeq-col + .sbeq-col {
+    padding-left: 28px;
+    border-left: 1px solid rgba(216, 178, 90, 0.2);
+  }
+  .sbeq-col:not(:last-child) { padding-right: 28px; }
+}
+
+.sbeq-col-title {
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(216, 178, 90, 0.28);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sbeq-gold);
+}
+
+.sbeq-lane {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #f3f0e9;
+}
+.sbeq-lane a { color: inherit; text-decoration-color: rgba(216, 178, 90, 0.6); }
+.sbeq-lane a:hover { color: var(--sbeq-gold); }
+
+.sbeq-lane-blurb {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #a8a294;
+}
+
+.sbeq-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.sbeq-list li {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #ded9cf;
+}
+.sbeq-list a { color: #ded9cf; text-decoration-color: rgba(216, 178, 90, 0.5); }
+.sbeq-list a:hover { color: var(--sbeq-gold); }
+
+/* A module with no page of its own renders as plain text rather than a
+   dead link. Nothing is added to explain it - a roadmap badge would be a
+   claim about timing we have not made. */
+
+.sbeq-list--num { counter-reset: sbeq-step; }
+.sbeq-list--num li { counter-increment: sbeq-step; display: flex; gap: 10px; }
+.sbeq-list--num li::before {
+  content: counter(sbeq-step);
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sbeq-gold);
+  padding-top: 2px;
+}
+
+.sbeq-cta-wrap { margin-top: 30px; text-align: center; }
+
+.sbeq-cta {
+  display: block;
+  width: 100%;
+  padding: 16px 40px;
+  border: 2px solid var(--sbeq-gold);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2a251d, #14110d);
+  color: var(--sbeq-gold);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 140ms ease, color 140ms ease,
+              transform 90ms ease;
+}
+.sbeq-cta:hover { background: #38311f; color: #f0dcae; }
+.sbeq-cta:active { transform: translateY(1px); }
+.sbeq-cta:focus-visible {
+  outline: 2px solid var(--sbeq-gold);
+  outline-offset: 3px;
+}
+
+@media (min-width: 640px) {
+  .sbeq-cta { display: inline-block; width: auto; min-width: 340px; }
+}
+
+/* Screen-reader-only live region for recommendation changes. */
+.sbeq-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- narrow screens --------------------------------------------------- */
+@media (max-width: 640px) {
+  .sbeq { --sbeq-track-h: 150px; }
+  .sbeq-rack { padding: 12px 26px; margin-top: 16px; }
+  .sbeq-screw { width: 10px; height: 10px; }
+  .sbeq-screw--tl, .sbeq-screw--tr { top: 10px; }
+  .sbeq-screw--bl, .sbeq-screw--br { bottom: 10px; }
+  .sbeq-screw--tl, .sbeq-screw--bl { left: 8px; }
+  .sbeq-screw--tr, .sbeq-screw--br { right: 8px; }
+  .sbeq-preset { flex: 0 0 auto; padding: 12px 15px; }
+  .sbeq-screen { padding: 12px 8px 20px 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sbeq * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

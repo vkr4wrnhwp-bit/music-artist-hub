@@ -18,6 +18,7 @@ from statements_engine import (analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
 from landing_config import get_landing_config
+from artist_eq_config import get_artist_eq_config
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
@@ -1063,7 +1064,11 @@ def create_app():
         if not _has_file(config["sweep"].get("image")):
             config["sweep"] = {**config["sweep"], "image": None}
 
-        return render_template("landing.html", config=config)
+        # The Artist EQ ships its data twice: once as a dict for Jinja to
+        # render the plate from, once as JSON for the component script.
+        eq = get_artist_eq_config()
+        return render_template("landing.html", config=config, artist_eq=eq,
+                               artist_eq_json=json.dumps(eq))
 
     @app.route("/scan/recovery-summary", methods=["POST"])
     def scan_recovery_summary():

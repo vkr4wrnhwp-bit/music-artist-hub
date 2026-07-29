@@ -102,10 +102,103 @@ def test_signature_tool_icons_are_hardware_on_rack_panels():
     body = _demo().get("/").get_data(as_text=True)
     # Two screws per panel, five panels.
     assert body.count("-translate-y-1/2 rounded-full") == 10
+
     # Black rack faces with a light legend, not pale outlined chips - the
     # outlines read as weak beside the photography.
     assert "h-16 w-16 place-items-center rounded-md bg-[#1a1611]" in body
     assert "text-[#ece8de]" in body
+
+
+# --- the Artist EQ ------------------------------------------------------
+
+def test_artist_eq_sits_between_the_hero_and_the_lanes():
+    """Additive section: it goes after the hero, before the three lanes,
+    and displaces nothing that was already there."""
+    body = _demo().get("/").get_data(as_text=True)
+    assert 'id="artist-eq"' in body
+    assert "WHAT MATTERS MOST TO YOUR ART?" in body
+    assert body.index("THE ARTIST") < body.index("WHAT MATTERS MOST")
+    assert body.index("WHAT MATTERS MOST") < body.index("THE THREE STREET BANKER LANES")
+    # Every section that was on the page before is still on it.
+    for kept in ["RELEASE THE RECORD.", "FIND WHAT YOU EARNED.",
+                 "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
+                 "sb-band-catalog.jpg", "sb-band-sweep.jpg",
+                 "sb-hero-photo.jpg", "sb-lane-01.jpg"]:
+        assert kept in body, kept
+
+
+def test_artist_eq_renders_fifteen_sliders_and_six_presets():
+    """Fifteen coded slider caps - no knobs, no decorative controls."""
+    body = _demo().get("/").get_data(as_text=True)
+    assert body.count('class="sbeq-range"') == 15
+    assert body.count('class="sbeq-preset"') == 6
+    # Real range inputs, so keyboard and touch come from the platform.
+    assert body.count('type="range"') >= 15
+    # aria-label on every slider (Jinja escapes the ampersand)
+    for band in ["Rights &amp; Splits", "Royalty Recovery", "Long-Term Vision"]:
+        assert "%s priority" % band in body
+    assert "knob" not in body.lower()
+
+
+def test_artist_eq_only_links_modules_that_really_exist():
+    """The panel may print a module with no page, but never a dead link."""
+    from artist_eq_config import get_artist_eq_config
+
+    cfg = get_artist_eq_config()
+    client = _demo()
+    for name, href in cfg["modules"].items():
+        if href is None:
+            continue                      # printed as plain text instead
+        status = client.get(href).status_code
+        assert status < 400, "%s -> %s returned %s" % (name, href, status)
+    for lane in cfg["lanes"] + [cfg["sweep_first"], cfg["integrated"]]:
+        assert client.get(lane["href"]).status_code < 400, lane["href"]
+    assert client.get(cfg["cta"]["href"]).status_code < 400
+
+
+def test_artist_eq_data_is_complete_and_consistent():
+    """Every band needs a preset value, a module and an action, or the
+    recommendation silently drops a priority."""
+    from artist_eq_config import get_artist_eq_config
+
+    cfg = get_artist_eq_config()
+    keys = [b["key"] for b in cfg["bands"]]
+    assert len(keys) == 15 and len(set(keys)) == 15
+    for key in keys:
+        assert cfg["priority_modules"].get(key), key
+        assert cfg["priority_actions"].get(key), key
+        for module in cfg["priority_modules"][key]:
+            assert module in cfg["modules"], module
+    named = [p for p in cfg["presets"] if p["values"] is not None]
+    assert len(named) == 5                # five real presets + Custom Mix
+    for preset in named:
+        assert sorted(preset["values"]) == sorted(keys), preset["name"]
+        for v in preset["values"].values():
+            assert 0 <= v <= 10
+    # The section must not start with every slider on the floor.
+    default = [p for p in cfg["presets"] if p["id"] == cfg["default_preset"]]
+    assert default and any(v > 5 for v in default[0]["values"].values())
+
+
+def test_artist_eq_promises_nothing_it_cannot_know():
+    """No forecast, no revenue, no guarantee - it reports the visitor's
+    own settings back to them."""
+    from artist_eq_config import get_artist_eq_config
+
+    cfg = get_artist_eq_config()
+    blob = " ".join([cfg["heading"], cfg["support"], cfg["helper"]] +
+                    [l["blurb"] for l in cfg["lanes"]] +
+                    [cfg["sweep_first"]["blurb"], cfg["integrated"]["blurb"]] +
+                    [a for acts in cfg["priority_actions"].values() for a in acts])
+    for banned in ["guarantee", "guaranteed", "projected", "forecast",
+                   "estimated revenue", "you will earn", "$"]:
+        assert banned not in blob.lower(), banned
+
+
+def test_artist_eq_assets_are_served():
+    client = _demo()
+    for asset in ["/static/css/artist-eq.css", "/static/js/artist-eq.js"]:
+        assert client.get(asset).status_code == 200, asset
 
 
 def test_landing_is_seven_editorial_sections():

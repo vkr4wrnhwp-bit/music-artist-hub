@@ -1,0 +1,142 @@
+{# The Artist EQ — a 15-band priority equaliser.
+
+   Three rack units: the response screen, the slider faceplate, and the
+   recommendation panel. Everything that moves or reads out is coded; the
+   chassis, plate texture, screws and engraving are CSS. No raster image is
+   involved, so the unit reflows instead of scaling to mush on a phone.
+
+   Sliders are native range inputs rotated upright, which buys real
+   keyboard, touch and screen-reader support rather than reimplementing it. #}
+
+{% set eq = artist_eq %}
+<section class="sbeq" id="artist-eq" aria-labelledby="sbeq-heading">
+  <div class="sbeq-inner">
+
+    <header class="sbeq-head">
+      <p class="sbeq-eyebrow">{{ eq.eyebrow }}</p>
+      <h2 class="sbeq-title" id="sbeq-heading">{{ eq.heading }}</h2>
+      <p class="sbeq-support">{{ eq.support }}</p>
+      <div class="sbeq-rule" aria-hidden="true"><span>SB</span></div>
+    </header>
+
+    {# --- presets ------------------------------------------------------ #}
+    <div class="sbeq-presets-wrap">
+      <div class="sbeq-presets" role="group" aria-label="Priority presets">
+        {% for p in eq.presets %}
+        <button type="button" class="sbeq-preset" data-preset="{{ p.id }}"
+                aria-pressed="false">{{ p.name }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# --- rack 1: live response screen --------------------------------- #}
+    <div class="sbeq-rack sbeq-rack--screen">
+      <span class="sbeq-screw sbeq-screw--tl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--bl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--tr" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--br" aria-hidden="true"></span>
+      <div class="sbeq-screen">
+        <span class="sbeq-screen-unit" aria-hidden="true">dB</span>
+        <span class="sbeq-screen-tick sbeq-screen-tick--hi" aria-hidden="true">+12</span>
+        <span class="sbeq-screen-tick sbeq-screen-tick--mid" aria-hidden="true">0</span>
+        <span class="sbeq-screen-tick sbeq-screen-tick--lo" aria-hidden="true">&minus;12</span>
+        <svg class="sbeq-curve" viewBox="0 0 1200 240" preserveAspectRatio="none"
+             role="img"
+             aria-label="Response curve showing your fifteen priority settings">
+          <g class="sbeq-grid" aria-hidden="true">
+            {% for i in range(1, 15) %}
+            <line x1="{{ (i * 1200 / 14) | round(2) }}" y1="0"
+                  x2="{{ (i * 1200 / 14) | round(2) }}" y2="240"/>
+            {% endfor %}
+            <line x1="0" y1="60" x2="1200" y2="60"/>
+            <line x1="0" y1="180" x2="1200" y2="180"/>
+          </g>
+          <line class="sbeq-zero" x1="0" y1="120" x2="1200" y2="120"
+                aria-hidden="true"/>
+          <path class="sbeq-curve-fill" id="sbeq-curve-fill" d="" aria-hidden="true"/>
+          <path class="sbeq-curve-line" id="sbeq-curve-line" d="" aria-hidden="true"/>
+        </svg>
+        <div class="sbeq-screen-freqs" aria-hidden="true">
+          {% for b in eq.bands %}<span>{{ b.hz.split(' ')[0] }}</span>{% endfor %}
+          <span class="sbeq-screen-hz">Hz</span>
+        </div>
+      </div>
+    </div>
+
+    {# --- rack 2: the faceplate ---------------------------------------- #}
+    <div class="sbeq-rack sbeq-rack--plate">
+      <span class="sbeq-screw sbeq-screw--tl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--bl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--tr" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--br" aria-hidden="true"></span>
+      <div class="sbeq-plate">
+        <div class="sbeq-plate-scroll">
+          <div class="sbeq-plate-inner">
+            <div class="sbeq-scale" aria-hidden="true">
+              <span class="sbeq-scale-unit">dB</span>
+              <span class="sbeq-scale-hi">+12</span>
+              <span class="sbeq-scale-mid">0</span>
+              <span class="sbeq-scale-lo">&minus;12</span>
+            </div>
+            <div class="sbeq-channels">
+              {% for b in eq.bands %}
+              <div class="sbeq-channel">
+                <span class="sbeq-hz" aria-hidden="true">{{ b.hz }}</span>
+                <div class="sbeq-slot">
+                  <span class="sbeq-detent" aria-hidden="true"></span>
+                  <input type="range" class="sbeq-range" min="0" max="10" step="1"
+                         value="5" data-band="{{ b.key }}"
+                         id="sbeq-band-{{ b.key }}"
+                         aria-label="{{ b.label }} priority"
+                         aria-describedby="sbeq-helper">
+                </div>
+                <span class="sbeq-band-label" aria-hidden="true">
+                  {% for line in b.lines %}<span>{{ line }}</span>{% endfor %}
+                </span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="sbeq-helper" id="sbeq-helper">{{ eq.helper }}</p>
+
+    {# --- rack 3: what that adds up to --------------------------------- #}
+    <div class="sbeq-rack sbeq-rack--panel">
+      <span class="sbeq-screw sbeq-screw--tl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--bl" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--tr" aria-hidden="true"></span>
+      <span class="sbeq-screw sbeq-screw--br" aria-hidden="true"></span>
+      <div class="sbeq-panel">
+        <div class="sbeq-cols">
+          <div class="sbeq-col">
+            <h3 class="sbeq-col-title">{{ eq.columns[0] }}</h3>
+            <p class="sbeq-lane" id="sbeq-lane"></p>
+            <p class="sbeq-lane-blurb" id="sbeq-lane-blurb"></p>
+          </div>
+          <div class="sbeq-col">
+            <h3 class="sbeq-col-title">{{ eq.columns[1] }}</h3>
+            <ul class="sbeq-list" id="sbeq-modules"></ul>
+          </div>
+          <div class="sbeq-col">
+            <h3 class="sbeq-col-title">{{ eq.columns[2] }}</h3>
+            <ol class="sbeq-list sbeq-list--num" id="sbeq-actions"></ol>
+          </div>
+        </div>
+        <div class="sbeq-cta-wrap">
+          {# A link, not a bare button: it navigates, and it still works if
+             the script fails. The click handler saves the mix first. #}
+          <a class="sbeq-cta" id="sbeq-build" href="{{ eq.cta.href }}">
+            {{ eq.cta.label }}
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <p class="sbeq-sr" id="sbeq-live" aria-live="polite" role="status"></p>
+  </div>
+
+  <script type="application/json" id="sbeq-data">{{ artist_eq_json | safe }}</script>
+</section>
