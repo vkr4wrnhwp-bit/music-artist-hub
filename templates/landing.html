@@ -91,7 +91,7 @@
 
 <!-- 4. ROYALTY SWEEP — the one dark section -->
 {% set sweep = config.sweep %}
-<section class="bg-[#0f0e0c] py-20 text-gray-100 lg:py-28">
+<section class="bg-[#0f0e0c] pt-20 text-gray-100 lg:pt-28 {{ '' if sweep.band else 'pb-20 lg:pb-28' }}">
   <div class="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16 lg:px-10">
     <div class="text-center lg:text-left">
       <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#d8b25a]">{{ sweep.eyebrow }}</div>
@@ -107,6 +107,11 @@
       <figcaption class="absolute bottom-3 right-3 rounded border border-white/25 bg-black/70 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">{{ sweep.demo_label }}</figcaption>
     </figure>
   </div>
+  {% if sweep.band %}
+  <figure class="mt-16 w-full overflow-hidden lg:mt-24">
+    <img src="{{ sweep.band.src }}" alt="{{ sweep.band.alt }}" class="block h-36 w-full object-cover sm:h-48 lg:h-60" loading="lazy">
+  </figure>
+  {% endif %}
 </section>
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">

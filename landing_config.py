@@ -95,6 +95,12 @@ def get_landing_config():
                       "alt": "Royalty Sweep signal routing: DSP, sync, merch,"
                              " fan data, catalog, and revenue on one patchbay"},
             "demo_label": "ILLUSTRATIVE DEMO DATA",
+            # Closes the dark section the same way the arena band closes
+            # the tools strip: full-bleed, no text, nothing to click.
+            "band": {
+                "src": "/static/img/sb-band-sweep.jpg?v=1",
+                "alt": "Road cases lined along a backstage corridor",
+            },
         },
 
         "tools": {
