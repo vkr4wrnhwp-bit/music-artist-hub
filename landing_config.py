@@ -108,27 +108,30 @@ def get_landing_config():
             # meter, a flight case. Stroked paths on a 20x20 grid, split on
             # "|" by the template.
             "items": [
-                # Two knobs, the second set a step past the first.
+                # One large knob, pointer turned off the panel index mark.
+                # Two small knobs were tried for the "twin" reading, but a
+                # side-by-side pair only fills a third of the square and
+                # went weak next to the other four.
                 {"name": "Artist Twin", "href": "/artist-twin",
-                 "icon": "M6 7a3 3 0 100 6 3 3 0 100-6"
-                         "|M14 7a3 3 0 100 6 3 3 0 100-6"
-                         "|M6 10V7.8|M14 10l1.6-1.6"},
+                 "icon": "M10 3.8a6.2 6.2 0 100 12.4 6.2 6.2 0 100-12.4"
+                         "|M10 10l2.6-2.6|M10 3.8V2.2"},
                 # A fader bank with the scene already set.
                 {"name": "Release Autopilot", "href": "/releases/autopilot",
                  "icon": "M6 4.5v11|M10 4.5v11|M14 4.5v11"
                          "|M4.4 11.5h3.2|M8.4 7.2h3.2|M12.4 9.4h3.2"},
-                # Patchbay jacks over their label strip - metadata is the
-                # strip that says what is plugged into what.
+                # A stencilled label plate with its barcode, like the ones on
+                # the road cases in the artwork. Metadata is the identifier.
+                # Patchbay jacks were tried first: outlined holes small
+                # enough to fit three across close up at this stroke weight.
                 {"name": "Metadata Passport", "href": "/metadata-passport",
                  "icon": "M3 5.5h14v9H3z"
-                         "|M6 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
-                         "|M10 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
-                         "|M14 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
-                         "|M5.5 12.4h9"},
+                         "|M6.1 8v3M8.7 8v3M11.3 8v3M13.9 8v3"
+                         "|M5.5 12.6h9"},
                 # VU meter: the needle is what a rollout is measured on.
                 {"name": "Rollout Studio", "href": "/rollout-studio",
-                 "icon": "M4.5 12.4a5.5 5.5 0 0111 0|M10 12.4l2.9-4"
-                         "|M5.5 14.2h9"},
+                 "icon": "M3.6 13.4h12.8v2.8H3.6z"
+                         "|M4.9 13.4a5.1 5.1 0 0110.2 0"
+                         "|M10 13.4l1.8-2.5"},
                 # Road case: body, grab handle, and the stencilled label
                 # plate the artwork's own SB-01 cases carry. A lid seam was
                 # tried and cut - at 24px it merged with the plate into one

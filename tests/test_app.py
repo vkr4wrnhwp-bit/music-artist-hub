@@ -102,8 +102,10 @@ def test_signature_tool_icons_are_hardware_on_rack_panels():
     body = _demo().get("/").get_data(as_text=True)
     # Two screws per panel, five panels.
     assert body.count("-translate-y-1/2 rounded-full") == 10
-    # Panels, not the circular badges they replaced.
-    assert "h-14 w-14 place-items-center rounded-md" in body
+    # Black rack faces with a light legend, not pale outlined chips - the
+    # outlines read as weak beside the photography.
+    assert "h-16 w-16 place-items-center rounded-md bg-[#1a1611]" in body
+    assert "text-[#ece8de]" in body
 
 
 def test_landing_is_seven_editorial_sections():
