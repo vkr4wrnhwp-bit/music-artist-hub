@@ -28,17 +28,17 @@
 <div class="mx-auto max-w-7xl px-6 lg:px-10">
 
   <!-- 1. TOP NAVIGATION -->
-  <header class="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 py-3 sm:py-5">
-    <a href="/" class="flex flex-col items-start leading-none">
-      <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ config.nav.logo.primary }}" class="h-7 w-auto sm:h-9">
-      <span class="mt-1 pl-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ config.nav.logo.secondary }}</span>
+  <header class="flex flex-col items-center gap-3 border-b border-black/10 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:py-5">
+    <a href="/" class="flex flex-col items-center leading-none sm:items-start">
+      <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ config.nav.logo.primary }}" class="h-8 w-auto sm:h-9">
+      <span class="mt-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f] sm:pl-1">{{ config.nav.logo.secondary }}</span>
     </a>
     <nav class="hidden items-center gap-8 text-[13px] font-medium text-[#4a463e] lg:flex">
       {% for link in config.nav.links %}
       <a href="{{ link.href }}" class="transition-colors hover:text-[#141210]">{{ link.label }}</a>
       {% endfor %}
     </nav>
-    <div class="flex items-center gap-4">
+    <div class="flex items-center justify-center gap-4">
       {% for a in config.nav.actions %}
       {% if a.variant == 'primary' %}
       <a href="{{ a.href }}" class="rounded-md bg-[#141210] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#2a251d] sm:px-4 sm:py-2 sm:text-[13px]">{{ a.label }}</a>
