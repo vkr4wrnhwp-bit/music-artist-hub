@@ -89,29 +89,22 @@
   </section>
 </div>
 
-<!-- 4. ROYALTY SWEEP — the one dark section -->
+<!-- 4. ROYALTY SWEEP — the one dark section; the photograph IS the section -->
 {% set sweep = config.sweep %}
-<section class="bg-[#0f0e0c] pt-20 text-gray-100 lg:pt-28 {{ '' if sweep.band else 'pb-20 lg:pb-28' }}">
-  <div class="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16 lg:px-10">
-    <div class="text-center lg:text-left">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#d8b25a]">{{ sweep.eyebrow }}</div>
-      <h2 class="mt-5 text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-4xl">
-        {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
-      </h2>
-      <p class="mx-auto mt-5 max-w-sm text-sm leading-relaxed text-gray-400 lg:mx-0">{{ sweep.description }}</p>
-      <a href="{{ sweep.cta.href }}" class="mt-8 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
-      <p class="mx-auto mt-5 max-w-sm text-[11px] leading-relaxed text-gray-500 lg:mx-0">{{ sweep.note }}</p>
-    </div>
-    <figure class="relative overflow-hidden rounded-lg">
-      <img src="{{ sweep.image.src }}" alt="{{ sweep.image.alt }}" class="block w-full object-cover" loading="lazy">
-      <figcaption class="absolute bottom-3 right-3 rounded border border-white/25 bg-black/70 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">{{ sweep.demo_label }}</figcaption>
-    </figure>
-  </div>
-  {% if sweep.band %}
-  <figure class="mt-16 w-full overflow-hidden lg:mt-24">
-    <img src="{{ sweep.band.src }}" alt="{{ sweep.band.alt }}" class="block h-36 w-full object-cover sm:h-48 lg:h-60" loading="lazy">
-  </figure>
+<section class="relative isolate overflow-hidden bg-[#0f0e0c] py-24 text-gray-100 lg:py-32">
+  {% if sweep.background %}
+  <img src="{{ sweep.background.src }}" alt="{{ sweep.background.alt }}" class="absolute inset-0 -z-10 h-full w-full object-cover" loading="lazy">
+  <div class="absolute inset-0 -z-10 bg-[#0f0e0c]/75"></div>
   {% endif %}
+  <div class="mx-auto max-w-6xl px-6 text-center lg:px-10">
+    <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#d8b25a]">{{ sweep.eyebrow }}</div>
+    <h2 class="mt-5 text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-4xl lg:text-5xl">
+      {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-300">{{ sweep.description }}</p>
+    <a href="{{ sweep.cta.href }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
+    <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-400">{{ sweep.note }}</p>
+  </div>
 </section>
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">

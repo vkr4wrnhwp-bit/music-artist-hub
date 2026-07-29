@@ -89,15 +89,10 @@ def get_landing_config():
             "cta": {"label": "START A FREE SCAN", "href": "/recovery"},
             "note": ("No upfront scan fee. Results depend on available "
                      "catalog and registration data."),
-            # The rack enclosure holds a product view; every figure inside
-            # it is labeled illustrative, never presented as real earnings.
-            "image": {"src": "/static/img/sb-patchbay.jpg?v=4",
-                      "alt": "Royalty Sweep signal routing: DSP, sync, merch,"
-                             " fan data, catalog, and revenue on one patchbay"},
-            "demo_label": "ILLUSTRATIVE DEMO DATA",
-            # Closes the dark section the same way the arena band closes
-            # the tools strip: full-bleed, no text, nothing to click.
-            "band": {
+            # The section IS the photograph: corridor of road cases behind
+            # a dark scrim, copy set over it. No product screenshot here,
+            # so there are no figures to label or mistake for real data.
+            "background": {
                 "src": "/static/img/sb-band-sweep.jpg?v=1",
                 "alt": "Road cases lined along a backstage corridor",
             },

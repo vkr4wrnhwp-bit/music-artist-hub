@@ -97,8 +97,10 @@ def test_landing_is_seven_editorial_sections():
     assert "sb-band.jpg" in body
     assert body.index("sb-band.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
     assert body.index("sb-band.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
-    # Demo figures inside the product visual are labeled, never implied real.
-    assert "ILLUSTRATIVE DEMO DATA" in body
+    # The Sweep section is a photograph with copy over it - no product
+    # screenshot, so there are no figures that could read as real data.
+    assert "sb-band-sweep.jpg" in body
+    assert "sb-patchbay.jpg" not in body
     # Everything moved deeper into the site stays gone.
     for old in ["Everything Street Banker Is", "Nightdrive", "ONE PLATFORM",
                 "FROM RELEASE TO OWNERSHIP", "No Upfront Fees"]:
