@@ -830,11 +830,32 @@
   // ---------- stem deck UI ----------
   var stemsWrap = document.getElementById("rk-stems");
 
+  function dormantLane(label, hint) {
+    var row = document.createElement("div");
+    row.className = "lane dim";
+    var lamp = document.createElement("span");
+    lamp.className = "lamp";
+    var name = document.createElement("span");
+    name.className = "ln";
+    name.textContent = label;
+    var rail = document.createElement("span");
+    rail.className = "rail";
+    var state = document.createElement("span");
+    state.className = "ld";
+    state.textContent = hint;
+    row.appendChild(lamp); row.appendChild(name);
+    row.appendChild(rail); row.appendChild(state);
+    return row;
+  }
+
   function renderStems() {
     stemsWrap.innerHTML = "";
     if (!stems.length) {
-      stemsWrap.innerHTML = '<p class="note">No lanes on the deck. Add your own ' +
-        'stem bounces, or load a track and hit Rough Split.</p>';
+      /* An unloaded deck still shows its four channels - dark lamps,
+         empty rails. Real hardware does not hide its lanes. */
+      ["VOCALS", "DRUMS", "BASS", "INSTRUMENTS"].forEach(function (nm) {
+        stemsWrap.appendChild(dormantLane(nm, "empty"));
+      });
       return;
     }
     stems.forEach(function (st, i) {
@@ -1281,6 +1302,14 @@
     frame();
     setTimeout(function () { if (rec.state === "recording") rec.stop(); }, h.len * 1000 + 200);
   }
+  function renderHooksIdle() {
+    var wrap0 = document.getElementById("rk-hooks");
+    if (!wrap0 || wrap0.children.length) { return; }
+    ["BEST 15S HOOK", "BEST 30S HOOK"].forEach(function (nm) {
+      wrap0.appendChild(dormantLane(nm, "awaiting scan"));
+    });
+  }
+
   var hookBtn = document.getElementById("rk-hook-scan");
   if (hookBtn) hookBtn.addEventListener("click", function () {
     var wrap2 = document.getElementById("rk-hooks");
@@ -1312,6 +1341,11 @@
       wrap2.innerHTML = '<p class="note">Load a track longer than ~16 seconds first.</p>';
     }
   });
+
+  /* Boot: the deck and the scanner show their hardware before any file
+     arrives - dormant lanes, not blank wells. */
+  renderStems();
+  renderHooksIdle();
 
   // ---------- Rack -> Smart Link handoff ----------
   var rolloutBtn = document.getElementById("rk-rollout");

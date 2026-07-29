@@ -61,6 +61,10 @@
               font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
               color: #d8cdb4; }
   .lane .ld { font-size: 9px; color: #6d6450; font-variant-numeric: tabular-nums; }
+  /* Dormant lane rail: the empty fader slot on an unloaded channel. */
+  .rail { height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
+          background: repeating-linear-gradient(90deg, #191512 0 6px, #0c0a08 6px 12px);
+          box-shadow: inset 0 1px 2px #000; }
   .fader { -webkit-appearance: none; appearance: none; height: 20px;
            background: transparent; cursor: pointer; }
   .fader::-webkit-slider-runnable-track { height: 5px; border-radius: 3px;
@@ -447,6 +451,6 @@
 </div>
 
 <script src="/static/js/roughsplit.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=11"></script>
+<script src="/static/js/rackdsp.js?v=12"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
