@@ -84,6 +84,28 @@ def test_landing_page_includes_feature_cards():
         assert 'href="%s"' % href in body
 
 
+def test_signature_tool_icons_are_hardware_on_rack_panels():
+    """The icons are studio objects, not generic pictograms.
+
+    Each is drawn as several stroked subpaths on a 20x20 grid - a single
+    subpath means someone dropped back to a one-line glyph. Each sits on a
+    rack panel with two mounting screws.
+    """
+    from landing_config import get_landing_config
+
+    for tool in get_landing_config()["tools"]["items"]:
+        parts = [p for p in tool["icon"].split("|") if p.strip()]
+        assert len(parts) >= 3, "%s lost its detail" % tool["name"]
+        for d in parts:
+            assert d.startswith("M"), (tool["name"], d)
+
+    body = _demo().get("/").get_data(as_text=True)
+    # Two screws per panel, five panels.
+    assert body.count("-translate-y-1/2 rounded-full") == 10
+    # Panels, not the circular badges they replaced.
+    assert "h-14 w-14 place-items-center rounded-md" in body
+
+
 def test_landing_is_seven_editorial_sections():
     """Seven sections, one message each, no feature directory."""
     body = _demo().get("/").get_data(as_text=True)

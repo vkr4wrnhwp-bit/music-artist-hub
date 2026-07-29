@@ -102,17 +102,42 @@ def get_landing_config():
             "heading": "EVERYTHING BEHIND THE ARTIST.",
             "support": ("Strategy, rights, releases, campaigns, and "
                         "opportunities in one system."),
+            # Every icon is a piece of studio hardware, drawn in the same
+            # vocabulary as the rack units in the lanes above and the road
+            # cases in the band below: knobs, faders, a patchbay, a VU
+            # meter, a flight case. Stroked paths on a 20x20 grid, split on
+            # "|" by the template.
             "items": [
+                # Two knobs, the second set a step past the first.
                 {"name": "Artist Twin", "href": "/artist-twin",
-                 "icon": "M10 3a3 3 0 013 3v1.2a3.2 3.2 0 010 5.6V14a3 3 0 11-6 0v-1.2a3.2 3.2 0 010-5.6V6a3 3 0 013-3z|M10 8.5v3"},
+                 "icon": "M6 7a3 3 0 100 6 3 3 0 100-6"
+                         "|M14 7a3 3 0 100 6 3 3 0 100-6"
+                         "|M6 10V7.8|M14 10l1.6-1.6"},
+                # A fader bank with the scene already set.
                 {"name": "Release Autopilot", "href": "/releases/autopilot",
-                 "icon": "M10 2.5l7 7-7 7-7-7z|M10 7v6M7 10h6"},
+                 "icon": "M6 4.5v11|M10 4.5v11|M14 4.5v11"
+                         "|M4.4 11.5h3.2|M8.4 7.2h3.2|M12.4 9.4h3.2"},
+                # Patchbay jacks over their label strip - metadata is the
+                # strip that says what is plugged into what.
                 {"name": "Metadata Passport", "href": "/metadata-passport",
-                 "icon": "M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12.5h6"},
+                 "icon": "M3 5.5h14v9H3z"
+                         "|M6 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
+                         "|M10 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
+                         "|M14 7.85a1.15 1.15 0 100 2.3 1.15 1.15 0 100-2.3"
+                         "|M5.5 12.4h9"},
+                # VU meter: the needle is what a rollout is measured on.
                 {"name": "Rollout Studio", "href": "/rollout-studio",
-                 "icon": "M4 4.5h12v9H4z|M4 13.5l3 3M16 13.5l-3 3|M7.5 8.5l2 2 3.5-3.5"},
+                 "icon": "M4.5 12.4a5.5 5.5 0 0111 0|M10 12.4l2.9-4"
+                         "|M5.5 14.2h9"},
+                # Road case: body, grab handle, and the stencilled label
+                # plate the artwork's own SB-01 cases carry. A lid seam was
+                # tried and cut - at 24px it merged with the plate into one
+                # thick belt. Handle stays wide and shallow so it reads as a
+                # case grip rather than a padlock shackle.
                 {"name": "Deal Room", "href": "/deal-room",
-                 "icon": "M3 7.5h14v8a1 1 0 01-1 1H4a1 1 0 01-1-1z|M7 7.5V5a1 1 0 011-1h4a1 1 0 011 1v2.5"},
+                 "icon": "M3.5 7h13v8h-13z"
+                         "|M7.6 7V6.2a2.4 1.3 0 014.8 0V7"
+                         "|M6.8 10h6.4v2.6H6.8z"},
             ],
         },
 
