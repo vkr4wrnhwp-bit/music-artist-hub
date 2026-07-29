@@ -93,10 +93,11 @@ def test_landing_is_seven_editorial_sections():
     assert "FIND WHAT YOU EARNED." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
     assert "YOUR MUSIC IS THE PRODUCT." in body
-    # A full-bleed band separates the tools strip from the closing line.
-    assert "sb-band.jpg" in body
-    assert body.index("sb-band.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
-    assert body.index("sb-band.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
+    # The archive-shelf band separates the tools strip from the closing line;
+    # it illustrates the catalog claim rather than decorating it.
+    assert "sb-band-catalog.jpg" in body
+    assert body.index("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
+    assert body.index("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
     # The Sweep section is a photograph with copy over it - no product
     # screenshot, so there are no figures that could read as real data.
     assert "sb-band-sweep.jpg" in body

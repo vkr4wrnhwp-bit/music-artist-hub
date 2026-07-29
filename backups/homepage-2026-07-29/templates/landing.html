@@ -131,12 +131,10 @@
   </section>
 </div>
 
-<!-- Full-bleed band: the archive the closing line is about. Anchored to the
-     top so the crop always keeps Masters and Catalog rather than drifting to
-     a random slice of wall as the viewport widens. -->
+<!-- Full-bleed band: the room all of it is for -->
 {% if config.band_image %}
-<figure class="w-full overflow-hidden bg-[#e8e6e0]">
-  <img src="{{ config.band_image.src }}" alt="{{ config.band_image.alt }}" class="block h-48 w-full object-cover object-left-top sm:h-64 lg:h-[22rem]" loading="lazy">
+<figure class="w-full overflow-hidden bg-[#0f0e0c]">
+  <img src="{{ config.band_image.src }}" alt="{{ config.band_image.alt }}" class="block h-36 w-full object-cover sm:h-48 lg:h-60" loading="lazy">
 </figure>
 {% endif %}
 

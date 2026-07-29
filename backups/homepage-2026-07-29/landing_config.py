@@ -116,14 +116,12 @@ def get_landing_config():
             ],
         },
 
-        # Full-bleed band between the tools strip and the closing statement.
-        # The archive wall is the closing line as a photograph: shelves of
-        # masters, catalog and merch. Shelf labels are real categories, not
-        # data, so there is nothing here to mistake for a client's numbers.
+        # Thin full-bleed band that separates the tools strip from the
+        # closing statement. No text in the artwork; nothing to click.
         "band_image": {
-            "src": "/static/img/sb-band-catalog.jpg?v=1",
-            "alt": "Archive shelves of master tapes, catalog and merch, "
-                   "each shelf labelled",
+            "src": "/static/img/sb-band.jpg?v=1",
+            "alt": "Front-of-house engineers working the desk in front of a "
+                   "full arena",
         },
 
         "final_cta": {
