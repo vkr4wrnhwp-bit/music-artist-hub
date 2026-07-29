@@ -664,6 +664,8 @@
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
           buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
         playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
+        var rsBtn = document.getElementById("rk-roughsplit");
+        if (rsBtn && window.SBRoughSplit) { rsBtn.disabled = false; }
         renderWave();
       })
       .catch(function () { statusEl.textContent = "Couldn't decode that file."; });
@@ -831,27 +833,27 @@
   function renderStems() {
     stemsWrap.innerHTML = "";
     if (!stems.length) {
-      stemsWrap.innerHTML = '<p class="text-[11px] text-gray-600">No stems loaded. ' +
-        'Add your vocal, drums, bass, and music bounces — then mute what ' +
-        "shouldn't be in the mix and export.</p>";
+      stemsWrap.innerHTML = '<p class="note">No lanes on the deck. Add your own ' +
+        'stem bounces, or load a track and hit Rough Split.</p>';
       return;
     }
     stems.forEach(function (st, i) {
       var row = document.createElement("div");
-      row.className = "flex flex-wrap items-center gap-2 rounded border px-3 py-2 " +
-        (st.solo ? "border-[#c9a24a]/50 bg-[#c9a24a]/10"
-                 : st.mute ? "border-white/5 bg-black/20 opacity-60"
-                 : "border-white/10 bg-black/30");
+      row.className = "lane" + (st.mute && !st.solo ? " dim" : "");
+      // Jewel lamp: gold = in the mix, green = soloed, dark = muted.
+      var lamp = document.createElement("span");
+      lamp.className = "lamp" + (st.solo ? " grn" : st.mute ? "" : " on");
+      row.appendChild(lamp);
       var name = document.createElement("span");
-      name.className = "min-w-0 flex-1 truncate text-xs font-bold";
+      name.className = "ln min-w-0 flex-1 truncate";
       name.textContent = st.name;
       var dur = document.createElement("span");
-      dur.className = "text-[10px] tabular-nums text-gray-600";
+      dur.className = "ld";
       dur.textContent = st.buffer.duration.toFixed(1) + "s";
       var gain = document.createElement("input");
       gain.type = "range"; gain.min = 0; gain.max = 1.2; gain.step = 0.02;
       gain.value = st.gain;
-      gain.className = "w-28 accent-[#c9a24a]";
+      gain.className = "fader w-28";
       gain.addEventListener("input", function () {
         st.gain = parseFloat(gain.value); refreshStemGains();
       });
@@ -869,6 +871,17 @@
         st.solo = !st.solo; if (st.solo) st.mute = false;
         renderStems(); refreshStemGains();
       });
+      var dl = document.createElement("button");
+      dl.textContent = "WAV"; dl.title = "Download this stem as a WAV";
+      dl.className = "sw h-7 px-2 text-[10px] text-[#e8c667]";
+      dl.addEventListener("click", function () {
+        var blob = encodeWav(st.buffer);
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = (loadedName || "stem") + " - " + st.name + ".wav";
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
       var rm = document.createElement("button");
       rm.textContent = "×"; rm.title = "Remove stem";
       rm.className = "sw h-7 w-7 text-sm text-gray-500";
@@ -876,7 +889,8 @@
         stop(); stems.splice(i, 1); renderStems(); syncDeckInfo(); renderWave();
       });
       row.appendChild(name); row.appendChild(dur); row.appendChild(gain);
-      row.appendChild(mute); row.appendChild(solo); row.appendChild(rm);
+      row.appendChild(mute); row.appendChild(solo); row.appendChild(dl);
+      row.appendChild(rm);
       stemsWrap.appendChild(row);
     });
   }
@@ -894,6 +908,76 @@
         "No file loaded — drop a WAV/MP3 anywhere on this page.";
       playBtn.disabled = abBtn.disabled = exportBtn.disabled = true;
     }
+  }
+
+  // ---------- Rough Split: classical DSP lanes from the loaded track ----
+  // The math lives in roughsplit.js (pure, Node-tested). This handler only
+  // moves audio in and out: channel data in, four AudioBuffers into the
+  // same stems array the deck already plays. Rough lanes replace previous
+  // rough lanes; user-loaded stems are never touched.
+  var roughBtn = document.getElementById("rk-roughsplit");
+  var roughStatus = document.getElementById("rk-roughsplit-status");
+  var roughWrap = document.getElementById("rk-roughsplit-wrap");
+  var roughFill = document.getElementById("rk-roughsplit-fill");
+  var roughLamp = document.getElementById("rk-roughsplit-lamp");
+  var roughRunning = false;
+
+  function roughNote(msg, pct) {
+    if (roughWrap) roughWrap.classList.remove("hidden");
+    if (roughStatus) roughStatus.textContent = msg;
+    if (roughFill && typeof pct === "number") {
+      roughFill.style.width = Math.round(pct * 100) + "%";
+    }
+  }
+
+  if (roughBtn) {
+    roughBtn.addEventListener("click", function () {
+      if (roughRunning || !buffer || !window.SBRoughSplit) return;
+      roughRunning = true;
+      roughBtn.disabled = true;
+      if (roughLamp) roughLamp.classList.add("on");
+      stop();
+      ensureCtx();
+      var channels = [buffer.getChannelData(0)];
+      if (buffer.numberOfChannels > 1) channels.push(buffer.getChannelData(1));
+      var mins = buffer.duration / 60;
+      roughNote("Splitting… a " + mins.toFixed(1) +
+        "-minute track takes about " + Math.max(1, Math.round(mins * 0.6)) +
+        " minute" + (mins * 0.6 > 1.5 ? "s" : "") + ".", 0);
+      var lastPct = -1;
+      window.SBRoughSplit.split(channels, buffer.sampleRate, function (p) {
+        var pct = Math.round(p * 100);
+        if (pct !== lastPct) {
+          lastPct = pct;
+          roughNote("Splitting… " + pct + "% — all in this tab, nothing uploads.", p);
+        }
+      }).then(function (lanes) {
+        var order = [["Vocals (rough)", "vocals"], ["Drums (rough)", "drums"],
+                     ["Bass (rough)", "bass"], ["Instruments (rough)", "other"]];
+        stems = stems.filter(function (st) { return !st.rough; });
+        order.forEach(function (pair) {
+          var chans = lanes[pair[1]];
+          var buf = ctx.createBuffer(chans.length, buffer.length, buffer.sampleRate);
+          for (var c = 0; c < chans.length; c++) {
+            buf.getChannelData(c).set(chans[c]);
+          }
+          stems.push({ name: pair[0], buffer: buf, gain: 1,
+                       mute: false, solo: false, rough: true });
+        });
+        roughNote("Done — four rough lanes below. Solo one to audition; " +
+          "played together they are your record. Session-prep quality, " +
+          "expect bleed.", 1);
+        roughRunning = false;
+        roughBtn.disabled = false;
+        if (roughLamp) roughLamp.classList.remove("on");
+        renderStems(); syncDeckInfo(); renderWave();
+      }).catch(function () {
+        roughNote("Split failed on this file — try a WAV or a shorter bounce.", 0);
+        roughRunning = false;
+        roughBtn.disabled = false;
+        if (roughLamp) roughLamp.classList.remove("on");
+      });
+    });
   }
 
   document.getElementById("rk-stems-file").addEventListener("change", function (e) {
@@ -1205,10 +1289,13 @@
       var h = scanHooks(L);
       if (!h) return;
       var row = document.createElement("div");
-      row.className = "flex flex-wrap items-center gap-2 rounded border border-white/10 bg-black/30 px-3 py-2";
+      row.className = "lane";
+      var lamp2 = document.createElement("span");
+      lamp2.className = "lamp on";
+      row.appendChild(lamp2);
       var lab2 = document.createElement("span");
-      lab2.className = "min-w-0 flex-1 text-xs font-bold";
-      lab2.textContent = "Best " + L + "s hook · starts at " + mmss(h.start);
+      lab2.className = "ln min-w-0 flex-1 truncate";
+      lab2.textContent = "Best " + L + "s hook · " + mmss(h.start);
       row.appendChild(lab2);
       [["Preview", function () { previewHook(h); }],
        ["Snippet WAV", function () { exportHookWav(h); }],
@@ -1222,7 +1309,7 @@
       wrap2.appendChild(row);
     });
     if (!wrap2.children.length) {
-      wrap2.innerHTML = '<p class="text-[11px] text-gray-600">Load a track longer than ~16 seconds first.</p>';
+      wrap2.innerHTML = '<p class="note">Load a track longer than ~16 seconds first.</p>';
     }
   });
 

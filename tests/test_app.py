@@ -4007,7 +4007,7 @@ def test_rack_page_and_presets():
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
     # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=9" in page
+    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=" in page
     # v3 workflow layer: flow strip, reference slot, shareable rigs
     assert 'class="flow-node' in page and 'id="rk-ref"' in page
     assert 'id="rk-rig-export"' in page and "Import rig" in page
@@ -4024,7 +4024,7 @@ def test_rack_page_and_presets():
     assert "Tube Stage" in page and "not instrument identification" in page
     assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
     assert "4×12 Closed-Back" in page and "Ribbon" in page
-    assert "Stem Deck" in page and "won't pretend" in page
+    assert 'Stem Deck' in page and 'not ML isolation' in page
     assert "Remove Center" in page and "Physics, not stem separation" in page
     assert "DLY-1" in page and "REV-1" in page and "honestly generated" in page
     assert "SUB-1" in page and "psychoacoustics, not magic" in page
@@ -5414,3 +5414,28 @@ def test_signal_profile_reaches_dashboard_twin_and_onboarding():
     ob = client.get("/onboarding").get_data(as_text=True)
     assert 'id="sb-program-ready" hidden' in ob   # hidden until hydrated
     assert "Your Street Banker program is ready." in ob
+
+
+def test_rack_rough_split_ships_honestly():
+    """Rough Split: real DSP, honestly framed - never sold as ML."""
+    import io as _io
+
+    client = create_app().test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io",
+                                "password": "sweep"})
+    body = client.get("/rack").get_data(as_text=True)
+    assert 'id="rk-roughsplit"' in body
+    assert "Rough Split" in body
+    # The copy says exactly what it is and is not.
+    assert "not ML isolation" in body
+    assert "session-prep quality, expect bleed" in body
+    assert "sum back to your record exactly" in body
+    assert "nothing uploads" in body
+    # Script order: the math module loads before the deck wiring.
+    assert body.index("roughsplit.js") < body.index("rackdsp.js")
+    assert client.get("/static/js/roughsplit.js").status_code == 200
+    js = _io.open("static/js/roughsplit.js", encoding="utf-8").read()
+    # The core stays honest and dependency-free.
+    for banned in ["fetch(", "XMLHttpRequest", "WebSocket"]:
+        assert banned not in js, banned
+    assert "Fitzgerald" in js            # the algorithm is named, not vague

@@ -48,6 +48,34 @@
   .rk-seg { position: relative; }
   .rk-seg::after { content: ''; position: absolute; inset: 0;
                    background: repeating-linear-gradient(90deg, rgba(6,6,5,0.7) 0 2px, transparent 2px 7px); }
+  /* Channel strips: the deck and hook rows as recessed hardware lanes,
+     matching the knob wells - lamp, engraved legend, graphite fader. */
+  .lane { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+          border-radius: 4px; border: 1px solid #241f15; padding: 7px 10px;
+          background: linear-gradient(180deg, #171410, #100e0a);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04),
+                      inset 0 -1px 2px rgba(0,0,0,0.5); }
+  .lane + .lane { margin-top: 6px; }
+  .lane.dim { opacity: 0.55; }
+  .lane .ln { font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
+              font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+              color: #d8cdb4; }
+  .lane .ld { font-size: 9px; color: #6d6450; font-variant-numeric: tabular-nums; }
+  .fader { -webkit-appearance: none; appearance: none; height: 20px;
+           background: transparent; cursor: pointer; }
+  .fader::-webkit-slider-runnable-track { height: 5px; border-radius: 3px;
+    background: linear-gradient(180deg, #060505, #141210);
+    box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255,255,255,0.05); }
+  .fader::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 17px;
+    margin-top: -6px; border-radius: 2px;
+    background: linear-gradient(to right, #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(0,0,0,0.6); }
+  .fader::-moz-range-track { height: 5px; border-radius: 3px;
+    background: linear-gradient(180deg, #060505, #141210);
+    box-shadow: inset 0 1px 2px #000; }
+  .fader::-moz-range-thumb { width: 9px; height: 17px; border: none; border-radius: 2px;
+    background: linear-gradient(to right, #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(0,0,0,0.6); }
   .note { font-size: 10px; line-height: 1.5; }
   .u-dark .note { color: #7d735c; } .u-silver .note { color: #4c4536; }
   select, input[type=email] { color-scheme: dark; }
@@ -344,14 +372,25 @@
       <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3">
           <span class="chip">SB-10</span>
-          <span class="sk text-[10px]">Stem Deck</span>
+          <span class="sk text-[10px]">STM-4</span>
+          <span class="sk sk-sub">Stem Deck · four-lane</span>
         </div>
-        <label class="sw sw-gold cursor-pointer px-3 py-1.5 text-[11px] font-black">
-          Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
-        </label>
+        <span class="flex items-center gap-1.5">
+          <span id="rk-roughsplit-lamp" class="lamp" title="Lit while a split is running"></span>
+          <button id="rk-roughsplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Split the loaded track into four rough lanes — classical DSP, right here in this tab">Rough Split</button>
+          <label class="sw sw-gold cursor-pointer px-3 py-1.5 text-[11px] font-black">
+            Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
+          </label>
+        </span>
       </div>
-      <p class="note">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. True ML stem separation of a finished mix needs GPU-class models — that's not this, and this page won't pretend it is. Stems stay in this tab; nothing uploads. Center (mid/side) lives on the Master Bus above.</p>
-      <div id="rk-stems" class="mt-3 space-y-2"></div>
+      <p class="note">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.</p>
+      <div id="rk-roughsplit-wrap" class="mt-2 hidden">
+        <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-roughsplit-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
+        <p id="rk-roughsplit-status" class="note mt-1 text-[#e8c667]"></p>
+      </div>
+      <div class="w2 mt-3">
+        <div id="rk-stems"></div>
+      </div>
     </section>
 
     <!-- SB-11 Snippet Finder -->
@@ -360,13 +399,15 @@
       <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3">
           <span class="chip">SB-11</span>
-          <span class="sk text-[10px]">Snippet Finder</span>
-          <span class="sk sk-sub">Hooks for Reels · Shorts · TikTok</span>
+          <span class="sk text-[10px]">SNP-1</span>
+          <span class="sk sk-sub">Snippet Finder · Reels · Shorts · TikTok</span>
         </div>
         <button id="rk-hook-scan" class="sw sw-gold px-3 py-1.5 text-[11px] font-black">Find hooks</button>
       </div>
       <p class="note">Scans your track's real energy for the loudest sustained 15- and 30-second stretches — level detection, not taste; trust your ears on the final pick. Preview plays that window, Snippet WAV bounces it through the whole rack, and Vertical video records a 720×1280 WebM with a live spectrum ring (keep this tab visible while it records; phone editors convert WebM to MP4).</p>
-      <div id="rk-hooks" class="mt-3 space-y-2"></div>
+      <div class="w2 mt-3">
+        <div id="rk-hooks"></div>
+      </div>
     </section>
 
     <!-- Presets -->
@@ -405,6 +446,7 @@
   <div class="h-14"></div>
 </div>
 
-<script src="/static/js/rackdsp.js?v=9"></script>
+<script src="/static/js/roughsplit.js?v=1"></script>
+<script src="/static/js/rackdsp.js?v=11"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
