@@ -93,6 +93,10 @@ def test_landing_is_seven_editorial_sections():
     assert "FIND WHAT YOU EARNED." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
     assert "YOUR MUSIC IS THE PRODUCT." in body
+    # A full-bleed band separates the tools strip from the closing line.
+    assert "sb-band.jpg" in body
+    assert body.index("sb-band.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
+    assert body.index("sb-band.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
     # Demo figures inside the product visual are labeled, never implied real.
     assert "ILLUSTRATIVE DEMO DATA" in body
     # Everything moved deeper into the site stays gone.

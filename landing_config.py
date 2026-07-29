@@ -31,6 +31,8 @@ def get_landing_config():
             ],
             "actions": [
                 {"label": "Login", "href": "/login", "variant": "text"},
+                {"label": "Start Free Scan", "href": "/recovery",
+                 "variant": "primary"},
             ],
         },
 
@@ -111,6 +113,14 @@ def get_landing_config():
                 {"name": "Deal Room", "href": "/deal-room",
                  "icon": "M3 7.5h14v8a1 1 0 01-1 1H4a1 1 0 01-1-1z|M7 7.5V5a1 1 0 011-1h4a1 1 0 011 1v2.5"},
             ],
+        },
+
+        # Thin full-bleed band that separates the tools strip from the
+        # closing statement. No text in the artwork; nothing to click.
+        "band_image": {
+            "src": "/static/img/sb-band.jpg?v=1",
+            "alt": "Front-of-house engineers working the desk in front of a "
+                   "full arena",
         },
 
         "final_cta": {
