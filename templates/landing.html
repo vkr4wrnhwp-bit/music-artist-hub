@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/artist-eq.css?v=4">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=5">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -71,16 +71,6 @@
 <!-- 3. THE ARTIST EQ — additive: a 15-band priority equaliser. Everything
      that moves is coded; nothing here replaces an existing section. -->
 {% include "partials/artist_eq.html" %}
-
-<!-- Mode banner: visual-only, fixed height, crossfades with the visitor's
-     committed mode. Not a section - no copy, no buttons, no data. -->
-<figure class="mx-auto max-w-6xl px-6 pb-4 lg:px-10" id="sb-mode-banner">
-  <div class="relative h-40 overflow-hidden rounded-md bg-[#e8e6e0] sm:h-56">
-    <img src="{{ config.band_image.src }}" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full object-cover object-left-top" loading="lazy">
-    <img id="sb-banner-adaptive" class="sb-adaptive-layer" alt="" aria-hidden="true">
-    <span class="absolute bottom-2 left-2 rounded-sm bg-[#0f0e0c]/80 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-[#d8b25a]">Your Street Banker Mode — <span id="sb-mode-name">Full Stack</span></span>
-  </div>
-</figure>
 
 <!-- 4. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting

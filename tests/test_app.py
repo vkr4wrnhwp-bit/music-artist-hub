@@ -210,12 +210,11 @@ def test_landing_is_seven_editorial_sections():
     assert "FIND WHAT YOU EARNED." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
     assert "YOUR MUSIC IS THE PRODUCT." in body
-    # The archive-shelf band still separates the tools strip from the
-    # closing line. The mode banner higher up reuses the same photograph
-    # as its fallback base, so check the LAST occurrence for the band.
+    # The archive-shelf band separates the tools strip from the closing
+    # line; it illustrates the catalog claim rather than decorating it.
     assert "sb-band-catalog.jpg" in body
-    assert body.rindex("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
-    assert body.rindex("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
+    assert body.index("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
+    assert body.index("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
     # The Sweep section is a photograph with copy over it - no product
     # screenshot, so there are no figures that could read as real data.
     assert "sb-band-sweep.jpg" in body
@@ -5343,12 +5342,12 @@ def test_homepage_carries_the_signal_profile_hooks():
     for gone in ["sb-lane-badge", "sb-tool-badge", "sb-sweep-cta",
                  "sb-lanes-balanced", "data-lane=", "data-tool="]:
         assert gone not in body, gone
-    # Mode plumbing: centralized state, two adaptive layers, the banner,
-    # the signal line, the one adapting program CTA.
+    # Mode plumbing: centralized state, the hero adaptive layer, the
+    # signal line, the one adapting program CTA. The extra banner strip
+    # between the EQ and the lanes was tried and removed.
     assert 'data-artist-mode="full-stack"' in body
     assert 'id="sb-hero-adaptive"' in body
-    assert 'id="sb-mode-banner"' in body and 'id="sb-banner-adaptive"' in body
-    assert "Your Street Banker Mode" in body
+    assert "sb-mode-banner" not in body
     assert 'id="sbeq-signal"' in body
     assert 'id="sb-final-cta"' in body
     # Defaults render server-side until the visitor's own mix changes them.

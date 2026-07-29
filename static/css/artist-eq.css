@@ -648,34 +648,39 @@
    animation on load. Full-stack IS the original page - white on white. */
 body[data-artist-mode] {
   --adaptive-page-tint: #ffffff;
-  --adaptive-secondary-tint: #f6f3f0;
+  --adaptive-secondary-tint: #ffffff;
   --adaptive-dark: #0f0e0c;
   background-color: var(--adaptive-page-tint);
 }
+/* Each mode moves TWO zones - the page and the EQ band behind the racks -
+   and the palettes sit far enough apart to read at a glance: silver-grey,
+   champagne, parchment, deep champagne-gold. Still neutral, still the
+   white/black/silver/gold system; gold #d8b25a itself never changes. */
 body[data-artist-mode="release"] {
-  --adaptive-page-tint: #f3f3f0;
-  --adaptive-secondary-tint: #e7e7e2;
+  --adaptive-page-tint: #e9eae8;
+  --adaptive-secondary-tint: #dcdedb;
   --adaptive-dark: #171717;
 }
 body[data-artist-mode="growth"] {
-  --adaptive-page-tint: #f5efe2;
-  --adaptive-secondary-tint: #eadfc9;
+  --adaptive-page-tint: #f4e8cf;
+  --adaptive-secondary-tint: #ecd9b2;
   --adaptive-dark: #1b1813;
 }
 body[data-artist-mode="recovery"] {
-  --adaptive-page-tint: #f1eee6;
-  --adaptive-secondary-tint: #d9d4c8;
+  --adaptive-page-tint: #e9e4d7;
+  --adaptive-secondary-tint: #d6d0c0;
   --adaptive-dark: #101010;
 }
 body[data-artist-mode="partnership"] {
-  --adaptive-page-tint: #f4ead5;
-  --adaptive-secondary-tint: #dfcfaa;
+  --adaptive-page-tint: #f0dfba;
+  --adaptive-secondary-tint: #e4cd97;
   --adaptive-dark: #17140f;
 }
 body.sb-mode-ready { transition: background-color 420ms ease; }
 
-/* The EQ section rides the page tint rather than pinning white. */
-.sbeq { background: var(--adaptive-page-tint, #fff); }
+/* The EQ band takes the deeper secondary tint, so a mode change reads as
+   two distinct zones shifting together rather than one faint wash. */
+.sbeq { background: var(--adaptive-secondary-tint, #fff); }
 body.sb-mode-ready .sbeq { transition: background-color 420ms ease; }
 
 /* Adaptive image layers: absolutely positioned over the base photograph,
