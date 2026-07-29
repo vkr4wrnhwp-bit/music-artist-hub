@@ -48,9 +48,9 @@ def get_landing_config():
                 {"label": "Company", "href": "#infrastructure"},
                 {"label": "Pricing", "href": "/billing"},
             ],
+            # Login only — the hero carries Start Free Scan.
             "actions": [
                 {"label": "Login", "href": "/login", "variant": "text"},
-                {"label": "Start Free Scan", "href": "/overview", "variant": "primary"},
             ],
         },
 
