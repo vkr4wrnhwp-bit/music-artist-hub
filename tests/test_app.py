@@ -5342,15 +5342,16 @@ def test_homepage_carries_the_signal_profile_hooks():
     for gone in ["sb-lane-badge", "sb-tool-badge", "sb-sweep-cta",
                  "sb-lanes-balanced", "data-lane=", "data-tool="]:
         assert gone not in body, gone
-    # Mode plumbing: centralized state, the hero adaptive layer, the
-    # signal line, the one adapting program CTA. The extra banner strip
-    # between the EQ and the lanes was tried and removed.
-    assert 'data-artist-mode="full-stack"' in body
-    assert 'id="sb-hero-adaptive"' in body
-    assert "sb-mode-banner" not in body
+    # The page is STATIC: the EQ reports inside its own racks (the signal
+    # line) and touches nothing else. Every page-reaction hook that was
+    # tried - badges, tints, adaptive layers, CTA rewording, the banner
+    # strip - is gone, and the hero keeps its left fade into the page.
+    for gone in ["data-artist-mode", "sb-hero-adaptive", "sb-mode-banner",
+                 "sb-final-cta", "sb-adaptive-layer"]:
+        assert gone not in body, gone
     assert 'id="sbeq-signal"' in body
-    assert 'id="sb-final-cta"' in body
-    # Defaults render server-side until the visitor's own mix changes them.
+    assert "sb-hero-fade" in body
+    assert 'class="min-h-screen bg-white' in body
     assert "START A FREE SCAN" in body
     assert "START FREE" in body
 

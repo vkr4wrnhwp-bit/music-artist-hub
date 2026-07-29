@@ -640,63 +640,13 @@
   .sbeq-screen { padding: 12px 8px 20px 32px; }
 }
 
-/* --- Adaptive Visual Modes ---------------------------------------------
-   One centralized state: body[data-artist-mode]. Each mode sets three
-   restrained neutral variables; Street Banker gold never changes, and no
-   element moves, scales, or reorders. Transitions arm only after boot
-   (.sb-mode-ready), so a returning visitor's mode does not replay as an
-   animation on load. Full-stack IS the original page - white on white. */
-body[data-artist-mode] {
-  --adaptive-page-tint: #ffffff;
-  --adaptive-secondary-tint: #ffffff;
-  --adaptive-dark: #0f0e0c;
-  background-color: var(--adaptive-page-tint);
-}
-/* Each mode moves TWO zones - the page and the EQ band behind the racks -
-   and the palettes sit far enough apart to read at a glance: silver-grey,
-   champagne, parchment, deep champagne-gold. Still neutral, still the
-   white/black/silver/gold system; gold #d8b25a itself never changes. */
-body[data-artist-mode="release"] {
-  --adaptive-page-tint: #e9eae8;
-  --adaptive-secondary-tint: #dcdedb;
-  --adaptive-dark: #171717;
-}
-body[data-artist-mode="growth"] {
-  --adaptive-page-tint: #f4e8cf;
-  --adaptive-secondary-tint: #ecd9b2;
-  --adaptive-dark: #1b1813;
-}
-body[data-artist-mode="recovery"] {
-  --adaptive-page-tint: #e9e4d7;
-  --adaptive-secondary-tint: #d6d0c0;
-  --adaptive-dark: #101010;
-}
-body[data-artist-mode="partnership"] {
-  --adaptive-page-tint: #f0dfba;
-  --adaptive-secondary-tint: #e4cd97;
-  --adaptive-dark: #17140f;
-}
-body.sb-mode-ready { transition: background-color 420ms ease; }
-
-/* The EQ band takes the deeper secondary tint, so a mode change reads as
-   two distinct zones shifting together rather than one faint wash. */
-.sbeq { background: var(--adaptive-secondary-tint, #fff); }
-body.sb-mode-ready .sbeq { transition: background-color 420ms ease; }
-
-/* Adaptive image layers: absolutely positioned over the base photograph,
-   revealed only after their file has loaded. The base image never moves
-   and never unloads, so a missing or failed file costs nothing. */
-.sb-adaptive-layer {
+/* The hero photograph melts into the white page on its left edge. */
+.sb-hero-fade {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
   pointer-events: none;
+  background: linear-gradient(to right, #fff 0%, transparent 42%);
 }
-body.sb-mode-ready .sb-adaptive-layer { transition: opacity 420ms ease; }
-.sb-adaptive-layer.sb-adaptive-on { opacity: 1; }
 
 /* The one clear response line under the recommendation panel. */
 .sbeq-signal {
@@ -708,16 +658,7 @@ body.sb-mode-ready .sb-adaptive-layer { transition: opacity 420ms ease; }
   text-transform: uppercase;
   color: var(--sbeq-gold);
 }
-body.sb-mode-ready .sbeq-signal { transition: opacity 200ms ease; }
 
-@media (prefers-reduced-motion: reduce) {
-  body.sb-mode-ready,
-  body.sb-mode-ready .sbeq,
-  body.sb-mode-ready .sb-adaptive-layer,
-  body.sb-mode-ready .sbeq-signal {
-    transition: none !important;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .sbeq * {

@@ -11,12 +11,12 @@
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/artist-eq.css?v=5">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=7">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
 </head>
-<body class="min-h-screen text-[#141210] antialiased" data-artist-mode="full-stack">
+<body class="min-h-screen bg-white text-[#141210] antialiased">
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
@@ -61,9 +61,8 @@
     </div>
     <figure class="relative order-2 overflow-hidden">
       <img src="{{ hero.image.src }}" alt="{{ hero.image.alt }}" class="block w-full object-cover">
-      <!-- Adaptive mode layer: fades in only when its mode image has
-           loaded; otherwise the photograph above stays exactly as-is. -->
-      <img id="sb-hero-adaptive" class="sb-adaptive-layer" alt="" aria-hidden="true">
+      <!-- Left-edge fade: the photograph melts into the white page. -->
+      <div class="sb-hero-fade" aria-hidden="true"></div>
     </figure>
   </section>
 </div>
@@ -168,7 +167,7 @@
     <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
       {% for line in fin.headline %}<span class="block">{{ line }}</span>{% endfor %}
     </h2>
-    <a href="{{ fin.cta.href }}" id="sb-final-cta" data-default-label="{{ fin.cta.label }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
+    <a href="{{ fin.cta.href }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
     <p class="mx-auto mt-6 max-w-sm text-[12px] leading-relaxed text-[#6b6459]">{{ fin.note }}</p>
   </section>
 
@@ -201,6 +200,6 @@
   </footer>
 </div>
 
-<script src="/static/js/artist-eq.js?v=3" defer></script>
+<script src="/static/js/artist-eq.js?v=4" defer></script>
 </body>
 </html>

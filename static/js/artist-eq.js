@@ -42,15 +42,10 @@
   var liveEl = document.getElementById("sbeq-live");
   var resetEl = document.getElementById("sbeq-reset");
 
-  /* Homepage elements this EQ is allowed to touch. All optional: the EQ
-     works even if a section is edited away later. The old per-card
-     outlines and badges are gone - the page responds through one
-     coordinated visual mode instead. */
-  var finalCta = document.getElementById("sb-final-cta");
+  /* The EQ touches nothing outside its own racks. The signal line lives
+     inside the recommendation panel - the EQ reporting its result, not
+     the page changing around the visitor. */
   var signalEl = document.getElementById("sbeq-signal");
-  var heroAdaptive = document.getElementById("sb-hero-adaptive");
-  var bannerAdaptive = document.getElementById("sb-banner-adaptive");
-  var modeNameEl = document.getElementById("sb-mode-name");
 
   var CUSTOM = "custom-mix";
   var LABELS = {};
@@ -305,59 +300,21 @@
     return scored[0].mode;
   }
 
-  /* Image slots: an adaptive layer sits over each base image and fades in
-     only once its mode file has actually loaded. Missing or failed files
-     leave the current homepage photography untouched - never a blank
-     frame, never a broken-image icon, never a dimension change. */
-  var imageCache = {};
-  function preloadImage(url) {
-    if (imageCache[url]) { return imageCache[url]; }
-    imageCache[url] = new Promise(function (resolve) {
-      var img = new Image();
-      img.onload = function () { resolve(true); };
-      img.onerror = function () { resolve(false); };
-      img.src = url;
-    });
-    return imageCache[url];
-  }
-
-  function applyLayer(layer, url, alt, modeId) {
-    if (!layer) { return; }
-    preloadImage(url).then(function (ok) {
-      if (committedModeId !== modeId) { return; }   // mode moved on
-      if (ok) {
-        layer.src = url;
-        layer.alt = alt;
-        layer.classList.add("sb-adaptive-on");
-      } else {
-        layer.classList.remove("sb-adaptive-on");   // base image shows
-      }
-    });
-  }
-
-  /* One coordinated switch: data attribute (tints), result line, both
-     image layers, mode label, the ONE main program CTA, save, announce. */
+  /* Commit = update the signal line inside the panel and save. The page
+     itself never changes - no tints, no image swaps, no CTA rewording.
+     The computed mode still rides the saved profile so the Command
+     Center and Artist Twin can use it. */
   function commitMode(values) {
     var mode = computeMode(values);
     var changed = mode.id !== committedModeId;
     committedModeId = mode.id;
-    document.body.setAttribute("data-artist-mode", mode.id);
     if (signalEl) { signalEl.textContent = mode.signal; }
-    if (modeNameEl) { modeNameEl.textContent = mode.name; }
-    if (finalCta) {
-      finalCta.textContent = mode.cta ||
-        finalCta.getAttribute("data-default-label");
-    }
-    applyLayer(heroAdaptive, mode.hero, mode.name + " mode workspace", mode.id);
-    applyLayer(bannerAdaptive, mode.banner, mode.name + " mode", mode.id);
     if (changed) {
       track("artist_visual_mode_committed", {
         mode: mode.id,
         preset: (presetById(current.preset) || { name: "Custom Mix" }).name,
         source: CFG.profile_source
       });
-      /* The commit is the state worth keeping: re-save so the stored
-         activeVisualMode never lags behind what the visitor sees. */
       scheduleSave();
     }
     return mode;
@@ -708,13 +665,6 @@
   writeInputs(startValues);
   update(startValues, startPreset, { commit: true });
   saveProfile();   /* migration writes the new key immediately */
-  /* Transitions arm only after the boot state is painted - a returning
-     visitor sees their mode, not an animation replaying into it. A timer
-     rather than rAF: rAF never fires in a background tab, which would
-     leave transitions disarmed until the first interaction. */
-  setTimeout(function () {
-    document.body.classList.add("sb-mode-ready");
-  }, 150);
 
   if ("IntersectionObserver" in window) {
     var seen = false;
