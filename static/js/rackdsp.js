@@ -394,7 +394,151 @@
     }
     updateGlow();
     syncModButtons();
+    paintCabView();
     eqCurveDirty = true;
+  }
+
+  // ---------- SB-08 placement diagram ----------
+  // A schematic of the chosen cab, mic, angle and gap. Every number here
+  // is read straight off state.cab, so it can only ever show the setup
+  // that is actually in the audio chain - it is not an illustration.
+  /* Each cab gets the proportions of the real thing - a combo is wide and
+     low, a 4×12 close to square, an 8×10 the tall two-by-four fridge - so
+     the silhouette alone tells you which one is in the chain. Cone offsets
+     are measured from the centre of the box; the box stands on the floor. */
+  var FLOOR = 103, CAB_X = 12;
+  var CABS = {
+    direct:    {cap: "Direct / DI", w: 0, h: 0, cones: []},
+    combo112:  {cap: "1×12 combo", w: 78, h: 56, cones: [[0, 0, 17]]},
+    open212:   {cap: "2×12 open-back", w: 82, h: 50,
+                cones: [[-19, 0, 15], [19, 0, 15]]},
+    closed412: {cap: "4×12 closed-back", w: 68, h: 78,
+                cones: [[-16, -17, 14], [16, -17, 14],
+                        [-16, 17, 14], [16, 17, 14]]},
+    bass810:   {cap: "8×10 bass", w: 48, h: 92,
+                cones: [[-10.5, -31.5, 8.5], [10.5, -31.5, 8.5],
+                        [-10.5, -10.5, 8.5], [10.5, -10.5, 8.5],
+                        [-10.5, 10.5, 8.5], [10.5, 10.5, 8.5],
+                        [-10.5, 31.5, 8.5], [10.5, 31.5, 8.5]]},
+  };
+  var MICS = {dynamic: "Dynamic", ribbon: "Ribbon", condenser: "Condenser"};
+
+  function svgEl(name, attrs) {
+    var el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    return el;
+  }
+
+  function micShape(kind) {
+    /* Drawn lying on its side, capsule to the left, so the group can be
+       rotated about the capsule to show the off-axis angle. */
+    var g = svgEl("g", {});
+    if (kind === "ribbon") {
+      g.appendChild(svgEl("rect", {x: -9, y: -6, width: 20, height: 12, rx: 6,
+                                   fill: "#1b1813", stroke: "#c9bd9c"}));
+      g.appendChild(svgEl("path", {d: "M-1 -6V6", stroke: "#c9bd9c"}));
+      g.appendChild(svgEl("rect", {x: 11, y: -1.2, width: 9, height: 2.4,
+                                   fill: "#8a7c5d"}));
+    } else if (kind === "condenser") {
+      g.appendChild(svgEl("rect", {x: -8, y: -8, width: 16, height: 16, rx: 2,
+                                   fill: "#1b1813", stroke: "#c9bd9c"}));
+      g.appendChild(svgEl("circle", {cx: -1, cy: 0, r: 5.2,
+                                     fill: "none", stroke: "#c9bd9c"}));
+      g.appendChild(svgEl("rect", {x: 8, y: -1.2, width: 12, height: 2.4,
+                                   fill: "#8a7c5d"}));
+    } else {
+      g.appendChild(svgEl("circle", {cx: -4, cy: 0, r: 5.8,
+                                     fill: "#1b1813", stroke: "#c9bd9c"}));
+      g.appendChild(svgEl("path", {d: "M-6.4 -4.2V4.2M-1.6 -4.2V4.2",
+                                   stroke: "#8a7c5d"}));
+      g.appendChild(svgEl("rect", {x: 1.4, y: -3.4, width: 16, height: 6.8, rx: 1.6,
+                                   fill: "#1b1813", stroke: "#c9bd9c"}));
+    }
+    return g;
+  }
+
+  function paintCabView() {
+    var svg = document.getElementById("rk-cabview");
+    if (!svg) { return; }
+    var cap = document.getElementById("rk-cabview-cap");
+    var c = state.cab;
+    var spec = CABS[c.cab] || CABS.direct;
+    var room = Math.round(35 * c.dist);
+    svg.innerHTML = "";
+    svg.setAttribute("opacity", c.on ? "1" : "0.32");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke-width", "1.3");
+
+    if (c.cab === "direct") {
+      // No cab, no mic: a DI plate patched straight to the output.
+      svg.appendChild(svgEl("rect", {x: 40, y: 40, width: 62, height: 36, rx: 3,
+                                     fill: "#100e0a", stroke: "#c9bd9c"}));
+      svg.appendChild(svgEl("circle", {cx: 58, cy: 58, r: 6,
+                                       fill: "none", stroke: "#c9bd9c"}));
+      svg.appendChild(svgEl("circle", {cx: 58, cy: 58, r: 2.1,
+                                       fill: "#e8c667", stroke: "none"}));
+      svg.appendChild(svgEl("path", {d: "M64 58h14c8 0 8 -14 16 -14h62",
+                                     stroke: "#8a7c5d",
+                                     "stroke-dasharray": "none"}));
+      svg.appendChild(svgEl("path", {d: "M168 40l8 4-8 4", stroke: "#8a7c5d"}));
+      if (cap) {
+        cap.textContent = c.on
+          ? "DIRECT · NO CAB OR MIC IN CIRCUIT"
+          : "BYPASSED · DIRECT";
+      }
+      return;
+    }
+
+    // The floor everything stands on, drawn first so it sits behind.
+    svg.appendChild(svgEl("path", {d: "M4 " + FLOOR + "h188", stroke: "#3a3424"}));
+
+    // Cabinet: box, baffle, then this model's real cone layout.
+    var cx0 = CAB_X + spec.w / 2, cy0 = FLOOR - spec.h / 2;
+    svg.appendChild(svgEl("rect", {x: CAB_X, y: FLOOR - spec.h,
+                                   width: spec.w, height: spec.h, rx: 4,
+                                   fill: "#151210", stroke: "#c9bd9c"}));
+    svg.appendChild(svgEl("rect", {x: CAB_X + 5, y: FLOOR - spec.h + 5,
+                                   width: spec.w - 10, height: spec.h - 10, rx: 2,
+                                   fill: "#0c0a08", stroke: "#3a3424"}));
+    spec.cones.forEach(function (cone) {
+      var cx = cx0 + cone[0], cy = cy0 + cone[1], r = cone[2];
+      svg.appendChild(svgEl("circle", {cx: cx, cy: cy, r: r,
+                                       fill: "none", stroke: "#8a7c5d"}));
+      svg.appendChild(svgEl("circle", {cx: cx, cy: cy, r: (r * 0.34).toFixed(1),
+                                       fill: "#c9a24a", stroke: "none"}));
+    });
+
+    // Mic: the gap is the Distance knob, the angle is the axis switch, and
+    // it lines up with one driver - the way anyone actually mics a cab -
+    // rather than hovering at the geometric middle of the box.
+    var SCALE = 1.35;
+    var right = CAB_X + spec.w;
+    var mx = right + 16 + c.dist * 52;
+    var my = cy0 + spec.cones.reduce(function (best, cone) {
+      return Math.abs(cone[1]) < Math.abs(best) ? cone[1] : best;
+    }, spec.cones[0][1]);
+    var angle = c.axis === "off" ? 32 : 0;
+    var g = micShape(c.mic);
+    g.setAttribute("transform", "translate(" + mx.toFixed(1) + ","
+                   + my.toFixed(1) + ") rotate(" + angle + ") scale("
+                   + SCALE + ")");
+    svg.appendChild(svgEl("path", {d: "M" + right + " " + my.toFixed(1)
+                                      + "H" + (mx - 13).toFixed(1),
+                                   stroke: "#c9a24a",
+                                   "stroke-dasharray": "3 3"}));
+    svg.appendChild(g);
+    // Stand: the mic has to be held up by something.
+    var sx = mx + 19 * SCALE;
+    svg.appendChild(svgEl("path", {
+      d: "M" + sx.toFixed(1) + " " + my.toFixed(1) + "V" + FLOOR + "m-9 0h18",
+      stroke: "#3a3424"}));
+
+    if (cap) {
+      cap.textContent = (c.on ? "" : "BYPASSED · ")
+        + spec.cap.toUpperCase() + " · " + MICS[c.mic].toUpperCase()
+        + " · " + (c.axis === "off" ? "OFF-AXIS" : "ON-AXIS")
+        + " · ROOM " + room + "%";
+    }
   }
 
   // ---------- knob factory ----------
@@ -644,7 +788,19 @@
     document.querySelectorAll("input[name=rk-axis]").forEach(function (el) {
       el.checked = el.value === state.cab.axis;
     });
+    syncCabPicks();
     setCenterButtons();
+  }
+
+  /* The visible caps follow state, so a preset or an imported rig lights
+     the right ones instead of leaving the panel lying about itself. */
+  function syncCabPicks() {
+    var want = {"rk-cabpick": state.cab.cab, "rk-micpick": state.cab.mic,
+                "rk-axispick": state.cab.axis};
+    Object.keys(want).forEach(function (name) {
+      document.querySelectorAll("input[name=" + name + "]")
+        .forEach(function (el) { el.checked = el.value === want[name]; });
+    });
   }
 
   // ---------- transport ----------
@@ -668,6 +824,7 @@
         playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
         var rsBtn = document.getElementById("rk-roughsplit");
         if (rsBtn && window.SBRoughSplit) { rsBtn.disabled = false; }
+        cnvPlanText(); cnvShowPeak(); tkEnable();
         var ssBtn = document.getElementById("rk-studiosplit");
         if (ssBtn) { ssBtn.disabled = false; }
         renderWave();
@@ -1124,6 +1281,24 @@
       state.cab.axis = el.value; applyState();
     });
   });
+  /* The selector caps are the control surface; the hidden select stays the
+     one canonical value, so presets and rig files have a single place to
+     read and write and none of this has to know about the other. */
+  [["rk-cabpick", "cab", "rk-cab-cab"],
+   ["rk-micpick", "mic", "rk-cab-mic"],
+   ["rk-axispick", "axis", null]].forEach(function (spec) {
+    document.querySelectorAll("input[name=" + spec[0] + "]")
+      .forEach(function (el) {
+        el.addEventListener("change", function () {
+          if (!el.checked) { return; }
+          state.cab[spec[1]] = el.value;
+          if (spec[2]) { document.getElementById(spec[2]).value = el.value; }
+          document.querySelectorAll("input[name=rk-axis]")
+            .forEach(function (a) { a.checked = a.value === state.cab.axis; });
+          applyState();
+        });
+      });
+  });
 
   // ---------- transport dock: waveform scrubber + proxies ----------
   var waveCache = null;
@@ -1178,12 +1353,23 @@
   if (dockExp) dockExp.addEventListener("click", function () { exportBtn.click(); });
 
   // ---------- SB-11 snippet finder: real energy scan, honest hooks ----------
-  function scanHooks(len) {
-    var buf = buffer || (stems.length
+  /* Whatever the scan runs on: the loaded track, or failing that the
+     longest stem in the deck. The map has to measure the same thing. */
+  function hookBuffer() {
+    return buffer || (stems.length
       ? stems.reduce(function (a, s) {
           return s.buffer.duration > a.buffer.duration ? s : a;
         }, stems[0]).buffer
       : null);
+  }
+
+  function hookDuration() {
+    var buf = hookBuffer();
+    return buf ? buf.duration : 0;
+  }
+
+  function scanHooks(len) {
+    var buf = hookBuffer();
     if (!buf || buf.duration <= len + 1) return null;
     var d = buf.getChannelData(0), rate = buf.sampleRate;
     var hop = Math.floor(rate / 4);  // 0.25s frames
@@ -1312,15 +1498,77 @@
     ["BEST 15S HOOK", "BEST 30S HOOK"].forEach(function (nm) {
       wrap0.appendChild(dormantLane(nm, "awaiting scan"));
     });
+    paintHookMap([], 0);
+  }
+
+  /* SB-11's hook map: the strip is the whole track and each mark sits at
+     the window the scan actually chose, so the picture and the buttons
+     below it can never disagree. Empty strip until a scan has run. */
+  function paintHookMap(hooks, dur) {
+    var svg = document.getElementById("rk-hookmap");
+    if (!svg) { return; }
+    var cap = document.getElementById("rk-hookmap-cap");
+    var W = 600;
+    svg.innerHTML = "";
+    // Film body and the sprocket rows that make it read as a strip.
+    svg.appendChild(svgEl("rect", {x: 0, y: 0, width: W, height: 40, rx: 2,
+                                   fill: "#0b0a08"}));
+    for (var x = 5; x < W - 6; x += 24) {
+      [1.5, 33.5].forEach(function (y) {
+        svg.appendChild(svgEl("rect", {x: x, y: y, width: 12, height: 5, rx: 1.2,
+                                       fill: "#1d1a15"}));
+      });
+    }
+    svg.appendChild(svgEl("rect", {x: 0, y: 9, width: W, height: 22,
+                                   fill: "#131110"}));
+
+    if (!dur || !hooks.length) {
+      svg.appendChild(svgEl("path", {d: "M0 20h" + W, stroke: "#221f19",
+                                     "stroke-width": 1}));
+      if (cap) { cap.textContent = "No scan yet"; }
+      return;
+    }
+
+    // Minute ticks give the strip a scale to read the marks against.
+    for (var t = 60; t < dur; t += 60) {
+      var tx = (t / dur) * W;
+      svg.appendChild(svgEl("path", {d: "M" + tx.toFixed(1) + " 9v22",
+                                     stroke: "#3a3424", "stroke-width": 1}));
+    }
+    hooks.forEach(function (h, i) {
+      var x0 = (h.start / dur) * W;
+      var w = Math.max(3, (h.len / dur) * W);
+      var y = i === 0 ? 11 : 21;
+      svg.appendChild(svgEl("rect", {x: x0.toFixed(1), y: y, width: w.toFixed(1),
+                                     height: 8, rx: 1.5, fill: "#c9a24a"}));
+      // The label sits after the mark, or before it when a hook lands late
+      // enough that there is no room left on the right.
+      var text = h.len + "S · " + mmss(h.start);
+      var room = W - (x0 + w) > 58;
+      var lab = svgEl("text", {
+        x: (room ? x0 + w + 5 : x0 - 5).toFixed(1), y: y + 7,
+        "text-anchor": room ? "start" : "end",
+        fill: "#8a7c5d", "font-size": "9",
+        "font-family": "Arial Narrow, Arial, sans-serif",
+        "font-weight": "800"});
+      lab.textContent = text;
+      svg.appendChild(lab);
+    });
+    if (cap) {
+      cap.textContent = hooks.length + " window"
+        + (hooks.length === 1 ? "" : "s") + " over " + mmss(dur);
+    }
   }
 
   var hookBtn = document.getElementById("rk-hook-scan");
   if (hookBtn) hookBtn.addEventListener("click", function () {
     var wrap2 = document.getElementById("rk-hooks");
     wrap2.innerHTML = "";
+    var found = [];
     [15, 30].forEach(function (L) {
       var h = scanHooks(L);
       if (!h) return;
+      found.push(h);
       var row = document.createElement("div");
       row.className = "lane";
       var lamp2 = document.createElement("span");
@@ -1344,6 +1592,7 @@
     if (!wrap2.children.length) {
       wrap2.innerHTML = '<p class="note">Load a track longer than ~16 seconds first.</p>';
     }
+    paintHookMap(found, hookDuration());
   });
 
   // ---------- Studio Split: StemSplit quality tier ----------------------
@@ -1808,8 +2057,14 @@
     return new Blob([ab], {type: "audio/wav"});
   }
 
-  // One offline render path shared by the WAV export and the Vault archive.
+  /* One offline render path shared by the WAV export, the Vault archive
+     and the Format Bench. Split in two so the Bench can reach the raw
+     AudioBuffer instead of a WAV blob it would have to decode again. */
   function renderMaster() {
+    return renderMasterBuffer().then(encodeWav);
+  }
+
+  function renderMasterBuffer() {
     var rate = stems.length ? stems[0].buffer.sampleRate : buffer.sampleRate;
     var len = stems.length
       ? Math.max.apply(null, stems.map(function (s) { return s.buffer.length; }))
@@ -1832,7 +2087,7 @@
       src.connect(chain.input);
       src.start();
     }
-    return oc.startRendering().then(encodeWav);
+    return oc.startRendering();
   }
 
   exportBtn.addEventListener("click", function () {
@@ -1977,11 +2232,521 @@
   });
   if (zc) zc.addEventListener("click", function () { selLane = -1; syncZoneUI(); });
 
+  // ---------- SB-12 Format Bench: decode anything, write exact PCM ------
+  // The browser decodes and resamples; audioconv.js writes the container.
+  // Every number the panel shows is computed from the real buffer.
+  var cnvGo = document.getElementById("rk-cnv-go");
+  var cnvPlan = document.getElementById("rk-cnv-plan");
+  var cnvPeak = document.getElementById("rk-cnv-peak");
+  var cnvStatus = document.getElementById("rk-cnv-status");
+  var cnvRunning = false;
+
+  function pickedValue(name, fallback) {
+    var el = document.querySelector("input[name=" + name + "]:checked");
+    return el ? el.value : fallback;
+  }
+
+  function cnvSourceBuffer() {
+    if (pickedValue("rk-cnvsrc", "raw") === "master") {
+      return renderMasterBuffer();
+    }
+    return buffer
+      ? Promise.resolve(buffer)
+      : Promise.reject(new Error("no decoded file — load a track, or convert "
+                                + "the rack master instead"));
+  }
+
+  /* Resample and re-channel through an OfflineAudioContext, which is the
+     browser's own resampler - better than anything worth hand-rolling
+     here, and it is the same path the export already trusts. */
+  function cnvResample(buf, rate, channels) {
+    var len = Math.max(1, Math.round(buf.duration * rate));
+    var oc = new OfflineAudioContext(channels, len, rate);
+    var src = oc.createBufferSource();
+    src.buffer = buf;
+    src.connect(oc.destination);
+    src.start();
+    return oc.startRendering();
+  }
+
+  function fmtBytes(n) {
+    if (n >= 1048576) { return (n / 1048576).toFixed(1) + " MB"; }
+    if (n >= 1024) { return Math.round(n / 1024) + " KB"; }
+    return n + " B";
+  }
+
+  /* The plan line: what the current settings will actually produce. Size
+     is exact for PCM, so it is stated rather than estimated. */
+  function cnvPlanText() {
+    if (!cnvPlan) { return; }
+    var haveSource = !!buffer || stems.length > 0;
+    if (cnvGo) { cnvGo.disabled = cnvRunning || !haveSource; }
+    if (!haveSource) {
+      cnvPlan.textContent = "Load a track to convert.";
+      if (cnvPeak) { cnvPeak.textContent = "No source"; }
+      return;
+    }
+    /* Raw means the decoded file. With only stems in the deck there is no
+       single decoded file to convert, so that option goes away rather than
+       failing at the click. */
+    var rawEl = document.getElementById("cs-raw");
+    var masterEl = document.getElementById("cs-master");
+    if (rawEl && masterEl) {
+      rawEl.disabled = !buffer;
+      rawEl.nextElementSibling.style.opacity = buffer ? "1" : "0.45";
+      rawEl.nextElementSibling.title = buffer
+        ? "The file exactly as decoded — no rack processing at all"
+        : "No decoded file loaded — only the deck's stems are here";
+      if (!buffer) { masterEl.checked = true; }
+    }
+    var fmt = pickedValue("rk-cnvfmt", "wav");
+    var bits = parseInt(pickedValue("rk-cnvbits", "16"), 10);
+    var rate = parseInt(pickedValue("rk-cnvrate", "44100"), 10);
+    var ch = parseInt(pickedValue("rk-cnvch", "2"), 10);
+    var spec = window.SBAudioConv.FORMATS[fmt];
+    var effBits = bits;
+    if (fmt === "aiff" && bits === 32) { effBits = 24; }
+    var dur = (buffer || stems[0].buffer).duration;
+    var frames = Math.round(dur * rate);
+    var header = fmt === "wav" ? 44 : 54;
+    var bytes = header + frames * ch * (effBits / 8);
+    var note = spec.label + " · " + effBits + (effBits === 32 ? "-bit float" : "-bit")
+      + " · " + (rate / 1000) + " kHz · "
+      + (ch === 1 ? "mono" : "stereo") + " · " + fmtBytes(bytes);
+    if (fmt === "aiff" && bits === 32) {
+      note += "  (AIFF has no float form — writing 24-bit)";
+    }
+    cnvPlan.textContent = note;
+    // Dither only means anything when resolution is actually being lost.
+    var dth = document.getElementById("rk-cnv-dither");
+    if (dth) {
+      var useful = effBits < 32;
+      dth.disabled = !useful;
+      dth.parentElement.style.opacity = useful ? "1" : "0.45";
+      dth.parentElement.title = useful
+        ? "Decorrelates the quantisation error when reducing bit depth"
+        : "Nothing to dither: 32-bit float keeps full resolution";
+    }
+  }
+
+  /* True peak of whatever is actually loaded, named so the number is never
+     ambiguous about what it measured. */
+  function cnvShowPeak() {
+    if (!cnvPeak) { return; }
+    var src = buffer || (stems.length ? stems[0].buffer : null);
+    if (!src) { cnvPeak.textContent = "No source"; return; }
+    var chans = [];
+    for (var c = 0; c < src.numberOfChannels; c++) {
+      chans.push(src.getChannelData(c));
+    }
+    var db = window.SBAudioConv.peakDbfs(chans);
+    cnvPeak.textContent = (buffer ? "File peak " : "Stem 1 peak ")
+      + (db === -Infinity ? "silent" : db.toFixed(1) + " dBFS");
+  }
+
+  // Rate caps are built from the module's own list, so the two cannot drift.
+  (function buildRateCaps() {
+    var wrap = document.getElementById("rk-cnv-rate");
+    if (!wrap || !window.SBAudioConv) { return; }
+    window.SBAudioConv.RATES.forEach(function (r) {
+      var id = "cr-" + r;
+      var input = document.createElement("input");
+      input.type = "radio"; input.name = "rk-cnvrate"; input.id = id;
+      input.value = String(r);
+      if (r === 44100) { input.checked = true; }
+      var label = document.createElement("label");
+      label.setAttribute("for", id);
+      label.title = r === 44100 ? "CD and streaming standard"
+        : (r === 48000 ? "Video and broadcast standard" : "");
+      var cap = document.createElement("span");
+      cap.className = "cap";
+      cap.textContent = String(r / 1000);
+      label.appendChild(cap);
+      wrap.appendChild(input);
+      wrap.appendChild(label);
+    });
+  })();
+
+  ["rk-cnvsrc", "rk-cnvfmt", "rk-cnvbits", "rk-cnvrate", "rk-cnvch"]
+    .forEach(function (name) {
+      document.querySelectorAll("input[name=" + name + "]")
+        .forEach(function (el) {
+          el.addEventListener("change", cnvPlanText);
+        });
+    });
+
+  if (cnvGo) cnvGo.addEventListener("click", function () {
+    if (cnvRunning) { return; }
+    cnvRunning = true;
+    cnvGo.disabled = true;
+    cnvStatus.textContent = "Converting…";
+    var fmt = pickedValue("rk-cnvfmt", "wav");
+    var bits = parseInt(pickedValue("rk-cnvbits", "16"), 10);
+    var rate = parseInt(pickedValue("rk-cnvrate", "44100"), 10);
+    var ch = parseInt(pickedValue("rk-cnvch", "2"), 10);
+    var dither = document.getElementById("rk-cnv-dither");
+    cnvSourceBuffer()
+      .then(function (buf) { return cnvResample(buf, rate, ch); })
+      .then(function (out) {
+        var chans = [];
+        for (var c = 0; c < out.numberOfChannels; c++) {
+          chans.push(out.getChannelData(c));
+        }
+        var spec = window.SBAudioConv.FORMATS[fmt];
+        var ab = window.SBAudioConv.encode(fmt, chans, rate, bits,
+                                           {dither: !!(dither && dither.checked)});
+        var a = document.createElement("a");
+        a.download = (loadedName || "converted") + "-" + (rate / 1000)
+          + "k-" + bits + "bit." + spec.ext;
+        a.href = URL.createObjectURL(new Blob([ab], {type: spec.mime}));
+        a.click();
+        cnvStatus.textContent = "Converted — " + a.download + " ("
+          + fmtBytes(ab.byteLength) + ") downloaded.";
+        cnvRunning = false;
+        cnvPlanText();
+      })
+      .catch(function (e) {
+        cnvRunning = false;
+        cnvPlanText();
+        cnvStatus.textContent = "Convert failed: " + (e.message || e);
+      });
+  });
+
+  // ---------- SB-13 Tempo & Key --------------------------------------
+  // Detection is measurement with a score; the transform is WSOLA. The
+  // panel only ever states what tempokey.js actually returned.
+  var tkDetect = document.getElementById("rk-tk-detect");
+  var tkLamp = document.getElementById("rk-tk-lamp");
+  var tkStatus = document.getElementById("rk-tk-status");
+  var tkPlan = document.getElementById("rk-tk-plan");
+  var tkPreview = document.getElementById("rk-tk-preview");
+  var tkRender = document.getElementById("rk-tk-render");
+  var tkWrap = document.getElementById("rk-tk-wrap");
+  var tkFill = document.getElementById("rk-tk-fill");
+  var tkSemis = 0, tkCents = 0, tkTempo = 1;
+  var tkFound = null;            // last detection result, or null
+  var tkBusy = false;
+  var tkPreviewSrc = null;
+
+  function tkChannels(buf) {
+    var out = [];
+    for (var c = 0; c < buf.numberOfChannels; c++) {
+      out.push(buf.getChannelData(c));
+    }
+    return out;
+  }
+
+  function tkSource() {
+    return buffer || (stems.length ? stems[0].buffer : null);
+  }
+
+  function tkEnable() {
+    var have = !!tkSource();
+    if (tkDetect) { tkDetect.disabled = tkBusy || !have; }
+    if (tkPreview) { tkPreview.disabled = tkBusy || !have; }
+    if (tkRender) { tkRender.disabled = tkBusy || !have; }
+  }
+
+  /* The 12 measured pitch classes, with the detected root lit. Nothing is
+     drawn until a real chroma exists. */
+  function tkPaintChroma(res) {
+    var svg = document.getElementById("rk-tk-chroma");
+    if (!svg) { return; }
+    var W = 480, H = 76, base = 62;
+    svg.innerHTML = "";
+    svg.appendChild(svgEl("path", {d: "M0 " + base + "h" + W,
+                                   stroke: "#6b665b", "stroke-width": 1}));
+    var names = (res && res.notes) || window.SBTempoKey.NOTES;
+    var vals = res && res.chroma;
+    var max = 0, i;
+    if (vals) {
+      for (i = 0; i < 12; i++) { if (vals[i] > max) { max = vals[i]; } }
+    }
+    for (i = 0; i < 12; i++) {
+      var x = 6 + i * 39.5;
+      var lit = res && i === res.root;
+      var h = vals && max > 0 ? Math.max(1, (vals[i] / max) * 52) : 1;
+      svg.appendChild(svgEl("rect", {
+        x: x, y: base - h, width: 27, height: h, rx: 1.5,
+        fill: lit ? "#a37c2a" : (vals ? "#7b7669" : "#8f8a7e"),
+        opacity: vals ? 1 : 0.4}));
+      var lab = svgEl("text", {x: x + 13.5, y: H - 2, "text-anchor": "middle",
+                               fill: lit ? "#2e2920" : "#4c4536",
+                               "font-size": "10", "font-weight": "800",
+                               "font-family": "Arial Narrow, Arial, sans-serif"});
+      lab.textContent = names[i];
+      svg.appendChild(lab);
+    }
+    if (!vals) {
+      var hint = svgEl("text", {x: W / 2, y: 22, "text-anchor": "middle",
+                                fill: "#4c4536", "font-size": "10",
+                                "font-weight": "800", "letter-spacing": "2",
+                                "font-family": "Arial Narrow, Arial, sans-serif"});
+      hint.textContent = "NO ANALYSIS YET";
+      svg.appendChild(hint);
+    }
+  }
+
+  /* One line stating source and result. Only the parts that were actually
+     measured appear - an unmeasured key never becomes a claim. */
+  function tkPlanText() {
+    if (!tkPlan) { return; }
+    var pct = Math.round(tkTempo * 100);
+    var parts = ["Tempo " + pct + "%"];
+    var semiTotal = tkSemis + tkCents / 100;
+    parts.push("pitch " + (semiTotal >= 0 ? "+" : "") + semiTotal.toFixed(2) + " st");
+    if (tkFound) {
+      var proj = window.SBTempoKey.project(
+        tkFound.bpm, tkFound.root, tkFound.mode, tkTempo, tkSemis);
+      parts.push(tkFound.bpm.toFixed(1) + " → " + proj.bpm.toFixed(1) + " BPM");
+      parts.push(tkFound.key + " → " + proj.key);
+    }
+    var src = tkSource();
+    if (src) {
+      parts.push("length " + mmss(src.duration) + " → "
+                 + mmss(src.duration * tkTempo));
+    }
+    tkPlan.textContent = parts.join("  ·  ");
+  }
+
+  function tkSetSemis(v) {
+    tkSemis = Math.max(-12, Math.min(12, v));
+    var el = document.getElementById("rk-tk-semis");
+    if (el) {
+      el.textContent = (tkSemis > 0 ? "+" : "") + tkSemis + " st";
+    }
+    tkPlanText();
+  }
+
+  function tkSetTempo(pct) {
+    tkTempo = Math.max(0.5, Math.min(2, pct / 100));
+    var el = document.getElementById("rk-tk-tempoval");
+    if (el) { el.textContent = Math.round(tkTempo * 100) + "%"; }
+    tkPlanText();
+  }
+
+  var tkTempoEl = document.getElementById("rk-tk-tempo");
+  if (tkTempoEl) tkTempoEl.addEventListener("input", function () {
+    tkSetTempo(parseFloat(tkTempoEl.value));
+    var t = document.getElementById("rk-tk-target");
+    // The slider is now the authority; clear a stale target reading.
+    if (t && tkFound) { t.value = (tkFound.bpm / tkTempo).toFixed(1); }
+  });
+
+  var tkTargetEl = document.getElementById("rk-tk-target");
+  if (tkTargetEl) tkTargetEl.addEventListener("input", function () {
+    var want = parseFloat(tkTargetEl.value);
+    if (!tkFound) {
+      tkStatus.textContent = "Detect the tempo first — a target BPM needs "
+        + "something to measure from.";
+      return;
+    }
+    if (!want || want <= 0) { return; }
+    // Output BPM = source / tempo, so tempo = source / target.
+    var ratio = tkFound.bpm / want;
+    if (ratio < 0.5 || ratio > 2) {
+      tkStatus.textContent = "That target needs a " + ratio.toFixed(2)
+        + "x stretch — outside the 0.5x–2x the stretcher holds up over.";
+      return;
+    }
+    tkStatus.textContent = "";
+    tkSetTempo(ratio * 100);
+    if (tkTempoEl) { tkTempoEl.value = String(Math.round(ratio * 100)); }
+  });
+
+  var tkCentsEl = document.getElementById("rk-tk-cents");
+  if (tkCentsEl) tkCentsEl.addEventListener("input", function () {
+    tkCents = parseFloat(tkCentsEl.value) || 0;
+    var el = document.getElementById("rk-tk-centsval");
+    if (el) { el.textContent = (tkCents > 0 ? "+" : "") + tkCents; }
+    tkPlanText();
+  });
+
+  var tkUpEl = document.getElementById("rk-tk-up");
+  if (tkUpEl) tkUpEl.addEventListener("click", function () { tkSetSemis(tkSemis + 1); });
+  var tkDownEl = document.getElementById("rk-tk-down");
+  if (tkDownEl) tkDownEl.addEventListener("click", function () { tkSetSemis(tkSemis - 1); });
+  var tkZeroEl = document.getElementById("rk-tk-zero");
+  if (tkZeroEl) tkZeroEl.addEventListener("click", function () {
+    tkSetSemis(0);
+    tkCents = 0;
+    if (tkCentsEl) { tkCentsEl.value = "0"; }
+    var cv = document.getElementById("rk-tk-centsval");
+    if (cv) { cv.textContent = "0"; }
+    tkSetTempo(100);
+    if (tkTempoEl) { tkTempoEl.value = "100"; }
+  });
+
+  if (tkDetect) tkDetect.addEventListener("click", function () {
+    var src = tkSource();
+    if (!src || tkBusy) { return; }
+    tkBusy = true;
+    tkEnable();
+    if (tkLamp) { tkLamp.classList.add("on"); }
+    tkStatus.textContent = "Analysing…";
+    // Yield first so the lamp and status actually paint before the work.
+    setTimeout(function () {
+      try {
+        var chans = tkChannels(src);
+        var bpm = window.SBTempoKey.detectBpm(chans, src.sampleRate);
+        var key = window.SBTempoKey.detectKey(chans, src.sampleRate);
+        tkFound = null;
+        if (bpm && key) {
+          tkFound = {bpm: bpm.bpm, root: key.root, mode: key.mode,
+                     key: key.key};
+        }
+        var bpmEl = document.getElementById("rk-tk-bpm");
+        var bpmSub = document.getElementById("rk-tk-bpmsub");
+        if (bpm) {
+          bpmEl.textContent = bpm.bpm.toFixed(1);
+          bpmSub.textContent = "confidence " + bpm.confidence.toFixed(2)
+            + " · could also be " + bpm.alternates.join(" or ");
+        } else {
+          bpmEl.textContent = "—";
+          bpmSub.textContent = "too short to measure a tempo";
+        }
+        var keyEl = document.getElementById("rk-tk-key");
+        var keySub = document.getElementById("rk-tk-keysub");
+        if (key) {
+          keyEl.textContent = key.key;
+          keySub.textContent = "fit " + key.score.toFixed(2)
+            + " · next best " + key.runnerUp + " (" + key.runnerUpScore.toFixed(2) + ")";
+        } else {
+          keyEl.textContent = "—";
+          keySub.textContent = "no pitched content found";
+        }
+        tkPaintChroma(key);
+        // Half/double tempo are one click away, because the maths cannot
+        // choose between them and the artist can.
+        var alts = document.getElementById("rk-tk-alts");
+        if (alts) {
+          alts.innerHTML = "";
+          if (bpm) {
+            bpm.alternates.forEach(function (alt) {
+              var b = document.createElement("button");
+              b.className = "sw px-2 py-1 text-[9px]";
+              b.textContent = "Treat as " + alt;
+              b.title = "Adopt " + alt + " BPM as the source reading";
+              b.addEventListener("click", function () {
+                tkFound = tkFound || {};
+                tkFound.bpm = alt;
+                document.getElementById("rk-tk-bpm").textContent = alt.toFixed(1);
+                bpmSub.textContent = "adopted " + alt + " BPM (you chose this "
+                  + "over the measured " + bpm.bpm.toFixed(1) + ")";
+                tkPlanText();
+              });
+              alts.appendChild(b);
+            });
+          }
+        }
+        tkStatus.textContent = "";
+        tkPlanText();
+      } catch (e) {
+        tkStatus.textContent = "Analysis failed: " + (e.message || e);
+      }
+      tkBusy = false;
+      if (tkLamp) { tkLamp.classList.remove("on"); }
+      tkEnable();
+    }, 30);
+  });
+
+  /* Run the transform over a slice or the whole track. onDone gets a real
+     AudioBuffer built from the stretched channels. */
+  function tkTransform(seconds, onDone) {
+    var src = tkSource();
+    if (!src || tkBusy) { return; }
+    var semiTotal = tkSemis + tkCents / 100;
+    if (Math.abs(tkTempo - 1) < 1e-6 && Math.abs(semiTotal) < 1e-6) {
+      tkStatus.textContent = "Nothing to change — tempo is 100% and pitch is 0.";
+      return;
+    }
+    tkBusy = true;
+    tkEnable();
+    ensureCtx();
+    if (tkLamp) { tkLamp.classList.add("on"); }
+    if (tkWrap) { tkWrap.classList.remove("hidden"); }
+    tkStatus.textContent = "Processing…";
+    var chans = [];
+    var take = seconds
+      ? Math.min(src.length, Math.round(seconds * src.sampleRate))
+      : src.length;
+    for (var c = 0; c < src.numberOfChannels; c++) {
+      chans.push(src.getChannelData(c).subarray(0, take));
+    }
+    window.SBTempoKey.transform(
+      chans, {tempo: tkTempo, semitones: tkSemis, cents: tkCents},
+      function (p) {
+        if (tkFill) { tkFill.style.width = Math.round(p * 100) + "%"; }
+      },
+      function (out) {
+        try {
+          var buf = ctx.createBuffer(out.length, out[0].length, src.sampleRate);
+          for (var i = 0; i < out.length; i++) {
+            buf.copyToChannel(out[i], i);
+          }
+          onDone(buf);
+        } catch (e) {
+          tkStatus.textContent = "Processing failed: " + (e.message || e);
+        }
+        tkBusy = false;
+        if (tkLamp) { tkLamp.classList.remove("on"); }
+        if (tkWrap) { tkWrap.classList.add("hidden"); }
+        if (tkFill) { tkFill.style.width = "0%"; }
+        tkEnable();
+      });
+  }
+
+  if (tkPreview) tkPreview.addEventListener("click", function () {
+    tkTransform(12, function (buf) {
+      if (playing) { stop(); }
+      if (tkPreviewSrc) {
+        try { tkPreviewSrc.stop(); } catch (e) { /* already finished */ }
+      }
+      ensureCtx();
+      ctx.resume();
+      tkPreviewSrc = ctx.createBufferSource();
+      tkPreviewSrc.buffer = buf;
+      tkPreviewSrc.connect(ctx.destination);
+      tkPreviewSrc.start();
+      tkStatus.textContent = "Playing " + mmss(buf.duration)
+        + " preview — dry, straight out, not through the rack.";
+    });
+  });
+
+  if (tkRender) tkRender.addEventListener("click", function () {
+    tkTransform(0, function (buf) {
+      var chans = tkChannels(buf);
+      var ab = window.SBAudioConv.encodeWav(chans, buf.sampleRate, 24,
+                                            {dither: false});
+      var bits = [];
+      if (Math.abs(tkTempo - 1) > 1e-6) {
+        bits.push(Math.round(tkTempo * 100) + "pct");
+      }
+      if (tkSemis || tkCents) {
+        bits.push((tkSemis >= 0 ? "up" : "dn") + Math.abs(tkSemis) + "st");
+      }
+      var a = document.createElement("a");
+      a.download = (loadedName || "track") + "-" + bits.join("-") + ".wav";
+      a.href = URL.createObjectURL(new Blob([ab], {type: "audio/wav"}));
+      a.click();
+      tkStatus.textContent = "Bounced " + a.download + " — 24-bit WAV, "
+        + mmss(buf.duration) + ".";
+    });
+  });
+
+  tkPaintChroma(null);
+  tkPlanText();
+  tkEnable();
+  cnvPlanText();
+
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
                        state: function () { return state; },
                        stems: function () { return stems; },
-                       addStem: function (s) { stems.push(s); renderStems(); syncDeckInfo(); },
+                       addStem: function (s) {
+                         stems.push(s); renderStems(); syncDeckInfo();
+                         cnvPlanText(); cnvShowPeak(); tkEnable(); tkPlanText();
+                       },
                        stemGainValue: stemGainValue,
                        modOn: modOn, voiceChain: voiceChain,
                        zoneBands: zoneBands, zoneTrim: zoneTrim,
@@ -1993,12 +2758,18 @@
                          return {loaded: !!refBuffer, mode: refMode,
                                  spec: !!refSpec};
                        },
+                       cnvPlanText: cnvPlanText,
+                       tkState: function () {
+                         return {tempo: tkTempo, semis: tkSemis,
+                                 cents: tkCents, found: tkFound};
+                       },
                        setRef: function (buf) {
                          refBuffer = buf; refSpec = null;
                          if (refBtn) refBtn.disabled = false;
                        }};
   syncAll();
   renderStems();
+  paintCabView();
   updateGlow();
   resetCompare();
   syncModButtons();

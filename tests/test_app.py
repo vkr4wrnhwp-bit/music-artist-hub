@@ -4022,8 +4022,49 @@ def test_rack_page_and_presets():
     assert 'id="rk-focus"' in page and "Focus mode" in page
     assert 'id="rk-dock"' in page and 'id="rk-wave"' in page and 'id="rk-play2"' in page
     assert "Tube Stage" in page and "not instrument identification" in page
-    assert "Cab &amp; Mic Sim" in page and "not measurements of any specific hardware" in page
+    assert "CAB-3" in page and "not measurements of any specific hardware" in page
     assert "4×12 Closed-Back" in page and "Ribbon" in page
+    # SB-08/10/11 are hardware panels, not web forms: the cab and mic are
+    # picked with selector caps, the native selects only hold the value.
+    assert 'id="rk-pick-cab"' in page and 'id="rk-pick-mic"' in page
+    assert 'id="rk-pick-axis"' in page
+    assert '<select id="rk-cab-cab" hidden' in page
+    assert '<select id="rk-cab-mic" hidden' in page
+    for cap in ("cb-direct", "cb-combo112", "cb-open212", "cb-closed412",
+                "cb-bass810", "mc-dynamic", "mc-ribbon", "mc-condenser",
+                "ax-on", "ax-off"):
+        assert 'id="%s"' % cap in page, cap
+        assert 'for="%s"' % cap in page, cap
+    # Every cap row is announced as a labelled group, and the diagram is
+    # named by the caption that describes it. Checking the labels rather
+    # than counting groups, so adding a panel does not fail this.
+    for group in ("Cabinet", "Microphone type", "Microphone angle"):
+        assert 'aria-label="%s"' % group in page, group
+    assert 'id="rk-cabview"' in page and 'aria-labelledby="rk-cabview-cap"' in page
+    assert 'id="rk-hookmap"' in page and 'id="rk-hookmap-cap"' in page
+    # Function blocks are fenced into labelled sub-plates.
+    for legend in ("Cabinet", "Microphone", "Separation", "Scan"):
+        assert '<span class="lg">%s</span>' % legend in page, legend
+    assert "Four-lane bay" in page and "Hook map" in page
+    # SB-12 Format Bench and SB-13 Tempo & Key, with their engines loaded.
+    assert 'id="sb12"' in page and "CNV-2" in page
+    assert 'id="sb13"' in page and "TMP-1" in page
+    assert "audioconv.js?v=" in page and "tempokey.js?v=" in page
+    assert 'id="rk-cnv-go"' in page and 'id="rk-cnv-rate"' in page
+    assert 'id="rk-tk-detect"' in page and 'id="rk-tk-chroma"' in page
+    assert 'id="rk-tk-target"' in page and 'id="rk-tk-cents"' in page
+    for legend in ("Source", "Container", "Depth", "Sample rate",
+                   "Channels", "Analyse", "Chroma", "Tempo", "Key"):
+        assert '<span class="lg">%s</span>' % legend in page, legend
+    for group in ("Conversion source", "Output container", "Bit depth",
+                  "Sample rate", "Channel count"):
+        assert 'aria-label="%s"' % group in page, group
+    # The honesty the two panels owe the user, stated on the faceplate:
+    # what the estimates are, and what the browser will not encode.
+    assert "estimates with a score attached" in page
+    assert "Krumhansl-Schmuckler" in page and "WSOLA" in page
+    assert "no browser exposes an MP3 or FLAC encoder" in page
+    assert "TPDF dither" in page
     assert 'Stem Deck' in page and 'not ML isolation' in page
     assert "Remove Center" in page and "Physics, not stem separation" in page
     assert "DLY-1" in page and "REV-1" in page and "honestly generated" in page
@@ -5488,5 +5529,39 @@ def test_studio_split_is_env_gated_and_honest():
         # Anonymous callers meet the global login gate first.
         assert app_obj.test_client().post(
             "/rack/studio-split", data={}).status_code in (302, 401)
+    finally:
+        _os.environ.pop("STEMSPLIT_API_KEY", None)
+
+
+def test_stemsplit_reads_both_published_response_shapes():
+    """The REST docs return nested outputs; the vendor's n8n node returns
+    flat <stem>Url keys. Whichever this account gets, the four lanes have
+    to resolve - and the scrubber must keep the key out of diagnostics."""
+    import os as _os
+
+    from stemsplit_provider import STEMS, _outputs, _scrub
+
+    nested = _outputs({"outputs": {
+        "vocals": {"url": "https://x/v.mp3", "expiresAt": "soon"},
+        "drums": {"url": "https://x/d.mp3"}}})
+    assert nested == {"vocals": "https://x/v.mp3", "drums": "https://x/d.mp3"}
+
+    flat = _outputs({"vocalsUrl": "https://x/v.mp3",
+                     "bassUrl": "https://x/b.mp3",
+                     "vocalsExpiresAt": "soon"})
+    assert flat == {"vocals": "https://x/v.mp3", "bass": "https://x/b.mp3"}
+
+    # Nested wins when both appear, and junk is skipped rather than crashing.
+    both = _outputs({"outputs": {"vocals": {"url": "https://good"}},
+                     "vocalsUrl": "https://stale", "otherUrl": None})
+    assert both == {"vocals": "https://good"}
+    assert _outputs({}) == {}
+    assert _outputs({"outputs": None}) == {}
+    assert "other" in STEMS and "instrumental" in STEMS
+
+    _os.environ["STEMSPLIT_API_KEY"] = "sk_live_scrubber_probe_value"
+    try:
+        assert _scrub("Bearer sk_live_scrubber_probe_value bad") == \
+            "Bearer [redacted] bad"
     finally:
         _os.environ.pop("STEMSPLIT_API_KEY", None)

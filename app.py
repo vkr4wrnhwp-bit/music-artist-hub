@@ -3892,6 +3892,8 @@ def create_app():
                 "wrapped_in_quotes": len(raw) > 1 and raw[0] in "'\"",
                 "starts_with_sk": raw.strip().startswith("sk_"),
             })
+        if raw and request.args.get("probe") == "1":
+            info["probe"] = stemsplit.probe()
         return jsonify(info)
 
     @app.route("/rack/studio-split", methods=["POST"])
