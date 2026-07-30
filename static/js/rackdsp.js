@@ -276,18 +276,27 @@
       return from;
     }
 
-    // V1 triode + the DC blocker its asymmetry requires.
+    /* Every shaping stage gets a trim after it. The curves are normalised
+       by their slope at zero, so they only lose level as the peaks
+       compress - the trim puts that back, which is what lets you A/B a
+       stage on character instead of loudness. */
+    // V1 triode: DC blocker (its asymmetry makes DC), gentle top-end
+    // softening, then the level match.
     m.triode = ac.createWaveShaper();
     m.triode.oversample = "4x";
     m.triodeDC = bq(ac, "highpass", 15, undefined, 0.7);
+    m.triodeTilt = bq(ac, "highshelf", 9000, 0);
+    m.triodeGain = ac.createGain();
     // V2 pentode.
     m.pentode = ac.createWaveShaper();
     m.pentode.oversample = "4x";
+    m.pentodeGain = ac.createGain();
     // V3 tape: curve, HF loss, head bump.
     m.tape = ac.createWaveShaper();
     m.tape.oversample = "4x";
     m.tapeHF = bq(ac, "highshelf", 8000, 0);
     m.tapeBump = bq(ac, "lowshelf", 60, 0);
+    m.tapeGain = ac.createGain();
     // V4 flutter: a short delay with two LFOs on its delayTime.
     m.flutterIn = ac.createGain();
     m.flutter = ac.createDelay(0.05);
@@ -306,29 +315,84 @@
     m.ironHigh = bq(ac, "highpass", 200, undefined, 0.7);
     m.ironShape = ac.createWaveShaper();
     m.ironShape.oversample = "2x";
+    // Trim sits on the low band only: that is the only part being shaped,
+    // so compensating the summed signal would lift the untouched highs too.
+    m.ironGain = ac.createGain();
     m.ironSum = ac.createGain();
-    // V6 vari-mu.
+    // V6 vari-mu, with the makeup that stops it just turning things down.
     m.varimu = ac.createDynamicsCompressor();
+    m.varimuMakeup = ac.createGain();
 
     var n = m.inNode;
     n.connect(m.triode); m.triode.connect(m.triodeDC);
-    n = tap("triode", m.triodeDC);
-    n.connect(m.pentode);
-    n = tap("pentode", m.pentode);
+    m.triodeDC.connect(m.triodeTilt); m.triodeTilt.connect(m.triodeGain);
+    n = tap("triode", m.triodeGain);
+    n.connect(m.pentode); m.pentode.connect(m.pentodeGain);
+    n = tap("pentode", m.pentodeGain);
     n.connect(m.tape); m.tape.connect(m.tapeHF); m.tapeHF.connect(m.tapeBump);
-    n = tap("tape", m.tapeBump);
+    m.tapeBump.connect(m.tapeGain);
+    n = tap("tape", m.tapeGain);
     n.connect(m.flutterIn);
     m.flutterIn.connect(m.flutter);
     n = tap("flutter", m.flutter);
     n.connect(m.ironIn);
     m.ironIn.connect(m.ironLow); m.ironLow.connect(m.ironShape);
-    m.ironShape.connect(m.ironSum);
+    m.ironShape.connect(m.ironGain); m.ironGain.connect(m.ironSum);
     m.ironIn.connect(m.ironHigh); m.ironHigh.connect(m.ironSum);
     n = tap("iron", m.ironSum);
-    n.connect(m.varimu);
-    tap("varimu", m.varimu);
-    m.varimu.connect(m.outNode);
+    n.connect(m.varimu); m.varimu.connect(m.varimuMakeup);
+    tap("varimu", m.varimuMakeup);
+    m.varimuMakeup.connect(m.outNode);
     return m;
+  }
+
+  /* Chrome's DynamicsCompressorNode applies its own internal makeup gain,
+     derived from threshold/knee/ratio, whose size is not specified in any
+     way worth depending on - at the default setting it handed back about
+     2 dB MORE than it took away, so switching V6 on made the mix louder
+     rather than steadier. Rather than hard-code a magic number measured on
+     one machine, render a reference tone through a bare compressor with
+     the same settings and keep the reciprocal. Cached per setting, and the
+     first pass runs with a trim of 1 so nothing ever waits on it. */
+  var variMuTrim = {};
+
+  function variMuKey(amount) { return amount.toFixed(2); }
+
+  function measureVariMu(amount, onReady) {
+    var T = window.SBTubes;
+    var key = variMuKey(amount);
+    if (variMuTrim[key] !== undefined || !T
+        || typeof OfflineAudioContext === "undefined") { return; }
+    variMuTrim[key] = 1;                  // provisional
+    /* Long enough for the envelope to settle before it is measured. The
+       release is 550 ms, so a 0.4 s render caught the compressor still
+       letting go - the trim came out 3 dB too aggressive and overshot the
+       other way. */
+    var rate = 44100, len = Math.floor(rate * 1.6);
+    var oc, vp = T.variMuParams(amount);
+    try { oc = new OfflineAudioContext(1, len, rate); } catch (e) { return; }
+    var comp = oc.createDynamicsCompressor();
+    comp.threshold.value = vp.threshold;
+    comp.ratio.value = vp.ratio;
+    comp.attack.value = vp.attack;
+    comp.release.value = vp.release;
+    comp.knee.value = vp.knee;
+    var osc = oc.createOscillator();
+    osc.frequency.value = 220;
+    var g = oc.createGain();
+    g.gain.value = T.REF_RMS * Math.SQRT2;
+    osc.connect(g); g.connect(comp); comp.connect(oc.destination);
+    osc.start();
+    oc.startRendering().then(function (buf) {
+      var d = buf.getChannelData(0);
+      // Measure only the last third, which is fully settled.
+      var from = Math.floor(len * 0.7), sum = 0, n = 0;
+      for (var i = from; i < len; i++) { sum += d[i] * d[i]; n++; }
+      var outRms = Math.sqrt(sum / (n || 1));
+      var trim = outRms > 1e-6 ? T.REF_RMS / outRms : 1;
+      variMuTrim[key] = Math.max(0.25, Math.min(4, trim));
+      if (onReady) { onReady(); }
+    }).catch(function () { /* keep the provisional 1 */ });
   }
 
   function voiceValves(m) {
@@ -339,21 +403,41 @@
       var v = state.valves[key];
       return (bankOn && v && v.on) ? v.amt : 0;
     }
-    m.triode.curve = T.triodeCurve(amt("triode"));
-    m.pentode.curve = T.pentodeCurve(amt("pentode"));
+    var tra = amt("triode");
+    m.triode.curve = T.triodeCurve(tra);
+    m.triodeTilt.gain.value = T.tiltDb("triode", tra);
+    m.triodeGain.gain.value = T.compensation("triode", tra);
+    var pa = amt("pentode");
+    m.pentode.curve = T.pentodeCurve(pa);
+    m.pentodeGain.gain.value = T.compensation("pentode", pa);
     var ta = amt("tape");
     m.tape.curve = T.tapeCurve(ta);
-    m.tapeHF.gain.value = -6 * ta;        // tape loses top
-    m.tapeBump.gain.value = 2.5 * ta;     // and lifts the head bump
+    m.tapeHF.gain.value = T.tiltDb("tape", ta);   // tape loses top
+    m.tapeBump.gain.value = 2.5 * ta;             // and lifts the head bump
+    m.tapeGain.gain.value = T.compensation("tape", ta);
     var fp = T.flutterParams(amt("flutter"));
     m.flutter.delayTime.value = fp.base;
     m.wow.frequency.value = fp.wowHz;
     m.flut.frequency.value = fp.flutterHz;
     m.wowGain.gain.value = fp.wowDepth;
     m.flutGain.gain.value = fp.flutterDepth;
-    m.ironShape.curve = T.ironCurve(amt("iron"));
-    var vp = T.variMuParams(amt("varimu"));
-    if (amt("varimu") <= 0) {
+    var ia = amt("iron");
+    m.ironShape.curve = T.ironCurve(ia);
+    m.ironGain.gain.value = T.compensation("iron", ia);
+    var va = amt("varimu");
+    var vp = T.variMuParams(va);
+    if (va > 0) {
+      // Kick off a measurement if this setting has not been seen; re-voice
+      // once it lands so the trim applies without blocking anything.
+      /* Re-voice whichever chain asked, not just the live one: an offline
+         render builds its own chain and would otherwise keep the
+         provisional trim of 1. measureVariMu only fires the callback on
+         the first measurement, so this cannot recurse. */
+      measureVariMu(va, function () { voiceValves(m); });
+    }
+    m.varimuMakeup.gain.value = va > 0
+      ? (variMuTrim[variMuKey(va)] || 1) : 1;
+    if (va <= 0) {
       m.varimu.threshold.value = 0;
       m.varimu.ratio.value = 1;
     } else {
@@ -3056,6 +3140,8 @@
                          return out;
                        },
                        paintValves: paintValves,
+                       variMuTrim: function () { return variMuTrim; },
+                       measureVariMu: measureVariMu,
                        syncValveUI: syncValveUI,
                        tkState: function () {
                          return {tempo: tkTempo, semis: tkSemis,
@@ -3069,6 +3155,9 @@
   renderStems();
   paintCabView();
   syncValveUI();
+  // Warm the vari-mu trim for the default setting, so the first time V6 is
+  // switched on it is already level-matched rather than a frame late.
+  measureVariMu(0.45, function () { if (live) { voiceValves(live.valves); } });
   updateGlow();
   resetCompare();
   syncModButtons();

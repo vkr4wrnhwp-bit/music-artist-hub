@@ -304,23 +304,46 @@
     for (i = 0; i < frameLen; i++) {
       win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / frameLen);
     }
+    /* The search window has to span at least one period of the lowest
+       frequency that matters, or bass can never be spliced at matching
+       phase and the low end goes hollow and phasey. 44.1 kHz / 512 is
+       86 Hz; the old +/-128 could only align down to about 345 Hz, which
+       is why a 110 Hz tone came out 20 dB dirtier than a 440 Hz one. */
+    var cmp = Math.min(hopOut, 600);
     var outPos = 0, inPos = 0;
+
+    /* Normalised against the CANDIDATE's own energy. Plain cross-
+       correlation just picks whichever offset is loudest, which is not the
+       same as the offset that lines up - and on real music it is the
+       reason splices audibly thump. The reference energy is constant
+       across candidates, so it can be left out. */
+    function score(cand, step) {
+      var num = 0, den = 0;
+      for (var k = 0; k < cmp; k += step) {
+        var a = input[cand + k];
+        num += a * out[outPos + k];
+        den += a * a;
+      }
+      return den > 1e-9 ? num / Math.sqrt(den) : -Infinity;
+    }
+
     while (outPos + frameLen < outLen && inPos + frameLen < input.length) {
       var pick = Math.round(inPos);
       if (outPos > 0 && seek > 0) {
-        /* Match the next frame's head against the overlap region already
-           in the output buffer. Plain cross-correlation is enough here and
-           avoids a second pass over the data. */
         var lo = Math.max(0, pick - seek);
-        var hi = Math.min(input.length - frameLen, pick + seek);
-        var bestScore = -Infinity, bestAt = pick;
-        var cmp = Math.min(hopOut, frameLen);
-        for (var cand = lo; cand <= hi; cand++) {
-          var s = 0;
-          for (i = 0; i < cmp; i += 4) {
-            s += input[cand + i] * out[outPos + i];
-          }
-          if (s > bestScore) { bestScore = s; bestAt = cand; }
+        var hi = Math.min(input.length - frameLen - 1, pick + seek);
+        // Coarse pass, then refine: full resolution alignment for a
+        // fraction of the work an exhaustive search would cost.
+        var bestScore = -Infinity, bestAt = pick, cand;
+        for (cand = lo; cand <= hi; cand += 8) {
+          var sc = score(cand, 2);
+          if (sc > bestScore) { bestScore = sc; bestAt = cand; }
+        }
+        var flo = Math.max(lo, bestAt - 8), fhi = Math.min(hi, bestAt + 8);
+        bestScore = -Infinity;
+        for (cand = flo; cand <= fhi; cand++) {
+          var sf = score(cand, 1);
+          if (sf > bestScore) { bestScore = sf; bestAt = cand; }
         }
         pick = bestAt;
       }
@@ -339,18 +362,56 @@
     return res;
   }
 
-  /* Linear-interpolated resample. Used only inside pitchShift, where the
-     companion time-stretch immediately undoes the length change. */
+  /* Second-order lowpass, coefficients in normalised frequency so the
+     caller does not need the sample rate. Used to keep a pitch-up
+     resample from folding everything above the new Nyquist back down as
+     aliasing, which is the harshness people hear on a cheap shifter. */
+  function lowpass(data, cutoffFrac) {
+    if (!(cutoffFrac > 0) || cutoffFrac >= 0.5) { return data; }
+    var w0 = 2 * Math.PI * cutoffFrac;
+    var cs = Math.cos(w0), alpha = Math.sin(w0) / (2 * 0.7071);
+    var a0 = 1 + alpha;
+    var b0 = (1 - cs) / 2 / a0, b1 = (1 - cs) / a0, b2 = b0;
+    var a1 = -2 * cs / a0, a2 = (1 - alpha) / a0;
+    var out = data;
+    // Two passes for a steeper skirt; the shifter needs the stopband.
+    for (var pass = 0; pass < 2; pass++) {
+      var x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      var src = out;
+      out = new Float32Array(src.length);
+      for (var i = 0; i < src.length; i++) {
+        var x0 = src[i];
+        var y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = x0; y2 = y1; y1 = y0;
+        out[i] = y0;
+      }
+    }
+    return out;
+  }
+
+  /* Catmull-Rom interpolated resample. Linear interpolation is a crude
+     lowpass whose error rises with frequency, so it dulls and roughens
+     every shift; a cubic fit through four points costs a handful of
+     multiplies and is far closer to the real waveform between samples.
+     Reading faster than 1:1 also needs the band limited first, or
+     everything above the new Nyquist folds back as aliasing. */
   function resample(input, ratio) {
-    var outLen = Math.max(1, Math.floor(input.length / ratio));
+    var src = ratio > 1 ? lowpass(input, 0.45 / ratio) : input;
+    var outLen = Math.max(1, Math.floor(src.length / ratio));
     var out = new Float32Array(outLen);
+    var last = src.length - 1;
     for (var i = 0; i < outLen; i++) {
-      var src = i * ratio;
-      var i0 = Math.floor(src);
-      var frac = src - i0;
-      var a = input[i0] || 0;
-      var b = input[i0 + 1] !== undefined ? input[i0 + 1] : a;
-      out[i] = a + (b - a) * frac;
+      var pos = i * ratio;
+      var i1 = Math.floor(pos);
+      var t = pos - i1;
+      var i0 = i1 > 0 ? i1 - 1 : 0;
+      var i2 = i1 + 1 <= last ? i1 + 1 : last;
+      var i3 = i1 + 2 <= last ? i1 + 2 : i2;
+      var p0 = src[i0], p1 = src[i1], p2 = src[i2], p3 = src[i3];
+      var a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+      var b = p0 - 2.5 * p1 + 2 * p2 - 0.5 * p3;
+      var c = -0.5 * p0 + 0.5 * p2;
+      out[i] = ((a * t + b) * t + c) * t + p1;
     }
     return out;
   }
@@ -363,7 +424,9 @@
     var tempo = opts.tempo || 1;
     var semis = (opts.semitones || 0) + (opts.cents || 0) / 100;
     var frameLen = opts.frameLen || 2048;
-    var seek = opts.seek === undefined ? 128 : opts.seek;
+    // Wide enough to align one period of the deepest bass; see the
+    // note in stretchChannel for why 128 was not.
+    var seek = opts.seek === undefined ? 512 : opts.seek;
     var pitchRatio = Math.pow(2, semis / 12);
     /* Pitch comes from resampling: reading the input pitchRatio times
        faster raises it by that ratio and shortens it to 1/pitchRatio, so
@@ -417,6 +480,7 @@
     // Exposed for the Node checks: each piece verified on its own.
     _fft: fft, _onsetEnvelope: onsetEnvelope, _chroma: chroma,
     _stretchChannel: stretchChannel, _resample: resample,
+    _lowpass: lowpass,
     _correlate: correlate,
   };
 
