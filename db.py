@@ -608,6 +608,83 @@ def init_db():
                 value TEXT NOT NULL,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS hours_rates (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                service TEXT NOT NULL,
+                rate REAL NOT NULL DEFAULT 0,
+                min_hours REAL NOT NULL DEFAULT 0,
+                bookable INTEGER NOT NULL DEFAULT 0,
+                notes TEXT NOT NULL DEFAULT '',
+                sort INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL,
+                UNIQUE(user_id, service)
+            );
+            CREATE TABLE IF NOT EXISTS hours_entries (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                project TEXT NOT NULL DEFAULT '',
+                client TEXT NOT NULL DEFAULT '',
+                service TEXT NOT NULL DEFAULT '',
+                hours REAL NOT NULL DEFAULT 0,
+                rate REAL NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                billed INTEGER NOT NULL DEFAULT 0,
+                invoice_id TEXT,
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS hours_invoices (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                number TEXT NOT NULL,
+                client TEXT NOT NULL DEFAULT '',
+                project TEXT NOT NULL DEFAULT '',
+                hours REAL NOT NULL DEFAULT 0,
+                total REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'sent',
+                issued TEXT NOT NULL,
+                paid TEXT
+            );
+            CREATE TABLE IF NOT EXISTS hours_bookings (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                service TEXT NOT NULL DEFAULT '',
+                who TEXT NOT NULL DEFAULT '',
+                contact TEXT NOT NULL DEFAULT '',
+                day TEXT NOT NULL,
+                start_hour REAL NOT NULL DEFAULT 0,
+                hours REAL NOT NULL DEFAULT 1,
+                rate REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'requested',
+                note TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS hours_submissions (
+                id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL,
+                who TEXT NOT NULL DEFAULT '',
+                role TEXT NOT NULL DEFAULT '',
+                day TEXT NOT NULL,
+                hours REAL NOT NULL DEFAULT 0,
+                rate REAL NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                decided TEXT,
+                reason TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS hours_blocks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                start_hour REAL NOT NULL DEFAULT 9,
+                hours REAL NOT NULL DEFAULT 1,
+                label TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'work',
+                done INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS app_kv (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -2342,3 +2419,260 @@ def count_spotify_presaves(campaign_id):
             "SELECT status, COUNT(*) AS n FROM spotify_presaves WHERE campaign_id = ?"
             " GROUP BY status", (campaign_id,)).fetchall()
     return {r["status"]: r["n"] for r in rows}
+
+# --- Hours desk -------------------------------------------------------------------
+# Five tables behind one page: what you charge, what you worked, what you
+# invoiced, what people booked, what collaborators submitted, and how the
+# day is blocked out. Every figure the page shows is summed from these rows
+# - nothing on the Hours desk is illustrative.
+
+def _hours_clean_day(day):
+    """Accept only YYYY-MM-DD; anything else becomes today, so a bad value
+    can never land a row on a date that does not exist."""
+    day = (day or "").strip()[:10]
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+        return day
+    except ValueError:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def set_hours_rate(user_id, service, rate, min_hours=0, bookable=False,
+                   notes="", sort=0):
+    """Upsert one line of the rate card."""
+    service = (service or "").strip()[:60]
+    if not service:
+        return None
+    now = _now()
+    with get_db() as db:
+        row = db.execute(
+            "SELECT id FROM hours_rates WHERE user_id = ? AND service = ?",
+            (user_id, service)).fetchone()
+        if row:
+            db.execute(
+                "UPDATE hours_rates SET rate = ?, min_hours = ?, bookable = ?,"
+                " notes = ?, sort = ? WHERE id = ?",
+                (max(0.0, float(rate or 0)), max(0.0, float(min_hours or 0)),
+                 1 if bookable else 0, (notes or "")[:200], int(sort or 0),
+                 row["id"]))
+            return row["id"]
+        rate_id = uuid.uuid4().hex
+        db.execute(
+            "INSERT INTO hours_rates (id, user_id, service, rate, min_hours,"
+            " bookable, notes, sort, created) VALUES (?,?,?,?,?,?,?,?,?)",
+            (rate_id, user_id, service, max(0.0, float(rate or 0)),
+             max(0.0, float(min_hours or 0)), 1 if bookable else 0,
+             (notes or "")[:200], int(sort or 0), now))
+    return rate_id
+
+
+def list_hours_rates(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM hours_rates WHERE user_id = ? ORDER BY sort, service",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_hours_rate(user_id, rate_id):
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM hours_rates WHERE id = ? AND user_id = ?",
+            (rate_id, user_id))
+    return cur.rowcount > 0
+
+
+def add_hours_entry(user_id, day, project, client, service, hours, rate,
+                    note=""):
+    entry_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO hours_entries (id, user_id, day, project, client,"
+            " service, hours, rate, note, billed, invoice_id, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?,0,NULL,?)",
+            (entry_id, user_id, _hours_clean_day(day), (project or "")[:120],
+             (client or "")[:120], (service or "")[:60],
+             max(0.0, float(hours or 0)), max(0.0, float(rate or 0)),
+             (note or "")[:300], _now()))
+    return entry_id
+
+
+def list_hours_entries(user_id, unbilled_only=False):
+    sql = "SELECT * FROM hours_entries WHERE user_id = ?"
+    if unbilled_only:
+        sql += " AND billed = 0"
+    sql += " ORDER BY day DESC, created DESC"
+    with get_db() as db:
+        rows = db.execute(sql, (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_hours_entry(user_id, entry_id):
+    """Only unbilled rows can go: deleting a line off an issued invoice
+    would leave the invoice claiming hours that no longer exist."""
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM hours_entries WHERE id = ? AND user_id = ? AND billed = 0",
+            (entry_id, user_id))
+    return cur.rowcount > 0
+
+
+def create_hours_invoice(user_id, entry_ids, number, client="", project=""):
+    """Mark the given unbilled entries billed and record the invoice. Totals
+    come from the rows themselves, so the invoice can never disagree with
+    the log it was built from. Returns the invoice dict, or None if none of
+    the ids were billable."""
+    if not entry_ids:
+        return None
+    now = _now()
+    with get_db() as db:
+        marks = ",".join("?" for _ in entry_ids)
+        rows = db.execute(
+            "SELECT * FROM hours_entries WHERE user_id = ? AND billed = 0"
+            " AND id IN (%s)" % marks, tuple([user_id] + list(entry_ids))
+        ).fetchall()
+        if not rows:
+            return None
+        hours = round(sum(float(r["hours"]) for r in rows), 2)
+        total = round(sum(float(r["hours"]) * float(r["rate"]) for r in rows), 2)
+        invoice_id = uuid.uuid4().hex
+        db.execute(
+            "INSERT INTO hours_invoices (id, user_id, number, client, project,"
+            " hours, total, status, issued, paid)"
+            " VALUES (?,?,?,?,?,?,?,'sent',?,NULL)",
+            (invoice_id, user_id, (number or "")[:40], (client or "")[:120],
+             (project or "")[:120], hours, total, now))
+        ids = [r["id"] for r in rows]
+        db.execute(
+            "UPDATE hours_entries SET billed = 1, invoice_id = ? WHERE id IN (%s)"
+            % ",".join("?" for _ in ids), tuple([invoice_id] + ids))
+        made = db.execute("SELECT * FROM hours_invoices WHERE id = ?",
+                          (invoice_id,)).fetchone()
+    return dict(made)
+
+
+def list_hours_invoices(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM hours_invoices WHERE user_id = ?"
+            " ORDER BY issued DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_hours_invoice_paid(user_id, invoice_id):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE hours_invoices SET status = 'paid', paid = ?"
+            " WHERE id = ? AND user_id = ? AND status != 'paid'",
+            (_now(), invoice_id, user_id))
+    return cur.rowcount > 0
+
+
+def add_hours_booking(user_id, service, who, contact, day, start_hour, hours,
+                      rate, note=""):
+    booking_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO hours_bookings (id, user_id, service, who, contact,"
+            " day, start_hour, hours, rate, status, note, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'requested',?,?)",
+            (booking_id, user_id, (service or "")[:60], (who or "")[:120],
+             (contact or "")[:160], _hours_clean_day(day),
+             max(0.0, min(23.5, float(start_hour or 0))),
+             max(0.25, float(hours or 1)), max(0.0, float(rate or 0)),
+             (note or "")[:300], _now()))
+    return booking_id
+
+
+def list_hours_bookings(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM hours_bookings WHERE user_id = ? ORDER BY "
+            "CASE status WHEN 'requested' THEN 0 WHEN 'confirmed' THEN 1 "
+            "ELSE 2 END, day, start_hour", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_hours_booking_status(user_id, booking_id, status):
+    if status not in ("requested", "confirmed", "declined", "done"):
+        return False
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE hours_bookings SET status = ? WHERE id = ? AND user_id = ?",
+            (status, booking_id, user_id))
+    return cur.rowcount > 0
+
+
+def add_hours_submission(owner_id, who, role, day, hours, rate, note=""):
+    sub_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO hours_submissions (id, owner_id, who, role, day,"
+            " hours, rate, note, status, decided, reason, created)"
+            " VALUES (?,?,?,?,?,?,?,?,'pending',NULL,'',?)",
+            (sub_id, owner_id, (who or "")[:120], (role or "")[:60],
+             _hours_clean_day(day), max(0.0, float(hours or 0)),
+             max(0.0, float(rate or 0)), (note or "")[:300], _now()))
+    return sub_id
+
+
+def list_hours_submissions(owner_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM hours_submissions WHERE owner_id = ? ORDER BY "
+            "CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 "
+            "ELSE 2 END, day DESC", (owner_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def decide_hours_submission(owner_id, sub_id, approve, reason=""):
+    """Approve or reject, recording who decided and when. A rejection keeps
+    its reason: an unexplained rejected timesheet is how disputes start."""
+    status = "approved" if approve else "rejected"
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE hours_submissions SET status = ?, decided = ?, reason = ?"
+            " WHERE id = ? AND owner_id = ? AND status = 'pending'",
+            (status, _now(), (reason or "")[:300], sub_id, owner_id))
+    return cur.rowcount > 0
+
+
+def add_hours_block(user_id, day, start_hour, hours, label, kind="work"):
+    block_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO hours_blocks (id, user_id, day, start_hour, hours,"
+            " label, kind, done, created) VALUES (?,?,?,?,?,?,?,0,?)",
+            (block_id, user_id, _hours_clean_day(day),
+             max(0.0, min(23.5, float(start_hour or 0))),
+             max(0.25, float(hours or 1)), (label or "")[:120],
+             (kind or "work")[:20], _now()))
+    return block_id
+
+
+def list_hours_blocks(user_id, day=None):
+    sql = "SELECT * FROM hours_blocks WHERE user_id = ?"
+    args = [user_id]
+    if day:
+        sql += " AND day = ?"
+        args.append(_hours_clean_day(day))
+    sql += " ORDER BY day, start_hour"
+    with get_db() as db:
+        rows = db.execute(sql, tuple(args)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_hours_block(user_id, block_id):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE hours_blocks SET done = 1 - done WHERE id = ? AND user_id = ?",
+            (block_id, user_id))
+    return cur.rowcount > 0
+
+
+def delete_hours_block(user_id, block_id):
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM hours_blocks WHERE id = ? AND user_id = ?",
+            (block_id, user_id))
+    return cur.rowcount > 0

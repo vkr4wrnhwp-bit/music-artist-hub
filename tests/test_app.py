@@ -5654,3 +5654,224 @@ def test_vu_needle_agrees_with_its_printed_scale():
 
     # And an idle dial has to say why it is idle rather than read 0.0 dB.
     assert '"COMP OFF"' in js and '"COMP AT 1:1"' in js
+
+
+def test_hours_engine_arithmetic():
+    """Every figure on the Hours desk is arithmetic over stored rows, so the
+    arithmetic is checked without a database or a request."""
+    import hours_engine as H
+    from datetime import date
+
+    entries = [
+        {"id": "a", "day": "2026-07-28", "client": "Rello", "project": "Night",
+         "hours": 4.5, "rate": 60, "billed": 0},
+        {"id": "b", "day": "2026-07-30", "client": "Rello", "project": "Night",
+         "hours": 3.25, "rate": 75, "billed": 0},
+        {"id": "c", "day": "2026-07-20", "client": "Kaz", "project": "Other",
+         "hours": 5.0, "rate": 75, "billed": 1},
+    ]
+    st = H.session_totals(entries)
+    assert st["hours"] == 12.75
+    assert st["unbilled_value"] == round(4.5 * 60 + 3.25 * 75, 2)
+    assert st["billed_value"] == 375.0
+    # A blended rate needs hours to blend; with none it is absent, not zero.
+    assert H.session_totals([])["effective_rate"] is None
+
+    # Grouped the way you would invoice: billed rows are already gone.
+    groups = H.group_by_client(entries)
+    assert len(groups) == 1 and groups[0]["client"] == "Rello"
+    assert groups[0]["hours"] == 7.75
+    assert groups[0]["first_day"] == "2026-07-28"
+    assert groups[0]["last_day"] == "2026-07-30"
+
+    # Numbering counts only this year, so January starts clean.
+    invoices = [{"number": "SB-2026-001", "total": 100, "status": "paid"},
+                {"number": "SB-2026-002", "total": 250, "status": "sent"},
+                {"number": "SB-2025-009", "total": 50, "status": "sent"}]
+    assert H.next_invoice_number(invoices, date(2026, 7, 30)) == "SB-2026-003"
+    assert H.next_invoice_number(invoices, date(2027, 1, 2)) == "SB-2027-001"
+    iv = H.invoice_totals(invoices)
+    assert iv["outstanding"] == 300.0 and iv["paid"] == 100.0
+
+    # Requested money is not agreed money, in either direction.
+    subs = [{"status": "pending", "hours": 6, "rate": 60},
+            {"status": "approved", "hours": 4.5, "rate": 70},
+            {"status": "rejected", "hours": 2, "rate": 50}]
+    sub = H.submission_totals(subs)
+    assert sub["pending_value"] == 360.0 and sub["approved_value"] == 315.0
+    bookings = [{"status": "requested", "hours": 2, "rate": 75},
+                {"status": "confirmed", "hours": 3, "rate": 40, "id": "bk1",
+                 "day": "2026-07-30", "start_hour": 13, "service": "Studio",
+                 "who": "Dee"}]
+    bt = H.booking_totals(bookings)
+    assert bt["requested_value"] == 150.0 and bt["confirmed_value"] == 120.0
+
+    summary = H.desk_summary(entries, invoices, bookings, subs)
+    # Owed = unbilled work + invoices out and unpaid. Owe = approved only.
+    assert summary["owed_to_you"] == round(st["unbilled_value"] + 300.0, 2)
+    assert summary["you_owe"] == 315.0
+    assert summary["net"] == round(summary["owed_to_you"] - 315.0, 2)
+    assert H.desk_summary([], [], [], [])["has_data"] is False
+
+    assert H.fmt_hour(0) == "00:00" and H.fmt_hour(13.5) == "13:30"
+    assert H.fmt_hour(9.25) == "09:15"
+
+    # Clashes are detected, not left for the user to spot.
+    blocks = [{"id": "1", "start_hour": 9, "hours": 2, "label": "A"},
+              {"id": "2", "start_hour": 10, "hours": 1, "label": "B"},
+              {"id": "3", "start_hour": 14, "hours": 1, "label": "C"}]
+    assert H.find_clashes(blocks) == {"1", "2"}
+    # Three in one hour counts three blocks, not "one pair" or "three pairs".
+    trio = [{"id": "x", "start_hour": 9, "hours": 2},
+            {"id": "y", "start_hour": 9.5, "hours": 1},
+            {"id": "z", "start_hour": 10, "hours": 1}]
+    assert H.day_plan(trio, [], from_hour=8, to_hour=12)["clash_items"] == 3
+    assert H.day_plan(blocks[2:], [], from_hour=8, to_hour=16)["clash_items"] == 0
+
+    # A confirmed booking joins the plan, so it cannot be double-booked.
+    plan = H.day_plan(blocks, bookings, day="2026-07-30", from_hour=8, to_hour=16)
+    assert plan["planned_hours"] == 7.0
+    at13 = [r for r in plan["rows"] if r["hour"] == 13][0]
+    assert any(b["source"] == "booking" for b in at13["blocks"])
+    # The rows carry "blocks", never "items" - row.items in a template
+    # resolves to dict.items and silently iterates the wrong thing.
+    assert "items" not in plan["rows"][0]
+
+    assert H.flag_entry({"hours": 26, "rate": 0, "client": ""}) != []
+    assert H.flag_entry({"hours": 3, "rate": 60, "client": "Rello"}) == []
+    assert H.bookable_services([{"bookable": 1}, {"bookable": 0}]) == [{"bookable": 1}]
+
+
+def test_hours_desk_end_to_end():
+    """The four panels, driven through their real routes: log and invoice,
+    rate card and bookings, collaborator approvals, and the day plan."""
+    from werkzeug.datastructures import MultiDict
+
+    import db as store_mod
+
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+
+    # An empty desk says so rather than showing a plausible number.
+    page = artist.get("/hours").get_data(as_text=True)
+    assert "Hours Desk" in page
+    assert "every figure above is zero" in page
+
+    # Rate card: the starter set, then a custom line with a minimum.
+    artist.post("/hours/rate", data={"starter": "1"})
+    artist.post("/hours/rate", data={"service": "Tour rehearsal", "rate": "35",
+                                     "min_hours": "3", "bookable": "on"})
+    rates = store_mod.list_hours_rates(uid)
+    assert len(rates) == 5
+    assert artist.post("/hours/rate", data={"service": " "}).status_code == 400
+
+    # Session log.
+    for day, hours, rate in [("2026-07-28", "4.5", "60"),
+                             ("2026-07-30", "3.25", "75")]:
+        artist.post("/hours/log", data={"day": day, "client": "Rello",
+                                        "project": "Nightshift",
+                                        "service": "mix", "hours": hours,
+                                        "rate": rate})
+    assert artist.post("/hours/log", data={"hours": "0"}).status_code == 400
+    page = artist.get("/hours").get_data(as_text=True)
+    assert "$513.75" in page          # 4.5*60 + 3.25*75
+
+    # Invoice, then the locks: a billed line cannot be deleted or re-invoiced.
+    ids = [e["id"] for e in store_mod.list_hours_entries(uid)]
+    r = artist.post("/hours/invoice", data=MultiDict(
+        [("entry_id", i) for i in ids]
+        + [("client", "Rello"), ("number", "SB-2026-001")]))
+    assert r.status_code == 302
+    inv = store_mod.list_hours_invoices(uid)[0]
+    assert inv["total"] == 513.75 and inv["hours"] == 7.75
+    assert all(e["billed"] for e in store_mod.list_hours_entries(uid))
+    assert artist.post("/hours/entry/%s/delete" % ids[0]).status_code == 400
+    again = artist.post("/hours/invoice",
+                        data=MultiDict([("entry_id", i) for i in ids]))
+    assert again.status_code == 400
+    artist.post("/hours/invoice/%s/paid" % inv["id"])
+    assert store_mod.list_hours_invoices(uid)[0]["status"] == "paid"
+
+    # Bookings price themselves from the card, and honour its minimum.
+    short = artist.post("/hours/booking", data={"service": "Tour rehearsal",
+                                                "day": "2026-08-01",
+                                                "hours": "1"})
+    assert short.status_code == 400 and "minimum" in short.get_json()["error"]
+    nope = artist.post("/hours/booking", data={"service": "Beat session",
+                                               "hours": "2"})
+    assert nope.status_code == 400      # on the card, but not bookable
+    artist.post("/hours/booking", data={"service": "Tour rehearsal",
+                                        "who": "Dee", "day": "2026-08-01",
+                                        "start_hour": "13", "hours": "3"})
+    bk = store_mod.list_hours_bookings(uid)[0]
+    assert bk["rate"] == 35.0           # from the card, not the form
+    artist.post("/hours/booking/%s/confirmed" % bk["id"])
+    assert store_mod.list_hours_bookings(uid)[0]["status"] == "confirmed"
+    assert artist.post("/hours/booking/%s/nonsense" % bk["id"]).status_code == 400
+
+    # Collaborator hours: approve one, reject one with a reason.
+    artist.post("/hours/submission", data={"who": "Dee", "role": "engineer",
+                                           "day": "2026-07-29", "hours": "6",
+                                           "rate": "60"})
+    artist.post("/hours/submission", data={"who": "Kaz", "role": "video",
+                                           "day": "2026-07-30", "hours": "4.5",
+                                           "rate": "70"})
+    assert artist.post("/hours/submission", data={"who": "X",
+                                                  "hours": "0"}).status_code == 400
+    subs = store_mod.list_hours_submissions(uid)
+    artist.post("/hours/submission/%s/approve" % subs[0]["id"])
+    artist.post("/hours/submission/%s/reject" % subs[1]["id"],
+                data={"reason": "not agreed"})
+    subs = store_mod.list_hours_submissions(uid)
+    approved = [s for s in subs if s["status"] == "approved"]
+    rejected = [s for s in subs if s["status"] == "rejected"]
+    assert len(approved) == 1 and len(rejected) == 1
+    # A rejection keeps its reason - an unexplained one is how disputes start.
+    assert rejected[0]["reason"] == "not agreed"
+    # And a decided sheet cannot be quietly re-decided.
+    assert not store_mod.decide_hours_submission(uid, approved[0]["id"], False)
+    assert artist.post("/hours/submission/%s/sideways"
+                       % approved[0]["id"]).status_code == 400
+
+    # Day plan: overlapping blocks are flagged, the booking is folded in.
+    artist.post("/hours/block", data={"day": "2026-08-01", "label": "Writing",
+                                      "start_hour": "12", "hours": "2"})
+    artist.post("/hours/block", data={"day": "2026-08-01", "label": "Admin",
+                                      "start_hour": "13", "hours": "1"})
+    assert artist.post("/hours/block",
+                       data={"day": "2026-08-01", "label": " "}).status_code == 400
+    page = artist.get("/hours?day=2026-08-01").get_data(as_text=True)
+    assert "overlapping" in page and "Booked" in page
+    blocks = store_mod.list_hours_blocks(uid, "2026-08-01")
+    artist.post("/hours/block/%s/done" % blocks[0]["id"],
+                data={"day": "2026-08-01"})
+    assert store_mod.list_hours_blocks(uid, "2026-08-01")[0]["done"] == 1
+    artist.post("/hours/block/%s/delete" % blocks[1]["id"],
+                data={"day": "2026-08-01"})
+    assert len(store_mod.list_hours_blocks(uid, "2026-08-01")) == 1
+    assert artist.post("/hours/block/%s/sideways"
+                       % blocks[0]["id"]).status_code == 400
+
+    # A bad date cannot land a row on a day that does not exist.
+    artist.post("/hours/log", data={"client": "Z", "hours": "1", "rate": "1",
+                                    "day": "not-a-date"})
+    assert all(len(e["day"]) == 10 for e in store_mod.list_hours_entries(uid))
+
+    # The headline reports agreed money only: approved hours, not pending.
+    page = artist.get("/hours").get_data(as_text=True)
+    assert "Approved collaborator hours only" in page
+    assert "no forecast here" in page
+
+
+def test_hours_desk_needs_an_account():
+    """Nothing on the desk is readable or writable while signed out."""
+    app_obj = create_app()
+    anon = app_obj.test_client()
+    r = anon.get("/hours")
+    assert r.status_code == 302 and "/login" in r.headers["Location"]
+    for path in ("/hours/log", "/hours/rate", "/hours/booking",
+                 "/hours/submission", "/hours/block", "/hours/invoice"):
+        r = anon.post(path, data={})
+        assert r.status_code in (302, 401), path
+

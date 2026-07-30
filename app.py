@@ -21,6 +21,16 @@ from statements_engine import (analyze as analyze_statement, parse_statement,
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 import stemsplit_provider as stemsplit
+import hours_engine
+
+def _hours_float(value, default=0.0):
+    """Form numbers, forgivingly: a blank or a typo becomes the default
+    rather than a 500, and nothing negative ever reaches the database."""
+    try:
+        return max(0.0, float(str(value).strip()))
+    except (TypeError, ValueError):
+        return default
+
 from catalog_config import get_account, get_catalog_data
 from connections_config import get_connections_data
 from reports_config import get_reports_data
@@ -5965,6 +5975,231 @@ def create_app():
     _DISPUTE_TYPES = ["missing payment", "wrong split", "content claim",
                       "takedown", "metadata error", "chargeback", "other"]
     _DISPUTE_STATUSES = ["open", "submitted", "resolved", "rejected"]
+
+    # ---------- Hours desk ------------------------------------------------
+    # Four things that all come down to time: what you worked, what you
+    # charge, what other people worked for you, and how the day is laid out.
+    # Every figure on the page is summed from stored rows.
+
+    _HOURS_STARTER = [
+        ("Mixing", 75.0, 0.0, True),
+        ("Studio time", 40.0, 2.0, True),
+        ("Vocal feature", 250.0, 2.0, True),
+        ("Beat session", 60.0, 0.0, False),
+    ]
+
+    def _hours_ctx(user_id, day=None):
+        entries = store.list_hours_entries(user_id)
+        invoices = store.list_hours_invoices(user_id)
+        bookings = store.list_hours_bookings(user_id)
+        subs = store.list_hours_submissions(user_id)
+        rates = store.list_hours_rates(user_id)
+        today = hours_engine.parse_day(day)
+        day_str = today.strftime("%Y-%m-%d")
+        blocks = store.list_hours_blocks(user_id, day_str)
+        for e in entries:
+            e["value"] = hours_engine.entry_value(e)
+            e["flags"] = hours_engine.flag_entry(e)
+        return {
+            "entries": entries,
+            "invoices": invoices,
+            "bookings": bookings,
+            "submissions": subs,
+            "rates": rates,
+            "bookable": hours_engine.bookable_services(rates),
+            "totals": hours_engine.session_totals(entries),
+            "groups": hours_engine.group_by_client(entries),
+            "invoice_totals": hours_engine.invoice_totals(invoices),
+            "booking_totals": hours_engine.booking_totals(bookings),
+            "sub_totals": hours_engine.submission_totals(subs),
+            "summary": hours_engine.desk_summary(entries, invoices, bookings, subs),
+            "plan": hours_engine.day_plan(blocks, bookings, day=day_str),
+            "next_number": hours_engine.next_invoice_number(invoices),
+            "plan_day": day_str,
+            "week": hours_engine.week_days(),
+            "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        }
+
+    @app.route("/hours")
+    def hours_desk():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("hours.html", active_page="hours",
+                               starter=_HOURS_STARTER,
+                               **_hours_ctx(user["id"], request.args.get("day")),
+                               **build_dashboard_context())
+
+    @app.route("/hours/log", methods=["POST"])
+    def hours_log():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        f = request.form
+        hours = _hours_float(f.get("hours"))
+        if hours <= 0:
+            return jsonify({"ok": False,
+                            "error": "Enter how many hours you worked."}), 400
+        store.add_hours_entry(user["id"], f.get("day"), f.get("project"),
+                              f.get("client"), f.get("service"), hours,
+                              _hours_float(f.get("rate")), f.get("note"))
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/entry/<entry_id>/delete", methods=["POST"])
+    def hours_entry_delete(entry_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        # Billed lines stay: removing one would leave its invoice claiming
+        # hours that no longer exist anywhere.
+        if not store.delete_hours_entry(user["id"], entry_id):
+            return jsonify({"ok": False,
+                            "error": "Already invoiced — that line stays."}), 400
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/invoice", methods=["POST"])
+    def hours_invoice():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        ids = request.form.getlist("entry_id")
+        inv = store.create_hours_invoice(
+            user["id"], ids,
+            request.form.get("number") or hours_engine.next_invoice_number(
+                store.list_hours_invoices(user["id"])),
+            request.form.get("client"), request.form.get("project"))
+        if inv is None:
+            return jsonify({"ok": False,
+                            "error": "Nothing unbilled in that selection."}), 400
+        # Leave a trail in the inbox: an invoice that went out with no record
+        # of going out is how you end up chasing the wrong client.
+        store.add_inbox("invoice", {
+            "user_id": user["id"], "number": inv["number"],
+            "client": inv["client"], "project": inv["project"],
+            "hours": inv["hours"], "total": inv["total"]})
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/invoice/<invoice_id>/paid", methods=["POST"])
+    def hours_invoice_paid(invoice_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        store.set_hours_invoice_paid(user["id"], invoice_id)
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/rate", methods=["POST"])
+    def hours_rate():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        f = request.form
+        if f.get("starter"):
+            # One click to a usable rate card; every line still editable.
+            for i, (svc, rate, mins, book) in enumerate(_HOURS_STARTER):
+                store.set_hours_rate(user["id"], svc, rate, mins, book, "", i)
+            return redirect(url_for("hours_desk"))
+        if not (f.get("service") or "").strip():
+            return jsonify({"ok": False, "error": "Name the service."}), 400
+        store.set_hours_rate(user["id"], f.get("service"),
+                             _hours_float(f.get("rate")),
+                             _hours_float(f.get("min_hours")),
+                             bool(f.get("bookable")), f.get("notes"),
+                             len(store.list_hours_rates(user["id"])))
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/rate/<rate_id>/delete", methods=["POST"])
+    def hours_rate_delete(rate_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        store.delete_hours_rate(user["id"], rate_id)
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/booking", methods=["POST"])
+    def hours_booking():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        f = request.form
+        svc = (f.get("service") or "").strip()
+        # The rate comes from your own card, not from the form: a booking
+        # form that lets the booker name the price is not a rate card.
+        rate, mins = 0.0, 0.0
+        for r in store.list_hours_rates(user["id"]):
+            if r["service"] == svc and r["bookable"]:
+                rate, mins = r["rate"], r["min_hours"]
+                break
+        else:
+            return jsonify({"ok": False,
+                            "error": "That service is not bookable."}), 400
+        hours = _hours_float(f.get("hours"), 1.0)
+        if mins and hours < mins:
+            return jsonify({"ok": False, "error":
+                            "%s has a %g hour minimum." % (svc, mins)}), 400
+        store.add_hours_booking(user["id"], svc, f.get("who"), f.get("contact"),
+                                f.get("day"), _hours_float(f.get("start_hour")),
+                                hours, rate, f.get("note"))
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/booking/<booking_id>/<status>", methods=["POST"])
+    def hours_booking_status(booking_id, status):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if not store.set_hours_booking_status(user["id"], booking_id, status):
+            return jsonify({"ok": False, "error": "Unknown status."}), 400
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/submission", methods=["POST"])
+    def hours_submission():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        f = request.form
+        if _hours_float(f.get("hours")) <= 0:
+            return jsonify({"ok": False, "error": "Enter the hours."}), 400
+        store.add_hours_submission(user["id"], f.get("who"), f.get("role"),
+                                   f.get("day"), _hours_float(f.get("hours")),
+                                   _hours_float(f.get("rate")), f.get("note"))
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/submission/<sub_id>/<decision>", methods=["POST"])
+    def hours_submission_decide(sub_id, decision):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if decision not in ("approve", "reject"):
+            return jsonify({"ok": False, "error": "Unknown decision."}), 400
+        store.decide_hours_submission(user["id"], sub_id, decision == "approve",
+                                      request.form.get("reason"))
+        return redirect(url_for("hours_desk"))
+
+    @app.route("/hours/block", methods=["POST"])
+    def hours_block():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        f = request.form
+        if not (f.get("label") or "").strip():
+            return jsonify({"ok": False, "error": "Name the block."}), 400
+        day = f.get("day")
+        store.add_hours_block(user["id"], day, _hours_float(f.get("start_hour"), 9),
+                              _hours_float(f.get("hours"), 1), f.get("label"),
+                              f.get("kind") or "work")
+        return redirect(url_for("hours_desk", day=day))
+
+    @app.route("/hours/block/<block_id>/<action>", methods=["POST"])
+    def hours_block_action(block_id, action):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if action == "done":
+            store.toggle_hours_block(user["id"], block_id)
+        elif action == "delete":
+            store.delete_hours_block(user["id"], block_id)
+        else:
+            return jsonify({"ok": False, "error": "Unknown action."}), 400
+        return redirect(url_for("hours_desk", day=request.form.get("day")))
 
     @app.route("/disputes")
     def disputes():

@@ -69,6 +69,7 @@ HUBS = [
         ("deal-room", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deal Room", "Your export-ready story for partners."),
         ("conflicts", "/conflicts", "M10 3l7 13H3z|M10 8v3M10 13.5v.5", "Conflicts", "Rights conflicts that need attention."),
         ("reports", "/reports", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5", "Reports", "Exports and summaries of everything above."),
+        ("hours", "/hours", "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6v4l3 2|M3 3l2 2M17 3l-2 2", "Hours Desk", "Bill your time, take bookings, approve collaborators."),
         ("tax", "/tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax Center", "Income summarized for tax season."),
     ]),
 ]
