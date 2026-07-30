@@ -5611,3 +5611,46 @@ def test_valve_stage_keys_match_the_engine():
     assert m, "VALVE_KEYS not found in rackdsp.js"
     wired = [x.strip().strip('"') for x in m.group(1).split(",")]
     assert wired == [k for k, _ in engine], (wired, engine)
+
+
+def test_vu_needle_agrees_with_its_printed_scale():
+    """SB-05's gain-reduction dial is printed non-linearly - 0, 3, 6, 10 and
+    20 sit at roughly even spacings - so the needle has to be interpolated
+    through those same anchors. It was swept linearly, which pointed it at
+    roughly half the reduction the scale claimed and made a working meter
+    look dead. Derive the true tick angles from the SVG text positions and
+    check the JS table matches, so the two can never drift again."""
+    import math
+    import re
+
+    tpl = open("templates/rack.html", encoding="utf8").read()
+    js = open("static/js/rackdsp.js", encoding="utf8").read()
+
+    # The dial pivots at (100, 100) and the needle starts pointing up.
+    vu = tpl[tpl.index('id="rk-vu"'):]
+    vu = vu[:vu.index("</svg>")]
+    ticks = re.findall(r'<text x="(\d+)" y="(\d+)">(\d+)</text>', vu)
+    assert len(ticks) == 5, ticks
+    printed = {}
+    for x, y, label in ticks:
+        dx, dy = int(x) - 100, 100 - int(y)
+        printed[int(label)] = math.degrees(math.atan2(dx, dy))
+
+    m = re.search(r'var VU_SCALE = \[(.+?)\];', js, re.S)
+    assert m, "VU_SCALE not found in rackdsp.js"
+    pairs = re.findall(r'\[(-?[\d.]+), (-?[\d.]+)\]', m.group(1))
+    table = {float(db): float(angle) for db, angle in pairs}
+
+    assert sorted(table) == sorted(float(k) for k in printed), (table, printed)
+    for db, angle in table.items():
+        want = printed[int(db)]
+        assert abs(angle - want) < 1.0, (db, angle, want)
+
+    # At rest the needle must already sit on the printed zero, before any
+    # script runs - otherwise the dial lies on a cold page load.
+    rest = re.search(r'id="rk-vu-needle"[^>]*transform="rotate\((-?[\d.]+)', tpl)
+    assert rest, "needle has no resting transform"
+    assert abs(float(rest.group(1)) - printed[0]) < 1.0, rest.group(1)
+
+    # And an idle dial has to say why it is idle rather than read 0.0 dB.
+    assert '"COMP OFF"' in js and '"COMP AT 1:1"' in js

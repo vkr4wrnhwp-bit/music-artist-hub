@@ -1962,6 +1962,25 @@
   }
 
   var freqData = null, timeData = null;
+  /* The faceplate prints 0, 3, 6, 10 and 20 at roughly even spacings, so
+     the scale is compressed at the top like a real GR meter. Sweeping the
+     needle linearly across it makes it point at the wrong number - 3 dB of
+     reduction would sit where the scale says about 1.5 - so interpolate
+     through the same anchors the labels are drawn at. Angles measured from
+     vertical about the pivot at (100, 100). */
+  var VU_SCALE = [[0, -52], [3, -28.5], [6, 0], [10, 28.5], [20, 53]];
+
+  function vuAngle(db) {
+    if (!(db > 0)) { return VU_SCALE[0][1]; }
+    for (var i = 1; i < VU_SCALE.length; i++) {
+      if (db <= VU_SCALE[i][0]) {
+        var a = VU_SCALE[i - 1], b = VU_SCALE[i];
+        return a[1] + (b[1] - a[1]) * (db - a[0]) / (b[0] - a[0]);
+      }
+    }
+    return VU_SCALE[VU_SCALE.length - 1][1];
+  }
+
   function draw() {
     requestAnimationFrame(draw);
     paintValves();
@@ -2123,8 +2142,18 @@
     var needle = document.getElementById("rk-vu-needle");
     if (needle) {
       needle.setAttribute("transform",
-        "rotate(" + (-46 + (vuPos / 20) * 92).toFixed(1) + " 100 100)");
-      document.getElementById("rk-grdb").textContent = vuPos.toFixed(1) + " dB";
+        "rotate(" + vuAngle(vuPos).toFixed(1) + " 100 100)");
+      var grEl = document.getElementById("rk-grdb");
+      /* A needle parked at zero because the compressor is set to 1:1 looks
+         exactly like a broken meter, so say which it is. The scale only
+         means anything when something is actually being reduced. */
+      if (!modOn("comp")) {
+        grEl.textContent = "COMP OFF";
+      } else if (state.comp.ratio <= 1.02) {
+        grEl.textContent = "COMP AT 1:1";
+      } else {
+        grEl.textContent = vuPos.toFixed(1) + " dB";
+      }
     }
     // Compressor-side gain reduction bar (same real reduction value)
     var grBar = document.getElementById("rk-gr");
