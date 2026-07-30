@@ -52,6 +52,18 @@
     bass:   {eq: [2,2,-1,-2,-1,0,0,0,0,0,0,0], q: 1.4, tube: {drive: 2.5, bias: 0.2, mix: 0.25}, comp: {thr: -26, ratio: 4, att: 0.005, rel: 0.15, makeup: 2}, out: 0, cab: {cab: "direct", mic: "dynamic", axis: "on", dist: 0, on: true}},
     guitar: {eq: [0,0,0,0,0,0,0,0,0,0,0,0], q: 1, tube: {drive: 4.5, bias: 0.3, mix: 0.6}, comp: {thr: -20, ratio: 2.5, att: 0.02, rel: 0.2, makeup: 2}, out: 0, cab: {cab: "closed412", mic: "dynamic", axis: "on", dist: 0.15, on: true}}
   };
+  /* SB-14 defaults: every valve off. A colour section that arrives already
+     colouring your audio would be lying about what you are hearing.
+     Declared up here because ensureFx() reads it while building state - a
+     var further down hoists as undefined, not as this array. */
+  var VALVE_KEYS = ["triode", "pentode", "tape", "flutter", "iron", "varimu"];
+
+  function defaultValves() {
+    var v = {};
+    VALVE_KEYS.forEach(function (k) { v[k] = {on: false, amt: 0.45}; });
+    return v;
+  }
+
   var saved = window.__savedRack || null;
   var state = (saved && saved.eq && saved.eq.length === EQ_BANDS.length)
     ? saved : JSON.parse(JSON.stringify(PRESETS.flat));
@@ -60,6 +72,12 @@
     if (!s.dly) s.dly = {time: 0.3, fb: 0.3, tone: 5000, mix: 0};
     if (!s.rev) s.rev = {size: 1.6, damp: 5000, pre: 0.02, mix: 0};
     if (!s.sub) s.sub = {depth: 0, growl: 0, shake: 0};
+    // Racks saved before SB-14 existed have no valves; give them silent
+    // ones rather than colouring a mix the artist already signed off.
+    if (!s.valves) { s.valves = defaultValves(); }
+    VALVE_KEYS.forEach(function (k) {
+      if (!s.valves[k]) { s.valves[k] = {on: false, amt: 0.45}; }
+    });
   }
   ensureFx(state);
   state.bypass = false;
@@ -70,6 +88,7 @@
     if (m === "cab") return !!state.cab.on;
     return state.mods[m] !== false;
   }
+
 
   var ctx = null, buffer = null, playing = null;
   var live = null;
@@ -231,6 +250,121 @@
     m.growl.gain.value = state.sub.growl * 0.7 * on;
   }
 
+  /* SB-14 Valve Bank. Six stages in series, each individually neutral when
+     off: the shapers fall back to the identity curve, the filters to 0 dB,
+     the modulator to zero depth and the compressor to 1:1. Nothing is
+     rewired on a toggle, so a switch can never click the audio - and
+     because tubes.js proves amount 0 is exactly the identity, neutral
+     really is transparent rather than nearly so.
+
+     An AnalyserNode sits after each stage purely so the glow can report
+     what that stage is actually doing. */
+  function buildValves(ac) {
+    var T = window.SBTubes;
+    var m = {inNode: ac.createGain(), outNode: ac.createGain(), taps: {}};
+    if (!T) {                       // module missing: pass audio through
+      m.inNode.connect(m.outNode);
+      return m;
+    }
+
+    function tap(key, from) {
+      var an = ac.createAnalyser();
+      an.fftSize = 256;
+      an.smoothingTimeConstant = 0.5;
+      from.connect(an);
+      m.taps[key] = {node: an, buf: new Uint8Array(an.fftSize)};
+      return from;
+    }
+
+    // V1 triode + the DC blocker its asymmetry requires.
+    m.triode = ac.createWaveShaper();
+    m.triode.oversample = "4x";
+    m.triodeDC = bq(ac, "highpass", 15, undefined, 0.7);
+    // V2 pentode.
+    m.pentode = ac.createWaveShaper();
+    m.pentode.oversample = "4x";
+    // V3 tape: curve, HF loss, head bump.
+    m.tape = ac.createWaveShaper();
+    m.tape.oversample = "4x";
+    m.tapeHF = bq(ac, "highshelf", 8000, 0);
+    m.tapeBump = bq(ac, "lowshelf", 60, 0);
+    // V4 flutter: a short delay with two LFOs on its delayTime.
+    m.flutterIn = ac.createGain();
+    m.flutter = ac.createDelay(0.05);
+    m.wow = ac.createOscillator();
+    m.wowGain = ac.createGain();
+    m.flut = ac.createOscillator();
+    m.flutGain = ac.createGain();
+    m.wow.type = "sine"; m.flut.type = "triangle";
+    m.wowGain.gain.value = 0; m.flutGain.gain.value = 0;
+    m.wow.connect(m.wowGain); m.wowGain.connect(m.flutter.delayTime);
+    m.flut.connect(m.flutGain); m.flutGain.connect(m.flutter.delayTime);
+    try { m.wow.start(); m.flut.start(); } catch (e) { /* already running */ }
+    // V5 iron: saturate the low band only, then recombine.
+    m.ironIn = ac.createGain();
+    m.ironLow = bq(ac, "lowpass", 200, undefined, 0.7);
+    m.ironHigh = bq(ac, "highpass", 200, undefined, 0.7);
+    m.ironShape = ac.createWaveShaper();
+    m.ironShape.oversample = "2x";
+    m.ironSum = ac.createGain();
+    // V6 vari-mu.
+    m.varimu = ac.createDynamicsCompressor();
+
+    var n = m.inNode;
+    n.connect(m.triode); m.triode.connect(m.triodeDC);
+    n = tap("triode", m.triodeDC);
+    n.connect(m.pentode);
+    n = tap("pentode", m.pentode);
+    n.connect(m.tape); m.tape.connect(m.tapeHF); m.tapeHF.connect(m.tapeBump);
+    n = tap("tape", m.tapeBump);
+    n.connect(m.flutterIn);
+    m.flutterIn.connect(m.flutter);
+    n = tap("flutter", m.flutter);
+    n.connect(m.ironIn);
+    m.ironIn.connect(m.ironLow); m.ironLow.connect(m.ironShape);
+    m.ironShape.connect(m.ironSum);
+    m.ironIn.connect(m.ironHigh); m.ironHigh.connect(m.ironSum);
+    n = tap("iron", m.ironSum);
+    n.connect(m.varimu);
+    tap("varimu", m.varimu);
+    m.varimu.connect(m.outNode);
+    return m;
+  }
+
+  function voiceValves(m) {
+    var T = window.SBTubes;
+    if (!T || !m.triode) { return; }
+    var bankOn = modOn("vlv");
+    function amt(key) {
+      var v = state.valves[key];
+      return (bankOn && v && v.on) ? v.amt : 0;
+    }
+    m.triode.curve = T.triodeCurve(amt("triode"));
+    m.pentode.curve = T.pentodeCurve(amt("pentode"));
+    var ta = amt("tape");
+    m.tape.curve = T.tapeCurve(ta);
+    m.tapeHF.gain.value = -6 * ta;        // tape loses top
+    m.tapeBump.gain.value = 2.5 * ta;     // and lifts the head bump
+    var fp = T.flutterParams(amt("flutter"));
+    m.flutter.delayTime.value = fp.base;
+    m.wow.frequency.value = fp.wowHz;
+    m.flut.frequency.value = fp.flutterHz;
+    m.wowGain.gain.value = fp.wowDepth;
+    m.flutGain.gain.value = fp.flutterDepth;
+    m.ironShape.curve = T.ironCurve(amt("iron"));
+    var vp = T.variMuParams(amt("varimu"));
+    if (amt("varimu") <= 0) {
+      m.varimu.threshold.value = 0;
+      m.varimu.ratio.value = 1;
+    } else {
+      m.varimu.threshold.value = vp.threshold;
+      m.varimu.ratio.value = vp.ratio;
+      m.varimu.attack.value = vp.attack;
+      m.varimu.release.value = vp.release;
+      m.varimu.knee.value = vp.knee;
+    }
+  }
+
   function buildFx(ac) {
     var fx = {inNode: ac.createGain(), outNode: ac.createGain(),
               dDry: ac.createGain(), dWet: ac.createGain(),
@@ -322,7 +456,11 @@
     node.connect(dryTube);
     var sum = ac.createGain();
     wetTube.connect(sum); dryTube.connect(sum);
-    sum.connect(cabMic.moduleIn);
+    // Colour goes in before the cab and the compressor, so both hear it.
+    var valves = buildValves(ac);
+    voiceValves(valves);
+    sum.connect(valves.inNode);
+    valves.outNode.connect(cabMic.moduleIn);
     voiceCabMic(cabMic);
     cabMic.moduleOut.connect(comp);
     comp.connect(makeup);
@@ -333,7 +471,8 @@
     outGain.connect(dest);
     return {input: input, filters: filters, tube: tube, wetTube: wetTube,
             dryTube: dryTube, cabMic: cabMic, comp: comp, makeup: makeup,
-            outGain: outGain, out: outGain, centerM: centerM, fx: fx, sub: sub};
+            outGain: outGain, out: outGain, centerM: centerM, fx: fx,
+            sub: sub, valves: valves};
   }
 
   function ensureCtx() {
@@ -367,6 +506,7 @@
      Off modules read as neutral: EQ gains 0, tube fully dry, comp 1:1 at
      0dB, sends muted, trim 0dB — knob positions stay untouched. */
   function voiceChain(c, ac) {
+    if (c.valves) { voiceValves(c.valves); }
     var eqOn = modOn("eq"), tubeOn = modOn("tube"), compOn = modOn("comp");
     c.filters.forEach(function (f, i) {
       f.gain.value = eqOn ? state.eq[i] : 0; f.Q.value = state.q;
@@ -1824,6 +1964,7 @@
   var freqData = null, timeData = null;
   function draw() {
     requestAnimationFrame(draw);
+    paintValves();
     var w = canvas.clientWidth;
     if (canvas.width !== w) canvas.width = w;
     if (SCREEN) {
@@ -2739,6 +2880,124 @@
   tkEnable();
   cnvPlanText();
 
+  // ---------- SB-14 Valve Bank: controls and the glow loop -------------
+  var valveEls = {};
+
+  function syncValveUI() {
+    VALVE_KEYS.forEach(function (key) {
+      var el = valveEls[key];
+      if (!el) { return; }
+      var v = state.valves[key];
+      var on = !!v.on && modOn("vlv");
+      el.pwr.setAttribute("aria-pressed", on ? "true" : "false");
+      el.box.classList.toggle("off", !on);
+      if (document.activeElement !== el.amt) {
+        el.amt.value = String(Math.round(v.amt * 100));
+      }
+      el.amt.disabled = !on;
+    });
+    var all = document.getElementById("rk-vlv-all");
+    if (all) {
+      var anyOn = VALVE_KEYS.some(function (k) { return state.valves[k].on; });
+      all.textContent = anyOn ? "All off" : "Warm up";
+      all.title = anyOn
+        ? "Switch every valve off — back to a clean signal"
+        : "Switch on the two most useful stages: triode warmth and tape";
+    }
+  }
+
+  VALVE_KEYS.forEach(function (key) {
+    var box = document.getElementById("rk-vlv-" + key);
+    if (!box) { return; }
+    valveEls[key] = {
+      box: box,
+      pwr: box.querySelector(".vlv-pwr"),
+      amt: box.querySelector(".fader"),
+      fil: box.querySelector(".vlv-fil"),
+      halo: box.querySelector(".vlv-halo"),
+      plate: box.querySelector(".vlv-plate"),
+      glow: 0,
+    };
+    valveEls[key].pwr.addEventListener("click", function () {
+      state.valves[key].on = !state.valves[key].on;
+      ensureCtx();
+      if (live) { voiceValves(live.valves); }
+      syncValveUI();
+    });
+    valveEls[key].amt.addEventListener("input", function (e) {
+      state.valves[key].amt = (parseFloat(e.target.value) || 0) / 100;
+      if (live) { voiceValves(live.valves); }
+    });
+  });
+
+  var valveAll = document.getElementById("rk-vlv-all");
+  if (valveAll) valveAll.addEventListener("click", function () {
+    var anyOn = VALVE_KEYS.some(function (k) { return state.valves[k].on; });
+    if (anyOn) {
+      VALVE_KEYS.forEach(function (k) { state.valves[k].on = false; });
+    } else {
+      /* "Warm up" is a starting point, not a preset with opinions: the two
+         stages that flatter almost anything, at modest settings. */
+      state.valves.triode.on = true; state.valves.triode.amt = 0.4;
+      state.valves.tape.on = true; state.valves.tape.amt = 0.3;
+    }
+    ensureCtx();
+    if (live) { voiceValves(live.valves); }
+    syncValveUI();
+  });
+
+  /* Read what each stage is really doing and light it accordingly. Called
+     from the existing draw loop, so it stops when the tab is hidden - and
+     because it only ever paints, a missed frame costs nothing. */
+  function paintValves() {
+    var T = window.SBTubes;
+    if (!T || !live || !live.valves || !live.valves.taps) { return; }
+    var taps = live.valves.taps;
+    VALVE_KEYS.forEach(function (key) {
+      var el = valveEls[key];
+      if (!el) { return; }
+      var v = state.valves[key];
+      var amt = (v.on && modOn("vlv")) ? v.amt : 0;
+      var target = 0;
+      if (amt > 0 && playing) {
+        if (key === "varimu") {
+          target = T.glowFromReduction(live.valves.varimu.reduction, amt);
+        } else {
+          var tap = taps[key];
+          if (tap) {
+            tap.node.getByteTimeDomainData(tap.buf);
+            var sum = 0;
+            for (var i = 0; i < tap.buf.length; i++) {
+              var d = (tap.buf[i] - 128) / 128;
+              sum += d * d;
+            }
+            target = T.glow(Math.sqrt(sum / tap.buf.length), amt);
+          }
+        }
+      }
+      // Ease so a filament warms and cools instead of strobing.
+      el.glow += (target - el.glow) * (target > el.glow ? 0.28 : 0.09);
+      if (el.glow < 0.004) { el.glow = 0; }
+      var g = el.glow;
+      if (el.halo) { el.halo.setAttribute("opacity", (g * 0.9).toFixed(3)); }
+      if (el.fil) {
+        if (g <= 0) {
+          el.fil.setAttribute("stroke", "#3a3424");
+          el.fil.setAttribute("stroke-width", "1.5");
+        } else {
+          var r = Math.round(122 + 133 * g);
+          var gr = Math.round(62 + 173 * g);
+          var b = Math.round(14 + 156 * g);
+          el.fil.setAttribute("stroke", "rgb(" + r + "," + gr + "," + b + ")");
+          el.fil.setAttribute("stroke-width", (1.5 + g * 0.9).toFixed(2));
+        }
+      }
+      if (el.plate) {
+        el.plate.setAttribute("stroke", g > 0.25 ? "#8a6d1f" : "#4a4438");
+      }
+    });
+  }
+
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
                        state: function () { return state; },
@@ -2759,6 +3018,16 @@
                                  spec: !!refSpec};
                        },
                        cnvPlanText: cnvPlanText,
+                       valves: function () { return state.valves; },
+                       valveGlow: function () {
+                         var out = {};
+                         VALVE_KEYS.forEach(function (k) {
+                           out[k] = valveEls[k] ? valveEls[k].glow : null;
+                         });
+                         return out;
+                       },
+                       paintValves: paintValves,
+                       syncValveUI: syncValveUI,
                        tkState: function () {
                          return {tempo: tkTempo, semis: tkSemis,
                                  cents: tkCents, found: tkFound};
@@ -2770,6 +3039,7 @@
   syncAll();
   renderStems();
   paintCabView();
+  syncValveUI();
   updateGlow();
   resetCompare();
   syncModButtons();

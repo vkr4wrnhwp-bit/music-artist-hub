@@ -111,6 +111,35 @@
     letter-spacing: 0.22em; text-transform: uppercase;
     color: #8a7c5d; background: #16130e; }
   .u-silver .plate > .lg { color: #4c4536; background: #b1ab9e; }
+  /* Valve sockets: a glass envelope over a dark chassis cutout. The tube
+     art is inert SVG; only the filament colour and the halo opacity move,
+     and both are driven from real signal in the draw loop. */
+  .vlv { display: flex; flex-direction: column; align-items: center; gap: 5px;
+         border-radius: 4px; border: 1px solid #241f15; padding: 8px 6px 7px;
+         background: linear-gradient(180deg, #100e0b, #0a0908);
+         box-shadow: inset 0 2px 6px rgba(0,0,0,0.6),
+                     inset 0 1px 0 rgba(255,255,255,0.03); }
+  .vlv-glass { width: 100%; max-width: 54px; }
+  .vlv-glass svg { display: block; width: 100%; height: auto; }
+  .vlv-pwr { display: flex; flex-direction: column; align-items: center; gap: 1px;
+             width: 100%; padding: 3px 4px; cursor: pointer; }
+  .vlv-num { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 8px;
+             font-weight: 900; letter-spacing: 0.16em; color: #6d6450; }
+  .vlv-name { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 10px;
+              font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+              color: #a99e84; white-space: nowrap; }
+  .vlv-pwr[aria-pressed="true"] { border-color: #c9a24a;
+    box-shadow: inset 0 0 8px rgba(216,178,90,0.25), 0 0 6px rgba(216,178,90,0.2); }
+  .vlv-pwr[aria-pressed="true"] .vlv-num { color: #c9a24a; }
+  .vlv-pwr[aria-pressed="true"] .vlv-name { color: #e8c667; }
+  .vlv-pwr:focus-visible { outline: 2px solid #e8c667; outline-offset: 2px; }
+  .vlv-amt { display: block; width: 100%; }
+  .vlv-amt .fader { width: 100%; height: 16px; }
+  .vlv-blurb { font-size: 8px; line-height: 1.35; text-align: center;
+               color: #5f5747; min-height: 22px; }
+  /* An off valve reads as cold glass, so "off" is visible at a glance. */
+  .vlv.off .vlv-glass { opacity: 0.55; }
+  .vlv.off .vlv-amt { opacity: 0.4; }
   /* Numeric windows: tabular so a changing reading does not jitter. */
   .val { font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
          font-variant-numeric: tabular-nums; letter-spacing: 0.03em; }
@@ -704,6 +733,82 @@
       <p class="note mt-3">BPM comes from a spectral-flux onset envelope autocorrelated over 60–190 BPM; key from a 12-class chroma correlated against the Krumhansl-Schmuckler major and minor profiles. Both are <b>estimates with a score attached</b>, not readings off a tag — autocorrelation genuinely cannot tell a tempo from its half or double, so both are offered rather than guessed at. Stretching is WSOLA and pitch-shifting is resample-plus-stretch: honest time-domain DSP that holds up at the ratios people actually use, and smears transients if you push it far. Runs in this tab.</p>
     </section>
 
+    <!-- SB-14 Valve Bank -->
+    {% set valves = [
+      ("triode",  "V1", "Triode",  "Even harmonics · warmth"),
+      ("pentode", "V2", "Pentode", "Odd harmonics · push"),
+      ("tape",    "V3", "Tape",    "Soft knee · HF loss · head bump"),
+      ("flutter", "V4", "Flutter", "Wow &amp; flutter · pitch drift"),
+      ("iron",    "V5", "Iron",    "Transformer · lows only"),
+      ("varimu",  "V6", "Vari-Mu", "Slow tube compression"),
+    ] %}
+    <section id="sb14" class="u u-dark">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-14</span>
+        <span class="sk text-[10px]">VLV-6</span>
+        <span class="sk sk-sub">Valve Bank · six colour stages</span>
+        <span class="ml-auto flex items-center gap-2">
+          <button id="rk-vlv-all" class="sw px-2.5 py-1 text-[9px] font-black">All off</button>
+          <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="vlv" title="Compare — swap with your previous valve setup">A/B</button>
+          <span class="rk-ledwrap" data-mod="vlv"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        </span>
+      </div>
+      <div class="w2">
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+          {% for key, tube, name, blurb in valves %}
+          <div class="vlv" id="rk-vlv-{{ key }}" data-valve="{{ key }}">
+            <div class="vlv-glass">
+              <svg viewBox="0 0 44 76" aria-hidden="true">
+                <defs>
+                  <radialGradient id="vh-{{ key }}" cx="50%" cy="46%" r="50%">
+                    <stop offset="0%" stop-color="#ffd98a" stop-opacity="0.95"/>
+                    <stop offset="55%" stop-color="#e08a1e" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#e08a1e" stop-opacity="0"/>
+                  </radialGradient>
+                  <linearGradient id="vg-{{ key }}" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#2b2620" stop-opacity="0.9"/>
+                    <stop offset="38%" stop-color="#6b6455" stop-opacity="0.5"/>
+                    <stop offset="60%" stop-color="#3a352c" stop-opacity="0.7"/>
+                    <stop offset="100%" stop-color="#22201a" stop-opacity="0.9"/>
+                  </linearGradient>
+                </defs>
+                <!-- halo first so it sits behind the glass -->
+                <circle class="vlv-halo" cx="22" cy="27" r="21" fill="url(#vh-{{ key }})" opacity="0"/>
+                <!-- envelope -->
+                <rect x="7" y="3" width="30" height="50" rx="15" fill="#12100c" stroke="#5d5749" stroke-width="1"/>
+                <rect x="7" y="3" width="30" height="50" rx="15" fill="url(#vg-{{ key }})"/>
+                <!-- getter flash: the silvered mirror at the crown -->
+                <ellipse cx="22" cy="10" rx="9" ry="4.4" fill="#4d4740" opacity="0.75"/>
+                <!-- plate structure -->
+                <rect class="vlv-plate" x="14" y="17" width="16" height="24" rx="1.5"
+                      fill="#0d0c09" stroke="#4a4438" stroke-width="0.9"/>
+                <!-- filament: this is what lights -->
+                <path class="vlv-fil" d="M18 20v18M22 20v18M26 20v18"
+                      stroke="#3a3424" stroke-width="1.5" stroke-linecap="round"/>
+                <!-- base and pins -->
+                <rect x="10" y="53" width="24" height="11" rx="2" fill="#191610" stroke="#4a4438" stroke-width="0.9"/>
+                <path d="M15 64v8M22 64v9M29 64v8" stroke="#8a7c5d" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <button class="vlv-pwr sw" data-valve="{{ key }}"
+                    aria-pressed="false" title="{{ name }} — {{ blurb|safe }}">
+              <span class="vlv-num">{{ tube }}</span>
+              <span class="vlv-name">{{ name }}</span>
+            </button>
+            <label class="vlv-amt">
+              <span class="sr-only">{{ name }} amount</span>
+              <input class="fader" type="range" min="0" max="100" step="1" value="45"
+                     data-valve="{{ key }}" aria-label="{{ name }} amount">
+            </label>
+            <span class="vlv-blurb">{{ blurb|safe }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="note mt-3">Six separate processes, not one effect with six names — and the glow is a meter, not decoration: each tube lights by how hard that stage is <b>actually</b> being driven right now, and V6 lights by its real gain reduction. A stage doing nothing stays dark, and at zero every stage is mathematically the identity, so off is genuinely off. <b>V1</b> adds even harmonics via a squaring term (measured: 3× more 2nd harmonic than 3rd) with a DC blocker after it, because asymmetry makes DC. <b>V2</b> is odd-symmetric, so it can only make odd harmonics. <b>V3</b> is a soft-knee curve plus the two filter moves that make tape sound like tape. <b>V4</b> is two LFOs on a delay line — real pitch movement. <b>V5</b> saturates the low band only, where a transformer core actually saturates. <b>V6</b> is slow program-dependent compression. They sit after the tube stage and before the cab, so the compressor downstream hears the colour.</p>
+    </section>
+
     <!-- Presets -->
     <section class="u u-dark flex flex-wrap items-center gap-2 py-2.5">
       <span class="sk text-[9px] text-[#8a7c5d]">Presets</span>
@@ -743,6 +848,7 @@
 <script src="/static/js/roughsplit.js?v=1"></script>
 <script src="/static/js/audioconv.js?v=1"></script>
 <script src="/static/js/tempokey.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=15"></script>
+<script src="/static/js/tubes.js?v=1"></script>
+<script src="/static/js/rackdsp.js?v=16"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

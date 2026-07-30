@@ -4014,8 +4014,8 @@ def test_rack_page_and_presets():
     assert 'data-ksize' in page and 'data-screen' in page
     assert "Harmonic Bank" in page
     # Every module carries power + compare + A/B LEDs; the screen has zone trim.
-    assert page.count('class="rk-pwr') == 7 and page.count('class="rk-cmp') == 8
-    assert page.count('class="rk-ledwrap"') == 8
+    assert page.count('class="rk-pwr') == 7 and page.count('class="rk-cmp') == 9
+    assert page.count('class="rk-ledwrap"') == 9
     assert 'id="rk-zone"' in page and "+1 dB" in page and "Reset zone" in page
     assert 'id="rk-gr"' in page  # gain reduction meter on the compressor unit
     # UX layer: focus mode, sticky transport dock, waveform scrubber.
@@ -4065,6 +4065,31 @@ def test_rack_page_and_presets():
     assert "Krumhansl-Schmuckler" in page and "WSOLA" in page
     assert "no browser exposes an MP3 or FLAC encoder" in page
     assert "TPDF dither" in page
+    # SB-14 Valve Bank: six sockets, each a separate stage.
+    assert 'id="sb14"' in page and "VLV-6" in page and "tubes.js?v=" in page
+    assert page.count('class="vlv"') == 6
+    assert page.count('class="vlv-pwr sw"') == 6
+    assert page.count('class="vlv-fil"') == 6
+    assert page.count('class="vlv-halo"') == 6
+    for key, tube, name in (("triode", "V1", "Triode"),
+                            ("pentode", "V2", "Pentode"),
+                            ("tape", "V3", "Tape"),
+                            ("flutter", "V4", "Flutter"),
+                            ("iron", "V5", "Iron"),
+                            ("varimu", "V6", "Vari-Mu")):
+        assert 'id="rk-vlv-%s"' % key in page, key
+        assert 'data-valve="%s"' % key in page, key
+        assert ">%s<" % tube in page, tube
+        assert ">%s<" % name in page, name
+    # Each socket needs its own gradient ids, or every tube would light from
+    # whichever definition happened to be first in the document.
+    for key in ("triode", "pentode", "tape", "flutter", "iron", "varimu"):
+        assert 'id="vh-%s"' % key in page and 'id="vg-%s"' % key in page, key
+    assert 'id="rk-vlv-all"' in page
+    # What the panel promises about itself stays on the faceplate.
+    assert "the glow is a meter, not decoration" in page
+    assert "off is genuinely off" in page
+    assert "squaring term" in page and "odd-symmetric" in page
     assert 'Stem Deck' in page and 'not ML isolation' in page
     assert "Remove Center" in page and "Physics, not stem separation" in page
     assert "DLY-1" in page and "REV-1" in page and "honestly generated" in page
@@ -5565,3 +5590,24 @@ def test_stemsplit_reads_both_published_response_shapes():
             "Bearer [redacted] bad"
     finally:
         _os.environ.pop("STEMSPLIT_API_KEY", None)
+
+
+def test_valve_stage_keys_match_the_engine():
+    """The template hard-codes six valve keys, tubes.js declares six stages
+    and rackdsp.js wires six taps. If those lists ever drift, a socket
+    lights for a stage that is not there - so pin them to each other
+    instead of trusting three hand-written lists to stay in step."""
+    import re
+
+    tpl = open("templates/rack.html", encoding="utf8").read()
+    js = open("static/js/tubes.js", encoding="utf8").read()
+    rack_js = open("static/js/rackdsp.js", encoding="utf8").read()
+
+    engine = re.findall(r'\{key: "(\w+)", tube: "(V\d)"', js)
+    assert len(engine) == 6, engine
+    tpl_keys = re.findall(r'\("(\w+)",\s+"(V\d)",', tpl)
+    assert tpl_keys == engine, (tpl_keys, engine)
+    m = re.search(r'var VALVE_KEYS = \[([^\]]+)\]', rack_js)
+    assert m, "VALVE_KEYS not found in rackdsp.js"
+    wired = [x.strip().strip('"') for x in m.group(1).split(",")]
+    assert wired == [k for k, _ in engine], (wired, engine)
