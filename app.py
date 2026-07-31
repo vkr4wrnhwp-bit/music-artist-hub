@@ -26,6 +26,7 @@ import hours_engine
 import backup_store
 import convert_engine
 import audio_readiness
+import epk_config
 import rollout_learning
 import firstrun
 
@@ -1671,6 +1672,21 @@ def create_app():
         public = bool((request.get_json(silent=True) or {}).get("public"))
         return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
+    def _epk_real_stats(user_id):
+        """Headline figures for a press kit, from the artist's own data.
+
+        Returns [] when there is nothing real to show, and the press kit
+        then renders no stats at all - which is the honest answer for an
+        empty account, and better than borrowing the demo catalogue's
+        numbers on a page that goes to a label.
+        """
+        try:
+            return epk_config.real_stats(
+                store.get_statement_rows(user_id),
+                len(store.get_catalog_tracks(user_id) or []))
+        except Exception:
+            return []
+
     @app.route("/epk/<slug>")
     def epk_public(slug):
         prof = store.get_epk_by_slug(slug)
@@ -1681,10 +1697,17 @@ def create_app():
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
         tour = bandsintown.upcoming_events(prof["data"].get("bandsintown_artist"))
+        real = _epk_real_stats(prof["user_id"])
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
-                            assets=assets, tour_dates=tour)
+                            assets=assets, tour_dates=tour,
+                            # None, not [] - an empty list would override
+                            # the demo stats with nothing and delete the
+                            # section. With no real figures the demo ones
+                            # stay, and the page says outright that they
+                            # are samples.
+                            stats_override=(real or None))
         return render_template("epk_public.html", e=data, slug=slug)
 
     @app.route("/epk/share", methods=["POST"])

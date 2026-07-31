@@ -143,8 +143,51 @@ def _video_thumb(url):
     return "https://img.youtube.com/vi/%s/hqdefault.jpg" % vid if vid else None
 
 
+def real_stats(statement_rows, track_count):
+    """Headline figures built only from what the artist actually has.
+
+    The press kit is the one page that leaves the building. It goes to
+    labels, managers and partners, and until now every number on it came
+    from the demo catalogue - the same Total Streams, the same Catalog
+    Earnings, the same Est. Catalog Value, identical for every account,
+    rendered in gold and captioned "Mid valuation" with nothing to say it
+    was illustrative.
+
+    Fewer true numbers beat four invented ones. Anything that cannot be
+    computed from the artist's own data is left out rather than filled
+    in, so an empty press kit looks empty instead of looking successful.
+    """
+    stats = []
+    rows = statement_rows or []
+    if rows:
+        import statements_engine
+        clean = [{"title": r["title"], "source": r["source"],
+                  "amount": r["amount"], "period": r["period"]} for r in rows]
+        analysis = statements_engine.analyze(clean)
+        # The annualised 3-5x band lives in build_royalty_summary, not in
+        # analyze - analyze reports totals and coverage gaps.
+        summary = statements_engine.build_royalty_summary(clean) or {}
+        if analysis:
+            stats.append({
+                "label": "Catalog Earnings",
+                "value": "${:,.0f}".format(analysis["total"]),
+                "sub": "From %d statement row%s" % (
+                    len(rows), "" if len(rows) == 1 else "s")})
+            val = summary.get("valuation") or {}
+            if val.get("mid"):
+                stats.append({
+                    "label": "Est. Catalog Value",
+                    "value": "${:,.0f}".format(val["mid"]),
+                    "sub": "${:,.0f}-${:,.0f} at 3-5x annualised".format(
+                        val["low"], val["high"])})
+    if track_count:
+        stats.append({"label": "Releases", "value": str(track_count),
+                      "sub": "In active catalog"})
+    return stats
+
+
 def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None,
-                 tour_dates=None):
+                 tour_dates=None, stats_override=None):
     songs = get_songs()
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
@@ -174,6 +217,15 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         {"label": "Est. Catalog Value", "value": "${:,.0f}".format(catalog_value["mid"]), "sub": "Mid valuation"},
         {"label": "Releases", "value": str(len(songs)), "sub": "In active catalog"},
     ]
+
+    # Real figures win outright. When the artist has statements or tracks
+    # of their own, the demo stats above are discarded rather than padded
+    # out - a press kit that shows two true numbers is worth more to a
+    # label than one showing four that belong to nobody.
+    stats_are_real = False
+    if stats_override is not None:
+        stats = stats_override
+        stats_are_real = bool(stats_override)
 
     # Merge the artist's saved edits over the demo defaults.
     profile = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in _EPK_PROFILE.items()}
@@ -215,6 +267,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
     sections_on = {s["key"]: s["on"] for s in sections}
 
     return {
+        "stats_are_real": stats_are_real,
         "name": account["name"],
         "initials": account["initials"],
         "profile": profile,

@@ -79,10 +79,13 @@
       </figure>
       {% endif %}
 
-      {% if e.sections_on.stats %}
+      {% if e.sections_on.stats and e.stats %}
       <!-- Stats strip set into the cover -->
+      {% if not e.stats_are_real %}
+      <p class="border-t border-amber-400/25 bg-amber-400/[0.07] px-4 py-2 text-center text-[9px] uppercase tracking-[0.2em] text-amber-200/80">Sample metrics — not this artist's catalogue</p>
+      {% endif %}
       <div class="grid grid-cols-2 border-t border-white/15">
-        {% for s in [e.stats[0], e.stats[3]] %}
+        {% for s in e.stats[:2] %}
         <div class="{{ 'border-l border-white/15' if not loop.first }} px-4 py-7 text-center">
           <div class="serif text-4xl font-black tabular-nums text-[#e5c878] sm:text-5xl">{{ s.value }}</div>
           <div class="mt-2 text-[9px] font-bold uppercase tracking-[0.3em] text-white/60">{{ s.label }}</div>
@@ -227,15 +230,22 @@
         <div class="h-[2px] w-14 bg-[#d8b25a]"></div>
         <div class="mt-5 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-[10px] font-bold uppercase tracking-[0.4em] text-[#d8b25a]">Powered by Royalty Sweep</h2>
-          <span class="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Catalog verified</span>
+          {% if e.stats_are_real %}<span class="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>From uploaded statements</span>{% endif %}
         </div>
         <div class="mt-7 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
           <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">Strongest Platform</div><div class="serif mt-2 text-2xl font-semibold">{{ e.top_platform }}</div></div>
-          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[1].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums">{{ e.stats[1].value }}</div></div>
-          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[2].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums text-[#e5c878]">{{ e.stats[2].value }}</div></div>
-          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ e.stats[3].label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums">{{ e.stats[3].value }}</div></div>
+          {# Only what the cover strip did not already show, and only when
+             the artist has the stats section switched on - "hide stats"
+             has to mean hidden everywhere, not hidden in one place. #}
+          {% for s in (e.stats[2:] if e.sections_on.stats else []) %}
+          <div><div class="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">{{ s.label }}</div><div class="serif mt-2 text-2xl font-semibold tabular-nums {{ 'text-[#e5c878]' if 'Value' in s.label }}">{{ s.value }}</div>{% if s.sub %}<div class="mt-1 text-[8px] uppercase tracking-[0.15em] text-white/30">{{ s.sub }}</div>{% endif %}</div>
+          {% endfor %}
         </div>
-        <p class="mt-7 text-[9px] uppercase tracking-[0.15em] text-white/35">Catalog intelligence by Royalty Sweep · Sample metrics shown — live royalty data connects at launch</p>
+        {% if e.stats_are_real %}
+        <p class="mt-7 text-[10px] uppercase tracking-[0.15em] text-white/50">Catalog intelligence by Royalty Sweep · Figures calculated from this artist’s own royalty statements</p>
+        {% else %}
+        <p class="mt-7 rounded border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-amber-200/80">Sample metrics — this artist has not connected royalty statements yet. These figures are illustrative and are not their catalogue.</p>
+        {% endif %}
       </section>
       {% endif %}
 

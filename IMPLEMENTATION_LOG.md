@@ -179,3 +179,49 @@ evidence is thin, so new accounts behave exactly as before), and
 `next_action` says something true when there is something true to say.
 
 **Verification:** 14 new tests, 506 in the suite, all green.
+
+## The press kit was quoting a catalogue that belonged to nobody
+
+The audit called this "the sharpest break on the money side". It
+understated it.
+
+`get_earnings_trend()` is a literal Jan–Jun list in `royalty_data.py`,
+identical for every account. It feeds `estimate_catalog_value`, which
+feeds the public EPK's **Est. Catalog Value** — rendered in gold,
+captioned "Mid valuation", on the page an artist sends to a label. And
+the `overrides` merge covers only `tagline, bio, location, genres,
+socials, press, contact`: **`stats` was never overridable**, so
+`Total Streams`, `Catalog Earnings`, `Est. Catalog Value` and the release
+count were all demo figures for every artist on the platform.
+
+**Not undisclosed** — a line at the foot of the sweep section did say
+"Sample metrics shown". But it sat in 9px at `white/35`, directly beneath
+a green **"Catalog verified"** badge that contradicted it, and inside a
+section the artist can switch off independently of the numbers.
+
+Now: `epk_config.real_stats()` builds the headline figures from the
+artist's own statement rows and track count — Catalog Earnings from the
+real total, Est. Catalog Value from `build_royalty_summary`'s annualised
+3–5× band, Releases from the real catalogue. **Anything that cannot be
+computed is left out rather than filled in**, so an empty press kit looks
+empty instead of looking successful.
+
+The disclosure now travels with the numbers: the sample warning renders
+against the cover strip itself, and the "Catalog verified" badge only
+appears when the figures really are from uploaded statements.
+
+**Three bugs found while doing it, two of them mine:**
+
+1. `analyze()` does not return `valuation`/`annualized` — those live in
+   `build_royalty_summary`. The audit cited the right lines and the wrong
+   function.
+2. The template indexed `e.stats[0..3]` directly, so any account with
+   fewer than four real stats crashed the public page.
+3. Passing `stats_override=[]` on an account with no real data overrode
+   the demo stats with nothing and deleted the section. `None` is the
+   fallback signal, not `[]`.
+
+Also fixed: turning the stats section off left stats visible in the sweep
+panel. "Hide stats" now means hidden everywhere.
+
+**Verification:** 506 tests green.
