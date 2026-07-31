@@ -472,5 +472,17 @@ than a written list, so a control added later is covered without anyone
 remembering the feature exists. Titles stay in place, so a pointer user
 keeps the tooltip they had. `textContent`, never `innerHTML`.
 
-**Verification:** template if/for and div balance checked on every file
-touched; 553 tests green.
+### Final tally
+
+38 confirmed findings: **12 already handled** by earlier passes, **2 not
+real problems**, **18 still open and now fixed** across eleven files.
+
+The last seven were the data pages — a goal-ring label that was the only
+thing tying a percentage to a dollar figure, Action Center descriptions
+truncated to one line (which is the to-do list, cutting exactly the part
+that says what to do), a royalties column forcing horizontal scroll while
+rendering zero-width, and the valuation multiple selector at 34x23px,
+where a mis-tap silently reprices the catalogue.
+
+**Verification:** Jinja if/for and div balance checked on every one of
+the eleven files touched; 553 tests green.

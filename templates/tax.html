@@ -46,7 +46,7 @@
     <div class="mt-3 space-y-1.5">
       {% for src, amt in y.sources %}
       <div class="flex items-center gap-3">
-        <span class="w-40 shrink-0 truncate text-xs font-bold text-gray-300">{{ src }}</span>
+        <span class="w-24 shrink-0 truncate text-xs font-bold text-gray-300 sm:w-40">{{ src }}</span>
         <div class="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
           <div class="h-full rounded-full bg-[#d8b25a]/70" style="width: {{ (amt / y.total * 100) if y.total else 0 }}%;"></div>
         </div>

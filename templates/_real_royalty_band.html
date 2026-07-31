@@ -12,7 +12,7 @@
   {% if band_mode == 'overview' %}
   <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Tracked Revenue</div>
-      <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(rr.total) }}</div></div>
+      <div class="mt-1 text-xl font-black tabular-nums text-[#e8c667] sm:text-2xl">${{ "{:,.2f}".format(rr.total) }}</div></div>
     <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Unmatched Found</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-red-400' if rr.unmatched_revenue else 'text-gray-400' }}">${{ "{:,.2f}".format(rr.unmatched_revenue) }}</div></div>
     <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Coverage Gaps</div>
