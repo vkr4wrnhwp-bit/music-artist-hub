@@ -16,22 +16,22 @@
   <!-- Headline: agreed money only, in both directions -->
   <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Owed to you</div>
+      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 sm:text-[9px] sm:tracking-[0.25em]">Owed to you</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">{{ money(summary.owed_to_you) }}</div>
       <div class="mt-1 text-[10px] leading-snug text-gray-500">{{ money(summary.unbilled_value) }} not yet invoiced · {{ money(summary.outstanding_invoiced) }} invoiced and unpaid</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">You owe</div>
+      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 sm:text-[9px] sm:tracking-[0.25em]">You owe</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ money(summary.you_owe) }}</div>
       <div class="mt-1 text-[10px] leading-snug text-gray-500">Approved collaborator hours only. Pending hours aren't counted — you haven't agreed to them.</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Net</div>
+      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 sm:text-[9px] sm:tracking-[0.25em]">Net</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-green-400' if summary.net >= 0 else 'text-red-400' }}">{{ money(summary.net) }}</div>
       <div class="mt-1 text-[10px] leading-snug text-gray-500">{{ hrs(summary.logged_hours) }} logged across {{ totals.entries }} {{ 'entry' if totals.entries == 1 else 'entries' }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Needs you</div>
+      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 sm:text-[9px] sm:tracking-[0.25em]">Needs you</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ summary.awaiting_you + summary.booking_requests }}</div>
       <div class="mt-1 text-[10px] leading-snug text-gray-500">{{ summary.awaiting_you }} timesheet{{ '' if summary.awaiting_you == 1 else 's' }} to review · {{ summary.booking_requests }} booking request{{ '' if summary.booking_requests == 1 else 's' }}</div>
     </div>
@@ -102,7 +102,7 @@
             <td class="py-2 text-right">
               {% if not e.billed %}
               <form method="post" action="{{ url_for('hours_entry_delete', entry_id=e.id) }}">
-                <button class="text-[10px] text-gray-500 hover:text-red-400">Remove</button>
+                <button class="-m-2 p-2 text-[11px] text-gray-500 hover:text-red-400">Remove</button>
               </form>
               {% endif %}
             </td>
@@ -123,14 +123,14 @@
           {% for i in g.ids %}<input type="hidden" name="entry_id" value="{{ i }}">{% endfor %}
           <input type="hidden" name="client" value="{{ g.client }}">
           <input type="hidden" name="project" value="{{ g.project }}">
-          <div class="min-w-0 flex-1">
+          <div class="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
             <div class="truncate text-sm font-semibold text-gray-200">{{ g.client or "No client" }}{% if g.project %} · {{ g.project }}{% endif %}</div>
             <div class="text-[10px] text-gray-500">{{ g.count }} {{ 'entry' if g.count == 1 else 'entries' }} · {{ hrs(g.hours) }}{% if g.first_day %} · {{ g.first_day }}{% if g.last_day != g.first_day %} → {{ g.last_day }}{% endif %}{% endif %}</div>
           </div>
           <div class="text-right font-black tabular-nums text-[#e8c667]">{{ money(g.value) }}</div>
-          <input name="number" value="{{ next_number }}" class="w-28 rounded border border-white/15 bg-black/40 px-2 py-1 text-[11px] tabular-nums text-white focus:border-[#c9a24a] focus:outline-none">
+          <input name="number" value="{{ next_number }}" class="w-28 rounded border border-white/15 bg-black/40 px-2 py-2 text-[11px] tabular-nums text-white focus:border-[#c9a24a] focus:outline-none sm:py-1">
           <button {% if not g.client %}disabled title="Add a client to the entries first — an invoice needs someone to send it to."{% endif %}
-                  class="rounded bg-[#c9a24a] px-3 py-1.5 text-[11px] font-black text-black hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">Generate invoice</button>
+                  class="rounded bg-[#c9a24a] px-3 py-2 text-[11px] font-black text-black hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:py-1.5">Generate invoice</button>
         </form>
       {% endfor %}
       </div>

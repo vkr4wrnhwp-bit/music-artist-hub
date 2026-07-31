@@ -231,6 +231,13 @@ body.lsr {
   font: inherit;
   font-size: 14px;
 }
+/* Under 16px iOS Safari zooms the viewport when the field takes focus and
+   never zooms back, stranding a phone user panning around a login form.
+   Desktop keeps the 14px console face. */
+@media (pointer: coarse) {
+  .lsr-field input,
+  .lsr-demo-row input { font-size: 16px; }
+}
 .lsr-field input::placeholder,
 .lsr-demo-row input::placeholder { color: #7d776b; }
 .lsr-field input:focus-visible,

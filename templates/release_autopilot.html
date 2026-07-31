@@ -59,6 +59,19 @@
       .ap-live { animation: ap-pulse 2s ease-out infinite; }
       @media (prefers-reduced-motion: reduce) { .ap-live { animation: none; } }
     </style>
+    <script>
+      // The 8-stage rail is 592px minimum and scrolls on a phone. Centre the live
+      // stage so "where am I" is never off the right edge with no affordance.
+      (function () {
+        var live = document.querySelector(".ap-live");
+        if (!live) return;
+        var rail = live.closest(".overflow-x-auto");
+        if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+        var cell = live.closest("div.flex-col") || live;
+        var r = rail.getBoundingClientRect(), c = cell.getBoundingClientRect();
+        rail.scrollLeft += (c.left - r.left) - (r.width - c.width) / 2;
+      })();
+    </script>
     <p class="mt-2 text-[11px] text-gray-500">Stage is computed from the release date — set one on the campaign and Autopilot walks the whole arc. Gold = behind you, amber = where you are now.</p>
   </section>
   {% if c %}

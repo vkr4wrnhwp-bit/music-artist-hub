@@ -51,7 +51,7 @@
             <span class="h-1.5 w-16 overflow-hidden rounded-full bg-white/10"><span class="block h-full rounded-full {{ 'bg-green-500' if c.score >= 70 else ('bg-[#d8b25a]' if c.score >= 40 else 'bg-red-500/70') }}" style="width: {{ c.score }}%;"></span></span>
             <span class="text-[11px] font-bold tabular-nums {{ 'text-green-400' if c.score >= 70 else 'text-[#e8c667]' }}">{{ c.score }}</span>
           </div>
-          <div class="mt-1 flex items-center gap-3 text-[11px] tabular-nums text-gray-400">
+          <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-gray-400">
             <span>{{ c.visits }} visits</span><span>{{ c.clicks }} clicks</span><span>{{ c.ctr }}% CTR</span><span>{{ c.presaves + c.captures }} fans</span>
             {# 7-day traffic sparkline — real page views from the click log #}
             <svg viewBox="0 0 70 20" class="ml-auto h-5 w-[70px] shrink-0" role="img" aria-label="7-day visits">

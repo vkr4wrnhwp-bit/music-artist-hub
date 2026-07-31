@@ -48,7 +48,7 @@
         <p class="line-clamp-2 text-[11px] leading-snug text-gray-400">{{ p.caption }}</p>
         <form method="post" class="flex items-center gap-1.5">
           <input type="hidden" name="post_id" value="{{ p.id }}">
-          <select name="vault_id" class="min-w-0 flex-1 rounded-md border border-white/10 bg-black/40 px-1.5 py-1 text-[10px] text-gray-300 focus:outline-none [color-scheme:dark]">
+          <select name="vault_id" class="min-w-0 flex-1 rounded-md border border-white/10 bg-black/40 px-3 py-2.5 text-base text-gray-300 focus:outline-none [color-scheme:dark] sm:px-1.5 sm:py-1 sm:text-[10px]">
             <option value="">{{ 'Detach asset' if p.asset else 'Attach from Vault…' }}</option>
             {% for v in vault %}
             <option value="{{ v.id }}">{{ v.label or v.path.split('/')[-1] }} ({{ v.kind }})</option>

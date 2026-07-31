@@ -438,3 +438,39 @@ the slug through the db layer, because which route happens to mint a
 public slug is not something a fixture should depend on.
 
 **Verification:** 550 tests, green at `-n 8` and `-n 4`.
+
+## Mobile backlog closed
+
+Every finding from the mobile audit was re-checked against the code as it
+stands rather than fixed again from the original report. Of 38 confirmed
+findings: **12 already handled** by earlier passes, **1 not a real
+problem**, **11 still open and now fixed**.
+
+Two of the eleven were more interesting than their descriptions.
+
+**The fader fix I already made was being overridden.** `.vlv-amt .fader
+{ height: 16px }` outranks the bare `.fader` rule in my coarse-pointer
+block, both by specificity and by order — so the six tube-bank drive
+sliders kept a 16px hit strip *while their thumb grew to 28px and hung
+outside its own track.* My earlier change made those six visually worse,
+not better.
+
+**Login inputs at 14px.** Under 16px, iOS Safari zooms the viewport when
+a field takes focus and does not zoom back, so a phone user is left
+panning around a login form. Raised to 16px on coarse pointers only; the
+desktop console face is unchanged.
+
+### The rack's 48 tooltips
+
+These carry the only description of what each control does — real
+sentences, 60 to 130 characters — and hover does not exist on touch.
+Printing all of them permanently would bury the instrument, so **Explain
+mode** prints them on demand and turns them off again.
+
+The captions are generated from the `title` attributes themselves rather
+than a written list, so a control added later is covered without anyone
+remembering the feature exists. Titles stay in place, so a pointer user
+keeps the tooltip they had. `textContent`, never `innerHTML`.
+
+**Verification:** template if/for and div balance checked on every file
+touched; 553 tests green.

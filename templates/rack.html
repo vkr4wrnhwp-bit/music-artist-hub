@@ -106,6 +106,11 @@
     .pick { gap: 8px; }
     .pick label { min-height: 44px; justify-content: center; }
     .pick .cap { font-size: 11px; }
+    /* The caps inside each picker went to 11px, but the legend naming the
+       group - Container, Depth, Sample rate, Channels, True peak - stayed
+       at 8px with 0.22em tracking, which is the harder read of the two and
+       the one that says what the choice below it means. */
+    .plate > .lg { font-size: 10px; letter-spacing: 0.14em; top: -7px; }
     .u .flex.flex-wrap { row-gap: 8px; }
   }
 
@@ -225,6 +230,10 @@
   .vlv-pwr:focus-visible { outline: 2px solid #e8c667; outline-offset: 2px; }
   .vlv-amt { display: block; width: 100%; }
   .vlv-amt .fader { width: 100%; height: 16px; }
+  /* .vlv-amt .fader outranks the bare .fader rule in the coarse-pointer
+     block below, so these six sliders kept a 16px hit strip while their
+     thumb grew to 28px and hung out of it. Restore the touch height. */
+  @media (pointer: coarse) { .vlv-amt .fader { height: 34px; } }
   .vlv-blurb { font-size: 8px; line-height: 1.35; text-align: center;
                color: #5f5747; min-height: 22px; }
   /* An off valve reads as cold glass, so "off" is visible at a glance. */
