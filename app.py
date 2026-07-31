@@ -45,7 +45,6 @@ from links_config import get_links_data, create_smart_link
 from publishing_config import get_publishing_data
 from neighboring_rights_config import get_neighboring_rights_data
 from sync_config import get_sync_data
-from territories_config import get_territories_data
 from mechanicals_config import get_mechanicals_data
 from funding_config import get_funding_data
 from tax_config import get_tax_data
@@ -60,7 +59,6 @@ from notifications_config import (
 )
 from search_config import search as global_search
 from billing_config import get_billing_data
-from insights_config import get_insights_data
 from benchmark_config import get_benchmark_data
 from capital_config import get_capital_data
 from label_config import get_label_data, get_service, BRAND as LABEL_BRAND

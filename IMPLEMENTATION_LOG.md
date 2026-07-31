@@ -102,3 +102,39 @@ needs its copy and the server needs its own.
   Studio generates clip ideas without them.
 - `short_term_max` / `momentary_max` — stored on every pass, read by no
   ruling. These are the numbers broadcast delivery specs are written in.
+
+## Territories: the claim was wrong, the danger was real
+
+The audit flagged this as *"worse than unused — the Territories insight
+the app actually surfaces is built from invented data."* Checked, and
+that is **not true**:
+
+- `/territories` renders `royalty_types.territory_report(user_id)`, which
+  reads the real `statement_rows.territory` column.
+- `/insights` renders `insights_engine.build_insights(user_id)`, which is
+  real-data driven.
+- The fabricated path, `insights_config.get_insights_data`, was **never
+  called** — imported at `app.py:63` and invoked nowhere.
+
+A second claim, that ingestion is "territory-blind by construction"
+because `app.py:818` rebuilds rows as a 4-key dict, is technically true
+and harmless: `statements_engine.analyze` consumes exactly `title`,
+`source`, `amount`, `period`. Dropping territory matches the contract.
+
+**But the investigation found something worth acting on.**
+`insights_config.py` built a ranked list of *money the artist is not
+collecting* — `"Close collection gaps in N territories"` with an `impact`
+figure and a CTA — entirely from `_TERRITORY_SHARES`, hardcoded
+percentages. It was dead, but it was imported into `app.py`, so wiring it
+into the insights template was one line, and that line would have looked
+completely reasonable to anyone.
+
+Fabricated audio measurements would be embarrassing. Fabricated *money
+owed* is the one number this product cannot get wrong.
+
+Deleted `insights_config.py` and both dead imports. `territories_config`
+survives — a test asserts real invariants on it — but now carries a
+header saying it is wired to nothing, must stay that way, and where the
+real per-country money actually lives.
+
+**Verification:** 492 tests green.

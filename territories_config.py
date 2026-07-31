@@ -1,13 +1,20 @@
-"""Config-driven data for the Territories / Global royalties page.
+"""ILLUSTRATIVE territory data. Wired to nothing, and it must stay that way.
 
-Shows where earnings come from by country and — more importantly — where
-money is being left uncollected because the artist isn't set up to
-collect in that territory. The app doesn't track per-country earnings,
-so the geographic split is illustrative, but it's scaled off the real
-total catalog earnings so the numbers stay consistent with the rest of
-the app. Collection status mirrors the neighboring-rights gaps.
+These are hardcoded percentages, not an artist's money. The real
+per-country income is parsed out of uploaded statements and lives in
+statement_rows.territory; royalty_types.territory_report reads it and
+/territories renders that. Use those.
+
+This module previously fed insights_config, which built a ranked list of
+"money you are not collecting" - gap_countries and uncollected_total -
+entirely from the figures below, and imported itself into app.py. It was
+never called, so nothing fabricated ever reached a user. But wiring it to
+a page would have been one line, and the line would have looked
+reasonable. insights_config has been deleted for that reason.
+
+If you are about to import this into a route: the number you want is
+already in the database.
 """
-
 from royalty_data import get_songs
 
 # Illustrative streaming distribution by territory (shares sum to ~1.0).
