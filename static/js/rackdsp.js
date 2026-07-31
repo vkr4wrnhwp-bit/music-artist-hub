@@ -2828,6 +2828,100 @@
         });
     });
 
+  /* Formats the browser cannot write. WAV and AIFF are encoded in this
+     tab and never leave it; everything below needs an encoder no browser
+     exposes to a page, so the audio goes to the server. The rate,
+     channel, depth and loudness work still happens here - the server only
+     changes the container. */
+  var cnvServerFormats = (function () {
+    var el = document.getElementById("rk-cnv-formats");
+    var map = {};
+    try {
+      (el ? JSON.parse(el.textContent) : []).forEach(function (f) {
+        if (f.value !== "wav" && f.value !== "aiff") { map[f.value] = f; }
+      });
+    } catch (e) { /* no server encoder: local formats only */ }
+    return map;
+  })();
+
+  var cnvBrWrap = document.getElementById("rk-cnv-brwrap");
+  var cnvBr = document.getElementById("rk-cnv-br");
+  var cnvWhere = document.getElementById("rk-cnv-where");
+
+  function cnvSyncFormat() {
+    var fmt = pickedValue("rk-cnvfmt", "wav");
+    var spec = cnvServerFormats[fmt];
+    if (cnvBrWrap) {
+      var lossy = !!(spec && spec.lossy);
+      cnvBrWrap.classList.toggle("hidden", !lossy);
+      if (lossy && cnvBr && cnvBr.getAttribute("data-for") !== fmt) {
+        cnvBr.setAttribute("data-for", fmt);
+        cnvBr.innerHTML = "";
+        spec.bitrates.forEach(function (b) {
+          var id = "cbr-" + b;
+          var input = document.createElement("input");
+          input.type = "radio"; input.name = "rk-cnvbr";
+          input.id = id; input.value = b;
+          if (b === spec.default_bitrate) { input.checked = true; }
+          var label = document.createElement("label");
+          label.setAttribute("for", id);
+          label.innerHTML = '<span class="cap">' + b + '</span>';
+          cnvBr.appendChild(input); cnvBr.appendChild(label);
+        });
+      }
+    }
+    if (cnvWhere) {
+      cnvWhere.textContent = spec
+        ? "Encoded on the server — this uploads your audio. " + spec.note
+        : "Written in this tab. Nothing uploads.";
+      cnvWhere.className = "note mt-1.5 text-[9px] leading-snug "
+        + (spec ? "text-[#e8c667]" : "text-[#8a8069]");
+    }
+  }
+  Array.prototype.slice.call(
+    document.querySelectorAll('input[name="rk-cnvfmt"]'))
+    .forEach(function (el) { el.addEventListener("change", cnvSyncFormat); });
+  cnvSyncFormat();
+
+  /* Hand the finished audio to the server to be re-containered. */
+  function cnvServerEncode(chans, rate, fmt, spec, bits, dither, norm, lufsKey) {
+    // Carry it over as PCM WAV. Never dither ahead of a lossy encoder -
+    // the noise it adds is exactly what the codec then spends bits on.
+    var carrierBits = spec.lossy ? 24 : (bits === 16 ? 16 : 24);
+    var carrier = window.SBAudioConv.encode(
+      "wav", chans, rate, carrierBits,
+      {dither: !spec.lossy && carrierBits === 16 && dither});
+    var fd = new FormData();
+    fd.append("audio", new Blob([carrier], {type: "audio/wav"}),
+              (loadedName || "audio") + ".wav");
+    fd.append("format", fmt);
+    fd.append("rate", String(rate));
+    fd.append("channels", String(chans.length));
+    if (spec.lossy) { fd.append("bitrate", pickedValue("rk-cnvbr", "")); }
+    cnvStatus.textContent = "Uploading " + fmtBytes(carrier.byteLength)
+      + " to be encoded as " + spec.label + "…";
+    return fetch("/rack/convert", {method: "POST", body: fd})
+      .then(function (r) {
+        if (!r.ok) {
+          return r.json().then(function (j) {
+            throw new Error(j.error || ("HTTP " + r.status));
+          });
+        }
+        return r.blob();
+      })
+      .then(function (blob) {
+        var a = document.createElement("a");
+        a.download = (loadedName || "converted") + "-" + (rate / 1000) + "k"
+          + (spec.lossy ? "-" + pickedValue("rk-cnvbr", "") + "kbps" : "")
+          + (norm && norm.applied ? "-" + lufsKey : "") + "." + spec.ext;
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        cnvStatus.textContent = "Converted — " + a.download + " ("
+          + fmtBytes(blob.size) + ") downloaded."
+          + (norm ? "  Loudness: " + norm.note + "." : "");
+      });
+  }
+
   if (cnvGo) cnvGo.addEventListener("click", function () {
     if (cnvRunning) { return; }
     cnvRunning = true;
@@ -2850,6 +2944,16 @@
         var lufsKey = (document.getElementById("rk-cnv-lufs") || {}).value;
         var norm = lufsKey && window.SBLoudness
           ? cnvNormalise(chans, rate, lufsKey) : null;
+
+        // Compressed formats finish on the server; the work above has
+        // already happened either way.
+        var server = cnvServerFormats[fmt];
+        if (server) {
+          return cnvServerEncode(chans, rate, fmt, server, bits,
+                                 !!(dither && dither.checked), norm, lufsKey)
+            .then(function () { cnvRunning = false; cnvPlanText(); });
+        }
+
         var spec = window.SBAudioConv.FORMATS[fmt];
         var ab = window.SBAudioConv.encode(fmt, chans, rate, bits,
                                            {dither: !!(dither && dither.checked)});

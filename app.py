@@ -24,6 +24,7 @@ from artist_eq_config import get_artist_eq_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
+import convert_engine
 import firstrun
 
 def _hours_float(value, default=0.0):
@@ -3955,6 +3956,8 @@ def create_app():
                                saved_rack=(_json.dumps(saved) if saved else "null"),
                                studio_split=stemsplit.configured(),
                                studio_modes=stemsplit.mode_list(),
+                               server_convert=convert_engine.available(),
+                               convert_formats=convert_engine.format_list(),
                                **build_dashboard_context())
 
     # ---- Studio Split: StemSplit.io quality tier for the Stem Deck -------
@@ -4113,6 +4116,45 @@ def create_app():
         length = upstream.headers.get("Content-Length")
         if length:
             resp.headers["Content-Length"] = length   # so the bar moves
+        return resp
+
+    @app.route("/rack/convert", methods=["POST"])
+    def rack_convert():
+        """Compressed formats, encoded on the server.
+
+        WAV and AIFF stay in the browser - they are already instant there
+        and never leave the machine. This is for the ones a browser has no
+        encoder for: MP3, FLAC, AAC, ALAC, Opus, Vorbis. It uploads, and
+        the UI says so before the button is pressed.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        if not convert_engine.available():
+            return jsonify({"error": "This server has no audio encoder "
+                            "installed."}), 503
+        f = request.files.get("audio")
+        if f is None or not f.filename:
+            return jsonify({"error": "no audio file"}), 400
+
+        def num(name):
+            try:
+                return int(request.form.get(name) or 0)
+            except ValueError:
+                return 0
+
+        data, name, err = convert_engine.convert(
+            f.read(), f.filename,
+            (request.form.get("format") or "").strip().lower(),
+            bitrate=num("bitrate"), rate=num("rate"),
+            channels=num("channels"), depth=num("depth"))
+        if err:
+            return jsonify({"error": err}), 400
+        fmt = convert_engine.FORMATS[request.form["format"].strip().lower()]
+        resp = app.response_class(data, mimetype=fmt["mime"])
+        resp.headers["Content-Disposition"] = \
+            'attachment; filename="%s"' % name
+        resp.headers["Content-Length"] = str(len(data))
         return resp
 
     @app.route("/rack/save", methods=["POST"])

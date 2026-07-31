@@ -2698,6 +2698,13 @@ def test_shopify_merch_stitch():
         "merch": [{"title": "Logo Tee", "price": "$30",
                    "url": "https://artiswar.myshopify.com/products/tee"}]}).get_json()["ok"]
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    # Make the EPK this test needs rather than hoping an earlier test in
+    # the file left one behind - under -n the file is split across
+    # workers, so which tests ran first is not something to rely on. Only
+    # when it is missing: /epk/save replaces the whole profile, and these
+    # tests share one database.
+    if not store_mod.get_epk(uid):
+        artist.post("/epk/save", data={"bio": "fixture"})
     slug = store_mod.get_epk(uid)["slug"]
     pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Merch" in pub and "Logo Tee" in pub and "Full store" in pub
@@ -3696,6 +3703,13 @@ def test_club_members_area(monkeypatch):
                                          "link_url": "https://example.net/demo"})
     assert "Secret Demo v1" in artist.get("/fan-club").get_data(as_text=True)
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    # Make the EPK this test needs rather than hoping an earlier test in
+    # the file left one behind - under -n the file is split across
+    # workers, so which tests ran first is not something to rely on. Only
+    # when it is missing: /epk/save replaces the whole profile, and these
+    # tests share one database.
+    if not store_mod.get_epk(uid):
+        artist.post("/epk/save", data={"bio": "fixture"})
     slug = store_mod.get_epk(uid)["slug"]
     store_mod.add_club_member(uid, "vip@example.net", "cus_v", "sub_vip")
     fan = app_obj.test_client()
@@ -3734,6 +3748,13 @@ def test_club_checkout_instant_access(monkeypatch):
                                    "blurb": "b", "perks": "Early drops",
                                    "active": "1"})
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    # Make the EPK this test needs rather than hoping an earlier test in
+    # the file left one behind - under -n the file is split across
+    # workers, so which tests ran first is not something to rely on. Only
+    # when it is missing: /epk/save replaces the whole profile, and these
+    # tests share one database.
+    if not store_mod.get_epk(uid):
+        artist.post("/epk/save", data={"bio": "fixture"})
     slug = store_mod.get_epk(uid)["slug"]
     monkeypatch.setattr(sb, "get_checkout_session", lambda sid: {
         "payment_status": "paid", "customer": "cus_now", "subscription": "sub_now",
@@ -4068,7 +4089,8 @@ def test_rack_page_and_presets():
     # what the estimates are, and what the browser will not encode.
     assert "estimates with a score attached" in page
     assert "Krumhansl-Schmuckler" in page and "WSOLA" in page
-    assert "no browser exposes an MP3 or FLAC encoder" in page
+    # The converter always offers the two it can write in the tab.
+    assert 'value="wav"' in page and 'value="aiff"' in page
     assert "TPDF dither" in page
     # SB-15 Loudness, and the normalise option it feeds in SB-12.
     assert 'id="sb15"' in page and "LDN-1" in page and "loudness.js?v=" in page

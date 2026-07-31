@@ -635,7 +635,25 @@
                 <label for="cf-wav" title="RIFF/WAVE — exact PCM, what every distributor wants"><span class="cap">WAV</span></label>
                 <input type="radio" name="rk-cnvfmt" id="cf-aiff" value="aiff">
                 <label for="cf-aiff" title="AIFF — exact PCM, big-endian; the Mac studio standard"><span class="cap">AIFF</span></label>
+                {% if server_convert %}
+                <input type="radio" name="rk-cnvfmt" id="cf-flac" value="flac">
+                <label for="cf-flac" title="FLAC — lossless, about half the size of WAV"><span class="cap">FLAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-alac" value="alac">
+                <label for="cf-alac" title="Apple Lossless in an M4A"><span class="cap">ALAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-mp3" value="mp3">
+                <label for="cf-mp3" title="MP3 — plays on everything"><span class="cap">MP3</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-aac" value="aac">
+                <label for="cf-aac" title="AAC in an M4A — better than MP3 at the same size"><span class="cap">AAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-opus" value="opus">
+                <label for="cf-opus" title="Opus — the most music per byte here"><span class="cap">Opus</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-vorbis" value="vorbis">
+                <label for="cf-vorbis" title="OGG Vorbis"><span class="cap">OGG</span></label>
+                {% endif %}
               </div>
+              {% if server_convert %}
+              <p id="rk-cnv-where" class="note mt-1.5 text-[9px] leading-snug"></p>
+              <script id="rk-cnv-formats" type="application/json">{{ convert_formats|tojson }}</script>
+              {% endif %}
             </div>
             <div class="plate">
               <span class="lg">Depth</span>
@@ -653,6 +671,13 @@
               </label>
             </div>
           </div>
+          {% if server_convert %}
+          <div class="plate hidden" id="rk-cnv-brwrap">
+            <span class="lg">Bitrate</span>
+            <div class="pick" id="rk-cnv-br" role="radiogroup" aria-label="Bitrate"></div>
+            <p class="note mt-1.5">Higher is bigger and closer to the source. A lossy encode throws detail away for good — keep the WAV or FLAC as your master and treat this as a copy for sending out.</p>
+          </div>
+          {% endif %}
           <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
             <div class="plate">
               <span class="lg">Sample rate</span>
@@ -685,7 +710,7 @@
           <p id="rk-cnv-status" class="note text-[#e8c667]"></p>
         </div>
       </div>
-      <p class="note mt-3">Reads anything your browser can decode — MP3, WAV, FLAC, M4A, OGG — and writes exact PCM. Resampling is your browser's own resampler; the headers and the quantising are written here, and dropping to 16-bit applies TPDF dither so the error stays uncorrelated noise instead of quiet grit. <b>Lossy output isn't offered, on purpose:</b> no browser exposes an MP3 or FLAC encoder to a web page, and the one codec route that does exist runs in real time — a three-minute song would take three minutes. Ask and it can be added properly. Everything here runs in this tab; nothing uploads.</p>
+      <p class="note mt-3">Reads anything your browser can decode — MP3, WAV, FLAC, M4A, OGG. Resampling is your browser's own resampler; the headers and the quantising are written here, and dropping to 16-bit applies TPDF dither so the error stays uncorrelated noise instead of quiet grit.{% if server_convert %} <b>WAV and AIFF are written in this tab and never leave it.</b> The compressed formats can't be — no browser gives a web page an MP3, FLAC or AAC encoder — so those are encoded on the server, which means the audio is uploaded. The panel says which path you're on before you press Convert. Either way the rate, channel and loudness choices above are applied here first; the server only changes the container.{% else %} Everything here runs in this tab; nothing uploads.{% endif %}</p>
     </section>
 
     <!-- SB-13 Tempo & Key -->
@@ -947,6 +972,6 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=27"></script>
+<script src="/static/js/rackdsp.js?v=28"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
