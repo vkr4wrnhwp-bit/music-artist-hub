@@ -1,4 +1,5 @@
 import json
+import hmac
 import math
 import os
 import time
@@ -22,6 +23,7 @@ from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 import stemsplit_provider as stemsplit
 import hours_engine
+import backup_store
 
 def _hours_float(value, default=0.0):
     """Form numbers, forgivingly: a blank or a typo becomes the default
@@ -2238,11 +2240,24 @@ def create_app():
             return True
         return any(path.startswith(p) for p in _PUBLIC_PREFIXES)
 
+    def _valid_backup_token():
+        """A scheduler has no session, so the login wall would bounce it to
+        /login and the backup would silently never run. This lets a request
+        carrying the right token through - and ONLY that one path, only
+        when a token is actually configured. The route re-checks; this is
+        not a way in, it is a way past the redirect."""
+        token = os.environ.get("BACKUP_TOKEN") or ""
+        if not token or request.path != "/backup/run":
+            return False
+        presented = (request.headers.get("X-Backup-Token")
+                     or request.form.get("token") or "")
+        return hmac.compare_digest(presented, token)
+
     @app.before_request
     def plan_gate():
         user = current_user()
         if user is None:
-            if _is_public_path(request.path):
+            if _is_public_path(request.path) or _valid_backup_token():
                 return None
             return redirect(url_for("login", next=request.path))
         tier = plans.required_tier(request.path)
@@ -6288,18 +6303,20 @@ def create_app():
     def settings():
         return render_template("settings.html", active_page="settings",
                                can_backup=_backup_allowed(current_user()),
+                               backup_state=_backup_state(),
                                **build_dashboard_context())
 
-    @app.route("/backup")
-    def backup_download():
+    def _snapshot_zip():
+        """The archive itself: a consistent database copy plus uploads.
+
+        Uses SQLite's backup API rather than copying the file, because a
+        raw copy taken mid-write restores as a corrupt database - and a
+        backup you cannot restore is worse than none, since you stop
+        worrying about it.
+        """
         import sqlite3 as _sq
         import tempfile
         import zipfile
-        from flask import send_file
-        user = current_user()
-        if not _backup_allowed(user):
-            abort(404)
-        # Consistent snapshot via SQLite's backup API, not a raw file copy.
         snap = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         snap.close()
         src = _sq.connect(store.db_path())
@@ -6317,9 +6334,89 @@ def create_app():
                     z.write(full, "uploads/" + os.path.relpath(full, UPLOADS_DIR))
         os.unlink(snap.name)
         buf.seek(0)
+        return buf
+
+    def _backup_state():
+        """What the last off-box run did, for the settings page. Reads the
+        stored record rather than claiming anything about right now."""
+        import json as _json
+        raw = store.get_kv("backup_last_run")
+        last = {}
+        if raw:
+            try:
+                last = _json.loads(raw)
+            except ValueError:
+                last = {}
+        return {
+            "offsite_configured": backup_store.configured(),
+            "target": backup_store.target(),
+            "scheduler_ready": bool(os.environ.get("BACKUP_TOKEN")),
+            "last": last,
+        }
+
+    @app.route("/backup")
+    def backup_download():
+        from flask import send_file
+        user = current_user()
+        if not _backup_allowed(user):
+            abort(404)
+        buf = _snapshot_zip()
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return send_file(buf, mimetype="application/zip", as_attachment=True,
                          download_name="streetbanker-backup-%s.zip" % stamp)
+
+    @app.route("/backup/run", methods=["POST"])
+    def backup_run():
+        """Take a snapshot and push it off-box.
+
+        Meant for a scheduler (Render Cron, GitHub Actions, cron-job.org)
+        presenting BACKUP_TOKEN. An account that may already download the
+        backup by hand can also trigger it, so it is testable without
+        waiting for a schedule.
+
+        Every outcome is recorded - including the failures. A backup system
+        that only logs its successes is how people find out at restore time
+        that it stopped working in March.
+        """
+        import json as _json
+        token = os.environ.get("BACKUP_TOKEN") or ""
+        presented = (request.headers.get("X-Backup-Token")
+                     or request.form.get("token") or "")
+        by_token = bool(token) and hmac.compare_digest(presented, token)
+        if not (by_token or _backup_allowed(current_user())):
+            abort(404)
+        if not backup_store.configured():
+            return jsonify({
+                "ok": False,
+                "error": "No off-box target configured. Set BACKUP_S3_ENDPOINT, "
+                         "BACKUP_S3_BUCKET, BACKUP_S3_KEY and BACKUP_S3_SECRET.",
+            }), 503
+        started = datetime.now(timezone.utc)
+        buf = _snapshot_zip()
+        data = buf.read()
+        buf.close()
+        name = backup_store.object_name(started)
+        ok, detail = backup_store.put(name, data)
+        record = {
+            "at": started.isoformat(),
+            "ok": bool(ok),
+            "bytes": len(data),
+            "object": name,
+            "detail": detail,
+            "seconds": round((datetime.now(timezone.utc) - started)
+                             .total_seconds(), 1),
+        }
+        store.set_kv("backup_last_run", _json.dumps(record))
+        if not ok:
+            # Route the alert to a real account. notify() keys rows by user,
+            # so a None here would file it where nobody can read it — a
+            # failure alarm nobody hears.
+            owner_email = (os.environ.get("OWNER_EMAIL") or "").strip()
+            owner = store.get_user_by_email(owner_email) if owner_email else None
+            if owner:
+                store.notify(owner["id"], "system", "Off-box backup failed",
+                             detail[:200], "/settings")
+        return jsonify({"ok": bool(ok), "run": record}), (200 if ok else 502)
 
     @app.route("/scan/missing-royalties", methods=["POST"])
     def scan_missing_royalties():

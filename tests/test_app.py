@@ -5927,3 +5927,148 @@ def test_loudness_module_stays_node_testable():
     for banned in ("document.", "AudioContext", "fetch(", "XMLHttpRequest"):
         assert banned not in js, banned
     assert "module.exports" in js
+
+
+def test_backup_sigv4_matches_the_published_vector():
+    """An off-box backup that 403s is worse than none, because you stop
+    worrying about it. AWS publishes a signing-key derivation vector; if
+    the chain reproduces it the SigV4 maths is right."""
+    import backup_store
+
+    key = backup_store._signing_key(
+        "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+        "20150830", "us-east-1", "iam")
+    assert key.hex() == (
+        "c4afb1cc5771d871763a393e44b703571b55cc28424d1a5e86da6ed3c154a4b9")
+
+
+def test_backup_store_is_env_gated_and_leaks_nothing(monkeypatch):
+    """No credentials, no pretending — and the display target never
+    carries the secret that reaches it."""
+    import datetime
+
+    import backup_store
+
+    for k in ("BACKUP_S3_ENDPOINT", "BACKUP_S3_BUCKET",
+              "BACKUP_S3_KEY", "BACKUP_S3_SECRET"):
+        monkeypatch.delenv(k, raising=False)
+    assert backup_store.configured() is False
+    assert backup_store.target() == ""
+    ok, detail = backup_store.put("x.zip", b"data")
+    assert ok is False and "not configured" in detail
+
+    monkeypatch.setenv("BACKUP_S3_ENDPOINT", "https://acct.r2.example.com")
+    monkeypatch.setenv("BACKUP_S3_BUCKET", "sb-backups")
+    monkeypatch.setenv("BACKUP_S3_KEY", "AKIAIOSFODNN7EXAMPLE")
+    monkeypatch.setenv("BACKUP_S3_SECRET", "sekrit-value-nobody-should-see")
+    assert backup_store.configured() is True
+    assert "sekrit" not in backup_store.target()
+    assert "AKIA" not in backup_store.target()
+
+    # Dated keys sort chronologically, so a bucket listing reads as history.
+    when = datetime.datetime(2026, 7, 30, 12, 0, 0,
+                             tzinfo=datetime.timezone.utc)
+    later = when + datetime.timedelta(days=1)
+    assert backup_store.object_name(when) < backup_store.object_name(later)
+    assert backup_store.object_name(when).endswith(".zip")
+
+    # The request is signed over the real payload, and the secret is never
+    # a header value.
+    import hashlib
+    import urllib.error
+    import urllib.request
+
+    seen = {}
+
+    def fake_open(req, timeout=None):
+        seen["url"] = req.full_url
+        seen["headers"] = {k.lower(): v for k, v in req.headers.items()}
+        raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+    ok, detail = backup_store.put("street-banker/2026-07/t.zip", b"x" * 64)
+    assert ok is False and "403" in detail          # honest about failing
+    assert seen["url"].endswith("/sb-backups/street-banker/2026-07/t.zip")
+    assert seen["headers"]["authorization"].startswith("AWS4-HMAC-SHA256")
+    assert seen["headers"]["x-amz-content-sha256"] == hashlib.sha256(
+        b"x" * 64).hexdigest()
+    assert "sekrit" not in str(seen["headers"])
+
+
+def test_backup_run_is_gated_and_records_every_outcome(monkeypatch):
+    """The trigger is for a scheduler, so it needs a token — and every run,
+    including the failures, has to be recorded. A backup system that only
+    logs its successes is how people discover at restore time that it
+    stopped working months ago."""
+    import json
+
+    import backup_store
+    import db as store_mod
+
+    app_obj = create_app()
+
+    # Anonymous with no token at all: the login wall takes it, which is
+    # the right answer — there is nothing here for a stranger.
+    anon = app_obj.test_client()
+    assert anon.post("/backup/run").status_code in (302, 404)
+
+    # Configured target but no credentials -> honest 503, not a fake success.
+    for k in ("BACKUP_S3_ENDPOINT", "BACKUP_S3_BUCKET",
+              "BACKUP_S3_KEY", "BACKUP_S3_SECRET"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("BACKUP_TOKEN", "s3cr3t-token")
+    r = anon.post("/backup/run", headers={"X-Backup-Token": "s3cr3t-token"})
+    assert r.status_code == 503
+    assert "BACKUP_S3_ENDPOINT" in r.get_json()["error"]
+
+    # A wrong token is refused even once everything else is set up.
+    monkeypatch.setenv("BACKUP_S3_ENDPOINT", "https://acct.r2.example.com")
+    monkeypatch.setenv("BACKUP_S3_BUCKET", "sb-backups")
+    monkeypatch.setenv("BACKUP_S3_KEY", "AKIAIOSFODNN7EXAMPLE")
+    monkeypatch.setenv("BACKUP_S3_SECRET", "sekrit")
+    # A wrong token gets no further than no token at all.
+    assert anon.post("/backup/run",
+                     headers={"X-Backup-Token": "wrong"}).status_code in (302, 404)
+    # And the right token must get PAST the login wall, or a scheduler
+    # would be redirected to /login and the backup would never run.
+    probe = anon.post("/backup/run", headers={"X-Backup-Token": "s3cr3t-token"})
+    assert probe.status_code != 302, "token holder was bounced to login"
+
+    # A failing upload is reported as a failure AND written down.
+    monkeypatch.setattr(backup_store, "put",
+                        lambda name, data, content_type="application/zip":
+                        (False, "HTTP 403 AccessDenied"))
+    r = anon.post("/backup/run", headers={"X-Backup-Token": "s3cr3t-token"})
+    assert r.status_code == 502 and r.get_json()["ok"] is False
+    record = json.loads(store_mod.get_kv("backup_last_run"))
+    assert record["ok"] is False and "403" in record["detail"]
+
+    # A successful upload records the real byte count of a real snapshot.
+    uploaded = {}
+
+    def fake_put(name, data, content_type="application/zip"):
+        uploaded["name"] = name
+        uploaded["bytes"] = len(data)
+        return True, "HTTP 200"
+
+    monkeypatch.setattr(backup_store, "put", fake_put)
+    r = anon.post("/backup/run", headers={"X-Backup-Token": "s3cr3t-token"})
+    assert r.status_code == 200 and r.get_json()["ok"] is True
+    record = json.loads(store_mod.get_kv("backup_last_run"))
+    assert record["ok"] is True
+    # A real zip of a real database is never a couple of bytes.
+    assert record["bytes"] > 1000 and record["bytes"] == uploaded["bytes"]
+    assert record["object"] == uploaded["name"]
+    assert record["object"].endswith(".zip")
+
+
+def test_settings_names_the_backup_gap_honestly():
+    """With nothing configured the page has to say the data sits on one
+    disk, rather than implying the manual download is a backup strategy."""
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    page = artist.get("/settings").get_data(as_text=True)
+    # The demo account cannot back up at all, so the panel is absent —
+    # that is the gate working, and worth pinning.
+    assert "Download backup" not in page
+

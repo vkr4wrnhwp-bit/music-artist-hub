@@ -127,6 +127,29 @@
         <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Backup</h2>
         <p class="mt-1 text-sm text-gray-400">Download everything — accounts, members, fans, statements, and uploads — as one zip. Keep a copy somewhere safe; a backup you don't have is a backup that doesn't exist.</p>
         <a href="/backup" class="mt-3 inline-block rounded-lg bg-[#d8b25a] px-4 py-2 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Download backup</a>
+
+        <div class="mt-4 border-t border-white/10 pt-4">
+          <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Off-box copy</h3>
+          {% if backup_state.offsite_configured %}
+            <p class="mt-1 text-xs text-gray-400">Uploading to <span class="font-mono text-gray-300">{{ backup_state.target }}</span>{% if not backup_state.scheduler_ready %} — but <b>no <span class="font-mono">BACKUP_TOKEN</span> is set</b>, so nothing can trigger it on a schedule yet.{% endif %}</p>
+            {% if backup_state.last %}
+              {% if backup_state.last.ok %}
+              <p class="mt-2 text-xs text-green-400">● Last run succeeded {{ backup_state.last.at[:16].replace("T", " ") }} UTC — {{ "{:,}".format(backup_state.last.bytes) }} bytes in {{ backup_state.last.seconds }}s</p>
+              {% else %}
+              <p class="mt-2 text-xs text-red-400">● Last run <b>FAILED</b> {{ backup_state.last.at[:16].replace("T", " ") }} UTC — {{ backup_state.last.detail }}</p>
+              {% endif %}
+              <p class="text-[10px] text-gray-600">{{ backup_state.last.object }}</p>
+            {% else %}
+              <p class="mt-2 text-xs text-amber-400">● Configured, but it has never run. Until it does, this is a plan rather than a backup.</p>
+            {% endif %}
+            <form method="post" action="/backup/run" class="mt-3">
+              <button class="rounded-lg border border-[#c9a24a]/40 px-3 py-1.5 text-xs font-bold text-[#e8c667] hover:bg-[#1a170d]">Run one now</button>
+            </form>
+          {% else %}
+            <p class="mt-1 text-xs text-gray-400">Not set up. Everything real in this app — invoices, logged hours, statements, disputes — currently lives on one disk, and the download above only happens when someone remembers to click it.</p>
+            <p class="mt-2 text-[11px] leading-relaxed text-gray-500">Point it at any S3-compatible bucket (Cloudflare R2, Backblaze B2, Wasabi, S3) by setting <span class="font-mono text-gray-400">BACKUP_S3_ENDPOINT</span>, <span class="font-mono text-gray-400">BACKUP_S3_BUCKET</span>, <span class="font-mono text-gray-400">BACKUP_S3_KEY</span> and <span class="font-mono text-gray-400">BACKUP_S3_SECRET</span>, plus a <span class="font-mono text-gray-400">BACKUP_TOKEN</span> for a scheduler to present when it POSTs to <span class="font-mono text-gray-400">/backup/run</span>.</p>
+          {% endif %}
+        </div>
       </section>
       {% endif %}
 
