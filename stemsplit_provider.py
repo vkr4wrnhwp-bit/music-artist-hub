@@ -167,12 +167,78 @@ def source_path(token):
     return path if os.path.isfile(path) else None
 
 
-def create_job(source_url):
-    """Four-stem job at best quality. Keys are camelCase per the published
-    REST contract - snake_case is silently rejected."""
+# Values worth asking the API about. FOUR_STEMS is the only one we have
+# seen work; everything else here is a candidate to be tested, never
+# something to ship on faith. The nonsense entry is the control: a
+# rejection message for a value that certainly does not exist often names
+# the ones that do.
+PROBE_TYPES = ("FOUR_STEMS", "SIX_STEMS", "FIVE_STEMS", "TWO_STEMS",
+               "SEVEN_STEMS", "VOCALS_INSTRUMENTAL", "VOCAL_REMOVER",
+               "STEMS_6", "SIX", "6", "NOT_A_REAL_OUTPUT_TYPE")
+
+# A source that can never be fetched. Reserved TLD, so no DNS, no request
+# leaves for anyone's server, and nothing of the user's is exposed.
+PROBE_SOURCE = "https://probe.invalid/nonexistent.wav"
+
+
+def probe_output_types(candidates=None):
+    """Which outputType values does this account's API actually accept?
+
+    Asked rather than assumed, and asked for free. We know first-hand that
+    a job whose source cannot be downloaded is refused before any work
+    happens - one of ours came back DOWNLOAD_TIMEOUT with no job created
+    and no credits moved. So an unfetchable source is a safe canary:
+
+      invalid outputType -> the request fails validation, and the error
+                            talks about the field
+      valid   outputType -> validation passes and it fails later, at the
+                            download, which is a different error entirely
+
+    The shape of the failure is the answer. Nothing is separated, so
+    nothing is billed.
+    """
+    results = []
+    for value in (candidates or PROBE_TYPES):
+        body, err = _call("POST", JOBS, {
+            "sourceUrl": PROBE_SOURCE,
+            "outputType": value,
+            "quality": "BEST",
+            "outputFormat": "MP3",
+        })
+        text = ("" if err is None else str(err))
+        low = text.lower()
+        # Getting as far as the download means the enum was fine.
+        reached_download = any(k in low for k in (
+            "download", "fetch", "source", "url", "timed out", "timeout"))
+        names_the_field = any(k in low for k in (
+            "outputtype", "output_type", "invalid", "enum", "must be",
+            "one of", "allowed", "unsupported"))
+        if err is None:
+            verdict = "accepted"          # a job was created - see below
+        elif reached_download and not names_the_field:
+            verdict = "accepted"
+        elif names_the_field:
+            verdict = "rejected"
+        else:
+            verdict = "unclear"
+        results.append({
+            "value": value,
+            "verdict": verdict,
+            "error": text[:400],
+            # If one ever does create a job, say so loudly: that would
+            # mean the canary fetched, and a real job may be running.
+            "job_created": None if err else (body.get("id")
+                                             or body.get("jobId")),
+        })
+    return results
+
+
+def create_job(source_url, output_type="FOUR_STEMS"):
+    """One separation job at best quality. Keys are camelCase per the
+    published REST contract - snake_case is silently rejected."""
     body, err = _call("POST", JOBS, {
         "sourceUrl": source_url,
-        "outputType": "FOUR_STEMS",
+        "outputType": output_type,
         "quality": "BEST",
         "outputFormat": "MP3",
     })

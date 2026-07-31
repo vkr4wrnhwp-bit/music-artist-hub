@@ -3990,6 +3990,11 @@ def create_app():
             })
         if raw and request.args.get("probe") == "1":
             info["probe"] = stemsplit.probe()
+        if raw and request.args.get("modes") == "1":
+            # Which separation modes does this account actually have? Asked
+            # against a source that cannot be fetched, so no audio is
+            # separated and no credits are spent - see probe_output_types.
+            info["output_types"] = stemsplit.probe_output_types()
         return jsonify(info)
 
     @app.route("/rack/studio-split", methods=["POST"])
