@@ -61,3 +61,44 @@ on `(not critical, -impact)`. Release-blocking items lead, then value.
 Reported as a correction rather than "fixed".
 
 **Verification:** 5 new tests, 489 in the suite, all green.
+
+## The audit caught a bug I had just shipped
+
+**The tempo and key pipe was dead on arrival.** `reportAnalysis` read
+`tk.bpm.bpm` and `tk.key.key`, but `tkFound` stores `bpm` as a *number*
+and `key` as a *string*. Both evaluated to `undefined`, `JSON.stringify`
+drops undefined keys, and every tempo and key column landed NULL — while
+`audio_readiness.tempo_key_ruling` and the Twin sat waiting for values
+that could never arrive. The pipe was laid end to end and carried
+nothing.
+
+Two breaks, both fixed: detection was also discarding `bpm.confidence`
+and `key.score` one line after computing them — the confidence being
+exactly the number that decides whether a tempo is safe to quote.
+
+**`sample_peak` was written on every pass and read by nothing.** It is
+now evidence in the true-peak ruling, and it is the clearest statement of
+the whole problem: *"A normal peak meter reads −0.31 dBFS on this file,
+so 0.28 dB of it sits between the samples where that meter cannot see."*
+
+**Two copies of the platform targets.** `loudness.js` has seven,
+`audio_readiness.py` six. A test now refuses to let the overlapping six
+disagree — the Rack must not tell an artist one figure while the score is
+computed from another. They are deliberately not merged: the browser
+needs its copy and the server needs its own.
+
+**Verification:** 30 tests in this module, 492 in the suite, all green.
+
+## Still severed (from the completed audit, unverified)
+
+- Per-post click heat — the thesis in miniature: rollout posts carry real
+  attribution, derived per request, never persisted, never informing the
+  next rollout's platform choice.
+- Catalog valuation from real statements — computed, discarded, so no
+  trend exists.
+- Territory splits — flagged as possibly *wrong*, not merely unused.
+  Check before building on it.
+- Hook windows — the Rack finds them, snapped to the downbeat; Rollout
+  Studio generates clip ideas without them.
+- `short_term_max` / `momentary_max` — stored on every pass, read by no
+  ruling. These are the numbers broadcast delivery specs are written in.

@@ -200,3 +200,51 @@ def test_recovery_cases_sort_by_value_within_status():
     assert "estimated_amount DESC" in src
     # Status still leads: an open $4 case beats a closed $4,000 one.
     assert src.index("CASE status") < src.index("estimated_amount DESC")
+
+
+# --- the two copies of the platform targets must agree ------------------
+
+def test_server_targets_match_the_ones_the_rack_shows():
+    """loudness.js has its own TARGETS table and this module has another.
+
+    Two copies of the same published figures can drift apart silently,
+    and then the Rack tells an artist one thing while the readiness score
+    is computed from another. This does not merge them - the browser
+    needs its copy and the server needs its own - it just refuses to let
+    them disagree.
+    """
+    import io
+    import os
+    import re
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    js = io.open(os.path.join(here, "static", "js", "loudness.js"),
+                 encoding="utf8").read()
+    block = js[js.index("TARGETS"):]
+    block = block[:block.index("]")]
+    js_targets = {}
+    for name, lufs in re.findall(
+            r'name:\s*"([^"]+)"[^}]*?lufs:\s*(-?\d+(?:\.\d+)?)', block):
+        js_targets[name] = float(lufs)
+    if not js_targets:                      # table shape changed
+        for name, lufs in re.findall(
+                r'\[\s*"([^"]+)"\s*,\s*(-?\d+(?:\.\d+)?)', block):
+            js_targets[name] = float(lufs)
+
+    assert js_targets, "could not read TARGETS out of loudness.js"
+    for name, lufs in ar.PLATFORM_TARGETS:
+        if name in js_targets:
+            assert js_targets[name] == lufs, (
+                "%s: loudness.js says %s, audio_readiness says %s"
+                % (name, js_targets[name], lufs))
+
+
+def test_the_hidden_peak_gap_is_stated_when_known():
+    # -0.03 dBTP against -0.31 dBFS: 0.28 dB the meter never showed.
+    r = ar.true_peak_ruling(-0.03, -0.31)
+    assert "-0.31 dBFS" in r["detail"]
+    assert "0.28 dB" in r["detail"]
+
+
+def test_no_hidden_gap_claimed_when_sample_peak_is_unknown():
+    r = ar.true_peak_ruling(-0.03)
+    assert "peak meter reads" not in r["detail"]

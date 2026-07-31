@@ -66,15 +66,31 @@ def _ruling(key, level, headline, detail, evidence, action=None):
     }
 
 
-def true_peak_ruling(true_peak):
+def true_peak_ruling(true_peak, sample_peak=None):
     """The one that actually costs people quality, and the one nobody sees
     coming - a peak meter reads the samples, and the damage happens
-    between them."""
+    between them.
+
+    When the sample peak is known too, the gap between the two is the
+    whole argument in one number: it is exactly how much peak an ordinary
+    meter did not show you.
+    """
     if true_peak is None:
         return _ruling("true_peak", "unknown", "True peak not measured",
                        "Run the master through the Rack's loudness meter to "
                        "find out whether it survives encoding.", None,
                        "Open the Rack and load this master")
+    # The gap an ordinary meter never showed. Worth stating outright: it is
+    # the difference between the number people trust and the number that
+    # decides whether the record clips.
+    hidden = ""
+    if sample_peak is not None:
+        gap = true_peak - sample_peak
+        if gap > 0.05:
+            hidden = (" A normal peak meter reads %.2f dBFS on this file, so "
+                      "%.2f dB of it sits between the samples where that "
+                      "meter cannot see." % (sample_peak, gap))
+
     if true_peak > TRUE_PEAK_CEILING:
         over = true_peak - TRUE_PEAK_CEILING
         return _ruling(
@@ -86,7 +102,7 @@ def true_peak_ruling(true_peak):
             "clip on playback even though the file itself does not. Pulling "
             "the master down %.2f dB fixes it and costs nothing - streaming "
             "normalisation turns everything down anyway."
-            % (true_peak, over),
+            % (true_peak, over) + hidden,
             "Measured true peak %.2f dBTP (4x oversampled), ceiling -1.0"
             % true_peak,
             "Lower the master by %.2f dB and re-measure" % over)
@@ -102,7 +118,7 @@ def true_peak_ruling(true_peak):
     return _ruling(
         "true_peak", "ok", "True peak is safe at %.2f dBTP" % true_peak,
         "Sits under the -1 dBTP ceiling, so lossy encoding has room to "
-        "overshoot without clipping.",
+        "overshoot without clipping." + hidden,
         "Measured true peak %.2f dBTP (4x oversampled)" % true_peak, None)
 
 
@@ -245,7 +261,7 @@ def assess(analysis):
     a = analysis or {}
     measured = bool(a.get("measured_at"))
     rulings = [
-        true_peak_ruling(a.get("true_peak")),
+        true_peak_ruling(a.get("true_peak"), a.get("sample_peak")),
         loudness_ruling(a.get("integrated"), a.get("true_peak")),
         range_ruling(a.get("lra")),
         tempo_key_ruling(a.get("bpm"), a.get("bpm_confidence"),

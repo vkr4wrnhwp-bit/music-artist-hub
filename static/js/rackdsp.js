@@ -3216,8 +3216,9 @@
         var key = window.SBTempoKey.detectKey(chans, src.sampleRate);
         tkFound = null;
         if (bpm && key) {
-          tkFound = {bpm: bpm.bpm, root: key.root, mode: key.mode,
-                     key: key.key};
+          tkFound = {bpm: bpm.bpm, confidence: bpm.confidence,
+                     root: key.root, mode: key.mode, key: key.key,
+                     keyFit: key.score};
         }
         var bpmEl = document.getElementById("rk-tk-bpm");
         var bpmSub = document.getElementById("rk-tk-bpmsub");
@@ -3666,10 +3667,10 @@
       integrated: res.integrated, lra: res.range,
       true_peak: res.truePeak, sample_peak: res.samplePeak,
       short_term_max: res.shortTermMax, momentary_max: res.momentaryMax,
-      bpm: tk.bpm ? tk.bpm.bpm : null,
-      bpm_confidence: tk.bpm ? tk.bpm.confidence : null,
-      key: tk.key ? tk.key.key : "",
-      key_fit: tk.key ? tk.key.score : null,
+      bpm: typeof tk.bpm === "number" ? tk.bpm : null,
+      bpm_confidence: typeof tk.confidence === "number" ? tk.confidence : null,
+      key: typeof tk.key === "string" ? tk.key : "",
+      key_fit: typeof tk.keyFit === "number" ? tk.keyFit : null,
       duration: buffer ? buffer.duration : null,
       sample_rate: buffer ? buffer.sampleRate : null,
       channels: buffer ? buffer.numberOfChannels : null,
