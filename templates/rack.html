@@ -576,7 +576,8 @@
         <div class="plate">
           <span class="lg">Scan</span>
           <button id="rk-hook-scan" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black">Find hooks</button>
-          <p class="note mt-2">Two passes: the loudest sustained 15-second window, then the loudest 30.</p>
+          <p class="note mt-2">Two passes: the loudest sustained 15-second window, then the loudest 30 — each then snapped to the nearest downbeat.</p>
+          <p id="rk-hook-note" class="note mt-1.5 text-[#4c4536]"></p>
         </div>
         <div>
           <div class="mb-1 flex items-end justify-between gap-2">
@@ -590,7 +591,7 @@
           </div>
         </div>
       </div>
-      <p class="note mt-3">Scans your track's real energy for the loudest sustained 15- and 30-second stretches — level detection, not taste; trust your ears on the final pick. Preview plays that window, Snippet WAV bounces it through the whole rack, and Vertical video records a 720×1280 WebM with a live spectrum ring (keep this tab visible while it records; phone editors convert WebM to MP4).</p>
+      <p class="note mt-3">Scans your track's real energy for the loudest sustained 15- and 30-second stretches — level detection, not taste; trust your ears on the final pick. The window is then <b>snapped to the nearest downbeat</b> using the same beat grid SB-13 measures, because a clip that starts mid-beat reads as a mistake however good the audio is. It only snaps when the grid is confident and the move is under half a bar — a hook dragged most of a bar to reach a downbeat is no longer the hook it found — and the panel says which of those happened. Preview plays that window, Snippet WAV bounces it through the whole rack, and Vertical video records a 720×1280 WebM with a live spectrum ring (keep this tab visible while it records; phone editors convert WebM to MP4).</p>
     </section>
 
     <!-- SB-12 Format Bench -->
@@ -935,9 +936,9 @@
 
 <script src="/static/js/roughsplit.js?v=1"></script>
 <script src="/static/js/audioconv.js?v=1"></script>
-<script src="/static/js/tempokey.js?v=2"></script>
+<script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=24"></script>
+<script src="/static/js/rackdsp.js?v=25"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

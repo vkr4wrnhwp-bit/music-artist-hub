@@ -4046,6 +4046,11 @@ def test_rack_page_and_presets():
     for legend in ("Cabinet", "Microphone", "Separation", "Scan"):
         assert '<span class="lg">%s</span>' % legend in page, legend
     assert "Four-lane bay" in page and "Hook map" in page
+    # SB-13's tempo now feeds SB-11: hooks snap to a downbeat, and the
+    # panel reports which of snapped / already-on-grid / no-grid happened.
+    assert 'id="rk-hook-note"' in page
+    assert "snapped to the nearest downbeat" in page
+    assert "only snaps when the grid is confident" in page
     # SB-12 Format Bench and SB-13 Tempo & Key, with their engines loaded.
     assert 'id="sb12"' in page and "CNV-2" in page
     assert 'id="sb13"' in page and "TMP-1" in page

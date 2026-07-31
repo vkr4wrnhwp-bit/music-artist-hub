@@ -57,6 +57,68 @@ console.log("=== BPM detection ===");
                      + got.alternates.join("/") + ")" : "null"));
 });
 
+console.log("\n=== Beat grid: where the beats actually fall ===");
+/* A tempo without a phase is useless for cutting - you know the spacing
+   but not where to start. These click tracks put the first hit at a known
+   offset, so the detected phase can be checked against it. */
+function clickAt(bpm, offsetSec, secs) {
+  const n = Math.floor(secs * RATE), d = new Float32Array(n);
+  const period = RATE * 60 / bpm, start = Math.round(offsetSec * RATE);
+  for (let i = 0; i < n; i++) { d[i] = 0.02 * Math.sin(2*Math.PI*110*i/RATE); }
+  for (let b = 0; start + b * period < n; b++) {
+    const at = Math.round(start + b * period);
+    for (let k = 0; k < RATE * 0.006 && at + k < n; k++) {
+      d[at + k] += 0.9 * Math.exp(-k / (RATE * 0.0015)) * (Math.random() * 2 - 1);
+    }
+  }
+  return d;
+}
+[[120, 0.35], [90, 0.0], [140, 1.21]].forEach(function (pair) {
+  const bpm = pair[0], off = pair[1];
+  const g = TK.beatGrid([clickAt(bpm, off, 25)], RATE);
+  ok("grid found at " + bpm + " BPM", g !== null);
+  if (!g) { return; }
+  ok("  tempo within 1.5 BPM", Math.abs(g.bpm - bpm) <= 1.5, g.bpm + "");
+  // Phase repeats every beat, so compare modulo the period.
+  const per = 60 / bpm;
+  let err = Math.abs(((g.firstBeat - off) % per + per) % per);
+  if (err > per / 2) { err = per - err; }
+  /* The onset envelope hops every 256 samples - about 12 ms of resolution -
+     so anything inside 50 ms is at the limit of what it can resolve. */
+  ok("  phase within 50 ms of the real downbeat", err < 0.05,
+     (err * 1000).toFixed(0) + " ms");
+  ok("  confident on a clean click track", g.confidence > 0.5,
+     g.confidence.toFixed(2));
+});
+
+const grid = TK.beatGrid([clickAt(120, 0.35, 25)], RATE);
+ok("snapping lands exactly on a beat",
+   Math.abs(((TK.snapToBeat(3.10, grid) - grid.firstBeat) / grid.period) % 1)
+     < 1e-9);
+ok("snapping to bars lands on every 4th beat",
+   Math.abs(((TK.snapToBeat(3.10, grid, 4) - grid.firstBeat)
+             / (grid.period * 4)) % 1) < 1e-9);
+ok("snapping never moves further than half a beat",
+   Math.abs(TK.snapToBeat(3.10, grid) - 3.10) <= grid.period / 2 + 1e-9,
+   (Math.abs(TK.snapToBeat(3.10, grid) - 3.10) * 1000).toFixed(0) + " ms");
+ok("snapping never returns a negative time", TK.snapToBeat(0.01, grid) >= 0);
+ok("beats between 3s and 5s are evenly spaced",
+   (function () {
+     const b = TK.beatsBetween(grid, 3, 5);
+     if (b.length < 3) { return false; }
+     for (let i = 1; i < b.length; i++) {
+       if (Math.abs((b[i] - b[i - 1]) - grid.period) > 1e-6) { return false; }
+     }
+     return true;
+   })(), TK.beatsBetween(grid, 3, 5).length + " beats");
+/* Silence has no beats. Without the guard the autocorrelation still
+   returns its best lag over a flat envelope and the grid comes back
+   looking authoritative - 191 BPM on a track with nothing in it. */
+ok("no grid without a signal is null, not a confident 191 BPM",
+   TK.beatGrid([new Float32Array(RATE * 3)], RATE) === null);
+ok("snapping with no grid leaves the time alone",
+   TK.snapToBeat(4.2, null) === 4.2);
+
 console.log("\n=== Key detection ===");
 // C major triad: C4 E4 G4 -> pitch classes C, E, G.
 const cmaj = chordTone([60, 64, 67], 8, RATE);

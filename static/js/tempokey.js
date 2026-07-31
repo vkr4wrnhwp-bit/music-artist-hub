@@ -214,6 +214,86 @@
     };
   }
 
+  /* Where the beats actually FALL, not just how fast they are.
+   *
+   * detectBpm gives the spacing; this adds the phase - which is the half
+   * that matters for cutting. Knowing a track is 128 BPM tells you nothing
+   * about where to start a clip; knowing the first beat lands at 0.34 s
+   * tells you everything. Phase is found by testing every offset within
+   * one beat period against the onset envelope and keeping the one the
+   * transients agree with.
+   *
+   * Returns null rather than a guess when there is not enough to measure.
+   */
+  function beatGrid(channels, rate, opts) {
+    opts = opts || {};
+    var oe = onsetEnvelope(mono(channels), rate);
+    var bpm = opts.bpm;
+    if (!bpm) {
+      var got = bpmFromEnvelope(oe.env, oe.rate,
+                                opts.minBpm || 60, opts.maxBpm || 190);
+      if (!got) { return null; }
+      bpm = got.bpm;
+    }
+    var period = oe.rate * 60 / bpm;          // envelope frames per beat
+    if (!(period > 1) || oe.env.length < period * 2) { return null; }
+
+    var steps = Math.max(1, Math.round(period));
+    var scores = [], best = null;
+    for (var off = 0; off < steps; off++) {
+      var sum = 0, n = 0;
+      for (var t = off; t < oe.env.length; t += period) {
+        sum += oe.env[Math.round(t)] || 0;
+        n++;
+      }
+      var score = n ? sum / n : 0;
+      scores.push(score);
+      if (!best || score > best.score) { best = {score: score, off: off}; }
+    }
+    var mean = 0;
+    for (var i = 0; i < scores.length; i++) { mean += scores[i]; }
+    mean /= scores.length || 1;
+
+    /* Silence has no beats. Without this the autocorrelation still returns
+       its best lag over a flat envelope and the grid comes back looking
+       authoritative - 191 BPM on a track with nothing in it - which is
+       worse than admitting there is nothing to measure. */
+    if (!(mean > 0) || !(best.score > 0)) { return null; }
+
+    return {
+      bpm: Math.round(bpm * 10) / 10,
+      period: 60 / bpm,                       // seconds per beat
+      firstBeat: best.off / oe.rate,          // seconds
+      /* How much the winning phase stands above the average one. A loop
+         with no transients scores flat everywhere and lands near 0. */
+      confidence: mean > 0
+        ? Math.max(0, Math.min(1, (best.score / mean - 1))) : 0,
+    };
+  }
+
+  /* Nearest beat to a time. `bars` snaps to every Nth beat instead - use 4
+     for downbeats, which is usually where a clip wants to start. */
+  function snapToBeat(seconds, grid, bars) {
+    if (!grid || !(grid.period > 0)) { return seconds; }
+    var step = grid.period * (bars && bars > 1 ? bars : 1);
+    var n = Math.round((seconds - grid.firstBeat) / step);
+    var at = grid.firstBeat + n * step;
+    return at < 0 ? grid.firstBeat : at;      // never snap before the track
+  }
+
+  /* Beat times inside a window, for drawing a grid. */
+  function beatsBetween(grid, from, to, bars) {
+    if (!grid || !(grid.period > 0)) { return []; }
+    var step = grid.period * (bars && bars > 1 ? bars : 1);
+    var out = [];
+    var n = Math.ceil((from - grid.firstBeat) / step);
+    for (var t = grid.firstBeat + n * step; t <= to; t += step) {
+      if (t >= from) { out.push(t); }
+      if (out.length > 4096) { break; }       // a guard, not a limit anyone hits
+    }
+    return out;
+  }
+
   // --------------------------------------------------------------- key
   /* Chroma: fold spectral energy onto the 12 pitch classes. Weighted by
      magnitude, restricted to the range where pitch is unambiguous. */
@@ -474,6 +554,9 @@
   var api = {
     detectBpm: detectBpm,
     detectKey: detectKey,
+    beatGrid: beatGrid,
+    snapToBeat: snapToBeat,
+    beatsBetween: beatsBetween,
     transform: transform,
     project: project,
     NOTES: NOTES,

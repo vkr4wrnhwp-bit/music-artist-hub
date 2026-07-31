@@ -1616,6 +1616,62 @@
     }
     return {start: best / 4, len: len};
   }
+  /* SB-13's tempo, finally doing something. A hook that starts mid-beat
+     reads as a mistake in a Reel no matter how good the audio is, so the
+     window is snapped to the nearest downbeat before it is offered.
+     Cached because the grid costs an onset-envelope pass and the source
+     rarely changes between scans. */
+  var hookGrid = null, hookGridFor = null;
+
+  function ensureHookGrid() {
+    var buf = hookBuffer();
+    if (!buf) { hookGrid = null; hookGridFor = null; return null; }
+    if (hookGridFor === buf) { return hookGrid; }
+    hookGridFor = buf;
+    hookGrid = null;
+    if (!window.SBTempoKey) { return null; }
+    var chans = [];
+    for (var c = 0; c < buf.numberOfChannels; c++) {
+      chans.push(buf.getChannelData(c));
+    }
+    try {
+      // Reuse SB-13's reading when the artist has already adopted one -
+      // they may have chosen half or double time, and that choice stands.
+      var opts = (tkFound && tkFound.bpm) ? {bpm: tkFound.bpm} : {};
+      hookGrid = window.SBTempoKey.beatGrid(chans, buf.sampleRate, opts);
+    } catch (e) {
+      hookGrid = null;
+    }
+    return hookGrid;
+  }
+
+  /* Snap a hook to the grid, but only when doing so is a small move and
+     the grid is worth believing. Dragging a window most of a bar to reach
+     a downbeat would lose the hook it found. */
+  function snapHook(h) {
+    var grid = ensureHookGrid();
+    if (!grid || grid.confidence < 0.25) {
+      return {start: h.start, len: h.len, snapped: false, grid: grid};
+    }
+    var bar = grid.period * 4;
+    var at = window.SBTempoKey.snapToBeat(h.start, grid, 4);
+    var moved = at - h.start;
+    if (Math.abs(moved) > bar / 2 + 1e-6 || at < 0) {
+      return {start: h.start, len: h.len, snapped: false, grid: grid};
+    }
+    // Never snap past the end of the track.
+    var buf = hookBuffer();
+    if (buf && at + h.len > buf.duration) {
+      at = window.SBTempoKey.snapToBeat(h.start, grid, 4) - bar;
+      if (at < 0 || at + h.len > buf.duration) {
+        return {start: h.start, len: h.len, snapped: false, grid: grid};
+      }
+      moved = at - h.start;
+    }
+    return {start: at, len: h.len, snapped: Math.abs(moved) > 0.001,
+            moved: moved, grid: grid};
+  }
+
   var hookPreviewT = null;
   function previewHook(h) {
     seek(h.start);
@@ -1753,6 +1809,22 @@
       return;
     }
 
+    /* Bar lines, when there is a grid worth drawing: the marks then sit
+       visibly on the music rather than floating over it. Drawn under the
+       minute ticks and faint, because they are reference, not data. */
+    var grid = hookGrid;
+    if (grid && grid.confidence >= 0.25 && grid.period > 0) {
+      var bar = grid.period * 4;
+      // Thin them out on long tracks so the strip does not turn solid.
+      var every = Math.max(1, Math.ceil(dur / bar / 90));
+      var bars = window.SBTempoKey.beatsBetween(grid, 0, dur, 4);
+      for (var bi = 0; bi < bars.length; bi += every) {
+        var bx = (bars[bi] / dur) * W;
+        svg.appendChild(svgEl("path", {d: "M" + bx.toFixed(1) + " 9v22",
+                                       stroke: "#231f18", "stroke-width": 1}));
+      }
+    }
+
     // Minute ticks give the strip a scale to read the marks against.
     for (var t = 60; t < dur; t += 60) {
       var tx = (t / dur) * W;
@@ -1789,9 +1861,22 @@
     var wrap2 = document.getElementById("rk-hooks");
     wrap2.innerHTML = "";
     var found = [];
+    var snapNote = "";
     [15, 30].forEach(function (L) {
       var h = scanHooks(L);
       if (!h) return;
+      var snap = snapHook(h);
+      if (snap.snapped) {
+        h = {start: snap.start, len: h.len};
+        snapNote = "Snapped to the beat grid at "
+          + snap.grid.bpm.toFixed(1) + " BPM.";
+      } else if (snap.grid && snap.grid.confidence >= 0.25) {
+        snapNote = "Already on the grid at "
+          + snap.grid.bpm.toFixed(1) + " BPM.";
+      } else {
+        snapNote = "No clear beat to snap to — windows left where the "
+          + "energy peaked.";
+      }
       found.push(h);
       var row = document.createElement("div");
       row.className = "lane";
@@ -1817,6 +1902,8 @@
       wrap2.innerHTML = '<p class="note">Load a track longer than ~16 seconds first.</p>';
     }
     paintHookMap(found, hookDuration());
+    var note = document.getElementById("rk-hook-note");
+    if (note) { note.textContent = snapNote; }
   });
 
   // ---------- Studio Split: StemSplit quality tier ----------------------
