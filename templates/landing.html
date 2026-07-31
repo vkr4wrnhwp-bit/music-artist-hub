@@ -28,7 +28,7 @@
     </a>
     <nav class="hidden items-center gap-9 text-[13px] font-medium text-[#4a463e] lg:flex">
       {% for link in config.nav.links %}
-      <a href="{{ link.href }}" class="-my-1 inline-block py-2 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ link.label }}</a>
+      <a href="{{ link.href }}" class="-my-2 inline-block py-3.5 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ link.label }}</a>
       {% endfor %}
     </nav>
     <div class="flex items-center gap-4">
@@ -181,7 +181,7 @@
         <p class="mt-4 max-w-xs text-xs leading-relaxed text-[#6b6459]">{{ f.description }}</p>
         <div class="mt-5 flex gap-4 text-[11px] font-semibold text-[#6b6459]">
           {% for s in f.socials %}
-          <a href="{{ s.href }}" target="_blank" rel="noopener" class="-my-1 inline-block py-2 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ s.label }}</a>
+          <a href="{{ s.href }}" target="_blank" rel="noopener" class="-my-2 inline-block py-3.5 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ s.label }}</a>
           {% endfor %}
         </div>
       </div>
@@ -190,7 +190,7 @@
         <div class="text-[10px] font-bold uppercase tracking-[0.2em]">{{ col.title }}</div>
         <ul class="mt-4 space-y-2.5">
           {% for l in col.links %}
-          <li><a href="{{ l.href }}" class="-my-1 inline-block py-2 text-xs text-[#6b6459] transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ l.label }}</a></li>
+          <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-xs text-[#6b6459] transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ l.label }}</a></li>
           {% endfor %}
         </ul>
       </div>
