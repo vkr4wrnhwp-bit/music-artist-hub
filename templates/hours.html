@@ -238,7 +238,7 @@
       {% for b in bookings %}
         <div class="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-xs">
           <span class="tabular-nums text-gray-500">{{ b.day }}</span>
-          <span class="min-w-0 flex-1 truncate"><b class="text-gray-200">{{ b.service }}</b>{% if b.who %} <span class="text-gray-400">· {{ b.who }}</span>{% endif %}</span>
+          <span class="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1 sm:truncate"><b class="text-gray-200">{{ b.service }}</b>{% if b.who %} <span class="text-gray-400">· {{ b.who }}</span>{% endif %}</span>
           <span class="tabular-nums text-gray-500">{{ hrs(b.hours) }}</span>
           <span class="font-black tabular-nums text-[#e8c667]">{{ money(b.hours * b.rate) }}</span>
           {% if b.status == 'requested' %}
@@ -286,7 +286,7 @@
       <div class="rounded-lg border {{ 'border-amber-500/30 bg-[#141109]' if s.status == 'pending' else 'border-white/10 bg-[#111113]' }} px-3 py-2">
         <div class="flex flex-wrap items-center gap-2 text-xs">
           <span class="tabular-nums text-gray-500">{{ s.day }}</span>
-          <span class="min-w-0 flex-1 truncate"><b class="text-gray-200">{{ s.who }}</b>{% if s.role %} <span class="text-gray-500">({{ s.role }})</span>{% endif %}{% if s.note %} <span class="text-gray-500">— {{ s.note }}</span>{% endif %}</span>
+          <span class="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1 sm:truncate"><b class="text-gray-200">{{ s.who }}</b>{% if s.role %} <span class="text-gray-500">({{ s.role }})</span>{% endif %}{% if s.note %} <span class="text-gray-500">— {{ s.note }}</span>{% endif %}</span>
           <span class="tabular-nums text-gray-500">{{ hrs(s.hours) }} @ {{ money(s.rate) }}</span>
           <span class="font-black tabular-nums text-[#e8c667]">{{ money(s.hours * s.rate) }}</span>
           {% if s.status == 'pending' %}
