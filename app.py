@@ -3970,6 +3970,7 @@ def create_app():
         the key is, and whether it carries stray whitespace or quotes -
         the three things that silently break a pasted secret. Requires a
         signed-in account; no secret ever leaves this endpoint."""
+        import json as _json
         user = current_user()
         if user is None:
             return jsonify({"error": "auth required"}), 401
@@ -3991,6 +3992,40 @@ def create_app():
             })
         if raw and request.args.get("probe") == "1":
             info["probe"] = stemsplit.probe()
+        if request.args.get("encoders") == "1":
+            # Can this box encode lossy audio at all? Decides whether MP3
+            # export is a server job or has to happen in the browser.
+            import shutil
+            import subprocess
+            found = {}
+            for tool in ("ffmpeg", "avconv", "lame", "flac", "sox"):
+                found[tool] = shutil.which(tool) or None
+            if found.get("ffmpeg"):
+                try:
+                    out = subprocess.run(
+                        [found["ffmpeg"], "-hide_banner", "-encoders"],
+                        capture_output=True, text=True, timeout=20).stdout
+                    found["ffmpeg_codecs"] = sorted(
+                        c for c in ("libmp3lame", "aac", "flac", "libopus",
+                                    "libvorbis", "alac", "pcm_s24le")
+                        if c in out)
+                except Exception as exc:
+                    found["ffmpeg_codecs"] = "probe failed: %s" % exc
+            info["encoders"] = found
+        if raw and request.args.get("job"):
+            # The whole job body, so we can see what the API actually
+            # returns rather than what we assumed. Signatures are stripped
+            # from the URLs - the path is the part that answers the
+            # question, because it carries the file extension.
+            import re as _re
+            body, err = stemsplit._call(
+                "GET", stemsplit.JOBS + "/" + request.args["job"])
+            if err:
+                info["job_raw"] = {"error": err}
+            else:
+                dumped = _json.dumps(body)
+                info["job_raw"] = _json.loads(
+                    _re.sub(r'\?[^"]*', "?<signature-stripped>", dumped))
         if raw and request.args.get("modes") == "1":
             # Which separation modes does this account actually have? Asked
             # against a source that cannot be fetched, so no audio is
