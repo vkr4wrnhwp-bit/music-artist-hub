@@ -296,7 +296,9 @@ MODES = {
         "label": "Six stems",
         "stems": ("vocals", "drums", "bass", "guitar", "piano", "other"),
         "note": "The four, with guitar and piano lifted out of "
-                "“everything else”.",
+                "“everything else”. Asking for more separation costs some "
+                "precision — the lanes add back up slightly less exactly "
+                "than four do.",
     },
 }
 DEFAULT_MODE = "FOUR_STEMS"
