@@ -235,7 +235,21 @@ def probe_output_types(candidates=None):
 
 def create_job(source_url, output_type=None):
     """One separation job at best quality. Keys are camelCase per the
-    published REST contract - snake_case is silently rejected."""
+    published REST contract - snake_case is silently rejected.
+
+    outputFormat does nothing. We send MP3 and the job body comes back
+    saying options.outputFormat is "MP3", and then every output URL ends
+    in .wav. It is not being honoured; the container of the stems follows
+    the container of the SOURCE.
+
+    Verified rather than assumed: the same 30-second cut sent as WAV came
+    back as seven .wav files at 5.05 MB each, and sent as MP3 came back
+    as .mp3 at 1.15 MB. So the lever for stem size is the format the
+    source is uploaded in, not this field.
+
+    We keep sending MP3 anyway - it costs nothing, it is what we would
+    want if they ever start honouring it, and it documents the intent.
+    """
     if output_type not in MODES:
         output_type = DEFAULT_MODE      # never post an unknown enum
     body, err = _call("POST", JOBS, {
