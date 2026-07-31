@@ -225,3 +225,33 @@ Also fixed: turning the stats section off left stats visible in the sweep
 panel. "Hide stats" now means hidden everywhere.
 
 **Verification:** 506 tests green.
+
+## The hook now outlives the tab that found it
+
+The audit called this "the largest product-level break in the area", and
+both its claims held. `scanHooks` finds the highest-energy 15 and 30
+second windows and `snapHook` aligns them to the measured downbeat — then
+the results became DOM rows terminating in a browser download. The
+`/rack/analysis` payload I wrote earlier today had no field for any of
+it, so nothing in the app could say where an artist's hook was outside
+the one tab that measured it.
+
+Persisted now: `hook_15s`, `hook_30s`, `first_beat`, `bar_seconds`,
+`grid_confidence`. The Master read reports it as a timestamp — *"Strongest
+section: 30 seconds from 1:04, 15 from 0:34"* — and says whether it was
+snapped to the beat or is energy-only, because a clip that starts
+mid-beat reads as a mistake however good the audio is.
+
+The hook is deliberately **not** a quality gate. An unscanned hook leaves
+a clean master reading "ok"; it is information for cutting a clip, not a
+judgement on the record.
+
+**A deployment bug caught before shipping.** `track_analysis` was created
+earlier today, so any database from between then and now already has the
+table — and `CREATE TABLE IF NOT EXISTS` does not add columns. Saving a
+measurement would have raised "no such column: hook_15s" on every
+existing install, including production. An `ALTER TABLE` migration now
+runs alongside the others, and it is proved against a database built with
+the old schema.
+
+**Verification:** 6 new tests, 512 in the suite, all green.

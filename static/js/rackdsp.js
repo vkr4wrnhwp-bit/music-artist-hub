@@ -1914,6 +1914,8 @@
   }
 
   var hookBtn = document.getElementById("rk-hook-scan");
+  var lastHooks = {};
+  var lastGrid = null;
   if (hookBtn) hookBtn.addEventListener("click", function () {
     var wrap2 = document.getElementById("rk-hooks");
     wrap2.innerHTML = "";
@@ -1935,6 +1937,15 @@
           + "energy peaked.";
       }
       found.push(h);
+      // Remember where the strongest window starts. Until now this became
+      // a DOM row and a download, so nothing outside this tab could ever
+      // say where an artist's hook actually is.
+      lastHooks[L] = h.start;
+      if (snap.grid) {
+        lastGrid = {first: snap.grid.firstBeat,
+                    bar: snap.grid.period * 4,
+                    confidence: snap.grid.confidence};
+      }
       var row = document.createElement("div");
       row.className = "lane";
       var lamp2 = document.createElement("span");
@@ -3674,6 +3685,11 @@
       duration: buffer ? buffer.duration : null,
       sample_rate: buffer ? buffer.sampleRate : null,
       channels: buffer ? buffer.numberOfChannels : null,
+      hook_15s: typeof lastHooks[15] === "number" ? lastHooks[15] : null,
+      hook_30s: typeof lastHooks[30] === "number" ? lastHooks[30] : null,
+      first_beat: lastGrid ? lastGrid.first : null,
+      bar_seconds: lastGrid ? lastGrid.bar : null,
+      grid_confidence: lastGrid ? lastGrid.confidence : null,
       engine: "rack/loudness.js BS.1770-4"
     };
     // Same file, same numbers - no need to say it twice.

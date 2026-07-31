@@ -293,6 +293,11 @@ def init_db():
                 duration REAL,
                 sample_rate INTEGER,
                 channels INTEGER,
+                hook_15s REAL,
+                hook_30s REAL,
+                first_beat REAL,
+                bar_seconds REAL,
+                grid_confidence REAL,
                 engine TEXT NOT NULL DEFAULT '',
                 measured_at TEXT NOT NULL
             );
@@ -719,6 +724,19 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN %s TEXT" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration: hook and beat-grid columns on track_analysis. The
+        # table shipped earlier without them, so any database created in
+        # between has it already and CREATE TABLE IF NOT EXISTS will not
+        # add them. Without this, saving a measurement raises "no such
+        # column" on every existing install.
+        for _col in ("hook_15s", "hook_30s", "first_beat", "bar_seconds",
+                     "grid_confidence"):
+            try:
+                db.execute("ALTER TABLE track_analysis ADD COLUMN %s REAL"
+                           % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
         # Migration: optional territory column on statement rows.
         try:
             db.execute("ALTER TABLE statement_rows ADD COLUMN territory TEXT NOT NULL DEFAULT ''")
@@ -1287,7 +1305,8 @@ def save_track_analysis(user_id, row):
     keep = ("track_id", "filename", "integrated", "lra", "true_peak",
             "sample_peak", "short_term_max", "momentary_max", "bpm",
             "bpm_confidence", "key", "key_fit", "duration", "sample_rate",
-            "channels", "engine")
+            "channels", "hook_15s", "hook_30s", "first_beat", "bar_seconds",
+            "grid_confidence", "engine")
     vals = {k: row.get(k) for k in keep}
     vals["filename"] = (vals.get("filename") or "")[:200]
     vals["key"] = (vals.get("key") or "")[:40]

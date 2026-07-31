@@ -251,6 +251,40 @@ def tempo_key_ruling(bpm, bpm_confidence, key, key_fit):
         "Confirm the tempo by ear before quoting it" if not trust else None)
 
 
+def _mmss(seconds):
+    return "%d:%02d" % (int(seconds) // 60, int(seconds) % 60)
+
+
+def hook_ruling(hook_30s, hook_15s, first_beat, grid_confidence):
+    """Where the strongest passage of the record starts.
+
+    Found by scanning for the highest sustained energy and then snapped
+    to the nearest downbeat, because a clip that starts mid-beat reads as
+    a mistake however good the audio is. This is the number a Reel or a
+    TikTok needs, and it used to exist only inside the tab that found it.
+    """
+    if hook_30s is None and hook_15s is None:
+        return _ruling("hook", "unknown", "Strongest section not scanned",
+                       "The Rack can find the highest-energy 15 and 30 "
+                       "second windows and snap them to the downbeat.",
+                       None, "Run Find hooks in the Rack")
+    on_grid = grid_confidence is not None and grid_confidence >= 0.25
+    parts = []
+    if hook_30s is not None:
+        parts.append("30 seconds from %s" % _mmss(hook_30s))
+    if hook_15s is not None:
+        parts.append("15 from %s" % _mmss(hook_15s))
+    return _ruling(
+        "hook", "ok", "Strongest section: " + ", ".join(parts),
+        ("Snapped to the downbeat, so a clip cut here starts on the beat."
+         if on_grid else
+         "Energy-based only — no clear beat grid to snap to, so check the "
+         "start by ear before cutting."),
+        "Highest sustained energy window%s"
+        % (", aligned to the measured beat grid" if on_grid else ""),
+        None)
+
+
 def assess(analysis):
     """All rulings for one measured track.
 
@@ -266,6 +300,8 @@ def assess(analysis):
         range_ruling(a.get("lra")),
         tempo_key_ruling(a.get("bpm"), a.get("bpm_confidence"),
                          a.get("key"), a.get("key_fit")),
+        hook_ruling(a.get("hook_30s"), a.get("hook_15s"),
+                    a.get("first_beat"), a.get("grid_confidence")),
     ]
     problems = [r for r in rulings if r["level"] == "problem"]
     watch = [r for r in rulings if r["level"] == "watch"]

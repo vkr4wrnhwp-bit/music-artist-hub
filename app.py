@@ -4224,6 +4224,10 @@ def create_app():
             "key": str(body.get("key") or "")[:40], "key_fit": num("key_fit"),
             "duration": num("duration"), "sample_rate": num("sample_rate"),
             "channels": num("channels"),
+            "hook_15s": num("hook_15s"), "hook_30s": num("hook_30s"),
+            "first_beat": num("first_beat"),
+            "bar_seconds": num("bar_seconds"),
+            "grid_confidence": num("grid_confidence"),
             "engine": str(body.get("engine") or "rack")[:60],
         }
         if row["integrated"] is None and row["true_peak"] is None:

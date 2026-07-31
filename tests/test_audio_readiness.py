@@ -248,3 +248,51 @@ def test_the_hidden_peak_gap_is_stated_when_known():
 def test_no_hidden_gap_claimed_when_sample_peak_is_unknown():
     r = ar.true_peak_ruling(-0.03)
     assert "peak meter reads" not in r["detail"]
+
+
+# --- where the strongest section starts ---------------------------------
+
+def test_the_hook_is_reported_as_a_timestamp():
+    # The real track: 15s window at 34.9s, 30s window at 64.2s.
+    r = ar.hook_ruling(64.2, 34.9, 0.07, 1.0)
+    assert "1:04" in r["headline"] and "0:34" in r["headline"]
+
+
+def test_a_snapped_hook_says_it_is_on_the_beat():
+    r = ar.hook_ruling(64.2, 34.9, 0.07, 1.0)
+    assert "downbeat" in r["detail"]
+
+
+def test_an_unsnapped_hook_says_to_check_by_ear():
+    """With no confident grid the window is energy-only, and saying so
+    matters - a clip that starts mid-beat reads as a mistake."""
+    r = ar.hook_ruling(64.2, None, None, 0.1)
+    assert "by ear" in r["detail"]
+    assert "downbeat" not in r["detail"]
+
+
+def test_no_scan_is_its_own_state():
+    r = ar.hook_ruling(None, None, None, None)
+    assert r["level"] == "unknown"
+    assert "Rack" in (r["action"] or "")
+
+
+def test_an_unscanned_hook_does_not_fail_a_clean_master():
+    """The hook is information, not a quality gate. A master with a safe
+    peak and sensible loudness is still ok with no scan."""
+    a = ar.assess({"measured_at": "x", "integrated": -14.0, "lra": 5.0,
+                   "true_peak": -1.3})
+    assert a["verdict"] == "ok"
+
+
+def test_the_migration_covers_databases_that_predate_the_columns():
+    """track_analysis shipped before these columns existed, so an install
+    from earlier today has the table without them and CREATE TABLE IF NOT
+    EXISTS will not help."""
+    import inspect
+    import db as store
+    src = inspect.getsource(store.init_db)
+    assert "ALTER TABLE track_analysis ADD COLUMN" in src
+    for col in ("hook_15s", "hook_30s", "first_beat", "bar_seconds",
+                "grid_confidence"):
+        assert col in src, col
