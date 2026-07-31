@@ -18,6 +18,7 @@ SOURCES = [
     ("campaigns", "Campaign history + performance"),
     ("fans", "Fan counts + intent levels"),
     ("lyrics", "Lyrics uploaded to rollouts"),
+    ("rack", "Rack measurements (loudness, true peak, tempo, key)"),
 ]
 SOURCE_KEYS = {k for k, _ in SOURCES}
 
@@ -37,8 +38,29 @@ def gather_context(user_id, enabled):
     """Collect facts from approved sources only. Returns (facts, used)."""
     facts = {"name": "", "tagline": "", "bio": "", "genres": [], "press": [],
              "tracks": 0, "campaigns": 0, "visits": 0, "clicks": 0,
-             "fans": 0, "hot_fans": 0, "lyric": "", "top_campaign": ""}
+             "fans": 0, "hot_fans": 0, "lyric": "", "top_campaign": "",
+             "master": "", "tempo_key": ""}
     used = []
+
+    # What the Rack measured. The Twin has been reasoning about an artist's
+    # catalogue, audience and campaigns while knowing nothing about how the
+    # music itself is actually built - the one thing the app measures to a
+    # published standard. Facts only, and only where the measurement is
+    # trustworthy: an unconfident tempo is left out rather than quoted.
+    if "rack" in enabled:
+        import audio_readiness
+        row = store.latest_track_analysis(user_id)
+        if row:
+            a = audio_readiness.assess(row)
+            facts["master"] = a["summary"]
+            bits = []
+            conf = row.get("bpm_confidence")
+            if row.get("bpm") and (conf is None or conf >= 0.5):
+                bits.append("%.0f BPM" % row["bpm"])
+            if row.get("key"):
+                bits.append("key of %s" % row["key"])
+            facts["tempo_key"] = ", ".join(bits)
+            used.append("rack")
     user = store.get_user(user_id)
     facts["name"] = user["name"] if user else "the artist"
     if "epk" in enabled:

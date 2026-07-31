@@ -25,6 +25,7 @@ import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
 import convert_engine
+import audio_readiness
 import firstrun
 
 def _hours_float(value, default=0.0):
@@ -4163,6 +4164,51 @@ def create_app():
         if note:
             resp.headers["X-Convert-Note"] = note
         return resp
+
+    @app.route("/rack/analysis", methods=["POST"])
+    def rack_analysis():
+        """The Rack reporting what it measured.
+
+        Everything the meter computes has, until now, died with the tab.
+        This is the arrow that was missing from the loop: the numbers
+        persist, so Release Readiness can speak about the record rather
+        than only about the paperwork around it.
+
+        Nothing here is computed server-side - these are the browser's own
+        measurements, and the only job is to store them faithfully.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        body = request.get_json(silent=True) or {}
+
+        def num(key):
+            v = body.get(key)
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                return None
+            # Reject anything that is not a real measurement.
+            return f if f == f and abs(f) != float("inf") else None
+
+        row = {
+            "track_id": str(body.get("track_id") or "")[:80],
+            "filename": str(body.get("filename") or "")[:200],
+            "integrated": num("integrated"), "lra": num("lra"),
+            "true_peak": num("true_peak"), "sample_peak": num("sample_peak"),
+            "short_term_max": num("short_term_max"),
+            "momentary_max": num("momentary_max"),
+            "bpm": num("bpm"), "bpm_confidence": num("bpm_confidence"),
+            "key": str(body.get("key") or "")[:40], "key_fit": num("key_fit"),
+            "duration": num("duration"), "sample_rate": num("sample_rate"),
+            "channels": num("channels"),
+            "engine": str(body.get("engine") or "rack")[:60],
+        }
+        if row["integrated"] is None and row["true_peak"] is None:
+            return jsonify({"error": "no measurements in this report"}), 400
+        store.save_track_analysis(user["id"], row)
+        saved = store.latest_track_analysis(user["id"])
+        return jsonify({"ok": True, "assessment": audio_readiness.assess(saved)})
 
     @app.route("/rack/save", methods=["POST"])
     def rack_save():

@@ -7,6 +7,7 @@ traffic. No simulated momentum: if an artist hasn't done the work, the
 score says so, and every weak category names the fix.
 """
 
+import audio_readiness
 import db as store
 import links_engine
 import links_store as mls
@@ -51,9 +52,18 @@ def calculate(user_id):
     epk_assets = store.get_epk_assets(user_id)
     covers = sum(1 for c in campaigns if c.get("cover_url"))
 
+    # What the Rack measured about the actual record. Every other input to
+    # this score is paperwork - link setup, artwork counts, ISRC presence -
+    # so without this the score could call a release ready while its master
+    # clipped on every platform it was headed for.
+    analysis = store.latest_track_analysis(user_id)
+    audio_pts, audio_max, audio_note = audio_readiness.readiness_points(analysis)
+
     categories = [
         ("Release Readiness", _pts(best_score, 100),
          "Best campaign scores %d/100 — run the Clean Release checklist." % best_score),
+        # The only category that listens to the audio.
+        ("Master Quality", audio_pts * 10 // max(audio_max, 1), audio_note),
         ("Smart Link Setup", _pts(sum(1 for c in live
                                       if len(mls.get_destinations(c["id"])) >= 3), 1),
          "Publish a campaign with at least three streaming destinations."),

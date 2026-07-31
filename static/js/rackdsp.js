@@ -3644,6 +3644,46 @@
     }
     ldnPaintGraph(res);
     ldnPaintTargets(res);
+    reportAnalysis(res);
+  }
+
+  /* Send the measurement up so it outlives the tab.
+
+     Everything this meter computes used to vanish when the page closed,
+     which meant Release Readiness could call a record ready while its
+     master clipped on every platform - the score was built from campaign
+     setup and artwork counts, and never once looked at the audio.
+
+     Nothing is computed here that is not already on screen. If the post
+     fails the Rack carries on; a meter that stops working because a
+     network call failed would be a worse trade than losing the history. */
+  var lastReported = null;
+  function reportAnalysis(res) {
+    if (!res || res.integrated === null || res.integrated === undefined) { return; }
+    var tk = tkFound || {};
+    var payload = {
+      filename: loadedName || "",
+      integrated: res.integrated, lra: res.range,
+      true_peak: res.truePeak, sample_peak: res.samplePeak,
+      short_term_max: res.shortTermMax, momentary_max: res.momentaryMax,
+      bpm: tk.bpm ? tk.bpm.bpm : null,
+      bpm_confidence: tk.bpm ? tk.bpm.confidence : null,
+      key: tk.key ? tk.key.key : "",
+      key_fit: tk.key ? tk.key.score : null,
+      duration: buffer ? buffer.duration : null,
+      sample_rate: buffer ? buffer.sampleRate : null,
+      channels: buffer ? buffer.numberOfChannels : null,
+      engine: "rack/loudness.js BS.1770-4"
+    };
+    // Same file, same numbers - no need to say it twice.
+    var sig = JSON.stringify(payload);
+    if (sig === lastReported) { return; }
+    lastReported = sig;
+    fetch("/rack/analysis", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: sig
+    }).catch(function () { lastReported = null; });
   }
 
   function ldnBuffer() {

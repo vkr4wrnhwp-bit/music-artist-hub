@@ -275,6 +275,27 @@ def init_db():
                 used INTEGER NOT NULL DEFAULT 0,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS track_analysis (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                track_id TEXT NOT NULL DEFAULT '',
+                filename TEXT NOT NULL DEFAULT '',
+                integrated REAL,
+                lra REAL,
+                true_peak REAL,
+                sample_peak REAL,
+                short_term_max REAL,
+                momentary_max REAL,
+                bpm REAL,
+                bpm_confidence REAL,
+                key TEXT NOT NULL DEFAULT '',
+                key_fit REAL,
+                duration REAL,
+                sample_rate INTEGER,
+                channels INTEGER,
+                engine TEXT NOT NULL DEFAULT '',
+                measured_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS os_tracks (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1252,6 +1273,50 @@ def save_rack_preset(user_id, data):
             "INSERT INTO rack_presets (user_id, data, updated) VALUES (?,?,?) "
             "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated",
             (user_id, json.dumps(data), _now()))
+
+
+# --- what the Rack measured -------------------------------------------
+# The Rack measures a master properly and then the tab closes. These two
+# functions are the difference between a meter and a memory: the numbers
+# persist, so Release Readiness can speak for the audio instead of only
+# for the paperwork around it.
+
+def save_track_analysis(user_id, row):
+    """Store one measurement pass. Latest wins per (user, filename)."""
+    import uuid as _uuid
+    keep = ("track_id", "filename", "integrated", "lra", "true_peak",
+            "sample_peak", "short_term_max", "momentary_max", "bpm",
+            "bpm_confidence", "key", "key_fit", "duration", "sample_rate",
+            "channels", "engine")
+    vals = {k: row.get(k) for k in keep}
+    vals["filename"] = (vals.get("filename") or "")[:200]
+    vals["key"] = (vals.get("key") or "")[:40]
+    vals["track_id"] = (vals.get("track_id") or "")[:80]
+    vals["engine"] = (vals.get("engine") or "")[:60]
+    with get_db() as db:
+        db.execute(
+            "DELETE FROM track_analysis WHERE user_id = ? AND filename = ?",
+            (user_id, vals["filename"]))
+        db.execute(
+            "INSERT INTO track_analysis (id, user_id, measured_at, " +
+            ", ".join(keep) + ") VALUES (?,?,?," +
+            ",".join("?" * len(keep)) + ")",
+            (_uuid.uuid4().hex, user_id, _now()) +
+            tuple(vals[k] for k in keep))
+
+
+def get_track_analyses(user_id, limit=50):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM track_analysis WHERE user_id = ? "
+            "ORDER BY measured_at DESC LIMIT ?", (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def latest_track_analysis(user_id):
+    """The most recent measurement, or None if the Rack has never run."""
+    rows = get_track_analyses(user_id, limit=1)
+    return rows[0] if rows else None
 
 
 def save_light_show(user_id, data):
