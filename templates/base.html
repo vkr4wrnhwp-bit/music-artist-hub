@@ -660,7 +660,17 @@
       const step = steps[i];
       const bar = document.getElementById("tour-bar");
       bar.classList.remove("hidden");
-      document.body.style.paddingBottom = "96px";
+      /* The bar is fixed to the bottom, so the page needs scroll room
+         equal to its height. 96px was a guess made at desk width; on a
+         phone the bar wraps to 240-289px, and the difference was page
+         content nobody could scroll to - permanently, for as long as the
+         tour was running. Measure it instead, and again when the width
+         changes, because the wrap count changes with it. */
+      var padForBar = function () {
+        document.body.style.paddingBottom = bar.offsetHeight + "px";
+      };
+      padForBar();
+      window.addEventListener("resize", padForBar);
       document.getElementById("tour-step-label").textContent = "Guided tour · Step " + (i + 1) + " of " + steps.length;
       document.getElementById("tour-title").textContent = step.title;
       document.getElementById("tour-tip").innerHTML = step.tip;
