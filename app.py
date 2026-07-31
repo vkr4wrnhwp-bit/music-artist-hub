@@ -4698,7 +4698,8 @@ def create_app():
         strategist = artist_os.twin_report(
             os_tracks_list, osctx,
             store.list_pulse_snapshots(user["id"], limit=30),
-            artist_os.action_queue([(t, osctx) for t in os_tracks_list]))
+            artist_os.action_queue([(t, osctx) for t in os_tracks_list]),
+            analysis=store.latest_track_analysis(user["id"]))
         # Artist Signal Profile: priorities the artist set on the homepage
         # EQ. Selected, not measured - the template labels it that way.
         signal = store.get_artist_signal_profile(user["id"])

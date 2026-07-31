@@ -149,3 +149,54 @@ def test_a_clean_master_scores_full():
         {"measured_at": "x", "integrated": -14.0, "lra": 5.0,
          "true_peak": -1.2})
     assert pts == mx
+
+
+# --- the Twin's master read ---------------------------------------------
+
+def test_the_twin_says_what_unlocks_the_master_read():
+    import artist_os
+    secs = artist_os.twin_report([], {}, [], [], analysis=None)
+    read = [s for s in secs if s["title"] == "Master read"]
+    assert read and read[0]["state"] == "awaiting"
+    # It must name what to do, not just sit empty.
+    assert "Rack" in read[0]["lines"][0]
+
+
+def test_the_twin_reports_a_real_problem_on_the_master():
+    import artist_os
+    secs = artist_os.twin_report([], {}, [], [], analysis=REAL)
+    read = [s for s in secs if s["title"] == "Master read"][0]
+    assert read["state"] == "action"
+    assert "dBTP" in " ".join(read["lines"])
+
+
+def test_a_clean_master_reads_as_ready():
+    import artist_os
+    secs = artist_os.twin_report(
+        [], {}, [], [], analysis={"measured_at": "x", "integrated": -14.0,
+                                  "lra": 5.0, "true_peak": -1.3})
+    read = [s for s in secs if s["title"] == "Master read"][0]
+    assert read["state"] == "ready"
+
+
+def test_the_planned_not_faked_placeholder_is_gone():
+    """It said audio analysis was planned. It shipped, so the app should
+    stop apologising for a capability it has."""
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = io.open(os.path.join(here, "artist_os.py"), encoding="utf8").read()
+    assert "Hook / structure notes" not in src
+
+
+# --- money cases are worked from the top down ---------------------------
+
+def test_recovery_cases_sort_by_value_within_status():
+    """The list is worked from the top down, so a $4 case must not sit
+    above a $4,000 one just because it was opened more recently."""
+    import inspect
+    import db as store
+    src = inspect.getsource(store.list_recovery_cases)
+    assert "estimated_amount DESC" in src
+    # Status still leads: an open $4 case beats a closed $4,000 one.
+    assert src.index("CASE status") < src.index("estimated_amount DESC")

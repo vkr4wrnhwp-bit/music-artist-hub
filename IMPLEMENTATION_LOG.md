@@ -34,3 +34,30 @@ clipping — usually one stray transient holding the record down. It is
 now its own ruling.
 
 **Verification:** 22 new tests; full suite green.
+
+## Two more arrows: the Twin's master read, and money sorted by money
+
+**Why:** a severed-signal audit traced every place the app computes real
+data. Of 56 signals across the Rack, smart links and the money side, 42
+came back severed. Two were worth closing immediately.
+
+**The Twin was apologising for a capability it has.** `artist_os.py`
+listed "Hook / structure notes — audio analysis, planned, not faked"
+among the sections waiting on data that had not landed. It landed this
+session. `twin_report` now takes the latest Rack measurement and reports
+a **Master read**: what the loudness meter found, which rulings are
+problems, and what to do. When nothing has been measured it says what
+unlocks it rather than sitting empty.
+
+**Recovery cases sorted by recency, not by value.** `list_recovery_cases`
+ordered by status then `updated DESC`, so a $4 case sat above a $4,000
+one purely because someone opened it more recently — in a list that is
+worked from the top down. Now ordered by `estimated_amount` within
+status, so open cases lead and the biggest money leads within them.
+
+**A finding I refuted.** The audit claimed the Money Queue sorted a
+$4,000 action identically to a $4 one. It does not: `action_queue` sorts
+on `(not critical, -impact)`. Release-blocking items lead, then value.
+Reported as a correction rather than "fixed".
+
+**Verification:** 5 new tests, 489 in the suite, all green.

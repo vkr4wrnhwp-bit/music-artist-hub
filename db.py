@@ -2261,8 +2261,13 @@ def update_recovery_case(user_id, case_id, fields):
 def list_recovery_cases(user_id):
     with get_db() as db:
         rows = db.execute(
+            # Open first, then by what the case is actually worth. Ordering
+            # by last-touched put a $4 case above a $4,000 one purely
+            # because someone had opened it more recently, and this list is
+            # worked from the top down.
             "SELECT * FROM recovery_cases WHERE user_id = ? ORDER BY"
-            " CASE status WHEN 'open' THEN 0 WHEN 'submitted' THEN 1 ELSE 2 END, updated DESC",
+            " CASE status WHEN 'open' THEN 0 WHEN 'submitted' THEN 1 ELSE 2 END,"
+            " estimated_amount DESC, updated DESC",
             (user_id,)).fetchall()
     return [dict(r) for r in rows]
 

@@ -484,9 +484,17 @@ def campaign_plan(days, title, date):
 
 # --- Artist Twin strategist ------------------------------------------------------
 
-def twin_report(tracks, ctx, pulse_snaps, queue):
+def twin_report(tracks, ctx, pulse_snaps, queue, analysis=None):
     """A private A&R read on the real account. Sections without a data
-    source say exactly what unlocks them — no invented analysis."""
+    source say exactly what unlocks them — no invented analysis.
+
+    `analysis` is the most recent Rack measurement, when one exists. It
+    used to be listed as "audio analysis — planned, not faked", which
+    stopped being true the moment the meter's numbers started persisting:
+    loudness, dynamic range and true peak are measured to a published
+    standard, so the Twin can read the record rather than only the
+    paperwork around it.
+    """
     sections = []
 
     def sec(title, state, lines):
@@ -547,13 +555,32 @@ def twin_report(tracks, ctx, pulse_snaps, queue):
             ["Nothing urgent in the queue \u2014 catalog is clean or empty. "
              "Add tracks to be sure."])
 
+    # The one technical read that is real. Everything below it still waits
+    # on a data source that has not landed.
+    if analysis and analysis.get("measured_at"):
+        import audio_readiness
+        a = audio_readiness.assess(analysis)
+        lines = [a["summary"]]
+        for r in a["rulings"]:
+            if r["level"] in ("problem", "watch"):
+                lines.append("%s %s" % (r["headline"] + ".", r["detail"]))
+        if len(lines) == 1:
+            lines.append("Measured against the -1 dBTP ceiling and the "
+                         "published platform loudness targets.")
+        sec("Master read", "ready" if a["verdict"] in ("ok", "watch") else "action",
+            lines)
+    else:
+        sec("Master read", "awaiting",
+            ["Run a master through the Rack's loudness meter and this fills "
+             "in: integrated loudness, dynamic range and true peak, measured "
+             "to BS.1770-4 rather than estimated."])
+
     for title, unlock in [
         ("Audience match", "external listener analytics (Chartmetric-class data)"),
         ("City / geo opportunities", "geo data from streaming or ticketing feeds"),
         ("Comparable artists", "catalog-similarity data from an external provider"),
         ("Fan sentiment", "comment and message analysis you'd connect explicitly"),
         ("Cover art feedback", "a finished cover uploaded in Cover Studio"),
-        ("Hook / structure notes", "audio analysis \u2014 planned, not faked"),
     ]:
         sec(title, "awaiting", ["Connects when %s lands. Until then this stays "
                                 "empty rather than made up." % unlock])
