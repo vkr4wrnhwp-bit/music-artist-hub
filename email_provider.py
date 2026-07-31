@@ -101,6 +101,65 @@ def download_attachment(download_url):
     return _http_get(download_url)
 
 
+def using_shared_test_sender():
+    """True while EMAIL_FROM is unset. Resend's onboarding@resend.dev only
+    delivers to the account owner's own inbox, so every send LOOKS like it
+    worked and nobody else ever receives one. Worth naming loudly."""
+    return "resend.dev" in sender()
+
+
+def _api_get(path):
+    """Read-only call to the Resend API. Returns (data, error)."""
+    if not configured():
+        return None, "RESEND_API_KEY not set"
+    req = urllib.request.Request(
+        "https://api.resend.com" + path,
+        headers={"Authorization": "Bearer " + os.environ["RESEND_API_KEY"],
+                 "Accept": "application/json",
+                 "User-Agent": "StreetBanker/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            raw = resp.read()
+            return (json.loads(raw.decode("utf-8")) if raw else {}), None
+    except Exception as exc:
+        detail = str(exc)
+        if hasattr(exc, "read"):
+            try:
+                detail += " " + exc.read().decode("utf-8", "replace")[:200]
+            except Exception:
+                pass
+        return None, detail
+
+
+def domain_status():
+    """Every domain on the Resend account with the DNS records each still
+    needs. Read-only: this asks what is there, it changes nothing.
+
+    The point is to hand over the exact records to paste rather than send
+    someone hunting through a dashboard for them.
+    """
+    listing, err = _api_get("/domains")
+    if err:
+        return {"error": err, "domains": []}
+    out = []
+    for d in (listing.get("data") or []):
+        detail, derr = _api_get("/domains/" + d.get("id", ""))
+        records = []
+        for r in ((detail or {}).get("records") or []):
+            records.append({
+                "type": r.get("type"), "name": r.get("name"),
+                "value": r.get("value"), "ttl": r.get("ttl"),
+                "priority": r.get("priority"),
+                "status": r.get("status"), "purpose": r.get("record"),
+            })
+        out.append({
+            "id": d.get("id"), "name": d.get("name"),
+            "status": d.get("status"), "region": d.get("region"),
+            "records": records, "record_error": derr,
+        })
+    return {"error": None, "domains": out}
+
+
 def release_email_html(campaign_title, artist_name, listen_url, cover_url=""):
     """Branded release-day note. Plain, readable, one clear button."""
     cover = ('<img src="%s" alt="" width="120" style="border-radius:12px;display:block;margin:0 auto 16px;">'

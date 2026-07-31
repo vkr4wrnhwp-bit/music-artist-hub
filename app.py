@@ -879,6 +879,28 @@ def create_app():
                     pass
                 store.resolve_spotify_presave(p["id"], "retry", detail)
 
+    @app.route("/mail/diag")
+    def mail_diag():
+        """Why aren't emails reaching anyone? Reports the SHAPE of the mail
+        setup and, read-only, what Resend says about the account's domains -
+        including the exact DNS records each still needs, so nobody has to
+        go hunting for them. Requires a signed-in account; no secret ever
+        leaves this endpoint."""
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        info = {
+            "configured": emailer.configured(),
+            "sender": emailer.sender(),
+            "using_shared_test_sender": emailer.using_shared_test_sender(),
+            "email_from_set": bool(os.environ.get("EMAIL_FROM")),
+            "inbound_domain": os.environ.get("RESEND_INBOUND_DOMAIN", ""),
+            "webhook_secret_set": bool(os.environ.get("RESEND_WEBHOOK_SECRET")),
+        }
+        if emailer.configured() and request.args.get("domains") == "1":
+            info["resend"] = emailer.domain_status()
+        return jsonify(info)
+
     @app.route("/presave/diag")
     def presave_diag():
         # Owner-only config check: reports WHICH credentials the running
