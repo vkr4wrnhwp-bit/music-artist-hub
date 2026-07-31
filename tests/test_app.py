@@ -4065,6 +4065,18 @@ def test_rack_page_and_presets():
     assert "Krumhansl-Schmuckler" in page and "WSOLA" in page
     assert "no browser exposes an MP3 or FLAC encoder" in page
     assert "TPDF dither" in page
+    # SB-15 Loudness, and the normalise option it feeds in SB-12.
+    assert 'id="sb15"' in page and "LDN-1" in page and "loudness.js?v=" in page
+    assert 'id="rk-ldn-go"' in page and 'id="rk-ldn-graph"' in page
+    assert 'id="rk-ldn-targets"' in page and 'id="rk-ldn-i"' in page
+    assert 'id="rk-cnv-lufs"' in page          # normalise on convert
+    for legend in ("Measure", "Integrated", "True peak", "Range", "Loudness"):
+        assert '<span class="lg">%s</span>' % legend in page, legend
+    # The claims the panel makes about its own method stay on the faceplate.
+    assert "ITU-R BS.1770" in page
+    assert "EBU Tech 3341" in page and "EBU 3342" in page
+    assert "K-weighting derived" in page       # not the printed 48 kHz table
+    assert "Turning a master down is lossless" in page
     # SB-14 Valve Bank: six sockets, each a separate stage.
     assert 'id="sb14"' in page and "VLV-6" in page and "tubes.js?v=" in page
     assert page.count('class="vlv"') == 6
@@ -5875,3 +5887,38 @@ def test_hours_desk_needs_an_account():
         r = anon.post(path, data={})
         assert r.status_code in (302, 401), path
 
+
+
+def test_loudness_targets_are_published_not_verified():
+    """The platform targets are figures those services publish, not
+    something this app checks with them, and they move. Saying so matters:
+    quoting a number as fact that nobody here verified is the kind of small
+    dishonesty that costs someone a master."""
+    import re
+
+    js = open("static/js/loudness.js", encoding="utf8").read()
+    tpl = open("templates/rack.html", encoding="utf8").read()
+
+    # Every target carries a loudness figure AND a true-peak ceiling; one
+    # without a ceiling would invite a normalise that clips.
+    targets = re.findall(r'\{key: "(\w+)", name: "([^"]+)", lufs: (-?\d+), '
+                         r'ceiling: (-?\d+)\}', js)
+    assert len(targets) >= 6, targets
+    for key, name, lufs, ceiling in targets:
+        assert -30 <= int(lufs) <= -8, (name, lufs)
+        assert -3 <= int(ceiling) <= 0, (name, ceiling)
+
+    assert "published" in js.lower()
+    # The page must not imply the platforms were consulted.
+    assert "not something this app checks with them" in tpl
+    assert "they do move" in tpl
+
+
+def test_loudness_module_stays_node_testable():
+    """loudness.js must stay free of DOM and Web Audio, or the compliance
+    checks in tests/js can no longer run it - and those checks are the only
+    thing standing between this and a plausible-looking wrong number."""
+    js = open("static/js/loudness.js", encoding="utf8").read()
+    for banned in ("document.", "AudioContext", "fetch(", "XMLHttpRequest"):
+        assert banned not in js, banned
+    assert "module.exports" in js

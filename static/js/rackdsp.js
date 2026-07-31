@@ -1048,7 +1048,7 @@
         playBtn.disabled = abBtn.disabled = exportBtn.disabled = false;
         var rsBtn = document.getElementById("rk-roughsplit");
         if (rsBtn && window.SBRoughSplit) { rsBtn.disabled = false; }
-        cnvPlanText(); cnvShowPeak(); tkEnable();
+        cnvPlanText(); cnvShowPeak(); tkEnable(); ldnEnable();
         var ssBtn = document.getElementById("rk-studiosplit");
         if (ssBtn) { ssBtn.disabled = false; }
         renderWave();
@@ -2621,6 +2621,68 @@
     });
   })();
 
+  (function buildLufsTargets() {
+    var sel = document.getElementById("rk-cnv-lufs");
+    if (!sel || !window.SBLoudness) { return; }
+    window.SBLoudness.TARGETS.forEach(function (t) {
+      var o = document.createElement("option");
+      o.value = t.key;
+      o.textContent = "Normalise to " + t.name + " (" + t.lufs + " LUFS)";
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () {
+      var note = document.getElementById("rk-cnv-lufsnote");
+      if (!note) { return; }
+      var t = window.SBLoudness.TARGETS.filter(function (x) {
+        return x.key === sel.value;
+      })[0];
+      note.textContent = t
+        ? "Ceiling " + t.ceiling + " dBTP — measured after resampling."
+        : "";
+    });
+  })();
+
+  /* Apply a single clean gain so the output lands on a target. Measured on
+     the ACTUAL output - after resampling and channel mapping - because
+     that is the file being delivered, and its loudness is not necessarily
+     the source's. If the gain would push the true peak past the ceiling it
+     is capped so the peak lands exactly on it, and the caller is told how
+     far short that left the loudness. No limiting: quietly squashing
+     someone's master to hit a number is not normalisation. */
+  function cnvNormalise(chans, rate, key) {
+    var LD = window.SBLoudness;
+    var target = LD.TARGETS.filter(function (t) { return t.key === key; })[0];
+    if (!target) { return null; }
+    var res = LD.analyse(chans, rate);
+    if (res.integrated === null) {
+      return {applied: 0, note: "too short to measure — level left alone"};
+    }
+    var wanted = target.lufs - res.integrated;
+    var applied = wanted;
+    var capped = false;
+    if (res.truePeak !== null && res.truePeak + wanted > target.ceiling) {
+      applied = target.ceiling - res.truePeak;
+      capped = true;
+    }
+    var gain = Math.pow(10, applied / 20);
+    if (gain !== 1) {
+      for (var c = 0; c < chans.length; c++) {
+        var d = chans[c];
+        for (var i = 0; i < d.length; i++) { d[i] *= gain; }
+      }
+    }
+    var note = (applied >= 0 ? "+" : "") + applied.toFixed(1) + " dB to reach "
+      + target.name + " (" + res.integrated.toFixed(1) + " LUFS in";
+    if (capped) {
+      note += ", stopped " + Math.abs(wanted - applied).toFixed(1)
+        + " dB short at the " + target.ceiling + " dBTP ceiling)";
+    } else {
+      note += ", " + (res.integrated + applied).toFixed(1) + " LUFS out)";
+    }
+    return {applied: applied, capped: capped, note: note,
+            before: res.integrated, truePeak: res.truePeak};
+  }
+
   ["rk-cnvsrc", "rk-cnvfmt", "rk-cnvbits", "rk-cnvrate", "rk-cnvch"]
     .forEach(function (name) {
       document.querySelectorAll("input[name=" + name + "]")
@@ -2644,18 +2706,25 @@
       .then(function (out) {
         var chans = [];
         for (var c = 0; c < out.numberOfChannels; c++) {
-          chans.push(out.getChannelData(c));
+          // Copy: normalising writes in place, and the rendered buffer is
+          // not ours to modify.
+          chans.push(Float32Array.from(out.getChannelData(c)));
         }
+        var lufsKey = (document.getElementById("rk-cnv-lufs") || {}).value;
+        var norm = lufsKey && window.SBLoudness
+          ? cnvNormalise(chans, rate, lufsKey) : null;
         var spec = window.SBAudioConv.FORMATS[fmt];
         var ab = window.SBAudioConv.encode(fmt, chans, rate, bits,
                                            {dither: !!(dither && dither.checked)});
         var a = document.createElement("a");
         a.download = (loadedName || "converted") + "-" + (rate / 1000)
-          + "k-" + bits + "bit." + spec.ext;
+          + "k-" + bits + "bit"
+          + (norm && norm.applied ? "-" + lufsKey : "") + "." + spec.ext;
         a.href = URL.createObjectURL(new Blob([ab], {type: spec.mime}));
         a.click();
         cnvStatus.textContent = "Converted — " + a.download + " ("
-          + fmtBytes(ab.byteLength) + ") downloaded.";
+          + fmtBytes(ab.byteLength) + ") downloaded."
+          + (norm ? "  Loudness: " + norm.note + "." : "");
         cnvRunning = false;
         cnvPlanText();
       })
@@ -3111,13 +3180,240 @@
     });
   }
 
+  // ---------- SB-15 Loudness: the number platforms normalise by ---------
+  var ldnGo = document.getElementById("rk-ldn-go");
+  var ldnLamp = document.getElementById("rk-ldn-lamp");
+  var ldnStatus = document.getElementById("rk-ldn-status");
+  var ldnWrap = document.getElementById("rk-ldn-wrap");
+  var ldnFill = document.getElementById("rk-ldn-fill");
+  var ldnBusy = false;
+  var ldnLast = null;
+
+  function ldnSource() {
+    return buffer || (stems.length ? stems[0].buffer : null);
+  }
+
+  function ldnEnable() {
+    if (!ldnGo) { return; }
+    var have = !!ldnSource() || stems.length > 0;
+    ldnGo.disabled = ldnBusy || !have;
+    var raw = document.getElementById("ld-raw");
+    var master = document.getElementById("ld-master");
+    if (raw && master) {
+      // "File" means a decoded file. With only stems in the deck there is
+      // none, so that option goes away rather than failing at the click.
+      raw.disabled = !buffer;
+      raw.nextElementSibling.style.opacity = buffer ? "1" : "0.45";
+      if (!buffer) { master.checked = true; }
+    }
+    var src = document.getElementById("rk-ldn-src");
+    if (src) {
+      var b = ldnSource();
+      src.textContent = b
+        ? (buffer ? "File" : "Stem 1") + " · " + mmss(b.duration)
+          + " · " + (b.sampleRate / 1000) + " kHz"
+        : "No source";
+    }
+  }
+
+  /* The short-term curve, drawn from the real 3-second blocks. The scale
+     is pinned to the range the reading actually occupies, so a flat master
+     does not get stretched into looking dynamic. */
+  function ldnPaintGraph(res) {
+    var svg = document.getElementById("rk-ldn-graph");
+    if (!svg) { return; }
+    var W = 600, H = 90;
+    svg.innerHTML = "";
+    svg.appendChild(svgEl("rect", {x: 0, y: 0, width: W, height: H, rx: 2,
+                                   fill: "#0b0a08"}));
+    var vals = (res && res.shortTerm || []).filter(function (v) {
+      return isFinite(v);
+    });
+    if (vals.length < 2) {
+      var hint = svgEl("text", {x: W / 2, y: H / 2 + 3, "text-anchor": "middle",
+                                fill: "#4c4536", "font-size": "10",
+                                "font-weight": "800", "letter-spacing": "2",
+                                "font-family": "Arial Narrow, Arial, sans-serif"});
+      hint.textContent = res ? "TOO SHORT FOR A SHORT-TERM CURVE"
+                             : "NOT MEASURED YET";
+      svg.appendChild(hint);
+      return;
+    }
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    // Always show at least 6 LU so a steady master is not magnified.
+    if (hi - lo < 6) { var mid = (hi + lo) / 2; lo = mid - 3; hi = mid + 3; }
+    lo -= 1; hi += 1;
+    function y(v) { return H - 6 - (v - lo) / (hi - lo) * (H - 14); }
+
+    // The integrated value as a reference line, labelled.
+    if (res.integrated !== null && res.integrated > lo && res.integrated < hi) {
+      var iy = y(res.integrated);
+      svg.appendChild(svgEl("path", {d: "M0 " + iy.toFixed(1) + "H" + W,
+                                     stroke: "#8a6d1f", "stroke-width": 1,
+                                     "stroke-dasharray": "4 4"}));
+      var lab = svgEl("text", {x: 4, y: iy - 3, fill: "#8a6d1f",
+                               "font-size": "9", "font-weight": "800",
+                               "font-family": "Arial Narrow, Arial, sans-serif"});
+      lab.textContent = "I " + res.integrated.toFixed(1);
+      svg.appendChild(lab);
+    }
+    var d = "";
+    vals.forEach(function (v, i) {
+      var x = (i / (vals.length - 1)) * W;
+      d += (i ? "L" : "M") + x.toFixed(1) + " " + y(v).toFixed(1);
+    });
+    svg.appendChild(svgEl("path", {d: d, fill: "none", stroke: "#c9a24a",
+                                   "stroke-width": 1.6}));
+    [lo + 1, hi - 1].forEach(function (v) {
+      var t = svgEl("text", {x: W - 3, y: y(v) + (v === lo + 1 ? -3 : 8),
+                             "text-anchor": "end", fill: "#4c4536",
+                             "font-size": "8", "font-weight": "800",
+                             "font-family": "Arial Narrow, Arial, sans-serif"});
+      t.textContent = v.toFixed(0);
+      svg.appendChild(t);
+    });
+  }
+
+  /* One row per published target: how far off, which way the platform will
+     move it, and whether raising it would clip. */
+  function ldnPaintTargets(res) {
+    var wrap = document.getElementById("rk-ldn-targets");
+    if (!wrap) { return; }
+    wrap.innerHTML = "";
+    if (!res || res.integrated === null) {
+      var p = document.createElement("p");
+      p.className = "note";
+      p.textContent = "Measure a track and every target fills in with the "
+        + "exact gain it would take to hit it.";
+      wrap.appendChild(p);
+      return;
+    }
+    res.targets.forEach(function (t) {
+      var row = document.createElement("div");
+      row.className = "ldn-row";
+      var name = document.createElement("span");
+      name.className = "ldn-name";
+      name.textContent = t.name;
+      var tgt = document.createElement("span");
+      tgt.className = "val ldn-t";
+      tgt.textContent = t.lufs + " LUFS";
+      var delta = document.createElement("span");
+      delta.className = "val ldn-d " + (Math.abs(t.delta) <= 0.5 ? "ok"
+        : (t.over ? "over" : "under"));
+      delta.textContent = (t.delta > 0 ? "+" : "") + t.delta.toFixed(1) + " LU";
+      var verdict = document.createElement("span");
+      verdict.className = "ldn-v";
+      if (Math.abs(t.delta) <= 0.5) {
+        verdict.textContent = "on target";
+      } else if (t.over) {
+        verdict.textContent = "turned down " + Math.abs(t.gain).toFixed(1)
+          + " dB — costs nothing";
+      } else if (t.clipsIfRaised) {
+        verdict.textContent = "+" + t.gain.toFixed(1) + " dB would hit "
+          + (res.truePeak + t.gain).toFixed(1) + " dBTP — clips";
+        verdict.className += " warn";
+      } else {
+        verdict.textContent = "room for +" + t.gain.toFixed(1) + " dB";
+      }
+      row.appendChild(name); row.appendChild(tgt);
+      row.appendChild(delta); row.appendChild(verdict);
+      wrap.appendChild(row);
+    });
+  }
+
+  function ldnShow(res) {
+    ldnLast = res;
+    var set = function (id, txt) {
+      var el = document.getElementById(id);
+      if (el) { el.textContent = txt; }
+    };
+    set("rk-ldn-i", res && res.integrated !== null
+        ? res.integrated.toFixed(1) : "—");
+    set("rk-ldn-tp", res && res.truePeak !== null
+        ? res.truePeak.toFixed(1) : "—");
+    set("rk-ldn-lra", res && res.range !== null ? res.range.toFixed(1) : "—");
+    if (res && res.truePeak !== null) {
+      // Say how much of the peak a sample meter would have missed.
+      set("rk-ldn-tpsub", "dBTP · " + (res.intersample > 0.05
+        ? "+" + res.intersample.toFixed(2) + " dB above sample peak"
+        : "sample peak " + res.samplePeak.toFixed(1)));
+    }
+    if (res && res.range === null) {
+      set("rk-ldn-lrasub", "LU · needs about 10s to measure");
+    }
+    ldnPaintGraph(res);
+    ldnPaintTargets(res);
+  }
+
+  function ldnBuffer() {
+    if (pickedValue("rk-ldnsrc", "raw") === "master") {
+      return renderMasterBuffer();
+    }
+    return buffer
+      ? Promise.resolve(buffer)
+      : Promise.reject(new Error("no decoded file — measure the master instead"));
+  }
+
+  if (ldnGo) ldnGo.addEventListener("click", function () {
+    if (ldnBusy || !window.SBLoudness) { return; }
+    ldnBusy = true;
+    ldnEnable();
+    if (ldnLamp) { ldnLamp.classList.add("on"); }
+    if (ldnWrap) { ldnWrap.classList.remove("hidden"); }
+    if (ldnFill) { ldnFill.style.width = "15%"; }
+    ldnStatus.textContent = "Measuring…";
+    ldnBuffer().then(function (buf) {
+      if (ldnFill) { ldnFill.style.width = "55%"; }
+      // Yield once so the lamp and bar paint before the analysis blocks.
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          var chans = [];
+          for (var c = 0; c < buf.numberOfChannels; c++) {
+            chans.push(buf.getChannelData(c));
+          }
+          resolve(window.SBLoudness.analyse(chans, buf.sampleRate));
+        }, 30);
+      });
+    }).then(function (res) {
+      ldnShow(res);
+      ldnStatus.textContent = res.integrated === null
+        ? "Too short to measure — loudness needs at least 400 ms."
+        : "";
+      ldnBusy = false;
+      if (ldnLamp) { ldnLamp.classList.remove("on"); }
+      if (ldnWrap) { ldnWrap.classList.add("hidden"); }
+      if (ldnFill) { ldnFill.style.width = "0%"; }
+      ldnEnable();
+      cnvPlanText();
+    }).catch(function (e) {
+      ldnBusy = false;
+      if (ldnLamp) { ldnLamp.classList.remove("on"); }
+      if (ldnWrap) { ldnWrap.classList.add("hidden"); }
+      ldnEnable();
+      ldnStatus.textContent = "Measurement failed: " + (e.message || e);
+    });
+  });
+
+  document.querySelectorAll("input[name=rk-ldnsrc]").forEach(function (el) {
+    el.addEventListener("change", function () {
+      // A reading belongs to what it measured; changing the source retires
+      // it rather than leaving a number attached to the wrong signal.
+      ldnShow(null);
+      ldnStatus.textContent = "";
+    });
+  });
+
+  ldnShow(null);
+  ldnEnable();
+
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
                        state: function () { return state; },
                        stems: function () { return stems; },
                        addStem: function (s) {
                          stems.push(s); renderStems(); syncDeckInfo();
-                         cnvPlanText(); cnvShowPeak(); tkEnable(); tkPlanText();
+                         cnvPlanText(); cnvShowPeak(); tkEnable();
+                         tkPlanText(); ldnEnable();
                        },
                        stemGainValue: stemGainValue,
                        modOn: modOn, voiceChain: voiceChain,
@@ -3131,6 +3427,8 @@
                                  spec: !!refSpec};
                        },
                        cnvPlanText: cnvPlanText,
+                       loudness: function () { return ldnLast; },
+                       ldnEnable: ldnEnable,
                        valves: function () { return state.valves; },
                        valveGlow: function () {
                          var out = {};

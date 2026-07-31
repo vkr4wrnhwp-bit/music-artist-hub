@@ -140,6 +140,20 @@
   /* An off valve reads as cold glass, so "off" is visible at a glance. */
   .vlv.off .vlv-glass { opacity: 0.55; }
   .vlv.off .vlv-amt { opacity: 0.4; }
+  /* Target rows: name, target, how far off, and what happens. The delta
+     carries the colour because it is the number people scan for. */
+  .ldn-row { display: grid; align-items: baseline; gap: 6px;
+             grid-template-columns: 1fr auto auto; padding: 3px 0;
+             border-top: 1px solid rgba(60,54,42,0.35); }
+  .ldn-row:first-child { border-top: 0; }
+  .ldn-name { font-size: 11px; font-weight: 700; color: #2e2920; }
+  .ldn-t { font-size: 9px; color: #6b6659; }
+  .ldn-d { font-size: 11px; font-weight: 900; text-align: right; min-width: 58px; }
+  .ldn-d.ok { color: #2f6b2a; }
+  .ldn-d.over { color: #8a5a1f; }
+  .ldn-d.under { color: #4a4438; }
+  .ldn-v { grid-column: 1 / -1; font-size: 9px; line-height: 1.4; color: #5a5347; }
+  .ldn-v.warn { color: #9c2f1f; font-weight: 700; }
   /* Numeric windows: tabular so a changing reading does not jitter. */
   .val { font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
          font-variant-numeric: tabular-nums; letter-spacing: 0.03em; }
@@ -645,6 +659,16 @@
               </div>
             </div>
           </div>
+          <div class="plate">
+            <span class="lg">Loudness</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <select id="rk-cnv-lufs" class="rounded border border-white/15 bg-black/50 px-2 py-1.5 text-[11px] text-white">
+                <option value="">Leave the level alone</option>
+              </select>
+              <span id="rk-cnv-lufsnote" class="note flex-1"></span>
+            </div>
+            <p class="note mt-1.5">Measured on the actual output, after resampling, then a single clean gain change — no limiting, no compression. If the target would push the true peak past that platform's ceiling, the gain is capped so it lands exactly on the ceiling instead, and the status line says by how much it fell short. Turning a master down is lossless; only turning one up can clip.</p>
+          </div>
           <div class="w2 flex flex-wrap items-center gap-3">
             <span id="rk-cnv-plan" class="val flex-1 text-[10px] text-[#c9bd9c]">Load a track to convert.</span>
             <button id="rk-cnv-go" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled>Convert</button>
@@ -809,6 +833,70 @@
       <p class="note mt-3">Six separate processes, not one effect with six names — and the glow is a meter, not decoration: each tube lights by how hard that stage is <b>actually</b> being driven right now, and V6 lights by its real gain reduction. A stage doing nothing stays dark, and at zero every stage is mathematically the identity, so off is genuinely off. <b>V1</b> adds even harmonics via a squaring term (measured: 3× more 2nd harmonic than 3rd) with a DC blocker after it, because asymmetry makes DC. <b>V2</b> is odd-symmetric, so it can only make odd harmonics. <b>V3</b> is a soft-knee curve plus the two filter moves that make tape sound like tape. <b>V4</b> is two LFOs on a delay line — real pitch movement. <b>V5</b> saturates the low band only, where a transformer core actually saturates. <b>V6</b> is slow program-dependent compression. They sit after the tube stage and before the cab, so the compressor downstream hears the colour.</p>
     </section>
 
+    <!-- SB-15 Loudness -->
+    <section id="sb15" class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-15</span>
+        <span class="sk text-[10px]">LDN-1</span>
+        <span class="sk sk-sub">Loudness · ITU-R BS.1770-4</span>
+        <span id="rk-ldn-src" class="val sk ml-auto text-[9px] text-[#4c4536]">No source</span>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Measure</span>
+          <div class="mb-2 flex items-center gap-1.5">
+            <span id="rk-ldn-lamp" class="lamp" title="Lit while measuring"></span>
+            <span class="sk text-[8px] text-[#4c4536]">Run</span>
+          </div>
+          <div class="pick mb-2" id="rk-ldn-source" role="radiogroup" aria-label="What to measure">
+            <input type="radio" name="rk-ldnsrc" id="ld-raw" value="raw" checked>
+            <label for="ld-raw" title="The file as decoded, before the rack touches it"><span class="cap">File</span></label>
+            <input type="radio" name="rk-ldnsrc" id="ld-master" value="master">
+            <label for="ld-master" title="The full rack chain — what you would actually bounce"><span class="cap">Master</span></label>
+          </div>
+          <button id="rk-ldn-go" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black" disabled>Measure loudness</button>
+          <div id="rk-ldn-wrap" class="mt-2 hidden">
+            <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-ldn-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
+          </div>
+          <p id="rk-ldn-status" class="note mt-1.5"></p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-[1fr_1fr_1fr]">
+            <div class="plate">
+              <span class="lg">Integrated</span>
+              <div id="rk-ldn-i" class="val big">—</div>
+              <div class="val text-[9px] text-[#4c4536]">LUFS · gated</div>
+            </div>
+            <div class="plate">
+              <span class="lg">True peak</span>
+              <div id="rk-ldn-tp" class="val big">—</div>
+              <div id="rk-ldn-tpsub" class="val text-[9px] text-[#4c4536]">dBTP · 4× oversampled</div>
+            </div>
+            <div class="plate">
+              <span class="lg">Range</span>
+              <div id="rk-ldn-lra" class="val big">—</div>
+              <div id="rk-ldn-lrasub" class="val text-[9px] text-[#4c4536]">LU · EBU 3342</div>
+            </div>
+          </div>
+
+          <div class="plate">
+            <span class="lg">Short-term</span>
+            <!-- Real 3-second-block loudness over the length of the track. -->
+            <svg id="rk-ldn-graph" viewBox="0 0 600 90" class="block w-full" role="img" aria-labelledby="rk-ldn-status"></svg>
+          </div>
+
+          <div class="plate">
+            <span class="lg">Against published targets</span>
+            <div id="rk-ldn-targets" class="mt-1 space-y-1"></div>
+            <p class="note mt-2">These are the figures the platforms publish, not something this app checks with them, and they do move. Every service turns a loud master <b>down</b> — that costs nothing. Turning a quiet one <b>up</b> is where the true peak comes up with it, which is the only case that can clip.</p>
+          </div>
+        </div>
+      </div>
+      <p class="note mt-3">Peak metering tells you about clipping and nothing about how loud you'll actually sound — this is the number every platform normalises by. Measured to the standard, not approximated: K-weighting derived for <b>your file's</b> sample rate rather than the 48 kHz coefficients printed in the spec, 400 ms blocks with both required gates (absolute at −70 LUFS, relative at −10 LU) so silence and quiet passages can't drag the average down, loudness range per EBU 3342, and a true peak found by 4× oversampling because the peak <i>between</i> samples is what converters and lossy encoders actually see. That method under-reads by up to about 0.7 dB in the worst case, which is why mastering ceilings sit at −1 dBTP rather than 0. Verified against the published EBU Tech 3341 compliance cases.</p>
+    </section>
+
     <!-- Presets -->
     <section class="u u-dark flex flex-wrap items-center gap-2 py-2.5">
       <span class="sk text-[9px] text-[#8a7c5d]">Presets</span>
@@ -849,6 +937,7 @@
 <script src="/static/js/audioconv.js?v=1"></script>
 <script src="/static/js/tempokey.js?v=2"></script>
 <script src="/static/js/tubes.js?v=3"></script>
-<script src="/static/js/rackdsp.js?v=22"></script>
+<script src="/static/js/loudness.js?v=1"></script>
+<script src="/static/js/rackdsp.js?v=24"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
