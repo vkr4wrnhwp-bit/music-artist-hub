@@ -4055,10 +4055,18 @@ def create_app():
         if err:
             return jsonify({"error": err}), 502
         upstream = stemsplit.open_stream(url)
-        return app.response_class(
-            upstream,
-            mimetype=upstream.headers.get("Content-Type", "audio/mpeg"),
-            direct_passthrough=True)
+        ctype = upstream.headers.get("Content-Type") or "audio/wav"
+        resp = app.response_class(upstream, mimetype=ctype,
+                                  direct_passthrough=True)
+        # Name the file. Without this the browser saves it as "vocals"
+        # with no extension, which nothing can open.
+        resp.headers["Content-Disposition"] = (
+            'attachment; filename="%s"'
+            % stemsplit.stem_filename(stem, url, ctype))
+        length = upstream.headers.get("Content-Length")
+        if length:
+            resp.headers["Content-Length"] = length   # so the bar moves
+        return resp
 
     @app.route("/rack/save", methods=["POST"])
     def rack_save():

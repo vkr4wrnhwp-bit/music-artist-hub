@@ -37,6 +37,18 @@ SRC_TTL = 3600
 # job id -> temp source path, so terminal statuses can clean up
 _sources = {}
 
+# A job can report COMPLETED before its output URLs exist. That is not a
+# guess: a real split came back "COMPLETED, progress 100, stems []", and
+# the four URLs were there when we asked again moments later. Clients stop
+# polling on COMPLETED, so that one response would leave a finished split
+# with nothing to download and no reason to look again.
+#
+# So completion is only believed once there is something to hand over.
+# Until then the job is still settling: keep reporting progress, keep the
+# parked source alive, and keep the client asking.
+_settling = {}
+SETTLE_GRACE = 90.0   # after this, report the truth instead of spinning
+
 
 def configured():
     return bool(os.environ.get("STEMSPLIT_API_KEY"))
@@ -204,10 +216,28 @@ def job_status(job_id):
     if err:
         return None, err
     status = str(body.get("status") or "PENDING").upper()
+    stems = sorted(_outputs(body).keys())
+
+    if status == "COMPLETED" and not stems:
+        first = _settling.setdefault(job_id, time.monotonic())
+        if time.monotonic() - first < SETTLE_GRACE:
+            # Hold the job open rather than hand back a completed split
+            # with no stems in it. The source stays parked too, because
+            # the cleanup below would delete the one thing a retry needs.
+            return {"status": "PROCESSING",
+                    "progress": min(99, int(body.get("progress") or 99)),
+                    "stems": [], "settling": True}, None
+        # Waited long enough. Report what the API actually says - a job
+        # that never produces outputs is a failure worth showing, not one
+        # to keep spinning on.
+    else:
+        _settling.pop(job_id, None)
+
     out = {"status": status,
            "progress": body.get("progress") or 0,
-           "stems": sorted(_outputs(body).keys())}
+           "stems": stems}
     if status in ("COMPLETED", "FAILED", "EXPIRED"):
+        _settling.pop(job_id, None)
         path = _sources.pop(job_id, None)
         if path:
             try:
@@ -227,6 +257,33 @@ def stem_url(job_id, stem):
     if not url or not url.startswith("https://"):
         return None, "stem not available"
     return url, None
+
+
+# Content-Type -> file extension. The API returns WAV for these jobs, but
+# the format is the account's to choose, so the name follows what actually
+# arrived rather than what we assumed.
+_EXT = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav",
+        "audio/vnd.wave": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3",
+        "audio/flac": "flac", "audio/x-flac": "flac", "audio/aiff": "aiff",
+        "audio/x-aiff": "aiff", "audio/mp4": "m4a", "audio/aac": "m4a"}
+
+
+def stem_filename(stem, url, content_type):
+    """What the browser should call this file.
+
+    Without a filename the browser names the download after the last path
+    segment, so five stems arrive as "vocals", "drums", "bass" - no
+    extension, and nothing on the machine knows how to open them.
+    """
+    ext = _EXT.get((content_type or "").split(";")[0].strip().lower())
+    if not ext:
+        # Fall back to the presigned URL's own extension before guessing.
+        tail = (url or "").split("?")[0].rsplit("/", 1)[-1]
+        if "." in tail:
+            cand = tail.rsplit(".", 1)[-1].lower()
+            if cand.isalnum() and 2 <= len(cand) <= 4:
+                ext = cand
+    return "studio-split-%s.%s" % (stem, ext or "wav")
 
 
 def open_stream(url):

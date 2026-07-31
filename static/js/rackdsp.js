@@ -1921,10 +1921,20 @@
     if (err) roughNote("Studio Split failed: " + err, 0);
   }
 
-  function studioLanes(jobId) {
+  function studioLanes(jobId, available) {
+    /* Only these four go on the deck, and only these four: they are
+       complementary, so the lanes sum back to the record. The API can
+       also return an "instrumental" mix, which is drums+bass+other over
+       again - laying it alongside them would play everything twice. */
     var order = [["Vocals (studio)", "vocals"], ["Drums (studio)", "drums"],
                  ["Bass (studio)", "bass"], ["Instruments (studio)", "other"]];
-    roughNote("Studio Split done — downloading four stems…", 0.9);
+    if (available && available.length) {
+      order = order.filter(function (pair) {
+        return available.indexOf(pair[1]) !== -1;
+      });
+    }
+    if (!order.length) { studioDone("no stems came back"); return; }
+    roughNote("Studio Split done — downloading " + order.length + " stems…", 0.9);
     Promise.all(order.map(function (pair) {
       return fetch("/rack/studio-split/" + jobId + "/stem/" + pair[1])
         .then(function (r) {
@@ -1951,7 +1961,7 @@
       .then(function (r) { return r.json(); })
       .then(function (st) {
         if (st.error) { throw new Error(st.error); }
-        if (st.status === "COMPLETED") { studioLanes(jobId); return; }
+        if (st.status === "COMPLETED") { studioLanes(jobId, st.stems); return; }
         if (st.status === "FAILED" || st.status === "EXPIRED") {
           throw new Error("StemSplit reported " + st.status);
         }
