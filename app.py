@@ -1482,8 +1482,15 @@ def create_app():
 
     @app.route("/valuation")
     def valuation():
+        user = current_user()
+        # The valuation is recorded by the Command Center, which computes
+        # it from the same statements. Read it back here rather than
+        # recompute, so both pages agree on what today's number was.
+        trend = (score_history.summarise(
+            "valuation", store.score_trend(user["id"], "valuation"))
+            if user else None)
         return render_template("valuation.html", active_page="valuation",
-                               real_royalty=_real_royalty(),
+                               real_royalty=_real_royalty(), trend=trend,
                                **build_dashboard_context())
 
     @app.route("/reports")
@@ -4404,8 +4411,12 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        cs = capital_engine.capital_score(user["id"])   # records itself
         return render_template("capital_score.html", active_page="command-center",
-                               cs=capital_engine.capital_score(user["id"]),
+                               cs=cs,
+                               trend=score_history.summarise(
+                                   "capital",
+                                   store.score_trend(user["id"], "capital")),
                                **build_dashboard_context())
 
     @app.route("/spend-optimizer")
@@ -4789,8 +4800,12 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        t = trust_score.calculate(user["id"])            # records itself
         return render_template("trust_score.html", active_page="trust-score",
-                               t=trust_score.calculate(user["id"]),
+                               t=t,
+                               trend=score_history.summarise(
+                                   "trust",
+                                   store.score_trend(user["id"], "trust")),
                                **build_dashboard_context())
 
     @app.route("/pulse")

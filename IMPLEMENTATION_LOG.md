@@ -410,3 +410,31 @@ failure in a new costume.
 
 **Verification:** 21 new tests, 545 in the suite, green at `-n 8` and
 `-n 4`.
+
+## All four score pages show their movement
+
+Trust, Capital Readiness and Catalog Valuation now carry their trend the
+way Qualification already did — through `partials/score_trend.html`, one
+include rather than four copies of the same markup, and Qualification was
+refactored onto it too. Four copies drift; one does not.
+
+Two behaviours the partial is built around:
+
+- **Nothing renders without history.** A brand-new account sees no badge
+  rather than a zero that reads as failure.
+- **A falling score is not an error.** Down gets `text-red-300`, not the
+  error red — it is information about a real thing, not a broken one.
+
+Valuation is deliberately different from the other three: it exists only
+where statements do, so with none the page says nothing rather than
+inventing a number. Its test uploads a statement first, which is the
+honest way to prove the behaviour.
+
+**And a bug of mine, from the previous commit.** I had the EPK fixture
+call `/epk/share` to mint a public slug. `/epk/share` is the *private
+pitch-link token* — a different thing entirely — so the slug stayed
+`None`, `/club/None` 404'd, and I had shipped it. The fixture now sets
+the slug through the db layer, because which route happens to mint a
+public slug is not something a fixture should depend on.
+
+**Verification:** 550 tests, green at `-n 8` and `-n 4`.

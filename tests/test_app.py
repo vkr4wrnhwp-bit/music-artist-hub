@@ -2759,14 +2759,15 @@ def test_shopify_merch_stitch():
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    # A row can exist without a slug - save_epk_photo inserts one with no
-    # slug at all - so check for the slug rather than the row. /epk/share
-    # is what mints it.
-    _epk = store_mod.get_epk(uid)
-    if not _epk:
+    # A row can exist without a slug - save_epk_photo inserts one with
+    # none - so check for the slug, not the row. Set it through the db
+    # layer rather than a route: /epk/share is the private pitch-link
+    # token, not the public slug, and which route happens to mint the
+    # public one is not something a fixture should depend on.
+    if not store_mod.get_epk(uid):
         artist.post("/epk/save", data={"bio": "fixture"})
     if not (store_mod.get_epk(uid) or {}).get("slug"):
-        artist.post("/epk/share")
+        store_mod.set_epk_slug(uid, "fixture-slug-%s" % uid[:8])
     slug = store_mod.get_epk(uid)["slug"]
     pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Merch" in pub and "Logo Tee" in pub and "Full store" in pub
@@ -3770,14 +3771,15 @@ def test_club_members_area(monkeypatch):
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    # A row can exist without a slug - save_epk_photo inserts one with no
-    # slug at all - so check for the slug rather than the row. /epk/share
-    # is what mints it.
-    _epk = store_mod.get_epk(uid)
-    if not _epk:
+    # A row can exist without a slug - save_epk_photo inserts one with
+    # none - so check for the slug, not the row. Set it through the db
+    # layer rather than a route: /epk/share is the private pitch-link
+    # token, not the public slug, and which route happens to mint the
+    # public one is not something a fixture should depend on.
+    if not store_mod.get_epk(uid):
         artist.post("/epk/save", data={"bio": "fixture"})
     if not (store_mod.get_epk(uid) or {}).get("slug"):
-        artist.post("/epk/share")
+        store_mod.set_epk_slug(uid, "fixture-slug-%s" % uid[:8])
     slug = store_mod.get_epk(uid)["slug"]
     store_mod.add_club_member(uid, "vip@example.net", "cus_v", "sub_vip")
     fan = app_obj.test_client()
@@ -3821,14 +3823,15 @@ def test_club_checkout_instant_access(monkeypatch):
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    # A row can exist without a slug - save_epk_photo inserts one with no
-    # slug at all - so check for the slug rather than the row. /epk/share
-    # is what mints it.
-    _epk = store_mod.get_epk(uid)
-    if not _epk:
+    # A row can exist without a slug - save_epk_photo inserts one with
+    # none - so check for the slug, not the row. Set it through the db
+    # layer rather than a route: /epk/share is the private pitch-link
+    # token, not the public slug, and which route happens to mint the
+    # public one is not something a fixture should depend on.
+    if not store_mod.get_epk(uid):
         artist.post("/epk/save", data={"bio": "fixture"})
     if not (store_mod.get_epk(uid) or {}).get("slug"):
-        artist.post("/epk/share")
+        store_mod.set_epk_slug(uid, "fixture-slug-%s" % uid[:8])
     slug = store_mod.get_epk(uid)["slug"]
     monkeypatch.setattr(sb, "get_checkout_session", lambda sid: {
         "payment_status": "paid", "customer": "cus_now", "subscription": "sub_now",

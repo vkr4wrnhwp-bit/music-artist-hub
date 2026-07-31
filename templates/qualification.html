@@ -8,15 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Qualification</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Growth Score</h1>
-      {% if trend and (trend.phrase or trend.note) %}
-      <p class="mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold
-                {{ 'border-green-500/30 bg-green-500/10 text-green-400' if trend.delta and trend.delta.direction == 'up'
-                   else ('border-red-500/30 bg-red-500/10 text-red-300' if trend.delta and trend.delta.direction == 'down'
-                         else 'border-white/10 bg-white/5 text-gray-400') }}">
-        {% if trend.delta and trend.delta.direction == 'up' %}▲{% elif trend.delta and trend.delta.direction == 'down' %}▼{% endif %}
-        {{ trend.phrase or trend.note }}
-      </p>
-      {% endif %}
+      {% include "partials/score_trend.html" %}
       <p class="mt-1 max-w-2xl text-sm text-gray-400">Every point is computed from your real account — campaigns, rollouts, fans, metadata, and press kit. Raise the score, unlock more reach.</p>
     </div>
     <a href="/artist-profile" class="rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Artist Profile →</a>
