@@ -2887,6 +2887,7 @@
   function cnvServerEncode(chans, rate, fmt, spec, bits, dither, norm, lufsKey) {
     // Carry it over as PCM WAV. Never dither ahead of a lossy encoder -
     // the noise it adds is exactly what the codec then spends bits on.
+    var serverNote = "";
     var carrierBits = spec.lossy ? 24 : (bits === 16 ? 16 : 24);
     var carrier = window.SBAudioConv.encode(
       "wav", chans, rate, carrierBits,
@@ -2907,6 +2908,7 @@
             throw new Error(j.error || ("HTTP " + r.status));
           });
         }
+        serverNote = r.headers.get("X-Convert-Note") || "";
         return r.blob();
       })
       .then(function (blob) {
@@ -2918,7 +2920,8 @@
         a.click();
         cnvStatus.textContent = "Converted — " + a.download + " ("
           + fmtBytes(blob.size) + ") downloaded."
-          + (norm ? "  Loudness: " + norm.note + "." : "");
+          + (norm ? "  Loudness: " + norm.note + "." : "")
+          + (serverNote ? "  " + serverNote : "");
       });
   }
 

@@ -145,3 +145,36 @@ def test_with_an_encoder_the_page_says_where_each_format_happens(monkeypatch):
     assert 'id="rk-cnv-where"' in page and 'id="rk-cnv-brwrap"' in page
     for fmt in ("mp3", "flac", "alac", "aac", "opus", "vorbis"):
         assert 'value="%s"' % fmt in page, fmt
+
+
+# --- codecs that cannot store every sample rate -------------------------
+
+def test_opus_is_never_asked_for_a_rate_it_cannot_store():
+    # libopus takes 8/12/16/24/48 kHz only. Asking for 44.1 failed the
+    # whole conversion, which is how this was found.
+    args = ce.build_args("i", "o", "opus", rate=44100)
+    assert "44100" not in args
+    assert args[args.index("-ar") + 1] == "48000"
+
+
+def test_opus_keeps_a_rate_it_can_store():
+    assert ce.build_args("i", "o", "opus", rate=48000)[
+        ce.build_args("i", "o", "opus", rate=48000).index("-ar") + 1] == "48000"
+
+
+def test_the_substitution_is_reported_not_silent():
+    rate, note = ce.resolve_rate("opus", 44100)
+    assert rate == 48000 and note and "48" in note
+    rate, note = ce.resolve_rate("opus", 48000)
+    assert rate == 48000 and note is None
+
+
+def test_other_codecs_keep_the_rate_they_were_given():
+    for fmt in ("mp3", "flac", "wav", "aac", "vorbis"):
+        args = ce.build_args("i", "o", fmt, rate=44100)
+        assert args[args.index("-ar") + 1] == "44100", fmt
+
+
+def test_high_rates_map_down_to_the_nearest_opus_can_do():
+    assert ce.resolve_rate("opus", 96000)[0] == 48000
+    assert ce.resolve_rate("opus", 22050)[0] == 24000

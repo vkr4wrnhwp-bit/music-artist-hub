@@ -133,6 +133,32 @@ FORMATS = {
 RATES = (22050, 32000, 44100, 48000, 88200, 96000)
 CHANNELS = (1, 2)
 
+# Some codecs do not accept every rate. Opus is the strict one: it works
+# at 8/12/16/24/48 kHz and nothing else, so asking it for 44.1 fails the
+# whole conversion. Rather than refuse, resample to the nearest rate the
+# codec does support and say so - a 48 kHz Opus is what the user wanted,
+# and 44.1 was never available to them.
+CODEC_RATES = {
+    "opus": (8000, 12000, 16000, 24000, 48000),
+}
+
+
+def resolve_rate(fmt, rate):
+    """(rate to use, note) - the note is None when nothing was changed."""
+    allowed = CODEC_RATES.get(fmt)
+    if rate not in RATES:
+        rate = None
+    if not allowed:
+        return rate, None
+    if rate is None:
+        return 48000, None                    # Opus's own default
+    if rate in allowed:
+        return rate, None
+    best = min(allowed, key=lambda r: (abs(r - rate), -r))
+    return best, "%s cannot store %d kHz; written at %d kHz instead." % (
+        FORMATS[fmt]["label"], rate // 1000 if rate >= 1000 else rate,
+        best // 1000)
+
 # Bit depth only means anything for the PCM containers.
 DEPTHS = {
     "wav": {16: "pcm_s16le", 24: "pcm_s24le", 32: "pcm_f32le"},
@@ -190,8 +216,9 @@ def build_args(src, dst, fmt, bitrate=None, rate=None, channels=None,
         if want:
             args += ["-b:a", "%dk" % want]
 
-    if rate in RATES:
-        args += ["-ar", str(rate)]
+    use_rate, _ = resolve_rate(fmt, rate)
+    if use_rate:
+        args += ["-ar", str(use_rate)]
     if channels in CHANNELS:
         args += ["-ac", str(channels)]
 

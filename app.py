@@ -4150,11 +4150,18 @@ def create_app():
             channels=num("channels"), depth=num("depth"))
         if err:
             return jsonify({"error": err}), 400
-        fmt = convert_engine.FORMATS[request.form["format"].strip().lower()]
+        key = request.form["format"].strip().lower()
+        fmt = convert_engine.FORMATS[key]
         resp = app.response_class(data, mimetype=fmt["mime"])
         resp.headers["Content-Disposition"] = \
             'attachment; filename="%s"' % name
         resp.headers["Content-Length"] = str(len(data))
+        # If the codec could not take the rate that was asked for, the
+        # file still arrives - but the panel has to say what changed
+        # rather than quietly hand back something else.
+        _, note = convert_engine.resolve_rate(key, num("rate"))
+        if note:
+            resp.headers["X-Convert-Note"] = note
         return resp
 
     @app.route("/rack/save", methods=["POST"])
