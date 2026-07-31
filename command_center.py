@@ -185,6 +185,19 @@ def build_alerts(user_id):
     from statements_engine import build_royalty_summary
     rows = store.get_statement_rows(user_id)
     summary = build_royalty_summary(rows) if rows else None
+    # The catalog valuation is computed here every time the Command
+    # Center loads and was stored nowhere, so the one number an artist
+    # most wants a trend on had no history at all. Guarded - a history
+    # write must never break the page it was computed for.
+    if summary and (summary.get("valuation") or {}).get("mid"):
+        try:
+            store.record_score(user_id, "valuation",
+                               summary["valuation"]["mid"],
+                               {"low": summary["valuation"]["low"],
+                                "high": summary["valuation"]["high"],
+                                "annualized": summary.get("annualized")})
+        except Exception:
+            pass
     if summary and summary["unmatched_revenue"]:
         alerts.insert(0, ("high", "$%.2f unmatched revenue in your statements" % summary["unmatched_revenue"],
                           "Rows with no track title — money paid but not attributed. Review and claim it.",

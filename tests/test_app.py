@@ -1025,7 +1025,19 @@ def test_funding_quotes_nothing_without_income():
 
 def test_funding_quotes_a_range_once_statements_exist():
     import io
-    client = _demo()
+    # Its own account. Uploading statements to the shared demo login
+    # changes totals that other tests assert on exactly - the tax page
+    # checks for $750.25 and does not want this test's income in it.
+    app_obj = create_app()
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Fund Test",
+                                 "email": "fund-range@example.net",
+                                 "password": "fundpass1"})
+    # Statements and funding sit above the entry tier, so a fresh signup
+    # gets 402 on both. Promote it rather than borrow the demo account.
+    import db as _store
+    _u = _store.get_user_by_email("fund-range@example.net")
+    _store.set_user_plan(_u["id"], "pro")
     csv_text = 'title,source,amount,period\nTrack A,Spotify,900.00,2026-01\nTrack B,Apple Music,750.00,2026-02\nTrack C,YouTube,640.00,2026-03\n'
     client.post("/statements",
                 data={"statement": (io.BytesIO(csv_text.encode()), "fund.csv")},
@@ -2747,8 +2759,14 @@ def test_shopify_merch_stitch():
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    if not store_mod.get_epk(uid):
+    # A row can exist without a slug - save_epk_photo inserts one with no
+    # slug at all - so check for the slug rather than the row. /epk/share
+    # is what mints it.
+    _epk = store_mod.get_epk(uid)
+    if not _epk:
         artist.post("/epk/save", data={"bio": "fixture"})
+    if not (store_mod.get_epk(uid) or {}).get("slug"):
+        artist.post("/epk/share")
     slug = store_mod.get_epk(uid)["slug"]
     pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Merch" in pub and "Logo Tee" in pub and "Full store" in pub
@@ -3752,8 +3770,14 @@ def test_club_members_area(monkeypatch):
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    if not store_mod.get_epk(uid):
+    # A row can exist without a slug - save_epk_photo inserts one with no
+    # slug at all - so check for the slug rather than the row. /epk/share
+    # is what mints it.
+    _epk = store_mod.get_epk(uid)
+    if not _epk:
         artist.post("/epk/save", data={"bio": "fixture"})
+    if not (store_mod.get_epk(uid) or {}).get("slug"):
+        artist.post("/epk/share")
     slug = store_mod.get_epk(uid)["slug"]
     store_mod.add_club_member(uid, "vip@example.net", "cus_v", "sub_vip")
     fan = app_obj.test_client()
@@ -3797,8 +3821,14 @@ def test_club_checkout_instant_access(monkeypatch):
     # workers, so which tests ran first is not something to rely on. Only
     # when it is missing: /epk/save replaces the whole profile, and these
     # tests share one database.
-    if not store_mod.get_epk(uid):
+    # A row can exist without a slug - save_epk_photo inserts one with no
+    # slug at all - so check for the slug rather than the row. /epk/share
+    # is what mints it.
+    _epk = store_mod.get_epk(uid)
+    if not _epk:
         artist.post("/epk/save", data={"bio": "fixture"})
+    if not (store_mod.get_epk(uid) or {}).get("slug"):
+        artist.post("/epk/share")
     slug = store_mod.get_epk(uid)["slug"]
     monkeypatch.setattr(sb, "get_checkout_session", lambda sid: {
         "payment_status": "paid", "customer": "cus_now", "subscription": "sub_now",

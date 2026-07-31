@@ -275,6 +275,16 @@ def init_db():
                 used INTEGER NOT NULL DEFAULT 0,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS score_history (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                day TEXT NOT NULL,
+                total REAL NOT NULL,
+                detail TEXT NOT NULL DEFAULT '{}',
+                updated TEXT NOT NULL,
+                UNIQUE(user_id, kind, day)
+            );
             CREATE TABLE IF NOT EXISTS track_analysis (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -1298,6 +1308,61 @@ def save_rack_preset(user_id, data):
 # functions are the difference between a meter and a memory: the numbers
 # persist, so Release Readiness can speak for the audio instead of only
 # for the paperwork around it.
+
+# --- scores over time ---------------------------------------------------
+# These recompute on every request and used to be stored nowhere, so the
+# app could say where an artist stands and never whether they are getting
+# anywhere. One row per score per day: the day's reading is updated in
+# place rather than appended, because a score that recalculates on every
+# page load would otherwise write hundreds of identical rows a day.
+
+def record_score(user_id, kind, total, detail=None):
+    """Upsert today's reading. Never raises into a request."""
+    import uuid as _uuid
+    try:
+        total = float(total)
+    except (TypeError, ValueError):
+        return
+    if total != total:                      # NaN
+        return
+    now = _now()
+    day = now[:10]
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO score_history (id, user_id, kind, day, total, "
+            "detail, updated) VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(user_id, kind, day) DO UPDATE SET "
+            "total=excluded.total, detail=excluded.detail, "
+            "updated=excluded.updated",
+            (_uuid.uuid4().hex, user_id, kind, day, total,
+             json.dumps(detail or {}), now))
+
+
+def score_trend(user_id, kind, limit=60):
+    """Newest first, one row per day."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT day, total, detail, updated FROM score_history "
+            "WHERE user_id = ? AND kind = ? ORDER BY day DESC LIMIT ?",
+            (user_id, kind, limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["detail"] = json.loads(d["detail"] or "{}")
+        except ValueError:
+            d["detail"] = {}
+        out.append(d)
+    return out
+
+
+def all_score_trends(user_id, limit=60):
+    with get_db() as db:
+        kinds = [r["kind"] for r in db.execute(
+            "SELECT DISTINCT kind FROM score_history WHERE user_id = ?",
+            (user_id,)).fetchall()]
+    return {k: score_trend(user_id, k, limit) for k in kinds}
+
 
 def save_track_analysis(user_id, row):
     """Store one measurement pass. Latest wins per (user, filename)."""

@@ -28,6 +28,7 @@ import convert_engine
 import audio_readiness
 import epk_config
 import rollout_learning
+import score_history
 import firstrun
 
 def _hours_float(value, default=0.0):
@@ -4944,8 +4945,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # calculate() records today's reading itself, so the trend below
+        # always includes it.
+        q = qualification.calculate(user["id"])
         return render_template("qualification.html", active_page="qualification",
-                               q=qualification.calculate(user["id"]),
+                               q=q,
+                               trend=score_history.summarise(
+                                   "qualification",
+                                   store.score_trend(user["id"], "qualification")),
                                **build_dashboard_context())
 
     @app.route("/artist-profile")

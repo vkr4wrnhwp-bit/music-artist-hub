@@ -52,6 +52,13 @@ def capital_score(user_id):
     band = ((round(annualized * 0.8), round(annualized * 1.5))
             if annualized > 0 else None)
 
+    # Remember today's reading. Guarded: a history write must never be
+    # the reason a page fails to render.
+    try:
+        store.record_score(user_id, "capital", total, {"income_total": round(total_income, 2), "periods": len(periods),
+         "sources": len(sources)})
+    except Exception:
+        pass
     return {"total": total, "factors": factors, "verdict": verdict,
             "income_total": round(total_income, 2),
             "periods": len(periods), "sources": len(sources),

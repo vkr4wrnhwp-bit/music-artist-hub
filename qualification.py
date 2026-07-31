@@ -152,6 +152,12 @@ def calculate(user_id):
     else:
         recommendation = "Needs work"
 
+    # Remember today's reading. Guarded: a history write must never be
+    # the reason a page fails to render.
+    try:
+        store.record_score(user_id, "qualification", total, {"categories": [[n, p] for n, p, _ in categories]})
+    except Exception:
+        pass
     return {"total": total, "categories": categories, "strengths": strengths,
             "needs_work": needs_work, "badges": badges, "unlocks": unlocks,
             "recommendation": recommendation}

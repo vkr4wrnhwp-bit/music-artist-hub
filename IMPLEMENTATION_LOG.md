@@ -368,3 +368,45 @@ nothing, because the dict was reassembled in between.
 **Verification:** the funding test now covers both halves — nothing
 quoted without income, a range and a working request with it. 522 tests
 green.
+
+## Scores have a history now
+
+Qualification, Trust, Capital Readiness and the catalog valuation all
+recomputed on every request and stored nothing. That answers "where do I
+stand" and cannot answer "am I getting anywhere", which is the question
+an artist actually has. A score without history is a number; with history
+it is feedback.
+
+`score_history` holds **one row per score per day**. These recalculate on
+every page load, so appending on each call would write hundreds of
+identical rows a day and turn a trend into noise — the day's reading is
+updated in place instead.
+
+The engines record themselves, one guarded line each, so any page showing
+a score builds its history without the route having to remember.
+
+**The distinction the module exists to protect:** *no comparison yet* and
+*no movement* are different answers. A first-day artist shown "+0"
+concludes nothing is working; the truth is nothing has been compared. One
+reading returns `None` and the page says "Tracking from today". Genuinely
+unchanged returns `flat`.
+
+Also: percent is omitted when the baseline is zero, because a 4-point
+move from nothing is not an infinite improvement.
+
+The qualification page now carries the movement above its score ring,
+coloured by direction. A stored score nobody sees would be the same
+failure in a new costume.
+
+**Two test-isolation bugs of mine, both from shared database state:**
+
+1. The EPK fixture checked for a *row* — but `save_epk_photo` inserts one
+   with no slug, so `/epk/{None}` raised a `TypeError`. It now checks for
+   the slug and mints one via `/epk/share`.
+2. My funding test uploaded statements to the shared demo account, and
+   the tax test asserts `$750.25` exactly. It has its own account now,
+   promoted to `pro` because statements and funding both sit above the
+   entry tier.
+
+**Verification:** 21 new tests, 545 in the suite, green at `-n 8` and
+`-n 4`.

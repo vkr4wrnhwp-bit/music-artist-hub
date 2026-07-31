@@ -89,5 +89,11 @@ def calculate(user_id):
         verdict = "Building trust"
     else:
         verdict = "Getting started"
+    # Remember today's reading. Guarded: a history write must never be
+    # the reason a page fails to render.
+    try:
+        store.record_score(user_id, "trust", total, {"factors": [[f[0], f[1]] for f in factors]})
+    except Exception:
+        pass
     return {"total": total, "factors": factors, "blockers": blockers,
             "verdict": verdict}
