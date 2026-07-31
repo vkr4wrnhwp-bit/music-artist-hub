@@ -3954,6 +3954,7 @@ def create_app():
         return render_template("rack.html", active_page="rack",
                                saved_rack=(_json.dumps(saved) if saved else "null"),
                                studio_split=stemsplit.configured(),
+                               studio_modes=stemsplit.mode_list(),
                                **build_dashboard_context())
 
     # ---- Studio Split: StemSplit.io quality tier for the Stem Deck -------
@@ -4014,9 +4015,12 @@ def create_app():
         ext = os.path.splitext(f.filename)[1].lower()
         if ext not in (".wav", ".mp3", ".flac", ".m4a"):
             return jsonify({"error": "use WAV, MP3, FLAC or M4A"}), 400
+        mode = (request.form.get("mode") or "").strip().upper()
+        if mode not in stemsplit.MODES:
+            mode = stemsplit.DEFAULT_MODE
         token, path = stemsplit.park_source(data, ext)
         source_url = request.url_root.rstrip("/") + "/stem-src/" + token
-        job_id, err = stemsplit.create_job(source_url)
+        job_id, err = stemsplit.create_job(source_url, mode)
         if err:
             try:
                 os.remove(path)
@@ -4024,7 +4028,10 @@ def create_app():
                 pass
             return jsonify({"error": "StemSplit rejected the job: " + err}), 502
         stemsplit.remember_source(job_id, path)
-        return jsonify({"job": job_id})
+        # The lanes this mode yields travel with the job, so the deck never
+        # has to keep its own copy of which stems go together.
+        return jsonify({"job": job_id, "mode": mode,
+                        "stems": stemsplit.mode_stems(mode)})
 
     @app.route("/stem-src/<token>")
     def stem_src(token):
@@ -4054,7 +4061,7 @@ def create_app():
             return jsonify({"error": "auth required"}), 401
         if not stemsplit.configured():
             return jsonify({"error": "not configured"}), 503
-        if stem not in ("vocals", "drums", "bass", "other", "instrumental"):
+        if stem not in stemsplit.STEMS:
             return jsonify({"error": "unknown stem"}), 400
         url, err = stemsplit.stem_url(job_id, stem)
         if err:

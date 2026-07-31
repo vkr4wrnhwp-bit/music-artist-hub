@@ -1914,6 +1914,28 @@
   var studioBtn = document.getElementById("rk-studiosplit");
   var studioRunning = false;
 
+  /* How far to split. The modes come from the server, which got them
+     from the API itself, so the menu can never offer one the API would
+     reject. */
+  var studioMode = document.getElementById("rk-studiomode");
+  var studioModeNote = document.getElementById("rk-studiomode-note");
+  var studioModes = (function () {
+    var el = document.getElementById("rk-studiomodes");
+    try { return el ? JSON.parse(el.textContent) : []; } catch (e) { return []; }
+  })();
+
+  function showModeNote() {
+    if (!studioMode || !studioModeNote) return;
+    var m = studioModes.filter(function (x) {
+      return x.value === studioMode.value;
+    })[0];
+    studioModeNote.textContent = m ? m.note : "";
+  }
+  if (studioMode) {
+    studioMode.addEventListener("change", showModeNote);
+    showModeNote();
+  }
+
   function studioDone(err) {
     studioRunning = false;
     if (studioBtn) studioBtn.disabled = !loadedFile;
@@ -1921,20 +1943,25 @@
     if (err) roughNote("Studio Split failed: " + err, 0);
   }
 
-  function studioLanes(jobId, available) {
-    /* Only these four go on the deck, and only these four: they are
-       complementary, so the lanes sum back to the record. The API can
-       also return an "instrumental" mix, which is drums+bass+other over
-       again - laying it alongside them would play everything twice. */
-    var order = [["Vocals (studio)", "vocals"], ["Drums (studio)", "drums"],
-                 ["Bass (studio)", "bass"], ["Instruments (studio)", "other"]];
-    if (available && available.length) {
-      order = order.filter(function (pair) {
-        return available.indexOf(pair[1]) !== -1;
+  /* What each stem is called on a lane strip. */
+  var STEM_LABEL = {
+    vocals: "Vocals", drums: "Drums", bass: "Bass", other: "Instruments",
+    guitar: "Guitar", piano: "Piano", instrumental: "Instrumental"
+  };
+
+  function studioLanes(jobId, wanted) {
+    /* `wanted` is the partition the server said this mode produces - the
+       set that sums back to the record. It matters that we use it rather
+       than everything the API returns: a four-stem job also hands back an
+       "instrumental" mix, which is drums+bass+other over again, and
+       laying that alongside them would play the record twice. */
+    var order = (wanted && wanted.length ? wanted : ["vocals", "drums", "bass", "other"])
+      .map(function (name) {
+        return [(STEM_LABEL[name] || name) + " (studio)", name];
       });
-    }
     if (!order.length) { studioDone("no stems came back"); return; }
-    roughNote("Studio Split done — downloading " + order.length + " stems…", 0.9);
+    roughNote("Studio Split done — downloading " + order.length + " stem" +
+      (order.length > 1 ? "s" : "") + "…", 0.9);
     Promise.all(order.map(function (pair) {
       return fetch("/rack/studio-split/" + jobId + "/stem/" + pair[1])
         .then(function (r) {
@@ -1955,13 +1982,23 @@
     }).catch(function (e) { studioDone(e.message); });
   }
 
-  function studioPoll(jobId, tries) {
+  function studioPoll(jobId, tries, wanted) {
     if (tries > 200) { studioDone("timed out — retry in a minute"); return; }
     fetch("/rack/studio-split/" + jobId)
       .then(function (r) { return r.json(); })
       .then(function (st) {
         if (st.error) { throw new Error(st.error); }
-        if (st.status === "COMPLETED") { studioLanes(jobId, st.stems); return; }
+        if (st.status === "COMPLETED") {
+          /* Take the mode's lanes, but only the ones that actually
+             arrived - asking for a stem the job never produced would
+             fail the whole set. */
+          var have = st.stems || [];
+          var use = (wanted || []).filter(function (n) {
+            return !have.length || have.indexOf(n) !== -1;
+          });
+          studioLanes(jobId, use.length ? use : wanted);
+          return;
+        }
         if (st.status === "FAILED" || st.status === "EXPIRED") {
           throw new Error("StemSplit reported " + st.status);
         }
@@ -1984,6 +2021,7 @@
         "leaves this tab for processing.", 0.02);
       var fd = new FormData();
       fd.append("audio", loadedFile, loadedFile.name);
+      if (studioMode) { fd.append("mode", studioMode.value); }
       fetch("/rack/studio-split", { method: "POST", body: fd })
         .then(function (r) {
           return r.json().then(function (j) {
@@ -1991,7 +2029,9 @@
             return j;
           });
         })
-        .then(function (j) { studioPoll(j.job, 0); })
+        // The server answers with the lanes this mode yields, so the deck
+        // never keeps its own idea of which stems belong together.
+        .then(function (j) { studioPoll(j.job, 0, j.stems); })
         .catch(function (e) { studioDone(e.message); });
     });
   }

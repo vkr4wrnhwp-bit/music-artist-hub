@@ -233,9 +233,11 @@ def probe_output_types(candidates=None):
     return results
 
 
-def create_job(source_url, output_type="FOUR_STEMS"):
+def create_job(source_url, output_type=None):
     """One separation job at best quality. Keys are camelCase per the
     published REST contract - snake_case is silently rejected."""
+    if output_type not in MODES:
+        output_type = DEFAULT_MODE      # never post an unknown enum
     body, err = _call("POST", JOBS, {
         "sourceUrl": source_url,
         "outputType": output_type,
@@ -254,7 +256,62 @@ def remember_source(job_id, path):
     _sources[job_id] = path
 
 
-STEMS = ("vocals", "drums", "bass", "other", "instrumental")
+"""Every stem name the API can hand back, across all modes."""
+STEMS = ("vocals", "drums", "bass", "other", "instrumental",
+         "guitar", "piano")
+
+# The separation modes this account actually has. Not a guess: the API
+# names them itself when it rejects an unknown one -
+#   "Must be one of: VOCALS, INSTRUMENTAL, BOTH, FOUR_STEMS, SIX_STEMS"
+# - which is what probe_output_types() above goes and asks for.
+#
+# "stems" is the PARTITION: the set that adds back up to the record, and
+# so the set that can sit on the deck together. The API often returns
+# extras beyond it - a FOUR_STEMS job also came back with an instrumental
+# mix - and those are fine to download but must not become lanes, because
+# instrumental is drums+bass+other over again and would play the record
+# twice.
+MODES = {
+    "VOCALS": {
+        "label": "Vocal only",
+        "stems": ("vocals",),
+        "note": "Just the voice, pulled out on its own.",
+    },
+    "INSTRUMENTAL": {
+        "label": "Instrumental only",
+        "stems": ("instrumental",),
+        "note": "The record with the voice taken out.",
+    },
+    "BOTH": {
+        "label": "Vocal + instrumental",
+        "stems": ("vocals", "instrumental"),
+        "note": "Two lanes. The classic acapella-and-beat pair.",
+    },
+    "FOUR_STEMS": {
+        "label": "Four stems",
+        "stems": ("vocals", "drums", "bass", "other"),
+        "note": "Vocals, drums, bass, and everything else in one lane.",
+    },
+    "SIX_STEMS": {
+        "label": "Six stems",
+        "stems": ("vocals", "drums", "bass", "guitar", "piano", "other"),
+        "note": "The four, with guitar and piano lifted out of "
+                "“everything else”.",
+    },
+}
+DEFAULT_MODE = "FOUR_STEMS"
+
+
+def mode_stems(output_type):
+    """The lanes a mode produces - the ones that sum back to the record."""
+    return list(MODES.get(output_type, MODES[DEFAULT_MODE])["stems"])
+
+
+def mode_list():
+    """Modes for the UI, in the order they get more detailed."""
+    order = ("VOCALS", "INSTRUMENTAL", "BOTH", "FOUR_STEMS", "SIX_STEMS")
+    return [dict(value=k, count=len(MODES[k]["stems"]), **MODES[k])
+            for k in order]
 
 
 def _outputs(body):

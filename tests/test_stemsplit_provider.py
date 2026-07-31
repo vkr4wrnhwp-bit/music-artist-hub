@@ -118,6 +118,74 @@ def test_failures_are_still_terminal(monkeypatch):
     assert out["status"] == "FAILED"             # not held open by settling
 
 
+# --- separation modes ----------------------------------------------------
+
+def test_modes_match_what_the_api_says_it_accepts():
+    # Straight from the API's own rejection message:
+    #   "Must be one of: VOCALS, INSTRUMENTAL, BOTH, FOUR_STEMS, SIX_STEMS"
+    assert set(sp.MODES) == {"VOCALS", "INSTRUMENTAL", "BOTH",
+                             "FOUR_STEMS", "SIX_STEMS"}
+
+
+def test_six_stems_lifts_guitar_and_piano_out():
+    six = sp.mode_stems("SIX_STEMS")
+    four = sp.mode_stems("FOUR_STEMS")
+    assert set(four) == {"vocals", "drums", "bass", "other"}
+    assert set(six) - set(four) == {"guitar", "piano"}
+
+
+def test_every_mode_partitions_the_record():
+    """No mode may put a stem next to one that already contains it.
+
+    "instrumental" is drums+bass+other again. A lane set holding both
+    would play the record twice, which is an audio bug the user would
+    hear before anyone read the code.
+    """
+    for name, mode in sp.MODES.items():
+        stems = set(mode["stems"])
+        if "instrumental" in stems:
+            assert not (stems & {"drums", "bass", "other", "guitar", "piano"}), \
+                "%s mixes instrumental with its own parts" % name
+        assert len(stems) == len(mode["stems"]), "%s repeats a stem" % name
+
+
+def test_unknown_mode_falls_back_rather_than_posting_it(monkeypatch):
+    sent = {}
+
+    def fake(method, path, payload=None, **kw):
+        sent.update(payload or {})
+        return {"id": "j1"}, None
+
+    monkeypatch.setattr(sp, "_call", fake)
+    sp.create_job("https://x/y.wav", "SEVEN_STEMS")
+    # Posting an unknown enum earns a 400; fall back instead.
+    assert sent["outputType"] == sp.DEFAULT_MODE
+
+
+def test_requested_mode_is_the_one_sent(monkeypatch):
+    sent = {}
+
+    def fake(method, path, payload=None, **kw):
+        sent.update(payload or {})
+        return {"id": "j1"}, None
+
+    monkeypatch.setattr(sp, "_call", fake)
+    sp.create_job("https://x/y.wav", "SIX_STEMS")
+    assert sent["outputType"] == "SIX_STEMS"
+
+
+def test_mode_list_is_ordered_by_how_far_it_splits():
+    counts = [m["count"] for m in sp.mode_list()]
+    assert counts == sorted(counts)
+    assert all(m.get("label") and m.get("note") for m in sp.mode_list())
+
+
+def test_every_mode_stem_is_a_known_stem():
+    for mode in sp.MODES.values():
+        for stem in mode["stems"]:
+            assert stem in sp.STEMS      # or the download route rejects it
+
+
 # --- the flat response shape still parses -------------------------------
 
 def test_outputs_reads_the_flat_shape(monkeypatch):

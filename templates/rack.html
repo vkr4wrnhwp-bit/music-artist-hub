@@ -544,6 +544,14 @@
             <button id="rk-roughsplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Split the loaded track into four rough lanes — classical DSP, right here in this tab">Rough Split</button>
             {% if studio_split %}
             <button id="rk-studiosplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Demucs-class separation by StemSplit — this one uploads the track for processing">Studio Split</button>
+            <label class="sk mt-0.5 block text-[8px] text-[#6d6450]" for="rk-studiomode">How far to split</label>
+            <select id="rk-studiomode" class="w-full rounded-sm border border-[#c9a24a]/40 bg-black/70 px-2 py-1 text-[10px] font-bold text-[#e8c667]">
+              {% for m in studio_modes %}
+              <option value="{{ m.value }}"{% if m.value == 'FOUR_STEMS' %} selected{% endif %}>{{ m.label }} · {{ m.count }}</option>
+              {% endfor %}
+            </select>
+            <p id="rk-studiomode-note" class="note mt-0.5 text-[9px] leading-snug text-[#8a8069]"></p>
+            <script id="rk-studiomodes" type="application/json">{{ studio_modes|tojson }}</script>
             {% endif %}
           </div>
           <div id="rk-roughsplit-wrap" class="mt-2 hidden">
@@ -561,7 +569,7 @@
           </div>
         </div>
       </div>
-      <p class="note mt-3">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.{% if studio_split %} <b>Studio Split</b> is the quality tier: Demucs-class separation processed by StemSplit — the one Deck feature that uploads your track (to their servers, for the split, billed to this site's StemSplit account).{% endif %}</p>
+      <p class="note mt-3">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.{% if studio_split %} <b>Studio Split</b> is the quality tier: Demucs-class separation processed by StemSplit — the one Deck feature that uploads your track (to their servers, for the split, billed to this site's StemSplit account). Pick how far to take it: just the vocal, vocal and instrumental, four stems, or six — six lifts guitar and piano out of the “everything else” lane. Whichever you choose, the lanes you get back add up to your record.{% endif %}</p>
     </section>
 
     <!-- SB-11 Snippet Finder -->
@@ -939,6 +947,6 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=26"></script>
+<script src="/static/js/rackdsp.js?v=27"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}
