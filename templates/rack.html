@@ -1023,14 +1023,14 @@
   </div>
   <!-- Sticky transport dock: play, scrub, bypass, level — always in reach -->
   <div id="rk-dock" class="fixed inset-x-0 bottom-0 z-40 border-t border-[#c9a24a]/30 bg-[#0c0b09]/95 px-4 py-2 backdrop-blur">
-    <div class="mx-auto flex max-w-[1100px] items-center gap-3">
+    <div class="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
       <button id="rk-play2" class="sw px-4 py-1.5 text-xs font-black" disabled>Play</button>
-      <canvas id="rk-wave" class="h-10 min-w-0 flex-1 cursor-pointer rounded border border-white/10 bg-black/50" title="Click to jump anywhere in the track"></canvas>
-      <span id="rk-time" class="w-24 shrink-0 text-center font-mono text-[10px] tabular-nums text-[#c9bd9c]">0:00 / 0:00</span>
+      <canvas id="rk-wave" class="order-last h-10 w-full min-w-0 cursor-pointer rounded border border-white/10 bg-black/50 sm:order-none sm:w-auto sm:flex-1" title="Click to jump anywhere in the track"></canvas>
+      <span id="rk-time" class="shrink-0 text-center font-mono text-[10px] tabular-nums text-[#c9bd9c] sm:w-24">0:00 / 0:00</span>
       <div class="hidden w-28 shrink-0 sm:block">
         <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak2" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
       </div>
-      <button id="rk-ab2" class="sw px-3 py-1.5 text-[10px]" disabled>Bypass: OFF</button>
+      <button id="rk-ab2" class="sw px-3 py-2 text-[11px] sm:py-1.5 sm:text-[10px]" disabled>Bypass: OFF</button>
       <button id="rk-export2" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] sm:text-[10px]" disabled>Export</button>
       <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
       <label class="sw hidden cursor-pointer px-2.5 py-1.5 text-[10px] md:block" title="Load a commercial reference track to A/B against — it plays untouched">
