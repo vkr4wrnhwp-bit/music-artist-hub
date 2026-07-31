@@ -638,6 +638,10 @@
   .sbeq-screw--tr, .sbeq-screw--br { right: 8px; }
   .sbeq-preset { flex: 0 0 auto; padding: 12px 15px; }
   .sbeq-screen { padding: 12px 8px 20px 32px; }
+
+  /* All three sat a few pixels under the 44px a thumb needs - 42, 39 and
+     38. Close enough to look fine and still be missed. */
+  .sbeq-preset, .sbeq-bank, .sbeq-reset { min-height: 44px; }
 }
 
 /* The hero photograph melts into the white page on its left edge. */
