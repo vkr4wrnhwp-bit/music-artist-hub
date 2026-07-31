@@ -30,9 +30,18 @@
           <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linejoin="round"><path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/></svg>
           <span class="text-xs font-bold tracking-[0.25em] text-gray-100">ROYALTY SWEEP</span>
         </a>
-        <button id="sb-burger" type="button" aria-label="Menu" aria-expanded="false" class="rounded-lg border border-white/15 p-2 text-gray-300">
-          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- The palette's only opener was Ctrl-K, which a phone has no
+               key for. Seventy destinations behind a shortcut that is not
+               on the keyboard is the same as no way to reach them. -->
+          <button id="sb-search" type="button" aria-label="Search pages"
+                  class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-gray-300">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5L17 17"/></svg>
+          </button>
+          <button id="sb-burger" type="button" aria-label="Menu" aria-expanded="false" class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-gray-300">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+          </button>
+        </div>
       </div>
       <a href="/" class="hidden flex-col items-center transition-opacity hover:opacity-80 lg:flex">
         <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linejoin="round" class="shrink-0">
@@ -712,13 +721,14 @@
       <input id="cmdk-input" type="text" autocomplete="off" spellcheck="false"
              placeholder="Jump to a page…" aria-controls="cmdk-list"
              class="w-full bg-transparent py-3.5 text-sm text-white placeholder-gray-600 focus:outline-none">
-      <kbd class="rounded border border-white/15 px-1.5 py-0.5 text-[10px] text-gray-500">esc</kbd>
+      <kbd class="hidden rounded border border-white/15 px-1.5 py-0.5 text-[10px] text-gray-500 sm:inline">esc</kbd>
     </div>
     <ul id="cmdk-list" role="listbox" aria-label="Results"
         class="max-h-[52vh] overflow-y-auto py-1"></ul>
     <div class="flex items-center gap-3 border-t border-white/10 px-4 py-2 text-[10px] text-gray-600">
-      <span><kbd class="text-gray-500">↑↓</kbd> move</span>
-      <span><kbd class="text-gray-500">↵</kbd> open</span>
+      <span class="hidden sm:inline"><kbd class="text-gray-500">↑↓</kbd> move</span>
+      <span class="hidden sm:inline"><kbd class="text-gray-500">↵</kbd> open</span>
+      <button type="button" id="cmdk-close" class="-mx-2 px-2 py-2 font-bold text-gray-400 sm:hidden">Close</button>
       <span class="ml-auto" id="cmdk-count"></span>
     </div>
   </div>
@@ -795,7 +805,7 @@
       var li = document.createElement("li");
       li.setAttribute("role", "option");
       li.setAttribute("aria-selected", i === active ? "true" : "false");
-      li.className = "flex cursor-pointer items-baseline gap-2 px-4 py-2 text-sm "
+      li.className = "flex cursor-pointer items-baseline gap-2 px-4 py-3 text-sm sm:py-2 "
         + (i === active ? "bg-[#c9a24a]/15" : "");
       li.innerHTML =
         '<span class="font-semibold ' + (item.live ? "text-gray-100" : "text-gray-500") + '"></span>'
@@ -834,6 +844,22 @@
     // Put focus back where it was, or the page loses its place.
     if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
   }
+
+  /* Touch has no Ctrl key, so the same palette needs a control you can
+     press. Same open(), same list, same behaviour - only the way in
+     differs. */
+  var searchBtn = document.getElementById("sb-search");
+  if (searchBtn) {
+    searchBtn.addEventListener("click", function () {
+      if (box.classList.contains("hidden")) { open(); } else { close(); }
+    });
+  }
+  var closeBtn = document.getElementById("cmdk-close");
+  if (closeBtn) { closeBtn.addEventListener("click", close); }
+  // Tapping the backdrop is what everyone tries first.
+  box.addEventListener("click", function (e) {
+    if (e.target === box) { close(); }
+  });
 
   document.addEventListener("keydown", function (e) {
     var k = (e.key || "").toLowerCase();

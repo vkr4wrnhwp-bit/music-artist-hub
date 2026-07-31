@@ -186,7 +186,7 @@
           {% else %}<span class="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-500">Private</span>{% endif %}
           <span class="font-black tabular-nums text-[#e8c667]">{{ money(r.rate) }}/h</span>
           <form method="post" action="{{ url_for('hours_rate_delete', rate_id=r.id) }}">
-            <button class="text-[10px] text-gray-500 hover:text-red-400">×</button>
+            <button class="-m-1 p-2 text-[13px] leading-none text-gray-500 hover:text-red-400" aria-label="Delete rate">×</button>
           </form>
         </div>
       {% endfor %}
@@ -349,8 +349,8 @@
             {% if it.source == 'booking' %}
               <span class="rounded bg-[#c9a24a]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">Booked</span>
             {% else %}
-              <form method="post" action="{{ url_for('hours_block_action', block_id=it.id, action='done') }}"><input type="hidden" name="day" value="{{ plan_day }}"><button class="text-[10px] text-gray-500 hover:text-green-400">{{ 'Undo' if it.done else 'Done' }}</button></form>
-              <form method="post" action="{{ url_for('hours_block_action', block_id=it.id, action='delete') }}"><input type="hidden" name="day" value="{{ plan_day }}"><button class="text-[10px] text-gray-500 hover:text-red-400">×</button></form>
+              <form method="post" action="{{ url_for('hours_block_action', block_id=it.id, action='done') }}"><input type="hidden" name="day" value="{{ plan_day }}"><button class="-m-1 p-2 text-[11px] leading-none text-gray-500 hover:text-green-400">{{ 'Undo' if it.done else 'Done' }}</button></form>
+              <form method="post" action="{{ url_for('hours_block_action', block_id=it.id, action='delete') }}"><input type="hidden" name="day" value="{{ plan_day }}"><button class="-m-1 p-2 text-[13px] leading-none text-gray-500 hover:text-red-400" aria-label="Delete rate">×</button></form>
             {% endif %}
             {% if it.clash %}<span class="text-[9px] font-bold uppercase text-red-400">Clash</span>{% endif %}
           </div>

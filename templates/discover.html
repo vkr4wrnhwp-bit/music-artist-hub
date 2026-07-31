@@ -6,6 +6,16 @@
 
 {% block content %}
 <style>
+  /* The play affordance fades in on hover. On a touch screen it never
+     does, so the tile is playable but gives no sign of it - the tap
+     works, nobody knows to try. Show it faintly instead, and let the
+     playing state light it fully as before. */
+  @media (hover: none) {
+    .preview-play { opacity: 0.55; }
+  }
+</style>
+
+<style>
   /* Playing indicator: three bars pulse while a real preview is audible */
   .preview-play .viz { display: none; position: absolute; left: 10px; bottom: 10px;
                        gap: 3px; align-items: flex-end; height: 16px; }

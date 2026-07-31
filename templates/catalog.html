@@ -29,6 +29,15 @@
 {% endmacro %}
 
 {% block content %}
+<style>
+  /* The remove control is revealed by hover, which a touch screen cannot
+     do - so on a device with no hover it is simply always there. Keeping
+     the hover reveal for pointers keeps the grid clean where it can be. */
+  @media (hover: none) {
+    .remove-track { display: grid !important; }
+  }
+</style>
+
 <div class="mx-auto max-w-[1400px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
@@ -66,7 +75,7 @@
         <div class="relative aspect-square">
           {% if t.art %}<img src="{{ t.art }}" alt="{{ t.title }}" class="h-full w-full object-cover" loading="lazy">
           {% else %}<div class="grid h-full w-full place-items-center bg-white/5 text-2xl text-gray-600">♪</div>{% endif %}
-          <button type="button" class="remove-track absolute right-1.5 top-1.5 hidden h-6 w-6 place-items-center rounded-full bg-black/70 text-xs text-gray-200 hover:text-red-400 group-hover:grid" data-id="{{ t.id }}" title="Remove from catalog">✕</button>
+          <button type="button" class="remove-track absolute right-1 top-1 hidden h-9 w-9 place-items-center rounded-full bg-black/70 text-xs text-gray-200 hover:text-red-400 group-hover:grid" data-id="{{ t.id }}" aria-label="Remove {{ t.title }} from catalog" title="Remove from catalog">✕</button>
         </div>
         <div class="p-2">
           <div class="truncate text-[11px] font-semibold text-gray-100">{{ t.title }}</div>

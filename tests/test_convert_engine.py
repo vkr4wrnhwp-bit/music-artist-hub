@@ -237,3 +237,42 @@ def test_the_page_tells_people_the_keys_exist():
     page = io.open(os.path.join(here, "templates", "rack.html"),
                    encoding="utf8").read()
     assert "Every knob in the rack takes the keyboard" in page
+
+
+# --- the command palette has to be reachable without a Ctrl key ---------
+
+def _base_html():
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return io.open(os.path.join(here, "templates", "base.html"),
+                   encoding="utf8").read()
+
+
+def test_the_palette_has_a_control_not_only_a_shortcut():
+    page = _base_html()
+    # Ctrl-K is not on a phone keyboard. Seventy destinations behind it
+    # is the same as no way to reach them.
+    assert 'id="sb-search"' in page
+    assert 'aria-label="Search pages"' in page
+    assert 'searchBtn.addEventListener("click"' in page
+
+
+def test_the_palette_can_be_dismissed_by_touch():
+    page = _base_html()
+    assert 'id="cmdk-close"' in page          # a visible way out
+    assert "if (e.target === box) { close(); }" in page   # and the backdrop
+
+
+def test_keyboard_hints_do_not_show_where_there_is_no_keyboard():
+    page = _base_html()
+    # The arrow/enter hints and the esc chip are keyboard affordances.
+    assert '<span class="hidden sm:inline"><kbd class="text-gray-500">↑↓</kbd> move</span>' in page
+    assert 'sm:inline">esc</kbd>' in page
+
+
+def test_the_two_header_buttons_are_thumb_sized():
+    page = _base_html()
+    # Both the search and the menu button, at 44px.
+    assert page.count('class="flex h-11 w-11 items-center justify-center '
+                      'rounded-lg border border-white/15 text-gray-300"') == 2
