@@ -93,7 +93,19 @@
     #rk-zone { flex-wrap: wrap; }
     /* Each module's ON and A/B controls were stacked in a column pinned
        right, which is tall and thin exactly where height is scarce. */
-    .mods { flex-direction: row; margin-left: 0; flex-wrap: wrap; }
+    .mods { flex-direction: row; align-items: center; margin-left: 0;
+            flex-wrap: wrap; gap: 8px; }
+    /* ON and A/B measured 27x17 and 29x17, three pixels apart. A finger
+       covers both, and the neighbour is destructive: A/B swaps the module
+       to its previous snapshot with no undo, so a mis-tap while reaching
+       for bypass throws away the curve you just dialled. */
+    .mods .sw { min-height: 44px; min-width: 44px; font-size: 11px; }
+    /* The pickers - container, depth, sample rate, channels - were 46x18
+       with a 5px gutter and 8px type. That is the only way to choose an
+       export format, and FLAC and ALAC sit adjacent. */
+    .pick { gap: 8px; }
+    .pick label { min-height: 44px; justify-content: center; }
+    .pick .cap { font-size: 11px; }
     .u .flex.flex-wrap { row-gap: 8px; }
   }
 
@@ -250,14 +262,14 @@
   </div>
 
   <!-- Zone trim: appears when an instrument band on the screen is clicked -->
-  <div id="rk-zone" style="display:none" class="mx-auto w-full max-w-[760px] items-center gap-3 rounded-xl border border-[#c9a24a]/40 bg-[#141209] px-4 py-2.5">
+  <div id="rk-zone" style="display:none" class="mx-auto w-full max-w-[760px] flex-wrap items-center gap-2 rounded-xl border border-[#c9a24a]/40 bg-[#141209] px-4 py-2.5 sm:gap-3">
     <span class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Zone</span>
     <span id="rk-zone-name" class="text-sm font-black"></span>
-    <span id="rk-zone-bands" class="font-mono text-[11px] font-bold tabular-nums text-[#e8c667]"></span>
-    <button id="rk-zone-minus" class="sw px-3 py-1.5 text-sm font-black">−1 dB</button>
-    <button id="rk-zone-plus" class="sw px-3 py-1.5 text-sm font-black">+1 dB</button>
+    <span id="rk-zone-bands" class="order-last w-full font-mono text-[11px] font-bold tabular-nums text-[#e8c667] sm:order-none sm:w-auto"></span>
+    <button id="rk-zone-minus" class="sw whitespace-nowrap px-3 py-1.5 text-sm font-black">−1 dB</button>
+    <button id="rk-zone-plus" class="sw whitespace-nowrap px-3 py-1.5 text-sm font-black">+1 dB</button>
     <button id="rk-zone-zero" class="sw px-2.5 py-1.5 text-[10px]">Reset zone</button>
-    <button id="rk-zone-clear" class="ml-auto sw px-2 py-1 text-[10px]">Done</button>
+    <button id="rk-zone-clear" class="sw px-3 py-2 text-[11px] sm:ml-auto sm:px-2 sm:py-1 sm:text-[10px]">Done</button>
   </div>
 
   <!-- Controls carry fixed sizes, so small screens pan the rack instead of shrinking it. -->
@@ -1007,7 +1019,7 @@
         <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak2" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
       </div>
       <button id="rk-ab2" class="sw px-3 py-1.5 text-[10px]" disabled>Bypass: OFF</button>
-      <button id="rk-export2" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] sm:block" disabled>Export</button>
+      <button id="rk-export2" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] sm:text-[10px]" disabled>Export</button>
       <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
       <label class="sw hidden cursor-pointer px-2.5 py-1.5 text-[10px] md:block" title="Load a commercial reference track to A/B against — it plays untouched">
         Load ref<input id="rk-ref-file" type="file" accept="audio/*" class="hidden">
