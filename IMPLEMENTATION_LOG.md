@@ -290,3 +290,47 @@ threshold meaning are independent. Adding "Income on Record" would have
 compounded it to 120.
 
 **Verification:** 3 new tests, 515 in the suite, all green.
+
+## The last two dead columns
+
+`short_term_max` and `momentary_max` were written on every measurement
+and read by nothing. Both were mine — added when the measurement pipe
+went in, then never consumed.
+
+The honest question was what they say that loudness range does not, and
+there is a real answer: **LRA is the 10th–95th percentile spread and
+discards the extremes by design. Short-term max *is* the extreme.** A
+record can be perfectly consistent by LRA and still have one section
+towering over the body of it, and only one of those two numbers can tell
+you so. A test pins exactly that case — `range` reads "ok" while
+`peak_section` reads "watch" on the same track.
+
+Short-term loudness is measured over 3-second blocks, which is the window
+broadcast and sync delivery specifications are written in, so this is
+also the figure a sync submission gets judged on.
+
+Reported as the gap above the integrated average: under 2 LU nothing
+rises above the rest, over 8 LU one passage dominates, between them a
+normal lift. No invented ceiling — the rulings describe what was measured
+and name what it bears on.
+
+**Verification:** 6 new tests, 521 in the suite, all green.
+
+---
+
+## Audit closed
+
+Every finding from the severed-signal audit has now been checked
+individually rather than taken on trust. Final tally:
+
+| | |
+|---|---|
+| Severances and inversions closed | 9 |
+| Bugs found and fixed | 7 (five of them mine) |
+| Findings refuted or materially corrected | 4 |
+
+The refutation rate held near a third throughout, and twice the
+correction was worth more than the original finding: the territories
+check found a fabricated-money generator one line from going live rather
+than the reported bug, and the click-heat correction turned a claimed
+migration into a zero-schema change.

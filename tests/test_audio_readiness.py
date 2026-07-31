@@ -331,3 +331,47 @@ def test_no_statements_scores_zero_income_and_says_why():
     # Absent evidence is not a pass - same rule the master read follows.
     assert "income_pts = 0" in src
     assert "cannot speak to money" in src
+
+
+# --- how far the biggest moment sits above the rest ---------------------
+
+def test_a_normal_lift_passes():
+    assert ar.peak_section_ruling(-8.0, -6.5, -12.5)["level"] == "ok"
+
+
+def test_a_record_with_no_lift_is_flagged():
+    r = ar.peak_section_ruling(-11.5, -10.0, -12.5)
+    assert r["level"] == "watch"
+    assert "only 1.0 LU" in r["headline"]
+
+
+def test_one_towering_section_is_flagged():
+    r = ar.peak_section_ruling(-3.0, -1.5, -12.5)
+    assert r["level"] == "watch"
+    assert "9.5 LU" in r["headline"]
+    # It is the figure a delivery spec cares about, and says so.
+    assert "delivery spec" in r["detail"]
+
+
+def test_this_is_not_the_same_as_loudness_range():
+    """LRA is the 10th-95th percentile spread and discards the extremes;
+    short-term max IS the extreme. A record can be consistent by LRA and
+    still have one section far above the body of it, so both rulings must
+    be able to fire independently."""
+    a = ar.assess({"measured_at": "x", "integrated": -12.5, "lra": 4.2,
+                   "short_term_max": -3.0, "momentary_max": -1.5,
+                   "true_peak": -1.5})
+    levels = {r["key"]: r["level"] for r in a["rulings"]}
+    assert levels["range"] == "ok"           # the spread is normal
+    assert levels["peak_section"] == "watch"  # the extreme is not
+
+
+def test_unmeasured_says_so_rather_than_scoring():
+    assert ar.peak_section_ruling(None, None, -12.5)["level"] == "unknown"
+    assert ar.peak_section_ruling(-6.0, None, None)["level"] == "unknown"
+
+
+def test_the_evidence_quotes_both_figures():
+    r = ar.peak_section_ruling(-8.0, -6.5, -12.5)
+    assert "-8.0" in r["evidence"] and "-12.5" in r["evidence"]
+    assert "momentary" in r["evidence"]

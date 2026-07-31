@@ -53,6 +53,13 @@ LRA_WIDE = 15.0
 # Below this, a detected tempo is a suggestion rather than a fact.
 BPM_TRUSTWORTHY = 0.5
 
+# How far the loudest 3-second passage sits above the integrated average,
+# in LU. Distinct from loudness range: LRA is the 10th-95th percentile
+# spread and deliberately throws the extremes away, so a record can be
+# consistent by LRA and still have one section towering over the rest.
+PEAK_SECTION_FLAT = 2.0
+PEAK_SECTION_BIG = 8.0
+
 
 def _ruling(key, level, headline, detail, evidence, action=None):
     """One finding. `level` is ok | watch | problem | unknown."""
@@ -251,6 +258,47 @@ def tempo_key_ruling(bpm, bpm_confidence, key, key_fit):
         "Confirm the tempo by ear before quoting it" if not trust else None)
 
 
+def peak_section_ruling(short_term_max, momentary_max, integrated):
+    """How far the biggest moment sits above the body of the record.
+
+    Short-term loudness is measured over 3-second blocks, which is the
+    window broadcast and sync delivery specifications are written in, and
+    the maximum is the one number that says how loud this record ever
+    actually gets. Loudness range will not tell you: it reports the
+    middle of the distribution and discards the top of it by design.
+    """
+    if short_term_max is None or integrated is None:
+        return _ruling("peak_section", "unknown",
+                       "Loudest section not measured", "", None, None)
+    gap = short_term_max - integrated
+    ev = "Short-term max %.1f LUFS against %.1f LUFS integrated" % (
+        short_term_max, integrated)
+    if momentary_max is not None:
+        ev += ", momentary max %.1f LUFS" % momentary_max
+
+    if gap < PEAK_SECTION_FLAT:
+        return _ruling(
+            "peak_section", "watch",
+            "The loudest passage is only %.1f LU above the average" % gap,
+            "Nothing on this record rises much above the rest of it. That "
+            "is a choice for some material and a flat listen for others - "
+            "worth knowing before a chorus is expected to lift.", ev, None)
+    if gap > PEAK_SECTION_BIG:
+        return _ruling(
+            "peak_section", "watch",
+            "The loudest passage is %.1f LU above the average" % gap,
+            "One section towers over the body of the record. That can be "
+            "exactly the drama you wanted, and it can also mean a single "
+            "moment is setting the level everything else is judged "
+            "against. It is the figure a broadcast or sync delivery spec "
+            "will look at.", ev, None)
+    return _ruling(
+        "peak_section", "ok",
+        "The loudest passage is %.1f LU above the average" % gap,
+        "A normal lift between the body of the record and its biggest "
+        "moment.", ev, None)
+
+
 def _mmss(seconds):
     return "%d:%02d" % (int(seconds) // 60, int(seconds) % 60)
 
@@ -300,6 +348,8 @@ def assess(analysis):
         range_ruling(a.get("lra")),
         tempo_key_ruling(a.get("bpm"), a.get("bpm_confidence"),
                          a.get("key"), a.get("key_fit")),
+        peak_section_ruling(a.get("short_term_max"),
+                            a.get("momentary_max"), a.get("integrated")),
         hook_ruling(a.get("hook_30s"), a.get("hook_15s"),
                     a.get("first_beat"), a.get("grid_confidence")),
     ]
