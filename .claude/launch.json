@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hub",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app.py"],
+      "port": 5057,
+      "env": { "PORT": "5057" }
+    }
+  ]
+}

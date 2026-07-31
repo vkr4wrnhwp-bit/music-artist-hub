@@ -61,6 +61,40 @@
               font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
               color: #d8cdb4; }
   .lane .ld { font-size: 9px; color: #6d6450; font-variant-numeric: tabular-nums; }
+  /* ---- Narrow screens -------------------------------------------------
+     A nineteen-inch chassis is a statement about width, and a phone has
+     none. Two different problems here, so two different answers.
+
+     The photo faceplate cannot reflow. It is a background image with
+     control wells positioned absolutely against a 760px canvas, so
+     moving one thing moves everything. It gets scaled to fit instead,
+     which keeps every control working and in register with the artwork.
+     The knobs come out small - that is the honest cost, and it is
+     exactly why they now take the arrow keys.
+
+     The nine rack units below it are ordinary flow, so they stack and
+     their control rows wrap. The screw heads go: machined detail on a
+     desk, clutter on a phone. */
+  @media (max-width: 1023px) {
+    /* A scaled element keeps its original layout box, so without this
+       the page would carry 1361px of empty space under the rack. */
+    .chassis-fit { width: 100%; overflow: hidden; aspect-ratio: 800 / 1361; }
+    .chassis {
+      transform-origin: top left;
+      transform: scale(calc(100vw / 800));   /* 760 wide + a little air */
+      margin: 0;
+    }
+    .u { padding: 11px 12px; margin: 7px 0; }
+    .sc { display: none; }
+    /* Seven children on one line with no wrap allowed; the last three
+       were pushed off the screen. */
+    #rk-zone { flex-wrap: wrap; }
+    /* Each module's ON and A/B controls were stacked in a column pinned
+       right, which is tall and thin exactly where height is scarce. */
+    .mods { flex-direction: row; margin-left: 0; flex-wrap: wrap; }
+    .u .flex.flex-wrap { row-gap: 8px; }
+  }
+
   /* A focused knob has to be findable on a dark chassis, and the ring has
      to sit outside the SVG rather than on it - the knob is round, so a
      square outline reads as a mistake. */
@@ -226,6 +260,7 @@
 
   <!-- Controls carry fixed sizes, so small screens pan the rack instead of shrinking it. -->
   <div class="overflow-x-auto">
+  <div class="chassis-fit">
   <div class="chassis">
     <!-- Screen: spectrum, EQ + cab curves, clickable instrument bands -->
     <div class="slot" style="left:13.0%; top:11.0%; width:74.0%; height:19.8%;">
@@ -366,6 +401,7 @@
       </div>
     </div>
   </div>
+  </div><!-- /chassis-fit -->
   </div>
 
   <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-600">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — then use the gold Zone bar above the rack to trim just that range in 1&nbsp;dB steps; watch its EQ knobs turn as you press. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
