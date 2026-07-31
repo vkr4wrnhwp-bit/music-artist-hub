@@ -2104,6 +2104,63 @@
     });
   }
 
+
+  /* ---------- Explain mode -------------------------------------------
+     Forty-eight controls on this page carry a title attribute holding
+     the only description of what they do. Hover does not exist on a
+     touch screen, so on a phone that text was unreachable - and it is
+     not decoration, it is sentences like "this one uploads the track for
+     processing".
+
+     One switch prints them on the panel. The captions are built from the
+     title attributes themselves rather than a hand-written list, so a
+     control added tomorrow is covered without anyone remembering this
+     exists. The titles stay in place, so a mouse still gets its tooltip.
+  */
+  var explainBtn = document.getElementById("rk-explain");
+  var explainOn = false;
+
+  function explainTargets() {
+    var root = document.querySelector("main") || document.body;
+    return Array.prototype.filter.call(
+      root.querySelectorAll("[title]"),
+      function (el) {
+        // Skip anything already carrying its own visible caption, and
+        // the toggle itself.
+        return el.id !== "rk-explain"
+          && (el.getAttribute("title") || "").trim().length > 12
+          && !el.querySelector(".rk-explain-note");
+      });
+  }
+
+  function setExplain(on) {
+    explainOn = on;
+    if (explainBtn) {
+      explainBtn.classList.toggle("sw-lit", on);
+      explainBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".rk-explain-note"),
+      function (n) { n.remove(); });
+    if (!on) { return; }
+    explainTargets().forEach(function (el) {
+      var note = document.createElement("span");
+      note.className = "rk-explain-note";
+      // textContent, never innerHTML - these strings come from the
+      // template but the habit is what keeps it safe when one day they
+      // do not.
+      note.textContent = el.getAttribute("title");
+      // Sit the caption after the control rather than inside it, so a
+      // button's own layout and hit area are untouched.
+      var host = el.parentNode;
+      if (host) { host.insertBefore(note, el.nextSibling); }
+    });
+  }
+
+  if (explainBtn) {
+    explainBtn.addEventListener("click", function () { setExplain(!explainOn); });
+  }
+
   /* Boot: the deck and the scanner show their hardware before any file
      arrives - dormant lanes, not blank wells. */
   renderStems();

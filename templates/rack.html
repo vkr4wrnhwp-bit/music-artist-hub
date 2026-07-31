@@ -109,6 +109,23 @@
     .u .flex.flex-wrap { row-gap: 8px; }
   }
 
+  /* Explain mode: the tooltips, made visible.
+
+     Forty-eight controls carry a title attribute holding the only
+     explanation of what they do - real sentences, 60 to 130 characters -
+     and hover does not exist on a touch screen, so on a phone that text
+     was simply unreachable. Rather than print all of it permanently and
+     bury the instrument, one switch turns it on.
+
+     The captions are generated from the title attributes themselves, so
+     any control added later is covered without anyone remembering. */
+  .rk-explain-note {
+    display: block; margin-top: 4px; max-width: 22ch;
+    font-size: 10px; line-height: 1.4; color: #c9bd9c;
+    border-left: 2px solid rgba(201,162,74,0.5); padding-left: 6px;
+  }
+  .u-silver .rk-explain-note { color: #3a3426; }
+
   /* Touch, rather than narrow. A touch laptop at 1400px needs the same
      targets a phone does, and a narrow desktop window does not. */
   @media (pointer: coarse) {
@@ -262,6 +279,7 @@
     </div>
     <div class="flex items-center gap-2">
       <button id="rk-focus" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide">Focus mode</button>
+      <button id="rk-explain" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide" aria-pressed="false" title="Show what every control does, as text on the panel">Explain</button>
       <span class="chip">SB-1200 SERIES</span>
     </div>
   </div>
@@ -1048,6 +1066,6 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=33"></script>
+<script src="/static/js/rackdsp.js?v=34"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

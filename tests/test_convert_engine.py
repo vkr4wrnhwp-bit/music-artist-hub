@@ -276,3 +276,45 @@ def test_the_two_header_buttons_are_thumb_sized():
     # Both the search and the menu button, at 44px.
     assert page.count('class="flex h-11 w-11 items-center justify-center '
                       'rounded-lg border border-white/15 text-gray-300"') == 2
+
+
+# --- the rack's tooltips have to be reachable without hover -------------
+
+def test_explain_mode_exists():
+    """Forty-eight controls carry their only description in a title
+    attribute. Hover does not exist on a phone, so that text was
+    unreachable there - and it is sentences, not decoration."""
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    page = io.open(os.path.join(here, "templates", "rack.html"),
+                   encoding="utf8").read()
+    assert 'id="rk-explain"' in page
+    assert 'aria-pressed="false"' in page          # it is a toggle
+    assert ".rk-explain-note" in page              # and it has a style
+
+
+def test_explain_is_generated_from_the_titles_themselves():
+    """Not a hand-written list. A control added later must be covered
+    without anyone remembering this feature exists."""
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    js = io.open(os.path.join(here, "static", "js", "rackdsp.js"),
+                 encoding="utf8").read()
+    assert 'querySelectorAll("[title]")' in js
+    assert 'el.getAttribute("title")' in js
+    # textContent, never innerHTML.
+    assert "note.textContent = el.getAttribute" in js
+    assert "note.innerHTML" not in js
+
+
+def test_the_titles_survive_explain_mode():
+    """A pointer user should keep their tooltips - explain mode adds a
+    caption, it does not move the text out of the attribute."""
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    js = io.open(os.path.join(here, "static", "js", "rackdsp.js"),
+                 encoding="utf8").read()
+    assert 'removeAttribute("title")' not in js
