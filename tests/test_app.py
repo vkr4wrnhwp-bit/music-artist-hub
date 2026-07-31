@@ -6072,3 +6072,66 @@ def test_settings_names_the_backup_gap_honestly():
     # that is the gate working, and worth pinning.
     assert "Download backup" not in page
 
+
+def test_command_palette_index_cannot_drift_from_the_nav():
+    """Seventy-odd destinations across five hubs means finding a page
+    requires knowing which hub someone filed it under. The palette is the
+    escape hatch — and it is derived from the same definitions the sidebar
+    renders, so it can never list a page the nav has dropped."""
+    import hubs
+
+    idx = hubs.command_index()
+    assert len(idx) > 60
+    # Every nav destination appears exactly once.
+    hrefs = [i["href"] for i in idx]
+    assert len(set(hrefs)) == len(hrefs)
+    nav_hrefs = set()
+    for _k, _name, _tag, items in hubs.HUBS:
+        for _key, href, _icon, _label, _desc in items:
+            nav_hrefs.add(href)
+    for group in (hubs.LABEL_GROUP, hubs.COMMUNITY_GROUP, hubs.ACCOUNT_GROUP):
+        for _key, href, _icon, _label, _desc in group[1]:
+            nav_hrefs.add(href)
+    assert nav_hrefs == set(hrefs)
+    # Every entry carries what the palette shows.
+    for entry in idx:
+        assert entry["label"] and entry["group"] and entry["href"]
+        assert isinstance(entry["live"], bool)
+    # Things built and shipped are marked live, so the palette does not
+    # tell someone a working page is locked.
+    live = {i["key"] for i in idx if i["live"]}
+    for key in ("hours", "rack", "overview", "links", "tour"):
+        assert key in live, key
+
+
+def test_command_palette_renders_on_every_signed_in_page():
+    app_obj = create_app()
+    artist = _demo(app_obj)
+    for path in ("/overview", "/rack", "/hours", "/settings"):
+        page = artist.get(path).get_data(as_text=True)
+        assert 'id="cmdk"' in page, path
+        assert 'id="cmdk-input"' in page, path
+        # The index travels with the page, so search works offline too.
+        assert '"href"' in page and '"live"' in page, path
+        # Keyboard affordances are stated, not left to be guessed.
+        assert "esc" in page and "move" in page, path
+
+
+def test_command_palette_respects_the_fan_shell():
+    """The index travels with the page, so an unfiltered palette would
+    quietly hand a fan account the whole artist toolbox — pages the fan
+    shell exists to keep out of their world, and which would refuse them
+    anyway. It is scoped to the same shell the sidebar renders."""
+    import uuid as _uuid
+
+    app_obj = create_app()
+    fan = app_obj.test_client()
+    fan.post("/signup", data={"name": "F",
+                              "email": "palette%s@x.com" % _uuid.uuid4().hex[:6],
+                              "password": "secret1", "account_type": "fan"})
+    page = fan.get("/discover").get_data(as_text=True)
+    assert 'id="cmdk"' in page                    # they still get a palette
+    assert "Rollout Studio" not in page
+    assert "Royalty Lanes" not in page
+    assert "Discover (Fans)" in page              # scoped to their world
+

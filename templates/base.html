@@ -699,5 +699,173 @@
     });
   })();
 </script>
+<!-- Command palette: with five hubs and seventy destinations, finding a
+     page means knowing which hub someone filed it under. This is the
+     escape hatch. Built from the same definitions as the sidebar. -->
+<div id="cmdk" class="fixed inset-0 z-[100] hidden items-start justify-center bg-black/70 px-4 pt-[12vh] backdrop-blur-sm"
+     role="dialog" aria-modal="true" aria-label="Search pages">
+  <div class="w-full max-w-[560px] overflow-hidden rounded-2xl border border-[#c9a24a]/30 bg-[#111013] shadow-2xl">
+    <div class="flex items-center gap-2 border-b border-white/10 px-4">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#8a7c5d" stroke-width="1.6" aria-hidden="true">
+        <circle cx="9" cy="9" r="6"/><path d="M13.5 13.5L17 17"/>
+      </svg>
+      <input id="cmdk-input" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Jump to a page…" aria-controls="cmdk-list"
+             class="w-full bg-transparent py-3.5 text-sm text-white placeholder-gray-600 focus:outline-none">
+      <kbd class="rounded border border-white/15 px-1.5 py-0.5 text-[10px] text-gray-500">esc</kbd>
+    </div>
+    <ul id="cmdk-list" role="listbox" aria-label="Results"
+        class="max-h-[52vh] overflow-y-auto py-1"></ul>
+    <div class="flex items-center gap-3 border-t border-white/10 px-4 py-2 text-[10px] text-gray-600">
+      <span><kbd class="text-gray-500">↑↓</kbd> move</span>
+      <span><kbd class="text-gray-500">↵</kbd> open</span>
+      <span class="ml-auto" id="cmdk-count"></span>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var INDEX = {{ command_index | tojson }};
+  var box = document.getElementById("cmdk");
+  var input = document.getElementById("cmdk-input");
+  var list = document.getElementById("cmdk-list");
+  var count = document.getElementById("cmdk-count");
+  if (!box || !input || !list) { return; }
+  var results = [], active = 0, lastFocus = null;
+
+  /* Subsequence match, so "smlk" finds "Smart Links" - the way people
+     actually type when they half-remember a name. Scored so a match at a
+     word start beats one buried mid-word. */
+  /* Subsequence over the LABEL first, then the rest as a fallback band.
+     Matching across label+group+description concatenated lets a query
+     borrow letters from the wrong field - "smlk" scored "Submit Music"
+     above "Smart Links" by taking its l from the group name. The label is
+     what people are actually typing at. */
+  function subsequence(hay, q) {
+    var i = 0, wordStart = 0;
+    for (var c = 0; c < hay.length && i < q.length; c++) {
+      if (hay[c] === q[i]) {
+        if (c === 0 || hay[c - 1] === " ") { wordStart++; }
+        i++;
+      }
+    }
+    return i < q.length ? -1 : wordStart;
+  }
+
+  function score(item, q) {
+    if (!q) { return 0; }
+    var label = item.label.toLowerCase();
+    if (label.startsWith(q)) { return 2000 - label.length; }
+    var at = label.indexOf(q);
+    if (at >= 0) {
+      /* A match at the start of a word beats one buried inside another:
+         typing "rack" wants The Rack, not T-rack-Passports. */
+      var boundary = at === 0 || label[at - 1] === " ";
+      return (boundary ? 1800 : 1600) - at;
+    }
+    var inLabel = subsequence(label, q);
+    if (inLabel >= 0) { return 1000 + inLabel * 20 - label.length * 0.1; }
+    // Only now consider the group and description, and always below any
+    // label match, so a real name never loses to a stray word in prose.
+    var rest = (item.group + " " + item.desc).toLowerCase();
+    if (rest.indexOf(q) >= 0) { return 400 - rest.indexOf(q) * 0.1; }
+    var inRest = subsequence(rest, q);
+    if (inRest >= 0) { return 100 + inRest * 5 - rest.length * 0.05; }
+    return -1;
+  }
+
+  function render() {
+    var q = input.value.trim().toLowerCase();
+    results = INDEX.map(function (item) {
+      return {item: item, s: score(item, q)};
+    }).filter(function (r) { return r.s >= 0; })
+      .sort(function (a, b) { return b.s - a.s; })
+      .slice(0, 40).map(function (r) { return r.item; });
+    if (active >= results.length) { active = Math.max(0, results.length - 1); }
+    list.innerHTML = "";
+    if (!results.length) {
+      var none = document.createElement("li");
+      none.className = "px-4 py-6 text-center text-xs text-gray-500";
+      none.textContent = "Nothing matches “" + input.value + "”.";
+      list.appendChild(none);
+      count.textContent = "";
+      return;
+    }
+    results.forEach(function (item, i) {
+      var li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", i === active ? "true" : "false");
+      li.className = "flex cursor-pointer items-baseline gap-2 px-4 py-2 text-sm "
+        + (i === active ? "bg-[#c9a24a]/15" : "");
+      li.innerHTML =
+        '<span class="font-semibold ' + (item.live ? "text-gray-100" : "text-gray-500") + '"></span>'
+        + '<span class="text-[10px] uppercase tracking-wider text-gray-600"></span>'
+        + '<span class="ml-auto shrink-0 text-[10px] text-gray-600"></span>';
+      li.children[0].textContent = item.label;
+      li.children[1].textContent = item.group;
+      // A locked feature says so here rather than after the click.
+      li.children[2].textContent = item.live ? item.href : "locked";
+      li.addEventListener("click", function () { go(item); });
+      li.addEventListener("mousemove", function () {
+        if (active !== i) { active = i; render(); }
+      });
+      list.appendChild(li);
+    });
+    count.textContent = results.length + " of " + INDEX.length;
+    var sel = list.children[active];
+    if (sel && sel.scrollIntoView) { sel.scrollIntoView({block: "nearest"}); }
+  }
+
+  function go(item) { window.location.href = item.href; }
+
+  function open() {
+    lastFocus = document.activeElement;
+    box.classList.remove("hidden");
+    box.classList.add("flex");
+    input.value = "";
+    active = 0;
+    render();
+    input.focus();
+  }
+
+  function close() {
+    box.classList.add("hidden");
+    box.classList.remove("flex");
+    // Put focus back where it was, or the page loses its place.
+    if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+  }
+
+  document.addEventListener("keydown", function (e) {
+    var k = (e.key || "").toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === "k") {
+      e.preventDefault();
+      if (box.classList.contains("hidden")) { open(); } else { close(); }
+      return;
+    }
+    if (box.classList.contains("hidden")) { return; }
+    if (k === "escape") { e.preventDefault(); close(); }
+    else if (k === "arrowdown") {
+      e.preventDefault();
+      if (results.length) { active = (active + 1) % results.length; render(); }
+    } else if (k === "arrowup") {
+      e.preventDefault();
+      if (results.length) {
+        active = (active - 1 + results.length) % results.length; render();
+      }
+    } else if (k === "enter") {
+      e.preventDefault();
+      if (results[active]) { go(results[active]); }
+    }
+  });
+  input.addEventListener("input", function () { active = 0; render(); });
+  box.addEventListener("mousedown", function (e) {
+    if (e.target === box) { close(); }      // click the backdrop to dismiss
+  });
+  // Anything with data-cmdk opens it, so there is a mouse route too.
+  document.querySelectorAll("[data-cmdk]").forEach(function (el) {
+    el.addEventListener("click", function (e) { e.preventDefault(); open(); });
+  });
+})();
+</script>
 </body>
 </html>

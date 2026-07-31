@@ -114,7 +114,42 @@ LIVE_KEYS = ["statements", "notifications", "documents", "identifiers", "cases",
              "releases", "publishing", "mechanicals", "neighboring",
              "territories", "insights", "disputes", "fan-club-admin", "portal",
              "tour", "stage-plot", "tour-board", "rack", "roster", "referrals",
-             "lights", "tracks", "royalty-lanes", "money-queue", "certified"]
+             "lights", "tracks", "royalty-lanes", "money-queue", "certified",
+             "hours"]
+
+
+def command_index():
+    """Every destination as one flat list, for the command palette.
+
+    Built from the same HUBS/LABEL/COMMUNITY/ACCOUNT definitions the
+    sidebar renders, so the palette cannot drift from the nav - a search
+    box that finds a page which no longer exists is worse than no search
+    box. Each entry carries the hub it belongs to, so a result can say
+    where it lives, and whether the feature is actually live.
+
+    Returns [{key, href, label, desc, group, live}].
+    """
+    out = []
+    seen = set()
+
+    def add(key, href, label, desc, group):
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({"key": key, "href": href, "label": label,
+                    "desc": desc, "group": group,
+                    "live": key in LIVE_KEYS})
+
+    for _hkey, name, _tagline, items in HUBS:
+        for key, href, _icon, label, desc in items:
+            add(key, href, label, desc, name)
+    for group_name, items in (LABEL_GROUP, COMMUNITY_GROUP, ACCOUNT_GROUP):
+        for key, href, _icon, label, desc in items:
+            add(key, href, label, desc, group_name)
+    # The Hours desk sits in the money hub already; anything reachable but
+    # not in a group would be invisible here, so keep this list honest by
+    # deriving it rather than hand-maintaining a second one.
+    return out
 
 
 def get_hub(key):

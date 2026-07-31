@@ -2147,6 +2147,16 @@ def create_app():
 
     # --- Plan tiers + product worlds -------------------------------------------
 
+    def _palette_for(user):
+        """The palette's destinations for this account."""
+        idx = hub_defs.command_index()
+        plan = (user or {}).get("plan") or ""
+        if plan != "fan":
+            return idx
+        allowed = {k for k, _h, _i, _l, _d in hub_defs.COMMUNITY_GROUP[1]}
+        allowed |= set(hub_defs.FAN_ACCOUNT_KEYS)
+        return [e for e in idx if e["key"] in allowed]
+
     @app.context_processor
     def inject_hub_context():
         # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
@@ -2155,7 +2165,15 @@ def create_app():
                 "hubs_community": hub_defs.COMMUNITY_GROUP,
                 "hubs_account": hub_defs.ACCOUNT_GROUP,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
-                "live_keys": hub_defs.LIVE_KEYS}
+                "live_keys": hub_defs.LIVE_KEYS,
+                # One flat list for the command palette, derived from the
+                # same definitions - so it cannot list a page the nav has
+                # dropped, or miss one the nav has gained. Filtered to the
+                # SAME shell the sidebar shows: a fan account must not be
+                # offered artist tooling it would only be refused at, and
+                # the whole point of the fan shell is that those pages are
+                # not part of their world.
+                "command_index": _palette_for(current_user())}
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
