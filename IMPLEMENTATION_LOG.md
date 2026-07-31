@@ -334,3 +334,37 @@ correction was worth more than the original finding: the territories
 check found a fabricated-money generator one line from going live rather
 than the reported bug, and the click-heat correction turned a claimed
 migration into a zero-schema change.
+
+## Funding quotes the artist's own money now
+
+`/funding` showed a **Suggested Advance in gold, with a Request button
+under it**, and three offers with dollar amounts scaled off the same
+figure. Every input traced back to `get_earnings_trend()` — the hardcoded
+Jan–Jun list. Every artist on the platform was shown the same advance
+regardless of what they earn.
+
+This is the same fabrication as the press kit, one step worse: a press
+kit misrepresents, an offer invites someone to act.
+
+`capital_engine.advance_eligibility()` computes it from uploaded
+statements — the annualised 0.8–1.5× band that `capital_score` already
+produced for a page nobody reaches from the funding flow.
+
+Three decisions worth naming:
+
+1. **A range, not a number.** `$7,328–$13,740` rather than a single
+   figure, because the underlying calculation is a band.
+2. **The conservative end under the button.** The number a Request acts
+   on is the one most likely to survive someone checking the statements.
+3. **No income, no offer.** `get_funding_data` returns zero offers and
+   the reason, rather than three offers scaled off zero. An amount nobody
+   can stand behind must not be requestable — the route refuses it.
+
+**A bug found by the test, not by reading.** The normal return path
+rebuilt `eligibility` as a three-key subset, silently dropping `real`,
+`band` and `note`. The engine was correct and the page still showed
+nothing, because the dict was reassembled in between.
+
+**Verification:** the funding test now covers both halves — nothing
+quoted without income, a range and a working request with it. 522 tests
+green.

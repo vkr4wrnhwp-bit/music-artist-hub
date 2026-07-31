@@ -100,3 +100,55 @@ def spend_plan(user_id, budget=500.0):
     return {"budget": budget, "allocations": allocations, "avoid": avoid,
             "spent_logged": round(spent, 2),
             "fan_count": len(fans), "clicks": clicks, "pageviews": pageviews}
+
+
+def advance_eligibility(user_id):
+    """Advance eligibility from the artist's own statements.
+
+    /funding used to quote a suggested advance, and three offers scaled
+    off it, derived from get_earnings_trend() - a hardcoded Jan-Jun list
+    identical for every account. Every artist on the platform was shown
+    the same amount of money, with a Request button under it, regardless
+    of what they actually earn.
+
+    This computes it from the statements they uploaded, and when there
+    are none it says so and quotes nothing. An advance figure with no
+    income behind it is not a conservative estimate, it is a number
+    somebody might act on.
+
+    Shape matches what funding_config and the valuation page already
+    expect, plus `real` so the page can say which it is showing.
+    """
+    cs = capital_score(user_id)
+    band = cs.get("advance_band")
+    if not band:
+        return {
+            "real": False, "tier": "Not established", "score": cs["total"],
+            "suggested_advance": 0, "band": None,
+            "income_total": cs["income_total"], "periods": cs["periods"],
+            "sources": cs["sources"],
+            "note": "No royalty statements uploaded yet, so there is no "
+                    "income to lend against and no honest figure to quote. "
+                    "Upload a statement and this fills in from it.",
+        }
+    low, high = band
+    if cs["total"] >= 75:
+        tier = "Advance-ready"
+    elif cs["total"] >= 45:
+        tier = "Eligible with conditions"
+    else:
+        tier = "Building the case"
+    return {
+        "real": True, "tier": tier, "score": cs["total"],
+        # The conservative end of the band, not the top of it - the number
+        # under a Request button should be the one most likely to survive
+        # someone actually checking the statements.
+        "suggested_advance": low, "band": {"low": low, "high": high},
+        "income_total": cs["income_total"], "periods": cs["periods"],
+        "sources": cs["sources"],
+        "note": "Based on ${:,.0f} across {} period{} from {} source{}, "
+                "annualised. Indicative range, not an offer.".format(
+                    cs["income_total"], cs["periods"],
+                    "" if cs["periods"] == 1 else "s", cs["sources"],
+                    "" if cs["sources"] == 1 else "s"),
+    }

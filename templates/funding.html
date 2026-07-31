@@ -18,12 +18,17 @@
         <div class="mt-1 flex items-center gap-2">
           <span class="rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400">{{ fn.eligibility.tier }}</span>
           <span class="text-xs text-gray-500">Score {{ fn.eligibility.score }}/100</span>
+          {% if fn.eligibility.note %}<span class="w-full text-[11px] leading-relaxed text-gray-500">{{ fn.eligibility.note }}</span>{% endif %}
         </div>
       </div>
       <div class="h-10 w-px bg-white/10"></div>
       <div>
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Suggested Advance</div>
-        <div class="mt-1 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,}".format(fn.eligibility.suggested_advance) }}</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ "Indicative Range" if fn.eligibility.real else "Suggested Advance" }}</div>
+        {% if fn.eligibility.real %}
+        <div class="mt-1 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,}".format(fn.eligibility.band.low) }}–${{ "{:,}".format(fn.eligibility.band.high) }}</div>
+        {% else %}
+        <div class="mt-1 text-2xl font-bold text-gray-600">—</div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -31,6 +36,13 @@
   <section>
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Available Offers</h2>
     <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {% if fn.unavailable %}
+      <div class="rounded-xl border border-[#c9a24a]/30 bg-[#141209] p-5">
+        <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Nothing to quote yet</div>
+        <p class="mt-2 text-sm leading-relaxed text-gray-400">{{ fn.unavailable }}</p>
+        <a href="/statements" class="mt-4 inline-block rounded-lg bg-[#c9a24a] px-4 py-2.5 text-xs font-black text-black">Upload a statement</a>
+      </div>
+      {% endif %}
       {% for o in fn.offers %}
       <div class="flex flex-col rounded-2xl border {{ 'border-amber-500/30' if o.recommended else 'border-white/5' }} bg-[#111113] p-5">
         <div class="flex items-center justify-between gap-2">

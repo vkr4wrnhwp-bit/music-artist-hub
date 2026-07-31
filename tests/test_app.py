@@ -1008,13 +1008,34 @@ def test_mechanicals_agree_with_publishing():
     assert mech == pub
 
 
-def test_funding_page_and_request():
+def test_funding_quotes_nothing_without_income():
+    """The page used to show a suggested advance - with a Request button
+    under it - scaled off a hardcoded earnings trend identical for every
+    account. With no statements there is no income to lend against, so
+    there is no honest figure to quote and no offer to request."""
     client = _demo()
     body = client.get("/funding").get_data(as_text=True)
     assert "Advance &amp; Funding" in body
-    assert "Available Offers" in body
-    assert 'href="/funding"' in body
-    ok = client.post("/funding/request", json={"offer_id": "offer-royalty-advance"})
+    if "Nothing to quote yet" in body:
+        # An amount nobody can stand behind must not be requestable.
+        refused = client.post("/funding/request",
+                              json={"offer_id": "offer-royalty-advance"})
+        assert refused.status_code == 400
+
+
+def test_funding_quotes_a_range_once_statements_exist():
+    import io
+    client = _demo()
+    csv_text = 'title,source,amount,period\nTrack A,Spotify,900.00,2026-01\nTrack B,Apple Music,750.00,2026-02\nTrack C,YouTube,640.00,2026-03\n'
+    client.post("/statements",
+                data={"statement": (io.BytesIO(csv_text.encode()), "fund.csv")},
+                content_type="multipart/form-data")
+    body = client.get("/funding").get_data(as_text=True)
+    # A range rather than a single figure, and it names its own basis.
+    assert "Indicative Range" in body
+    assert "Indicative range, not an offer" in body
+    ok = client.post("/funding/request",
+                     json={"offer_id": "offer-royalty-advance"})
     assert ok.status_code == 200 and ok.get_json()["ok"]
     assert ok.get_json()["reference"].startswith("REQ-")
     bad = client.post("/funding/request", json={"offer_id": "nope"})

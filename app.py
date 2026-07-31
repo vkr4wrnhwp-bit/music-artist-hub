@@ -5882,15 +5882,26 @@ def create_app():
 
     @app.route("/funding")
     def funding():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
         ctx = build_dashboard_context()
-        ctx["funding"] = get_funding_data(ctx["advance_eligibility"])
+        # From the artist's own statements. This page used to quote a
+        # suggested advance - with a Request button under it - scaled off
+        # a hardcoded earnings trend identical for every account.
+        elig = capital_engine.advance_eligibility(user["id"])
+        ctx["advance_eligibility"] = elig
+        ctx["funding"] = get_funding_data(elig)
         return render_template("funding.html", active_page="funding", **ctx)
 
     @app.route("/funding/request", methods=["POST"])
     def funding_request():
         payload = request.get_json(silent=True) or {}
         offer_id = (payload.get("offer_id") or "").strip()
-        data = get_funding_data(build_dashboard_context()["advance_eligibility"])
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        data = get_funding_data(capital_engine.advance_eligibility(user["id"]))
         offer = next((o for o in data["offers"] if o["id"] == offer_id), None)
         if offer is None:
             return jsonify({"ok": False, "error": "Unknown offer."}), 400
