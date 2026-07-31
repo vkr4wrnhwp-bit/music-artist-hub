@@ -812,6 +812,16 @@
     var wrap = document.createElement("div");
     wrap.style.touchAction = "none";
     wrap.style.cursor = "ns-resize";
+    /* Click it, then drive it from the keyboard. A rotary control that
+       can only be dragged is unreachable without a mouse and invisible to
+       a screen reader, so it announces itself as what it actually is - a
+       slider with a range and a current value. */
+    wrap.className = "rk-knob";
+    wrap.tabIndex = 0;
+    wrap.setAttribute("role", "slider");
+    wrap.setAttribute("aria-label", opts.label);
+    wrap.setAttribute("aria-valuemin", String(opts.min));
+    wrap.setAttribute("aria-valuemax", String(opts.max));
     wrap.innerHTML =
       '<svg viewBox="0 0 80 80" width="' + opts.size + '" height="' + opts.size + '">' +
       '<defs><radialGradient id="' + id + '" cx="0.35" cy="0.3" r="0.9">' +
@@ -858,6 +868,10 @@
       val.textContent = opts.fmt(v);
       val.style.color = opts.bipolar
         ? (Math.abs(v) < 1e-6 ? "#9a8f78" : color) : "#e8c667";
+      // Screen readers read valuetext when it exists, so they hear
+      // "Drive 2.4" rather than a bare number with no unit.
+      wrap.setAttribute("aria-valuenow", String(v));
+      wrap.setAttribute("aria-valuetext", opts.label + " " + opts.fmt(v));
     }
     function setVal(v) {
       v = Math.max(opts.min, Math.min(opts.max, v));
@@ -893,6 +907,49 @@
       clearTimeout(knobTipT);
       knobTipT = setTimeout(hideTip, 700);
     }, {passive: false});
+
+    /* Keyboard. The steps follow the same grid the wheel and the drag
+       already snap to, so a knob turned by arrow keys lands on exactly
+       the values a mouse can reach - no third set of numbers. */
+    function nudge(mult) {
+      setVal(opts.get() + opts.wheelStep * mult);
+      var r = wrap.getBoundingClientRect();
+      showTip(r.left + r.width / 2, r.top, tipText());
+      clearTimeout(knobTipT);
+      knobTipT = setTimeout(hideTip, 1200);
+    }
+    wrap.addEventListener("keydown", function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey) { return; }   // leave shortcuts alone
+      // Shift is the fine grid - a fifth of a step, which is the finest
+      // value setVal will actually keep.
+      var step = e.shiftKey ? 0.2 : 1;
+      var handled = true;
+      switch (e.key) {
+        case "ArrowUp": case "ArrowRight": nudge(step); break;
+        case "ArrowDown": case "ArrowLeft": nudge(-step); break;
+        case "PageUp": nudge(10); break;
+        case "PageDown": nudge(-10); break;
+        case "Home": setVal(opts.min); break;
+        case "End": setVal(opts.max); break;
+        // Same as double-click: put it back where it started.
+        case "Backspace": case "Delete": case "0":
+          setVal(opts.def);
+          break;
+        default: handled = false;
+      }
+      if (handled) {
+        e.preventDefault();       // stop the page scrolling under the rack
+        e.stopPropagation();
+      }
+    });
+    // Show the read-out while it has focus, so a keyboard user sees the
+    // value they are changing without hunting for it.
+    wrap.addEventListener("focus", function () {
+      var r = wrap.getBoundingClientRect();
+      showTip(r.left + r.width / 2, r.top, tipText());
+      clearTimeout(knobTipT);
+    });
+    wrap.addEventListener("blur", hideTip);
     paint();
     col.appendChild(val); col.appendChild(wrap); col.appendChild(lab);
     return {el: col, sync: paint};

@@ -61,6 +61,19 @@
               font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
               color: #d8cdb4; }
   .lane .ld { font-size: 9px; color: #6d6450; font-variant-numeric: tabular-nums; }
+  /* A focused knob has to be findable on a dark chassis, and the ring has
+     to sit outside the SVG rather than on it - the knob is round, so a
+     square outline reads as a mistake. */
+  .rk-knob { border-radius: 50%; outline: none; }
+  .rk-knob:focus-visible {
+    box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #e8c667, 0 0 12px 2px rgba(232,198,103,0.45);
+  }
+  /* Keyboard focus only. A click should not leave a ring behind. */
+  .rk-knob:focus:not(:focus-visible) { box-shadow: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .rk-knob:focus-visible { box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #e8c667; }
+  }
+
   /* Dormant lane rail: the empty fader slot on an unloaded channel. */
   .rail { height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
           background: repeating-linear-gradient(90deg, #191512 0 6px, #0c0a08 6px 12px);
@@ -363,6 +376,7 @@
     <p><span class="text-gray-400">SB-01 Harmonic Bank · Tube Stage.</span> Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
     <p><span class="text-gray-400">SB-02 Foundation · SUB-1.</span> Not a bass boost: Depth is a deep 45Hz shelf, Shake a 42Hz room resonance, Growl synthesizes sub harmonics so small speakers hear lows they can't play — psychoacoustics, not magic.</p>
     <p><span class="text-gray-400">SB-03 Tone Bank · EQ-12 Parametric EQ · 12 Band.</span> Drag a knob, double-click resets, scroll trims; Q shapes every band.</p>
+    <p class="mt-1">Every knob in the rack takes the keyboard: <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Tab</kbd> to it or click it, then <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">↑</kbd><kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">↓</kbd> to turn it — <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Shift</kbd> for fine, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">PgUp</kbd>/<kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">PgDn</kbd> for coarse, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Home</kbd>/<kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">End</kbd> for the ends, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">0</kbd> to reset. Arrow keys land on the same values the mouse can reach, so you can dial an exact setting instead of hunting for it.</p>
     <p><span class="text-gray-400">SB-06 Master Bus · Center.</span> The classic mid/side trick on any stereo mix — center-panned vocals solo or vanish. Physics, not stem separation; mono files have no sides to keep.</p>
     <p><span class="text-gray-400">SB-05 / SB-07.</span> The VU needle rides the compressor's real gain reduction; Final Trim is the actual output gain into the peak meter and your WAV export.</p>
   </div>
@@ -972,6 +986,6 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=29"></script>
+<script src="/static/js/rackdsp.js?v=30"></script>
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
 {% endblock %}

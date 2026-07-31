@@ -178,3 +178,62 @@ def test_other_codecs_keep_the_rate_they_were_given():
 def test_high_rates_map_down_to_the_nearest_opus_can_do():
     assert ce.resolve_rate("opus", 96000)[0] == 48000
     assert ce.resolve_rate("opus", 22050)[0] == 24000
+
+
+# --- the rack's knobs must stay reachable without a mouse ---------------
+# Source-level guards. The knob is built in JS against a live AudioContext,
+# so there is no cheap DOM harness for it here - but these are the exact
+# lines whose quiet removal would put the controls back out of reach, and
+# that is worth catching.
+
+def _rackdsp():
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return io.open(os.path.join(here, "static", "js", "rackdsp.js"),
+                   encoding="utf8").read()
+
+
+def test_knobs_are_focusable_and_announce_themselves():
+    js = _rackdsp()
+    assert "wrap.tabIndex = 0" in js                    # Tab reaches it
+    assert 'setAttribute("role", "slider")' in js       # and it says what it is
+    for attr in ("aria-label", "aria-valuemin", "aria-valuemax",
+                 "aria-valuenow", "aria-valuetext"):
+        assert attr in js, attr
+
+
+def test_knobs_respond_to_the_arrow_keys():
+    js = _rackdsp()
+    assert 'addEventListener("keydown"' in js
+    for key in ("ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+                "PageUp", "PageDown", "Home", "End"):
+        assert '"%s"' % key in js, key
+
+
+def test_keyboard_does_not_hijack_browser_shortcuts():
+    # Ctrl/Cmd/Alt combinations belong to the browser and to the Ctrl-K
+    # palette, not to whichever knob happens to hold focus.
+    assert "e.altKey || e.ctrlKey || e.metaKey" in _rackdsp()
+
+
+def test_the_focus_ring_is_visible_and_round():
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    css = io.open(os.path.join(here, "templates", "rack.html"),
+                  encoding="utf8").read()
+    assert ".rk-knob:focus-visible" in css
+    assert "border-radius: 50%" in css      # a square ring on a round knob
+    # A mouse click should not leave a ring behind.
+    assert ".rk-knob:focus:not(:focus-visible)" in css
+
+
+def test_the_page_tells_people_the_keys_exist():
+    # Nobody discovers arrow-key control by accident.
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    page = io.open(os.path.join(here, "templates", "rack.html"),
+                   encoding="utf8").read()
+    assert "Every knob in the rack takes the keyboard" in page

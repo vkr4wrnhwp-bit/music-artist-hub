@@ -2,10 +2,17 @@
 
    Reads its data from the JSON block the template renders, drives fifteen
    native range inputs, draws the response curve, works out which lane the
-   visitor's own settings point at, and - after the mix settles - commits
-   the whole page to one of five Adaptive Visual Modes: tint variables,
-   hero and banner image crossfades, the signal line, and the one main
-   program CTA, all in a single coordinated switch. The layout never moves.
+   visitor's own settings point at, and names that lane on the signal line
+   inside the panel.
+
+   What it does NOT do is change the page around the visitor. Adaptive
+   Visual Modes - tint variables, hero and banner crossfades, a rewritten
+   CTA - were built here and rejected: a homepage that rearranges itself
+   while you are reading it is disorienting, and it makes the product look
+   like it is guessing at you. The mode is still computed, because the
+   Command Center and the Artist Twin read it off the saved profile, but
+   it is committed to storage and to one line of text, never to the
+   layout. See commitMode() below, which is the whole of its effect.
 
    Everything shown is derived from the sliders in front of the user. No
    figure here is a forecast, an estimate, or a promise.
