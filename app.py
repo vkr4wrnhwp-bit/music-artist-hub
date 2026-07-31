@@ -26,6 +26,7 @@ import hours_engine
 import backup_store
 import convert_engine
 import audio_readiness
+import rollout_learning
 import firstrun
 
 def _hours_float(value, default=0.0):
@@ -5127,6 +5128,21 @@ def create_app():
             p["fans"] = st.get("email_capture", 0) + st.get("presave_notify", 0)
         return posts
 
+    def _rollout_learning(user_id):
+        """What past rollouts converted, from variants that outlive them.
+
+        clear_posts wipes ro_posts on every regenerate but never touches
+        ml_variants, so the platform and phase attribution survives - the
+        whole history is already there, no migration needed.
+        """
+        try:
+            return rollout_learning.report(
+                mls.list_campaigns(user_id), mls.list_variants,
+                mls.variant_stats)
+        except Exception:
+            # A learned suggestion is never worth breaking a page over.
+            return {"platforms": {}, "phases": {}, "measured": False}
+
     @app.route("/rollout-studio")
     def rollout_dashboard():
         user = current_user()
@@ -5152,6 +5168,15 @@ def create_app():
         if request.method == "POST":
             f = request.form
             platforms = [k for k, _, _ in rollout_engine.PLATFORMS if f.get("pf_" + k)]
+            if not platforms:
+                # Nothing ticked. Rather than a fixed default, start from
+                # the platforms this artist's past rollouts actually
+                # converted on - and fall back to the fixed list when
+                # there is not enough traffic to say.
+                platforms = rollout_learning.suggested_platforms(
+                    _rollout_learning(user["id"]),
+                    [k for k, _, _ in rollout_engine.PLATFORMS],
+                    ["instagram_reels", "tiktok", "x"])
             ml_id = f.get("ml_campaign_id") or None
             if ml_id and mls.get_campaign(ml_id, user["id"]) is None:
                 ml_id = None
@@ -5227,7 +5252,13 @@ def create_app():
                                c=campaign, posts=posts, assets=assets,
                                ml_campaign=ml_campaign, variants=variants,
                                direction=rollout_engine.creative_direction(campaign),
-                               next_action=rollout_engine.next_action(campaign, posts, assets),
+                               next_action=(
+                                   rollout_learning.next_action_line(
+                                       _rollout_learning(user["id"]))
+                                   if posts and all(
+                                       p["status"] != "draft" for p in posts)
+                                   else None)
+                               or rollout_engine.next_action(campaign, posts, assets),
                                counts=ros.post_status_counts(cid),
                                phase_names=rollout_engine.PHASE_NAMES,
                                platform_names=rollout_engine.PLATFORM_NAMES,

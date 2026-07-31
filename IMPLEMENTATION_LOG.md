@@ -138,3 +138,44 @@ header saying it is wired to nothing, must stay that way, and where the
 real per-country money actually lives.
 
 **Verification:** 492 tests green.
+
+## Rollout learns from its own rollouts
+
+The audit called this *"the product thesis in miniature and it is
+severed."* Two of its three claims held; the third — and the most
+alarming — did not.
+
+**Held.** `rollout_engine.generate_rollout(campaign, lyrics,
+video_asset_id, image_asset_id)` takes no performance argument.
+`next_action` reads only post statuses and asset types, and its final
+line is *"Rollout is live — watch the performance page for what
+converts."* The app told the artist to watch what converts and did not
+watch it itself.
+
+**Did not hold.** The claim that `clear_posts()` destroys the evidence
+"at the exact moment the next decision is made" is wrong.
+`variant_name()` encodes `rollout_{platform}_{phase}_{date}`,
+`create_variant` stores `utm_source={platform}`, and `clear_posts` only
+touches `ro_posts` — `ml_variants` and their events are never deleted.
+The attribution survives every regenerate.
+
+That correction is what made this cheap: **no schema change, no
+migration, and the history already reaches back to the first rollout the
+account ever ran.**
+
+`rollout_learning.py` rolls those variants up by platform and by phase
+and reports conversion *rates*. Two disciplines:
+
+1. **It refuses to speak on thin evidence.** Under 25 visits on a
+   platform, or 60 across everything, it says so and stops. A 75% click
+   rate on 8 visits is noise, and an artist who reweights a campaign on
+   it is worse off than one told nothing.
+2. **Rates, not totals.** The platform with the most clicks is usually
+   just the one with the most posts.
+
+Wired in two places: an empty platform selection now defaults to what
+converted rather than a fixed list (falling back to the fixed list when
+evidence is thin, so new accounts behave exactly as before), and
+`next_action` says something true when there is something true to say.
+
+**Verification:** 14 new tests, 506 in the suite, all green.
