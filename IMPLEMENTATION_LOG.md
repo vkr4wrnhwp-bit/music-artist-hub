@@ -255,3 +255,38 @@ runs alongside the others, and it is proved against a database built with
 the old schema.
 
 **Verification:** 6 new tests, 512 in the suite, all green.
+
+## The score that gates money decisions now looks at money
+
+The audit noted this as an inversion rather than a severance, and it was
+right on both counts. `qualification.py` contained **zero** references to
+statements, income, royalties, revenue or earnings — while gating:
+
+| Unlock | Threshold |
+|---|---|
+| Catalog valuation review | 65 |
+| Distribution rate improvement | 80 |
+| Upstream review | 85 |
+
+Three money decisions, scored entirely from marketing setup: link scores,
+capture flags, fan counts, rollout posts, EPK assets, ISRC presence,
+social handles, bio and press. An artist with real royalty income and no
+smart links scored low. One with no income and a tidy press kit scored
+high. `capital_engine` had the right three facts — income total, distinct
+periods, distinct sources — and fed one page.
+
+Added **Income on Record**, read straight from statement rows. Directly
+rather than by importing `capital_engine`, which would drag the
+trust-score dependency chain into this module. With no statements it
+scores zero and says why, same rule the master read follows: absent
+evidence is not a pass.
+
+**And a bug of mine, found while doing it.** Every category is worth ten
+points and the total was a bare sum. Adding "Master Quality" earlier
+today took the maximum from 100 to 110 — silently making every unlock
+threshold about nine percent easier to reach, without anyone changing a
+threshold. The total is now normalised to 0–100, so category count and
+threshold meaning are independent. Adding "Income on Record" would have
+compounded it to 120.
+
+**Verification:** 3 new tests, 515 in the suite, all green.

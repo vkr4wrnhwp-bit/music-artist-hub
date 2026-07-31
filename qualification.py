@@ -59,6 +59,27 @@ def calculate(user_id):
     analysis = store.latest_track_analysis(user_id)
     audio_pts, audio_max, audio_note = audio_readiness.readiness_points(analysis)
 
+    # Real money, from uploaded statements. Same three facts capital_engine
+    # uses - read directly rather than imported, to keep this module free
+    # of the trust-score dependency chain.
+    st_rows = store.get_statement_rows(user_id)
+    income_total = sum(r["amount"] for r in st_rows)
+    income_periods = {r.get("period") or "" for r in st_rows if r.get("period")}
+    income_sources = {r.get("source") or "" for r in st_rows if r.get("source")}
+    if st_rows:
+        income_pts = min(10, (_pts(income_total, 2000) + _pts(len(income_periods), 6)
+                              + _pts(len(income_sources), 3)) // 2)
+        income_note = ("${:,.0f} on record across {} period{} and {} source{}."
+                       .format(income_total, len(income_periods),
+                               "" if len(income_periods) == 1 else "s",
+                               len(income_sources),
+                               "" if len(income_sources) == 1 else "s"))
+    else:
+        income_pts = 0
+        income_note = ("Upload a royalty statement — this score gates a "
+                       "catalog valuation review and cannot speak to money "
+                       "without any.")
+
     categories = [
         ("Release Readiness", _pts(best_score, 100),
          "Best campaign scores %d/100 — run the Clean Release checklist." % best_score),
@@ -87,9 +108,16 @@ def calculate(user_id):
          "share your campaign links and connect Artist Pulse."),
         ("Catalog Depth", _pts(len(tracks) + len(campaigns), 6),
          "Build the catalog: more releases, more tracked campaigns."),
+        ("Income on Record", income_pts, income_note),
     ]
 
-    total = sum(pts for _, pts, _ in categories)
+    # Normalised to 0-100 rather than summed. Every category is worth ten
+    # points, so a bare sum silently rescales the whole thing each time
+    # one is added - which happened: a category added earlier today took
+    # the maximum to 110 and made every unlock threshold about nine
+    # percent easier to reach without anyone changing a threshold.
+    total = round(sum(pts for _, pts, _ in categories)
+                  / float(len(categories) * 10) * 100)
     strengths = [(name, pts) for name, pts, _ in categories if pts >= 7]
     needs_work = [(name, pts, note) for name, pts, note in categories if pts < 7]
 

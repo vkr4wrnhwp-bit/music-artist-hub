@@ -296,3 +296,38 @@ def test_the_migration_covers_databases_that_predate_the_columns():
     for col in ("hook_15s", "hook_30s", "first_beat", "bar_seconds",
                 "grid_confidence"):
         assert col in src, col
+
+
+# --- the score that gates money decisions -------------------------------
+
+def test_qualification_is_normalised_not_summed():
+    """Every category is worth ten points, so a bare sum rescales the
+    whole score each time one is added. That already happened once: a
+    category added mid-session took the maximum to 110 and made every
+    unlock threshold about nine percent easier without anyone touching a
+    threshold."""
+    import inspect
+    import qualification
+    src = inspect.getsource(qualification.calculate)
+    assert "float(len(categories) * 10) * 100" in src
+    assert "total = sum(pts for _, pts, _ in categories)" not in src
+
+
+def test_qualification_reads_real_income():
+    """It gates 'Catalog valuation review', 'Distribution rate
+    improvement' and 'Upstream review' - three money decisions that had
+    no money input at all."""
+    import inspect
+    import qualification
+    src = inspect.getsource(qualification.calculate)
+    assert "get_statement_rows" in src
+    assert "Income on Record" in src
+
+
+def test_no_statements_scores_zero_income_and_says_why():
+    import inspect
+    import qualification
+    src = inspect.getsource(qualification.calculate)
+    # Absent evidence is not a pass - same rule the master read follows.
+    assert "income_pts = 0" in src
+    assert "cannot speak to money" in src
