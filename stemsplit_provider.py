@@ -27,6 +27,8 @@ import urllib.request
 import uuid
 
 BASE = "https://stemsplit.io/api/v1"
+# Who we are, said plainly, with somewhere to look us up.
+UA = "StreetBanker/1.0 (+https://street-banker.onrender.com)"
 JOBS = os.environ.get("STEMSPLIT_JOBS_PATH", "/jobs")
 SRC_DIR = os.path.join(tempfile.gettempdir(), "sb-stem-src")
 MAX_UPLOAD = 60 * 1024 * 1024          # a full-length WAV, with headroom
@@ -41,9 +43,25 @@ def configured():
 
 
 def _headers():
+    """Identify the client properly.
+
+    StemSplit sits behind Cloudflare, whose browser-integrity check rejects
+    requests carrying urllib's default `Python-urllib/3.x` agent - it
+    answered 403 with Cloudflare error 1010 on EVERY path, including
+    /balance and a job id that does not exist. Identical answers everywhere
+    is the signature of a WAF, not an API: a real API 404s an unknown path
+    and 401s a bad key, and that pattern is what showed the key was never
+    the problem.
+
+    This is a plain, honest product agent with a contact URL - the client
+    saying who it is, which is what an API expects. It is not pretending to
+    be a browser.
+    """
     return {
         "Authorization": "Bearer " + os.environ.get("STEMSPLIT_API_KEY", ""),
         "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": UA,
     }
 
 
@@ -214,5 +232,5 @@ def stem_url(job_id, stem):
 def open_stream(url):
     """Open the presigned URL for streaming to the browser."""
     return urllib.request.urlopen(
-        urllib.request.Request(url, headers={"User-Agent": "StreetBanker"}),
+        urllib.request.Request(url, headers={"User-Agent": UA}),
         timeout=60)
