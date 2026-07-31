@@ -109,6 +109,18 @@
     .u .flex.flex-wrap { row-gap: 8px; }
   }
 
+  /* Touch, rather than narrow. A touch laptop at 1400px needs the same
+     targets a phone does, and a narrow desktop window does not. */
+  @media (pointer: coarse) {
+    /* 20px tall with a 9px thumb: a fader you cannot get hold of. */
+    .fader { height: 34px; }
+    .fader::-webkit-slider-thumb { width: 16px; height: 28px; }
+    .fader::-moz-range-thumb { width: 16px; height: 28px; }
+    /* Stem lane M and S are 28px squares sitting side by side; muting the
+       wrong lane is the most common thing to do by accident here. */
+    .lane .sw { min-height: 44px; min-width: 44px; }
+  }
+
   /* A focused knob has to be findable on a dark chassis, and the ring has
      to sit outside the SVG rather than on it - the knob is round, so a
      square outline reads as a mistake. */

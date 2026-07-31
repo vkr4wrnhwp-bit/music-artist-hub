@@ -321,6 +321,11 @@ body.lsr {
   background: rgba(216, 178, 90, 0.3);
 }
 .lsr-side-link {
+  /* Bare inline text with no box. Whoever needs this link is already
+     locked out; it should not also be hard to hit. */
+  display: inline-block;
+  padding: 10px 4px;
+  margin: -10px -4px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--lsr-gold);

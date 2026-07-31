@@ -200,7 +200,7 @@
           <input name="rate" type="number" step="0.01" min="0" placeholder="rate" required class="w-20 bg-transparent py-2 text-sm text-white placeholder-gray-600 focus:outline-none">
         </div>
         <input name="min_hours" type="number" step="0.25" min="0" placeholder="min h" class="w-20 rounded-lg border border-white/15 bg-black/40 px-2 py-2 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
-        <label class="flex items-center gap-1.5 text-[11px] text-gray-400 sm:col-span-2"><input type="checkbox" name="bookable" class="h-3.5 w-3.5 accent-[#c9a24a]">Bookable publicly</label>
+        <label class="-my-2 flex items-center gap-2 py-2 text-[11px] text-gray-400 sm:col-span-2 sm:my-0 sm:gap-1.5 sm:py-0"><input type="checkbox" name="bookable" class="h-5 w-5 accent-[#c9a24a] sm:h-3.5 sm:w-3.5">Bookable publicly</label>
         <button class="rounded-lg bg-[#c9a24a] px-4 py-2 text-sm font-black text-black hover:brightness-110">Save</button>
       </form>
     </div>
@@ -242,8 +242,8 @@
           <span class="tabular-nums text-gray-500">{{ hrs(b.hours) }}</span>
           <span class="font-black tabular-nums text-[#e8c667]">{{ money(b.hours * b.rate) }}</span>
           {% if b.status == 'requested' %}
-            <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='confirmed') }}"><button class="rounded border border-green-500/40 px-2 py-0.5 text-[10px] font-bold text-green-400 hover:bg-green-500/10">Confirm</button></form>
-            <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='declined') }}"><button class="rounded border border-white/15 px-2 py-0.5 text-[10px] text-gray-400 hover:text-red-400">Decline</button></form>
+            <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='confirmed') }}"><button class="rounded border border-green-500/40 px-3 py-2 text-[11px] font-bold text-green-400 hover:bg-green-500/10 sm:px-2 sm:py-0.5 sm:text-[10px]">Confirm</button></form>
+            <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='declined') }}"><button class="rounded border border-white/15 px-3 py-2 text-[11px] text-gray-400 hover:text-red-400 sm:px-2 sm:py-0.5 sm:text-[10px]">Decline</button></form>
           {% else %}
             <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ {'confirmed':'bg-green-500/15 text-green-400','declined':'bg-white/5 text-gray-500','done':'bg-white/10 text-gray-400'}[b.status] }}">{{ b.status }}</span>
           {% endif %}
@@ -290,10 +290,10 @@
           <span class="tabular-nums text-gray-500">{{ hrs(s.hours) }} @ {{ money(s.rate) }}</span>
           <span class="font-black tabular-nums text-[#e8c667]">{{ money(s.hours * s.rate) }}</span>
           {% if s.status == 'pending' %}
-            <form method="post" action="{{ url_for('hours_submission_decide', sub_id=s.id, decision='approve') }}"><button class="rounded border border-green-500/40 px-2 py-0.5 text-[10px] font-bold text-green-400 hover:bg-green-500/10">Approve</button></form>
+            <form method="post" action="{{ url_for('hours_submission_decide', sub_id=s.id, decision='approve') }}"><button class="rounded border border-green-500/40 px-3 py-2 text-[11px] font-bold text-green-400 hover:bg-green-500/10 sm:px-2 sm:py-0.5 sm:text-[10px]">Approve</button></form>
             <form method="post" action="{{ url_for('hours_submission_decide', sub_id=s.id, decision='reject') }}" class="flex gap-1">
               <input name="reason" placeholder="reason" class="w-24 rounded border border-white/15 bg-black/40 px-1.5 py-0.5 text-[10px] text-white placeholder-gray-600 focus:outline-none">
-              <button class="rounded border border-white/15 px-2 py-0.5 text-[10px] text-gray-400 hover:text-red-400">Reject</button>
+              <button class="rounded border border-white/15 px-3 py-2 text-[11px] text-gray-400 hover:text-red-400 sm:px-2 sm:py-0.5 sm:text-[10px]">Reject</button>
             </form>
           {% else %}
             <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if s.status == 'approved' else 'bg-red-500/10 text-red-400' }}">{{ s.status }}</span>
