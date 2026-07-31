@@ -78,11 +78,13 @@
   @media (max-width: 1023px) {
     /* A scaled element keeps its original layout box, so without this
        the page would carry 1361px of empty space under the rack. */
-    .chassis-fit { width: 100%; overflow: hidden; aspect-ratio: 800 / 1361; }
+    .chassis-fit { width: 100%; overflow: hidden; aspect-ratio: 800 / 1361;
+                   display: flex; justify-content: center; }
     .chassis {
-      transform-origin: top left;
+      transform-origin: top center;
       transform: scale(calc(100vw / 800));   /* 760 wide + a little air */
       margin: 0;
+      flex: 0 0 auto;
     }
     .u { padding: 11px 12px; margin: 7px 0; }
     .sc { display: none; }
