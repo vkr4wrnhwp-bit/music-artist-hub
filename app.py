@@ -24,6 +24,7 @@ from artist_eq_config import get_artist_eq_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
+import firstrun
 
 def _hours_float(value, default=0.0):
     """Form numbers, forgivingly: a blank or a typo becomes the default
@@ -1252,6 +1253,35 @@ def create_app():
             return None
         rows = store.get_statement_rows(user["id"])
         return build_royalty_summary(rows) if rows else None
+
+    def _firstrun_panel(user):
+        """The start-here checklist, or None once the account outgrows it.
+
+        Every flag is a real query. Nothing here reads a "dismissed
+        onboarding" bit: a step is done when the thing exists, so deleting
+        the thing brings the step back. It is describing the account, not
+        remembering a click.
+        """
+        if user is None or (user.get("plan") or "") == "fan":
+            return None
+        uid = user["id"]
+        try:
+            epk = store.get_epk(uid) or {}
+            profile_data = epk.get("data") if isinstance(epk, dict) else None
+            has_profile = bool(
+                (user.get("name") or "").strip()
+                or (profile_data and profile_data not in ("{}", {})))
+            state = {
+                "profile": has_profile,
+                "track": bool(store.list_os_tracks(uid)),
+                "link": any(l.get("user_id") == uid for l in store.get_db_links()),
+                "rack": bool(store.get_rack_preset(uid)),
+                "rate": bool(store.list_hours_rates(uid)),
+            }
+        except Exception:
+            # A checklist is never worth breaking a page over.
+            return None
+        return firstrun.build(state)
 
     @app.route("/overview")
     def overview():
@@ -2519,6 +2549,7 @@ def create_app():
             cc_actions=cc.open_actions(user["id"]),
             modules=cc.MODULES,
             signal=signal_ctx,
+            firstrun=_firstrun_panel(user),
             **build_dashboard_context())
 
     @app.route("/actions", methods=["GET", "POST"])

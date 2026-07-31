@@ -6135,3 +6135,69 @@ def test_command_palette_respects_the_fan_shell():
     assert "Royalty Lanes" not in page
     assert "Discover (Fans)" in page              # scoped to their world
 
+
+def test_firstrun_reads_state_and_retires_itself():
+    """A new account lands in five hubs with nothing in any of them. The
+    checklist answers 'what first' from what the account actually has —
+    and then gets out of the way."""
+    import firstrun
+
+    empty = firstrun.build({})
+    assert empty["done"] == 0 and empty["fresh"] is True
+    assert empty["next"]["key"] == firstrun.STEPS[0][0]
+    assert len(empty["steps"]) == len(firstrun.STEPS)
+
+    partial = firstrun.build({"profile": 1, "track": 1})
+    assert partial["done"] == 2 and partial["fresh"] is False
+    assert partial["remaining"] == len(firstrun.STEPS) - 2
+    # "Next" is the first thing NOT done, not simply the next in the list.
+    assert partial["next"]["key"] == firstrun.STEPS[2][0]
+
+    # It retires on its own — permanent onboarding is clutter.
+    enough = {k: 1 for k, _t, _w, _h, _c in firstrun.STEPS[:firstrun.RETIRE_AT]}
+    assert firstrun.build(enough) is None
+    assert firstrun.build({k: 1 for k, _t, _w, _h, _c in firstrun.STEPS}) is None
+
+    # Every destination must be reachable on the entry plan. Statements and
+    # Overview are gated above it, so a checklist pointing there would open
+    # with a locked door.
+    hrefs = {h for _k, _t, _w, h, _c in firstrun.STEPS}
+    assert "/statements" not in hrefs and "/overview" not in hrefs
+
+
+def test_firstrun_panel_shows_for_a_new_artist_then_disappears():
+    import uuid as _uuid
+
+    import db as store_mod
+
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "firstrun%s@x.com" % _uuid.uuid4().hex[:6]
+    client.post("/signup", data={"name": "Rello", "email": email,
+                                 "password": "secret1"})
+    page = client.get("/command-center").get_data(as_text=True)
+    assert "Start here" in page
+    # It points at the Ctrl-K palette rather than repeating the whole nav.
+    assert "K</kbd>" in page
+
+    uid = store_mod.get_user_by_email(email)["id"]
+    store_mod.set_hours_rate(uid, "Mixing", 75)
+    store_mod.save_rack_preset(uid, {"out": 0})
+    store_mod.create_db_link("fr%s" % _uuid.uuid4().hex[:5], uid, "T",
+                             "http://example.com", [])
+    page = client.get("/command-center").get_data(as_text=True)
+    assert "Start here" not in page          # earned its way off the screen
+
+
+def test_firstrun_never_shows_for_fan_accounts():
+    """Fans have no tracks, rate cards or rack — a setup checklist aimed at
+    artists would be five instructions they cannot follow."""
+    import uuid as _uuid
+
+    app_obj = create_app()
+    fan = app_obj.test_client()
+    fan.post("/signup", data={"name": "F",
+                              "email": "frfan%s@x.com" % _uuid.uuid4().hex[:6],
+                              "password": "secret1", "account_type": "fan"})
+    assert "Start here" not in fan.get("/discover").get_data(as_text=True)
+

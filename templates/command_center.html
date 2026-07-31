@@ -3,6 +3,54 @@
 {% block title %}Command Center - Street Banker{% endblock %}
 
 {% block content %}
+{% if firstrun %}
+<!-- Start here: derived from what the account actually has, and gone for
+     good once enough of it exists. -->
+<section class="mb-5 rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-5">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Start here</h2>
+      <p class="mt-1 max-w-xl text-sm text-gray-400">
+        {% if firstrun.fresh %}
+          This is a big app and it is completely empty, which makes it hard to know where to start. Five things, in the order that makes each one useful.
+        {% else %}
+          {{ firstrun.remaining }} to go. This panel disappears on its own once the essentials are in — it is not something you have to dismiss.
+        {% endif %}
+      </p>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-black tabular-nums text-[#e8c667]">{{ firstrun.done }}<span class="text-sm text-gray-600">/{{ firstrun.total }}</span></div>
+      <div class="text-[9px] uppercase tracking-[0.2em] text-gray-600">done</div>
+    </div>
+  </div>
+
+  <ol class="mt-4 space-y-1.5">
+    {% for step in firstrun.steps %}
+    <li class="flex items-start gap-3 rounded-lg border px-3 py-2.5
+               {{ 'border-white/5 bg-black/20' if step.done
+                  else ('border-[#c9a24a]/30 bg-black/30' if step.key == firstrun.next.key
+                        else 'border-white/10 bg-black/20') }}">
+      <span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border
+                   {{ 'border-green-500/60 bg-green-500/20' if step.done else 'border-white/20' }}">
+        {% if step.done %}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4ade80" stroke-width="2.5"><path d="M2 6l3 3 5-6"/></svg>{% endif %}
+      </span>
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold {{ 'text-gray-500 line-through' if step.done else 'text-gray-100' }}">{{ step.title }}</div>
+        {% if not step.done %}<div class="mt-0.5 text-[11px] leading-relaxed text-gray-500">{{ step.why }}</div>{% endif %}
+      </div>
+      {% if not step.done %}
+      <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black
+         {{ 'bg-[#c9a24a] text-black hover:brightness-110' if step.key == firstrun.next.key
+            else 'border border-white/15 text-gray-400 hover:text-gray-200' }}">{{ step.cta }}</a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  <p class="mt-3 text-[10px] text-gray-600">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back. Press <kbd class="rounded border border-white/15 px-1 text-gray-500">Ctrl</kbd>+<kbd class="rounded border border-white/15 px-1 text-gray-500">K</kbd> any time to jump straight to a page.</p>
+</section>
+{% endif %}
+
 <div class="mx-auto max-w-[1300px] space-y-5">
   <div>
     <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker</div>

@@ -3,6 +3,7 @@
 {% block title %}Overview - Royalty Sweep{% endblock %}
 
 {% block content %}
+
 {% set this_month = earnings_trend[-1][1] %}
 {% set last_month = earnings_trend[-2][1] if earnings_trend|length > 1 else earnings_trend[-1][1] %}
 {% set growth_pct = ((this_month - last_month) / last_month * 100) if last_month else 0 %}
