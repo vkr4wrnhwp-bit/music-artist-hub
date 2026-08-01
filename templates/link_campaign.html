@@ -8,7 +8,7 @@
   <meta property="og:title" content="{{ c.title }} — {{ c.artist_name }}">
   <meta property="og:description" content="{{ c.description or 'Listen on every platform.' }}">
   {% if c.cover_url %}<meta property="og:image" content="{{ c.cover_url }}">{% endif %}
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=1">
   <style>
     .cover-bg {
       position: fixed; inset: -40px; z-index: -1;
