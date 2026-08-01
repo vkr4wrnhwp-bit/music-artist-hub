@@ -7,13 +7,15 @@ without it. Nothing crashes. Nothing logs. It just looks wrong, and only
 on the page you were last editing.
 
 So the suite samples the classes actually used across the templates and
-fails when the stylesheet does not carry them. Rebuild with:
+fails when the stylesheet does not carry them. Rebuild from the repo root:
 
-    npm --prefix <scratch> install tailwindcss@3
-    npx tailwindcss -c tailwind.config.js -i input.css \\
+    npm install tailwindcss@3
+    npx tailwindcss -c tools/tailwind.config.js \\
+        -i tools/tailwind-input.css \\
         -o static/css/tailwind.css --minify
 
-The config lives in tools/tailwind.config.js.
+Then bump the ?v= on the <link> and VERSION in static/js/sw.js, or
+browsers keep serving the old sheet.
 """
 import io
 import os
