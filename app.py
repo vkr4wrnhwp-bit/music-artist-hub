@@ -188,8 +188,18 @@ def _account_with_user(account):
     if not user:
         return account
     initials = "".join(p[0] for p in user["name"].split()[:2]).upper() or "?"
+    # catalog_config.get_account() is mock data. Overlaying only identity
+    # used to let its two invented figures through to the sidebar, which
+    # base.html renders on every authenticated page: a hardcoded
+    # "Next payout: $2,500 in 6 days" and a hardcoded "Pro Plan". Both
+    # read as the user's own. The plan is knowable, so use the real one;
+    # the payout is not, so send None and let the template omit the line
+    # rather than invent a figure.
+    plan_key = (user.get("plan") or "artist") if hasattr(user, "get") else "artist"
     return {**account, "name": user["name"], "initials": initials,
-            "email": user["email"], "role": "Artist Account"}
+            "email": user["email"], "role": "Artist Account",
+            "plan": plans.PLAN_NAMES.get(plan_key, "Artist"),
+            "next_payout": None, "next_payout_in": None}
 
 
 def build_dashboard_context():

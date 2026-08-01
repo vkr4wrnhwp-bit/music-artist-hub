@@ -487,13 +487,28 @@ def test_catalog_includes_add_release_and_filters():
     assert 'id="source-filter"' in body
 
 
-def test_sidebar_account_is_config_driven():
+def test_sidebar_shows_the_users_real_plan_not_the_mock_one():
+    """This used to assert the opposite - that the sidebar rendered
+    catalog_config's hardcoded "Pro Plan". That is mock data, identical
+    for every account, and it sat next to a hardcoded "Next payout:
+    $2,500 in 6 days" on every authenticated page. Both read as the
+    user's own. The plan is knowable, so the sidebar shows the real one."""
+    import db as store
+    import plans
     from catalog_config import get_account
+
     client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
-    account = get_account()
-    assert account["name"] in body
-    assert account["plan"] in body
+
+    user = store.get_user_by_email("demo@streetbanker.io")
+    expected = plans.PLAN_NAMES.get(user["plan"] or "artist", "Artist")
+    assert expected in body, "sidebar does not show the account's real plan"
+    assert user["name"] in body
+
+    # And the fabricated payout must not come back.
+    mock = get_account()
+    assert "Next payout" not in body or str(mock["next_payout"]) not in body, \
+        "the hardcoded $%s payout is rendering again" % mock["next_payout"]
 
 
 def test_base_includes_song_drawer():

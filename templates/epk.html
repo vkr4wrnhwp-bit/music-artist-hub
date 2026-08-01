@@ -70,6 +70,15 @@
         </div>
         {% endfor %}
       </section>
+      {# epk_config already computes stats_are_real - it flips true only
+         when the figures come from the artist's own statements or tracks.
+         The template was ignoring it, so demo career numbers rendered
+         identically to earned ones. #}
+      {% if not e.stats_are_real %}
+      <p class="border-b border-[#141210]/10 bg-amber-100 px-4 py-2 text-center text-[11px] font-semibold text-[#6b4d0a]">
+        Sample figures — not your catalog. Upload a royalty statement or add tracks and these switch to your real numbers.
+      </p>
+      {% endif %}
 
       <!-- Bio -->
       <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-[#141210]/10 py-7">
