@@ -79,3 +79,57 @@ def test_a_fresh_account_can_load_every_page_without_erroring():
     assert not broken, (
         "%d page(s) break for a brand-new artist:\n%s"
         % (len(broken), "\n".join("  %s -> %s" % b for b in broken)))
+
+
+# --- the EPK identity ----------------------------------------------------
+
+# Distinctive strings from epk_config._EPK_PROFILE. If any of these reach a
+# real artist, the showcase identity is leaking again.
+SHOWCASE = [
+    "Synthwave-driven pop",
+    "Indie Wave",
+    "Nightdrive Mag",
+    "Street Banker Management",
+    "booking@streetbanker.co",
+    "press@streetbanker.co",
+    "multi-million-stream",
+]
+
+
+def test_a_real_artist_is_never_handed_the_showcase_identity():
+    """_EPK_PROFILE is a fictional artist: a bio claiming a multi-million
+    stream catalog, a management company, booking and press addresses, and
+    two pull-quotes credited to publications that do not exist. It used to
+    be the default for every account."""
+    client, _ = fresh_artist()
+    for path in ("/epk", "/artist-profile"):
+        body = client.get(path).get_data(as_text=True)
+        leaked = [s for s in SHOWCASE if s in body]
+        assert not leaked, "%s hands a real artist: %s" % (path, leaked)
+
+
+def test_saving_an_untouched_epk_does_not_adopt_someone_elses_press():
+    """The worst version of this bug: the editor prefilled its form from
+    the showcase, so an artist who opened /epk and pressed Save Draft
+    without typing persisted invented press quotes as their own - and
+    published them on a public URL they would send to labels.
+
+    Placeholders show the shape; only values submit. This proves it."""
+    import db as store
+
+    client, app_obj = fresh_artist()
+    email = "guard%d@example.com" % _counter[0]
+    user = store.get_user_by_email(email)
+
+    r = client.post("/epk/save", json={
+        "tagline": "", "bio": "", "location": "", "genres": [],
+        "socials": [], "press": [],
+        "contact": {"booking": "", "management": "", "press": ""},
+    })
+    assert r.status_code == 200, r.status_code
+
+    saved = (store.get_epk(user["id"]) or {}).get("data") or {}
+    blob = str(saved)
+    leaked = [s for s in SHOWCASE if s in blob]
+    assert not leaked, \
+        "an untouched save adopted the showcase identity: %s" % leaked

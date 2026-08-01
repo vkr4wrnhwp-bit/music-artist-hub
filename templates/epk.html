@@ -52,9 +52,13 @@
         <div class="min-w-0 flex-1">
           <div class="text-[10px] font-bold uppercase tracking-[0.35em] text-[#a8862f]">Official Press Kit</div>
           <h2 class="mt-1 text-3xl font-black uppercase tracking-tight sm:text-4xl">{{ e.name }}</h2>
-          <p class="mt-2 text-base leading-snug text-[#141210]/80">{{ e.profile.tagline }}</p>
+          {# An empty kit says it is empty. It used to say "Synthwave-driven
+             pop for late-night drives" to every artist who had written
+             nothing. #}
+          <p class="mt-2 text-base leading-snug {{ 'text-[#141210]/80' if e.profile.tagline else 'text-[#141210]/40 italic' }}">
+            {{ e.profile.tagline or 'No tagline yet — add one in the editor.' }}</p>
           <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-            <span class="rounded-full bg-[#141210] px-3 py-1 text-white">{{ e.profile.location }}</span>
+            {% if e.profile.location %}<span class="rounded-full bg-[#141210] px-3 py-1 text-white">{{ e.profile.location }}</span>{% endif %}
             {% for g in e.profile.genres %}<span class="rounded-full border border-[#141210]/20 px-3 py-1">{{ g }}</span>{% endfor %}
           </div>
         </div>
@@ -303,15 +307,19 @@
           <details open class="rounded-lg border border-[#141210]/10 bg-white p-3">
           <summary class="cursor-pointer select-none text-[10px] font-bold uppercase tracking-[0.2em] text-[#7c6220] marker:text-[#a8862f]">1 · Identity</summary>
           <div class="mt-2 space-y-3">
+          {# Placeholders, not values. They show the shape of a good answer
+             and vanish on typing; they are never submitted, so pressing
+             Save Draft on an untouched form saves nothing. Values here
+             would be saved as the artist's own words. #}
           <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Tagline</label>
-            <input id="f-tagline" value="{{ e.profile.tagline }}" class="{{ field }}"></div>
+            <input id="f-tagline" value="{{ e.profile.tagline }}" placeholder="One line on what you sound like" class="{{ field }}"></div>
           <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Bio</label>
-            <textarea id="f-bio" rows="5" class="{{ field }} resize-none">{{ e.profile.bio }}</textarea></div>
+            <textarea id="f-bio" rows="5" placeholder="Two or three sentences a journalist could lift straight into a piece. What you make, how you release it, what you have done so far." class="{{ field }} resize-none">{{ e.profile.bio }}</textarea></div>
           <div class="grid grid-cols-2 gap-3">
             <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Location</label>
-              <input id="f-location" value="{{ e.profile.location }}" class="{{ field }}"></div>
+              <input id="f-location" value="{{ e.profile.location }}" placeholder="City, Country" class="{{ field }}"></div>
             <div><label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Genres (comma-sep)</label>
-              <input id="f-genres" value="{{ e.profile.genres | join(', ') }}" class="{{ field }}"></div>
+              <input id="f-genres" value="{{ e.profile.genres | join(', ') }}" placeholder="Two or three, most specific first" class="{{ field }}"></div>
           </div>
           </div>
           </details>

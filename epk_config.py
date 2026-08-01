@@ -43,6 +43,30 @@ _EPK_PROFILE = {
     ],
 }
 
+# What a real artist starts with: nothing.
+#
+# _EPK_PROFILE above is the demo showcase. Handing it to a real account
+# was the worst honesty bug in the app, because the EPK editor prefills
+# its form from whatever get_epk_data returns - so an artist who opened
+# /epk, glanced at a finished-looking kit and pressed Save Draft
+# persisted two press quotes credited to publications that do not exist
+# ("Indie Wave", "Nightdrive Mag"), a management company they had never
+# hired, and contact addresses that were not theirs. Then published them
+# on a public URL they would send to labels.
+#
+# The shape is still shown, as placeholder text in the form. Placeholders
+# do not submit; values do. That distinction is the whole fix.
+_EMPTY_PROFILE = {
+    "tagline": "",
+    "bio": "",
+    "genres": [],
+    "location": "",
+    "socials": [],
+    "contact": {"booking": "", "management": "", "press": ""},
+    "press": [],
+}
+
+
 # Which sections the artist can toggle into the shareable kit.
 _SECTIONS = [
     {"key": "bio", "label": "Artist Bio", "on": True},
@@ -187,7 +211,10 @@ def real_stats(statement_rows, track_count):
 
 
 def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None,
-                 tour_dates=None, stats_override=None):
+                 tour_dates=None, stats_override=None, demo=False):
+    """`demo` decides whose profile the kit starts from. Defaults to
+    False so a caller that forgets it gets the safe, empty one rather
+    than silently handing a real artist the invented identity."""
     songs = get_songs()
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
@@ -227,8 +254,11 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         stats = stats_override
         stats_are_real = bool(stats_override)
 
-    # Merge the artist's saved edits over the demo defaults.
-    profile = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in _EPK_PROFILE.items()}
+    # Merge the artist's saved edits over the base profile. Real accounts
+    # start empty; only the demo showcase starts from _EPK_PROFILE.
+    base = _EPK_PROFILE if demo else _EMPTY_PROFILE
+    profile = {k: (v.copy() if isinstance(v, (dict, list)) else v)
+               for k, v in base.items()}
     o = overrides or {}
     for key in ("tagline", "bio", "location", "genres", "socials", "press"):
         if o.get(key):
@@ -268,6 +298,9 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
 
     return {
         "stats_are_real": stats_are_real,
+        # True only when the showcase profile is standing in for an
+        # artist who has written nothing. Lets the page say so.
+        "profile_is_sample": bool(demo and not o),
         "name": account["name"],
         "initials": account["initials"],
         "profile": profile,

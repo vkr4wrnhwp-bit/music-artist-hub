@@ -1651,7 +1651,8 @@ def create_app():
         tour = bandsintown.upcoming_events((overrides or {}).get("bandsintown_artist"))
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets,
-                                  tour_dates=tour)
+                                  tour_dates=tour,
+                                  demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="epk", **ctx)
 
     @app.route("/epk/press/search")
@@ -1720,6 +1721,12 @@ def create_app():
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
                             assets=assets, tour_dates=tour,
+                            # Whose kit this is decides whose defaults
+                            # apply - a real artist's public EPK must
+                            # never fall back to the showcase identity.
+                            demo=_is_demo_email(
+                                (store.get_user(prof["user_id"]) or {})
+                                .get("email") or ""),
                             # None, not [] - an empty list would override
                             # the demo stats with nothing and delete the
                             # section. With no real figures the demo ones
@@ -1795,7 +1802,8 @@ def create_app():
                             ctx["catalog_value"],
                             overrides=(prof or {}).get("data"),
                             photo=(prof or {}).get("photo"),
-                            assets=assets, tour_dates=tour)
+                            assets=assets, tour_dates=tour,
+                            demo=_is_demo_email((owner or {}).get("email") or ""))
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:
             first_today = not store.epk_viewed_today(token, today)
@@ -1889,7 +1897,10 @@ def create_app():
     @app.route("/epk/export", methods=["POST"])
     def epk_export():
         ctx = build_dashboard_context()
-        data = get_epk_data(ctx["account"], ctx["catalog_value"])
+        user = current_user()
+        data = get_epk_data(
+            ctx["account"], ctx["catalog_value"],
+            demo=_is_demo_email((user or {}).get("email") or ""))
         slug = data["name"].lower().replace(" ", "-")
         filename = f"{slug}-press-kit-{datetime.today().strftime('%Y%m%d')}.pdf"
         return jsonify({"ok": True, "filename": filename})
@@ -4991,7 +5002,8 @@ def create_app():
         ctx = build_dashboard_context()
         epk_data = get_epk_data(ctx["account"], ctx["catalog_value"],
                                 overrides=saved.get("data"), photo=saved.get("photo"),
-                                assets=assets)
+                                assets=assets,
+                                demo=_is_demo_email(user["email"]))
         campaigns = []
         for c in mls.list_campaigns(user["id"]):
             counts = mls.event_counts(c["id"])
