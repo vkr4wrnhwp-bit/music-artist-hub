@@ -109,6 +109,14 @@ def vote_demo(demo_id):
 
 
 def get_fan_label_data():
+    """Fan Label demonstration data.
+
+    There is no fan-fund table behind this yet - no campaign to create,
+    no backer to record, no money that moves. Every figure below is
+    invented, so the page must say so. `is_sample` is what makes it say
+    so; do not drop it when the real fund lands, flip it to False only
+    once these numbers come from actual backers.
+    """
     _ensure_fan_label()
     raised = 18400
     goal = 25000
@@ -120,6 +128,7 @@ def get_fan_label_data():
     ]
     demos = sorted(_demos, key=lambda d: d["votes"], reverse=True)
     return {
+        "is_sample": True,
         "raised": raised,
         "goal": goal,
         "pct": round(raised / goal * 100),

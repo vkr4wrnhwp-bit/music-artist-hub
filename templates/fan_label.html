@@ -11,6 +11,16 @@
     <p class="mt-1 text-sm text-gray-500">A community-funded label where fans back releases and vote on which demos get made.</p>
   </div>
 
+  {# Every figure on this page is invented - there is no fund, no backer
+     and no money behind it yet. Sits above the fund, not below it, so
+     nobody reads the total first. #}
+  {% if fl.is_sample %}
+    {% with kind='sample',
+            note='The fund, the backer count and the demo votes below are all placeholders. No money has been raised and no fan has backed anything.' %}
+      {% include 'partials/data_label.html' %}
+    {% endwith %}
+  {% endif %}
+
   <section class="rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.06] to-transparent p-5">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
