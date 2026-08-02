@@ -860,19 +860,6 @@ def test_publishing_page_real_classification():
     assert "Spotify" not in body.split("By source")[1][:600]  # streams stay out
 
 
-def test_publishing_data_config_shapes():
-    from publishing_config import get_publishing_data
-    data = get_publishing_data()
-    assert data["summary"]["total_works"] == len(data["works"])
-    assert data["summary"]["pro_registered"] <= data["summary"]["total_works"]
-    # Uncollected total is the sum of per-work uncollected estimates.
-    assert round(sum(w["uncollected"] for w in data["works"]), 2) == data["summary"]["uncollected_total"]
-    assert len(data["issues"]) == 3
-    # A work missing MLC registration should carry a positive uncollected estimate.
-    unreg = [w for w in data["works"] if not w["mlc_registered"]]
-    assert all(w["uncollected"] > 0 for w in unreg)
-
-
 def test_tier2_pages_render_and_are_in_nav():
     client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
@@ -936,18 +923,6 @@ def test_neighboring_rights_page_real():
     assert "SoundExchange" in body and "$60.00" in body
 
 
-def test_neighboring_rights_data_config_shapes():
-    from neighboring_rights_config import get_neighboring_rights_data
-    data = get_neighboring_rights_data()
-    assert data["summary"]["recordings"] == len(data["recordings"])
-    # SoundExchange is the first society and reflects real registration.
-    assert data["societies"][0]["name"] == "SoundExchange"
-    assert data["summary"]["territories_total"] == len(data["societies"])
-    # Every recording carries a positive uncollected estimate (intl always uncollected).
-    assert all(r["uncollected"] > 0 for r in data["recordings"])
-    assert round(sum(r["uncollected"] for r in data["recordings"]), 2) == data["summary"]["uncollected_total"]
-
-
 def test_sync_page_content():
     client = _demo()
     body = client.get("/sync").get_data(as_text=True)
@@ -979,18 +954,6 @@ def test_territories_page_real():
     assert "no imputed geography" in body
 
 
-def test_territories_data_config_shapes():
-    from territories_config import get_territories_data
-    data = get_territories_data()
-    assert data["territories"]
-    # Sorted by earnings descending.
-    earnings = [t["earnings"] for t in data["territories"]]
-    assert earnings == sorted(earnings, reverse=True)
-    # Only non-collecting territories carry an uncollected gap.
-    assert all((t["uncollected"] > 0) == (not t["collecting"]) for t in data["territories"])
-    assert round(sum(t["uncollected"] for t in data["territories"]), 2) == data["summary"]["uncollected_total"]
-
-
 def test_mechanicals_page_real():
     client = _rtype_client(create_app(), "rt-mech@example.net")
     body = client.get("/mechanicals").get_data(as_text=True)
@@ -1003,24 +966,6 @@ def test_mechanicals_page_real():
     fresh.post("/plan/switch", data={"plan": "pro"})
     body = fresh.get("/mechanicals").get_data(as_text=True)
     assert "that's the finding" in body and "The MLC pays" in body
-
-
-def test_mechanicals_data_config_shapes():
-    from mechanicals_config import get_mechanicals_data
-    data = get_mechanicals_data()
-    s = data["summary"]
-    assert round(s["matched_total"] + s["blackbox_total"], 2) == s["mechanical_total"]
-    # Unmatched works contribute to the black box, matched ones don't.
-    for w in data["works"]:
-        assert (w["blackbox_amount"] > 0) == (not w["mlc_matched"])
-
-
-def test_mechanicals_agree_with_publishing():
-    from mechanicals_config import get_mechanicals_data
-    from publishing_config import get_publishing_data
-    mech = {w["id"]: w["mechanical_total"] for w in get_mechanicals_data()["works"]}
-    pub = {w["id"]: w["mechanical_estimate"] for w in get_publishing_data()["works"]}
-    assert mech == pub
 
 
 def test_funding_quotes_nothing_without_income():
@@ -1104,16 +1049,6 @@ def test_tax_page_real_income_by_year():
     assert "not tax advice" in body
 
 
-def test_tax_data_config_shapes():
-    from tax_config import get_tax_data
-    data = get_tax_data()
-    s = data["summary"]
-    assert s["set_aside"] == round(s["ytd_earnings"] * s["set_aside_rate"] / 100, 2)
-    assert s["forms_total"] == len(data["forms"])
-    assert any(f["status"] == "Available" for f in data["forms"])
-    assert {t["form"] for t in data["tax_profile"]} == {"W-9", "W-8BEN"}
-
-
 def test_disputes_real_tracker():
     import db as store_mod
     app_obj = create_app()
@@ -1159,15 +1094,6 @@ def test_audience_data_config_shapes():
     # Top tracks are ranked by streams.
     streams = [t["streams"] for t in data["top_tracks"]]
     assert streams == sorted(streams, reverse=True)
-
-
-def test_stats_data_matches_catalog():
-    from stats_config import get_stats_data
-    from royalty_data import get_songs
-    data = get_stats_data()
-    assert data["summary"]["total_streams"] == sum(s.streams for s in get_songs())
-    # Platform earnings share sums to ~100%.
-    assert abs(sum(p["share_pct"] for p in data["platforms"]) - 100) < 0.5
 
 
 def test_playlists_data_config_shapes():
@@ -6005,7 +5931,6 @@ def test_hours_desk_needs_an_account():
                  "/hours/submission", "/hours/block", "/hours/invoice"):
         r = anon.post(path, data={})
         assert r.status_code in (302, 401), path
-
 
 
 def test_loudness_targets_are_published_not_verified():

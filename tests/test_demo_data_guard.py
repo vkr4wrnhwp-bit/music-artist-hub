@@ -11,9 +11,12 @@ The standing rule is that demo data, estimates, simulations and
 integration-ready features must be clearly labelled. These tests hold the
 line on a fresh, empty, non-demo account.
 """
+import os
 import re
 
 from app import create_app
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Words that count as telling the user the number is not theirs. Kept
 # deliberately broad - the point is to catch pages with NO disclosure at
@@ -133,3 +136,53 @@ def test_saving_an_untouched_epk_does_not_adopt_someone_elses_press():
     leaked = [s for s in SHOWCASE if s in blob]
     assert not leaked, \
         "an untouched save adopted the showcase identity: %s" % leaked
+
+
+# --- deleted modules stay deleted ---------------------------------------
+
+# Seven config modules were imported by app.py but never called, and each
+# held fabricated figures aimed at exactly the numbers artists care about:
+# connections_config claimed "84% connection health", sources marked
+# "Connected - Live Data", and "$4,820 missing royalties found" - none of
+# it real, none of it labelled. They were one route line away from
+# shipping. Three of them even had matching unlabelled templates already
+# written. The real pages for these routes read per-user statement data
+# through royalty_types instead.
+DELETED_MODULES = [
+    "connections_config", "neighboring_rights_config", "tax_config",
+    "stats_config", "publishing_config", "mechanicals_config",
+    "territories_config",
+]
+
+DELETED_TEMPLATES = [
+    "neighboring_rights.html", "mechanicals.html", "publishing.html",
+]
+
+
+def test_the_unreachable_mock_modules_are_gone():
+    """Not a style rule. Re-adding one of these puts a fabricated
+    'missing royalties' dollar figure one import away from a real
+    artist's screen."""
+    import importlib
+
+    back = []
+    for name in DELETED_MODULES:
+        if os.path.exists(os.path.join(HERE, name + ".py")):
+            back.append(name)
+            continue
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            pass
+        else:                                          # pragma: no cover
+            back.append(name + " (importable)")
+    assert not back, (
+        "mock config modules are back: %s. If a page needs this data, read "
+        "it per-user through royalty_types, or label it with "
+        "partials/data_label.html." % back)
+
+
+def test_the_orphan_mock_templates_are_gone():
+    present = [t for t in DELETED_TEMPLATES
+               if os.path.exists(os.path.join(HERE, "templates", t))]
+    assert not present, "unlabelled mock templates are back: %s" % present
