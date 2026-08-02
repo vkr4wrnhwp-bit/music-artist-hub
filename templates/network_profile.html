@@ -11,6 +11,19 @@
     Back to network
   </a>
 
+  {# The directory index says the profiles are illustrative; this page,
+     where someone actually decides to write a pitch, said nothing. It
+     shows a Verified badge, a follower count and an Available dot, then
+     offers Connect / Send a Pitch / Enquire About Shows. network_config
+     .pitch() appends to an in-memory list - nothing is delivered, and it
+     is not even per-user. Say so before the buttons, not after. #}
+  {% with kind='sample',
+          body='This profile is an example, not a real person.',
+          note='Connecting, pitching or enquiring is recorded for this session only — nothing is sent to anyone, and no one is waiting to read it.',
+          action={'href': '/network#my-network', 'label': 'Your real outreach'} %}
+    {% include 'partials/data_label.html' %}
+  {% endwith %}
+
   <section class="rounded-2xl border border-white/5 bg-[#111113] p-6">
     <div class="flex flex-wrap items-start gap-4">
       <span class="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-amber-500/40 text-xl font-bold text-amber-400">{{ p.initials }}</span>

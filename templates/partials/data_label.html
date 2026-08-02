@@ -16,6 +16,9 @@
    Expects:
      kind    - one of the four above
      basis   - required for 'estimate'; what it is actually computed from
+     body    - optional; replaces the default sentence when the generic
+               wording does not fit. "None of it is yours" is right for a
+               dashboard figure and wrong for someone else's profile.
      note    - optional extra sentence
      action  - optional {href, label}: the thing that makes it real
 
@@ -31,7 +34,7 @@
      'not_connected': ('Nothing connected', 'This account has no source linked yet, so there is nothing real to show.')
    } %}
 {% set _title = _copy[_k][0] if _k in _copy else 'Sample data' %}
-{% set _body  = _copy[_k][1] if _k in _copy else _copy['sample'][1] %}
+{% set _body  = body or (_copy[_k][1] if _k in _copy else _copy['sample'][1]) %}
 <div role="note"
      class="my-3 flex flex-wrap items-start gap-x-3 gap-y-1.5 rounded-xl border-l-4 border-l-amber-400/80
             border-y border-r border-white/10 bg-amber-400/[0.06] px-4 py-3">

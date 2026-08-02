@@ -186,3 +186,27 @@ def test_the_orphan_mock_templates_are_gone():
     present = [t for t in DELETED_TEMPLATES
                if os.path.exists(os.path.join(HERE, "templates", t))]
     assert not present, "unlabelled mock templates are back: %s" % present
+
+
+# --- the network directory ----------------------------------------------
+
+def test_every_network_profile_page_says_it_is_not_a_real_person():
+    """Each of the 22 profiles carries a Verified badge, a follower count
+    and an Available dot, then offers Connect / Send a Pitch / Enquire
+    About Shows. network_config.pitch() appends to an in-memory list -
+    nothing is delivered. The index said so; the page where someone
+    decides to write the pitch did not."""
+    import network_config
+
+    client, _ = fresh_artist()
+    unlabelled = []
+    for p in network_config._PROFILES:
+        r = client.get("/network/%s" % p["id"])
+        if r.status_code != 200:
+            continue
+        body = r.get_data(as_text=True)
+        if "not a real person" not in body:
+            unlabelled.append(p["id"])
+    assert not unlabelled, (
+        "%d profile page(s) present an invented contact with no label: %s"
+        % (len(unlabelled), unlabelled[:6]))

@@ -4714,7 +4714,9 @@ def test_network_upgrades_and_outreach_pipeline():
     client = _demo(app_obj)
     page = client.get("/network").get_data(as_text=True)
     # Demo directory is labeled as samples; avatars render; CTAs match roles.
-    assert "illustrative sample profiles" in page and "not real people" in page
+    # Assert the disclosure, not one exact sentence - the wording moved into
+    # partials/data_label.html so the index and the profile pages agree.
+    assert "Sample data" in page and "not real people" in page
     assert "/static/img/people/p5.jpg" in page
     assert "Pitch Track" in page and "Submit Demo" in page
     assert "/network?tab=playlists" in page  # stat cards are quick-jumps

@@ -35,7 +35,14 @@
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Network</h1>
     <p class="mt-1 text-sm text-gray-500">Find collaborators, labels, curators, and industry contacts — connect, pitch, and submit to playlists.</p>
-    <p class="mt-1 text-[11px] text-gray-600">The directory shows illustrative sample profiles — not real people. Your Outreach Pipeline on the My Network tab is real and private to you.</p>
+    {# Was text-[11px] text-gray-600 - grey on black, at the size the eye
+       skips. A disclosure nobody reads is not a disclosure. Same
+       component as the profile page so the two agree. #}
+    {% with kind='sample',
+            body='The directory profiles are examples, not real people.',
+            note='Your Outreach Pipeline on the My Network tab is real and private to you.' %}
+      {% include 'partials/data_label.html' %}
+    {% endwith %}
   </div>
 
   <!-- Stat cards double as quick-jump filters -->
