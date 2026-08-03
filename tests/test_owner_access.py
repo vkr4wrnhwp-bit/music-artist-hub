@@ -93,6 +93,39 @@ def test_no_other_account_is_upgraded():
     assert not app_module._grant_owner_plan(user)
 
 
+def test_the_reset_link_ignores_the_host_header():
+    """A password-reset link is the one URL where trusting Host hands a
+    valid token to whoever set it: POST /forgot with the victim's address
+    and Host: attacker.com, and the victim gets a genuine email pointing
+    at the attacker's server.
+
+    Render's edge refuses unconfigured hosts today, so this is not live.
+    The link is pinned to PUBLIC_BASE_URL so it does not depend on that."""
+    import app as m
+
+    sent = []
+    real_send, real_conf = m.emailer.send, m.emailer.configured
+    # The route refuses to send at all without a mail provider, so both
+    # have to be stood up to reach the link-building code.
+    m.emailer.send = lambda to, subj, html, **kw: sent.append(html) or True
+    m.emailer.configured = lambda: True
+    try:
+        app_obj = create_app()
+        _account(app_obj, NOT_OWNER)
+        app_obj.test_client().post(
+            "/forgot", data={"email": NOT_OWNER},
+            headers={"Host": "attacker.example"})
+    finally:
+        m.emailer.send, m.emailer.configured = real_send, real_conf
+
+    assert sent, "no reset email was sent"
+    body = sent[-1]
+    assert "attacker.example" not in body, \
+        "the reset link followed the Host header"
+    assert m.PUBLIC_BASE_URL in body, \
+        "the reset link should be pinned to PUBLIC_BASE_URL"
+
+
 def test_the_demo_account_is_untouched():
     """Demo stays on its own plan - the tour depends on it."""
     create_app()

@@ -15,6 +15,30 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import db as store
 import report_builder
 
+# The address this product answers to in anything that outlives the
+# request that made it - emails, and the user-agent we identify as to
+# third parties.
+#
+# Everything else builds links from request.url_root, which follows
+# whichever host the visitor arrived on. That is right for share links:
+# a fan who opened a smart link on one domain should get the same domain
+# back. It is wrong for email, because a link in an inbox has no request
+# behind it, and because Host is attacker-controlled input - a forged
+# Host on a password-reset request would mail a real token pointing at
+# somebody else's server.
+#
+# Render's edge currently refuses unconfigured hosts (a forged Host gets
+# a 403 and never reaches this process), so that is not exploitable
+# today. This does not depend on that holding.
+#
+# Set PUBLIC_BASE_URL in Render when the real domain lands.
+PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL")
+                   or "https://street-banker.onrender.com").rstrip("/")
+
+
+def public_url(path=""):
+    return PUBLIC_BASE_URL + "/" + path.lstrip("/") if path else PUBLIC_BASE_URL
+
 # Accounts that get the top plan without paying: the owner's own.
 #
 # Stored as SHA-256, not plaintext, because this repo is on GitHub and an
@@ -585,11 +609,13 @@ def create_app():
                     "Your Street Banker demo access",
                     "<p>Thanks for your interest in Street Banker.</p>"
                     "<p>Your demo password: <strong>%s</strong></p>"
-                    "<p>Sign in at <a href='https://street-banker.onrender.com/login'>"
-                    "street-banker.onrender.com/login</a>, pick the <strong>%s</strong> "
-                    "workspace in Tour Street Banker, and enter the password.</p>"
+                    "<p>Sign in at <a href='%s/login'>%s/login</a>, pick the "
+                    "<strong>%s</strong> workspace in Tour Street Banker, and "
+                    "enter the password.</p>"
                     "<p>The demo is illustrative sample data - no account is "
-                    "created and nothing is shared.</p>" % (pw, workspace.title()))
+                    "created and nothing is shared.</p>"
+                    % (pw, PUBLIC_BASE_URL,
+                       PUBLIC_BASE_URL.split("//", 1)[-1], workspace.title()))
                 sent = True
             except Exception:
                 sent = False
@@ -730,7 +756,10 @@ def create_app():
                 user = store.get_user_by_email(email) if "@" in email else None
                 if user:
                     token = _reset_serializer().dumps(user["id"])
-                    link = request.url_root.rstrip("/") + "/reset/" + token
+                    # Pinned, not request-derived. This is the one link
+                    # where trusting the Host header would hand a valid
+                    # reset token to whoever set it.
+                    link = public_url("/reset/" + token)
                     emailer.send(
                         email, "Reset your Street Banker password",
                         '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'

@@ -27,8 +27,11 @@ import urllib.request
 import uuid
 
 BASE = "https://stemsplit.io/api/v1"
-# Who we are, said plainly, with somewhere to look us up.
-UA = "StreetBanker/1.0 (+https://street-banker.onrender.com)"
+# Who we are, said plainly, with somewhere to look us up. Follows
+# PUBLIC_BASE_URL so it stays true when the domain changes.
+UA = "StreetBanker/1.0 (+%s)" % (
+    os.environ.get("PUBLIC_BASE_URL")
+    or "https://street-banker.onrender.com").rstrip("/")
 JOBS = os.environ.get("STEMSPLIT_JOBS_PATH", "/jobs")
 SRC_DIR = os.path.join(tempfile.gettempdir(), "sb-stem-src")
 MAX_UPLOAD = 60 * 1024 * 1024          # a full-length WAV, with headroom
