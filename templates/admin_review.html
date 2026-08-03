@@ -20,9 +20,9 @@
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm font-bold text-gray-100">{{ a.name }}</span>
             <span class="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-400">{{ a.plan }}</span>
-            <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if a.recommendation == 'High potential' else ('bg-[#c9a24a]/15 text-[#e8c667]' if 'Approve' in a.recommendation else 'bg-white/10 text-gray-500') }}">{{ a.recommendation }}</span>
+            <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if a.recommendation == 'High potential' else ('bg-[#c9a24a]/15 text-[#e8c667]' if 'Approve' in a.recommendation else 'bg-white/10 text-gray-400') }}">{{ a.recommendation }}</span>
           </div>
-          <div class="mt-0.5 truncate text-[11px] text-gray-500">{{ a.email }}</div>
+          <div class="mt-0.5 truncate text-[11px] text-gray-400">{{ a.email }}</div>
           {% if a.badges %}
           <div class="mt-1.5 flex flex-wrap gap-1">
             {% for b in a.badges %}<span class="rounded border border-[#c9a24a]/30 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]/80">{{ b }}</span>{% endfor %}
@@ -31,7 +31,7 @@
         </div>
         {% if a.missing %}
         <div class="max-w-[220px] shrink-0 text-right">
-          <div class="text-[9px] font-bold uppercase tracking-wide text-gray-600">Missing</div>
+          <div class="text-[9px] font-bold uppercase tracking-wide text-gray-400">Missing</div>
           <div class="text-[11px] text-gray-400">{{ a.missing | join(' · ') }}</div>
         </div>
         {% endif %}
@@ -40,9 +40,9 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-500">No artist accounts to review yet.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-400">No artist accounts to review yet.</div>
   {% endif %}
 
-  <p class="text-[10px] text-gray-600">Internal curation view — visible to Label accounts. Approve/decline workflows and reviewer notes land with the Partner Portal.</p>
+  <p class="text-[10px] text-gray-400">Internal curation view — visible to Label accounts. Approve/decline workflows and reviewer notes land with the Partner Portal.</p>
 </div>
 {% endblock %}

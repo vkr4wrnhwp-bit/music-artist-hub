@@ -17,9 +17,9 @@
   </div>
 
   {% if not posts %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-500">No posts yet — generate the rollout from the overview page, then storyboard it here.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-400">No posts yet — generate the rollout from the overview page, then storyboard it here.</div>
   {% else %}
-  <div class="flex items-center gap-3 px-1 text-[10px] font-bold uppercase text-gray-500">
+  <div class="flex items-center gap-3 px-1 text-[10px] font-bold uppercase text-gray-400">
     <span>Heat = this post's real smart-link clicks, not platform metrics:</span>
     <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-gray-700"></span>0</span>
     <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500"></span>1–9</span>
@@ -36,7 +36,7 @@
         <video src="{{ p.asset.file_path }}" muted preload="metadata" class="h-full w-full object-cover"></video>
         <span class="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-200">▶ video</span>
         {% else %}
-        <div class="grid h-full w-full place-items-center text-3xl text-gray-700">{{ '✎' if p.post_type == 'text' else '🎬' if p.post_type == 'video' else '🖼' }}</div>
+        <div class="grid h-full w-full place-items-center text-3xl text-gray-400">{{ '✎' if p.post_type == 'text' else '🎬' if p.post_type == 'video' else '🖼' }}</div>
         {% endif %}
         <span class="absolute right-2 top-2 h-3 w-3 rounded-full border border-black/60 {{ 'bg-[#e8c667]' if p.clicks >= 10 else 'bg-amber-500' if p.clicks else 'bg-gray-700' }}" title="{{ p.clicks }} smart-link clicks"></span>
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6">
@@ -61,7 +61,7 @@
     {% endfor %}
   </div>
   {% if not vault %}
-  <p class="text-[11px] text-gray-500">Your Vault is empty — <a href="/vault" class="font-bold text-[#e8c667] hover:underline">upload press shots, covers, or clips</a> and they become attachable here.</p>
+  <p class="text-[11px] text-gray-400">Your Vault is empty — <a href="/vault" class="font-bold text-[#e8c667] hover:underline">upload press shots, covers, or clips</a> and they become attachable here.</p>
   {% endif %}
   {% endif %}
 </div>

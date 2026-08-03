@@ -11,13 +11,13 @@
 
   {% if band_mode == 'overview' %}
   <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Tracked Revenue</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Tracked Revenue</div>
       <div class="mt-1 text-xl font-black tabular-nums text-[#e8c667] sm:text-2xl">${{ "{:,.2f}".format(rr.total) }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Unmatched Found</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Unmatched Found</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-red-400' if rr.unmatched_revenue else 'text-gray-400' }}">${{ "{:,.2f}".format(rr.unmatched_revenue) }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Coverage Gaps</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Coverage Gaps</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-amber-400' if rr.coverage_gaps else 'text-gray-400' }}">{{ rr.coverage_gaps | length }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Top Track</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Top Track</div>
       <div class="mt-1 truncate text-lg font-bold">{{ rr.by_track[0].title if rr.by_track else '—' }}</div></div>
   </div>
   {% if rr.unmatched_revenue or rr.coverage_gaps %}
@@ -27,7 +27,7 @@
   {% elif band_mode == 'royalties' %}
   <div class="mt-4 grid gap-5 lg:grid-cols-2">
     <div>
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">By Source</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">By Source</div>
       <div class="mt-2 space-y-2">
         {% for s in rr.by_source %}
         <div class="flex items-center gap-3">
@@ -39,7 +39,7 @@
       </div>
     </div>
     <div>
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Monthly Trend</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Monthly Trend</div>
       {% if rr.monthly_trend %}
       {% set peak = rr.monthly_trend | map(attribute=1) | max %}
       <div class="mt-2 flex h-24 items-end gap-1.5">
@@ -47,12 +47,12 @@
         <div class="flex-1 rounded-t bg-[#d8b25a]/80" style="height: {{ (100 * amt / (peak or 1)) | round }}%;" title="{{ period }}: ${{ amt }}"></div>
         {% endfor %}
       </div>
-      <div class="mt-1 flex justify-between text-[9px] text-gray-600"><span>{{ rr.monthly_trend[0][0] }}</span><span>{{ rr.monthly_trend[-1][0] }}</span></div>
+      <div class="mt-1 flex justify-between text-[9px] text-gray-400 font-medium"><span>{{ rr.monthly_trend[0][0] }}</span><span>{{ rr.monthly_trend[-1][0] }}</span></div>
       {% endif %}
     </div>
   </div>
   <div class="mt-4">
-    <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Top Tracks</div>
+    <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Top Tracks</div>
     <div class="mt-2 space-y-1.5">
       {% for t in rr.by_track[:6] %}
       <div class="flex items-center justify-between rounded-lg border border-white/5 bg-black/25 px-3 py-2 text-xs">
@@ -118,16 +118,16 @@
 
   {% elif band_mode == 'valuation' %}
   <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Tracked Revenue</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Tracked Revenue</div>
       <div class="mt-1 text-xl font-black tabular-nums">${{ "{:,.2f}".format(rr.total) }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Annualized Pace</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Annualized Pace</div>
       <div class="mt-1 text-xl font-black tabular-nums">${{ "{:,.0f}".format(rr.annualized) }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Catalog Signal (3–5x)</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Catalog Signal (3–5x)</div>
       <div class="mt-1 text-xl font-black tabular-nums text-[#e8c667]">${{ "{:,.0f}".format(rr.valuation.low) }}–{{ "{:,.0f}".format(rr.valuation.high) }}</div></div>
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Mid Estimate</div>
+    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Mid Estimate</div>
       <div class="mt-1 text-xl font-black tabular-nums text-green-400">${{ "{:,.0f}".format(rr.valuation.mid) }}</div></div>
   </div>
-  <p class="mt-3 text-[10px] text-gray-500">Signal only: annualized from your uploaded statement months with a conservative independent-catalog multiple. Not an appraisal, not financial advice — real valuations weigh trend, rights, and territory depth.</p>
+  <p class="mt-3 text-[10px] text-gray-400">Signal only: annualized from your uploaded statement months with a conservative independent-catalog multiple. Not an appraisal, not financial advice — real valuations weigh trend, rights, and territory depth.</p>
   {% endif %}
 </section>
 {% elif user_plan %}

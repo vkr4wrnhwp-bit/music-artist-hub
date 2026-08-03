@@ -6,7 +6,7 @@
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <a href="/tracks" class="text-[11px] font-bold text-gray-500 hover:text-[#e8c667]">← Track Passports</a>
+      <a href="/tracks" class="text-[11px] font-bold text-gray-400 hover:text-[#e8c667]">← Track Passports</a>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ track.title }}</h1>
       <p class="mt-0.5 text-sm text-gray-400">{{ track.release_title }}{% if track.release_date %} · {{ track.release_date }}{% endif %}</p>
     </div>
@@ -21,12 +21,12 @@
   <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
     <!-- Passport editor -->
     <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
-      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Metadata Passport</h2>
-      <p class="mt-1 text-xs text-gray-500">Green = release-ready. Yellow = incomplete but fixable. Red = rights issue blocking release. Words like "registered", "cleared", "signed", "n/a" go green; "pending" holds yellow; "blocked" or "unresolved" goes red.</p>
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Metadata Passport</h2>
+      <p class="mt-1 text-xs text-gray-400">Green = release-ready. Yellow = incomplete but fixable. Red = rights issue blocking release. Words like "registered", "cleared", "signed", "n/a" go green; "pending" holds yellow; "blocked" or "unresolved" goes red.</p>
       <form method="post" action="/tracks/{{ track.id }}/passport" class="mt-4 grid gap-2.5 sm:grid-cols-2">
         {% for item in passport['items'] %}
         <div>
-          <label class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+          <label class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
             <span class="h-2 w-2 rounded-full {{ 'bg-red-500' if item.state == 'red' else 'bg-amber-400' if item.state == 'yellow' else 'bg-green-500' }}"></span>
             {{ item.label }}{% if item.critical %} <span class="text-red-400/70" title="Rights-critical">*</span>{% endif %}
             {% if item.state != 'green' and item.fix %}
@@ -34,7 +34,7 @@
             {% endif %}
           </label>
           <input name="{{ item.key }}" value="{{ item.value }}"
-                 class="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none {{ 'border-red-500/40 bg-red-500/[0.06] focus:border-red-400' if item.state == 'red' else 'border-white/15 bg-black/40 focus:border-[#c9a24a]' }}">
+                 class="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none {{ 'border-red-500/40 bg-red-500/[0.06] focus:border-red-400' if item.state == 'red' else 'border-white/15 bg-black/40 focus:border-[#c9a24a]' }}">
         </div>
         {% endfor %}
         <label class="flex items-center gap-2 text-xs font-bold text-gray-300"><input type="checkbox" name="audio_ok" value="1" {{ 'checked' if track.passport.get('audio_ok') }} class="h-4 w-4 accent-[#c9a24a]">Audio quality confirmed (final master checked)</label>
@@ -61,7 +61,7 @@
         {% endif %}
         <div class="mt-3 space-y-1">
           {% for item in clean['items'] %}
-          <div class="flex items-center gap-2 text-[11px] {{ 'text-gray-300' if item.state == 'green' else 'text-gray-500' }}">
+          <div class="flex items-center gap-2 text-[11px] {{ 'text-gray-300' if item.state == 'green' else 'text-gray-400' }}">
             <span class="{{ 'text-green-400' if item.state == 'green' else 'text-red-400' if item.state == 'red' else 'text-amber-400' }}">{{ '✓' if item.state == 'green' else '✕' if item.state == 'red' else '○' }}</span>
             {{ item.label }}{% if item.critical %}<span class="text-red-400/60">*</span>{% endif %}
           </div>
@@ -77,12 +77,12 @@
           <div class="flex items-center gap-2 text-[11px]">
             <span class="w-2 h-2 shrink-0 rounded-full {{ 'bg-green-500' if lane.state == 'connected' else 'bg-blue-400' if lane.state in ('in review', 'claimed') else 'bg-gray-600' if lane.state == 'not eligible' else 'bg-amber-400' }}"></span>
             <span class="min-w-0 flex-1 truncate text-gray-300">{{ lane.label }}</span>
-            <span class="shrink-0 uppercase text-[9px] font-bold {{ 'text-green-400' if lane.state == 'connected' else 'text-gray-500' }}">{{ lane.state }}</span>
+            <span class="shrink-0 uppercase text-[9px] font-bold {{ 'text-green-400' if lane.state == 'connected' else 'text-gray-400' }}">{{ lane.state }}</span>
             {% if lane.estimate %}<span class="shrink-0 text-[10px] tabular-nums text-[#e8c667]" title="Estimate sized from {{ lane.estimate_basis }}">~${{ '%.2f' % lane.estimate }}</span>{% endif %}
           </div>
           {% endfor %}
         </div>
-        <p class="mt-2 text-[10px] text-gray-600">Estimates only appear where your own statements give a basis — lanes with no data say so.</p>
+        <p class="mt-2 text-[10px] text-gray-400">Estimates only appear where your own statements give a basis — lanes with no data say so.</p>
       </section>
 
       <!-- Lockbox -->
@@ -97,11 +97,11 @@
             </div>
             {% if doc.file %}<a href="{{ doc.file }}" target="_blank" class="mt-1 block truncate text-[10px] text-[#e8c667] hover:underline">View document ↗</a>{% endif %}
             {% for a in doc.approvals %}
-            <div class="mt-1 flex items-center gap-2 text-[10px] text-gray-500">
+            <div class="mt-1 flex items-center gap-2 text-[10px] text-gray-400">
               <span class="min-w-0 flex-1 truncate">{{ a.name or a.email }}</span>
               <span class="uppercase font-bold {{ 'text-green-400' if a.state == 'signed' else 'text-red-400' if a.state == 'declined' else 'text-amber-400' }}">{{ a.state }}</span>
               {% if a.state == 'pending' and a.token %}
-              <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/sign/{{ a.token }}" class="w-36 rounded border border-white/10 bg-black/50 px-1.5 py-0.5 font-mono text-[8px] text-[#e8c667]" title="Signing link — copy and send it yourself if email can't deliver">
+              <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/sign/{{ a.token }}" class="w-36 rounded border border-white/10 bg-black/50 px-1.5 py-0.5 font-mono text-[8px] text-[#e8c667] font-medium" title="Signing link — copy and send it yourself if email can't deliver">
               {% endif %}
               {% if a.state != 'signed' %}
               <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}">
@@ -115,30 +115,30 @@
             <div class="mt-2 flex flex-wrap items-center gap-1.5">
               <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" enctype="multipart/form-data" class="flex items-center gap-1">
                 <input type="hidden" name="action" value="upload">
-                <input type="file" name="file" required class="w-32 text-[9px] text-gray-500 file:mr-1 file:rounded file:border-0 file:bg-[#c9a24a]/20 file:px-1.5 file:py-0.5 file:text-[9px] file:font-bold file:text-[#e8c667]">
+                <input type="file" name="file" required class="w-32 text-[9px] text-gray-400 file:mr-1 file:rounded file:border-0 file:bg-[#c9a24a]/20 file:px-1.5 file:py-0.5 file:text-[9px] file:font-bold file:text-[#e8c667]">
                 <button class="rounded border border-[#c9a24a]/40 px-1.5 py-0.5 text-[9px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Upload</button>
               </form>
               <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" class="flex items-center gap-1">
                 <input type="hidden" name="action" value="approver">
-                <input name="name" placeholder="Name" class="w-16 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-600">
-                <input name="email" type="email" required placeholder="signer@email.com" class="w-28 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-600">
+                <input name="name" placeholder="Name" class="w-16 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-400 font-medium">
+                <input name="email" type="email" required placeholder="signer@email.com" class="w-28 rounded border border-white/15 bg-black/50 px-1.5 py-0.5 text-[9px] text-white placeholder-gray-400 font-medium">
                 <button class="rounded border border-white/15 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 hover:bg-white/10">Request sign-off</button>
               </form>
             </div>
             {% endif %}
             <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}" class="mt-1.5">
               <input type="hidden" name="action" value="na">
-              <button class="text-[9px] font-bold text-gray-600 hover:text-gray-400">{{ 'Mark applicable again' if doc.not_applicable else 'Not applicable to this track' }}</button>
+              <button class="text-[9px] font-bold text-gray-400 hover:text-gray-400">{{ 'Mark applicable again' if doc.not_applicable else 'Not applicable to this track' }}</button>
             </form>
           </div>
           {% endfor %}
         </div>
         <div class="mt-3 grid grid-cols-4 gap-1 border-t border-white/5 pt-3 text-center">
           {% for cap, ok in lockbox.caps.items() %}
-          <div><div class="text-sm {{ 'text-green-400' if ok else 'text-gray-600' }}">{{ '●' if ok else '○' }}</div><div class="text-[8px] uppercase tracking-wide text-gray-600">{{ cap }}</div></div>
+          <div><div class="text-sm {{ 'text-green-400' if ok else 'text-gray-400' }}">{{ '●' if ok else '○' }}</div><div class="text-[8px] uppercase tracking-wide text-gray-400 font-medium">{{ cap }}</div></div>
           {% endfor %}
         </div>
-        <p class="mt-2 text-[10px] text-gray-600">Sign-off requests email a signing link (deliverability limited until the Resend domain is verified — the link also works copied from the signer's row). Capabilities unlock when required docs are uploaded and every signer has signed.</p>
+        <p class="mt-2 text-[10px] text-gray-400">Sign-off requests email a signing link (deliverability limited until the Resend domain is verified — the link also works copied from the signer's row). Capabilities unlock when required docs are uploaded and every signer has signed.</p>
       </section>
     </div>
   </div>

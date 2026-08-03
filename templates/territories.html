@@ -23,17 +23,17 @@
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Income with territory data</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Income with territory data</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(tr.total) }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Markets</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Markets</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ tr.territories|length }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Coverage</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Coverage</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ (100 * tr.covered_rows / tr.total_rows)|round|int if tr.total_rows else 0 }}%</div>
-      <div class="text-[9px] text-gray-600">of statement lines carry a territory</div>
+      <div class="text-[9px] text-gray-400 font-medium">of statement lines carry a territory</div>
     </div>
   </div>
 
@@ -53,6 +53,6 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Only statement lines with a territory value are counted — no estimates, no imputed geography.</p>
+  <p class="px-1 text-[11px] text-gray-400">Only statement lines with a territory value are counted — no estimates, no imputed geography.</p>
 </div>
 {% endblock %}

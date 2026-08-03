@@ -8,26 +8,26 @@
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Benchmark</h1>
-    <p class="mt-1 text-sm text-gray-500">How your catalog compares to similar-stage artists — peer group: {{ bm.summary.peer_group }}.</p>
+    <p class="mt-1 text-sm text-gray-400">How your catalog compares to similar-stage artists — peer group: {{ bm.summary.peer_group }}.</p>
   </div>
 
   <div class="grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-green-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Ahead of Peers</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Ahead of Peers</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">{{ bm.summary.ahead }}/{{ bm.summary.metrics }}</div>
     </div>
     <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Behind Peers</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Behind Peers</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ bm.summary.behind }}</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Metrics</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Metrics</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ bm.summary.metrics }}</div>
     </div>
   </div>
 
   <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">You vs Peer Average</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">You vs Peer Average</h2>
     <div class="mt-4 space-y-4">
       {% for m in bm.metrics %}
       {% set you_fmt = ("${:,.2f}".format(m.you) if m.fmt == 'money' else "{:,}".format(m.you)) %}
@@ -47,12 +47,12 @@
         </div>
         <div class="mt-1 flex justify-between text-[11px]">
           <span class="text-gray-300">You: <span class="font-semibold">{{ you_fmt }}</span></span>
-          <span class="text-gray-500">Peer avg: {{ peer_fmt }}</span>
+          <span class="text-gray-400">Peer avg: {{ peer_fmt }}</span>
         </div>
       </div>
       {% endfor %}
     </div>
-    <p class="mt-4 text-[11px] text-gray-600">Your metrics are from your catalog. Peer averages are illustrative reference points for a similar-stage artist — real peer comparisons unlock when an external data feed (Chartmetric) is connected.</p>
+    <p class="mt-4 text-[11px] text-gray-400">Your metrics are from your catalog. Peer averages are illustrative reference points for a similar-stage artist — real peer comparisons unlock when an external data feed (Chartmetric) is connected.</p>
   </section>
 
   <!-- Close the gap with real tools, not sample numbers -->

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Executive Report — {{ user.name }} | Street Banker</title>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
   <style>
     @media print { .no-print { display: none !important; } body { background: #fff !important; } }
   </style>
@@ -84,7 +84,7 @@
           {% endfor %}
         </tbody>
       </table>
-      <p class="mt-2 text-[9px] text-[#141210]/50">Gap values are estimates from each track's own per-source average — verification required. Not financial advice.</p>
+      <p class="mt-2 text-[9px] text-[#141210]/50 font-medium">Gap values are estimates from each track's own per-source average — verification required. Not financial advice.</p>
       {% endif %}
       {% else %}
       <p class="mt-3 text-xs text-[#141210]/60">No royalty statements uploaded yet — findings appear here once statements are in.</p>
@@ -128,7 +128,7 @@
 
     <footer class="mt-12 flex items-center justify-between border-t border-[#141210]/15 pt-5">
       <span class="text-[9px] font-bold uppercase tracking-[0.3em] text-[#141210]/45">Prepared by Street Banker</span>
-      <span class="text-[9px] uppercase tracking-[0.2em] text-[#141210]/40">Live account data · {{ today }}</span>
+      <span class="text-[9px] uppercase tracking-[0.2em] text-[#141210]/40 font-medium">Live account data · {{ today }}</span>
     </footer>
   </main>
 </body>

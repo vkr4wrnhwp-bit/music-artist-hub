@@ -6,7 +6,7 @@
   <title>{{ club.name or 'Fan Club' }} — {{ artist_name }}</title>
   <meta property="og:title" content="{{ club.name or 'Fan Club' }} — {{ artist_name }}">
   <meta property="og:description" content="{{ club.blurb }}">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
 </head>
 <body class="min-h-screen bg-[#0a0a0b] text-gray-100 antialiased">
   <main class="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-12">
@@ -43,19 +43,19 @@
     {% if stripe_live %}
     <form method="post" action="/club/{{ slug }}/join" class="mt-7">
       <input name="email" type="email" required placeholder="your@email.com"
-             class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
+             class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-400 focus:border-white/40 focus:outline-none">
       <button type="submit" class="mt-2 w-full rounded-xl bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-5 py-4 text-sm font-black uppercase tracking-wide text-[#1c1302] transition-transform hover:scale-[1.01]">Join — ${{ "%g"|format(club.price_cents / 100) }}/month</button>
-      <p class="mt-2 text-center text-[10px] text-gray-500">Secure checkout by Stripe. Cancel anytime from your Stripe receipt emails.</p>
+      <p class="mt-2 text-center text-[10px] text-gray-400">Secure checkout by Stripe. Cancel anytime from your Stripe receipt emails.</p>
     </form>
     {% else %}
     <p class="mt-7 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-center text-xs text-gray-400">Memberships aren't open yet — check back soon.</p>
     {% endif %}
-    <p class="mt-4 text-center text-[11px] text-gray-500">Already a member? <a href="/club/{{ slug }}/members" class="font-bold text-[#e8c667] hover:underline">Open the members area</a></p>
+    <p class="mt-4 text-center text-[11px] text-gray-400">Already a member? <a href="/club/{{ slug }}/members" class="font-bold text-[#e8c667] hover:underline">Open the members area</a></p>
     {% endif %}
 
     <footer class="mt-auto pt-10 text-center">
       <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100">
-        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-500">Powered by</span>
+        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-400">Powered by</span>
         <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto">
       </a>
     </footer>

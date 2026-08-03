@@ -15,7 +15,7 @@
     </div>
     {% endfor %}
   </div>
-  {% else %}<p class="mt-3 text-xs text-gray-600">No data yet.</p>{% endif %}
+  {% else %}<p class="mt-3 text-xs text-gray-400">No data yet.</p>{% endif %}
 </section>
 {% endmacro %}
 
@@ -40,7 +40,7 @@
                              ("Email Captures", counts.get("email_capture", 0)),
                              ("QR Scans", counts.get("qr_scan", 0))] %}
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ label }}</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{{ label }}</div>
       <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-[#e8c667]' if loop.first }}">{{ value }}</div>
     </div>
     {% endfor %}
@@ -54,7 +54,7 @@
       {% for label, n in [("Visited", visits), ("Clicked a service", clicks), ("Became a fan", fans)] %}
       <div class="rounded-xl border border-white/10 bg-black/30 p-4">
         <div class="text-2xl font-black tabular-nums">{{ n }}</div>
-        <div class="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">{{ label }}</div>
+        <div class="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ label }}</div>
         <div class="text-[10px] tabular-nums text-[#e8c667]">{{ (100 * n / visits) | round(1) if visits else 0 }}%</div>
       </div>
       {% endfor %}
@@ -71,8 +71,8 @@
       <div class="group relative flex-1 rounded-t bg-[#d8b25a]/80 transition-colors hover:bg-[#eecd7c]" style="height: {{ (100 * n / (peak or 1)) | round }}%;" title="{{ day }}: {{ n }} visits"></div>
       {% endfor %}
     </div>
-    <div class="mt-1 flex justify-between text-[9px] text-gray-600"><span>{{ timeline[0][0] }}</span><span>{{ timeline[-1][0] }}</span></div>
-    {% else %}<p class="mt-3 text-xs text-gray-600">No visits yet — share your link.</p>{% endif %}
+    <div class="mt-1 flex justify-between text-[9px] text-gray-400 font-medium"><span>{{ timeline[0][0] }}</span><span>{{ timeline[-1][0] }}</span></div>
+    {% else %}<p class="mt-3 text-xs text-gray-400">No visits yet — share your link.</p>{% endif %}
   </section>
 
   <div class="grid gap-5 lg:grid-cols-3">
@@ -86,7 +86,7 @@
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Variant Performance</h2>
     <table class="mt-3 w-full text-left text-sm">
-      <thead><tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">
+      <thead><tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-400">
         <th class="py-2 pr-4 font-medium">Variant</th><th class="py-2 pr-4 text-right font-medium">Visits</th>
         <th class="py-2 pr-4 text-right font-medium">Clicks</th><th class="py-2 text-right font-medium">Fans</th></tr></thead>
       <tbody>
@@ -108,7 +108,7 @@
   <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
     <div class="flex items-center justify-between">
       <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Street Banker Score</h2>
-      <span class="text-2xl font-black tabular-nums {{ 'text-green-400' if score.total >= 70 else 'text-[#e8c667]' }}">{{ score.total }}<span class="text-sm text-gray-500">/100</span></span>
+      <span class="text-2xl font-black tabular-nums {{ 'text-green-400' if score.total >= 70 else 'text-[#e8c667]' }}">{{ score.total }}<span class="text-sm text-gray-400">/100</span></span>
     </div>
     {% if score.warnings %}
     <ul class="mt-3 space-y-1.5">

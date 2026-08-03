@@ -16,18 +16,18 @@
       <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">The Offer</h2>
       {% set field = 'mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 [color-scheme:dark] focus:border-amber-500/50 focus:outline-none' %}
       <form method="post" class="mt-3 space-y-3">
-        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Offered fee (USD, 0 if gratis)</label>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Offered fee (USD, 0 if gratis)</label>
           <input name="fee" type="number" step="1" min="0" value="{{ inp.get('fee', '') }}" class="{{ field }}"></div>
-        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Media type</label>
+        <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Media type</label>
           <select name="media" class="{{ field }}">
             {% for k, label, r in sim.MEDIA_TYPES %}<option value="{{ k }}" {{ 'selected' if inp.get('media') == k }}>{{ label }}</option>{% endfor %}
           </select></div>
         <div class="grid grid-cols-2 gap-2">
-          <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Term</label>
+          <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Term</label>
             <select name="term" class="{{ field }}">
               {% for k, label in sim.TERMS %}<option value="{{ k }}" {{ 'selected' if inp.get('term') == k }}>{{ label }}</option>{% endfor %}
             </select></div>
-          <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Territory</label>
+          <div><label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Territory</label>
             <select name="territory" class="{{ field }}">
               {% for k, label in sim.TERRITORIES %}<option value="{{ k }}" {{ 'selected' if inp.get('territory') == k }}>{{ label }}</option>{% endfor %}
             </select></div>
@@ -54,7 +54,7 @@
             {{ 'No fee offered' if result.position == 'no_offer' else ('Offer is below range' if result.position == 'below' else ('Within range' if result.position == 'within' else 'Above range — take the win')) }}
           </span>
         </div>
-        <p class="mt-2 text-[10px] text-gray-500">Indicative independent-catalog ranges adjusted for term, territory, exclusivity, and media scope. Estimates only.</p>
+        <p class="mt-2 text-[10px] text-gray-400">Indicative independent-catalog ranges adjusted for term, territory, exclusivity, and media scope. Estimates only.</p>
       </section>
 
       {% if result.flags %}
@@ -81,10 +81,10 @@
       </section>
       {% endif %}
       {% else %}
-      <div class="rounded-2xl border border-dashed border-white/10 py-14 text-center text-xs text-gray-500">Enter the offer terms and run the simulation — range, flags, and a counteroffer draft land here.</div>
+      <div class="rounded-2xl border border-dashed border-white/10 py-14 text-center text-xs text-gray-400">Enter the offer terms and run the simulation — range, flags, and a counteroffer draft land here.</div>
       {% endif %}
 
-      <p class="text-[10px] text-gray-600">Workflow support only — not legal or financial advice. Have an attorney review any sync agreement before signing.</p>
+      <p class="text-[10px] text-gray-400">Workflow support only — not legal or financial advice. Have an attorney review any sync agreement before signing.</p>
     </div>
   </div>
 </div>

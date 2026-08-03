@@ -18,15 +18,15 @@
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Total Reported Income</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Total Reported Income</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(grand_total) }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Tax Years</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Tax Years</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ years|length }}</div>
     </div>
     <div class="col-span-2 rounded-2xl border border-white/10 bg-[#111113] p-4 sm:col-span-1">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Tax Documents</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Tax Documents</div>
       <a href="/documents" class="mt-1 inline-block text-sm font-bold text-[#e8c667] hover:underline">Store 1099s in your vault →</a>
     </div>
   </div>
@@ -37,7 +37,7 @@
       <h2 class="text-lg font-black">{{ y.year }}</h2>
       <div class="flex items-baseline gap-3">
         <span class="text-xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(y.total) }}</span>
-        <span class="text-[10px] text-gray-500">{{ y.rows }} statement line{{ 's' if y.rows != 1 }}</span>
+        <span class="text-[10px] text-gray-400">{{ y.rows }} statement line{{ 's' if y.rows != 1 }}</span>
       </div>
     </div>
     {% if y.over_600 and y.year != 'Undated' %}
@@ -58,6 +58,6 @@
   {% endfor %}
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Income summaries are computed from your uploaded statements — completeness depends on what you've uploaded. Informational only, not tax advice; confirm filings with a tax professional.</p>
+  <p class="px-1 text-[11px] text-gray-400">Income summaries are computed from your uploaded statements — completeness depends on what you've uploaded. Informational only, not tax advice; confirm filings with a tax professional.</p>
 </div>
 {% endblock %}

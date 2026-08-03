@@ -1,7 +1,7 @@
 {# Shared release checklist: campaign picker + score + derived checks.
    Expects: campaigns, c, checks, score, page_path #}
 <form method="get" class="flex flex-wrap items-center gap-2">
-  <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Release</label>
+  <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">Release</label>
   <select name="campaign" onchange="this.form.submit()" class="rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-sm text-gray-100 [color-scheme:dark]">
     {% for camp in campaigns %}<option value="{{ camp.id }}" {{ 'selected' if c and camp.id == c.id }}>{{ camp.title }}{% if camp.release_date %} ({{ camp.release_date }}){% endif %}</option>{% endfor %}
   </select>
@@ -10,7 +10,7 @@
 {% if not campaigns %}
 <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
   <div class="text-sm font-bold text-gray-200">No releases yet</div>
-  <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Releases live as Smart Link campaigns. Create one and the checklist activates.</p>
+  <p class="mx-auto mt-1 max-w-md text-xs text-gray-400">Releases live as Smart Link campaigns. Create one and the checklist activates.</p>
   <a href="/links/new" class="mt-4 inline-block rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-5 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create a release campaign</a>
 </div>
 {% elif c %}
@@ -18,7 +18,7 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
       <div class="text-sm font-bold text-gray-100">{{ c.title }}</div>
-      <div class="text-[11px] text-gray-500">{{ c.artist_name }}{% if c.release_date %} · drops {{ c.release_date }}{% endif %} · <a href="/l/{{ c.slug }}" target="_blank" class="text-[#e8c667] hover:underline">/l/{{ c.slug }}</a></div>
+      <div class="text-[11px] text-gray-400">{{ c.artist_name }}{% if c.release_date %} · drops {{ c.release_date }}{% endif %} · <a href="/l/{{ c.slug }}" target="_blank" class="text-[#e8c667] hover:underline">/l/{{ c.slug }}</a></div>
     </div>
     {# Segmented readiness dial: one segment per check, lit when that
        check passes — hover a segment to see which one it is. #}
@@ -41,10 +41,10 @@
 <div class="space-y-2">
   {% for label, ok, rec, link, category in checks %}
   <div data-cat="{{ category }}" class="check-row flex flex-wrap items-center gap-3 rounded-xl border {{ 'border-green-500/20 bg-green-500/[0.04]' if ok else 'border-white/10 bg-[#111113]' }} px-4 py-3 transition-colors">
-    <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black {{ 'bg-green-500/20 text-green-400' if ok else 'bg-white/10 text-gray-500' }}">{{ '✓' if ok else '·' }}</span>
+    <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black {{ 'bg-green-500/20 text-green-400' if ok else 'bg-white/10 text-gray-400' }}">{{ '✓' if ok else '·' }}</span>
     <div class="min-w-0 flex-1">
       <div class="text-sm font-semibold {{ 'text-gray-300' if ok else 'text-gray-100' }}">{{ label }}</div>
-      {% if not ok %}<div class="text-[11px] text-gray-500">{{ rec }}</div>{% endif %}
+      {% if not ok %}<div class="text-[11px] text-gray-400">{{ rec }}</div>{% endif %}
     </div>
     {% if not ok %}
     <a href="{{ link }}" class="shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Fix →</a>

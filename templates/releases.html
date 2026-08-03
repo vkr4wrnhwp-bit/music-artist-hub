@@ -31,12 +31,12 @@
 
   <!-- Milestone overlay presets: date math from each release date, not stored events -->
   <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase">
-    <span class="tracking-[0.15em] text-gray-500">Milestones:</span>
+    <span class="tracking-[0.15em] text-gray-400">Milestones:</span>
     <a href="?preset=off" class="rounded-full border px-2.5 py-1 {{ 'border-[#c9a24a] bg-[#c9a24a]/10 text-gray-200' if preset == 'off' else 'border-white/10 text-gray-400 hover:border-[#c9a24a]/40' }}">Off</a>
     {% for key, (label, days) in presets.items() %}
     <a href="?preset={{ key }}" class="rounded-full border px-2.5 py-1 {{ 'border-[#c9a24a] bg-[#c9a24a]/10 text-gray-200' if preset == key else 'border-white/10 text-gray-400 hover:border-[#c9a24a]/40' }}">{{ label }}</a>
     {% endfor %}
-    <span class="ml-1 normal-case tracking-normal text-gray-600">overlays plan checkpoints computed from each release date — nothing is stored or predicted</span>
+    <span class="ml-1 normal-case tracking-normal text-gray-400">overlays plan checkpoints computed from each release date — nothing is stored or predicted</span>
   </div>
 
   {% if lanes %}
@@ -44,7 +44,7 @@
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
     <div class="flex items-baseline justify-between gap-2">
       <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Next 90 days by campaign</h2>
-      <div class="flex gap-3 text-[9px] font-bold uppercase text-gray-500">
+      <div class="flex gap-3 text-[9px] font-bold uppercase text-gray-400">
         <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-[#d8b25a]"></span>Release</span>
         <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-sky-400"></span>Post</span>
         <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500"></span>Milestone</span>
@@ -66,7 +66,7 @@
       </div>
       {% endfor %}
     </div>
-    <p class="mt-2 text-[10px] text-gray-600">Left edge is today; hover a dot for its date. Dates move here when you move them on the campaign or rollout.</p>
+    <p class="mt-2 text-[10px] text-gray-400">Left edge is today; hover a dot for its date. Dates move here when you move them on the campaign or rollout.</p>
   </section>
   {% endif %}
 
@@ -89,7 +89,7 @@
         </span>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-bold {{ 'text-[#e8c667]' if e.kind == 'release' }}">{{ e.title }}</span>
-          <span class="block truncate text-[11px] text-gray-500">{{ e.detail }}</span>
+          <span class="block truncate text-[11px] text-gray-400">{{ e.detail }}</span>
         </span>
         <span class="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">{{ e.status }}</span>
       </a>
@@ -105,13 +105,13 @@
 
   {% if past %}
   <section class="rounded-2xl border border-white/10 bg-[#0f0e0c] p-5">
-    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Recently passed</h2>
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Recently passed</h2>
     <div class="mt-3 divide-y divide-white/5 opacity-70">
       {% for e in past|reverse %}
       <a href="{{ e.href }}" class="flex items-center gap-4 py-2.5 hover:opacity-100">
-        <span class="w-24 shrink-0 text-xs tabular-nums text-gray-500">{{ e.date }}</span>
+        <span class="w-24 shrink-0 text-xs tabular-nums text-gray-400">{{ e.date }}</span>
         <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-300">{{ e.title }}</span>
-        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-500">{{ e.status }}</span>
+        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-400">{{ e.status }}</span>
       </a>
       {% endfor %}
     </div>
@@ -119,6 +119,6 @@
   {% endif %}
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Built from your campaigns and rollout posts — change a date there and this calendar follows.</p>
+  <p class="px-1 text-[11px] text-gray-400">Built from your campaigns and rollout posts — change a date there and this calendar follows.</p>
 </div>
 {% endblock %}

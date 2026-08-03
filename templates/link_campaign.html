@@ -8,7 +8,7 @@
   <meta property="og:title" content="{{ c.title }} — {{ c.artist_name }}">
   <meta property="og:description" content="{{ c.description or 'Listen on every platform.' }}">
   {% if c.cover_url %}<meta property="og:image" content="{{ c.cover_url }}">{% endif %}
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
   <style>
     .cover-bg {
       position: fixed; inset: -40px; z-index: -1;
@@ -33,7 +33,7 @@
       {% if c.cover_url %}
       <img src="{{ c.cover_url }}" alt="{{ c.title }}" class="mx-auto aspect-square w-full max-w-[340px] rounded-2xl object-cover shadow-[0_25px_60px_rgba(0,0,0,0.6)]">
       {% else %}
-      <div class="mx-auto grid aspect-square w-full max-w-[340px] place-items-center rounded-2xl bg-white/5 text-6xl text-gray-700 shadow-2xl">♪</div>
+      <div class="mx-auto grid aspect-square w-full max-w-[340px] place-items-center rounded-2xl bg-white/5 text-6xl text-gray-400 shadow-2xl">♪</div>
       {% endif %}
       <div class="mt-5 text-[10px] font-bold uppercase tracking-[0.35em]" style="color: {{ accent }};">{{ c.release_type }}{% if prerelease %} · {{ c.release_date }}{% endif %}</div>
       <h1 class="mt-1.5 text-3xl font-black leading-tight">{{ c.title }}</h1>
@@ -63,7 +63,7 @@
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.34a.75.75 0 01-1.03.25c-2.82-1.73-6.38-2.12-10.56-1.16a.75.75 0 11-.33-1.46c4.56-1.04 8.49-.59 11.64 1.34.36.22.47.68.28 1.03zm1.47-3.27a.94.94 0 01-1.29.31c-3.23-1.98-8.16-2.56-11.98-1.4a.94.94 0 11-.55-1.79c4.37-1.33 9.8-.68 13.51 1.6.44.27.58.85.31 1.28zm.13-3.4C15.24 8.37 8.83 8.16 5.14 9.28a1.12 1.12 0 11-.66-2.15c4.24-1.28 11.28-1.03 15.72 1.6a1.13 1.13 0 01-1.1 1.94z"/></svg>
       Pre-Save on Spotify
     </a>
-    <p class="mt-1.5 text-center text-[10px] text-gray-500">Saves to your library automatically on release day. You'll approve it on Spotify's own page.</p>
+    <p class="mt-1.5 text-center text-[10px] text-gray-400">Saves to your library automatically on release day. You'll approve it on Spotify's own page.</p>
     {% endif %}
 
     {% set capture_on = c.settings.get('email_capture') %}
@@ -72,10 +72,10 @@
     <form id="capture-form" class="mt-4">
       <input type="hidden" name="v" value="{{ variant_slug }}">
       <div class="flex gap-2">
-        <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-500 backdrop-blur focus:border-white/40 focus:outline-none">
+        <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-400 backdrop-blur focus:border-white/40 focus:outline-none">
         <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302]" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
       </div>
-      <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
+      <p class="mt-2 text-[10px] leading-snug text-gray-400">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
       {% if c.settings.get('gate_reward') %}
       <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
       {% endif %}
@@ -86,7 +86,7 @@
     <!-- Streaming destinations -->
     {% if destinations %}
     <div class="mt-6 space-y-2.5">
-      {% if not prerelease %}<div class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
+      {% if not prerelease %}<div class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
       {% for d in destinations %}
       <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if variant_slug %}?v={{ variant_slug }}{% endif %}"
          class="flex items-center justify-between rounded-xl border border-white/12 bg-black/45 px-5 py-3.5 backdrop-blur transition-all hover:border-white/35 hover:bg-black/60">
@@ -105,10 +105,10 @@
       <form id="capture-form" class="mt-3">
         <input type="hidden" name="v" value="{{ variant_slug }}">
         <div class="flex gap-2">
-          <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
+          <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-white/40 focus:outline-none">
           <button type="submit" class="shrink-0 rounded-xl px-4 py-3 text-sm font-black text-[#1c1302]" style="background: {{ accent }};">Join</button>
         </div>
-        <p class="mt-2 text-[10px] leading-snug text-gray-500">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
+        <p class="mt-2 text-[10px] leading-snug text-gray-400">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
         <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
             {% if c.settings.get('gate_reward') %}
       <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
@@ -131,7 +131,7 @@
     </div>
 
     <footer class="mt-auto pt-10 text-center">
-      <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100"><span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-500">Powered by</span><img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto"></a>
+      <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100"><span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-400">Powered by</span><img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto"></a>
     </footer>
   </main>
 
@@ -146,7 +146,7 @@
         const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24,
               m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
         cd.innerHTML = [[d, "days"], [h, "hrs"], [m, "min"], [s, "sec"]].map(([v, l]) =>
-          '<div><div class="text-2xl font-black tabular-nums">' + v + '</div><div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">' + l + "</div></div>").join("");
+          '<div><div class="text-2xl font-black tabular-nums">' + v + '</div><div class="text-[9px] font-bold uppercase tracking-widest text-gray-400">' + l + "</div></div>").join("");
       }
       tick(); setInterval(tick, 1000);
     }

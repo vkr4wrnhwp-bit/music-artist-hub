@@ -16,7 +16,7 @@
       <select name="doc_type" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
         {% for t in doc_types %}<option>{{ t }}</option>{% endfor %}
       </select>
-      <input name="note" placeholder="Note (e.g. signed 50/50 split with producer)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
+      <input name="note" placeholder="Note (e.g. signed 50/50 split with producer)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-400 focus:border-amber-500/50 focus:outline-none">
       <button class="rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Upload</button>
     </form>
     {% if real_docs %}
@@ -25,43 +25,43 @@
       <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-black/30 px-3 py-2.5 text-xs">
         <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ d.doc_type }}</span>
         <a href="{{ d.path }}" target="_blank" class="min-w-0 flex-1 truncate font-semibold text-gray-100 hover:underline">{{ d.filename }}</a>
-        {% if d.note %}<span class="truncate text-gray-500">{{ d.note }}</span>{% endif %}
-        <span class="shrink-0 tabular-nums text-gray-600">{{ d.created[:10] }}</span>
+        {% if d.note %}<span class="truncate text-gray-400">{{ d.note }}</span>{% endif %}
+        <span class="shrink-0 tabular-nums text-gray-400">{{ d.created[:10] }}</span>
         <form method="post" action="/documents/{{ d.id }}/delete" class="shrink-0">
-          <button class="text-gray-600 hover:text-red-400" title="Delete">✕</button>
+          <button class="text-gray-400 hover:text-red-400" title="Delete">✕</button>
         </form>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <p class="mt-3 text-xs text-gray-500">Nothing stored yet — splits, producer agreements, and licenses belong here, not in your texts.</p>
+    <p class="mt-3 text-xs text-gray-400">Nothing stored yet — splits, producer agreements, and licenses belong here, not in your texts.</p>
     {% endif %}
   </section>
   {% endif %}
 
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Documents Vault</h1>
-    <p class="mt-1 text-sm text-gray-500">Keep the paperwork that proves ownership — split sheets, agreements, licenses — in one place per song.</p>
+    <p class="mt-1 text-sm text-gray-400">Keep the paperwork that proves ownership — split sheets, agreements, licenses — in one place per song.</p>
   </div>
 
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
     <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Vault Completeness</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Vault Completeness</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">{{ (dv.completeness * 100) | round | int }}%</div>
       <div class="mt-2 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-amber-500" style="width: {{ (dv.completeness * 100) | round | int }}%;"></div></div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Songs Tracked</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Songs Tracked</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ dv.entries | length }}</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Missing Documents</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Missing Documents</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-red-400">{{ dv.entries | sum(attribute='missing_count') }}</div>
     </div>
   </div>
 
   <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Documents by Song</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Documents by Song</h2>
     <div class="mt-4 space-y-3">
       {% for entry in dv.entries %}
       <div class="rounded-xl border border-white/5 bg-white/5 p-4">
@@ -75,7 +75,7 @@
         </div>
         <div class="mt-3 flex flex-wrap gap-2">
           {% for doc in entry.documents %}
-          <span class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium {{ 'border-green-500/20 bg-green-500/5 text-green-400' if doc.present else 'border-white/10 bg-transparent text-gray-500' }}">
+          <span class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium {{ 'border-green-500/20 bg-green-500/5 text-green-400' if doc.present else 'border-white/10 bg-transparent text-gray-400' }}">
             {% if doc.present %}
             <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
             {% else %}

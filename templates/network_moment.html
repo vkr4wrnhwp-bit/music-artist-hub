@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="mx-auto max-w-3xl space-y-5">
-  <a href="/network?tab=moments" class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-300">
+  <a href="/network?tab=moments" class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-300">
     <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.7 5.3a1 1 0 010 1.4L9.4 10l3.3 3.3a1 1 0 11-1.4 1.4l-4-4a1 1 0 010-1.4l4-4a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
     All moments
   </a>
@@ -31,7 +31,7 @@
       </div>
       <!-- Deterrent overlay: covers the art when the tab/window loses focus -->
       <div id="privacy-shield" class="pointer-events-none absolute inset-0 hidden flex-col items-center justify-center bg-black text-center">
-        <svg class="h-8 w-8 text-gray-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="9" width="10" height="8" rx="1"/><path d="M8 9V7a2 2 0 014 0v2"/></svg>
+        <svg class="h-8 w-8 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="9" width="10" height="8" rx="1"/><path d="M8 9V7a2 2 0 014 0v2"/></svg>
         <div class="mt-2 text-xs font-semibold text-gray-300">Protected moment hidden</div>
       </div>
     </div>
@@ -41,13 +41,13 @@
       <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
         <div class="flex items-center gap-2">
           <a href="/network/{{ m.owner_id }}" class="grid h-9 w-9 place-items-center rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">{{ m.owner_initials }}</a>
-          <div><div class="text-sm font-semibold text-gray-100">{{ m.owner_name }}</div><div class="text-[11px] text-gray-500">Moment creator</div></div>
+          <div><div class="text-sm font-semibold text-gray-100">{{ m.owner_name }}</div><div class="text-[11px] text-gray-400">Moment creator</div></div>
         </div>
         <dl class="mt-4 space-y-1.5 text-[11px]">
-          <div class="flex justify-between"><dt class="text-gray-500">Serial</dt><dd class="font-mono text-gray-200">{{ m.serial }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-500">Edition</dt><dd class="font-semibold text-gray-200">#{{ m.edition_n }} / {{ m.edition_total }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-500">Expires in</dt><dd id="countdown-2" data-expires="{{ m.expires_iso }}" class="font-semibold text-amber-400">—</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-500">Price</dt><dd class="font-semibold text-gray-200">${{ m.price }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-400">Serial</dt><dd class="font-mono text-gray-200">{{ m.serial }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-400">Edition</dt><dd class="font-semibold text-gray-200">#{{ m.edition_n }} / {{ m.edition_total }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-400">Expires in</dt><dd id="countdown-2" data-expires="{{ m.expires_iso }}" class="font-semibold text-amber-400">—</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-400">Price</dt><dd class="font-semibold text-gray-200">${{ m.price }}</dd></div>
         </dl>
         {% if m.claimed %}
         <div class="mt-4 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2.5 text-center text-sm font-semibold text-green-400">Owned · {{ m.serial }}</div>
@@ -58,9 +58,9 @@
       </div>
 
       <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">How it works</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">How it works</div>
         <p class="mt-2 text-[11px] leading-relaxed text-gray-400">This moment shows for a limited time, then disappears. Every view is <span class="text-gray-300">watermarked and serial-numbered</span>, so any screenshot is a traceable, defaced copy. Claim it to keep the clean, owned edition.</p>
-        <p class="mt-2 text-[10px] leading-relaxed text-gray-600">Note: a website can't truly block screenshots — the shield here is a deterrent. The real protection is the watermark + serial. Claim is a simulated demo (no real payment).</p>
+        <p class="mt-2 text-[10px] leading-relaxed text-gray-400">Note: a website can't truly block screenshots — the shield here is a deterrent. The real protection is the watermark + serial. Claim is a simulated demo (no real payment).</p>
       </div>
     </div>
   </div>

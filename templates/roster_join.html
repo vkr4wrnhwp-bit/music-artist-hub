@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Roster invite — Street Banker</title>
   <meta name="robots" content="noindex">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
 </head>
 <body class="min-h-screen bg-[#0a0a0b] text-gray-100 antialiased">
   <main class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
@@ -28,10 +28,10 @@
       <form method="post" class="mt-4 space-y-2.5">
         {% if not has_account %}
         <input name="name" required placeholder="Your artist name"
-               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
+               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-white/40 focus:outline-none">
         <input name="password" type="password" required placeholder="Create a password (6+ characters)"
-               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-white/40 focus:outline-none">
-        <p class="text-[10px] text-gray-600">This creates your free Street Banker account for {{ invite.email }}.</p>
+               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-white/40 focus:outline-none">
+        <p class="text-[10px] text-gray-400">This creates your free Street Banker account for {{ invite.email }}.</p>
         {% else %}
         <p class="text-[11px] text-gray-400">You already have an account for <span class="font-bold text-gray-200">{{ invite.email }}</span> — accepting signs you in.</p>
         {% endif %}

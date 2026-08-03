@@ -30,16 +30,16 @@
         <option value="video">Video / Canvas</option>
         <option value="file" selected>Other file</option>
       </select>
-      <input id="vault-label" placeholder="Label (e.g. Night Drive v2 final)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-600">
-      <span id="vault-msg" class="text-[11px] text-gray-500"></span>
+      <input id="vault-label" placeholder="Label (e.g. Night Drive v2 final)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-400">
+      <span id="vault-msg" class="text-[11px] text-gray-400"></span>
     </form>
-    <p class="mt-2 text-[10px] text-gray-600">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically.</p>
+    <p class="mt-2 text-[10px] text-gray-400">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically.</p>
   </section>
 
   {% if items %}
   <!-- Type filters + search -->
   <div class="flex flex-wrap items-center gap-2">
-    <input id="vault-search" placeholder="Search assets…" class="w-52 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-600">
+    <input id="vault-search" placeholder="Search assets…" class="w-52 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-400">
     <div id="vault-pills" class="flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wide"></div>
     <form id="vault-zip-form" method="post" action="/vault/zip" class="ml-auto">
       <button id="vault-zip-btn" class="hidden rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-3 py-2 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Download selected (zip)</button>
@@ -52,7 +52,7 @@
       {% if a.path and a.type not in ('Lyrics', 'Video', 'Video / Canvas', 'Master', 'Master Bounce', 'Stems', 'File', 'Other File') %}
       <a href="{{ a.path }}" target="_blank"><img src="{{ a.path }}" alt="{{ a.name }}" class="aspect-[3/2] w-full border-b border-white/5 object-cover" loading="lazy"></a>
       {% else %}
-      <div class="grid aspect-[3/2] place-items-center border-b border-white/5 bg-black/30 text-3xl text-gray-700">{{ '♫' if a.type in ('Lyrics', 'Master', 'Master Bounce', 'Stems') else ('▶' if 'Video' in a.type else '▤') }}</div>
+      <div class="grid aspect-[3/2] place-items-center border-b border-white/5 bg-black/30 text-3xl text-gray-400">{{ '♫' if a.type in ('Lyrics', 'Master', 'Master Bounce', 'Stems') else ('▶' if 'Video' in a.type else '▤') }}</div>
       {% endif %}
       <div class="p-3.5">
         <div class="flex items-center justify-between gap-2">
@@ -62,11 +62,11 @@
           </label>
           <span class="shrink-0 rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ a.type }}</span>
         </div>
-        <div class="mt-1 text-[11px] text-gray-500">{{ a.usage }}</div>
+        <div class="mt-1 text-[11px] text-gray-400">{{ a.usage }}</div>
         <div class="mt-2 flex items-center justify-between text-[10px]">
-          <span class="font-bold uppercase {{ 'text-green-400' if a.status in ('Public', 'Released', 'Live') else 'text-gray-500' }}">{{ a.status }}{% if a.date %} · {{ a.date }}{% endif %}</span>
+          <span class="font-bold uppercase {{ 'text-green-400' if a.status in ('Public', 'Released', 'Live') else 'text-gray-400' }}">{{ a.status }}{% if a.date %} · {{ a.date }}{% endif %}</span>
           {% if a.vid %}
-          <form method="post" action="/vault/{{ a.vid }}/delete"><button class="font-bold text-gray-500 hover:text-red-400">Remove</button></form>
+          <form method="post" action="/vault/{{ a.vid }}/delete"><button class="font-bold text-gray-400 hover:text-red-400">Remove</button></form>
           {% else %}
           <a href="{{ a.manage }}" class="font-bold text-[#e8c667] hover:underline">Manage →</a>
           {% endif %}
@@ -78,7 +78,7 @@
   {% else %}
   <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
     <div class="text-sm font-bold text-gray-200">The drawer is empty</div>
-    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Upload anything above, save cover art in the studio, archive a master from The Rack — everything lands here.</p>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-400">Upload anything above, save cover art in the studio, archive a master from The Rack — everything lands here.</p>
   </div>
   {% endif %}
 </div>

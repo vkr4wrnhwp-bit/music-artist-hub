@@ -419,7 +419,7 @@
     cuesWrap.innerHTML = "";
     var sorted = show.cues.slice().sort(function (a, b) { return a.t - b.t; });
     if (!sorted.length) {
-      cuesWrap.innerHTML = '<p class="text-[11px] text-gray-600">No cues yet. ' +
+      cuesWrap.innerHTML = '<p class="text-[11px] text-gray-400">No cues yet. ' +
         'Play the song and hit “+ Cue at playhead” where the music turns — ' +
         'intro dim, chorus full, drop blackout.</p>';
       return;
@@ -451,14 +451,14 @@
         function (e) { c.intensity = parseInt(e.target.value, 10); }, {min: 0, max: 100});
       row.appendChild(inten);
       var fadeWrap = document.createElement("label");
-      fadeWrap.className = "flex items-center gap-1 text-[10px] text-gray-500";
+      fadeWrap.className = "flex items-center gap-1 text-[10px] text-gray-400";
       fadeWrap.textContent = "fade";
       fadeWrap.appendChild(inp("number", c.fade, "w-16 rounded border border-white/15 bg-black/50 px-2 py-1 font-mono text-xs text-gray-300",
         function (e) { c.fade = parseFloat(e.target.value) || 0; }, {step: "0.1", min: "0"}));
       row.appendChild(fadeWrap);
       var del = document.createElement("button");
       del.textContent = "×";
-      del.className = "ml-auto h-7 w-7 rounded border border-white/15 text-sm text-gray-500 hover:border-red-500/40 hover:text-red-400";
+      del.className = "ml-auto h-7 w-7 rounded border border-white/15 text-sm text-gray-400 hover:border-red-500/40 hover:text-red-400";
       del.addEventListener("click", function () {
         show.cues.splice(show.cues.indexOf(c), 1); renderCues();
       });

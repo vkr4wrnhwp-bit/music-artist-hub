@@ -15,17 +15,17 @@
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-6 shadow-[0_0_60px_rgba(201,162,74,0.07)]">
     <div class="flex flex-wrap items-center justify-between gap-6">
       <div>
-        <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Capital Readiness</div>
+        <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Capital Readiness</div>
         <div class="mt-1 flex items-baseline gap-2">
           <span class="text-6xl font-black tabular-nums {{ 'text-green-400' if cs.total >= 75 else 'text-[#e8c667]' }}">{{ cs.total }}</span>
-          <span class="text-xl text-gray-600">/100</span>
+          <span class="text-xl text-gray-400">/100</span>
         </div>
         <div class="mt-1 text-xs font-bold uppercase tracking-wide {{ 'text-green-400' if cs.total >= 75 else 'text-[#e8c667]' }}">{{ cs.verdict }}</div>
       </div>
       <div class="grid grid-cols-3 gap-4 text-center">
-        <div><div class="text-2xl font-black tabular-nums">${{ "{:,.0f}".format(cs.income_total) }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Income on record</div></div>
-        <div><div class="text-2xl font-black tabular-nums">{{ cs.periods }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Statement periods</div></div>
-        <div><div class="text-2xl font-black tabular-nums">{{ cs.sources }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Income sources</div></div>
+        <div><div class="text-2xl font-black tabular-nums">${{ "{:,.0f}".format(cs.income_total) }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Income on record</div></div>
+        <div><div class="text-2xl font-black tabular-nums">{{ cs.periods }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Statement periods</div></div>
+        <div><div class="text-2xl font-black tabular-nums">{{ cs.sources }}</div><div class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Income sources</div></div>
       </div>
     </div>
     <div class="mt-6 space-y-3">
@@ -46,7 +46,7 @@
   {% if cs.advance_band %}
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
     <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Illustrative Advance Band</h2>
-    <div class="mt-2 text-3xl font-black tabular-nums">${{ "{:,}".format(cs.advance_band[0]) }} <span class="text-gray-600">–</span> ${{ "{:,}".format(cs.advance_band[1]) }}</div>
+    <div class="mt-2 text-3xl font-black tabular-nums">${{ "{:,}".format(cs.advance_band[0]) }} <span class="text-gray-400">–</span> ${{ "{:,}".format(cs.advance_band[1]) }}</div>
     <p class="mt-2 text-xs leading-relaxed text-gray-400">A common shape for catalog advances is 0.8–1.5× annualized trailing income — this band annualizes the income on your uploaded statements. Real offers depend on the funder, the catalog's age, and terms.</p>
   </section>
   {% endif %}
@@ -65,6 +65,6 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Estimates only — not financial advice, not an offer of funding. Figures are computed from the statements and activity in this account.</p>
+  <p class="px-1 text-[11px] text-gray-400">Estimates only — not financial advice, not an offer of funding. Figures are computed from the statements and activity in this account.</p>
 </div>
 {% endblock %}

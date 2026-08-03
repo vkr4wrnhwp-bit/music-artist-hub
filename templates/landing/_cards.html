@@ -81,7 +81,7 @@
     {{ platform_logo(card.logo, 'h-6 w-6') }}
     <span class="min-w-0 flex-1 text-[13px] font-semibold leading-tight text-white">{{ card.name }}</span>
   </div>
-  <div class="mt-3 text-[9px] uppercase tracking-widest text-gray-600">Est. Recovery</div>
+  <div class="mt-3 text-[9px] uppercase tracking-widest text-gray-400 font-medium">Est. Recovery</div>
   <div class="mt-0.5 text-lg font-bold tabular-nums text-gray-100">${{ "{:,.2f}".format(card.est_recovery) }}</div>
   <a href="/overview" class="mt-3 rounded-md border px-2 py-1.5 text-center text-[11px] font-semibold transition-colors {{ btn.get(card.action_tone, btn['success']) }}">
     {{ card.action_label }}

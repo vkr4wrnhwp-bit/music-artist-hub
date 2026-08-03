@@ -28,7 +28,7 @@
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Account Profile</h2>
-            <p class="mt-1 text-sm text-gray-500">Your artist profile. Saved on this device.</p>
+            <p class="mt-1 text-sm text-gray-400">Your artist profile. Saved on this device.</p>
           </div>
           <a href="/artist-profile" class="flex items-center gap-2.5 rounded-xl border border-white/10 px-3 py-2 transition-colors hover:border-[#c9a24a]/40" title="Your photo lives on your Artist Profile">
             <span class="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-[#c9a24a]/50 text-sm font-bold text-[#e8c667]">{{ account.initials if account else '?' }}</span>
@@ -59,9 +59,9 @@
 
       <section id="notification-preferences" class="rounded-2xl border border-[#c9a24a]/20 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
         <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Notification Preferences</h2>
-        <p class="mt-1 text-sm text-gray-500">Choose what you want to be notified about. Saved on this device.</p>
+        <p class="mt-1 text-sm text-gray-400">Choose what you want to be notified about. Saved on this device.</p>
         <div id="notification-list" class="mt-4 space-y-2">
-          <div class="px-1 text-[9px] font-bold uppercase tracking-[0.25em] text-gray-600">Severity alerts</div>
+          <div class="px-1 text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Severity alerts</div>
           {% for key, label, detail, tip in [
             ('leak_high', 'High severity leak alerts', 'Urgent issues like sync failures or expired logins', 'A connected source stopped reporting or a login expired — money can go missing until it is fixed.'),
             ('leak_medium', 'Medium severity leak alerts', 'Uncollected royalties above $250', 'A royalty lane shows income you have not collected yet, above $250.'),
@@ -70,14 +70,14 @@
           <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5" data-key="{{ key }}">
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 text-sm font-semibold">{{ label }}
-                <span class="cursor-help text-[11px] text-gray-600" title="{{ tip }}">ⓘ</span>
+                <span class="cursor-help text-[11px] text-gray-400" title="{{ tip }}">ⓘ</span>
               </div>
-              <div class="text-xs text-gray-500">{{ detail }}</div>
+              <div class="text-xs text-gray-400">{{ detail }}</div>
             </div>
             <button type="button" class="notification-toggle-btn nswitch shrink-0" role="switch" aria-label="Toggle {{ label }}"></button>
           </div>
           {% endfor %}
-          <div class="px-1 pt-2 text-[9px] font-bold uppercase tracking-[0.25em] text-gray-600">Digests &amp; activity</div>
+          <div class="px-1 pt-2 text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Digests &amp; activity</div>
           {% for key, label, detail, tip in [
             ('weekly_summary', 'Weekly summary email', 'A recap of royalties, leaks, and catalog value', 'One email a week; everything else stays in the app.'),
             ('payout_received', 'Payout received', 'A platform confirms a payout has landed', 'Fires when a payout actually lands, not when it is scheduled.'),
@@ -86,9 +86,9 @@
           <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5" data-key="{{ key }}">
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 text-sm font-semibold">{{ label }}
-                <span class="cursor-help text-[11px] text-gray-600" title="{{ tip }}">ⓘ</span>
+                <span class="cursor-help text-[11px] text-gray-400" title="{{ tip }}">ⓘ</span>
               </div>
-              <div class="text-xs text-gray-500">{{ detail }}</div>
+              <div class="text-xs text-gray-400">{{ detail }}</div>
             </div>
             <button type="button" class="notification-toggle-btn nswitch shrink-0" role="switch" aria-label="Toggle {{ label }}"></button>
           </div>
@@ -114,9 +114,9 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-bold uppercase tracking-wide text-gray-100">{{ label }}</span>
-              <span class="block text-[11px] text-gray-500">{{ desc }}</span>
+              <span class="block text-[11px] text-gray-400">{{ desc }}</span>
             </span>
-            <svg class="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
+            <svg class="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
           </a>
           {% endfor %}
         </div>
@@ -129,7 +129,7 @@
         <a href="/backup" class="mt-3 inline-block rounded-lg bg-[#d8b25a] px-4 py-2 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Download backup</a>
 
         <div class="mt-4 border-t border-white/10 pt-4">
-          <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Off-box copy</h3>
+          <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Off-box copy</h3>
           {% if backup_state.offsite_configured %}
             <p class="mt-1 text-xs text-gray-400">Uploading to <span class="font-mono text-gray-300">{{ backup_state.target }}</span>{% if not backup_state.scheduler_ready %} — but <b>no <span class="font-mono">BACKUP_TOKEN</span> is set</b>, so nothing can trigger it on a schedule yet.{% endif %}</p>
             {% if backup_state.last %}
@@ -138,7 +138,7 @@
               {% else %}
               <p class="mt-2 text-xs text-red-400">● Last run <b>FAILED</b> {{ backup_state.last.at[:16].replace("T", " ") }} UTC — {{ backup_state.last.detail }}</p>
               {% endif %}
-              <p class="text-[10px] text-gray-600">{{ backup_state.last.object }}</p>
+              <p class="text-[10px] text-gray-400">{{ backup_state.last.object }}</p>
             {% else %}
               <p class="mt-2 text-xs text-amber-400">● Configured, but it has never run. Until it does, this is a plan rather than a backup.</p>
             {% endif %}
@@ -147,7 +147,7 @@
             </form>
           {% else %}
             <p class="mt-1 text-xs text-gray-400">Not set up. Everything real in this app — invoices, logged hours, statements, disputes — currently lives on one disk, and the download above only happens when someone remembers to click it.</p>
-            <p class="mt-2 text-[11px] leading-relaxed text-gray-500">Point it at any S3-compatible bucket (Cloudflare R2, Backblaze B2, Wasabi, S3) by setting <span class="font-mono text-gray-400">BACKUP_S3_ENDPOINT</span>, <span class="font-mono text-gray-400">BACKUP_S3_BUCKET</span>, <span class="font-mono text-gray-400">BACKUP_S3_KEY</span> and <span class="font-mono text-gray-400">BACKUP_S3_SECRET</span>, plus a <span class="font-mono text-gray-400">BACKUP_TOKEN</span> for a scheduler to present when it POSTs to <span class="font-mono text-gray-400">/backup/run</span>.</p>
+            <p class="mt-2 text-[11px] leading-relaxed text-gray-400">Point it at any S3-compatible bucket (Cloudflare R2, Backblaze B2, Wasabi, S3) by setting <span class="font-mono text-gray-400">BACKUP_S3_ENDPOINT</span>, <span class="font-mono text-gray-400">BACKUP_S3_BUCKET</span>, <span class="font-mono text-gray-400">BACKUP_S3_KEY</span> and <span class="font-mono text-gray-400">BACKUP_S3_SECRET</span>, plus a <span class="font-mono text-gray-400">BACKUP_TOKEN</span> for a scheduler to present when it POSTs to <span class="font-mono text-gray-400">/backup/run</span>.</p>
           {% endif %}
         </div>
       </section>
@@ -156,7 +156,7 @@
       <section class="rounded-2xl border border-[#c9a24a]/20 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
         <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">Security &amp; Access</h2>
         <div class="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5">
-          <div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Current session</div>
+          <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Current session</div>
           <div class="mt-0.5 truncate text-xs text-gray-300" title="{{ request.user_agent.string }}">{{ request.user_agent.string | truncate(58) }}</div>
           <div class="text-[10px] text-green-400">● Active now — the only session we track</div>
         </div>

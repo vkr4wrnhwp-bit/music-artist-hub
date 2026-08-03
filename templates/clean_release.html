@@ -20,10 +20,10 @@
     {% for n in cat_nodes %}
     <button type="button" data-cats="{{ n.keys }}" class="cat-node flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors
       {{ 'border-[#c9a24a]/60 bg-[#c9a24a]/10' if n.done == n.total and n.total else 'border-amber-500/40' if n.done else 'border-white/10' }}">
-      <span class="text-sm font-black tabular-nums {{ 'text-[#e8c667]' if n.done == n.total and n.total else 'text-amber-400' if n.done else 'text-gray-600' }}">{{ n.done }}/{{ n.total }}</span>
-      <span class="text-[9px] font-bold uppercase tracking-wide {{ 'text-gray-200' if n.done else 'text-gray-500' }}">{{ n.label }}</span>
+      <span class="text-sm font-black tabular-nums {{ 'text-[#e8c667]' if n.done == n.total and n.total else 'text-amber-400' if n.done else 'text-gray-400' }}">{{ n.done }}/{{ n.total }}</span>
+      <span class="text-[9px] font-bold uppercase tracking-wide {{ 'text-gray-200' if n.done else 'text-gray-400' }}">{{ n.label }}</span>
     </button>
-    {% if not loop.last %}<span class="{{ 'text-[#c9a24a]' if n.done == n.total and n.total else 'text-gray-700' }}">→</span>{% endif %}
+    {% if not loop.last %}<span class="{{ 'text-[#c9a24a]' if n.done == n.total and n.total else 'text-gray-400' }}">→</span>{% endif %}
     {% endfor %}
   </div>
   {% endif %}
@@ -34,14 +34,14 @@
   <!-- Passport pull: real values from your own Track Passports, applied on click -->
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
     <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Resolve from Track Passport</h2>
-    <p class="mt-1 text-[11px] text-gray-500">These fields already live in a matching Track Passport but are blank on the catalog record the checklist reads. One click copies them over — the values shown are exactly what will be written.</p>
+    <p class="mt-1 text-[11px] text-gray-400">These fields already live in a matching Track Passport but are blank on the catalog record the checklist reads. One click copies them over — the values shown are exactly what will be written.</p>
     <div class="mt-3 space-y-2">
       {% for r in resolves %}
       <div class="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3">
         <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.title }}</span>
         <div class="flex min-w-0 flex-wrap gap-2">
           {% for f in r.fields %}
-          <span class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px]"><span class="text-gray-500">{{ f.label }}:</span> <span class="font-bold text-gray-200">{{ f.value }}</span></span>
+          <span class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px]"><span class="text-gray-400">{{ f.label }}:</span> <span class="font-bold text-gray-200">{{ f.value }}</span></span>
           {% endfor %}
         </div>
         <form method="post" action="/clean-release/resolve" class="shrink-0">
@@ -54,7 +54,7 @@
   </section>
   {% endif %}
 
-  <p class="text-[10px] text-gray-600">Checks derive live from your campaign, catalog metadata, rollout, and EPK. Split confirmations, PRO/MLC registration, and Content ID checks arrive with the Deal Room and Metadata Passport modules.</p>
+  <p class="text-[10px] text-gray-400">Checks derive live from your campaign, catalog metadata, rollout, and EPK. Split confirmations, PRO/MLC registration, and Content ID checks arrive with the Deal Room and Metadata Passport modules.</p>
 </div>
 
 <div class="mx-auto mt-5 max-w-[1100px]">
@@ -75,9 +75,9 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="mt-3 text-sm text-gray-500">No tracks in the OS spine yet — add one in Track Passports and its Clean Release score computes from the passport and lockbox.</p>
+    <p class="mt-3 text-sm text-gray-400">No tracks in the OS spine yet — add one in Track Passports and its Clean Release score computes from the passport and lockbox.</p>
     {% endif %}
-    <p class="mt-3 text-[10px] text-gray-600">A certificate unlocks at a clean 100 — it's a timestamped record of what these checks verified, not a legal document.</p>
+    <p class="mt-3 text-[10px] text-gray-400">A certificate unlocks at a clean 100 — it's a timestamped record of what these checks verified, not a legal document.</p>
   </section>
 </div>
 {% endblock %}

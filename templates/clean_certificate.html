@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clean Release Certificate — {{ t.title }} · Street Banker</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+<link rel="stylesheet" href="/static/css/tailwind.css?v=7">
 <style>
   body { background:#0a0a09; color:#e8e6e1; font-family: ui-sans-serif, system-ui, sans-serif; }
   .gold { color:#e8c667; }
@@ -21,7 +21,7 @@
 </head>
 <body class="p-4 sm:p-8">
 <div class="no-print mx-auto mb-4 flex max-w-[760px] items-center justify-between">
-  <a href="/releases/clean-release" class="text-[11px] font-bold uppercase tracking-wide text-gray-500 hover:text-[#e8c667]">← Back to Clean Release</a>
+  <a href="/releases/clean-release" class="text-[11px] font-bold uppercase tracking-wide text-gray-400 hover:text-[#e8c667]">← Back to Clean Release</a>
   <button onclick="window.print()" class="rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#1c1302] hover:bg-[#e5c878]">Print / Save as PDF</button>
 </div>
 
@@ -38,14 +38,14 @@
     {% if passport.isrc or passport.upc %}
     <div class="card rounded-xl border border-white/10 bg-[#111113] p-4">
       <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#c9a24a]">Identifiers on file</div>
-      {% if passport.isrc %}<div class="mt-2 text-sm"><span class="text-gray-500">ISRC</span> <span class="font-bold tabular-nums">{{ passport.isrc }}</span></div>{% endif %}
-      {% if passport.upc %}<div class="mt-1 text-sm"><span class="text-gray-500">UPC</span> <span class="font-bold tabular-nums">{{ passport.upc }}</span></div>{% endif %}
+      {% if passport.isrc %}<div class="mt-2 text-sm"><span class="text-gray-400">ISRC</span> <span class="font-bold tabular-nums">{{ passport.isrc }}</span></div>{% endif %}
+      {% if passport.upc %}<div class="mt-1 text-sm"><span class="text-gray-400">UPC</span> <span class="font-bold tabular-nums">{{ passport.upc }}</span></div>{% endif %}
     </div>
     {% endif %}
     <div class="card rounded-xl border border-white/10 bg-[#111113] p-4">
       <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#c9a24a]">Rights documents</div>
       {% for d in box.docs if d.state in ('ready', 'n/a') %}
-      <div class="mt-1.5 flex items-baseline gap-2 text-sm"><span class="gold">{{ '✓' if d.state == 'ready' else '—' }}</span><span class="min-w-0 flex-1">{{ d.label }}</span><span class="text-[10px] uppercase text-gray-500">{{ 'signed & on file' if d.state == 'ready' else 'marked not applicable' }}</span></div>
+      <div class="mt-1.5 flex items-baseline gap-2 text-sm"><span class="gold">{{ '✓' if d.state == 'ready' else '—' }}</span><span class="min-w-0 flex-1">{{ d.label }}</span><span class="text-[10px] uppercase text-gray-400">{{ 'signed & on file' if d.state == 'ready' else 'marked not applicable' }}</span></div>
       {% endfor %}
     </div>
   </div>
@@ -65,12 +65,12 @@
   <div class="card mt-4 rounded-xl border border-white/10 bg-[#111113] p-4">
     <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#c9a24a]">Signed off by</div>
     {% for name, doc in signers %}
-    <div class="mt-1.5 text-sm"><span class="font-bold">{{ name }}</span> <span class="text-gray-500">— {{ doc | lower }}</span></div>
+    <div class="mt-1.5 text-sm"><span class="font-bold">{{ name }}</span> <span class="text-gray-400">— {{ doc | lower }}</span></div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <p class="mt-6 border-t border-white/10 pt-4 text-center text-[10px] leading-relaxed text-gray-500">Generated {{ generated }} · This is a timestamped snapshot of Street Banker's own verification checks against this artist's records at the moment of generation. It documents what was checked and signed inside Street Banker — it is not a legal opinion, a rights registration, or a guarantee of third-party claims.</p>
+  <p class="mt-6 border-t border-white/10 pt-4 text-center text-[10px] leading-relaxed text-gray-400">Generated {{ generated }} · This is a timestamped snapshot of Street Banker's own verification checks against this artist's records at the moment of generation. It documents what was checked and signed inside Street Banker — it is not a legal opinion, a rights registration, or a guarantee of third-party claims.</p>
 </div>
 </body>
 </html>

@@ -14,17 +14,17 @@
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
     <div class="flex flex-wrap items-center gap-4">
       <div>
-        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Street Banker Certified</div>
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Street Banker Certified</div>
         <div class="mt-1 text-2xl font-black text-[#e8c667]">{{ cert.level }}</div>
       </div>
       <div class="min-w-0 flex-1 text-xs text-gray-400">
         {% if cert.next %}Next level: <span class="text-gray-200">{{ cert.next }}</span>.{% else %}Top of the ladder — every requirement is met with real data.{% endif %}
-        <span class="text-gray-600">Levels are computed from your actual passports, scores, and statements — nothing is granted.</span>
+        <span class="text-gray-400">Levels are computed from your actual passports, scores, and statements — nothing is granted.</span>
       </div>
       <div class="flex gap-3 text-center">
-        <div><div class="text-lg font-black tabular-nums">{{ summary.passport_avg }}%</div><div class="text-[9px] uppercase text-gray-600">Passports</div></div>
-        <div><div class="text-lg font-black tabular-nums">{{ summary.clean_avg }}</div><div class="text-[9px] uppercase text-gray-600">Clean avg</div></div>
-        <div><div class="text-lg font-black tabular-nums {{ 'text-red-400' if summary.reds else 'text-green-400' }}">{{ summary.reds }}</div><div class="text-[9px] uppercase text-gray-600">Red issues</div></div>
+        <div><div class="text-lg font-black tabular-nums">{{ summary.passport_avg }}%</div><div class="text-[9px] uppercase text-gray-400 font-medium">Passports</div></div>
+        <div><div class="text-lg font-black tabular-nums">{{ summary.clean_avg }}</div><div class="text-[9px] uppercase text-gray-400 font-medium">Clean avg</div></div>
+        <div><div class="text-lg font-black tabular-nums {{ 'text-red-400' if summary.reds else 'text-green-400' }}">{{ summary.reds }}</div><div class="text-[9px] uppercase text-gray-400 font-medium">Red issues</div></div>
       </div>
     </div>
   </section>
@@ -34,22 +34,22 @@
   <div class="flex flex-wrap items-center justify-center gap-1 rounded-2xl border border-white/10 bg-[#111113] px-4 py-3">
     {% for label, count in pipeline %}
     <div class="flex items-center gap-2 rounded-xl border {{ 'border-[#c9a24a]/40 bg-[#c9a24a]/10' if count else 'border-white/10' }} px-3 py-2">
-      <span class="text-lg font-black tabular-nums {{ 'text-[#e8c667]' if count else 'text-gray-600' }}">{{ count }}</span>
-      <span class="text-[9px] font-bold uppercase tracking-wide {{ 'text-gray-300' if count else 'text-gray-600' }}">{{ label }}</span>
+      <span class="text-lg font-black tabular-nums {{ 'text-[#e8c667]' if count else 'text-gray-400' }}">{{ count }}</span>
+      <span class="text-[9px] font-bold uppercase tracking-wide {{ 'text-gray-300' if count else 'text-gray-400' }}">{{ label }}</span>
     </div>
-    {% if not loop.last %}<span class="{{ 'text-[#c9a24a]' if pipeline[loop.index][1] else 'text-gray-700' }}">→</span>{% endif %}
+    {% if not loop.last %}<span class="{{ 'text-[#c9a24a]' if pipeline[loop.index][1] else 'text-gray-400' }}">→</span>{% endif %}
     {% endfor %}
   </div>
   {% endif %}
 
   <!-- Add -->
   <section class="rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0a0a09] p-5">
-    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">Add a track</h2>
+    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Add a track</h2>
     <form method="post" action="/tracks/add" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_140px_auto]">
       <input name="title" required placeholder="Track title"
-             class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
+             class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:border-[#c9a24a] focus:outline-none">
       <input name="release_title" placeholder="Release / album title (optional)"
-             class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#c9a24a] focus:outline-none">
+             class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:border-[#c9a24a] focus:outline-none">
       <input name="release_date" type="date"
              class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white focus:border-[#c9a24a] focus:outline-none">
       <button class="rounded-lg bg-[#d8b25a] px-5 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Add Track</button>
@@ -58,7 +58,7 @@
       <label class="cursor-pointer rounded-lg border border-[#c9a24a]/40 px-3 py-2 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">
         Read tags from audio<input id="id3-file" type="file" accept="audio/*" class="hidden">
       </label>
-      <span id="id3-msg" class="text-[10px] text-gray-500">Pick an MP3 — the title fills in from its real embedded tag. The file stays on your device.</span>
+      <span id="id3-msg" class="text-[10px] text-gray-400">Pick an MP3 — the title fills in from its real embedded tag. The file stays on your device.</span>
       <form method="post" action="/tracks/import" enctype="multipart/form-data" class="ml-auto flex items-center gap-2">
         <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-[11px] font-bold text-gray-300 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, writers, producers, publishers, pro, label">
           Import CSV catalog<input type="file" name="csv" accept=".csv,text/csv" class="hidden" onchange="this.form.submit()">
@@ -90,17 +90,17 @@
           <span class="text-[11px] tabular-nums text-gray-400">Clean {{ r.clean.score }}</span>
           {% if r.clean.blocked %}<span class="rounded-full border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[9px] font-bold uppercase text-red-400">Release blocked</span>
           {% elif r.caps.release %}<span class="rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-[9px] font-bold uppercase text-green-400">Release-ready rights</span>{% endif %}
-          <span class="text-[11px] text-gray-600">{{ r.t.release_date or '' }}</span>
+          <span class="text-[11px] text-gray-400">{{ r.t.release_date or '' }}</span>
         </div>
       </a>
       {% endfor %}
     </div>
     {% else %}
-    <p class="mt-3 text-sm text-gray-500">No tracks yet. Add your first one — the passport starts honest: everything unfilled shows yellow or red until you complete it.</p>
+    <p class="mt-3 text-sm text-gray-400">No tracks yet. Add your first one — the passport starts honest: everything unfilled shows yellow or red until you complete it.</p>
     {% endif %}
   </section>
 
-  <p class="px-1 text-[11px] text-gray-500">Green = clean and release-ready. Yellow = incomplete but fixable. Red = a rights or metadata issue that blocks release until fixed. Nothing here is assumed — every state is computed from what you've entered and uploaded.</p>
+  <p class="px-1 text-[11px] text-gray-400">Green = clean and release-ready. Yellow = incomplete but fixable. Red = a rights or metadata issue that blocks release until fixed. Nothing here is assumed — every state is computed from what you've entered and uploaded.</p>
 </div>
 {% endblock %}
 

@@ -267,7 +267,10 @@ def test_the_palette_can_be_dismissed_by_touch():
 def test_keyboard_hints_do_not_show_where_there_is_no_keyboard():
     page = _base_html()
     # The arrow/enter hints and the esc chip are keyboard affordances.
-    assert '<span class="hidden sm:inline"><kbd class="text-gray-500">↑↓</kbd> move</span>' in page
+    # Assert the affordance is desktop-only, not the exact grey - the
+    # palette moved off gray-500 because it read at 4.1:1 on black.
+    assert '<span class="hidden sm:inline"><kbd' in page
+    assert '↑↓</kbd> move</span>' in page
     assert 'sm:inline">esc</kbd>' in page
 
 

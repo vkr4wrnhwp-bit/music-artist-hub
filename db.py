@@ -844,6 +844,18 @@ def get_user(user_id):
     return dict(row) if row else None
 
 
+def list_users():
+    """Id, email and plan only - deliberately not SELECT *.
+
+    Used at boot to put owner accounts on their plan. Password hashes and
+    everything else stay where they are; a helper that hands out whole
+    user rows is one careless caller away from leaking them into a
+    template."""
+    with get_db() as db:
+        rows = db.execute("SELECT id, email, plan FROM users").fetchall()
+    return [dict(r) for r in rows]
+
+
 # --- Statements --------------------------------------------------------------
 
 def save_statement(user_id, filename, rows):

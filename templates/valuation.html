@@ -15,7 +15,7 @@
     <div>
       <h1 class="text-2xl font-semibold uppercase tracking-tight">Valuation</h1>
       {% include "partials/score_trend.html" %}
-      <p class="mt-1 text-sm text-gray-500">Know what your catalog is worth — and how to grow it.</p>
+      <p class="mt-1 text-sm text-gray-400">Know what your catalog is worth — and how to grow it.</p>
     </div>
     <button type="button" id="valuation-report-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
       <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4M4 16h12"/></svg>
@@ -25,24 +25,24 @@
 
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Estimated Catalog Value</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Estimated Catalog Value</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,.0f}".format(vo.estimated_value) }}</div>
       <div class="mt-1 text-[11px] font-semibold {{ 'text-green-400' if vo.monthly_change >= 0 else 'text-red-400' }}">{{ '↑' if vo.monthly_change >= 0 else '↓' }} {{ vo.monthly_change }}% vs last month</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Annual Run Rate</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Annual Run Rate</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">${{ "{:,.0f}".format(vo.annual_run_rate) }}</div>
-      <div class="mt-1 text-[11px] text-gray-500">Annualized royalty income</div>
+      <div class="mt-1 text-[11px] text-gray-400">Annualized royalty income</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Suggested Advance</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Suggested Advance</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">${{ "{:,.0f}".format(vo.suggested_advance) }}</div>
-      <div class="mt-1 text-[11px] text-gray-500">Based on eligibility</div>
+      <div class="mt-1 text-[11px] text-gray-400">Based on eligibility</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
       {% set elig_tone = 'text-green-400' if vo.eligibility_score >= 70 else ('text-amber-400' if vo.eligibility_score >= 45 else 'text-red-400') %}
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Advance Eligibility</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums {{ elig_tone }}">{{ vo.eligibility_score }}<span class="text-base text-gray-500">/100</span></div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Advance Eligibility</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ elig_tone }}">{{ vo.eligibility_score }}<span class="text-base text-gray-400">/100</span></div>
       <div class="mt-1 text-[11px] {{ elig_tone }}">{{ vo.eligibility_tier }}</div>
     </div>
   </div>
@@ -51,22 +51,22 @@
     <section id="catalog-value-estimate" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Catalog Value Estimate</h2>
-          <p class="mt-1 text-xs text-gray-500">Based on a ${{ "{:,.0f}".format(catalog_value.annual_run_rate) }} annualized run rate.</p>
+          <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Catalog Value Estimate</h2>
+          <p class="mt-1 text-xs text-gray-400">Based on a ${{ "{:,.0f}".format(catalog_value.annual_run_rate) }} annualized run rate.</p>
         </div>
         <style>.value-multiple-btn{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;}</style>
         <div class="flex flex-wrap gap-1.5">
           {% for m in value_tracker.available_multiples %}
-          <button type="button" class="value-multiple-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if m == value_tracker.multiple else 'border-white/10 text-gray-500 hover:text-gray-300' }}" data-multiple="{{ m }}">{{ m }}x</button>
+          <button type="button" class="value-multiple-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if m == value_tracker.multiple else 'border-white/10 text-gray-400 hover:text-gray-300' }}" data-multiple="{{ m }}">{{ m }}x</button>
           {% endfor %}
         </div>
       </div>
 
       <div class="mt-4 flex flex-wrap items-end gap-6">
         <div>
-          <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-600">Catalog Value Tracker</div>
+          <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Catalog Value Tracker</div>
           <div id="value-tracker-current" class="mt-1 text-4xl font-bold tracking-tight tabular-nums text-amber-400">${{ "{:,.0f}".format(value_tracker.current_value) }}</div>
-          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
             <span>vs <span id="value-tracker-last">${{ "{:,.0f}".format(value_tracker.last_month_value) }}</span> last month</span>
             <span id="value-tracker-pct" class="font-semibold {{ 'text-green-400' if value_tracker.pct_change >= 0 else 'text-red-400' }}">{{ '+' if value_tracker.pct_change >= 0 else '' }}{{ value_tracker.pct_change }}%</span>
           </div>
@@ -77,7 +77,7 @@
 
       <div class="mt-4 grid grid-cols-3 gap-2 text-center">
         <div class="rounded-lg border border-white/5 bg-white/5 p-3">
-          <div class="text-[10px] uppercase tracking-widest text-gray-600">Low ({{ catalog_value.multiples.low }}x)</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-400">Low ({{ catalog_value.multiples.low }}x)</div>
           <div class="mt-1 text-sm font-bold">${{ "{:,.0f}".format(catalog_value.low) }}</div>
         </div>
         <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
@@ -85,23 +85,23 @@
           <div class="mt-1 text-sm font-bold text-amber-400">${{ "{:,.0f}".format(catalog_value.mid) }}</div>
         </div>
         <div class="rounded-lg border border-white/5 bg-white/5 p-3">
-          <div class="text-[10px] uppercase tracking-widest text-gray-600">High ({{ catalog_value.multiples.high }}x)</div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-400">High ({{ catalog_value.multiples.high }}x)</div>
           <div class="mt-1 text-sm font-bold">${{ "{:,.0f}".format(catalog_value.high) }}</div>
         </div>
       </div>
 
       <div class="mt-4 flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 p-3">
-        <label for="custom-multiple" class="text-xs text-gray-500">Custom multiple</label>
+        <label for="custom-multiple" class="text-xs text-gray-400">Custom multiple</label>
         <input type="number" id="custom-multiple" min="1" max="30" step="0.5" value="{{ catalog_value.multiples.mid }}"
                class="h-11 w-16 rounded-md border border-white/10 bg-white/5 px-2 text-center text-base text-gray-100 focus:border-amber-500/50 focus:outline-none sm:h-auto sm:py-1 sm:text-xs">
-        <span class="text-xs text-gray-500">x =</span>
+        <span class="text-xs text-gray-400">x =</span>
         <span id="custom-multiple-value" class="ml-auto text-sm font-bold text-amber-400"></span>
       </div>
     </section>
 
     <section id="advance-eligibility" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
       <div class="flex items-start justify-between">
-        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Advance Eligibility</h2>
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Advance Eligibility</h2>
         {% set elig_ui = {
           'Eligible': 'border-green-500/20 bg-green-500/10 text-green-400',
           'Eligible with conditions': 'border-amber-500/20 bg-amber-500/10 text-amber-400',
@@ -110,12 +110,12 @@
         <span class="rounded-full border px-2 py-0.5 text-xs font-semibold {{ elig_ui.get(advance_eligibility.tier, elig_ui['Not yet eligible']) }}">{{ advance_eligibility.tier }}</span>
       </div>
       <div class="mt-3 text-3xl font-bold tracking-tight tabular-nums">${{ "{:,.0f}".format(advance_eligibility.suggested_advance) }}</div>
-      <div class="text-xs text-gray-500">Suggested advance amount</div>
+      <div class="text-xs text-gray-400">Suggested advance amount</div>
       <div class="mt-4 space-y-2.5">
         {% for label, key in [('Earnings trend', 'trend_score'), ('Payout consistency', 'consistency_score'), ('Royalty history', 'history_score')] %}
         <div>
           <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-500">{{ label }}</span>
+            <span class="text-gray-400">{{ label }}</span>
             <span class="font-semibold">{{ advance_eligibility[key] }}%</span>
           </div>
           <div class="mt-1 h-1.5 rounded-full bg-white/5">
@@ -130,12 +130,12 @@
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
     <section id="royalty-forecast" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Royalty Forecast</h2>
-      <p class="mt-1 text-sm text-gray-500">Projected earnings across conservative, expected, and aggressive scenarios.</p>
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Royalty Forecast</h2>
+      <p class="mt-1 text-sm text-gray-400">Projected earnings across conservative, expected, and aggressive scenarios.</p>
       <div class="mt-4 overflow-x-auto">
         <table class="w-full text-left text-sm">
           <thead>
-            <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-500">
+            <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-400">
               <th class="py-2 pr-4 font-medium">Mode</th>
               <th class="py-2 pr-4 text-right font-medium">30 Days</th>
               <th class="py-2 pr-4 text-right font-medium">90 Days</th>
@@ -157,8 +157,8 @@
     </section>
 
     <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Value Drivers</h2>
-      <p class="mt-1 text-sm text-gray-500">The biggest levers to grow your catalog's worth.</p>
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Value Drivers</h2>
+      <p class="mt-1 text-sm text-gray-400">The biggest levers to grow your catalog's worth.</p>
       <div class="mt-3 space-y-2">
         {% set drivers = [
           ('/connections', 'Connect more sources', 'More verified income raises the multiple', '+$28,650/yr'),
@@ -172,7 +172,7 @@
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-xs font-semibold text-gray-100">{{ title }}</span>
-            <span class="block truncate text-[11px] text-gray-500">{{ desc }}</span>
+            <span class="block truncate text-[11px] text-gray-400">{{ desc }}</span>
           </span>
           <span class="shrink-0 text-[11px] font-semibold text-green-400">{{ impact }}</span>
         </a>
@@ -235,7 +235,7 @@
     document.querySelectorAll(".value-multiple-btn").forEach((btn) => {
       const active = Number(btn.dataset.multiple) === multiple;
       btn.className = "value-multiple-btn rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors " +
-        (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-500 hover:text-gray-300");
+        (active ? "border-amber-500/40 bg-amber-500/15 text-amber-400" : "border-white/10 text-gray-400 hover:text-gray-300");
     });
     valuationChart.data.datasets[0].data = VALUATION_TREND.map((p) => p.value / MID_MULTIPLE * multiple);
     valuationChart.update();

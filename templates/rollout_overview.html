@@ -42,7 +42,7 @@
                              ("Link clicks", posts | sum(attribute='clicks')),
                              ("Fans captured", posts | sum(attribute='fans'))] %}
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ label }}</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{{ label }}</div>
       <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-[#e8c667]' if loop.last or loop.index == 4 }}">{{ value }}</div>
     </div>
     {% endfor %}
@@ -75,7 +75,7 @@
       {% endif %}
       {% endfor %}
     </div>
-    {% else %}<p class="mt-2 text-xs text-gray-600">No assets uploaded.</p>{% endif %}
+    {% else %}<p class="mt-2 text-xs text-gray-400">No assets uploaded.</p>{% endif %}
   </section>
 
   <!-- Upcoming posts preview -->
@@ -92,7 +92,7 @@
         <span class="w-32 shrink-0 font-semibold text-gray-200">{{ platform_names.get(p.platform, p.platform) }}</span>
         <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
         <span class="min-w-0 flex-1 truncate text-gray-400">{{ p.caption }}</span>
-        <span class="shrink-0 text-[10px] font-bold uppercase {{ 'text-green-400' if p.status in ('approved', 'posted') else 'text-gray-500' }}">{{ p.status }}</span>
+        <span class="shrink-0 text-[10px] font-bold uppercase {{ 'text-green-400' if p.status in ('approved', 'posted') else 'text-gray-400' }}">{{ p.status }}</span>
       </div>
       {% endfor %}
     </div>

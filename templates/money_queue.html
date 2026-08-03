@@ -12,16 +12,16 @@
 
   <div class="grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-red-500/30 bg-[#140909] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Release-Blocking</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Release-Blocking</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-red-400' if criticals else 'text-green-400' }}">{{ criticals }}</div>
     </div>
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Est. On The Table</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Est. On The Table</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">{{ ('$' + '%.2f' % est_total) if est_total else '—' }}</div>
-      <div class="text-[10px] text-gray-600">{{ 'from your own statements' if est_total else 'no statement basis yet' }}</div>
+      <div class="text-[10px] text-gray-400">{{ 'from your own statements' if est_total else 'no statement basis yet' }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Open Actions</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Open Actions</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ queue | length }}</div>
     </div>
   </div>
@@ -49,7 +49,7 @@
         <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ a.problem }}</span>
         {% if a.impact %}<span class="shrink-0 text-sm font-black tabular-nums text-[#e8c667]" title="Sized from your own statement earnings">~${{ '%.2f' % a.impact }}</span>{% endif %}
       </div>
-      <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
+      <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
         <span>Track: <span class="text-gray-300">{{ a.track }}</span></span>
         <span>Lane: <span class="text-gray-300">{{ a.lane }}</span></span>
         <span>Difficulty: <span class="text-gray-300">{{ a.difficulty }}</span></span>
@@ -67,6 +67,6 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">The queue reads your passports, lockboxes, and statements — it never invents impact numbers. See the full grid on <a href="/royalty-lanes" class="font-bold text-[#e8c667] hover:underline">Royalty Lanes</a>.</p>
+  <p class="px-1 text-[11px] text-gray-400">The queue reads your passports, lockboxes, and statements — it never invents impact numbers. See the full grid on <a href="/royalty-lanes" class="font-bold text-[#e8c667] hover:underline">Royalty Lanes</a>.</p>
 </div>
 {% endblock %}

@@ -12,16 +12,16 @@
 
   <div class="grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Lanes Claimed</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Lanes Claimed</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">{{ claimed }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Est. Missing</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Est. Missing</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ ('$' + '%.2f' % missing_est) if missing_est else '—' }}</div>
-      <div class="text-[10px] text-gray-600">{{ 'from your own statements' if missing_est else 'no statement basis yet' }}</div>
+      <div class="text-[10px] text-gray-400">{{ 'from your own statements' if missing_est else 'no statement basis yet' }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Statement Rows</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Statement Rows</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ ctx.statement_rows }}</div>
     </div>
   </div>
@@ -30,7 +30,7 @@
   <section class="overflow-x-auto rounded-2xl border border-white/10 bg-[#111113] p-5">
     <table class="w-full min-w-[860px] text-left">
       <thead>
-        <tr class="text-[9px] font-bold uppercase tracking-wide text-gray-500">
+        <tr class="text-[9px] font-bold uppercase tracking-wide text-gray-400">
           <th class="pb-2 pr-3">Track</th>
           {% for key, label in lanes %}<th class="pb-2 pr-2">{{ label.split(' /')[0].split(' (')[0] }}</th>{% endfor %}
         </tr>
@@ -41,9 +41,9 @@
           <td class="py-2.5 pr-3"><a href="/tracks/{{ r.t.id }}" class="text-sm font-bold hover:text-[#e8c667]">{{ r.t.title }}</a></td>
           {% for lane in r.lanes %}
           <td class="py-2.5 pr-2">
-            <span class="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if lane.state == 'claimed' else 'bg-[#c9a24a]/15 text-[#e8c667]' if lane.state == 'connected' else 'bg-blue-500/15 text-blue-300' if lane.state == 'in review' else 'bg-white/5 text-gray-600' if lane.state == 'not eligible' else 'bg-amber-500/15 text-amber-400' }}"
+            <span class="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if lane.state == 'claimed' else 'bg-[#c9a24a]/15 text-[#e8c667]' if lane.state == 'connected' else 'bg-blue-500/15 text-blue-300' if lane.state == 'in review' else 'bg-white/5 text-gray-400' if lane.state == 'not eligible' else 'bg-amber-500/15 text-amber-400' }}"
                   {% if lane.estimate %}title="~${{ '%.2f' % lane.estimate }} — {{ lane.estimate_basis }}"{% endif %}>{{ lane.state }}</span>
-            {% if lane.estimate %}<div class="mt-0.5 text-[9px] tabular-nums text-[#e8c667]/70">~${{ '%.2f' % lane.estimate }}</div>{% endif %}
+            {% if lane.estimate %}<div class="mt-0.5 text-[9px] tabular-nums text-[#e8c667]/70 font-medium">~${{ '%.2f' % lane.estimate }}</div>{% endif %}
           </td>
           {% endfor %}
         </tr>
@@ -51,7 +51,7 @@
       </tbody>
     </table>
   </section>
-  <p class="px-1 text-[11px] text-gray-500">Fix a lane from the track's passport — <a href="/money-queue" class="font-bold text-[#e8c667] hover:underline">the Money Queue</a> puts every gap in priority order.</p>
+  <p class="px-1 text-[11px] text-gray-400">Fix a lane from the track's passport — <a href="/money-queue" class="font-bold text-[#e8c667] hover:underline">the Money Queue</a> puts every gap in priority order.</p>
   {% else %}
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-8 text-center">
     <p class="text-sm text-gray-400">No tracks in the OS spine yet. <a href="/tracks" class="font-bold text-[#e8c667] hover:underline">Add your songs in Track Passports</a> and every lane computes from your passports and statements.</p>

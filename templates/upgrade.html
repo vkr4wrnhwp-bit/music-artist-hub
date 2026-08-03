@@ -36,9 +36,9 @@
   </div>
 
   {% if stripe_live and not is_demo_account %}
-  <p class="text-center text-[10px] text-gray-600">Checkout runs on Stripe — no payment details touch this server. Cancel anytime; your data stays either way.</p>
+  <p class="text-center text-[10px] text-gray-400">Checkout runs on Stripe — no payment details touch this server. Cancel anytime; your data stays either way.</p>
   {% else %}
-  <p class="text-center text-[10px] text-gray-600">Demo plan switching — no payment is taken.</p>
+  <p class="text-center text-[10px] text-gray-400">Demo plan switching — no payment is taken.</p>
   {% endif %}
 </div>
 {% endblock %}

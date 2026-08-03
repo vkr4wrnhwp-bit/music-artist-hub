@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ show.artist_name }} — Tech Rider · {{ show.venue }}</title>
   <meta name="robots" content="noindex">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
   <style>
     @media print {
       body { background: #fff !important; color: #111 !important; }
@@ -35,8 +35,8 @@
     <section class="card mt-6 rounded-2xl border border-white/10 bg-black/40 p-5">
       <h2 class="gold text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">Contacts</h2>
       <div class="mt-2 space-y-1 text-sm">
-        {% if adv.get('dayof_contact') %}<p><span class="text-gray-500">Day-of:</span> <span class="font-bold">{{ adv.dayof_contact }}</span></p>{% endif %}
-        {% if adv.get('contact_name') %}<p><span class="text-gray-500">Advance:</span> {{ adv.contact_name }}{% if adv.get('contact_email') %} · {{ adv.contact_email }}{% endif %}</p>{% endif %}
+        {% if adv.get('dayof_contact') %}<p><span class="text-gray-400">Day-of:</span> <span class="font-bold">{{ adv.dayof_contact }}</span></p>{% endif %}
+        {% if adv.get('contact_name') %}<p><span class="text-gray-400">Advance:</span> {{ adv.contact_name }}{% if adv.get('contact_email') %} · {{ adv.contact_email }}{% endif %}</p>{% endif %}
       </div>
     </section>
     {% endif %}
@@ -48,7 +48,7 @@
       <div class="mt-2 divide-y divide-white/5">
         {% for label, value in schedule %}
         <div class="flex items-baseline justify-between py-1.5">
-          <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ label }}</span>
+          <span class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ label }}</span>
           <span class="text-sm font-black">{{ value }}</span>
         </div>
         {% endfor %}
@@ -60,7 +60,7 @@
     <section class="card mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
       <h2 class="gold text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">Stage plot &amp; input list</h2>
       <div id="plot" class="mt-3 [&_svg]:h-auto [&_svg]:w-full"></div>
-      <p id="plot-empty" class="hidden mt-3 text-sm text-gray-500">No stage plot on file for this act yet — it lives in Street Banker's Stage Plot designer.</p>
+      <p id="plot-empty" class="hidden mt-3 text-sm text-gray-400">No stage plot on file for this act yet — it lives in Street Banker's Stage Plot designer.</p>
     </section>
 
     <!-- Backline -->
@@ -86,17 +86,17 @@
       <h2 class="gold text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">Logistics</h2>
       <div class="mt-2 space-y-1.5 text-sm">
         {% for label, value in logi %}{% if value %}
-        <p><span class="text-gray-500">{{ label }}:</span> {{ value }}</p>
+        <p><span class="text-gray-400">{{ label }}:</span> {{ value }}</p>
         {% endif %}{% endfor %}
       </div>
     </section>
     {% endif %}
 
-    <p class="mt-6 text-center text-[11px] text-gray-500">Questions on anything above? {{ 'Call the day-of contact listed at the top.' if adv.get('dayof_contact') else 'Reach the act through the booking contact.' }} This rider only lists what the act has actually entered — no boilerplate.</p>
+    <p class="mt-6 text-center text-[11px] text-gray-400">Questions on anything above? {{ 'Call the day-of contact listed at the top.' if adv.get('dayof_contact') else 'Reach the act through the booking contact.' }} This rider only lists what the act has actually entered — no boilerplate.</p>
 
     <footer class="mt-8 pt-4 text-center">
       <a href="/" class="no-print inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100">
-        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-500">Powered by</span>
+        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-400">Powered by</span>
         <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto">
       </a>
     </footer>

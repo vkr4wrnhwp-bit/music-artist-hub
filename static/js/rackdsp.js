@@ -1347,7 +1347,7 @@
       });
       var rm = document.createElement("button");
       rm.textContent = "×"; rm.title = "Remove stem";
-      rm.className = "sw h-7 w-7 text-sm text-gray-500";
+      rm.className = "sw h-7 w-7 text-sm text-gray-400";
       rm.addEventListener("click", function () {
         stop(); stems.splice(i, 1); renderStems(); syncDeckInfo(); renderWave();
       });

@@ -17,7 +17,7 @@
   </div>
 
   <form method="get" class="flex gap-2">
-    <input name="q" value="{{ q }}" placeholder="Search by email or name..." class="w-full max-w-sm rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:border-amber-500/50 focus:outline-none">
+    <input name="q" value="{{ q }}" placeholder="Search by email or name..." class="w-full max-w-sm rounded-lg border border-white/10 bg-[#111113] px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:border-amber-500/50 focus:outline-none">
     <button class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">Search</button>
   </form>
 
@@ -25,7 +25,7 @@
   <section class="overflow-x-auto rounded-2xl border border-white/10 bg-[#111113] p-5">
     <table class="w-full text-left text-sm">
       <thead>
-        <tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">
+        <tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-400">
           <th class="py-2 pr-4 font-medium">Fan</th>
           <th class="py-2 pr-4 font-medium">Intent</th>
           <th class="py-2 pr-4 text-right font-medium">Pre-saves</th>
@@ -39,7 +39,7 @@
         <tr class="border-b border-white/5 last:border-0">
           <td class="py-3 pr-4">
             <div class="font-semibold text-gray-100">{{ f.email }}</div>
-            {% if f.name %}<div class="text-[11px] text-gray-500">{{ f.name }}</div>{% endif %}
+            {% if f.name %}<div class="text-[11px] text-gray-400">{{ f.name }}</div>{% endif %}
           </td>
           <td class="py-3 pr-4">
             <div class="flex items-center gap-2">
@@ -50,7 +50,7 @@
           <td class="py-3 pr-4 text-right tabular-nums text-gray-300">{{ f.total_presaves }}</td>
           <td class="py-3 pr-4 text-right tabular-nums text-gray-300">{{ f.total_captures }}</td>
           <td class="py-3 pr-4 text-[11px] text-gray-400">{{ campaign_titles.get(f.first_campaign_id, '—') }}</td>
-          <td class="py-3 text-[11px] tabular-nums text-gray-500">{{ f.updated[:10] }}</td>
+          <td class="py-3 text-[11px] tabular-nums text-gray-400">{{ f.updated[:10] }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -59,7 +59,7 @@
   {% else %}
   <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
     <div class="text-sm font-bold text-gray-200">No fans captured yet</div>
-    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Enable email capture on a campaign and every signup lands here — with consent logged and intent scored.</p>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-400">Enable email capture on a campaign and every signup lands here — with consent logged and intent scored.</p>
   </div>
   {% endif %}
 </div>

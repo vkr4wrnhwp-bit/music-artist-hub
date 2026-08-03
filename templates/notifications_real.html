@@ -25,14 +25,14 @@
         <span class="block text-sm font-semibold text-gray-100">{{ n.title }}</span>
         {% if n.body %}<span class="block text-xs text-gray-400">{{ n.body }}</span>{% endif %}
       </span>
-      <span class="shrink-0 text-[10px] tabular-nums text-gray-600">{{ n.created[:16].replace('T', ' ') }}</span>
+      <span class="shrink-0 text-[10px] tabular-nums text-gray-400">{{ n.created[:16].replace('T', ' ') }}</span>
     </a>
     {% endfor %}
   </div>
   {% else %}
   <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-12 text-center">
     <div class="text-sm font-bold text-gray-200">Quiet for now</div>
-    <p class="mx-auto mt-1 max-w-md text-xs text-gray-500">Notifications land here when real things happen: a fan signs up on your link, a campaign goes live, a rollout is generated, or a statement upload finds money.</p>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-400">Notifications land here when real things happen: a fan signs up on your link, a campaign goes live, a rollout is generated, or a statement upload finds money.</p>
   </div>
   {% endif %}
 </div>

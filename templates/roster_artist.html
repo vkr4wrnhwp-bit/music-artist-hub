@@ -6,7 +6,7 @@
 <div class="mx-auto max-w-[900px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <a href="/roster" class="text-[11px] font-bold text-gray-500 hover:text-[#e8c667]">← Label Roster</a>
+      <a href="/roster" class="text-[11px] font-bold text-gray-400 hover:text-[#e8c667]">← Label Roster</a>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ member.artist_name }}</h1>
     </div>
     <span class="rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Roster · read-only</span>
@@ -14,20 +14,20 @@
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Statement Revenue</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Statement Revenue</div>
       <div class="mt-1 text-xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(snap.revenue) }}</div>
-      <div class="text-[10px] text-gray-600">{{ snap.statements }} statement{{ 's' if snap.statements != 1 }}</div>
+      <div class="text-[10px] text-gray-400">{{ snap.statements }} statement{{ 's' if snap.statements != 1 }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Fans (CRM)</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Fans (CRM)</div>
       <div class="mt-1 text-xl font-black tabular-nums">{{ "{:,}".format(snap.fans) }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Live Links</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Live Links</div>
       <div class="mt-1 text-xl font-black tabular-nums">{{ snap.links | length }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Upcoming Shows</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Upcoming Shows</div>
       <div class="mt-1 text-xl font-black tabular-nums">{{ snap.shows | length }}</div>
     </div>
   </div>
@@ -54,7 +54,7 @@
       <div class="flex items-baseline gap-3 py-2.5">
         <span class="w-24 shrink-0 text-sm font-black tabular-nums">{{ s.date }}</span>
         <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ s.venue }}</span>
-        <span class="shrink-0 text-[11px] text-gray-500">{{ s.city }}</span>
+        <span class="shrink-0 text-[11px] text-gray-400">{{ s.city }}</span>
         <span class="shrink-0 rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-green-400">{{ s.status }}</span>
       </div>
       {% endfor %}
@@ -62,6 +62,6 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Everything here reflects what {{ member.artist_name }} has actually uploaded and connected — you're seeing their real desk, read-only.</p>
+  <p class="px-1 text-[11px] text-gray-400">Everything here reflects what {{ member.artist_name }} has actually uploaded and connected — you're seeing their real desk, read-only.</p>
 </div>
 {% endblock %}

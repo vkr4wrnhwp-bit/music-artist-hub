@@ -14,6 +14,45 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
 import report_builder
+
+# Accounts that get the top plan without paying: the owner's own.
+#
+# Stored as SHA-256, not plaintext, because this repo is on GitHub and an
+# email in source is an email in a scraper's list. Add more without a
+# deploy by setting OWNER_EMAILS to a comma-separated list.
+#
+# This grants a PLAN. It is not an authentication bypass - the password
+# check still has to pass first, and nothing here touches login, billing
+# integrity, or the demo account.
+_OWNER_EMAIL_HASHES = {
+    "9bc043ae1f94a567c427d016bd0f42293a724c71e59b5b6b6c9ad3bf869e8c30",
+}
+OWNER_PLAN = "label"          # top of plans.TIER_RANK
+
+
+def _is_owner_email(email):
+    import hashlib
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    extra = {e.strip().lower()
+             for e in (os.environ.get("OWNER_EMAILS") or "").split(",")
+             if e.strip()}
+    if email in extra:
+        return True
+    digest = hashlib.sha256(email.encode()).hexdigest()
+    return digest in _OWNER_EMAIL_HASHES
+
+
+def _grant_owner_plan(user):
+    """Put an owner account on the top plan. Idempotent, and a no-op for
+    everybody else."""
+    if not user or not _is_owner_email(user.get("email")):
+        return False
+    if (user.get("plan") or "") != OWNER_PLAN:
+        store.set_user_plan(user["id"], OWNER_PLAN)
+        return True
+    return False
 import touring
 import artist_os
 import hubs as hub_defs
@@ -426,6 +465,12 @@ def create_app():
                             (generate_password_hash(os.environ["DEMO_PASSWORD"]),
                              _acct["id"]))
 
+    # Owner accounts get the top plan at boot as well as at login, so an
+    # existing long-lived session does not have to sign out and back in
+    # for it to take effect.
+    for _u in store.list_users():
+        _grant_owner_plan(_u)
+
     def current_user():
         user_id = session.get("user_id")
         return store.get_user(user_id) if user_id else None
@@ -449,6 +494,7 @@ def create_app():
                 if user_id is None:
                     error = "An account with that email already exists."
                 else:
+                    _grant_owner_plan(store.get_user(user_id))
                     ref = session.pop("ref_code", None) or request.form.get("ref")
                     referrer = store.user_by_ref_code(ref) if ref else None
                     if referrer and referrer["id"] != user_id:
@@ -474,6 +520,11 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
+                # The owner does not pay to use their own product. This
+                # grants the top plan, nothing more - the password check
+                # above still had to pass, and every other protection is
+                # untouched.
+                _grant_owner_plan(user)
                 # "Remember this device": a real 31-day session, only when
                 # asked for. Unchecked keeps the browser-session cookie.
                 if request.form.get("remember"):

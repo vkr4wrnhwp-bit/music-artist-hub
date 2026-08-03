@@ -294,7 +294,7 @@
   </div>
 
   <!-- Signal flow: click a node to jump to that stage of the chain -->
-  <div class="mx-auto flex w-full max-w-[760px] flex-wrap items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-500">
+  <div class="mx-auto flex w-full max-w-[760px] flex-wrap items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
     {% for target, label in [('.chassis', 'Screen'), ('.chassis', 'TS-1 Tube'), ('.chassis', 'SUB-1'), ('.chassis', 'EQ-12'), ('.chassis', 'DYN-1'), ('#sb08', 'Cab & Mic'), ('#sb09', 'FX'), ('#sb10', 'Stems')] %}
     <button type="button" class="flow-node rounded border border-white/10 px-2 py-1 transition-colors hover:border-[#c9a24a]/50 hover:text-[#e8c667]" data-target="{{ target }}">{{ label }}</button>{% if not loop.last %}<span class="text-[#8a6d1f]">→</span>{% endif %}
     {% endfor %}
@@ -302,7 +302,7 @@
 
   <!-- Zone trim: appears when an instrument band on the screen is clicked -->
   <div id="rk-zone" style="display:none" class="mx-auto w-full max-w-[760px] flex-wrap items-center gap-2 rounded-xl border border-[#c9a24a]/40 bg-[#141209] px-4 py-2.5 sm:gap-3">
-    <span class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Zone</span>
+    <span class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Zone</span>
     <span id="rk-zone-name" class="text-sm font-black"></span>
     <span id="rk-zone-bands" class="order-last w-full font-mono text-[11px] font-bold tabular-nums text-[#e8c667] sm:order-none sm:w-auto"></span>
     <button id="rk-zone-minus" class="sw whitespace-nowrap px-3 py-1.5 text-sm font-black">−1 dB</button>
@@ -387,12 +387,12 @@
     <div class="slot gap-3 px-4" style="left:12.5%; top:70.6%; width:75.5%; height:5.1%;">
       <div class="min-w-0 flex-1">
         <div class="text-[8px] font-bold uppercase tracking-[0.2em] text-[#6b5c3d]">Source</div>
-        <div id="rk-fileinfo" class="truncate text-[9px] leading-snug text-[#c9bd9c]">No file loaded — drop a WAV/MP3 anywhere on this page.</div>
+        <div id="rk-fileinfo" class="truncate text-[9px] leading-snug text-[#c9bd9c] font-medium">No file loaded — drop a WAV/MP3 anywhere on this page.</div>
         <div class="mt-1 flex items-center gap-2">
           <div class="flex min-w-0 flex-1 items-center gap-1.5">
             <span class="text-[8px] font-bold uppercase text-[#6b5c3d]">Peak</span>
             <div class="rk-seg h-2 min-w-0 flex-1 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
-            <span id="rk-peakdb" class="text-[8px] tabular-nums text-[#c9bd9c]">−∞</span>
+            <span id="rk-peakdb" class="text-[8px] tabular-nums text-[#c9bd9c] font-medium">−∞</span>
           </div>
         </div>
       </div>
@@ -420,13 +420,13 @@
       </svg>
       <div class="flex shrink-0 flex-col items-center gap-1">
         <span id="scope-lamp" class="lamp"></span>
-        <span id="rk-status" class="w-20 truncate text-center text-[8px] text-[#8a7c5d]"></span>
+        <span id="rk-status" class="w-20 truncate text-center text-[8px] text-[#8a7c5d] font-medium"></span>
       </div>
     </div>
 
     <!-- SB-06 Master Bus · stereo image -->
     <div class="slot flex-wrap gap-2 px-4" style="left:12.5%; top:79.2%; width:75.5%; height:5.1%;">
-      <span class="sk text-[8px] text-[#8a7c5d]">Center (mid/side)</span>
+      <span class="sk text-[8px] text-[#8a7c5d] font-medium">Center (mid/side)</span>
       <button data-center="normal" class="rk-center sw sw-lit px-2.5 py-1 text-[10px]">Normal</button>
       <button data-center="solo" class="rk-center sw px-2.5 py-1 text-[10px]">Solo Center</button>
       <button data-center="remove" class="rk-center sw px-2.5 py-1 text-[10px]">Remove Center</button>
@@ -443,7 +443,7 @@
       </label>
       <button id="rk-play" class="sw px-2.5 py-1 text-[10px]" disabled>Play</button>
       <button id="rk-export" class="sw px-2.5 py-1 text-[10px] text-[#e8c667]" disabled>Export WAV</button>
-      <button id="rk-save" class="sw px-2 py-1 text-[9px] text-[#e8c667]">Save my rack</button>
+      <button id="rk-save" class="sw px-2 py-1 text-[9px] text-[#e8c667] font-medium">Save my rack</button>
       <div class="ml-auto flex items-center gap-2">
         <div data-kn="out" data-ksize="44"></div>
         <div class="mods !ml-0">
@@ -457,10 +457,10 @@
   </div><!-- /chassis-fit -->
   </div>
 
-  <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-600">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — then use the gold Zone bar above the rack to trim just that range in 1&nbsp;dB steps; watch its EQ knobs turn as you press. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
+  <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-400">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — then use the gold Zone bar above the rack to trim just that range in 1&nbsp;dB steps; watch its EQ knobs turn as you press. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
 
   <!-- Honest silkscreen -->
-  <div class="mx-auto grid max-w-[760px] gap-x-5 gap-y-2 text-[10px] leading-relaxed text-gray-600 sm:grid-cols-2">
+  <div class="mx-auto grid max-w-[760px] gap-x-5 gap-y-2 text-[10px] leading-relaxed text-gray-400 sm:grid-cols-2">
     <p><span class="text-gray-400">Screen.</span> 13 zones mark where each instrument typically lives; the glow is the energy your track has there right now. Honest energy detection — not instrument identification. Solid curve = your EQ; dashed = cab &amp; mic voicing.</p>
     <p><span class="text-gray-400">SB-01 Harmonic Bank · Tube Stage.</span> Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
     <p><span class="text-gray-400">SB-02 Foundation · SUB-1.</span> Not a bass boost: Depth is a deep 45Hz shelf, Shake a 42Hz room resonance, Growl synthesizes sub harmonics so small speakers hear lows they can't play — psychoacoustics, not magic.</p>
@@ -490,7 +490,7 @@
              Cones, mic, angle and gap all redraw from the live settings. -->
         <div class="flex flex-col items-center justify-center gap-1.5">
           <svg id="rk-cabview" viewBox="0 0 196 116" class="w-full max-w-[196px]" role="img" aria-labelledby="rk-cabview-cap"></svg>
-          <span id="rk-cabview-cap" class="sk text-center text-[8px] leading-relaxed text-[#8a7c5d]"></span>
+          <span id="rk-cabview-cap" class="sk text-center text-[8px] leading-relaxed text-[#8a7c5d] font-medium"></span>
         </div>
         <div class="space-y-3">
           <div class="plate">
@@ -641,19 +641,19 @@
           <span class="lg">Separation</span>
           <div class="mb-2 flex items-center gap-1.5">
             <span id="rk-roughsplit-lamp" class="lamp" title="Lit while a split is running"></span>
-            <span class="sk text-[8px] text-[#6d6450]">Run</span>
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Run</span>
           </div>
           <div class="flex flex-col gap-1.5">
             <button id="rk-roughsplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Split the loaded track into four rough lanes — classical DSP, right here in this tab">Rough Split</button>
             {% if studio_split %}
             <button id="rk-studiosplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Demucs-class separation by StemSplit — this one uploads the track for processing">Studio Split</button>
-            <label class="sk mt-0.5 block text-[8px] text-[#6d6450]" for="rk-studiomode">How far to split</label>
+            <label class="sk mt-0.5 block text-[8px] text-[#6d6450] font-medium" for="rk-studiomode">How far to split</label>
             <select id="rk-studiomode" class="w-full rounded-sm border border-[#c9a24a]/40 bg-black/70 px-2 py-1 text-[10px] font-bold text-[#e8c667]">
               {% for m in studio_modes %}
               <option value="{{ m.value }}"{% if m.value == 'FOUR_STEMS' %} selected{% endif %}>{{ m.label }} · {{ m.count }}</option>
               {% endfor %}
             </select>
-            <p id="rk-studiomode-note" class="note mt-0.5 text-[9px] leading-snug text-[#8a8069]"></p>
+            <p id="rk-studiomode-note" class="note mt-0.5 text-[9px] leading-snug text-[#8a8069] font-medium"></p>
             <script id="rk-studiomodes" type="application/json">{{ studio_modes|tojson }}</script>
             {% endif %}
           </div>
@@ -664,8 +664,8 @@
         </div>
         <div>
           <div class="mb-1 flex items-end justify-between gap-2">
-            <span class="sk text-[8px] text-[#6d6450]">Four-lane bay</span>
-            <span class="sk text-[8px] text-[#6d6450]">Mute · Solo · Level</span>
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Four-lane bay</span>
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Mute · Solo · Level</span>
           </div>
           <div class="w2">
             <div id="rk-stems"></div>
@@ -692,8 +692,8 @@
         </div>
         <div>
           <div class="mb-1 flex items-end justify-between gap-2">
-            <span class="sk text-[8px] text-[#4c4536]">Hook map</span>
-            <span id="rk-hookmap-cap" class="sk text-[8px] text-[#4c4536]">No scan yet</span>
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Hook map</span>
+            <span id="rk-hookmap-cap" class="sk text-[8px] text-[#4c4536] font-medium">No scan yet</span>
           </div>
           <div class="w2">
             <!-- The strip is the whole track; marks sit at the real times. -->
@@ -712,7 +712,7 @@
         <span class="chip">SB-12</span>
         <span class="sk text-[10px]">CNV-2</span>
         <span class="sk sk-sub">Format Bench · convert &amp; bounce</span>
-        <span id="rk-cnv-peak" class="val sk ml-auto text-[9px] text-[#8a7c5d]">No source</span>
+        <span id="rk-cnv-peak" class="val sk ml-auto text-[9px] text-[#8a7c5d] font-medium">No source</span>
       </div>
       <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
         <div class="plate">
@@ -754,7 +754,7 @@
                 {% endif %}
               </div>
               {% if server_convert %}
-              <p id="rk-cnv-where" class="note mt-1.5 text-[9px] leading-snug"></p>
+              <p id="rk-cnv-where" class="note mt-1.5 text-[9px] leading-snug font-medium"></p>
               <script id="rk-cnv-formats" type="application/json">{{ convert_formats|tojson }}</script>
               {% endif %}
             </div>
@@ -829,17 +829,17 @@
           <span class="lg">Analyse</span>
           <div class="mb-2 flex items-center gap-1.5">
             <span id="rk-tk-lamp" class="lamp" title="Lit while analysing"></span>
-            <span class="sk text-[8px] text-[#4c4536]">Run</span>
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Run</span>
           </div>
           <button id="rk-tk-detect" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black" disabled>Detect BPM &amp; key</button>
           <div class="mt-2.5 space-y-1">
-            <div><span class="sk text-[8px] text-[#4c4536]">Tempo</span>
+            <div><span class="sk text-[8px] text-[#4c4536] font-medium">Tempo</span>
               <div id="rk-tk-bpm" class="val big">—</div>
-              <div id="rk-tk-bpmsub" class="val text-[9px] text-[#4c4536]">not measured yet</div>
+              <div id="rk-tk-bpmsub" class="val text-[9px] text-[#4c4536] font-medium">not measured yet</div>
             </div>
-            <div class="pt-1"><span class="sk text-[8px] text-[#4c4536]">Key</span>
+            <div class="pt-1"><span class="sk text-[8px] text-[#4c4536] font-medium">Key</span>
               <div id="rk-tk-key" class="val text-[15px] font-black leading-none text-[#2e2920]">—</div>
-              <div id="rk-tk-keysub" class="val text-[9px] text-[#4c4536]">not measured yet</div>
+              <div id="rk-tk-keysub" class="val text-[9px] text-[#4c4536] font-medium">not measured yet</div>
             </div>
           </div>
           <div id="rk-tk-alts" class="mt-2 flex flex-wrap gap-1.5"></div>
@@ -870,10 +870,10 @@
                 <button id="rk-tk-down" class="sw px-2.5 py-1 text-[12px] font-black" aria-label="Down one semitone">−</button>
                 <span id="rk-tk-semis" class="val w-14 text-center text-[13px] font-black text-[#2e2920]">0 st</span>
                 <button id="rk-tk-up" class="sw px-2.5 py-1 text-[12px] font-black" aria-label="Up one semitone">+</button>
-                <button id="rk-tk-zero" class="sw ml-auto px-2 py-1 text-[9px]">Reset</button>
+                <button id="rk-tk-zero" class="sw ml-auto px-2 py-1 text-[9px] font-medium">Reset</button>
               </div>
               <div class="mt-2 flex items-center gap-2">
-                <span class="sk text-[8px] text-[#4c4536]">Cents</span>
+                <span class="sk text-[8px] text-[#4c4536] font-medium">Cents</span>
                 <input id="rk-tk-cents" class="fader min-w-0 flex-1" type="range" min="-50" max="50" step="1" value="0" aria-label="Fine tune in cents">
                 <span id="rk-tk-centsval" class="val w-8 text-right text-[10px] text-[#2e2920]">0</span>
               </div>
@@ -977,14 +977,14 @@
         <span class="chip">SB-15</span>
         <span class="sk text-[10px]">LDN-1</span>
         <span class="sk sk-sub">Loudness · ITU-R BS.1770-4</span>
-        <span id="rk-ldn-src" class="val sk ml-auto text-[9px] text-[#4c4536]">No source</span>
+        <span id="rk-ldn-src" class="val sk ml-auto text-[9px] text-[#4c4536] font-medium">No source</span>
       </div>
       <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
         <div class="plate">
           <span class="lg">Measure</span>
           <div class="mb-2 flex items-center gap-1.5">
             <span id="rk-ldn-lamp" class="lamp" title="Lit while measuring"></span>
-            <span class="sk text-[8px] text-[#4c4536]">Run</span>
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Run</span>
           </div>
           <div class="pick mb-2" id="rk-ldn-source" role="radiogroup" aria-label="What to measure">
             <input type="radio" name="rk-ldnsrc" id="ld-raw" value="raw" checked>
@@ -1004,17 +1004,17 @@
             <div class="plate">
               <span class="lg">Integrated</span>
               <div id="rk-ldn-i" class="val big">—</div>
-              <div class="val text-[9px] text-[#4c4536]">LUFS · gated</div>
+              <div class="val text-[9px] text-[#4c4536] font-medium">LUFS · gated</div>
             </div>
             <div class="plate">
               <span class="lg">True peak</span>
               <div id="rk-ldn-tp" class="val big">—</div>
-              <div id="rk-ldn-tpsub" class="val text-[9px] text-[#4c4536]">dBTP · 4× oversampled</div>
+              <div id="rk-ldn-tpsub" class="val text-[9px] text-[#4c4536] font-medium">dBTP · 4× oversampled</div>
             </div>
             <div class="plate">
               <span class="lg">Range</span>
               <div id="rk-ldn-lra" class="val big">—</div>
-              <div id="rk-ldn-lrasub" class="val text-[9px] text-[#4c4536]">LU · EBU 3342</div>
+              <div id="rk-ldn-lrasub" class="val text-[9px] text-[#4c4536] font-medium">LU · EBU 3342</div>
             </div>
           </div>
 
@@ -1036,7 +1036,7 @@
 
     <!-- Presets -->
     <section class="u u-dark flex flex-wrap items-center gap-2 py-2.5">
-      <span class="sk text-[9px] text-[#8a7c5d]">Presets</span>
+      <span class="sk text-[9px] text-[#8a7c5d] font-medium">Presets</span>
       <button data-preset="flat" class="rk-preset sw px-3 py-1.5 text-[11px]">Flat</button>
       <button data-preset="warm" class="rk-preset sw px-3 py-1.5 text-[11px]">Warm Master</button>
       <button data-preset="vocal" class="rk-preset sw px-3 py-1.5 text-[11px]">Vocal Forward</button>

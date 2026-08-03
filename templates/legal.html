@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} - Street Banker</title>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=6">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
 </head>
 <body class="min-h-screen bg-[#0a0a0b] text-gray-200 antialiased">
   <div class="mx-auto max-w-2xl px-5 py-12">
     <a href="/" class="text-xs font-bold uppercase tracking-[0.3em] text-amber-500/80 hover:text-amber-400">← Street Banker</a>
     <h1 class="mt-4 text-3xl font-black text-white">{{ title }}</h1>
-    <p class="mt-1 text-xs text-gray-500">Last updated: {{ updated }}</p>
+    <p class="mt-1 text-xs text-gray-400">Last updated: {{ updated }}</p>
     <div class="prose-invert mt-8 space-y-6">
       {% for heading, body in sections %}
       <section>
@@ -19,7 +19,7 @@
       </section>
       {% endfor %}
     </div>
-    <div class="mt-12 border-t border-white/10 pt-6 text-xs text-gray-500">
+    <div class="mt-12 border-t border-white/10 pt-6 text-xs text-gray-400">
       Questions: <a href="mailto:team.summitarts@gmail.com" class="text-amber-400 hover:underline">team.summitarts@gmail.com</a>
       · <a href="/terms" class="hover:text-gray-300">Terms</a>
       · <a href="/privacy" class="hover:text-gray-300">Privacy</a>

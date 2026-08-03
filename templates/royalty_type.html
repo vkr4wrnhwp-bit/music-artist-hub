@@ -23,15 +23,15 @@
 
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Total Collected</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Total Collected</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-[#e8c667]">${{ "{:,.2f}".format(rt.total) }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Sources</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Sources</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ rt.sources|length }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-[#111113] p-4">
-      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-500">Periods</div>
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">Periods</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ rt.periods|length }}</div>
     </div>
   </div>
@@ -66,6 +66,6 @@
   {% endif %}
   {% endif %}
 
-  <p class="px-1 text-[11px] text-gray-500">Classified from statement source names — completeness depends on what you've uploaded. Registration guidance is workflow support, not legal advice.</p>
+  <p class="px-1 text-[11px] text-gray-400">Classified from statement source names — completeness depends on what you've uploaded. Registration guidance is workflow support, not legal advice.</p>
 </div>
 {% endblock %}

@@ -21,7 +21,7 @@
     {% for label, value in [("Link visits", totals.visits), ("Service clicks", totals.clicks), ("Fans captured", totals.fans)] %}
     <div class="rounded-2xl border border-white/5 bg-[#111113] p-4 text-center">
       <div class="text-2xl font-bold tabular-nums {{ 'text-[#e8c667]' if loop.last }}">{{ value }}</div>
-      <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">{{ label }}</div>
+      <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{{ label }}</div>
     </div>
     {% endfor %}
   </div>
@@ -31,7 +31,7 @@
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">By Platform</h2>
     {% if by_platform %}
     <table class="mt-3 w-full text-left text-sm">
-      <thead><tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-600">
+      <thead><tr class="border-b border-white/5 text-[10px] uppercase tracking-wide text-gray-400">
         <th class="py-2 pr-4 font-medium">Platform</th><th class="py-2 pr-4 text-right font-medium">Visits</th>
         <th class="py-2 pr-4 text-right font-medium">Clicks</th><th class="py-2 text-right font-medium">Fans</th></tr></thead>
       <tbody>
@@ -45,7 +45,7 @@
         {% endfor %}
       </tbody>
     </table>
-    {% else %}<p class="mt-3 text-xs text-gray-600">No posts yet.</p>{% endif %}
+    {% else %}<p class="mt-3 text-xs text-gray-400">No posts yet.</p>{% endif %}
   </section>
 
   <!-- Ranked posts -->
@@ -58,7 +58,7 @@
         <span class="w-24 shrink-0 font-bold tabular-nums text-gray-400">{{ p.scheduled_date }}</span>
         <span class="w-32 shrink-0 font-semibold text-gray-200">{{ platform_names.get(p.platform, p.platform) }}</span>
         <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
-        <span class="min-w-0 flex-1 truncate text-gray-500">{{ p.caption }}</span>
+        <span class="min-w-0 flex-1 truncate text-gray-400">{{ p.caption }}</span>
         <span class="flex shrink-0 gap-3 tabular-nums text-gray-400">
           <span>{{ p.visits }}v</span><span>{{ p.clicks }}c</span><span class="font-bold text-[#e8c667]">{{ p.fans }}f</span>
         </span>
