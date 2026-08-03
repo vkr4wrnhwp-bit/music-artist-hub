@@ -50,6 +50,7 @@ def public_url(path=""):
 # integrity, or the demo account.
 _OWNER_EMAIL_HASHES = {
     "9bc043ae1f94a567c427d016bd0f42293a724c71e59b5b6b6c9ad3bf869e8c30",
+    "aa35acb84a0b782e5bdf902478d53127d9fc68f885493cd231fbe98b1f5ad020",
 }
 OWNER_PLAN = "label"          # top of plans.TIER_RANK
 

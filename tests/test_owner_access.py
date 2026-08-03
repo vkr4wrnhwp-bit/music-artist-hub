@@ -10,7 +10,11 @@ from app import create_app
 import db as store
 import plans
 
-OWNER = "team.summitarts@gmail.com"
+# Both of the owner's addresses. The account was actually created with
+# the artiswarrecords one, so a list that only held the other granted
+# nothing to the person it was written for.
+OWNER = "artiswarrecords@gmail.com"
+OWNER_ALT = "team.summitarts@gmail.com"
 NOT_OWNER = "someone.else@example.com"
 
 
@@ -42,7 +46,8 @@ def test_the_entitlement_list_holds_no_plaintext_address():
                for h in app_module._OWNER_EMAIL_HASHES), \
         "entitlement list should contain hashes, not addresses"
     assert app_module._is_owner_email(OWNER)
-    assert app_module._is_owner_email("  Team.SummitArts@Gmail.com  "), \
+    assert app_module._is_owner_email(OWNER_ALT)
+    assert app_module._is_owner_email("  ArtIsWarRecords@Gmail.com  "), \
         "case and whitespace should not decide entitlement"
     assert not app_module._is_owner_email(NOT_OWNER)
     assert not app_module._is_owner_email("")
