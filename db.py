@@ -2255,14 +2255,36 @@ def get_artist_signal_profile(user_id):
 
 
 def get_inbox():
+    """Every submission, newest first, with the payload always a dict.
+
+    The inbox is shared, not per-user, so one malformed row took the
+    whole page down with a 500: a payload written already-encoded
+    decodes to a string, and the template calls .items() on it. A
+    submission that arrived is worth showing even if its payload is
+    shaped oddly, and it is certainly not worth hiding the other
+    submissions over.
+    """
     with get_db() as db:
         rows = db.execute("SELECT * FROM inbox ORDER BY created DESC").fetchall()
     out = []
     for r in rows:
         d = dict(r)
-        d["payload"] = json.loads(d["payload"])
+        d["payload"] = _decode_payload(d.get("payload"))
         out.append(d)
     return out
+
+
+def _decode_payload(raw):
+    for _ in range(2):  # one extra pass for a double-encoded row
+        if isinstance(raw, dict):
+            return raw
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            break
+    if isinstance(raw, dict):
+        return raw
+    return {"payload": raw} if raw not in (None, "") else {}
 
 # --- Notifications -------------------------------------------------------------
 
