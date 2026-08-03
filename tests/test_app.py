@@ -1241,7 +1241,10 @@ def test_inbox_persists_submissions():
     client.post("/network/playlist/late-night-synth/submit", json={"song": "Midnight Drive"})
     client.post("/network/nova-reign/enquire", json={"city": "Chicago"})
     body = client.get("/inbox").get_data(as_text=True)
-    assert "Playlist Submission" in body and "Booking Enquiry" in body
+    assert "Playlist submission" in body and "Booking enquiry" in body
+    # Both are records of what this account sent, so they file under Sent.
+    assert "Midnight Drive" in body and "Chicago" in body
+    assert "Sent" in body
     reset_network_state()
 
 

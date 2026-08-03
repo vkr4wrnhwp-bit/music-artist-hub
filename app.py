@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
 import documents_engine
+import inbox_engine
 import recovery_engine
 import report_builder
 import since_engine
@@ -1302,8 +1303,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # Owner accounts also see the rows that belong to no account:
+        # demo-access leads, and anything written before inbox rows had
+        # an owner at all.
+        is_owner = _is_owner_email(user.get("email"))
+        rows = store.get_inbox(user["id"], unowned=is_owner)
         ctx = build_dashboard_context()
-        ctx["inbox_items"] = store.get_inbox()
+        ctx["inbox"] = inbox_engine.build(rows)
+        ctx["inbox_is_owner"] = is_owner
         return render_template("inbox.html", active_page="inbox", **ctx)
 
     @app.route("/")
@@ -3792,7 +3799,8 @@ def create_app():
         store.add_inbox("onesheet_pitch", {
             "artist_id": share["user_id"],
             "artist": (owner or {}).get("name", ""),
-            "name": name, "email": email, "message": message})
+            "name": name, "email": email, "message": message},
+            user_id=share["user_id"])
         store.notify(share["user_id"], "pitch",
                      "One-sheet pitch from %s" % (name or email),
                      message[:300], "/reports")
@@ -4815,7 +4823,8 @@ def create_app():
         if "@" not in email:
             return jsonify({"ok": False, "error": "Enter a valid email."}), 400
         store.add_inbox("sync_request", {"pack": pack["title"], "slug": slug,
-                                         "email": email, "message": message})
+                                         "email": email, "message": message},
+                        user_id=pack["user_id"])
         store.notify(pack["user_id"], "campaign",
                      "License request: %s" % pack["title"],
                      "%s asked about this track via your sync pack link." % email,
@@ -5885,11 +5894,15 @@ def create_app():
 
     @app.route("/network/playlist/<playlist_id>/submit", methods=["POST"])
     def network_submit_route(playlist_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
         data = request.get_json(silent=True) or {}
         entry = submit_to_playlist(playlist_id, data.get("song"), data.get("message"))
         if entry is None:
             return jsonify({"ok": False, "error": "This playlist isn't accepting submissions, or no track was selected."}), 400
-        store.add_inbox("playlist_submission", entry)
+        # A record of what this account sent, filed to this account.
+        store.add_inbox("playlist_submission", entry, user_id=user["id"])
         return jsonify({"ok": True})
 
     @app.route("/network/<profile_id>")
@@ -5918,11 +5931,14 @@ def create_app():
 
     @app.route("/network/<profile_id>/enquire", methods=["POST"])
     def network_enquire_route(profile_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
         data = request.get_json(silent=True) or {}
         entry = enquire_show(profile_id, data.get("city"), data.get("date"), data.get("message"))
         if entry is None:
             return jsonify({"ok": False, "error": "This profile isn't taking booking enquiries."}), 400
-        store.add_inbox("booking_enquiry", entry)
+        store.add_inbox("booking_enquiry", entry, user_id=user["id"])
         return jsonify({"ok": True})
 
     @app.route("/network/moment/<moment_id>")
@@ -6565,9 +6581,9 @@ def create_app():
         # Leave a trail in the inbox: an invoice that went out with no record
         # of going out is how you end up chasing the wrong client.
         store.add_inbox("invoice", {
-            "user_id": user["id"], "number": inv["number"],
-            "client": inv["client"], "project": inv["project"],
-            "hours": inv["hours"], "total": inv["total"]})
+            "number": inv["number"], "client": inv["client"],
+            "project": inv["project"], "hours": inv["hours"],
+            "total": inv["total"]}, user_id=user["id"])
         return redirect(url_for("hours_desk"))
 
     @app.route("/hours/invoice/<invoice_id>/paid", methods=["POST"])

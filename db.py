@@ -779,6 +779,14 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration: who an inbox row belongs to. The table shipped
+        # without an owner and the page showed every row to every
+        # signed-in account: one artist's booking enquiries, pitch
+        # emails and lead addresses, readable by all the others.
+        try:
+            db.execute("ALTER TABLE inbox ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: visit stamps. "What Changed Since Your Last Visit"
         # needs a last visit; it previously had none, which is why the
         # strip was five constants.
@@ -2298,11 +2306,19 @@ def clear_pulse_profile(user_id):
 
 # --- Inbox -------------------------------------------------------------------
 
-def add_inbox(kind, payload):
+def add_inbox(kind, payload, user_id=""):
+    """Record a submission against the account it belongs to.
+
+    `user_id` is the account whose inbox this lands in: the artist who
+    was pitched, the rights holder whose pack was asked about, the
+    person who sent the enquiry. Platform-level rows (demo access
+    requests) pass nothing and are visible only to an owner account.
+    """
     with get_db() as db:
         db.execute(
-            "INSERT INTO inbox (id, kind, payload, created) VALUES (?,?,?,?)",
-            (uuid.uuid4().hex, kind, json.dumps(payload), _now()),
+            "INSERT INTO inbox (id, user_id, kind, payload, created)"
+            " VALUES (?,?,?,?,?)",
+            (uuid.uuid4().hex, user_id or "", kind, json.dumps(payload), _now()),
         )
 
 
@@ -2336,18 +2352,31 @@ def get_artist_signal_profile(user_id):
     return profile
 
 
-def get_inbox():
-    """Every submission, newest first, with the payload always a dict.
+def get_inbox(user_id=None, unowned=False):
+    """One account's submissions, newest first, payload always a dict.
 
-    The inbox is shared, not per-user, so one malformed row took the
-    whole page down with a 500: a payload written already-encoded
-    decodes to a string, and the template calls .items() on it. A
-    submission that arrived is worth showing even if its payload is
-    shaped oddly, and it is certainly not worth hiding the other
-    submissions over.
+    `user_id=None` returns every row and is for owner tooling only.
+    `unowned=True` adds the platform-level rows that belong to no
+    account, which is what an owner sees on their own page.
+
+    The payload decode is defensive: a row written already-encoded
+    comes back as a string, the template calls .items() on it, and the
+    whole page 500s. A submission that arrived is worth showing even
+    when its shape is odd, and it is certainly not worth hiding the
+    other submissions over.
     """
     with get_db() as db:
-        rows = db.execute("SELECT * FROM inbox ORDER BY created DESC").fetchall()
+        if user_id is None:
+            rows = db.execute(
+                "SELECT * FROM inbox ORDER BY created DESC").fetchall()
+        elif unowned:
+            rows = db.execute(
+                "SELECT * FROM inbox WHERE user_id = ? OR user_id = ''"
+                " ORDER BY created DESC", (user_id,)).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM inbox WHERE user_id = ? ORDER BY created DESC",
+                (user_id,)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
