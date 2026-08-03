@@ -13,6 +13,7 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
+import report_builder
 import touring
 import artist_os
 import hubs as hub_defs
@@ -6839,10 +6840,36 @@ def create_app():
 
     @app.route("/reports/<report_id>/generate", methods=["POST"])
     def generate_report_route(report_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        # Build it for real before claiming it exists. When there is no
+        # data the honest answer is the reason, not a header-row file -
+        # an empty "Missing Money Report" reads as "nothing is missing".
         report = generate_report(report_id)
         if report is None:
-            return jsonify({"ok": False}), 404
+            return jsonify({"ok": False, "error": "Unknown report."}), 404
+        filename, body, reason = report_builder.build(report_id, user["id"])
+        if filename is None:
+            return jsonify({"ok": False, "error": reason}), 200
+        report = {**report, "filename": filename, "rows": body.count("\n") - 1,
+                  "download": "/reports/%s/download" % report_id}
         return jsonify({"ok": True, "report": report})
+
+    @app.route("/reports/<report_id>/download")
+    def download_report_route(report_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        # Rebuilt from live statement data rather than served from a
+        # cache, so the file can never disagree with the page.
+        filename, body, reason = report_builder.build(report_id, user["id"])
+        if filename is None:
+            abort(404, reason)
+        return Response(
+            body, mimetype="text/csv",
+            headers={"Content-Disposition":
+                     'attachment; filename="%s"' % filename})
 
     @app.route("/collaborators/invite", methods=["POST"])
     def invite_collaborator_route():

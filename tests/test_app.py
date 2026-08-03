@@ -1856,9 +1856,14 @@ def test_bandsintown_tour_dates(monkeypatch):
     assert "The Fillmore" in body and "Aug 1, 2026" in body
     assert "Charlotte, NC" in body
     # Public EPK carries the tour section with the ticket link.
+    # This user's slug, not "whatever EPK exists" - the tests share one
+    # database, so LIMIT 1 picks up any account that happens to have
+    # saved a kit first and asserts against a stranger's page.
+    demo_user = store_mod.get_user_by_email("demo@streetbanker.io")
     with store_mod.get_db() as conn:
-        slug = conn.execute("SELECT slug FROM epk_profiles WHERE slug IS NOT NULL "
-                            "LIMIT 1").fetchone()["slug"]
+        slug = conn.execute(
+            "SELECT slug FROM epk_profiles WHERE slug IS NOT NULL "
+            "AND user_id = ?", (demo_user["id"],)).fetchone()["slug"]
     pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Tour Dates" in pub and "The Fillmore" in pub
     assert "https://tix.example/1" in pub
@@ -3468,12 +3473,24 @@ def test_complete_registration_wizard_step_unknown_song_returns_404():
 
 
 def test_generate_report_route():
+    """The invariant, not the state: a filename is only ever returned
+    when there are bytes behind it. This used to assert ok:True while the
+    route invented a name and built nothing.
+
+    Deliberately does not assume whether the demo account has statements
+    - the suite shares one database and other tests upload to it, so that
+    varies with shard count. Asserting the contract holds either way."""
     client = _demo()
     response = client.post("/reports/royalty-report/generate")
     assert response.status_code == 200
     data = response.get_json()
-    assert data["ok"] is True
-    assert data["report"]["id"] == "royalty-report"
+    if data["ok"]:
+        assert data["report"]["id"] == "royalty-report"
+        got = client.get(data["report"]["download"])
+        assert got.status_code == 200, "claimed a file that will not download"
+        assert got.get_data(as_text=True).strip(), "download was empty"
+    else:
+        assert data.get("error"), "refused without saying why"
 
 
 def test_generate_report_unknown_id_returns_404():

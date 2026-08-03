@@ -185,10 +185,25 @@
       try {
         const res = await fetch(`/reports/${reportId}/generate`, { method: "POST" });
         const data = await res.json();
+        resultEl.classList.remove("hidden");
         if (data.ok) {
-          resultEl.textContent = "Ready: " + data.report.filename;
-          resultEl.classList.remove("hidden");
+          // A link, because there is now a file at the other end of it.
+          // This used to say "Ready: <name>" with nothing to click.
+          resultEl.innerHTML = "";
+          const a = document.createElement("a");
+          a.href = data.report.download;
+          a.className = "font-semibold text-amber-400 underline";
+          a.textContent = "Download " + data.report.filename;
+          resultEl.appendChild(a);
+          const n = document.createElement("span");
+          n.className = "ml-2 text-gray-500";
+          n.textContent = "(" + data.report.rows + " rows)";
+          resultEl.appendChild(n);
           prependRecent(data.report);
+        } else {
+          // No data is a reason, not a file.
+          resultEl.textContent = data.error || "Could not build that report.";
+          resultEl.className = resultEl.className.replace(/\bhidden\b/, "");
         }
       } finally {
         btn.disabled = false;

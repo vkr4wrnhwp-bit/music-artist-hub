@@ -1407,13 +1407,16 @@ def reset_registration_wizard_state():
     _registration_wizard_overrides.clear()
 
 
+# Formats say CSV because CSV is what report_builder produces. They said
+# PDF and XLSX while nothing was produced at all; making the label true
+# was cheaper and more useful than adding a PDF dependency.
 REPORT_TYPES = [
-    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song.", "category": "Financial", "format": "PDF", "icon": "dollar"},
+    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song.", "category": "Financial", "format": "CSV", "icon": "dollar"},
     {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected.", "category": "Recovery", "format": "CSV", "icon": "search"},
-    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples.", "category": "Financial", "format": "PDF", "icon": "trend"},
-    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount.", "category": "Financial", "format": "PDF", "icon": "bolt"},
-    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body.", "category": "Rights", "format": "XLSX", "icon": "shield"},
-    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth.", "category": "Investor", "format": "PDF", "icon": "chart"},
+    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples.", "category": "Financial", "format": "CSV", "icon": "trend"},
+    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount.", "category": "Financial", "format": "CSV", "icon": "bolt"},
+    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body.", "category": "Rights", "format": "CSV", "icon": "shield"},
+    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth.", "category": "Investor", "format": "CSV", "icon": "chart"},
 ]
 
 REPORT_CATEGORY_ORDER = ["Financial", "Recovery", "Rights", "Investor"]
