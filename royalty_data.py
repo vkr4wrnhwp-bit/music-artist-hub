@@ -48,16 +48,6 @@ class Alert:
 
 
 @dataclass
-class HealthFactor:
-    key: str
-    label: str
-    score: float  # 0..1
-    weight: float
-    detail: str
-    recommendation: str
-
-
-@dataclass
 class Finding:
     id: str
     source: str
@@ -568,82 +558,6 @@ def assess_advance_eligibility(earnings_trend, payout_calendar, catalog_value_mi
         "history_score": round(history_score * 100),
         "suggested_advance": suggested_advance,
     }
-
-
-def meter_lit_segments(amount, max_amount, segments=12):
-    if max_amount <= 0:
-        return 0
-    fraction = min(amount / max_amount, 1.0)
-    return round(fraction * segments)
-
-
-_HEALTH_TRACK_TOTAL = 24
-_HEALTH_METADATA_DONE = 20
-_HEALTH_SPLITS_DONE = 15
-_HEALTH_SCAN_RUN = False
-
-
-def _plural(n, noun):
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
-
-
-def get_health_factors(catalog):
-    connected = sum(1 for p in catalog if p.status == "connected")
-    total_platforms = len(catalog)
-    tracks = _HEALTH_TRACK_TOTAL
-    metadata_gap = tracks - _HEALTH_METADATA_DONE
-    splits_gap = tracks - _HEALTH_SPLITS_DONE
-    platform_gap = total_platforms - connected
-
-    return [
-        HealthFactor(
-            key="connections",
-            label="Platform connections",
-            score=(connected / total_platforms) if total_platforms else 0.0,
-            weight=0.30,
-            detail=f"{connected} of {total_platforms} platforms connected",
-            recommendation=f"Connect {_plural(platform_gap, 'more platform')}",
-        ),
-        HealthFactor(
-            key="metadata",
-            label="Metadata completeness",
-            score=(_HEALTH_METADATA_DONE / tracks) if tracks else 0.0,
-            weight=0.25,
-            detail=f"{_HEALTH_METADATA_DONE} of {tracks} tracks have complete metadata",
-            recommendation=f"Complete metadata on {_plural(metadata_gap, 'track')}",
-        ),
-        HealthFactor(
-            key="splits",
-            label="Split confirmation",
-            score=(_HEALTH_SPLITS_DONE / tracks) if tracks else 0.0,
-            weight=0.25,
-            detail=f"{_HEALTH_SPLITS_DONE} of {tracks} tracks have confirmed splits",
-            recommendation=f"Confirm splits on {_plural(splits_gap, 'track')}",
-        ),
-        HealthFactor(
-            key="scan",
-            label="Missing royalty scan",
-            score=1.0 if _HEALTH_SCAN_RUN else 0.0,
-            weight=0.20,
-            detail="Scan up to date" if _HEALTH_SCAN_RUN else "No scan run yet",
-            recommendation="Run a missing royalties scan",
-        ),
-    ]
-
-
-def royalty_health_score(factors):
-    total_weight = sum(f.weight for f in factors)
-    if total_weight <= 0:
-        return 0
-    weighted = sum(f.score * f.weight for f in factors)
-    return round((weighted / total_weight) * 100)
-
-
-def get_health_recommendations(factors, limit=3):
-    incomplete = sorted(
-        (f for f in factors if f.score < 1.0), key=lambda f: f.score
-    )
-    return incomplete[:limit]
 
 
 def get_overview_health(catalog, songs):
@@ -1241,26 +1155,6 @@ def get_documents_vault(songs):
     return {"entries": entries, "completeness": completeness}
 
 
-def catalog_completeness_score(songs, catalog, documents_vault):
-    """How ready the catalog is to collect royalties, blending metadata,
-    connections, registration, split confirmation, and document coverage
-    into a single percentage.
-    """
-    if not songs:
-        return 0
-    metadata_avg = sum(metadata_completion_score(s) for s in songs) / len(songs)
-    connected = sum(1 for p in catalog if p.status == "connected")
-    connection_ratio = (connected / len(catalog)) if catalog else 0.0
-    registration_avg = sum(registration_checklist_score(s) for s in songs) / len(songs)
-    splits_avg = sum(1.0 if splits_fully_confirmed(s) else 0.0 for s in songs) / len(songs)
-    doc_avg = documents_vault["completeness"]
-    overall = (
-        metadata_avg * 0.25 + connection_ratio * 0.20 + registration_avg * 0.25
-        + splits_avg * 0.15 + doc_avg * 0.15
-    )
-    return round(overall * 100)
-
-
 @dataclass
 class Release:
     id: str
@@ -1467,10 +1361,6 @@ def generate_report(report_id):
     return report
 
 
-def reset_report_history():
-    _report_history.clear()
-
-
 def get_since_last_login_summary(catalog, songs, catalog_value_pct_change, catalog_value_mid=0):
     connection_issues = sum(1 for p in catalog if p.status in ("needs_login", "error"))
     metadata_issues = sum(len(song_missing_issues(s)) for s in songs)
@@ -1563,66 +1453,6 @@ def get_rights_conflicts(songs):
 
     conflicts.sort(key=lambda c: _SEVERITY_ORDER.get(c.severity, 3))
     return conflicts
-
-
-@dataclass
-class Collaborator:
-    id: str
-    name: str
-    email: str
-    role: str  # Viewer | Editor | Admin
-    status: str  # Active | Invited | Removed
-    songs: list  # song titles this collaborator has access to
-
-
-COLLABORATOR_ROLES = ["Viewer", "Editor", "Admin"]
-
-_DEFAULT_COLLABORATORS = [
-    Collaborator("jamie-rowe", "Jamie Rowe", "jamie.rowe@example.com", "Editor", "Active", ["Midnight Drive"]),
-    Collaborator("marco-velocity", "Marco Velocity", "marco@velocitysound.com", "Viewer", "Active", ["Neon Dreams"]),
-    Collaborator("lila-rose", "Lila Rose", "lila.rose@example.com", "Viewer", "Active", ["City Lights"]),
-    Collaborator("dj-codec", "DJ Codec", "djcodec@example.com", "Viewer", "Invited", ["Digital Paradise"]),
-]
-
-_collaborators = list(_DEFAULT_COLLABORATORS)
-
-
-def get_collaborators():
-    return [c for c in _collaborators if c.status != "Removed"]
-
-
-def invite_collaborator(name, email, role, songs):
-    if not name or not email or role not in COLLABORATOR_ROLES:
-        return None
-    collaborator = Collaborator(
-        id=f"invite-{_slug(name)}-{len(_collaborators)}",
-        name=name, email=email, role=role, status="Invited", songs=songs or [],
-    )
-    _collaborators.append(collaborator)
-    return collaborator
-
-
-def update_collaborator_role(collaborator_id, role):
-    if role not in COLLABORATOR_ROLES:
-        return None
-    for i, c in enumerate(_collaborators):
-        if c.id == collaborator_id and c.status != "Removed":
-            _collaborators[i] = replace(c, role=role)
-            return _collaborators[i]
-    return None
-
-
-def remove_collaborator(collaborator_id):
-    for i, c in enumerate(_collaborators):
-        if c.id == collaborator_id and c.status != "Removed":
-            _collaborators[i] = replace(c, status="Removed")
-            return True
-    return False
-
-
-def reset_collaborator_state():
-    global _collaborators
-    _collaborators = list(_DEFAULT_COLLABORATORS)
 
 
 def get_recovery_summary(catalog, songs, earnings_trend):

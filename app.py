@@ -172,29 +172,22 @@ from royalty_data import (
     add_split,
     advance_claim,
     assess_advance_eligibility,
-    catalog_completeness_score,
     complete_registration_step,
-    COLLABORATOR_ROLES,
     estimate_catalog_value,
     get_action_center,
-    get_collaborators,
     get_overview_health,
     get_royalties_overview,
     get_valuation_overview,
     platform_logo_key,
     recent_payout_rows,
     get_recovery_summary,
-    invite_collaborator,
     generate_report,
-    get_available_reports,
     get_catalog_value_tracker,
     get_claims,
     get_dashboard_story,
     get_documents_vault,
     get_earnings_trend,
     get_fixes_queue,
-    get_health_factors,
-    get_health_recommendations,
     get_kpis,
     get_missing_royalty_findings,
     get_platform_balances,
@@ -215,18 +208,14 @@ from royalty_data import (
     WIZARD_TARGETS,
     WIZARD_TARGET_LABELS,
     live_song,
-    meter_lit_segments,
     metadata_completion_score,
     money_left_on_table,
     registration_checklist_score,
     reject_claim,
-    remove_collaborator,
     remove_split,
-    royalty_health_score,
     royalty_progress,
     set_connection_status,
     set_fix_status,
-    update_collaborator_role,
     song_check_status,
     song_missing_issues,
     split_total_percentage,
@@ -300,13 +289,7 @@ def build_dashboard_context():
     kpis = get_kpis()
     total = total_royalties(balances) if demo else 0.0
     goal = get_royalty_goal()
-    max_balance = max((balance.amount for balance in balances), default=0)
-    balance_meters = [
-        {"balance": b, "segments": meter_lit_segments(b.amount, max_balance)}
-        for b in balances
-    ]
     catalog = get_platform_catalog()
-    health_factors = get_health_factors(catalog)
 
     # Same reasoning: _SONGS is five invented recordings. On /identifiers
     # they rendered as the artist's own catalogue, complete with ISRCs.
@@ -321,10 +304,6 @@ def build_dashboard_context():
         }
         for s in songs
     ]
-    metadata_scores = [metadata_completion_score(s) for s in songs]
-    avg_metadata_score = round(sum(metadata_scores) / len(metadata_scores) * 100) if songs else 0
-    worst_metadata_songs = sorted(songs, key=metadata_completion_score)[:3]
-
     payout_calendar = get_payout_calendar()
     claims = get_claims(catalog)
     alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
@@ -351,11 +330,9 @@ def build_dashboard_context():
         "fixes_queue": get_fixes_queue(catalog, songs, missing_findings),
         "top_leaks": get_top_royalty_leaks(missing_findings),
         "documents_vault": documents_vault,
-        "completeness_score": catalog_completeness_score(songs, catalog, documents_vault),
         "releases": get_upcoming_releases(),
         "forecast": get_royalty_forecast(earnings_trend),
         "value_tracker": value_tracker,
-        "available_reports": get_available_reports(),
         "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"], catalog_value["mid"]),
         "account": _account_with_user(get_account()),
         "overview_health": get_overview_health(catalog, songs),
@@ -372,27 +349,14 @@ def build_dashboard_context():
         "registration_wizards": [get_registration_wizard(s) for s in songs],
         "wizard_targets": WIZARD_TARGETS,
         "wizard_target_labels": WIZARD_TARGET_LABELS,
-        "collaborators": get_collaborators(),
-        "collaborator_roles": COLLABORATOR_ROLES,
         "alerts": alerts,
         "smart_recommendations": smart_recommendations,
-        "platform_catalog": catalog,
-        "health_score": royalty_health_score(health_factors),
-        "health_factors": health_factors,
-        "health_recommendations": get_health_recommendations(health_factors),
-        "balance_meters": balance_meters,
         "total": total,
         "goal": goal,
         "progress": royalty_progress(total, goal),
-        "kpis": kpis,
         "earnings_trend": earnings_trend,
         "payouts": payouts,
         "songs_summary": songs_summary,
-        "avg_metadata_score": avg_metadata_score,
-        "worst_metadata_songs": [
-            {"song": s, "score": round(metadata_completion_score(s) * 100)}
-            for s in worst_metadata_songs
-        ],
         "payout_calendar": payout_calendar,
         "upcoming_payout_total": round(upcoming_payout_total(payout_calendar), 2),
         "claims": claims,
@@ -7056,33 +7020,6 @@ def create_app():
             body, mimetype="text/csv",
             headers={"Content-Disposition":
                      'attachment; filename="%s"' % filename})
-
-    @app.route("/collaborators/invite", methods=["POST"])
-    def invite_collaborator_route():
-        data = request.get_json(silent=True) or {}
-        name = (data.get("name") or "").strip()
-        email = (data.get("email") or "").strip()
-        role = data.get("role")
-        songs = data.get("songs") or []
-        collaborator = invite_collaborator(name, email, role, songs)
-        if collaborator is None:
-            return jsonify({"ok": False, "error": "Invalid name, email, or role"}), 400
-        return jsonify({"ok": True, "collaborator": asdict(collaborator)})
-
-    @app.route("/collaborators/<collaborator_id>/role", methods=["POST"])
-    def update_collaborator_role_route(collaborator_id):
-        data = request.get_json(silent=True) or {}
-        collaborator = update_collaborator_role(collaborator_id, data.get("role"))
-        if collaborator is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "collaborator": asdict(collaborator)})
-
-    @app.route("/collaborators/<collaborator_id>/remove", methods=["POST"])
-    def remove_collaborator_route(collaborator_id):
-        removed = remove_collaborator(collaborator_id)
-        if not removed:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True})
 
     @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
     def resolve_alert(alert_id):
