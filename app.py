@@ -13,6 +13,7 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
+import documents_engine
 import recovery_engine
 import report_builder
 import valuation_engine
@@ -6119,13 +6120,23 @@ def create_app():
                     doc_type = request.form.get("doc_type") or "Other"
                     store.add_document(user["id"], f.filename, "/uploads/" + fname,
                                        doc_type if doc_type in _DOC_TYPES else "Other",
-                                       (request.form.get("note") or "").strip())
+                                       (request.form.get("note") or "").strip(),
+                                       (request.form.get("track") or "").strip())
                     return redirect("/documents")
         ctx = build_dashboard_context()
         ctx["docs_user"] = user
         ctx["real_docs"] = store.list_documents(user["id"]) if user else []
         ctx["doc_types"] = _DOC_TYPES
         ctx["doc_error"] = error
+        # documents.html's lower half reads _DOCUMENT_PRESENCE: five
+        # invented song ids and their paperwork, which no upload could
+        # ever change. A real account gets its own vault counted instead.
+        if user is not None and not _session_is_demo():
+            return render_template(
+                "documents_real.html", active_page="documents",
+                documents_view=documents_engine.build(user["id"]),
+                documents_per_track_types=documents_engine.PER_TRACK_TYPES,
+                documents_catalog_types=documents_engine.CATALOG_TYPES, **ctx)
         return render_template("documents.html", active_page="documents", **ctx)
 
     @app.route("/documents/<doc_id>/delete", methods=["POST"])

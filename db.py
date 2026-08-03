@@ -779,6 +779,14 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration: which recording a document belongs to. Coverage per
+        # song was previously read from a hardcoded presence map, so it
+        # could never reflect an upload; the vault now needs somewhere to
+        # record what the artist told us the file covers.
+        try:
+            db.execute("ALTER TABLE documents ADD COLUMN track TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: show advancing data on tour shows.
         for _col in ("advance TEXT", "settlement TEXT", "share_token TEXT"):
             try:
@@ -2288,13 +2296,14 @@ def mark_notifications_read(user_id):
 
 # --- Documents vault -----------------------------------------------------------
 
-def add_document(user_id, filename, path, doc_type, note=""):
+def add_document(user_id, filename, path, doc_type, note="", track=""):
     doc_id = uuid.uuid4().hex
     with get_db() as db:
         db.execute(
-            "INSERT INTO documents (id, user_id, filename, path, doc_type, note, created)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (doc_id, user_id, filename[:200], path, doc_type[:60], note[:300], _now()))
+            "INSERT INTO documents (id, user_id, filename, path, doc_type, note,"
+            " track, created) VALUES (?,?,?,?,?,?,?,?)",
+            (doc_id, user_id, filename[:200], path, doc_type[:60], note[:300],
+             (track or "")[:200], _now()))
     return doc_id
 
 

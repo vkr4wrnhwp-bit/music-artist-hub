@@ -3027,7 +3027,7 @@ def test_documents_vault_real():
         content_type="multipart/form-data")
     assert r.status_code == 302
     body = client.get("/documents").get_data(as_text=True)
-    assert "Your Vault" in body and "producer-split.pdf" in body
+    assert "Add to your vault" in body and "producer-split.pdf" in body
     assert "50/50 with Marcus" in body
     user = store_mod.get_user_by_email(email)
     doc = store_mod.list_documents(user["id"])[0]
