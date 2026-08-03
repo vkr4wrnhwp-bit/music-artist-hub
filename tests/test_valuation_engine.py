@@ -125,7 +125,10 @@ def test_value_drivers_are_measured_not_invented():
 
 
 def test_overview_drops_the_showcases_week_for_real_accounts():
+    """The strip survived - see test_since_engine - but none of the
+    constants it used to quote did."""
     client = _fresh_client()
     body = client.get("/overview").get_data(as_text=True)
-    assert "What Changed Since Your Last Visit" not in body
     assert "482.15" not in body
+    assert "New payouts received" not in body
+    assert "Tasks completed" not in body

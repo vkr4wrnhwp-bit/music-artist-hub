@@ -779,6 +779,14 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration: visit stamps. "What Changed Since Your Last Visit"
+        # needs a last visit; it previously had none, which is why the
+        # strip was five constants.
+        for _col in ("last_seen TEXT", "prev_seen TEXT"):
+            try:
+                db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: which recording a document belongs to. Coverage per
         # song was previously read from a hardcoded presence map, so it
         # could never reflect an upload; the vault now needs somewhere to
@@ -850,6 +858,80 @@ def get_user(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def roll_seen(user_id):
+    """Stamp this visit and return the previous one, or None on a first.
+
+    Two columns rather than one: reading and writing the same stamp
+    would make the window close behind you, so the page would say
+    "nothing new" the moment it rendered. `prev_seen` is what the
+    Overview strip measures from, and it only moves once per session.
+    """
+    now = _now()
+    with get_db() as db:
+        row = db.execute("SELECT last_seen FROM users WHERE id = ?",
+                         (user_id,)).fetchone()
+        if row is None:
+            return None
+        previous = row["last_seen"]
+        db.execute("UPDATE users SET prev_seen = ?, last_seen = ? WHERE id = ?",
+                   (previous, now, user_id))
+    return previous
+
+
+def get_prev_seen(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT prev_seen FROM users WHERE id = ?",
+                         (user_id,)).fetchone()
+    return row["prev_seen"] if row else None
+
+
+def activity_since(user_id, since):
+    """Counts of things that actually happened, after an ISO timestamp.
+
+    One query per kind, all filtered to this user. Everything here is a
+    row with a created/uploaded stamp on it - nothing is inferred, and
+    a kind with no rows returns zero rather than being estimated.
+
+    Stamps are second-granular, so the window starts at the second of
+    the last visit rather than strictly after it. That can carry one
+    second of overlap and show something a second time; the other way
+    round drops anything that happened in the same second as the visit,
+    and a strip that silently loses events is worse than one that
+    occasionally repeats them.
+    """
+    since = (since or "")[:19]
+    out = {}
+    with get_db() as db:
+        row = db.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS amount FROM statements"
+            " WHERE user_id = ? AND uploaded >= ?", (user_id, since)).fetchone()
+        out["statements"], out["statement_total"] = row["n"], round(row["amount"], 2)
+        out["fans"] = db.execute(
+            "SELECT COUNT(*) AS n FROM ml_fans WHERE user_id = ? AND created >= ?",
+            (user_id, since)).fetchone()["n"]
+        for key, event_type in (("visits", "page_view"), ("clicks", "service_click"),
+                                ("presaves", "presave_notify")):
+            out[key] = db.execute(
+                "SELECT COUNT(*) AS n FROM ml_events e JOIN ml_campaigns c"
+                " ON c.id = e.campaign_id WHERE c.user_id = ? AND e.event_type = ?"
+                " AND e.created >= ?", (user_id, event_type, since)).fetchone()["n"]
+        out["notifications"] = db.execute(
+            "SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND created >= ?",
+            (user_id, since)).fetchone()["n"]
+        out["cases_opened"] = db.execute(
+            "SELECT COUNT(*) AS n FROM recovery_cases WHERE user_id = ? AND created >= ?",
+            (user_id, since)).fetchone()["n"]
+        row = db.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(payout_result), 0) AS amount"
+            " FROM recovery_cases WHERE user_id = ? AND status = 'won'"
+            " AND updated >= ?", (user_id, since)).fetchone()
+        out["cases_won"], out["recovered"] = row["n"], round(row["amount"], 2)
+        out["documents"] = db.execute(
+            "SELECT COUNT(*) AS n FROM documents WHERE user_id = ? AND created >= ?",
+            (user_id, since)).fetchone()["n"]
+    return out
 
 
 def list_users():

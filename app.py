@@ -16,6 +16,7 @@ import db as store
 import documents_engine
 import recovery_engine
 import report_builder
+import since_engine
 import valuation_engine
 
 # The address this product answers to in anything that outlives the
@@ -548,6 +549,9 @@ def create_app():
             user = store.get_user_by_email(email)
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
+                # A fresh sign-in is a fresh visit: let the Overview
+                # strip roll its window again on the next dashboard view.
+                session.pop("seen_rolled", None)
                 # The owner does not pay to use their own product. This
                 # grants the top plan, nothing more - the password check
                 # above still had to pass, and every other protection is
@@ -1381,7 +1385,18 @@ def create_app():
         # platform list as /recovery, so every account was told it was
         # owed $3,301.38. Hand the card the account's own scan instead.
         user = current_user()
+        # Roll the visit stamp once per session, so the "since your last
+        # visit" window does not close behind the reader on a refresh.
+        since = None
+        if user is not None:
+            if not session.get("seen_rolled"):
+                store.roll_seen(user["id"])
+                session["seen_rolled"] = True
+            since = store.get_prev_seen(user["id"])
         return render_template("overview.html", active_page="overview",
+                               since_visit=(since_engine.build(user["id"], since)
+                                            if user is not None
+                                            and not _session_is_demo() else None),
                                real_royalty=_real_royalty(),
                                recovery_view=(recovery_engine.build(user["id"])
                                               if user is not None
