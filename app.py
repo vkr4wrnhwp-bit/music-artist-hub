@@ -6394,8 +6394,17 @@ def create_app():
     @app.route("/onboarding")
     def onboarding():
         catalog = get_platform_catalog()
+        # Nothing is pre-checked. The status column on _DEFAULT_PLATFORMS is
+        # seed data, and reading it here meant seven of these eight boxes -
+        # Spotify, Apple Music, ASCAP, BMI, SESAC, SoundExchange, The MLC -
+        # rendered ticked on the first screen a brand-new artist ever sees,
+        # under the heading "Connect your sources". It told them their PRO
+        # and MLC accounts were already linked, and flatly contradicted
+        # /connections, which says "Not connectable yet - and we won't fake
+        # them". The tick state was never submitted or persisted anywhere,
+        # so it claimed those integrations while doing nothing at all.
         sources = [{"name": p.platform, "logo": platform_logo_key(p.platform),
-                    "connected": p.status == "connected"} for p in catalog[:8]]
+                    "connected": False} for p in catalog[:8]]
         eq = get_artist_eq_config()
         return render_template(
             "onboarding.html", sources=sources,
