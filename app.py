@@ -13,6 +13,7 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
+import recovery_engine
 import report_builder
 
 # The address this product answers to in anything that outlives the
@@ -1406,8 +1407,15 @@ def create_app():
 
     @app.route("/overview")
     def overview():
+        # Money Left on the Table used to read from the same hardcoded
+        # platform list as /recovery, so every account was told it was
+        # owed $3,301.38. Hand the card the account's own scan instead.
+        user = current_user()
         return render_template("overview.html", active_page="overview",
                                real_royalty=_real_royalty(),
+                               recovery_view=(recovery_engine.build(user["id"])
+                                              if user is not None
+                                              and not _session_is_demo() else None),
                                **build_dashboard_context())
 
     @app.route("/dashboard")
@@ -1594,6 +1602,16 @@ def create_app():
 
     @app.route("/recovery")
     def recovery():
+        # recovery.html is the showcase: its figures come from
+        # royalty_data's hardcoded platform list, which describes nobody's
+        # account. A real artist gets recovery_real.html, computed from
+        # the statements they uploaded and empty when they have uploaded
+        # nothing.
+        user = current_user()
+        if user is not None and not _session_is_demo():
+            return render_template("recovery_real.html", active_page="recovery",
+                                   recovery_view=recovery_engine.build(user["id"]),
+                                   **build_dashboard_context())
         return render_template("recovery.html", active_page="recovery",
                                real_royalty=_real_royalty(),
                                **build_dashboard_context())
@@ -6854,6 +6872,23 @@ def create_app():
 
     @app.route("/scan/missing-royalties", methods=["POST"])
     def scan_missing_royalties():
+        # Same split as /recovery: a real account is scanned against its
+        # own statements, and gets an empty result when it has uploaded
+        # none rather than the showcase's seventeen findings.
+        user = current_user()
+        if user is not None and not _session_is_demo():
+            view = recovery_engine.build(user["id"])
+            return jsonify({
+                "ok": True,
+                "count": view["finding_count"],
+                "total_estimated": view["total_at_stake"],
+                "findings": [{"id": f["id"], "source": f["source"],
+                              "issue_type": f["issue_type"],
+                              "estimated_value": f["amount"],
+                              "confidence": f["confidence"],
+                              "recommended_action": f["action"]}
+                             for f in view["findings"]],
+            })
         findings = get_missing_royalty_findings(get_platform_catalog())
         return jsonify({
             "ok": True,

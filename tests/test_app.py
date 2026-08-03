@@ -2897,9 +2897,11 @@ def test_money_pages_use_real_statement_data():
     assert "By Source" in body and "Monthly Trend" in body and "200.75" in body
     # Recovery: unmatched + coverage-gap findings with action buttons.
     body = client.get("/recovery").get_data(as_text=True)
-    assert "Unmatched revenue in your statements" in body
-    assert "Neon Dreams" in body and "missing from Apple Music" in body
+    assert "Unattributed revenue" in body and "12.40" in body
+    assert "Neon Dreams" in body and "Apple Music" in body
     assert "Create recovery action" in body
+    # The showcase's hardcoded figures are nowhere near this account.
+    assert "3,301.38" not in body and "Ready to Claim" not in body
     # Valuation: annualized signal with the honesty disclaimer.
     body = client.get("/valuation").get_data(as_text=True)
     assert "Annualized Pace" in body and "Catalog Signal" in body
