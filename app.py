@@ -261,11 +261,41 @@ def _account_with_user(account):
             "next_payout": None, "next_payout_in": None}
 
 
+def _session_is_demo():
+    """Whether the current request belongs to the showcase account.
+
+    build_dashboard_context() feeds roughly sixty renders and takes no
+    user argument, so it reads the session itself - the same trick
+    _account_with_user already uses. Safe outside a request context;
+    tests call these directly.
+    """
+    try:
+        user_id = session.get("user_id")
+    except RuntimeError:
+        return False
+    if not user_id:
+        return False
+    user = store.get_user(user_id)
+    if not user:
+        return False
+    # _is_demo_email lives inside create_app(), so it is out of scope
+    # here. Same rule, stated once more rather than reached for.
+    email = (user["email"] or "").strip().lower()
+    return (email == "demo@streetbanker.io"
+            or (email.startswith("demo-")
+                and email.endswith("@streetbanker.io")))
+
+
 def build_dashboard_context():
-    balances = get_platform_balances()
+    # royalty_data's module-level seed data is the showcase's, not the
+    # signed-in artist's. Handing it to a real account produced
+    # "Total Royalties Collected $23,217.64" on an empty dashboard and a
+    # catalogue of five recordings with ISRCs belonging to nobody.
+    demo = _session_is_demo()
+    balances = get_platform_balances() if demo else []
     payouts = get_recent_payouts()
     kpis = get_kpis()
-    total = total_royalties(balances)
+    total = total_royalties(balances) if demo else 0.0
     goal = get_royalty_goal()
     max_balance = max((balance.amount for balance in balances), default=0)
     balance_meters = [
@@ -275,7 +305,9 @@ def build_dashboard_context():
     catalog = get_platform_catalog()
     health_factors = get_health_factors(catalog)
 
-    songs = [live_song(s) for s in get_songs()]
+    # Same reasoning: _SONGS is five invented recordings. On /identifiers
+    # they rendered as the artist's own catalogue, complete with ISRCs.
+    songs = [live_song(s) for s in get_songs()] if demo else []
     songs_summary = [
         {
             "song": s,
