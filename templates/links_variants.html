@@ -8,7 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker Links · Variants</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-400">One campaign, many trackable doors: give each promo channel — bio, ads, flyers, street team — its own URL and see exactly which one converts.</p>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">One campaign, many trackable doors: give each promo channel — bio, ads, flyers, street team — its own URL and see exactly which one converts.</p>
     </div>
     <a href="/links/{{ c.id }}/edit" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Campaign</a>
   </div>
@@ -16,12 +16,12 @@
   <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">New Variant</h2>
     <form method="post" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-      <input name="name" required placeholder="Name (e.g. Instagram bio)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:border-amber-500/50 focus:outline-none">
-      <input name="utm_source" placeholder="utm_source (instagram)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:border-amber-500/50 focus:outline-none">
-      <input name="utm_medium" placeholder="utm_medium (bio)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:border-amber-500/50 focus:outline-none">
+      <input name="name" required placeholder="Name (e.g. Instagram bio)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+      <input name="utm_source" placeholder="utm_source (instagram)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+      <input name="utm_medium" placeholder="utm_medium (bio)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
       <button class="rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-5 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Create</button>
     </form>
-    <p class="mt-2 text-[10px] text-gray-400">Common channels: Instagram bio, TikTok bio, YouTube description, email blast, QR flyer, street team, press outreach, paid ads.</p>
+    <p class="mt-2 text-[10px] text-gray-300 font-medium">Common channels: Instagram bio, TikTok bio, YouTube description, email blast, QR flyer, street team, press outreach, paid ads.</p>
   </section>
 
   {% if variants | length >= 2 %}
@@ -41,28 +41,28 @@
       {% if enough and best.ctr %}
       <span class="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1 text-[10px] font-black uppercase text-green-400">Leader: {{ best.name }} — {{ best.ctr | round(1) }}% CTR</span>
       {% else %}
-      <span class="text-[10px] text-gray-400">No winner called yet — each variant needs 30+ visits before the comparison means anything.</span>
+      <span class="text-[10px] text-gray-300 font-medium">No winner called yet — each variant needs 30+ visits before the comparison means anything.</span>
       {% endif %}
     </div>
     {% set peak = (rows | map(attribute="ctr") | max) or 1 %}
     <div class="mt-3 space-y-2">
       {% for r in rows %}
       <div class="flex items-center gap-3">
-        <span class="w-36 shrink-0 truncate text-xs font-bold {{ 'text-green-400' if enough and r.name == best.name and r.ctr else 'text-gray-300' }}">{{ r.name }}</span>
+        <span class="w-36 shrink-0 truncate text-xs font-bold {{ 'text-green-400' if enough and r.name == best.name and r.ctr else 'text-gray-200' }}">{{ r.name }}</span>
         <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-black/40">
           <span class="block h-full rounded-full {{ 'bg-green-500' if enough and r.name == best.name and r.ctr else 'bg-[#d8b25a]' }}" style="width: {{ (r.ctr / peak * 100) | round(1) if peak else 0 }}%;"></span>
         </div>
-        <span class="w-28 shrink-0 text-right text-[11px] tabular-nums text-gray-400">{{ r.ctr | round(1) }}% · {{ r.visits }} visits</span>
+        <span class="w-28 shrink-0 text-right text-[11px] tabular-nums text-gray-300 font-medium">{{ r.ctr | round(1) }}% · {{ r.visits }} visits</span>
       </div>
       {% endfor %}
     </div>
-    <p class="mt-2 text-[10px] text-gray-400">CTR = destination clicks ÷ page visits, straight from this campaign's own event log.</p>
+    <p class="mt-2 text-[10px] text-gray-300 font-medium">CTR = destination clicks ÷ page visits, straight from this campaign's own event log.</p>
   </section>
   {% endif %}
 
   {% if variants %}
   <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Active Variants</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Active Variants</h2>
     <div class="mt-3 space-y-3">
       {% for v in variants %}
       {% set st = vstats.get(v.id, {}) %}
@@ -70,9 +70,9 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <span class="text-sm font-bold text-gray-100">{{ v.name }}</span>
-            {% if v.utm_source %}<span class="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-400">{{ v.utm_source }}{% if v.utm_medium %} / {{ v.utm_medium }}{% endif %}</span>{% endif %}
+            {% if v.utm_source %}<span class="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-300 font-medium">{{ v.utm_source }}{% if v.utm_medium %} / {{ v.utm_medium }}{% endif %}</span>{% endif %}
           </div>
-          <div class="flex gap-4 text-[11px] tabular-nums text-gray-400">
+          <div class="flex gap-4 text-[11px] tabular-nums text-gray-300 font-medium">
             <span>{{ st.get("page_view", 0) }} visits</span>
             <span>{{ st.get("service_click", 0) }} clicks</span>
             <span class="text-[#e8c667]">{{ st.get("email_capture", 0) + st.get("presave_notify", 0) }} fans</span>
@@ -80,16 +80,16 @@
           </div>
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
-          <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ c.slug }}?v={{ v.slug }}{% if v.utm_source %}&utm_source={{ v.utm_source }}{% endif %}" class="variant-url w-full flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-300 focus:outline-none sm:w-auto">
+          <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ c.slug }}?v={{ v.slug }}{% if v.utm_source %}&utm_source={{ v.utm_source }}{% endif %}" class="variant-url w-full flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-200 focus:outline-none sm:w-auto font-medium">
           <button type="button" class="copy-variant shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy</button>
-          <a href="/links/{{ c.id }}/qr.svg?v={{ v.slug }}" target="_blank" class="shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:bg-white/5">QR</a>
+          <a href="/links/{{ c.id }}/qr.svg?v={{ v.slug }}" target="_blank" class="shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-200 hover:bg-white/5">QR</a>
         </div>
       </div>
       {% endfor %}
     </div>
   </section>
   {% else %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-400">No variants yet — create one per promo channel so every door is measured.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">No variants yet — create one per promo channel so every door is measured.</div>
   {% endif %}
 </div>
 {% endblock %}

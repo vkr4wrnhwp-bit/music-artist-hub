@@ -15,7 +15,7 @@ STATUS_TONE = {
     "Live": "border-green-500/20 bg-green-500/10 text-green-400",
     "Pending": "border-amber-500/20 bg-amber-500/10 text-amber-400",
     "Negotiating": "border-blue-500/20 bg-blue-500/10 text-blue-400",
-    "Expired": "border-gray-500/20 bg-gray-500/10 text-gray-400",
+    "Expired": "border-gray-500/20 bg-gray-500/10 text-gray-300",
     "New": "border-amber-500/20 bg-amber-500/10 text-amber-400",
     "In Review": "border-blue-500/20 bg-blue-500/10 text-blue-400",
     "Countered": "border-purple-500/20 bg-purple-500/10 text-purple-400",

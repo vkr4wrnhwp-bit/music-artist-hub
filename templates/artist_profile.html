@@ -8,7 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Primary Artist Profile</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Label-Facing One-Sheet</h1>
-      <p class="mt-1 max-w-2xl text-sm text-gray-400">How Street Banker presents you to labels, partners, and the review desk — built from your press kit, campaigns, and real numbers.</p>
+      <p class="mt-1 max-w-2xl text-sm text-gray-300">How Street Banker presents you to labels, partners, and the review desk — built from your press kit, campaigns, and real numbers.</p>
     </div>
     <div class="flex gap-2">
       <button onclick="window.print()" class="rounded-lg bg-[#141210] px-4 py-2 text-sm font-bold text-[#e8c667] ring-1 ring-[#c9a24a]/50 hover:bg-black">Print / PDF</button>
@@ -28,11 +28,11 @@
       <div class="min-w-0 flex-1">
         <h2 class="text-2xl font-black uppercase tracking-tight text-white">{{ e.name }}</h2>
         <div class="mt-0.5 text-sm text-[#e8c667]">{{ e.profile.tagline }}</div>
-        <div class="mt-1 text-[11px] text-gray-400">{{ e.profile.location }} · {{ e.profile.genres | join(' · ') }}</div>
+        <div class="mt-1 text-[11px] text-gray-300 font-medium">{{ e.profile.location }} · {{ e.profile.genres | join(' · ') }}</div>
       </div>
       <div class="text-right">
         <div class="text-4xl font-black tabular-nums {{ 'text-green-400' if q.total >= 75 else 'text-[#e8c667]' }}">{{ q.total }}</div>
-        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400">SB Score</div>
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-300">SB Score</div>
         <div class="mt-0.5 text-[10px] font-bold uppercase {{ 'text-green-400' if q.recommendation == 'High potential' else 'text-[#e8c667]' }}">{{ q.recommendation }}</div>
       </div>
     </div>
@@ -61,7 +61,7 @@
                                  ('Fans owned', fan_count)] %}
         <div class="bg-[#0f0e0b] px-3 py-4 text-center">
           <div class="text-xl font-black tabular-nums text-[#e8c667]">{{ value }}</div>
-          <div class="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">{{ label }}</div>
+          <div class="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">{{ label }}</div>
         </div>
         {% endfor %}
       </div>
@@ -74,8 +74,8 @@
           {% for c in campaigns[:5] %}
           <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-black/30 px-3 py-2 text-xs">
             <span class="min-w-0 flex-1 truncate font-semibold text-gray-100">{{ c.title }}</span>
-            <span class="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-400">{{ c.eff_status }}</span>
-            <span class="tabular-nums text-gray-400">{{ c.visits }}v · {{ c.clicks }}c · <span class="text-[#e8c667]">{{ c.fans }}f</span></span>
+            <span class="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-300">{{ c.eff_status }}</span>
+            <span class="tabular-nums text-gray-300">{{ c.visits }}v · {{ c.clicks }}c · <span class="text-[#e8c667]">{{ c.fans }}f</span></span>
           </div>
           {% endfor %}
         </div>
@@ -90,23 +90,23 @@
           {% for pq in e.profile.press[:2] %}
           <blockquote class="mt-2 border-l-2 border-[#c9a24a]/60 pl-3">
             <p class="text-sm italic text-gray-200">“{{ pq.quote }}”</p>
-            <footer class="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">— {{ pq.source }}</footer>
+            <footer class="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-300">— {{ pq.source }}</footer>
           </blockquote>
           {% endfor %}
         </div>
         {% endif %}
         <div>
           <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Contact</h3>
-          <div class="mt-2 space-y-1 text-xs text-gray-300">
+          <div class="mt-2 space-y-1 text-xs text-gray-200">
             {% for key, label in [('booking', 'Booking'), ('press', 'Press'), ('management', 'Mgmt')] %}
-            {% if e.profile.contact[key] %}<div><span class="font-bold text-gray-400">{{ label }}:</span> {{ e.profile.contact[key] }}</div>{% endif %}
+            {% if e.profile.contact[key] %}<div><span class="font-bold text-gray-300">{{ label }}:</span> {{ e.profile.contact[key] }}</div>{% endif %}
             {% endfor %}
-            {% for s in e.profile.socials %}<div><span class="font-bold text-gray-400">{{ s.label }}:</span> {{ s.handle }}</div>{% endfor %}
+            {% for s in e.profile.socials %}<div><span class="font-bold text-gray-300">{{ s.label }}:</span> {{ s.handle }}</div>{% endfor %}
           </div>
         </div>
       </div>
 
-      <div class="border-t border-white/10 pt-4 text-[9px] font-bold uppercase tracking-[0.3em] text-gray-400">Prepared by Street Banker · Data from live account activity</div>
+      <div class="border-t border-white/10 pt-4 text-[9px] font-bold uppercase tracking-[0.3em] text-gray-300">Prepared by Street Banker · Data from live account activity</div>
     </div>
   </div>
 </div>

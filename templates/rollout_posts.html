@@ -8,7 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio · Posts</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
-      <p class="mt-1 text-sm text-gray-400">Edit, approve, and post. Manual mode: copy the caption, post it yourself, paste the URL back, mark as posted — attribution still tracks through each post's link.</p>
+      <p class="mt-1 text-sm text-gray-300">Edit, approve, and post. Manual mode: copy the caption, post it yourself, paste the URL back, mark as posted — attribution still tracks through each post's link.</p>
     </div>
     <div class="flex gap-2">
       <a href="/rollout-studio/{{ c.id }}/storyboard" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/20">Storyboard</a>
@@ -17,17 +17,17 @@
   </div>
 
   {% if not posts %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-400">No posts yet — generate the rollout from the overview page.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">No posts yet — generate the rollout from the overview page.</div>
   {% endif %}
 
   {% for p in posts %}
   <div class="rounded-2xl border {{ 'border-green-500/25' if p.status == 'posted' else 'border-white/10' }} bg-[#111113] p-5">
     <div class="flex flex-wrap items-center gap-2">
-      <span class="font-bold tabular-nums text-gray-300">{{ p.scheduled_date }}</span>
+      <span class="font-bold tabular-nums text-gray-200">{{ p.scheduled_date }}</span>
       <span class="text-sm font-bold text-gray-100">{{ platform_names.get(p.platform, p.platform) }}</span>
       <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
-      <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if p.status in ('approved', 'posted') else ('bg-red-500/15 text-red-400' if p.status == 'rejected' else 'bg-white/10 text-gray-400') }}">{{ p.status }}</span>
-      <span class="ml-auto flex gap-3 text-[11px] tabular-nums text-gray-400">
+      <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if p.status in ('approved', 'posted') else ('bg-red-500/15 text-red-400' if p.status == 'rejected' else 'bg-white/10 text-gray-300') }}">{{ p.status }}</span>
+      <span class="ml-auto flex gap-3 text-[11px] tabular-nums text-gray-300 font-medium">
         <span>{{ p.visits }} visits</span><span>{{ p.clicks }} clicks</span><span class="text-[#e8c667]">{{ p.fans }} fans</span>
       </span>
     </div>
@@ -41,23 +41,23 @@
       </div>
       {% if p.variant_id and variants.get(p.variant_id) and ml_campaign %}
       <div class="flex items-center gap-2">
-        <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ ml_campaign.slug }}?v={{ variants[p.variant_id].slug }}" class="post-link w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-400 focus:outline-none">
+        <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ ml_campaign.slug }}?v={{ variants[p.variant_id].slug }}" class="post-link w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-300 focus:outline-none font-medium">
         <button type="button" class="copy-post-link shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy Link</button>
-        <button type="button" class="copy-caption shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:bg-white/5">Copy Caption</button>
+        <button type="button" class="copy-caption shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-200 hover:bg-white/5">Copy Caption</button>
       </div>
       {% endif %}
       {% if p.casts %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
         <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Platform casts — same facts, four registers{% if avoid_count %} · respects your {{ avoid_count }} do-not-say phrase{{ '' if avoid_count == 1 else 's' }}{% endif %}</summary>
-        <p class="mt-1.5 text-[10px] text-gray-400">Rule-built recasts of this post's own caption with your real tracked link injected where the platform carries one — a generator, not a chatbot. Edit before posting.</p>
+        <p class="mt-1.5 text-[10px] text-gray-300 font-medium">Rule-built recasts of this post's own caption with your real tracked link injected where the platform carries one — a generator, not a chatbot. Edit before posting.</p>
         <div class="mt-2 grid gap-2 sm:grid-cols-2">
           {% for cast in p.casts %}
           <div class="rounded-lg border border-white/10 bg-black/30 p-2.5">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ cast.name }}</span>
-              <button type="button" class="copy-cast rounded border border-white/15 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-400 hover:text-[#e8c667]">Copy</button>
+              <span class="text-[10px] font-bold uppercase tracking-wide text-gray-300">{{ cast.name }}</span>
+              <button type="button" class="copy-cast rounded border border-white/15 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-300 hover:text-[#e8c667]">Copy</button>
             </div>
-            <pre class="cast-text mt-1 whitespace-pre-wrap font-sans text-[11px] leading-snug text-gray-300">{{ cast.text }}</pre>
+            <pre class="cast-text mt-1 whitespace-pre-wrap font-sans text-[11px] leading-snug text-gray-200 font-medium">{{ cast.text }}</pre>
           </div>
           {% endfor %}
         </div>
@@ -66,7 +66,7 @@
       {% if p.asset and p.asset.asset_type == 'image' and p.asset.file_path %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
         <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Safe-zone preview — 9:16</summary>
-        <p class="mt-1.5 text-[10px] text-gray-400">Generic vertical-video guides: shaded bands are where most platforms draw their own UI. Not any platform's actual interface.</p>
+        <p class="mt-1.5 text-[10px] text-gray-300 font-medium">Generic vertical-video guides: shaded bands are where most platforms draw their own UI. Not any platform's actual interface.</p>
         <div class="relative mx-auto mt-2 aspect-[9/16] w-48 overflow-hidden rounded-xl border border-white/15 bg-black">
           <img src="{{ p.asset.file_path }}" alt="" class="h-full w-full object-cover">
           <div class="absolute inset-x-0 top-0 h-[12%] bg-red-500/25" title="Top UI zone"></div>
@@ -79,11 +79,11 @@
       {% if p.edit_plan %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
         <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Video edit plan — {{ p.edit_plan.aspect_ratio }}, {{ p.edit_plan.end_seconds }}s</summary>
-        <div class="mt-2 space-y-1 text-[11px] text-gray-400">
-          <div><span class="font-bold text-gray-300">Hook:</span> {{ p.edit_plan.hook_text }}</div>
-          {% if p.edit_plan.lyric_overlay %}<div><span class="font-bold text-gray-300">Lyric overlay:</span> {{ p.edit_plan.lyric_overlay }}</div>{% endif %}
-          <div><span class="font-bold text-gray-300">CTA overlay:</span> {{ p.edit_plan.cta_overlay }}</div>
-          <div><span class="font-bold text-gray-300">Notes:</span> {{ p.edit_plan.edit_notes }}</div>
+        <div class="mt-2 space-y-1 text-[11px] text-gray-300 font-medium">
+          <div><span class="font-bold text-gray-200">Hook:</span> {{ p.edit_plan.hook_text }}</div>
+          {% if p.edit_plan.lyric_overlay %}<div><span class="font-bold text-gray-200">Lyric overlay:</span> {{ p.edit_plan.lyric_overlay }}</div>{% endif %}
+          <div><span class="font-bold text-gray-200">CTA overlay:</span> {{ p.edit_plan.cta_overlay }}</div>
+          <div><span class="font-bold text-gray-200">Notes:</span> {{ p.edit_plan.edit_notes }}</div>
           <ul class="mt-1 list-inside list-disc">{% for item in p.edit_plan.export_checklist %}<li>{{ item }}</li>{% endfor %}</ul>
         </div>
       </details>
@@ -97,7 +97,7 @@
         <button name="action" value="reject" class="rounded-md border border-red-500/25 px-3 py-1.5 text-[11px] font-semibold text-red-400/80 hover:bg-red-500/10">Reject</button>
         {% endif %}
         {% if p.status != 'posted' %}
-        <input name="published_url" placeholder="Published URL (optional)" class="w-48 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-100 placeholder-gray-400 focus:outline-none">
+        <input name="published_url" placeholder="Published URL (optional)" class="w-48 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-100 placeholder-gray-300 focus:outline-none font-medium">
         <button name="action" value="posted" class="rounded-md bg-[#141210] px-3 py-1.5 text-[11px] font-bold text-[#e8c667] ring-1 ring-[#c9a24a]/50 hover:bg-black">Mark as Posted</button>
         {% elif p.published_url %}
         <a href="{{ p.published_url }}" target="_blank" rel="noopener" class="text-[11px] font-semibold text-green-400 hover:underline">View published post ↗</a>

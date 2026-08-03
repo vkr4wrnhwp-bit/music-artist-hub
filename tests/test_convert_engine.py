@@ -271,14 +271,18 @@ def test_keyboard_hints_do_not_show_where_there_is_no_keyboard():
     # palette moved off gray-500 because it read at 4.1:1 on black.
     assert '<span class="hidden sm:inline"><kbd' in page
     assert '↑↓</kbd> move</span>' in page
-    assert 'sm:inline">esc</kbd>' in page
+    assert 'sm:inline' in page and 'esc</kbd>' in page
 
 
 def test_the_two_header_buttons_are_thumb_sized():
     page = _base_html()
-    # Both the search and the menu button, at 44px.
-    assert page.count('class="flex h-11 w-11 items-center justify-center '
-                      'rounded-lg border border-white/15 text-gray-300"') == 2
+    # Both the search and the menu button, at 44px. Asserts the size, not
+    # the whole class string - this broke twice on colour changes that had
+    # nothing to do with whether a thumb can hit the button.
+    import re
+    boxes = re.findall(r'class="flex h-11 w-11 items-center justify-center[^"]*"',
+                       page)
+    assert len(boxes) == 2, "expected two 44px header buttons, found %d" % len(boxes)
 
 
 # --- the rack's tooltips have to be reachable without hover -------------

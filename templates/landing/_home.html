@@ -62,7 +62,7 @@
 {# ---- Pillar visual (stats / cards / avatars / tiles) ---- #}
 {% macro pillar_visual(v, dark) %}
 {% set card = 'border-white/10 bg-white/5' if dark else 'border-black/10 bg-white' %}
-{% set label = 'text-gray-400' if dark else 'text-[#797369]' %}
+{% set label = 'text-gray-300' if dark else 'text-[#797369]' %}
 {% set value = 'text-[#e6c675]' if dark else 'text-[#8a6d1f]' %}
 {% set head = 'text-gray-100' if dark else 'text-[#141210]' %}
 {% if v.type == 'stats' %}
@@ -118,11 +118,11 @@
     <div class="{{ 'lg:order-2' if flip }}">
       <div class="text-[11px] font-semibold uppercase tracking-[0.25em] {{ 'text-[#d8b25a]' if dark else 'text-[#8a6d1f]' }}">{{ p.eyebrow }}</div>
       <h2 class="mt-3 text-3xl font-extrabold uppercase leading-[0.95] tracking-tight sm:text-4xl {{ 'text-white' if dark else 'text-[#141210]' }}">{{ p.title }}</h2>
-      <p class="mt-2 text-lg font-semibold {{ 'text-gray-300' if dark else 'text-[#4a463e]' }}">{{ p.tagline }}</p>
-      <p class="mt-3 max-w-md text-sm leading-relaxed {{ 'text-gray-400' if dark else 'text-[#5a544a]' }}">{{ p.description }}</p>
+      <p class="mt-2 text-lg font-semibold {{ 'text-gray-200' if dark else 'text-[#4a463e]' }}">{{ p.tagline }}</p>
+      <p class="mt-3 max-w-md text-sm leading-relaxed {{ 'text-gray-300' if dark else 'text-[#5a544a]' }}">{{ p.description }}</p>
       <ul class="mt-4 space-y-1.5">
         {% for b in p['bullets'] %}
-        <li class="flex items-start gap-2 text-sm {{ 'text-gray-300' if dark else 'text-[#3a352c]' }}">
+        <li class="flex items-start gap-2 text-sm {{ 'text-gray-200' if dark else 'text-[#3a352c]' }}">
           <svg class="mt-0.5 h-4 w-4 shrink-0 {{ 'text-[#d8b25a]' if dark else 'text-[#8a6d1f]' }}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 111.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
           {{ b }}
         </li>
@@ -200,7 +200,7 @@
       <div class="text-sm font-bold text-gray-100">{{ item.title }}</div>
     </div>
   </div>
-  <div class="mt-2 text-[11px] text-gray-400">{{ item.description }}</div>
+  <div class="mt-2 text-[11px] text-gray-300 font-medium">{{ item.description }}</div>
 </a>
 {% endmacro %}
 
@@ -226,7 +226,7 @@
 {# ---- Command desk: recovery opportunity row (dark) ---- #}
 {% macro opportunity_row(op) %}
 <div class="flex items-center justify-between gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2">
-  <span class="truncate text-[11px] text-gray-300">{{ op.title }}</span>
+  <span class="truncate text-[11px] text-gray-200 font-medium">{{ op.title }}</span>
   <span class="shrink-0 text-[11px] font-bold tabular-nums text-[#e6c675]">{{ op.amount }}</span>
 </div>
 {% endmacro %}

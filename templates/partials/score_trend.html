@@ -14,13 +14,13 @@
              if trend.delta and trend.delta.direction == 'up'
              else ('border-red-500/25 bg-red-500/[0.07] text-red-300'
                    if trend.delta and trend.delta.direction == 'down'
-                   else 'border-white/10 bg-white/5 text-gray-400') }}">
+                   else 'border-white/10 bg-white/5 text-gray-300') }}">
   {%- if trend.delta and trend.delta.direction == 'up' %}<span aria-hidden="true">▲</span>
   {%- elif trend.delta and trend.delta.direction == 'down' %}<span aria-hidden="true">▼</span>
   {%- endif %}
   <span>{{ trend.phrase or trend.note }}</span>
   {%- if trend.delta and trend.delta.pct %}
-  <span class="text-[10px] font-normal opacity-70">({{ '+' if trend.delta.change > 0 }}{{ trend.delta.pct }}%)</span>
+  <span class="text-[10px] font-normal opacity-70 font-medium">({{ '+' if trend.delta.change > 0 }}{{ trend.delta.pct }}%)</span>
   {%- endif %}
 </p>
 {% endif %}

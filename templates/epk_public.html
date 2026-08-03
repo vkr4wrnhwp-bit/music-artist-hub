@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,900;1,9..144,300&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=11">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
   <style>
     body { font-family: 'Inter', system-ui, sans-serif; background: #efece5; }
     .serif { font-family: 'Fraunces', Georgia, serif; }
@@ -49,7 +49,7 @@
 
       <div class="flex items-baseline justify-between pt-8">
         <span class="text-[9px] font-bold uppercase tracking-[0.5em] text-[#d8b25a]">Official Press Kit</span>
-        <span class="serif text-[11px] italic text-white/70">Street Banker Press Office</span>
+        <span class="serif text-[11px] italic text-white/70 font-medium">Street Banker Press Office</span>
       </div>
 
       <div class="pb-10 pt-8">
@@ -242,9 +242,9 @@
           {% endfor %}
         </div>
         {% if e.stats_are_real %}
-        <p class="mt-7 text-[10px] uppercase tracking-[0.15em] text-white/70">Catalog intelligence by Royalty Sweep · Figures calculated from this artist’s own royalty statements</p>
+        <p class="mt-7 text-[10px] uppercase tracking-[0.15em] text-white/70 font-medium">Catalog intelligence by Royalty Sweep · Figures calculated from this artist’s own royalty statements</p>
         {% else %}
-        <p class="mt-7 rounded border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-amber-200/80">Sample metrics — this artist has not connected royalty statements yet. These figures are illustrative and are not their catalogue.</p>
+        <p class="mt-7 rounded border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-amber-200/80 font-medium">Sample metrics — this artist has not connected royalty statements yet. These figures are illustrative and are not their catalogue.</p>
         {% endif %}
       </section>
       {% endif %}

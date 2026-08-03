@@ -16,7 +16,7 @@ from royalty_data import get_songs
 STAGES = ["Filed", "Submitted", "Under Review", "Resolved"]
 
 STAGE_TONE = {
-    "Filed": "border-gray-500/20 bg-gray-500/10 text-gray-400",
+    "Filed": "border-gray-500/20 bg-gray-500/10 text-gray-300",
     "Submitted": "border-blue-500/20 bg-blue-500/10 text-blue-400",
     "Under Review": "border-amber-500/20 bg-amber-500/10 text-amber-400",
     "Resolved": "border-green-500/20 bg-green-500/10 text-green-400",

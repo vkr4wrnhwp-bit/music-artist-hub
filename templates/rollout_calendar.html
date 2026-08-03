@@ -8,7 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio · Calendar</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
-      <p class="mt-1 text-sm text-gray-400">Every scheduled post by date. Change dates from the Posts page.</p>
+      <p class="mt-1 text-sm text-gray-300">Every scheduled post by date. Change dates from the Posts page.</p>
     </div>
     <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
   </div>
@@ -27,9 +27,9 @@
           <div class="flex items-center gap-2">
             <span class="font-bold text-gray-200">{{ platform_names.get(p.platform, p.platform) }}</span>
             <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
-            <span class="ml-auto text-[9px] font-bold uppercase {{ 'text-green-400' if p.status in ('approved', 'posted') else 'text-gray-400' }}">{{ p.status }}</span>
+            <span class="ml-auto text-[9px] font-bold uppercase {{ 'text-green-400' if p.status in ('approved', 'posted') else 'text-gray-300' }}">{{ p.status }}</span>
           </div>
-          <p class="mt-1 line-clamp-2 text-gray-400">{{ p.caption }}</p>
+          <p class="mt-1 line-clamp-2 text-gray-300">{{ p.caption }}</p>
         </div>
         {% endfor %}
       </div>
@@ -37,7 +37,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-400">No scheduled posts — generate the rollout first.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">No scheduled posts — generate the rollout first.</div>
   {% endif %}
 </div>
 {% endblock %}

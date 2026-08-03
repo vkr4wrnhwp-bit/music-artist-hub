@@ -70,7 +70,7 @@
         <div class="bg-white px-2 py-5 text-center">
           <div class="text-2xl font-black tabular-nums">{{ s.value }}</div>
           <div class="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-[#a8862f]">{{ s.label }}</div>
-          <div class="text-[10px] text-[#141210]/50">{{ s.sub }}</div>
+          <div class="text-[10px] text-[#141210]/50 font-medium">{{ s.sub }}</div>
         </div>
         {% endfor %}
       </section>
@@ -126,7 +126,7 @@
           <div class="flex items-center justify-between gap-3 py-2.5">
             <div>
               <div class="text-sm font-bold">{{ ev.venue }}</div>
-              <div class="text-[11px] text-[#141210]/55">{{ ev.location }}</div>
+              <div class="text-[11px] text-[#141210]/55 font-medium">{{ ev.location }}</div>
             </div>
             <div class="text-right">
               <div class="text-xs font-bold tabular-nums">{{ ev.date }}</div>
@@ -208,7 +208,7 @@
           </div>
           {% endfor %}
         </div>
-        {% if user %}<p class="mt-2 text-[10px] text-[#141210]/45">Unchecked sections are hidden from your public EPK and PDF. Saved with your draft.</p>{% endif %}
+        {% if user %}<p class="mt-2 text-[10px] text-[#141210]/45 font-medium">Unchecked sections are hidden from your public EPK and PDF. Saved with your draft.</p>{% endif %}
       </section>
 
       {% if user %}
@@ -221,13 +221,13 @@
         {% if epk_public_url %}
         <div class="mt-3 rounded-lg border border-[#a8862f]/30 bg-[#a8862f]/[0.07] p-3">
           <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#7c6220]">Public link — share with press &amp; promoters</label>
-          <input id="public-link" readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url }}" class="mt-1.5 w-full rounded-md border border-[#141210]/15 bg-white px-2 py-1.5 text-[11px] text-[#141210]/75 focus:outline-none">
+          <input id="public-link" readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url }}" class="mt-1.5 w-full rounded-md border border-[#141210]/15 bg-white px-2 py-1.5 text-[11px] text-[#141210]/75 focus:outline-none font-medium">
           <a href="{{ epk_public_url }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-[10px] font-bold text-[#a8862f] hover:underline">View public page ↗</a>
         </div>
         <div class="mt-2 rounded-lg border border-[#a8862f]/30 bg-[#a8862f]/[0.07] p-3">
           <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#7c6220]">Artist Hub — your link-in-bio</label>
-          <input readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url.replace('/epk/', '/@') }}" onclick="this.select()" class="mt-1.5 w-full rounded-md border border-[#141210]/15 bg-white px-2 py-1.5 text-[11px] text-[#141210]/75 focus:outline-none">
-          <p class="mt-1 text-[10px] text-[#141210]/55">One page with your live links, fan club, shows, and merch — put it in every bio.</p>
+          <input readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url.replace('/epk/', '/@') }}" onclick="this.select()" class="mt-1.5 w-full rounded-md border border-[#141210]/15 bg-white px-2 py-1.5 text-[11px] text-[#141210]/75 focus:outline-none font-medium">
+          <p class="mt-1 text-[10px] text-[#141210]/55 font-medium">One page with your live links, fan club, shows, and merch — put it in every bio.</p>
           <a href="{{ epk_public_url.replace('/epk/', '/@') }}" target="_blank" rel="noopener" class="mt-1 inline-block text-[10px] font-bold text-[#a8862f] hover:underline">View Artist Hub ↗</a>
         </div>
 
@@ -236,38 +236,38 @@
           <div class="flex items-center justify-between gap-2">
             <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#d8b25a]">Private pitch link</label>
             {% if pitch_share %}
-            <span class="text-[10px] text-white/60"><span class="font-black tabular-nums text-[#e5c878]">{{ pitch_stats.views }}</span> open{{ '' if pitch_stats.views == 1 else 's' }}{% if pitch_stats.last_view %} · last {{ pitch_stats.last_view[:16].replace('T', ' ') }} UTC{% endif %}</span>
+            <span class="text-[10px] text-white/60 font-medium"><span class="font-black tabular-nums text-[#e5c878]">{{ pitch_stats.views }}</span> open{{ '' if pitch_stats.views == 1 else 's' }}{% if pitch_stats.last_view %} · last {{ pitch_stats.last_view[:16].replace('T', ' ') }} UTC{% endif %}</span>
             {% endif %}
           </div>
-          <p class="mt-1 text-[10px] leading-snug text-white/55">For unreleased pitches: same press kit plus a private listening room from your Vault. Opens and first-plays are logged — never how long anyone stayed.</p>
+          <p class="mt-1 text-[10px] leading-snug text-white/55 font-medium">For unreleased pitches: same press kit plus a private listening room from your Vault. Opens and first-plays are logged — never how long anyone stayed.</p>
           {% if pitch_share %}
-          <input readonly value="{{ request.url_root.rstrip('/') }}/pitch/{{ pitch_share.token }}" onclick="this.select()" class="mt-2 w-full rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white/80 focus:outline-none">
+          <input readonly value="{{ request.url_root.rstrip('/') }}/pitch/{{ pitch_share.token }}" onclick="this.select()" class="mt-2 w-full rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white/80 focus:outline-none font-medium">
           {% if pitch_stats.plays %}
           <div class="mt-1.5 space-y-0.5">
             {% for label, n in pitch_stats.plays %}
-            <div class="flex justify-between text-[10px]"><span class="truncate text-white/70">▸ {{ label }}</span><span class="shrink-0 font-black tabular-nums text-[#e5c878]">{{ n }} play{{ '' if n == 1 else 's' }}</span></div>
+            <div class="flex justify-between text-[10px] font-medium"><span class="truncate text-white/70">▸ {{ label }}</span><span class="shrink-0 font-black tabular-nums text-[#e5c878]">{{ n }} play{{ '' if n == 1 else 's' }}</span></div>
             {% endfor %}
           </div>
           {% elif pitch_share.audio %}
-          <p class="mt-1 text-[10px] text-white/45">No plays logged yet.</p>
+          <p class="mt-1 text-[10px] text-white/45 font-medium">No plays logged yet.</p>
           {% endif %}
           {% endif %}
           <form method="post" action="/epk/share" class="mt-2 space-y-2">
             <div class="grid grid-cols-2 gap-2">
-              <input name="pin" inputmode="numeric" value="{{ pitch_share.pin if pitch_share else '' }}" placeholder="PIN (optional)" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white placeholder-white/35 focus:outline-none">
-              <input name="expires" type="date" value="{{ pitch_share.expires if pitch_share else '' }}" title="Link stops working after this date" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white focus:outline-none [color-scheme:dark]">
+              <input name="pin" inputmode="numeric" value="{{ pitch_share.pin if pitch_share else '' }}" placeholder="PIN (optional)" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white placeholder-white/35 focus:outline-none font-medium">
+              <input name="expires" type="date" value="{{ pitch_share.expires if pitch_share else '' }}" title="Link stops working after this date" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-[11px] text-white focus:outline-none [color-scheme:dark] font-medium">
             </div>
             {% if vault_audio %}
             <div class="flex flex-wrap gap-1.5">
               {% set picked = (pitch_share.audio | map(attribute='path') | list) if pitch_share else [] %}
               {% for v in vault_audio %}
-              <label class="flex cursor-pointer items-center gap-1.5 rounded-md border border-white/20 px-2 py-1 text-[10px] text-white/80">
+              <label class="flex cursor-pointer items-center gap-1.5 rounded-md border border-white/20 px-2 py-1 text-[10px] text-white/80 font-medium">
                 <input type="checkbox" name="audio" value="{{ v.id }}" {{ 'checked' if v.path in picked }} class="h-3 w-3 accent-[#d8b25a]">{{ v.label or v.path.split('/')[-1] }}
               </label>
               {% endfor %}
             </div>
             {% else %}
-            <p class="text-[10px] text-white/45">No audio in your Vault yet — archive a master from The Rack or upload one to offer private listening.</p>
+            <p class="text-[10px] text-white/45 font-medium">No audio in your Vault yet — archive a master from The Rack or upload one to offer private listening.</p>
             {% endif %}
             <div class="flex flex-wrap gap-1.5">
               <button name="action" value="save" class="rounded-md bg-[#d8b25a] px-3 py-1.5 text-[10px] font-black uppercase text-[#1c1302]">{{ 'Save' if pitch_share else 'Create pitch link' }}</button>
@@ -291,7 +291,7 @@
           <div id="dev-frame-wrap" class="mt-2 hidden overflow-hidden rounded-xl border-4 border-[#141210] bg-black">
             <iframe id="dev-frame" title="Mobile preview of your public EPK" class="border-0" style="width: 375px; height: 640px; transform: scale(0.76); transform-origin: top left; margin-bottom: -154px;"></iframe>
           </div>
-          <p class="mt-1.5 text-[10px] text-[#141210]/45">Loads your actual public EPK — save first, then preview.</p>
+          <p class="mt-1.5 text-[10px] text-[#141210]/45 font-medium">Loads your actual public EPK — save first, then preview.</p>
         </div>
         {% endif %}
 
@@ -367,7 +367,7 @@
               <button type="button" id="press-search-btn" class="shrink-0 rounded-md bg-[#141210] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white hover:bg-[#141210]/85">Search</button>
             </div>
             <div id="press-results" class="mt-2 hidden max-h-56 space-y-1.5 overflow-y-auto"></div>
-            <p class="mt-1.5 text-[10px] text-[#141210]/45">Live news coverage — click “Use” to drop a headline into a quote slot, then edit it down and save.</p>
+            <p class="mt-1.5 text-[10px] text-[#141210]/45 font-medium">Live news coverage — click “Use” to drop a headline into a quote slot, then edit it down and save.</p>
           </div>
           </details>
 
@@ -380,7 +380,7 @@
               {% endfor %}
               <input type="color" id="f-bg" value="{{ e.bg_color }}" class="h-7 w-9 cursor-pointer rounded-md border border-[#141210]/20 bg-transparent p-0.5" title="Custom color">
             </div>
-            <p class="mt-1 text-[10px] text-[#141210]/45">Sets the cover of your public EPK. Dark colors keep the name readable.</p>
+            <p class="mt-1 text-[10px] text-[#141210]/45 font-medium">Sets the cover of your public EPK. Dark colors keep the name readable.</p>
           </div>
 
           <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-[#141210]/15 bg-[#141210] px-3 py-2.5">
@@ -415,7 +415,7 @@
               <input type="checkbox" class="asset-public h-3.5 w-3.5 accent-[#a8862f]" data-kind="{{ kind }}" {{ 'checked' if (a and a.public) or not a }}>Public
             </label>
             {% if vault_images %}
-            <select class="asset-vault w-24 shrink-0 rounded-md border border-[#141210]/15 bg-white px-1 py-1.5 text-[10px] text-[#141210]/70 focus:outline-none" data-kind="{{ kind }}" title="Use an image from your Vault">
+            <select class="asset-vault w-24 shrink-0 rounded-md border border-[#141210]/15 bg-white px-1 py-1.5 text-[10px] text-[#141210]/70 focus:outline-none font-medium" data-kind="{{ kind }}" title="Use an image from your Vault">
               <option value="">Vault…</option>
               {% for v in vault_images %}<option value="{{ v.id }}">{{ v.label or v.path.split('/')[-1] }}</option>{% endfor %}
             </select>
@@ -449,10 +449,10 @@
           <div>
             <label class="text-[10px] font-bold uppercase tracking-[0.15em] text-[#141210]/55">Bandsintown Artist Name</label>
             <input id="f-bandsintown" value="{{ epk.bandsintown_artist }}" placeholder="Exact name on Bandsintown" {{ 'disabled' if not bandsintown_configured }} class="mt-1 w-full rounded-lg border border-[#141210]/15 bg-[#f7f5f0] px-3 py-2 text-xs text-[#141210] placeholder-[#141210]/35 focus:border-[#a8862f] focus:outline-none disabled:opacity-50">
-            <p class="mt-1 text-[10px] text-[#141210]/45">{{ 'Upcoming shows from your Bandsintown profile appear in the Tour Dates section automatically.' if bandsintown_configured else 'Live tour dates connect through Bandsintown — not enabled on this server yet.' }}</p>
+            <p class="mt-1 text-[10px] text-[#141210]/45 font-medium">{{ 'Upcoming shows from your Bandsintown profile appear in the Tour Dates section automatically.' if bandsintown_configured else 'Live tour dates connect through Bandsintown — not enabled on this server yet.' }}</p>
           </div>
           <div id="asset-error" class="hidden text-[11px] font-semibold text-red-600"></div>
-          <p class="text-[10px] text-[#141210]/45">Public assets appear as downloads on your EPK, bundled into the press-kit ZIP. Video saves with your draft.</p>
+          <p class="text-[10px] text-[#141210]/45 font-medium">Public assets appear as downloads on your EPK, bundled into the press-kit ZIP. Video saves with your draft.</p>
         </div>
       </section>
       {% else %}
@@ -466,7 +466,7 @@
       </section>
       {% endif %}
 
-      <p class="px-1 text-[11px] text-[#141210]/50">Stats and top tracks come from the catalog. Export PDF prints the document exactly as toggled.</p>
+      <p class="px-1 text-[11px] text-[#141210]/50 font-medium">Stats and top tracks come from the catalog. Export PDF prints the document exactly as toggled.</p>
     </div>
   </div>
 </div>
@@ -668,14 +668,14 @@
       box.classList.remove("hidden");
       box.innerHTML = "";
       if (!data.results || !data.results.length) {
-        box.innerHTML = '<div class="py-2 text-[11px] text-[#141210]/50">No coverage found — try another spelling or a release title.</div>';
+        box.innerHTML = '<div class="py-2 text-[11px] text-[#141210]/50 font-medium">No coverage found — try another spelling or a release title.</div>';
       }
       (data.results || []).forEach((r) => {
         const row = document.createElement("div");
         row.className = "flex items-center gap-2 rounded-md border border-[#141210]/10 bg-white p-2";
         const info = document.createElement("div");
         info.className = "min-w-0 flex-1";
-        info.innerHTML = '<div class="truncate text-[11px] font-semibold text-[#141210]"></div><div class="truncate text-[10px] text-[#141210]/50"></div>';
+        info.innerHTML = '<div class="truncate text-[11px] font-semibold text-[#141210]"></div><div class="truncate text-[10px] text-[#141210]/50 font-medium"></div>';
         info.children[0].textContent = r.title;
         info.children[1].textContent = r.source + (r.date ? " · " + r.date : "");
         const use = document.createElement("button");

@@ -6,7 +6,7 @@
   <title>{{ artist_name }} — Artist Hub</title>
   <meta property="og:title" content="{{ artist_name }}">
   {% if data.tagline %}<meta property="og:description" content="{{ data.tagline }}">{% endif %}
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=11">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
 </head>
 <body class="min-h-screen text-gray-100 antialiased" style="background: radial-gradient(ellipse 80% 40% at 50% -5%, rgba(201,162,74,0.14), transparent 60%), #0b0a09;">
   <main class="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-12">
@@ -18,8 +18,8 @@
       {% endif %}
       <h1 class="mt-4 text-3xl font-black uppercase leading-tight tracking-tight">{{ artist_name }}</h1>
       <span class="mx-auto mt-2 block h-px w-16 bg-gradient-to-r from-transparent via-[#d8b25a] to-transparent"></span>
-      {% if data.tagline %}<p class="mt-1.5 text-sm text-gray-400">{{ data.tagline }}</p>{% endif %}
-      {% if data.location %}<p class="mt-0.5 text-[11px] uppercase tracking-[0.25em] text-gray-400">{{ data.location }}</p>{% endif %}
+      {% if data.tagline %}<p class="mt-1.5 text-sm text-gray-300">{{ data.tagline }}</p>{% endif %}
+      {% if data.location %}<p class="mt-0.5 text-[11px] uppercase tracking-[0.25em] text-gray-300 font-medium">{{ data.location }}</p>{% endif %}
     </div>
 
     {% if campaigns %}
@@ -46,7 +46,7 @@
         <div class="flex items-baseline justify-between gap-3 py-3">
           <span class="shrink-0 text-xs font-black tabular-nums text-[#e8c667]">{{ s.date }}</span>
           <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ s.venue }}</span>
-          <span class="shrink-0 text-[11px] text-gray-400">{{ s.city }}</span>
+          <span class="shrink-0 text-[11px] text-gray-300 font-medium">{{ s.city }}</span>
         </div>
         {% endfor %}
       </div>
@@ -67,11 +67,11 @@
     </div>
     {% endif %}
 
-    <a href="/epk/{{ slug }}" class="mt-6 block text-center text-[11px] font-bold text-gray-400 hover:text-[#e8c667]">Press kit &amp; booking →</a>
+    <a href="/epk/{{ slug }}" class="mt-6 block text-center text-[11px] font-bold text-gray-300 hover:text-[#e8c667]">Press kit &amp; booking →</a>
 
     <footer class="mt-auto pt-10 text-center">
       <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100">
-        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-400">Powered by</span>
+        <span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-300">Powered by</span>
         <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto">
       </a>
     </footer>

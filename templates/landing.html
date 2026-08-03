@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=11">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=9">
   <style>
     body { font-feature-settings: "ss01"; }
@@ -114,9 +114,9 @@
     <h2 class="mt-5 text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-4xl lg:text-5xl">
       {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
     </h2>
-    <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-300">{{ sweep.description }}</p>
+    <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-200">{{ sweep.description }}</p>
     <a href="{{ sweep.cta.href }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
-    <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-400">{{ sweep.note }}</p>
+    <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-300 font-medium">{{ sweep.note }}</p>
   </div>
 </section>
 
@@ -196,7 +196,7 @@
       </div>
       {% endfor %}
     </div>
-    <div class="mt-12 border-t border-black/10 pt-6 text-[11px] text-[#797369]">{{ f.copyright }}</div>
+    <div class="mt-12 border-t border-black/10 pt-6 text-[11px] text-[#797369] font-medium">{{ f.copyright }}</div>
   </footer>
 </div>
 

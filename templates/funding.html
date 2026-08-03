@@ -8,38 +8,38 @@
 <div class="mx-auto max-w-[1400px] space-y-5">
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Advance &amp; Funding</h1>
-    <p class="mt-1 text-sm text-gray-400">Get paid upfront against your future royalties. Offers are based on your catalog's advance eligibility.</p>
+    <p class="mt-1 text-sm text-gray-300">Get paid upfront against your future royalties. Offers are based on your catalog's advance eligibility.</p>
   </div>
 
   <div class="rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.06] to-transparent p-5">
     <div class="flex flex-wrap items-center gap-6">
       <div>
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">Your Eligibility</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Your Eligibility</div>
         <div class="mt-1 flex items-center gap-2">
           <span class="rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400">{{ fn.eligibility.tier }}</span>
-          <span class="text-xs text-gray-400">Score {{ fn.eligibility.score }}/100</span>
-          {% if fn.eligibility.note %}<span class="w-full text-[11px] leading-relaxed text-gray-400">{{ fn.eligibility.note }}</span>{% endif %}
+          <span class="text-xs text-gray-300">Score {{ fn.eligibility.score }}/100</span>
+          {% if fn.eligibility.note %}<span class="w-full text-[11px] leading-relaxed text-gray-300 font-medium">{{ fn.eligibility.note }}</span>{% endif %}
         </div>
       </div>
       <div class="h-10 w-px bg-white/10"></div>
       <div>
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{{ "Indicative Range" if fn.eligibility.real else "Suggested Advance" }}</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">{{ "Indicative Range" if fn.eligibility.real else "Suggested Advance" }}</div>
         {% if fn.eligibility.real %}
         <div class="mt-1 text-2xl font-bold tabular-nums text-amber-400">${{ "{:,}".format(fn.eligibility.band.low) }}–${{ "{:,}".format(fn.eligibility.band.high) }}</div>
         {% else %}
-        <div class="mt-1 text-2xl font-bold text-gray-400">—</div>
+        <div class="mt-1 text-2xl font-bold text-gray-300">—</div>
         {% endif %}
       </div>
     </div>
   </div>
 
   <section>
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Available Offers</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Available Offers</h2>
     <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
       {% if fn.unavailable %}
       <div class="rounded-xl border border-[#c9a24a]/30 bg-[#141209] p-5">
         <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Nothing to quote yet</div>
-        <p class="mt-2 text-sm leading-relaxed text-gray-400">{{ fn.unavailable }}</p>
+        <p class="mt-2 text-sm leading-relaxed text-gray-300">{{ fn.unavailable }}</p>
         <a href="/statements" class="mt-4 inline-block rounded-lg bg-[#c9a24a] px-4 py-2.5 text-xs font-black text-black">Upload a statement</a>
       </div>
       {% endif %}
@@ -48,18 +48,18 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <div class="text-sm font-semibold text-gray-100">{{ o.name }}</div>
-            <div class="text-[11px] text-gray-400">{{ o.provider }}</div>
+            <div class="text-[11px] text-gray-300 font-medium">{{ o.provider }}</div>
           </div>
           {% if o.recommended %}<span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">Best fit</span>{% endif %}
         </div>
         <div class="mt-4 text-3xl font-bold tabular-nums text-amber-400">${{ "{:,}".format(o.amount) }}</div>
-        <p class="mt-2 flex-1 text-xs text-gray-400">{{ o.note }}</p>
-        <dl class="mt-4 space-y-1.5 text-[11px]">
-          <div class="flex justify-between"><dt class="text-gray-400">Term</dt><dd class="font-semibold text-gray-200">{{ o.term_months }} months</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Recoupment</dt><dd class="font-semibold text-gray-200">{{ o.recoupment_pct }}% of royalties</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Total repayable</dt><dd class="font-semibold text-gray-200">${{ "{:,.0f}".format(o.total_repayable) }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Cost of funds</dt><dd class="font-semibold text-gray-200">${{ "{:,.0f}".format(o.cost) }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Funded in</dt><dd class="font-semibold text-green-400">{{ o.speed }}</dd></div>
+        <p class="mt-2 flex-1 text-xs text-gray-300">{{ o.note }}</p>
+        <dl class="mt-4 space-y-1.5 text-[11px] font-medium">
+          <div class="flex justify-between"><dt class="text-gray-300">Term</dt><dd class="font-semibold text-gray-200">{{ o.term_months }} months</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-300">Recoupment</dt><dd class="font-semibold text-gray-200">{{ o.recoupment_pct }}% of royalties</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-300">Total repayable</dt><dd class="font-semibold text-gray-200">${{ "{:,.0f}".format(o.total_repayable) }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-300">Cost of funds</dt><dd class="font-semibold text-gray-200">${{ "{:,.0f}".format(o.cost) }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-300">Funded in</dt><dd class="font-semibold text-green-400">{{ o.speed }}</dd></div>
         </dl>
         <button type="button" class="request-offer-btn mt-4 w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20"
                 data-offer-id="{{ o.id }}">Request {{ o.name }}</button>
@@ -75,7 +75,7 @@
      factors and "Funded in 24 hours" read as real lenders quoting real
      paper. The amounts ARE scaled from the artist's own statements; the
      companies quoting them are invented. Say which is which. #}
-  <p class="px-1 text-[11px] text-gray-400">
+  <p class="px-1 text-[11px] text-gray-300 font-medium">
     <span class="font-semibold text-amber-300">The providers, terms and funding speeds shown are examples, not real lenders.</span>
     Offer amounts are scaled from your own uploaded statements, but no company has quoted you.
     Requesting an offer records interest and returns a reference number — no money moves, no

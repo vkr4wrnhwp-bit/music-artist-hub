@@ -8,7 +8,7 @@
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Studio · Social Accounts</div>
       <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Publishing Connections</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-400">Manual mode works today: copy captions from the Posts page, post them yourself, and mark them posted. Auto-posting activates per platform once API credentials are connected.</p>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">Manual mode works today: copy captions from the Posts page, post them yourself, and mark them posted. Auto-posting activates per platform once API credentials are connected.</p>
     </div>
     <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
   </div>
@@ -19,18 +19,18 @@
       <div>
         <div class="text-sm font-bold text-gray-100">{{ name }}</div>
         {% if status == 'ready' %}
-        <div class="text-[11px] text-green-400">Active — copy captions and assets, mark posts as posted, attribution tracks through each post's link.</div>
+        <div class="text-[11px] text-green-400 font-medium">Active — copy captions and assets, mark posts as posted, attribution tracks through each post's link.</div>
         {% elif status == 'configured' %}
-        <div class="text-[11px] text-[#e8c667]">Credentials detected — OAuth connection flow is next on the roadmap.</div>
+        <div class="text-[11px] text-[#e8c667] font-medium">Credentials detected — OAuth connection flow is next on the roadmap.</div>
         {% else %}
-        <div class="text-[11px] text-gray-400">Auto-posting requires platform API credentials and app approval. Until then, use manual mode.</div>
+        <div class="text-[11px] text-gray-300 font-medium">Auto-posting requires platform API credentials and app approval. Until then, use manual mode.</div>
         {% endif %}
       </div>
-      <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'ready' else ('bg-[#c9a24a]/15 text-[#e8c667]' if status == 'configured' else 'bg-white/10 text-gray-400') }}">{{ status }}</span>
+      <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'ready' else ('bg-[#c9a24a]/15 text-[#e8c667]' if status == 'configured' else 'bg-white/10 text-gray-300') }}">{{ status }}</span>
     </div>
     {% endfor %}
   </div>
 
-  <p class="text-[10px] text-gray-400">Platform tokens, when connected, are stored server-side and never exposed to the browser. Every publish attempt will be logged with its platform response.</p>
+  <p class="text-[10px] text-gray-300 font-medium">Platform tokens, when connected, are stored server-side and never exposed to the browser. Every publish attempt will be logged with its platform response.</p>
 </div>
 {% endblock %}

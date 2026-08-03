@@ -37,7 +37,7 @@
   </span>
   <div>
     <div class="text-sm font-semibold text-amber-400">{{ vp.title }}</div>
-    <div class="mt-0.5 text-xs leading-snug text-gray-400">{{ vp.desc }}</div>
+    <div class="mt-0.5 text-xs leading-snug text-gray-300">{{ vp.desc }}</div>
   </div>
 </div>
 {% endmacro %}
@@ -48,7 +48,7 @@
     {{ icon(f.icon, 'h-5 w-5') }}
   </span>
   <div class="mt-4 text-base font-semibold text-gray-100">{{ f.title }}</div>
-  <p class="mt-2 text-sm leading-relaxed text-gray-400">{{ f.desc }}</p>
+  <p class="mt-2 text-sm leading-relaxed text-gray-300">{{ f.desc }}</p>
   <a href="{{ f.link.href }}" class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-400 transition-opacity hover:opacity-80">
     {{ f.link.label }}
     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 10a1 1 0 011-1h9.6l-3.3-3.3a1 1 0 011.4-1.4l5 5a1 1 0 010 1.4l-5 5a1 1 0 01-1.4-1.4L13.6 11H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
@@ -63,7 +63,7 @@
   {{ platform_logo(node.logo, 'h-8 w-8') }}
   <div class="min-w-0">
     <div class="text-sm font-semibold leading-tight text-white">{{ node.name }}</div>
-    <div class="mt-0.5 flex items-center gap-1.5 text-[11px] {{ tone.get(node.status_tone, 'text-gray-400') }}">
+    <div class="mt-0.5 flex items-center gap-1.5 text-[11px] {{ tone.get(node.status_tone, 'text-gray-300') }} font-medium">
       <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ dot.get(node.status_tone, 'bg-gray-500') }}"></span>{{ node.status_label }}
     </div>
   </div>
@@ -81,7 +81,7 @@
     {{ platform_logo(card.logo, 'h-6 w-6') }}
     <span class="min-w-0 flex-1 text-[13px] font-semibold leading-tight text-white">{{ card.name }}</span>
   </div>
-  <div class="mt-3 text-[9px] uppercase tracking-widest text-gray-400 font-medium">Est. Recovery</div>
+  <div class="mt-3 text-[9px] uppercase tracking-widest text-gray-300 font-medium">Est. Recovery</div>
   <div class="mt-0.5 text-lg font-bold tabular-nums text-gray-100">${{ "{:,.2f}".format(card.est_recovery) }}</div>
   <a href="/overview" class="mt-3 rounded-md border px-2 py-1.5 text-center text-[11px] font-semibold transition-colors {{ btn.get(card.action_tone, btn['success']) }}">
     {{ card.action_label }}

@@ -7,33 +7,33 @@
   <div>
     <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Touring</div>
     <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Stage Plot Designer</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-400">Check what you bring, drag it where it sits on stage, and the input list builds itself. Export one PNG — plot on top, channel list underneath — exactly what the sound engineer asks for.</p>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">Check what you bring, drag it where it sits on stage, and the input list builds itself. Export one PNG — plot on top, channel list underneath — exactly what the sound engineer asks for.</p>
   </div>
 
   <div class="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
     <!-- Controls -->
     <div class="space-y-4">
       <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Act name</h2>
+        <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-300">Act name</h2>
         <input id="sp-name" placeholder="Your act name"
-               class="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:border-[#c9a24a] focus:outline-none">
+               class="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-[#c9a24a] focus:outline-none">
       </section>
 
       <section class="rounded-2xl border border-white/10 bg-[#111113] p-4">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">What's on stage</h2>
-        <p class="mt-1 text-[10px] text-gray-400">Tick it to add it. Drag items on the plot to place them.</p>
+        <p class="mt-1 text-[10px] text-gray-300 font-medium">Tick it to add it. Drag items on the plot to place them.</p>
         <div id="sp-items" class="mt-3 space-y-1.5"></div>
       </section>
 
       <section class="rounded-2xl border border-white/10 bg-[#111113] p-4">
         <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Input list</h2>
-        <div id="sp-inputs" class="mt-2 space-y-0.5 text-[11px] text-gray-300"></div>
+        <div id="sp-inputs" class="mt-2 space-y-0.5 text-[11px] text-gray-200 font-medium"></div>
       </section>
 
       <div class="flex flex-col gap-2">
         <button id="sp-save" class="rounded-lg bg-[#d8b25a] px-4 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Save Plot</button>
         <button id="sp-export" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2.5 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Download PNG</button>
-        <div id="sp-status" class="text-center text-[11px] text-gray-400"></div>
+        <div id="sp-status" class="text-center text-[11px] text-gray-300 font-medium"></div>
       </div>
     </div>
 
@@ -73,7 +73,7 @@
       });
       var lb = document.createElement("span");
       lb.textContent = c.label;
-      lb.className = "flex-1 text-xs font-bold " + (n ? "text-[#e8c667]" : "text-gray-400");
+      lb.className = "flex-1 text-xs font-bold " + (n ? "text-[#e8c667]" : "text-gray-300");
       row.appendChild(cb); row.appendChild(lb);
       if (c.max > 1 && n > 0) {
         var qty = document.createElement("select");
@@ -94,7 +94,7 @@
     var chans = SP.channelList(state);
     inp.innerHTML = chans.length
       ? chans.map(function (ch, i) { return "<div>" + (i + 1) + ". " + SP.esc(ch) + "</div>"; }).join("")
-      : '<div class="text-gray-400">Nothing yet.</div>';
+      : '<div class="text-gray-300">Nothing yet.</div>';
   }
 
   function render() {

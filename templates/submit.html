@@ -68,7 +68,7 @@
           style="left: {{ plate_left }}%; top: 56.3%; width: 5.6%; height: 2.2%;">{{ n }}</span>
     <span class="absolute flex justify-center text-center text-[0.95em] font-extrabold uppercase tracking-wide text-white"
           style="left: {{ col_left }}%; top: 59.2%; width: 30%;">{{ title }}</span>
-    <p class="absolute text-center text-[0.78em] leading-[1.5] text-gray-300"
+    <p class="absolute text-center text-[0.78em] leading-[1.5] text-gray-200"
        style="left: {{ col_left + 1 }}%; top: 62.3%; width: 28%;">{{ body }}</p>
     {% endfor %}
 
@@ -84,10 +84,10 @@
     </span>
     <div class="pointer-events-none absolute flex flex-col items-center text-center" style="left: 77%; top: 70.2%; width: 16.5%;">
       <span class="text-[1.05em] font-extrabold uppercase tracking-[0.25em] text-[#e8c667]">Patchbay</span>
-      <span class="mt-[0.7em] text-[0.62em] font-semibold uppercase tracking-[0.28em] text-gray-300">Street Banker</span>
-      <span class="mt-[0.25em] text-[0.56em] font-semibold uppercase tracking-[0.3em] text-gray-400">A&amp;R Desk</span>
+      <span class="mt-[0.7em] text-[0.62em] font-semibold uppercase tracking-[0.28em] text-gray-200">Street Banker</span>
+      <span class="mt-[0.25em] text-[0.56em] font-semibold uppercase tracking-[0.3em] text-gray-300">A&amp;R Desk</span>
     </div>
-    <span class="pointer-events-none absolute flex items-center text-[0.55em] font-semibold uppercase tracking-[0.18em] text-gray-400"
+    <span class="pointer-events-none absolute flex items-center text-[0.55em] font-semibold uppercase tracking-[0.18em] text-gray-300"
           style="left: 80.7%; top: 77%; width: 8%; height: 1.5%;">Signal</span>
 
     <!-- The Desk -->
@@ -98,7 +98,7 @@
     <a href="mailto:{{ lb.brand.submissions_emails[1] }}?subject=Demo Submission"
        class="absolute flex items-center justify-center text-[1em] font-semibold text-[#e8c667] hover:underline"
        style="left: 51.5%; top: 85.5%; width: 41%; height: 3.6%;">{{ lb.brand.submissions_emails[1] }}</a>
-    <span class="absolute flex justify-center text-center text-[0.72em] leading-[1.5] text-gray-400"
+    <span class="absolute flex justify-center text-center text-[0.72em] leading-[1.5] text-gray-300"
           style="left: 15%; top: 89.8%; width: 70%;">Reviewed by the Street Banker team. No automation, no auto-responders — we can't reply to everything, but we do play everything.</span>
   </div>
 </div>
@@ -187,7 +187,7 @@
             </svg>
           </div>
           <div class="mt-4 flex items-center justify-between px-1">
-            <span class="flex items-center gap-2"><span class="h-2 w-2 animate-pulse rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span><span class="text-[8px] font-semibold uppercase tracking-[0.25em] text-gray-300">Power</span></span>
+            <span class="flex items-center gap-2"><span class="h-2 w-2 animate-pulse rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span><span class="text-[8px] font-semibold uppercase tracking-[0.25em] text-gray-200">Power</span></span>
             <span class="text-[8px] font-semibold uppercase tracking-[0.3em] text-[#c9a24a]">Street Banker A&amp;R Desk</span>
           </div>
         </div>
@@ -231,7 +231,7 @@
         <div class="mt-4">{{ gear.label_plate(n, gold=True) }}</div>
         <div class="mt-3 text-sm font-extrabold uppercase tracking-wide text-white">{{ title }}</div>
         <span class="mt-1.5 h-0.5 w-8 rounded bg-[#c9a24a]"></span>
-        <p class="mt-2 max-w-[260px] text-[13px] leading-relaxed text-gray-300">{{ body }}</p>
+        <p class="mt-2 max-w-[260px] text-[13px] leading-relaxed text-gray-200">{{ body }}</p>
       </div>
       {% endfor %}
     </div>
@@ -248,7 +248,7 @@
     <div class="flex items-center gap-2 px-10 pb-5">
       <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (streaming link)" class="rounded-[5px] border border-[#c9a24a]/50 bg-gradient-to-b from-[#26262a] to-[#111114] px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#e8c667] transition-colors hover:border-[#c9a24a]">Link</a>
       <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (MP3 attached)" class="rounded-[5px] border border-[#c9a24a]/50 bg-gradient-to-b from-[#26262a] to-[#111114] px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#e8c667] transition-colors hover:border-[#c9a24a]">MP3</a>
-      <span class="ml-auto text-[9px] font-semibold uppercase tracking-[0.25em] text-gray-400">Route your signal — link or file, both land here</span>
+      <span class="ml-auto text-[9px] font-semibold uppercase tracking-[0.25em] text-gray-300">Route your signal — link or file, both land here</span>
     </div>
   </div>
 
@@ -263,7 +263,7 @@
         {% if not loop.last %}<span class="hidden text-[#c9a24a]/50 sm:inline">|</span>{% endif %}
         {% endfor %}
       </div>
-      <p class="mx-auto mt-3 max-w-lg text-[12px] leading-relaxed text-gray-300">Reviewed by the Street Banker team. No automation, no out-of-office auto-responders. We can't reply to everything, but we do play everything.</p>
+      <p class="mx-auto mt-3 max-w-lg text-[12px] leading-relaxed text-gray-200">Reviewed by the Street Banker team. No automation, no out-of-office auto-responders. We can't reply to everything, but we do play everything.</p>
       <div class="mx-auto mt-5 grid h-11 w-11 place-items-center rounded-full border border-[#c9a24a]/60">
         <span class="font-serif text-base font-bold tracking-tight text-[#e8c667]">SB</span>
       </div>

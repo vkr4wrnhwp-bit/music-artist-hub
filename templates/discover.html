@@ -29,7 +29,7 @@
 <div class="mx-auto max-w-[1400px] space-y-6">
   <div>
     <h1 class="text-2xl font-semibold uppercase tracking-tight">Discover</h1>
-    <p class="mt-1 text-sm text-gray-300">Search real music with playable previews — or browse the community feed by genre and mood.</p>
+    <p class="mt-1 text-sm text-gray-200">Search real music with playable previews — or browse the community feed by genre and mood.</p>
   </div>
 
   <!-- Real music search (iTunes catalog, 30s previews) -->
@@ -37,7 +37,7 @@
     <div class="flex min-w-[240px] flex-1 items-center gap-2 rounded-xl border border-[#c9a24a]/40 bg-white/5 px-4 py-3 focus-within:border-[#c9a24a]/80">
       <svg class="h-5 w-5 shrink-0 text-[#c9a24a]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M17 17l-4-4"/></svg>
       <input name="q" value="{{ real_query }}" placeholder="Search any artist or song — press play on real previews…"
-             class="w-full min-w-0 bg-transparent text-sm text-gray-100 placeholder-gray-400 focus:outline-none">
+             class="w-full min-w-0 bg-transparent text-sm text-gray-100 placeholder-gray-300 focus:outline-none">
     </div>
     <button type="submit" class="rounded-xl bg-gradient-to-b from-[#eecd7c] via-[#d8b25a] to-[#a37c2a] px-5 py-3 text-sm font-bold text-[#1c1302] transition-transform hover:scale-[1.02]">Search</button>
   </form>
@@ -46,7 +46,7 @@
   <section>
     <div class="flex items-center justify-between">
       <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Results for "{{ real_query }}"</h2>
-      <span class="text-[11px] text-gray-400">{{ real_results | length }} tracks · previews via iTunes</span>
+      <span class="text-[11px] text-gray-300 font-medium">{{ real_results | length }} tracks · previews via iTunes</span>
     </div>
     {% if real_results %}
     <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -66,19 +66,19 @@
         </div>
         <div class="p-2.5">
           <div class="truncate text-xs font-semibold text-gray-100">{{ t.title }}</div>
-          <div class="truncate text-[11px] text-gray-400">{{ t.artist }}</div>
+          <div class="truncate text-[11px] text-gray-300 font-medium">{{ t.artist }}</div>
           <div class="mt-1.5 flex items-center justify-between gap-2">
             <button type="button" class="add-to-catalog rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-2 py-1 text-[10px] font-semibold text-[#e8c667] transition-colors hover:bg-[#c9a24a]/25 disabled:cursor-default disabled:opacity-70"
                     data-title="{{ t.title }}" data-artist="{{ t.artist }}" data-album="{{ t.album }}"
                     data-art="{{ t.art }}" data-preview="{{ t.preview }}" data-url="{{ t.url }}">+ Catalog</button>
-            {% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener noreferrer" class="truncate text-[10px] text-[#c9a24a] hover:underline">Open ↗</a>{% endif %}
+            {% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener noreferrer" class="truncate text-[10px] text-[#c9a24a] hover:underline font-medium">Open ↗</a>{% endif %}
           </div>
         </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <div class="mt-3 rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-400">
+    <div class="mt-3 rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">
       No tracks found for "{{ real_query }}" — check the spelling, or try an artist name like
       <a href="/discover?q=Daft+Punk" class="font-semibold text-[#e8c667] hover:underline">Daft Punk</a> or a song title.
     </div>
@@ -89,20 +89,20 @@
   <!-- Genre browse -->
   <section>
     <div class="flex items-center justify-between">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Browse by Genre</h2>
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Browse by Genre</h2>
       {% if d.filters.genre != 'All' or d.filters.mood != 'All' %}<a href="/discover" class="text-[11px] font-semibold text-amber-400 hover:underline">Clear filters</a>{% endif %}
     </div>
     <div class="mt-3 flex flex-wrap gap-1.5">
-      <a href="/discover" class="rounded-full border px-3 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if d.filters.genre == 'All' else 'border-white/10 text-gray-400 hover:text-gray-200' }}">All</a>
+      <a href="/discover" class="rounded-full border px-3 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if d.filters.genre == 'All' else 'border-white/10 text-gray-300 hover:text-white' }}">All</a>
       {% for g in d.genres %}
-      <a href="/discover?genre={{ g.name }}{% if d.filters.mood != 'All' %}&mood={{ d.filters.mood }}{% endif %}" class="rounded-full border px-3 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if d.filters.genre == g.name else 'border-white/10 text-gray-400 hover:text-gray-200' }}">{{ g.name }} <span class="text-gray-400">{{ g.count }}</span></a>
+      <a href="/discover?genre={{ g.name }}{% if d.filters.mood != 'All' %}&mood={{ d.filters.mood }}{% endif %}" class="rounded-full border px-3 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if d.filters.genre == g.name else 'border-white/10 text-gray-300 hover:text-white' }}">{{ g.name }} <span class="text-gray-300">{{ g.count }}</span></a>
       {% endfor %}
     </div>
   </section>
 
   <!-- Mood browse -->
   <section>
-    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">By Mood</h2>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">By Mood</h2>
     <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {% for m in d.moods %}
       <a href="/discover?mood={{ m.id }}{% if d.filters.genre != 'All' %}&genre={{ d.filters.genre }}{% endif %}" class="relative overflow-hidden rounded-xl border {{ 'border-amber-400' if d.filters.mood == m.id else 'border-white/10' }}">
@@ -117,10 +117,10 @@
   <!-- Track feed -->
   <section>
     <div class="flex items-center justify-between">
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">
         {% if d.filters.genre != 'All' or d.filters.mood != 'All' %}Results{% else %}Trending Now{% endif %}
       </h2>
-      <span class="text-[11px] text-gray-400">{{ d.result_count }} track{{ '' if d.result_count == 1 else 's' }}</span>
+      <span class="text-[11px] text-gray-300 font-medium">{{ d.result_count }} track{{ '' if d.result_count == 1 else 's' }}</span>
     </div>
     <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {% for t in d.tracks %}
@@ -135,19 +135,19 @@
         </div>
         <div class="p-2.5">
           <div class="truncate text-xs font-semibold text-gray-100">{{ t.title }}</div>
-          <a href="/network/{{ t.artist_id }}" class="block truncate text-[11px] text-gray-400 hover:text-amber-400">{{ t.artist }}</a>
-          <div class="mt-1 text-[10px] text-gray-400">{{ t.genre }}</div>
+          <a href="/network/{{ t.artist_id }}" class="block truncate text-[11px] text-gray-300 hover:text-amber-400 font-medium">{{ t.artist }}</a>
+          <div class="mt-1 text-[10px] text-gray-300 font-medium">{{ t.genre }}</div>
         </div>
       </div>
       {% endfor %}
       {% if not d.tracks %}
-      <div class="col-span-full rounded-xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-400">
+      <div class="col-span-full rounded-xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-300">
         <p>No tracks match those filters.</p>
         <p class="mt-2">Try:
           {% for g in d.genres[:3] %}
           <a href="/discover?genre={{ g.name }}" class="mx-1 rounded-full border border-amber-500/40 px-2.5 py-0.5 font-semibold text-amber-400 hover:bg-amber-500/10">{{ g.name }}</a>
           {% endfor %}
-          <a href="/discover" class="mx-1 rounded-full border border-white/15 px-2.5 py-0.5 font-semibold text-gray-400 hover:bg-white/5">Clear all</a>
+          <a href="/discover" class="mx-1 rounded-full border border-white/15 px-2.5 py-0.5 font-semibold text-gray-300 hover:bg-white/5">Clear all</a>
         </p>
       </div>
       {% endif %}
@@ -157,13 +157,13 @@
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
     <!-- New releases -->
     <section>
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">New Releases</h2>
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">New Releases</h2>
       <div class="mt-3 space-y-2">
         {% for t in d.new_releases %}
         <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-[#111113] px-3 py-2">
           <span class="h-10 w-10 shrink-0 overflow-hidden rounded" style="background: linear-gradient(135deg, {{ t.from }}, {{ t.to }});">{% if t.art %}<img src="{{ t.art }}" alt="" class="h-full w-full object-cover" loading="lazy">{% endif %}</span>
-          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-gray-100">{{ t.title }}</span><a href="/network/{{ t.artist_id }}" class="block truncate text-[11px] text-gray-400 hover:text-amber-400">{{ t.artist }} · {{ t.genre }}</a></span>
-          <span class="shrink-0 text-[11px] text-gray-400">▶ {{ t.plays_fmt }}</span>
+          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-gray-100">{{ t.title }}</span><a href="/network/{{ t.artist_id }}" class="block truncate text-[11px] text-gray-300 hover:text-amber-400 font-medium">{{ t.artist }} · {{ t.genre }}</a></span>
+          <span class="shrink-0 text-[11px] text-gray-300 font-medium">▶ {{ t.plays_fmt }}</span>
         </div>
         {% endfor %}
       </div>
@@ -171,21 +171,21 @@
 
     <!-- Artist spotlights -->
     <section>
-      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Artist Spotlights</h2>
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Artist Spotlights</h2>
       <div class="mt-3 space-y-2">
         {% for a in d.spotlights %}
         <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-[#111113] px-3 py-2">
           <a href="/network/{{ a.id }}" class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">
             {%- if a.avatar %}<img src="{{ a.avatar }}" alt="{{ a.name }}" class="h-full w-full object-cover" loading="lazy">{% else %}{{ a.initials }}{% endif -%}
           </a>
-          <span class="min-w-0 flex-1"><a href="/network/{{ a.id }}" class="block truncate text-sm font-semibold text-gray-100 hover:text-amber-400">{{ a.name }}</a><span class="text-[11px] text-gray-400">{{ a.genre }}</span></span>
+          <span class="min-w-0 flex-1"><a href="/network/{{ a.id }}" class="block truncate text-sm font-semibold text-gray-100 hover:text-amber-400">{{ a.name }}</a><span class="text-[11px] text-gray-300 font-medium">{{ a.genre }}</span></span>
           <button type="button" class="follow-btn shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-green-500/20 bg-green-500/10 text-green-400' if a.following else 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' }}" data-id="{{ a.id }}">{{ 'Following' if a.following else 'Follow' }}</button>
         </div>
         {% endfor %}
       </div>
     </section>
   </div>
-  <p class="px-1 text-[11px] text-gray-400">Fan discovery preview — tracks reference real network artists; play counts are illustrative. Likes &amp; follows save for your session.</p>
+  <p class="px-1 text-[11px] text-gray-300 font-medium">Fan discovery preview — tracks reference real network artists; play counts are illustrative. Likes &amp; follows save for your session.</p>
 </div>
 {% endblock %}
 

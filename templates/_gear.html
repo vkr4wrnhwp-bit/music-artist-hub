@@ -129,7 +129,7 @@
 {% macro led(color='#7ee083', label='NORMAL', dark=False) %}
 <span class="inline-flex items-center gap-1.5">
   <span class="h-2 w-2 rounded-full" style="background: {{ color }}; box-shadow: 0 0 7px {{ color }}, 0 0 2px {{ color }};"></span>
-  <span class="text-[8px] font-semibold uppercase tracking-[0.2em] {{ 'text-gray-400' if dark else 'text-[#44444c]' }}">{{ label }}</span>
+  <span class="text-[8px] font-semibold uppercase tracking-[0.2em] {{ 'text-gray-300' if dark else 'text-[#44444c]' }}">{{ label }}</span>
 </span>
 {% endmacro %}
 

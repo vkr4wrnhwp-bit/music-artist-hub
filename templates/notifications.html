@@ -9,9 +9,9 @@
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold uppercase tracking-tight">Notifications</h1>
-      <p class="mt-1 text-sm text-gray-400"><span id="unread-count">{{ nd.unread }}</span> unread of {{ nd.total }}</p>
+      <p class="mt-1 text-sm text-gray-300"><span id="unread-count">{{ nd.unread }}</span> unread of {{ nd.total }}</p>
     </div>
-    <button type="button" id="mark-all-btn" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-white/5 {{ 'hidden' if nd.unread == 0 }}">Mark all read</button>
+    <button type="button" id="mark-all-btn" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 transition-colors hover:bg-white/5 {{ 'hidden' if nd.unread == 0 }}">Mark all read</button>
   </div>
 
   <div id="notifications-list" class="space-y-2">
@@ -21,12 +21,12 @@
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
           <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ n.tone }}">{{ n.category }}</span>
-          <span class="text-sm font-semibold {{ 'text-gray-400' if n.read else 'text-gray-100' }}">{{ n.title }}</span>
+          <span class="text-sm font-semibold {{ 'text-gray-300' if n.read else 'text-gray-100' }}">{{ n.title }}</span>
         </div>
-        <p class="mt-1 text-xs text-gray-400">{{ n.description }}</p>
+        <p class="mt-1 text-xs text-gray-300">{{ n.description }}</p>
         <div class="mt-2 flex items-center gap-3">
           {% if n.route %}<a href="{{ n.route }}" class="text-[11px] font-semibold text-amber-400 hover:underline">View</a>{% endif %}
-          <button type="button" class="mark-read-btn text-[11px] font-semibold text-gray-400 hover:text-gray-300 {{ 'hidden' if n.read }}">Mark read</button>
+          <button type="button" class="mark-read-btn text-[11px] font-semibold text-gray-300 hover:text-white {{ 'hidden' if n.read }}">Mark read</button>
         </div>
       </div>
     </div>
@@ -51,7 +51,7 @@
     if (btn) btn.classList.add("hidden");
     const title = item.querySelector(".text-sm");
     title.classList.remove("text-gray-100");
-    title.classList.add("text-gray-400");
+    title.classList.add("text-gray-300");
     unreadEl.textContent = String(Math.max(0, Number(unreadEl.textContent) - 1));
     if (Number(unreadEl.textContent) === 0) markAllBtn.classList.add("hidden");
   }

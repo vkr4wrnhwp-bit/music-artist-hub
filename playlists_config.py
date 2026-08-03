@@ -8,7 +8,7 @@ titles; playlist names, curators, and follower counts are illustrative.
 from royalty_data import get_songs
 
 STAGE_TONE = {
-    "Pitched": "border-gray-500/20 bg-gray-500/10 text-gray-400",
+    "Pitched": "border-gray-500/20 bg-gray-500/10 text-gray-300",
     "In Review": "border-amber-500/20 bg-amber-500/10 text-amber-400",
     "Added": "border-green-500/20 bg-green-500/10 text-green-400",
     "Passed": "border-red-500/20 bg-red-500/10 text-red-400",
