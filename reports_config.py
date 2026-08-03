@@ -26,10 +26,19 @@ FORMAT_TONE = {
 }
 
 
-def get_reports_data():
+def get_reports_data(demo=False):
+    """`demo` decides whether the example saved schedules are included.
+
+    There is no scheduler behind them. Nothing runs monthly, nothing is
+    emailed to "2 recipients", and the next-run dates are literals - the
+    same three rows for every account, under a heading that reads as
+    configuration the artist set up themselves. Real accounts get an
+    empty list, and the page says the scheduler is not built yet rather
+    than showing three jobs that will never run.
+    """
     reports = get_available_reports()
     history = get_report_history()
-    scheduled = get_scheduled_reports()
+    scheduled = get_scheduled_reports() if demo else []
 
     # Group the library by category, preserving the canonical order.
     grouped = {}

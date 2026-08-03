@@ -1,17 +1,27 @@
-"""Global search across the app's real data — songs, connected sources,
-claims, and disputes. Returns results grouped by type with a link to the
-relevant page, so search is a fast way to jump anywhere.
+"""Global search over the signed-in artist's own catalogue.
+
+It used to search royalty_data._SONGS and disputes_config._seed(), both
+hardcoded. Typing "midnight" returned "Midnight Drive · ISRC
+USRC12345678"; typing "mlc" returned a $640 dispute against The MLC - to
+an artist who had neither. Results that look like your records but
+belong to nobody are worse than no results, because search is where
+people go to confirm a thing exists.
+
+Now it reads statement rows and disputes for one user_id. The demo
+account keeps the seeded catalogue, because the tour needs something to
+find.
 """
 
-from royalty_data import get_songs, get_platform_catalog, get_claims
-from disputes_config import get_disputes_data
+import db as store
 
 
-def search(query):
-    q = (query or "").strip().lower()
+def _demo_search(q):
+    """The previous behaviour, kept for the showcase account only."""
+    from royalty_data import get_songs, get_platform_catalog, get_claims
+    from disputes_config import get_disputes_data
+
     groups = []
-    if not q:
-        return {"query": "", "groups": [], "total": 0}
+    q = q.lower()
 
     # Songs (title / ISRC / writers).
     song_hits = []
@@ -49,5 +59,64 @@ def search(query):
     if dispute_hits:
         groups.append({"type": "Disputes", "items": dispute_hits})
 
-    total = sum(len(g["items"]) for g in groups)
-    return {"query": query, "groups": groups, "total": total}
+    return groups
+
+
+def search(query, user_id=None, demo=False):
+    """Real accounts search their own statements and disputes.
+
+    `demo` defaults to False, so a caller that forgets the flag gets an
+    honest empty result rather than a stranger's catalogue.
+    """
+    q = (query or "").strip().lower()
+    if not q:
+        return {"query": "", "groups": [], "total": 0, "is_demo": bool(demo)}
+
+    if demo:
+        groups = _demo_search(q)
+        return {"query": query, "groups": groups, "is_demo": True,
+                "total": sum(len(g["items"]) for g in groups)}
+
+    groups = []
+    rows = store.get_statement_rows(user_id) if user_id else []
+
+    tracks, sources = {}, {}
+    for r in rows:
+        title = (r.get("title") or "").strip()
+        src = (r.get("source") or "").strip()
+        if title:
+            tracks.setdefault(title, set()).add(src)
+        if src:
+            sources[src] = sources.get(src, 0.0) + (r.get("amount") or 0)
+
+    hits = [{"label": t,
+             "sub": "Track · paid by %d source%s"
+                    % (len(s), "" if len(s) == 1 else "s"),
+             "route": "/catalog"}
+            for t, s in sorted(tracks.items()) if q in t.lower()]
+    if hits:
+        groups.append({"type": "Tracks", "items": hits})
+
+    hits = [{"label": s, "sub": "Source · $%s tracked" % format(amt, ",.2f"),
+             "route": "/royalties"}
+            for s, amt in sorted(sources.items()) if q in s.lower()]
+    if hits:
+        groups.append({"type": "Sources", "items": hits})
+
+    if user_id:
+        try:
+            mine = store.list_disputes(user_id)
+        except Exception:
+            mine = []
+        hits = [{"label": d.get("title") or "(untitled)",
+                 "sub": "Dispute · " + (d.get("counterparty") or "—"),
+                 "route": "/disputes"}
+                for d in mine
+                if q in (d.get("title") or "").lower()
+                or q in (d.get("counterparty") or "").lower()]
+        if hits:
+            groups.append({"type": "Disputes", "items": hits})
+
+    return {"query": query, "groups": groups, "is_demo": False,
+            "searched_rows": len(rows),
+            "total": sum(len(g["items"]) for g in groups)}

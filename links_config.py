@@ -73,8 +73,20 @@ def reset_smart_links_state():
     _link_seq = 3
 
 
-def get_links_data():
-    links = [_decorate(l) for l in _smart_links]
+def get_links_data(demo=False):
+    """`demo` decides whether the seeded example links are included.
+
+    The three seeds carry invented click counts (4,820 / 3,110 / 1,290)
+    and get summed into the headline band on /links - "Total Clicks
+    9,220", top performer "Midnight Drive". A real artist reads that as
+    their own reach. Their genuine links already render above it from
+    store.get_db_links() and mls.list_campaigns(), so the seeds were
+    contributing nothing except a misleading total.
+
+    Defaults to False so a caller that forgets the flag gets an honest
+    empty summary rather than somebody else's numbers.
+    """
+    links = [_decorate(l) for l in (_smart_links if demo else [])]
     total_clicks = sum(l["clicks"] for l in links)
     top = max(links, key=lambda l: l["clicks"]) if links else None
     return {

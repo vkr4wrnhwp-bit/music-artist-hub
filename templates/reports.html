@@ -129,7 +129,19 @@
 
       <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
         <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Scheduled Reports</h2>
+        {% if rd.scheduled %}
         <p class="mt-1 text-sm text-gray-400">Recurring exports sent automatically.</p>
+        {% else %}
+        {# There is no scheduler. This used to list three example jobs -
+           "Monthly · 2 recipients · next 2026-08-01" - identical for
+           every account, under a heading that reads as something the
+           artist had set up. Say what is true instead. #}
+        {% with kind='preview',
+                body='Recurring exports are not built yet.',
+                note='Nothing is scheduled and nothing will be emailed. Every report in the library builds and downloads on demand today.' %}
+          {% include 'partials/data_label.html' %}
+        {% endwith %}
+        {% endif %}
         <div class="mt-3 space-y-2">
           {% for s in rd.scheduled %}
           <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">

@@ -753,8 +753,13 @@ def test_reports_data_config_shapes():
         len(c["reports"]) for c in data["categories"][1:]
     )
     assert [c["name"] for c in data["categories"]] == ["Financial", "Recovery", "Rights", "Investor"]
-    assert data["formats"] and data["scheduled"]
+    assert data["formats"]
     assert all("tone" in c for c in data["categories"])
+    # No scheduler exists, so a real account is shown no schedules. The
+    # three examples ("Monthly · 2 recipients · next 2026-08-01") were
+    # identical for every account and would never have run.
+    assert data["scheduled"] == [], "real accounts are shown jobs that do not exist"
+    assert get_reports_data(demo=True)["scheduled"], "showcase lost its examples"
 
 
 def test_epk_page_includes_press_kit():
@@ -1121,10 +1126,21 @@ def test_global_search_finds_songs_and_sources():
     client = _demo()
     assert client.get("/search").status_code == 200
     assert 'action="/search"' in client.get("/overview").get_data(as_text=True)
-    res = search("spotify")
+    # The showcase account still finds the seeded catalogue.
+    res = search("spotify", demo=True)
     assert res["total"] >= 1
     assert any(g["type"] == "Sources" for g in res["groups"])
-    assert search("")["total"] == 0
+    assert search("", demo=True)["total"] == 0
+
+    # A real account searches its own statements. With none uploaded the
+    # honest answer is nothing - this used to return "Midnight Drive,
+    # ISRC USRC12345678" to an artist who had never heard of it.
+    import db as store_mod
+    fresh = store_mod.get_user_by_email("demo@streetbanker.io")
+    plain = search("midnight", user_id=fresh["id"])
+    assert plain["is_demo"] is False
+    assert all(g["type"] != "Songs" for g in plain["groups"]), \
+        "real search is still serving the hardcoded song catalogue"
 
 
 def test_billing_page_content():

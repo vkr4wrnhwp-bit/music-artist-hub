@@ -1581,8 +1581,9 @@ def create_app():
     @app.route("/reports")
     def reports():
         ctx = build_dashboard_context()
-        ctx["reports_data"] = get_reports_data()
         ctx["reports_user"] = current_user()
+        ctx["reports_data"] = get_reports_data(
+            demo=_is_demo_email((ctx["reports_user"] or {}).get("email") or ""))
         return render_template("reports.html", active_page="reports", **ctx)
 
     @app.route("/reports/campaigns.csv")
@@ -2073,10 +2074,11 @@ def create_app():
     @app.route("/links")
     def links():
         ctx = build_dashboard_context()
-        ctx["links_data"] = get_links_data()
+        user = current_user()
+        ctx["links_data"] = get_links_data(
+            demo=_is_demo_email((user or {}).get("email") or ""))
         # Real, persisted links with genuine click counts sit above the demo set.
         ctx["real_links"] = store.get_db_links()
-        user = current_user()
         ctx["links_user"] = user
         ctx["ml_campaigns"] = ([_ml_campaign_card(c) for c in mls.list_campaigns(user["id"])]
                                if user else [])
@@ -6242,7 +6244,11 @@ def create_app():
     @app.route("/search")
     def search_route():
         ctx = build_dashboard_context()
-        ctx["search_results"] = global_search(request.args.get("q", ""))
+        user = current_user()
+        ctx["search_results"] = global_search(
+            request.args.get("q", ""),
+            user_id=(user or {}).get("id"),
+            demo=_is_demo_email((user or {}).get("email") or ""))
         return render_template("search.html", active_page="search", **ctx)
 
     @app.route("/notifications")
