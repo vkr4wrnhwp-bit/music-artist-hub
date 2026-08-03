@@ -259,6 +259,11 @@
     </section>
   </div>
 
+  {# Every figure in this strip - "+$482.15 new royalties collected", two
+     payouts, five tasks completed, the catalog value increase - is a
+     constant in royalty_data. It describes the showcase and nobody else,
+     so a real account is shown nothing rather than someone else's week. #}
+  {% if is_showcase %}
   <section class="rounded-2xl border border-[#c9a24a]/15 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#b3a684]">What Changed Since Your Last Visit</h2>
     <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -286,6 +291,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
 </div>
 
 <div id="goal-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">

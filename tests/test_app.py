@@ -2904,8 +2904,10 @@ def test_money_pages_use_real_statement_data():
     assert "3,301.38" not in body and "Ready to Claim" not in body
     # Valuation: annualized signal with the honesty disclaimer.
     body = client.get("/valuation").get_data(as_text=True)
-    assert "Annualized Pace" in body and "Catalog Signal" in body
+    assert "Annualised run rate" in body and "Catalog signal" in body
     assert "not financial advice" in body
+    # Not the showcase's hardcoded Jan-Jun curve.
+    assert "31,000" not in body and "Payout consistency" not in body
     # Command Center surfaces the money-on-the-table alerts first.
     body = client.get("/command-center").get_data(as_text=True)
     assert "unmatched revenue in your statements" in body

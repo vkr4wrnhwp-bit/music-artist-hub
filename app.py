@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import db as store
 import recovery_engine
 import report_builder
+import valuation_engine
 
 # The address this product answers to in anything that outlives the
 # request that made it - emails, and the user-agent we identify as to
@@ -339,6 +340,10 @@ def build_dashboard_context():
     value_tracker = get_catalog_value_tracker(earnings_trend)
 
     return {
+        # Templates that still carry showcase-only sections check this
+        # rather than guessing from whichever seeded value they happen to
+        # render.
+        "is_showcase": demo,
         "story": get_dashboard_story(total, missing_findings, catalog_value, smart_recommendations),
         "money_left": money_left_on_table(missing_findings),
         "recovery_summary": get_recovery_summary(catalog, songs, earnings_trend),
@@ -1625,6 +1630,13 @@ def create_app():
         trend = (score_history.summarise(
             "valuation", store.score_trend(user["id"], "valuation"))
             if user else None)
+        # Same split as /recovery: valuation.html's figures all annualise
+        # get_earnings_trend(), six hardcoded months. A real account is
+        # valued on the months it uploaded, or on nothing.
+        if user is not None and not _session_is_demo():
+            return render_template("valuation_real.html", active_page="valuation",
+                                   valuation_view=valuation_engine.build(user["id"]),
+                                   trend=trend, **build_dashboard_context())
         return render_template("valuation.html", active_page="valuation",
                                real_royalty=_real_royalty(), trend=trend,
                                **build_dashboard_context())
