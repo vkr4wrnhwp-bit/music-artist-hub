@@ -525,7 +525,7 @@ body.lsr {
 .lsr-footer a { color: var(--lsr-muted); text-decoration: none; }
 .lsr-footer a:hover { color: var(--lsr-ink); text-decoration: underline; }
 .lsr-footer span { color: rgba(242, 238, 230, 0.25); }
-.lsr-footer p { margin: 10px 0 0; font-size: 11px; color: #8a8377; }
+.lsr-footer p { margin: 10px 0 0; font-size: 11px; color: #797369; }
 
 .lsr-sr {
   position: absolute;

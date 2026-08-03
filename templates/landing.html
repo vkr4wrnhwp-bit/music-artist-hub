@@ -10,8 +10,8 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=7">
-  <link rel="stylesheet" href="/static/css/artist-eq.css?v=8">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=8">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=9">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -57,7 +57,7 @@
         <a href="{{ cta.href }}" class="inline-flex items-center justify-center rounded-md px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] transition-colors {{ 'bg-[#141210] text-white hover:bg-[#2a251d]' if cta.variant == 'primary' else 'border border-[#141210]/25 text-[#141210] hover:bg-[#141210]/5' }}">{{ cta.label }}</a>
         {% endfor %}
       </div>
-      <p class="mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8a8377]">{{ hero.proof }}</p>
+      <p class="mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#797369]">{{ hero.proof }}</p>
     </div>
     <figure class="relative order-2 overflow-hidden">
       <img src="{{ hero.image.src }}" alt="{{ hero.image.alt }}" class="block w-full object-cover">
@@ -196,7 +196,7 @@
       </div>
       {% endfor %}
     </div>
-    <div class="mt-12 border-t border-black/10 pt-6 text-[11px] text-[#8a8377]">{{ f.copyright }}</div>
+    <div class="mt-12 border-t border-black/10 pt-6 text-[11px] text-[#797369]">{{ f.copyright }}</div>
   </footer>
 </div>
 
