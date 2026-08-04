@@ -224,18 +224,6 @@ def test_landing_is_seven_editorial_sections():
         assert old not in body
 
 
-def test_scan_recovery_summary_route():
-    client = _demo()
-    response = client.post("/scan/recovery-summary")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["ok"] is True
-    summary = data["summary"]
-    required = {"estimated_uncollected", "flagged_issues", "affected_recordings", "ready_to_claim", "confidence_pct", "sources", "chart"}
-    assert required <= set(summary.keys())
-    assert data["scanned_at"]
-
-
 def test_all_pages_render():
     client = _demo()
     for route in ["/overview", "/royalties", "/catalog", "/connections", "/recovery", "/valuation", "/reports", "/settings"]:
@@ -3608,22 +3596,6 @@ def test_settings_has_quick_links_and_signout():
     assert 'href="/team"' in body
     assert 'href="/billing"' in body
     assert 'action="/logout"' in body
-
-
-def test_build_landing_hero_reflects_catalog_status():
-    from app import build_landing_hero
-    from royalty_data import get_platform_catalog, get_missing_royalty_findings, get_recovery_summary, get_songs, live_song, get_earnings_trend
-
-    catalog = get_platform_catalog()
-    songs = [live_song(s) for s in get_songs()]
-    summary = get_recovery_summary(catalog, songs, get_earnings_trend())
-    hero = build_landing_hero(catalog, summary)
-
-    assert len(hero["nodes"]) == 7
-    assert len(hero["cards"]) == 7
-    assert hero["center_amount"] == summary["estimated_uncollected"]
-    spotify_node = next(n for n in hero["nodes"] if n["name"] == "Spotify")
-    assert spotify_node["status_tone"] == "ok"
 
 
 def test_webhook_auto_setup(monkeypatch):

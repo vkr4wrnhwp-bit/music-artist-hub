@@ -77,6 +77,7 @@ HUBS = [
 # Groups outside the five hubs.
 LABEL_GROUP = ("Label Services", [
     ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Art Is War Records label services."),
+    ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
     ("submit", "/submit", "M10 4v9M6 8l4-4 4 4|M4 15h12", "Submit Music", "Send music to the label desk."),
     ("review", "/admin/review", "M4 5h12v10H4z|M7 9l2 2 4-4M4 8h12", "Review Queue", "Submissions awaiting review."),
 ])
@@ -118,7 +119,7 @@ HUB_ICONS = {
 }
 
 # Features that genuinely work today; everything else shows a lock.
-LIVE_KEYS = ["statements", "notifications", "documents", "identifiers", "cases",
+LIVE_KEYS = ["apparel", "statements", "notifications", "documents", "identifiers", "cases",
              "deal-room", "sync-packs", "deal-simulator", "artist-twin",
              "revenue-os", "trust-score", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
