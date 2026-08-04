@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=11">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
+  <link rel="stylesheet" href="/static/css/departments.css?v=2">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -122,8 +123,17 @@
      that moves is coded; nothing here replaces an existing section. -->
 {% include "partials/artist_eq.html" %}
 
+</div><!-- /reading column: Section 4 is full-bleed -->
+
+<!-- 4. ONE SYSTEM. SIX DEPARTMENTS. — additive: one photograph, six coded
+     slices. A near-black band across the page, so it goes outside the
+     reading column the way the hero does. It displaces nothing below it. -->
+{% include "partials/departments.html" %}
+
+<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
+
 <span id="platform" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 4. THE THREE LANES — breaks out of the reading column. The rack units
+<!-- 5. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting
      in a narrower gutter than the bands above and below. -->
 {% set lanes = config.lanes %}
@@ -259,5 +269,6 @@
 </div>
 
 <script src="/static/js/artist-eq.js?v=8" defer></script>
+<script src="/static/js/departments.js?v=3" defer></script>
 </body>
 </html>

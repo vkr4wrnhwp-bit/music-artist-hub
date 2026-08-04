@@ -95,6 +95,7 @@ from statements_engine import (analyze as analyze_statement, parse_statement,
 
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
+from departments_config import get_departments_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1336,8 +1337,11 @@ def create_app():
         # The Artist EQ ships its data twice: once as a dict for Jinja to
         # render the plate from, once as JSON for the component script.
         eq = get_artist_eq_config()
+        departments = get_departments_config()
         return render_template("landing.html", config=config, artist_eq=eq,
-                               artist_eq_json=json.dumps(eq))
+                               artist_eq_json=json.dumps(eq),
+                               departments=departments,
+                               departments_json=json.dumps(departments))
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
