@@ -103,6 +103,20 @@ ACCOUNT_GROUP = ("Account", [
 
 FAN_ACCOUNT_KEYS = ("notifications", "billing", "settings")
 
+# One icon per hub, for the collapsed rail. Kept in a dict rather than a
+# sixth field on the HUBS tuples so nothing that unpacks them - the
+# sidebar, the desk pages, command_index - has to change to gain it.
+HUB_ICONS = {
+    "command": "M4 4h5v5H4zM11 4h5v3h-5zM11 9h5v7h-5zM4 11h5v5H4z",
+    "studio": "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01",
+    "launch": "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6",
+    "stage": "M3 5h14v11H3z|M3 9h14|M7 3v4|M13 3v4",
+    "money": "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6",
+    "account": "M10 4a3 3 0 100 6 3 3 0 000-6z|M4 17c0-3 2.5-5 6-5s6 2 6 5",
+    "label": "M4 6h12v10H4z|M4 9h12M8 6V4h4v2",
+    "community": "M10 3a7 7 0 100 14 7 7 0 000-14z|M13 7l-2 4-4 2 2-4z",
+}
+
 # Features that genuinely work today; everything else shows a lock.
 LIVE_KEYS = ["statements", "notifications", "documents", "identifiers", "cases",
              "deal-room", "sync-packs", "deal-simulator", "artist-twin",

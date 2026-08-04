@@ -2375,6 +2375,7 @@ def create_app():
                 "hubs_community": hub_defs.COMMUNITY_GROUP,
                 "hubs_account": hub_defs.ACCOUNT_GROUP,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
+                "hub_icons": hub_defs.HUB_ICONS,
                 "live_keys": hub_defs.LIVE_KEYS,
                 # One flat list for the command palette, derived from the
                 # same definitions - so it cannot list a page the nav has
