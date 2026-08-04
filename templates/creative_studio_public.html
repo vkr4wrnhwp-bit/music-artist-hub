@@ -1,0 +1,73 @@
+{# Creative Studio, explained before an account is asked for. Grouped by
+   what is true: what is in the app today, what is guided rather than
+   automatic, and what is not built. A feature list that will not admit
+   the third group is a sales page, not an explanation. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Creative Studio · Street Banker</title>
+  <meta name="description" content="Cover art, merch, campaign assets and platform formats built around one artist identity — what the tools do today, and what they do not.">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=17">
+  <link rel="stylesheet" href="/static/css/public-header.css?v=3">
+</head>
+<body class="min-h-screen bg-[#090908] text-[#EDE7DA] antialiased">
+
+{% include "partials/public_header.html" %}
+
+<main id="main" class="mx-auto max-w-3xl px-6 py-14 lg:px-10 lg:py-20">
+  <div class="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#C9A86A]">Creative Studio</div>
+  <h1 class="mt-4 text-[clamp(2rem,5.4vw,3rem)] font-black uppercase leading-[0.98] tracking-tight text-[#D7D1C6]">
+    Build the visual world.
+  </h1>
+  <p class="mt-5 max-w-xl text-[15px] leading-relaxed text-[#9E978C]">
+    Artwork, merch, campaign assets and release content built around one clear
+    artist identity. Here is what that means in the app, and where it stops.
+  </p>
+
+  <h2 class="mt-12 text-[13px] font-semibold uppercase tracking-[0.2em] text-[#C9A86A]">How it runs</h2>
+  <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.28)] pl-0">
+    {% for step, detail in workflow %}
+    <li class="relative pb-5 pl-5">
+      <span class="absolute -left-[4px] top-[7px] h-[7px] w-[7px] rounded-full bg-[#C9A86A]" aria-hidden="true"></span>
+      <span class="block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A86A]">{{ step }}</span>
+      <span class="mt-1 block max-w-xl text-[14px] leading-relaxed text-[#9E978C]">{{ detail }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+
+  {% for heading, items in capabilities %}
+  <h2 class="mt-12 text-[13px] font-semibold uppercase tracking-[0.2em] text-[#C9A86A]">{{ heading }}</h2>
+  <dl class="mt-4 space-y-5">
+    {% for title, body in items %}
+    <div class="border-t border-white/[0.07] pt-4">
+      <dt class="text-[15px] font-semibold text-[#EDE7DA]">{{ title }}</dt>
+      <dd class="mt-1.5 max-w-xl text-[14px] leading-relaxed text-[#9E978C]">{{ body }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+  {% endfor %}
+
+  <div class="mt-12 rounded border border-[rgb(201_168_106_/_0.28)] bg-[#101010] p-6">
+    <p class="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#EDE7DA]">{{ memory_title }}</p>
+    <p class="mt-2 max-w-xl text-[13.5px] leading-relaxed text-[#9E978C]">{{ memory_copy }}</p>
+  </div>
+
+  <div class="mt-9 flex flex-wrap gap-3">
+    <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-[#C9A86A] px-6 text-[12px] font-bold uppercase tracking-[0.1em] text-[#14120E] transition-colors hover:bg-[#E0C48C]">Create an account to start</a>
+    <a href="/lanes" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.28)] px-6 text-[12px] font-bold uppercase tracking-[0.1em] text-[#EDE7DA] transition-colors hover:border-[#C9A86A] hover:text-[#C9A86A]">See which lane this sits in</a>
+  </div>
+
+  <p class="mt-8 text-[12px] leading-relaxed text-[#9E978C]">
+    The generated directions come from a free community image model, and the
+    output is yours to edit, replace or throw away.
+    <a href="/ai" class="border-b border-[rgb(201_168_106_/_0.4)] text-[#C9A86A] hover:border-[#C9A86A]">How Street Banker uses AI</a>
+  </p>
+</main>
+
+<footer class="mx-auto max-w-3xl px-6 pb-14 text-[11px] text-[#7E786F] lg:px-10">
+  <a href="/#creative-studio" class="font-semibold hover:text-[#EDE7DA]">← Back to Street Banker</a>
+</footer>
+</body>
+</html>

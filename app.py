@@ -98,6 +98,7 @@ from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
+from creative_config import get_creative_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1345,7 +1346,8 @@ def create_app():
                                departments=departments,
                                departments_json=json.dumps(departments),
                                artist_twin=get_artist_twin_config(),
-                               lanes=get_lanes_config())
+                               lanes=get_lanes_config(),
+                               creative=get_creative_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2470,7 +2472,8 @@ def create_app():
                      # A stranger asking what the Artist Twin does, and how
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
-                     "/artist-twin/start", "/ai", "/lanes"}
+                     "/artist-twin/start", "/ai", "/lanes",
+                     "/creative-studio"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7117,6 +7120,20 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/creative-studio")
+    def creative_studio_public():
+        """Creative Studio, explained before an account is asked for.
+
+        Grouped by what is true rather than by feature: what is in the
+        app today, what is guided rather than automatic, and what is not
+        built. A visitor should be able to decide against it from here.
+        """
+        from creative_config import CAPABILITIES, WORKFLOW, MEMORY_TITLE, MEMORY_COPY
+
+        return render_template("creative_studio_public.html",
+                               capabilities=CAPABILITIES, workflow=WORKFLOW,
+                               memory_title=MEMORY_TITLE, memory_copy=MEMORY_COPY)
 
     @app.route("/lanes")
     def lanes_public():
