@@ -101,6 +101,7 @@ from lanes_config import get_lanes_config
 from creative_config import get_creative_config
 from rollout_config import get_rollout_config
 from sweep_config import get_sweep_config
+from distro_config import get_distro_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1351,7 +1352,8 @@ def create_app():
                                lanes=get_lanes_config(),
                                creative=get_creative_config(),
                                rollout=get_rollout_config(),
-                               sweep=get_sweep_config())
+                               sweep=get_sweep_config(),
+                               distro=get_distro_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2478,7 +2480,7 @@ def create_app():
                      # field first. /artist-twin itself stays gated.
                      "/artist-twin/start", "/ai", "/lanes",
                      "/creative-studio", "/rollout",
-                     "/royalty-sweep"}
+                     "/royalty-sweep", "/distribution"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7125,6 +7127,21 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/distribution")
+    def distribution_guide():
+        """The distribution guide, in public.
+
+        Who delivers, what a release package needs, what each stage does,
+        and which parts are the partner's rather than Street Banker's.
+        No account, and no claim that a release has been delivered.
+        """
+        from distro_config import (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS,
+                                   PARTNER)
+
+        return render_template("distribution_public.html", guide=GUIDE,
+                               workflow=WORKFLOW, checklist=CHECKLIST,
+                               integrations=INTEGRATIONS, partner=PARTNER)
 
     @app.route("/royalty-sweep")
     def sweep_method():

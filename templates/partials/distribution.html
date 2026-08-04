@@ -1,0 +1,122 @@
+{# Section 10 — Global Distribution.
+
+   Centred header, one wide bench of release materials, five capabilities,
+   the release workflow, an example checklist and one closing block.
+
+   Every claim on this page was checked before it was written. Street
+   Banker prepares and validates the release; delivery goes out through
+   the distribution partnership, and the section says so rather than
+   implying a direct line to a platform that does not exist. #}
+
+{% set ds = distro %}
+{% set img = ds.image %}
+<section class="sbds" id="global-distribution" aria-labelledby="sbds-heading">
+  <header class="sbds-head">
+    <p class="sbds-eyebrow">
+      <span class="sbds-num">{{ ds.number }}</span>
+      <span class="sbds-rule" aria-hidden="true"></span>
+      {{ ds.eyebrow }}
+    </p>
+    <h2 class="sbds-title" id="sbds-heading">
+      {% for line in ds.headline %}<span>{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="sbds-support">{{ ds.support }}</p>
+    <div class="sbds-ctas">
+      <a class="sbds-cta" href="{{ ds.primary_cta.href }}">{{ ds.primary_cta.label }}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+      </a>
+      <a class="sbds-guide" href="{{ ds.guide_cta.href }}">{{ ds.guide_cta.label }}</a>
+    </div>
+    <p class="sbds-trust">{{ ds.trust }}</p>
+  </header>
+
+  <figure class="sbds-photo">
+    <picture>
+      {# The phone keeps the passport, the masters, the stems and the
+         checklist; anything wider keeps the whole bench. #}
+      <source media="(max-width: 767px)" type="image/avif"
+              srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+              sizes="100vw">
+      <source media="(max-width: 767px)" type="image/webp"
+              srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+              sizes="100vw">
+      <source media="(max-width: 767px)" type="image/jpeg"
+              srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+              sizes="100vw">
+      <source type="image/avif"
+              srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+              sizes="100vw">
+      <source type="image/webp"
+              srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+              sizes="100vw">
+      <img class="sbds-img" src="{{ img.wide.stem }}-1180.jpg"
+           srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+           sizes="100vw"
+           width="{{ img.wide.width }}" height="{{ img.wide.height }}"
+           alt="{{ img.alt }}" loading="lazy" decoding="async">
+    </picture>
+  </figure>
+
+  <div class="sbds-body">
+    {# Who actually delivers. Stated once, plainly, near the top. #}
+    <p class="sbds-partner">{{ ds.partner.line }}</p>
+
+    <ol class="sbds-caps">
+      {% for num, name, detail in ds.capabilities %}
+      <li class="sbds-cap" data-cap="{{ name | lower | replace(' ', '-') }}">
+        <span class="sbds-cap-num">{{ num }}</span>
+        <span class="sbds-cap-name">{{ name }}</span>
+        <span class="sbds-cap-detail">{{ detail }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+
+    <div class="sbds-flow">
+      <ol class="sbds-flow-row">
+        {% for step, detail in ds.workflow %}
+        <li>
+          <button type="button" class="sbds-stage" data-stage="{{ step | lower }}"
+                  aria-describedby="sbds-flow-detail">{{ step }}</button>
+        </li>
+        {% endfor %}
+      </ol>
+      <p class="sbds-flow-detail" id="sbds-flow-detail" aria-live="polite">
+        <span class="sbds-flow-text">{{ ds.workflow[0][1] }}</span>
+      </p>
+      {# The same detail, readable with no pointer and no script. #}
+      <dl class="sbds-flow-fallback">
+        {% for step, detail in ds.workflow %}<dt>{{ step }}</dt><dd>{{ detail }}</dd>{% endfor %}
+      </dl>
+    </div>
+
+    {# The package a release actually needs, labelled an example so nobody
+       reads it as their own release being ready. #}
+    <div class="sbds-check">
+      <div class="sbds-check-head">
+        <p class="sbds-check-tag">Example release checklist</p>
+        <p class="sbds-check-state">{{ ds.readiness[0] }} — nothing has been entered yet</p>
+      </div>
+      <div class="sbds-check-grid">
+        {% for group, items in ds.checklist %}
+        <div class="sbds-check-group">
+          <p class="sbds-check-group-name">{{ group }}</p>
+          <ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="sbds-check-note">
+        Readiness is completion, and nothing else: it counts required fields
+        that are filled in. It says nothing about how a release will perform.
+      </p>
+    </div>
+
+    <div class="sbds-final">
+      <div>
+        <p class="sbds-final-title">{{ ds.final.headline }}</p>
+        <p class="sbds-final-copy">{{ ds.final.line }}</p>
+      </div>
+      <a class="sbds-final-cta" href="{{ ds.final_cta.href }}">{{ ds.final_cta.label }}</a>
+    </div>
+  </div>
+</section>
