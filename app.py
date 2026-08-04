@@ -1314,15 +1314,20 @@ def create_app():
         # command-desk figures are editable there, not injected live.
         config = get_landing_config()
 
-        # The hero photo and lane cards are the only homepage images; a
-        # missing file just leaves its slot empty rather than 500-ing.
-        def _has_file(img):
-            if not img:
+        # A missing image leaves its slot empty rather than 500-ing. The
+        # hero now ships a responsive set rather than one src, so it is
+        # checked by its widest derivative - if that is missing the whole
+        # set is.
+        def _has_file(img, key="src"):
+            if not img or not img.get(key):
                 return False
-            rel = img["src"].split("/static/", 1)[-1].split("?", 1)[0]
+            rel = img[key].split("/static/", 1)[-1].split("?", 1)[0]
             return os.path.exists(os.path.join(app.static_folder, rel))
 
-        if not _has_file(config["hero"].get("image")):
+        hero_img = config["hero"].get("image") or {}
+        widest = "%s-%s.jpg" % (hero_img.get("wide", ""),
+                                max(hero_img.get("wide_widths") or [0]))
+        if not _has_file({"src": widest}):
             config["hero"] = {**config["hero"], "image": None}
         if not _has_file(config["sweep"].get("image")):
             config["sweep"] = {**config["sweep"], "image": None}

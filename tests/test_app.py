@@ -15,12 +15,13 @@ def test_index_renders_landing_page():
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "STREET BANKER" in body
-    assert "ARTIST INFRASTRUCTURE" in body
-    # Editorial hero: headline in HTML, performer photo beside it.
-    assert "THE ARTIST" in body and "BACK OFFICE." in body
-    assert "sb-hero-photo.jpg" in body
-    assert "SCAN MY CATALOG" in body
-    assert "ROYALTY SWEEP" in body
+    # Section 2: the headline is live HTML over the band photograph, and
+    # both CTAs land somewhere a signed-out visitor can use.
+    assert "BUILD THE RELEASE." in body and "OWN THE MOMENT." in body
+    assert "hero-band-wide-1342.avif" in body     # the responsive set
+    assert "Explore Street Banker" in body
+    assert "Run a Royalty Sweep" in body
+    assert "ROYALTY SWEEP" in body                # the sweep section below
 
 
 def test_landing_page_nav_and_ctas_link_into_the_app():
@@ -123,13 +124,13 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     body = _demo().get("/").get_data(as_text=True)
     assert 'id="artist-eq"' in body
     assert "WHAT MATTERS MOST TO YOUR ART?" in body
-    assert body.index("THE ARTIST") < body.index("WHAT MATTERS MOST")
+    assert body.index("BUILD THE RELEASE.") < body.index("WHAT MATTERS MOST")
     assert body.index("WHAT MATTERS MOST") < body.index("THE THREE STREET BANKER LANES")
     # Every section that was on the page before is still on it.
     for kept in ["RELEASE THE RECORD.", "FIND WHAT YOU EARNED.",
                  "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
                  "sb-band-catalog.jpg", "sb-band-sweep.jpg",
-                 "sb-hero-photo.jpg", "sb-lane-01.jpg"]:
+                 "sb-lane-01.jpg"]:
         assert kept in body, kept
 
 
@@ -5343,12 +5344,15 @@ def test_homepage_carries_the_signal_profile_hooks():
     # The page is STATIC: the EQ reports inside its own racks (the signal
     # line) and touches nothing else. Every page-reaction hook that was
     # tried - badges, tints, adaptive layers, CTA rewording, the banner
-    # strip - is gone, and the hero keeps its left fade into the page.
+    # strip - is gone.
     for gone in ["data-artist-mode", "sb-hero-adaptive", "sb-mode-banner",
                  "sb-final-cta", "sb-adaptive-layer"]:
         assert gone not in body, gone
     assert 'id="sbeq-signal"' in body
-    assert "sb-hero-fade" in body
+    # The hero's own fade is now the Section 2 veil: the same idea (the
+    # photograph falling off into the page rather than ending at an edge)
+    # on the rebuilt hero rather than the old white-page one.
+    assert "sbhero-veil" in body
     assert 'class="min-h-screen bg-white' in body
     assert "START A FREE SCAN" in body
     assert "START FREE" in body

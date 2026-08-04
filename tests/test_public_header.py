@@ -218,3 +218,66 @@ def test_the_session_cookie_is_configured_for_a_real_return_visit():
         assert create_app().config["SESSION_COOKIE_SECURE"] is True
     finally:
         os.environ.pop("RENDER", None)
+
+
+# --- section 2: the hero ----------------------------------------------------
+
+def test_the_hero_is_live_html_over_a_photograph():
+    """Nothing in the reference is flattened into the image: the eyebrow,
+    headline, copy, buttons and the product panel are all markup."""
+    body = _home()
+    assert 'class="sbhero"' in body
+    assert "BUILD THE RELEASE." in body and "OWN THE MOMENT." in body
+    assert "STREET BANKER · THE ARTIST OPERATING SYSTEM" in body
+    assert "creative tools, rollout intelligence" in body
+    assert body.count("<h1") == 1
+
+
+def test_the_hero_ships_a_responsive_image_set():
+    """Two crops - wide for desktop, band-first for phones - in three
+    formats, so a phone never pulls the desktop frame."""
+    body = _home()
+    for asset in ("hero-band-wide-1342.avif", "hero-band-wide-1100.webp",
+                  "hero-band-wide-900.jpg", "hero-band-tall-640.avif",
+                  "hero-band-tall-900.webp"):
+        assert asset in body, asset
+        assert os.path.exists("static/img/" + asset), asset
+    assert 'media="(max-width: 1023px)"' in body      # the phone crop
+    assert 'sizes="100vw"' in body
+    assert 'width="1342" height="775"' in body        # no layout shift
+    assert 'fetchpriority="high"' in body
+
+
+def test_the_hero_ctas_go_somewhere_public():
+    body = _home()
+    assert 'href="#platform"' in body                 # the product story
+    assert 'href="/catalog-sweep"' in body            # the sweep entry
+    client = _anon()
+    assert client.get("/catalog-sweep").status_code == 200
+    assert 'id="platform"' in body
+
+
+def test_the_hero_product_panel_is_labelled_as_an_example():
+    """A panel of live UI, not a screenshot, and not a claim about
+    anybody's account."""
+    body = _home()
+    assert "Release Readiness" in body
+    assert "Example workspace" in body
+    assert "A real account scores this from its own tracks and statements" in body
+    # No invented money or customer numbers anywhere in the hero.
+    hero = body[body.index('class="sbhero"'):body.index("<!-- 3.")]
+    assert "$" not in hero
+    for invented in ("artists served", "recovered for", "customers", "% growth"):
+        assert invented.lower() not in hero.lower(), invented
+
+
+def test_the_hero_is_accessible():
+    body = _home()
+    assert 'aria-labelledby="sbhero-title"' in body
+    assert 'alt="Band rehearsing while release artwork is developed inside a working music studio."' in body
+    assert 'aria-label="Example of the Release Readiness panel"' in body
+    css = open("static/css/hero.css", encoding="utf-8").read()
+    assert "prefers-reduced-motion" in css
+    assert ".sbhero a:focus-visible" in css
+    # Sized so it sits under the sticky bar rather than behind it.
+    assert "calc(100svh - var(--sbh-height))" in css

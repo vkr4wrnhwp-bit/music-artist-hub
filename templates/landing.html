@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/css/tailwind.css?v=13">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=9">
   <link rel="stylesheet" href="/static/css/public-header.css?v=2">
+  <link rel="stylesheet" href="/static/css/hero.css?v=3">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -26,29 +27,96 @@
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
   <!-- 2. HERO -->
-  {% set hero = config.hero %}
-  <section class="grid grid-cols-1 items-center gap-10 pb-20 pt-8 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16 lg:pb-28">
-    <div class="order-1 text-center sm:text-left">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#8a6d1f]">{{ hero.eyebrow }}</div>
-      <h1 class="mt-6 text-[clamp(2.75rem,9vw,4.75rem)] font-black uppercase leading-[0.92] tracking-tight">
-        {% for line in hero.headline %}<span class="block">{{ line }}</span>{% endfor %}
+</div><!-- /reading column: the hero is full-bleed -->
+
+{% set hero = config.hero %}
+{% set img = hero.image %}
+<section class="sbhero" aria-labelledby="sbhero-title">
+  {# One photograph, two crops. The wide frame keeps the room; the tall
+     one keeps the band, because `cover` on a phone would otherwise
+     decide for itself which musician leaves the frame. #}
+  <picture>
+    <source media="(max-width: 1023px)" type="image/avif"
+            srcset="{% for w in img.tall_widths %}{{ img.tall }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+            sizes="100vw">
+    <source media="(max-width: 1023px)" type="image/webp"
+            srcset="{% for w in img.tall_widths %}{{ img.tall }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+            sizes="100vw">
+    <source media="(max-width: 1023px)" type="image/jpeg"
+            srcset="{% for w in img.tall_widths %}{{ img.tall }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+            sizes="100vw">
+    <source type="image/avif"
+            srcset="{% for w in img.wide_widths %}{{ img.wide }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+            sizes="100vw">
+    <source type="image/webp"
+            srcset="{% for w in img.wide_widths %}{{ img.wide }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+            sizes="100vw">
+    <img class="sbhero-photo" src="{{ img.wide }}-1100.jpg"
+         srcset="{% for w in img.wide_widths %}{{ img.wide }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+         sizes="100vw" width="1342" height="775"
+         fetchpriority="high" decoding="async"
+         alt="{{ img.alt }}">
+  </picture>
+  <div class="sbhero-veil" aria-hidden="true"></div>
+
+  <div class="sbhero-inner">
+    <div class="sbhero-copy">
+      <p class="sbhero-eyebrow">{{ hero.eyebrow }}</p>
+      <h1 class="sbhero-title" id="sbhero-title">
+        {% for line in hero.headline %}<span>{{ line }}</span>{% endfor %}
       </h1>
-      <p class="mt-6 text-lg font-medium sm:text-xl">{{ hero.support }}</p>
-      <p class="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#5a544a] sm:mx-0">{{ hero.description }}</p>
-      <div class="mt-9 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:gap-4">
+      <span class="sbhero-rule" aria-hidden="true"></span>
+      <p class="sbhero-support">{{ hero.support }}</p>
+      <div class="sbhero-ctas">
         {% for cta in hero.ctas %}
-        <a href="{{ cta.href }}" class="inline-flex items-center justify-center rounded-md px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] transition-colors {{ 'bg-[#141210] text-white hover:bg-[#2a251d]' if cta.variant == 'primary' else 'border border-[#141210]/25 text-[#141210] hover:bg-[#141210]/5' }}">{{ cta.label }}</a>
+        <a class="{{ 'sbhero-cta' if cta.variant == 'primary' else 'sbhero-cta-2' }}"
+           href="{{ cta.href }}">{{ cta.label }}
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 10h11M11 6l4 4-4 4"/>
+          </svg>
+        </a>
         {% endfor %}
       </div>
-      <p class="mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#797369]">{{ hero.proof }}</p>
     </div>
-    <figure class="relative order-2 overflow-hidden">
-      <img src="{{ hero.image.src }}" alt="{{ hero.image.alt }}" class="block w-full object-cover">
-      <!-- Left-edge fade: the photograph melts into the white page. -->
-      <div class="sb-hero-fade" aria-hidden="true"></div>
-    </figure>
-  </section>
-</div>
+
+    {# A real component, not a picture of one, and not a claim: every
+       figure on it is example data and the card says so. #}
+    <aside class="sbhero-preview" aria-label="Example of the Release Readiness panel">
+      <div class="sbhero-preview-head">
+        <span class="sbhero-preview-title">Release Readiness</span>
+        <span class="sbhero-preview-tag">Example workspace</span>
+      </div>
+      <div class="sbhero-preview-rows">
+        {% set checks = [
+          ('done', 'Metadata passport complete'),
+          ('done', 'Splits signed by every collaborator'),
+          ('open', 'Rollout scheduled for release week'),
+          ('open', 'Royalty lanes claimed on all sources'),
+        ] %}
+        {% for state, label in checks %}
+        <div class="sbhero-preview-row">
+          {% if state == 'done' %}
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#5DBB7D"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 10.5l4 4 8-9"/>
+          </svg>
+          {% else %}
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#C9A86A"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="10" cy="10" r="7"/><path d="M10 6.5v4"/>
+          </svg>
+          {% endif %}
+          <span>{{ label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="sbhero-preview-foot">Sample checks from the Clean Release panel. A real account scores this from its own tracks and statements.</p>
+    </aside>
+  </div>
+</section>
+
+<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
 
 <!-- 3. THE ARTIST EQ — additive: a 15-band priority equaliser. Everything
      that moves is coded; nothing here replaces an existing section. -->

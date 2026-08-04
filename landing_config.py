@@ -49,22 +49,34 @@ def get_landing_config():
                     "short": "Free Sweep", "href": "/catalog-sweep"},
         },
 
+        # Section 2. Copy is live HTML in the template; this is the one
+        # place it is written down. The CTAs both land somewhere a
+        # signed-out visitor can actually use - the old pair pointed at
+        # /recovery and /overview, which are behind the login gate.
         "hero": {
-            "eyebrow": "ARTIST INFRASTRUCTURE",
-            "headline": ["THE ARTIST", "BACK OFFICE."],
-            "support": "Release music. Recover royalties. Build equity.",
-            "description": ("Distribution, royalty recovery, campaign tools, "
-                            "and catalog intelligence built around artist "
-                            "ownership."),
+            "eyebrow": "STREET BANKER · THE ARTIST OPERATING SYSTEM",
+            "headline": ["BUILD THE RELEASE.", "OWN THE MOMENT."],
+            "support": ("Street Banker brings creative tools, rollout "
+                        "intelligence, artist development, rights "
+                        "management, fan data, and royalty recovery into "
+                        "one platform."),
             "ctas": [
-                {"label": "SCAN MY CATALOG", "href": "/recovery",
+                {"label": "Explore Street Banker", "href": "#platform",
                  "variant": "primary"},
-                {"label": "EXPLORE THE PLATFORM", "href": "/overview",
-                 "variant": "outline-dark"},
+                {"label": "Run a Royalty Sweep", "href": "/catalog-sweep",
+                 "variant": "outline"},
             ],
-            "proof": "Distribution · Royalty Recovery · Artist Development",
-            "image": {"src": "/static/img/sb-hero-photo.jpg?v=4",
-                      "alt": "Artist performing to a full crowd"},
+            # One photograph, two crops: a wide editorial frame for
+            # desktop and a band-first one for phones, so `cover` never
+            # decides which musician gets thrown off the edge.
+            "image": {
+                "wide": "/static/img/hero-band-wide",
+                "tall": "/static/img/hero-band-tall",
+                "wide_widths": [900, 1100, 1342],
+                "tall_widths": [640, 900],
+                "alt": ("Band rehearsing while release artwork is "
+                        "developed inside a working music studio."),
+            },
         },
 
         "lanes": {
