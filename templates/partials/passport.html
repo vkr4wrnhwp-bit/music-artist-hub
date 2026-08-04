@@ -1,0 +1,159 @@
+{# Section 11 — Metadata Passport + Rights.
+
+   One release in the middle of a floor blueprint, seven records around
+   it. The photograph is the environment; the seven categories, their
+   descriptions, their statuses and the whole example passport are
+   markup.
+
+   Desktop puts a transparent control over each area of the blueprint and
+   a matching row of names beneath it — the same seven buttons, so a
+   pointer and a keyboard reach the same thing. Below 1024 the hotspots
+   are dropped: seven targets over a shrunken photograph would be seven
+   places to miss. #}
+
+{% set mp = passport %}
+{% set img = mp.image %}
+<section class="sbmp" id="metadata-passport" aria-labelledby="sbmp-heading">
+  <header class="sbmp-head">
+    <p class="sbmp-eyebrow">
+      <span class="sbmp-num">{{ mp.number }}</span>
+      <span class="sbmp-rule" aria-hidden="true"></span>
+      {{ mp.eyebrow }}
+    </p>
+    <h2 class="sbmp-title" id="sbmp-heading">
+      {% for line in mp.headline %}<span>{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="sbmp-support">{{ mp.support }}</p>
+    <div class="sbmp-ctas">
+      <a class="sbmp-cta" href="{{ mp.primary_cta.href }}">{{ mp.primary_cta.label }}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+      </a>
+      <button type="button" class="sbmp-connect-btn" id="sbmp-connect-btn"
+              aria-expanded="false" aria-controls="sbmp-connect">{{ mp.secondary_cta.label }}</button>
+    </div>
+  </header>
+
+  <div class="sbmp-plan">
+    <figure class="sbmp-photo">
+      <picture>
+        {# The phone gets a crop centred on the release, with enough floor
+           marking either side to read as a blueprint. #}
+        <source media="(max-width: 767px)" type="image/avif"
+                srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+                sizes="100vw">
+        <source media="(max-width: 767px)" type="image/webp"
+                srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+                sizes="100vw">
+        <source media="(max-width: 767px)" type="image/jpeg"
+                srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+                sizes="100vw">
+        <source type="image/avif"
+                srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+                sizes="(min-width: 1700px) 1600px, 100vw">
+        <source type="image/webp"
+                srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.webp {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+                sizes="(min-width: 1700px) 1600px, 100vw">
+        <img class="sbmp-img" src="{{ img.wide.stem }}-1300.jpg"
+             srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+             sizes="(min-width: 1700px) 1600px, 100vw"
+             width="{{ img.wide.width }}" height="{{ img.wide.height }}"
+             alt="{{ img.alt }}" loading="lazy" decoding="async">
+      </picture>
+
+      {# Transparent controls over the blueprint. Each is positioned from
+         the fraction measured off the photograph, so it sits on its own
+         area at every width. #}
+      <div class="sbmp-zones">
+        {% for cat in mp.categories %}
+        <button type="button" class="sbmp-zone" data-category="{{ cat.slug }}"
+                aria-pressed="false"
+                style="--l: {{ cat.zone[0] * 100 }}%; --t: {{ cat.zone[1] * 100 }}%;
+                       --w: {{ (cat.zone[2] - cat.zone[0]) * 100 }}%;
+                       --h: {{ (cat.zone[3] - cat.zone[1]) * 100 }}%">
+          <span class="sbmp-zone-label">{{ cat.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </figure>
+
+    {# The same seven, as a row. On a phone this is the only control. #}
+    <ol class="sbmp-cats">
+      {% for cat in mp.categories %}
+      <li>
+        <button type="button" class="sbmp-cat" data-category="{{ cat.slug }}"
+                aria-pressed="false" aria-controls="sbmp-detail">
+          <span class="sbmp-cat-num">{{ cat.num }}</span>
+          <span class="sbmp-cat-label">{{ cat.label }}</span>
+          <span class="sbmp-cat-short">{{ cat.short }}</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  <div class="sbmp-body">
+    {# One detail at a time, and every one of them printed, so the whole
+       thing reads with no script at all. #}
+    <div class="sbmp-detail" id="sbmp-detail">
+      <p class="sbmp-detail-tag">{{ mp.example_label }}</p>
+      {% for cat in mp.categories %}
+      <article class="sbmp-panel" data-panel="{{ cat.slug }}"
+               {% if not loop.first %}hidden{% endif %}>
+        <div class="sbmp-panel-head">
+          <h3 class="sbmp-panel-title"><span>{{ cat.num }}</span> {{ cat.label }}</h3>
+          <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
+        </div>
+        <dl class="sbmp-fields">
+          <dt>What is stored</dt>
+          <dd>{{ cat.stored | join(" · ") }}</dd>
+          <dt>Why it matters</dt>
+          <dd>{{ cat.why }}</dd>
+          <dt>Missing information</dt>
+          <dd>{{ cat.missing }}</dd>
+          <dt>Recommended action</dt>
+          <dd>{{ cat.action }}</dd>
+        </dl>
+      </article>
+      {% endfor %}
+    </div>
+
+    {# What one entry asks of everything else. Hidden, not absent. #}
+    <div class="sbmp-connect" id="sbmp-connect" hidden>
+      <p class="sbmp-connect-trigger">{{ mp.connected.trigger }}</p>
+      <ul class="sbmp-connect-list">
+        {% for area, effect in mp.connected.effects %}
+        <li><span class="sbmp-connect-area">{{ area }}</span><span>{{ effect }}</span></li>
+        {% endfor %}
+      </ul>
+      <p class="sbmp-connect-note">{{ mp.connected.note }}</p>
+    </div>
+
+    {# Completion, named for what it measures. #}
+    <div class="sbmp-health">
+      <div class="sbmp-health-row">
+        <p class="sbmp-health-label">{{ mp.health_label }}</p>
+        <p class="sbmp-health-value"><span>{{ completeness }}</span>%</p>
+      </div>
+      <div class="sbmp-health-bar" role="img"
+           aria-label="{{ mp.health_label }} on the example passport: {{ completeness }} per cent.">
+        <span style="width: {{ completeness }}%"></span>
+      </div>
+      <ul class="sbmp-health-list">
+        {% for cat in mp.categories %}
+        <li>
+          <span class="sbmp-health-name">{{ cat.label }}</span>
+          <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="sbmp-health-note">{{ mp.health_note }}</p>
+    </div>
+
+    <p class="sbmp-trust">
+      <span class="sbmp-trust-line">{{ mp.trust }}</span>
+      <span class="sbmp-trust-copy">{{ mp.trust_copy }}</span>
+      <a class="sbmp-trust-link" href="{{ mp.trust_link.href }}">{{ mp.trust_link.label }}</a>
+    </p>
+  </div>
+</section>

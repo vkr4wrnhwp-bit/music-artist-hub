@@ -102,6 +102,7 @@ from creative_config import get_creative_config
 from rollout_config import get_rollout_config
 from sweep_config import get_sweep_config
 from distro_config import get_distro_config
+from passport_config import get_passport_config, completeness as passport_completeness
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1353,7 +1354,9 @@ def create_app():
                                creative=get_creative_config(),
                                rollout=get_rollout_config(),
                                sweep=get_sweep_config(),
-                               distro=get_distro_config())
+                               distro=get_distro_config(),
+                               passport=get_passport_config(),
+                               completeness=passport_completeness())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2480,7 +2483,8 @@ def create_app():
                      # field first. /artist-twin itself stays gated.
                      "/artist-twin/start", "/ai", "/lanes",
                      "/creative-studio", "/rollout",
-                     "/royalty-sweep", "/distribution"}
+                     "/royalty-sweep", "/distribution",
+                     "/metadata"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7127,6 +7131,21 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/metadata")
+    def passport_public():
+        """The Metadata Passport, explained before an account is asked for.
+
+        The seven records, what a conflict looks like, how one entry moves
+        the others, and what happens to the information. Everything shown
+        is the labelled example; nothing is anybody's release.
+        """
+        from passport_config import (CATEGORIES, CONNECTED, ISSUES, USE,
+                                     STANDARDS)
+
+        return render_template("passport_public.html", categories=CATEGORIES,
+                               connected=CONNECTED, issues=ISSUES, use=USE,
+                               standards=STANDARDS)
 
     @app.route("/distribution")
     def distribution_guide():
