@@ -54,14 +54,16 @@
   max-width: var(--sbh-max);
   padding: 0 20px;
 }
-@media (min-width: 1024px) { .sbh-inner { padding: 0 var(--sbh-pad); } }
+@media (min-width: 1024px) { .sbh-inner { padding: 0 24px; } }
+@media (min-width: 1180px) { .sbh-inner { padding: 0 var(--sbh-pad); } }
 
 /* --- brand lockup ------------------------------------------------------- */
 .sbh-brand { display: flex; align-items: center; gap: 14px; text-decoration: none; flex: 0 0 auto; }
 /* flex: 0 0 auto so the lockup is never squeezed by a long CTA - a
    compressed wordmark is the one thing a brand lockup must never do. */
 .sbh-logo { width: 148px; height: auto; display: block; flex: 0 0 auto; }
-@media (min-width: 1024px) { .sbh-logo { width: 195px; } }
+@media (min-width: 1024px) { .sbh-logo { width: 170px; } }
+@media (min-width: 1180px) { .sbh-logo { width: 195px; } }
 
 .sbh-rule {
   width: 1px;
@@ -83,8 +85,9 @@
 }
 
 /* --- navigation --------------------------------------------------------- */
-.sbh-nav { display: none; align-items: center; gap: 30px; margin: 0 auto; }
+.sbh-nav { display: none; align-items: center; gap: 22px; margin: 0 auto; }
 @media (min-width: 1024px) { .sbh-nav { display: flex; } }
+@media (min-width: 1180px) { .sbh-nav { gap: 30px; } }
 
 .sbh-link {
   position: relative;
@@ -145,11 +148,13 @@
 }
 .sbh-cta:hover { background: var(--sbh-brass-lit); }
 /* "RUN A FREE CATALOG SWEEP" does not fit a phone beside a logo and a
-   menu button, so the small screen gets the short name of the same
-   action - not a different, vaguer one. */
+   menu button, and it does not fit a 1024px laptop beside five nav items
+   either: brand 195 + nav 480 + cluster 267 is wider than the viewport.
+   Below 1180px the button carries the short name of the same action -
+   not a different, vaguer one - and the row fits without squeezing. */
 .sbh-cta-full { display: none; }
 .sbh-cta-short { display: inline; }
-@media (min-width: 1024px) {
+@media (min-width: 1180px) {
   .sbh-cta-full { display: inline; }
   .sbh-cta-short { display: none; }
 }

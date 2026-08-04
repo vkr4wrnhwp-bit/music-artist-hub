@@ -132,9 +132,11 @@ def test_the_header_assets_exist_and_are_versioned():
         assert asset in body, asset
         assert os.path.exists(asset.lstrip("/")), asset
     # The service worker caches /static first, so a changed asset needs a
-    # new cache version or returning visitors keep the old header.
+    # new cache version or returning visitors keep the old header. Pinned
+    # to the release that shipped it and allowed to move forward only.
     sw = open("static/js/sw.js", encoding="utf-8").read()
-    assert 'VERSION = "sb-v84"' in sw
+    version = re.search(r'VERSION = "sb-v(\d+)"', sw)
+    assert version and int(version.group(1)) >= 84, sw[:200]
 
 
 def test_the_header_holds_its_own_space():
@@ -281,3 +283,177 @@ def test_the_hero_is_accessible():
     assert ".sbhero a:focus-visible" in css
     # Sized so it sits under the sticky bar rather than behind it.
     assert "calc(100svh - var(--sbh-height))" in css
+
+
+# --- section 3: the Artist EQ ----------------------------------------------
+
+def test_the_eq_has_six_channels_and_no_fake_frequencies():
+    """The fifteen bands were engraved 25 Hz to 16 kHz, which made a
+    business diagnostic read as a novelty plug-in."""
+    import artist_eq_config as cfg
+    body = _home()
+    assert len(cfg.CHANNELS) == 6
+    assert body.count('class="sbeq-range"') == 6
+    for label in ("RELEASE", "CREATIVE", "AUDIENCE", "RIGHTS", "REVENUE", "GROWTH"):
+        assert label in body, label
+    for fake in ("25 Hz", "100 Hz", "1 kHz", "16 kHz"):
+        assert fake not in body, fake
+
+
+def test_the_eq_controls_are_native_and_described():
+    body = _home()
+    assert body.count('type="range"') == 6
+    assert 'min="0" max="10" step="0.5"' in body
+    assert body.count("aria-describedby=\"sbeq-desc-") == 6
+    assert 'aria-labelledby="sbeq-heading"' in body
+    assert 'aria-live="polite"' in body
+
+
+def test_every_preset_produces_a_different_plan():
+    """Six presets that all recommend the same thing would be six
+    buttons pretending to be a diagnostic."""
+    import artist_eq_config as cfg
+    seen = {}
+    for preset in cfg.PRESETS:
+        if not preset["values"]:
+            continue
+        plan = cfg.build_plan(preset["values"], preset["id"])
+        key = (plan["lane"]["id"], tuple(m["slug"] for m in plan["modules"]))
+        seen.setdefault(key, []).append(preset["id"])
+        assert 0 <= plan["score"] <= 100
+        assert len(plan["modules"]) == cfg.MAX_MODULES
+        assert len(plan["actions"]) == cfg.ACTION_COUNT
+    assert len(seen) >= 3, seen
+
+
+def test_the_score_is_bounded_and_deterministic():
+    import artist_eq_config as cfg
+    extremes = [
+        ({k: 0 for k in cfg.CHANNEL_KEYS}, 0),
+        ({k: 10 for k in cfg.CHANNEL_KEYS}, 100),
+    ]
+    for values, expected in extremes:
+        assert cfg.readiness(values, None) == expected
+    # Same input, same plan, every time - the browser and /plan both
+    # compute it, and a drift would change the plan on click.
+    values = {"release": 7, "creative": 3.5, "audience": 6, "rights": 9,
+              "revenue": 8, "growth": 4}
+    first = cfg.build_plan(values, "custom")
+    for _ in range(3):
+        assert cfg.build_plan(values, "custom") == first
+    # Junk in the query string cannot move it out of range.
+    assert 0 <= cfg.readiness({"release": "abc", "rights": 99}, None) <= 100
+
+
+def test_the_score_never_claims_to_predict_anything():
+    """The disclaimer has to be present and the claims absent - which
+    means testing for claims rather than for the word "predict", since
+    the disclaimer itself has to use that word."""
+    body = _home()
+    eq = body[body.index('id="artist-eq"'):]
+    eq = eq[:eq.index("</section>")].lower()
+    for claim in ("guaranteed", "will become a hit", "we predict",
+                  "predicts your", "chart position", "sign you", "recover $"):
+        assert claim not in eq, claim
+    assert "predicts no hit" in eq                     # the console says it
+    plan = _anon().get("/plan").get_data(as_text=True).lower()
+    assert "does not predict a hit" in plan            # and so does the plan
+
+
+def test_the_plan_page_is_public_and_recomputes_the_same_plan():
+    import artist_eq_config as cfg
+    values = {"release": 4, "creative": 3, "audience": 4, "rights": 10,
+              "revenue": 10, "growth": 5}
+    expected = cfg.build_plan(values, "missing-royalties")
+    query = "&".join("%s=%s" % (k, v) for k, v in values.items())
+    response = _anon().get("/plan?%s&preset=missing-royalties" % query)
+    assert response.status_code == 200          # no login wall
+    body = response.get_data(as_text=True)
+    assert str(expected["score"]) in body
+    assert expected["lane"]["name"] in body
+    for module in expected["modules"]:
+        assert module["name"] in body or module["name"].replace("&", "&amp;") in body
+        assert 'id="%s"' % module["slug"] in body
+    assert expected["setup_time"] in body
+
+
+def test_the_eq_background_carries_no_baked_text():
+    """The supplied plate had the heading and every panel label painted
+    into it. All of that is markup now, and the image is the room."""
+    import os
+    for asset in ("eq-room-1600.avif", "eq-room-1200.webp", "eq-room-900.jpg"):
+        assert os.path.exists("static/img/" + asset), asset
+    body = _home()
+    assert "eq-room-1200.jpg" in body
+    assert 'alt=""' in body                      # decorative, per the brief
+    # The words are in the DOM, which is where a screen reader can reach
+    # them - not inside a JPEG.
+    for label in ("System readiness", "Recommended modules", "Top 3 actions",
+                  "Choose your focus preset", "TUNE YOUR ARTIST SYSTEM."):
+        assert label in body, label
+
+
+def test_the_console_is_already_correct_before_any_script_runs():
+    """Server-rendered from the same engine the browser uses: no empty
+    lists, no placeholder score that the page then corrects."""
+    from artist_eq_config import get_artist_eq_config, build_plan, default_values
+
+    cfg = get_artist_eq_config()
+    plan = build_plan(default_values(), cfg["default_preset"])
+    body = _home()
+    eq = body[body.index('id="artist-eq"'):]
+    eq = eq[:eq.index("</section>")]
+    assert '<span class="sbeq-score" id="sbeq-score">%d<' % plan["score"] in eq
+    assert '<p class="sbeq-band" id="sbeq-band">%s<' % plan["band"] in eq
+    assert plan["lane"]["name"] in eq and plan["lane"]["why"] in eq
+    assert plan["setup_time"] in eq
+    for module in plan["modules"]:
+        assert module["name"].replace("&", "&amp;") in eq, module["name"]
+    for action in plan["actions"]:
+        assert action["label"] in eq, action["label"]
+    # Six plotted points, drawn before the script smooths them.
+    assert eq.count('r="2.6"') == 6
+    # Every link out of the panel already carries the mix.
+    assert "/plan?%s" % cfg["default_query"].replace("&", "&amp;") in eq
+
+
+def test_the_plan_query_is_the_same_string_on_both_sides():
+    """The server-rendered link and the one the browser rewrites have to
+    agree, or the plan changes under the visitor on click."""
+    from artist_eq_config import get_artist_eq_config, plan_query, default_values
+
+    cfg = get_artist_eq_config()
+    query = plan_query(default_values(), cfg["default_preset"])
+    assert query.startswith("release=")           # channel order, not dict order
+    assert query.endswith("preset=" + cfg["default_preset"])
+    assert ".0" not in query                      # 10, never 10.0
+    js = open("static/js/artist-eq.js", encoding="utf-8").read()
+    assert 'k + "=" + encodeURIComponent(state.values[k])' in js
+    assert 'params.push("preset="' in js
+    assert _anon().get("/plan?" + query).status_code == 200
+
+
+def test_the_saved_mix_still_reaches_the_account():
+    """The EQ writes the profile the Command Center, Artist Twin and
+    onboarding panel read - and only once the visitor has moved something,
+    so an untouched section never overwrites a mix set on another day."""
+    js = open("static/js/artist-eq.js", encoding="utf-8").read()
+    assert 'localStorage.setItem("streetBankerArtistSignalProfile"' in js
+    assert '"/api/artist-signal-profile"' in js
+    assert 'credentials: "same-origin"' in js
+    assert "if (interacted) { saveProfile(" in js
+    for field in ("topPriorities", "recommendedLane", "recommendedModules",
+                  "firstActions", "source"):
+        assert field in js, field
+
+
+def test_the_header_row_fits_a_1024_laptop():
+    """Brand 195 + five nav items + the full CTA is wider than a 1024
+    viewport, so the wide variants start at 1180 instead."""
+    css = open("static/css/public-header.css", encoding="utf-8").read()
+    wide = css[css.index("@media (min-width: 1180px)"):]
+    assert "@media (min-width: 1180px)" in css
+    assert ".sbh-cta-full { display: inline; }" in css
+    # The short label is the default and only gives way above 1180.
+    assert css.index(".sbh-cta-short { display: inline; }") < css.index(
+        "@media (min-width: 1180px) {\n  .sbh-cta-full")

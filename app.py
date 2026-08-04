@@ -642,8 +642,8 @@ def create_app():
         if not isinstance(raw, dict):
             return None
         cfg = get_artist_eq_config()
-        keys = [b["key"] for b in cfg["bands"]]
-        labels = {b["key"]: b["label"] for b in cfg["bands"]}
+        keys = [c["key"] for c in cfg["channels"]]
+        labels = {c["key"]: c["label"] for c in cfg["channels"]}
         prio_in = raw.get("priorities")
         if not isinstance(prio_in, dict):
             return None
@@ -658,13 +658,14 @@ def create_app():
         def _s(value, cap):
             return str(value)[:cap] if isinstance(value, str) else ""
 
-        known_lanes = ([l["name"] for l in cfg["lanes"]] +
-                       [cfg["sweep_first"]["name"], cfg["integrated"]["name"]])
+        known_lanes = [l["name"] for l in cfg["lanes"]]
         lane = _s(raw.get("recommendedLane"), 64)
         if lane not in known_lanes:
             lane = ""
+        known_modules = {name for options in cfg["modules"].values()
+                         for name, _slug in options}
         modules = [m for m in (raw.get("recommendedModules") or [])
-                   if isinstance(m, str) and m in cfg["modules"]][:4]
+                   if isinstance(m, str) and m in known_modules][:4]
         actions = [_s(a, 120) for a in (raw.get("firstActions") or [])
                    if isinstance(a, str)][:3]
         top = sorted(keys, key=lambda k: -priorities[k])[:3]
@@ -2455,7 +2456,7 @@ def create_app():
                         # be checked by a label that never will.
                         "/licence/", "/cleared/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
-                     "/catalog-sweep", "/demo-open",
+                     "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
                      "/api/artist-signal-profile"}
 
@@ -2704,10 +2705,11 @@ def create_app():
         signal_ctx = None
         if signal and isinstance(signal.get("priorities"), dict):
             from artist_eq_config import get_artist_eq_config
-            band_keys = [b["key"] for b in get_artist_eq_config()["bands"]]
-            vals = [signal["priorities"].get(k, 5) for k in band_keys]
-            # simplified curve: 15 points on a 300x60 canvas
-            pts = " ".join("%d,%d" % (i * 300 // 14, 60 - v * 6)
+            channel_keys = [c["key"] for c in get_artist_eq_config()["channels"]]
+            vals = [signal["priorities"].get(k, 5) for k in channel_keys]
+            # simplified curve: one point per channel on a 300x60 canvas
+            span = max(len(vals) - 1, 1)
+            pts = " ".join("%d,%d" % (i * 300 // span, 60 - v * 6)
                            for i, v in enumerate(vals))
             updated = (signal.get("_updated") or "")[:10]
             stale = False
@@ -6652,7 +6654,7 @@ def create_app():
         return render_template(
             "onboarding.html", sources=sources,
             program_links_json=json.dumps({
-                "modules": eq["modules"], "actions": eq["action_routes"]}))
+                "modules": eq["module_routes"], "actions": eq["action_routes"]}))
 
     _DISPUTE_TYPES = ["missing payment", "wrong split", "content claim",
                       "takedown", "metadata error", "chargeback", "other"]
@@ -7066,6 +7068,27 @@ def create_app():
     _SWEEP_ROLES = [("artist", "Artist"), ("songwriter", "Songwriter"),
                     ("producer", "Producer"), ("manager", "Manager"),
                     ("label", "Label")]
+
+    @app.route("/plan")
+    def artist_plan():
+        """The Artist EQ's plan, recomputed server-side from the link.
+
+        The console builds this URL from the six channel values, and this
+        route runs the same functions in artist_eq_config that the browser
+        mirrors - so the plan the visitor clicked is the plan they land
+        on. Public: the whole point is that the recommendation is readable
+        before anybody makes an account.
+        """
+        from artist_eq_config import CHANNELS, CHANNEL_KEYS, build_plan
+
+        values = {}
+        for key in CHANNEL_KEYS:
+            raw = request.args.get(key)
+            if raw is not None:
+                values[key] = raw
+        preset = (request.args.get("preset") or "").strip()[:40]
+        plan = build_plan(values, preset)
+        return render_template("plan.html", plan=plan, channels=CHANNELS)
 
     @app.route("/catalog-sweep", methods=["GET", "POST"])
     def catalog_sweep():

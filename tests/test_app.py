@@ -123,9 +123,9 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     and displaces nothing that was already there."""
     body = _demo().get("/").get_data(as_text=True)
     assert 'id="artist-eq"' in body
-    assert "WHAT MATTERS MOST TO YOUR ART?" in body
-    assert body.index("BUILD THE RELEASE.") < body.index("WHAT MATTERS MOST")
-    assert body.index("WHAT MATTERS MOST") < body.index("THE THREE STREET BANKER LANES")
+    assert "TUNE YOUR ARTIST SYSTEM." in body
+    assert body.index("sbhero") < body.index("TUNE YOUR ARTIST SYSTEM.")
+    assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("THE THREE STREET BANKER LANES")
     # Every section that was on the page before is still on it.
     for kept in ["RELEASE THE RECORD.", "FIND WHAT YOU EARNED.",
                  "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
@@ -134,16 +134,18 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
         assert kept in body, kept
 
 
-def test_artist_eq_renders_fifteen_sliders_and_six_presets():
-    """Fifteen coded slider caps - no knobs, no decorative controls."""
+def test_artist_eq_renders_six_channels_and_six_presets():
+    """Six faders, six presets - no knobs, no decorative controls."""
     body = _demo().get("/").get_data(as_text=True)
-    assert body.count('class="sbeq-range"') == 15
+    assert body.count('class="sbeq-range"') == 6
     assert body.count('class="sbeq-preset"') == 6
     # Real range inputs, so keyboard and touch come from the platform.
-    assert body.count('type="range"') >= 15
-    # aria-label on every slider (Jinja escapes the ampersand)
-    for band in ["Rights &amp; Splits", "Royalty Recovery", "Long-Term Vision"]:
-        assert "%s priority" % band in body
+    assert body.count('type="range"') >= 6
+    # Every fader is named and described by markup the reader can reach.
+    for key in ["release", "creative", "audience", "rights", "revenue", "growth"]:
+        assert 'aria-labelledby="sbeq-name-%s"' % key in body, key
+        assert 'aria-describedby="sbeq-desc-%s"' % key in body, key
+        assert 'id="sbeq-desc-%s"' % key in body, key
     assert "knob" not in body.lower()
 
 
@@ -153,38 +155,46 @@ def test_artist_eq_only_links_modules_that_really_exist():
 
     cfg = get_artist_eq_config()
     client = _demo()
-    for name, href in cfg["modules"].items():
-        if href is None:
-            continue                      # printed as plain text instead
-        status = client.get(href).status_code
-        assert status < 400, "%s -> %s returned %s" % (name, href, status)
-    for lane in cfg["lanes"] + [cfg["sweep_first"], cfg["integrated"]]:
+    for name, href in cfg["module_routes"].items():
+        assert client.get(href).status_code < 400, "%s -> %s" % (name, href)
+    for label, href in cfg["action_routes"].items():
+        assert client.get(href).status_code < 400, "%s -> %s" % (label, href)
+    for lane in cfg["lanes"]:
         assert client.get(lane["href"]).status_code < 400, lane["href"]
     assert client.get(cfg["cta"]["href"]).status_code < 400
 
 
 def test_artist_eq_data_is_complete_and_consistent():
-    """Every band needs a preset value, a module and an action, or the
+    """Every channel needs a preset value, a module and an action, or the
     recommendation silently drops a priority."""
     from artist_eq_config import get_artist_eq_config
 
     cfg = get_artist_eq_config()
-    keys = [b["key"] for b in cfg["bands"]]
-    assert len(keys) == 15 and len(set(keys)) == 15
+    keys = [c["key"] for c in cfg["channels"]]
+    assert len(keys) == 6 and len(set(keys)) == 6
     for key in keys:
-        assert cfg["priority_modules"].get(key), key
-        assert cfg["priority_actions"].get(key), key
-        for module in cfg["priority_modules"][key]:
-            assert module in cfg["modules"], module
+        assert cfg["modules"].get(key), key
+        assert cfg["actions"].get(key), key
+        for name, slug in cfg["modules"][key]:
+            assert slug and cfg["module_notes"].get(slug), name
+        for label, slug in cfg["actions"][key]:
+            assert slug and label
     named = [p for p in cfg["presets"] if p["values"] is not None]
-    assert len(named) == 5                # five real presets + Custom Mix
+    assert len(named) == 5                # five real presets + Custom
     for preset in named:
         assert sorted(preset["values"]) == sorted(keys), preset["name"]
         for v in preset["values"].values():
             assert 0 <= v <= 10
-    # The section must not start with every slider on the floor.
+        # Weights are sparse - an unlisted channel simply weighs 1.0 - but
+        # a typo'd key would silently weigh nothing at all.
+        assert set(preset["weights"]) <= set(keys), preset["name"]
+        assert all(w > 0 for w in preset["weights"].values()), preset["name"]
+    # The section must not start with every fader on the floor.
     default = [p for p in cfg["presets"] if p["id"] == cfg["default_preset"]]
     assert default and any(v > 5 for v in default[0]["values"].values())
+    # Bands are ordered and cover the whole scale.
+    cuts = [c for c, _label in cfg["readiness_bands"]]
+    assert cuts == sorted(cuts) and cuts[-1] > 100
 
 
 def test_artist_eq_promises_nothing_it_cannot_know():
@@ -193,10 +203,12 @@ def test_artist_eq_promises_nothing_it_cannot_know():
     from artist_eq_config import get_artist_eq_config
 
     cfg = get_artist_eq_config()
-    blob = " ".join([cfg["heading"], cfg["support"], cfg["helper"]] +
-                    [l["blurb"] for l in cfg["lanes"]] +
-                    [cfg["sweep_first"]["blurb"], cfg["integrated"]["blurb"]] +
-                    [a for acts in cfg["priority_actions"].values() for a in acts])
+    blob = " ".join([cfg["heading"], cfg["support"], cfg["instruction"]] +
+                    [l["why"] for l in cfg["lanes"]] +
+                    [c["desc"] for c in cfg["channels"]] +
+                    list(cfg["module_notes"].values()) +
+                    [label for acts in cfg["actions"].values()
+                     for label, _slug in acts])
     for banned in ["guarantee", "guaranteed", "projected", "forecast",
                    "estimated revenue", "you will earn", "$"]:
         assert banned not in blob.lower(), banned
@@ -5297,58 +5309,50 @@ def test_login_backend_behaviour_is_unchanged():
 # --- the Artist Signal Profile --------------------------------------------
 
 def test_artist_signal_profile_config_shape():
-    """Short plate labels + full names + banks; every band belongs to
-    exactly one bank of five; every result id has a final-CTA line."""
+    """Short plate labels + full names; every lane names the channels it
+    is chosen by; every recommendation resolves to a real route."""
     from artist_eq_config import get_artist_eq_config
 
     cfg = get_artist_eq_config()
-    banks = {"foundation": 0, "growth": 0, "opportunity": 0}
-    for b in cfg["bands"]:
-        assert b["short"] and b["short"] == b["short"].upper()
-        assert len(b["short"]) <= 9          # one engraved word per channel
-        assert b["label"]                     # full name preserved
-        banks[b["bank"]] += 1
-    assert banks == {"foundation": 5, "growth": 5, "opportunity": 5}
-    # Five adaptive modes; every scored key is a real band; each mode has
-    # a signal line, a CTA, three tints, and both image slots.
-    keys = {b["key"] for b in cfg["bands"]}
-    assert [m["id"] for m in cfg["modes"]] == [
-        "release", "growth", "recovery", "partnership", "full-stack"]
-    for m in cfg["modes"]:
-        assert set(m["keys"]) <= keys
-        assert m["signal"].startswith("YOUR SIGNAL")
-        assert m["cta"]
-        assert set(m["tints"]) == {"page", "secondary", "dark"}
-        assert m["hero"].startswith("/static/img/adaptive/hero-")
-        assert m["banner"].startswith("/static/img/adaptive/banner-")
-    assert cfg["modes"][-1]["keys"] == []      # full-stack is the tie state
-    # Every first action leads to a real route.
+    keys = {c["key"] for c in cfg["channels"]}
+    for c in cfg["channels"]:
+        assert c["short"] and c["short"] == c["short"].upper()
+        assert len(c["short"]) <= 9          # one engraved word per channel
+        assert c["label"] and c["desc"] and c["icon"]
+    assert [l["id"] for l in cfg["lanes"]] == [
+        "distribution", "development", "partnership"]
+    for lane in cfg["lanes"]:
+        assert set(lane["keys"]) <= keys and len(lane["keys"]) == 3
+        assert lane["why"] and lane["href"]
+    # Every module and action the panel can print has a route on file.
+    named = {n for options in cfg["modules"].values() for n, _s in options}
+    assert named <= set(cfg["module_routes"])
+    labels = {l for acts in cfg["actions"].values() for l, _s in acts}
+    assert labels <= set(cfg["action_routes"])
     client = _demo()
     for action, href in cfg["action_routes"].items():
         assert client.get(href).status_code < 400, "%s -> %s" % (action, href)
 
 
 def test_homepage_carries_the_signal_profile_hooks():
-    """The EQ adapts the page through wired hooks - no section changed."""
+    """The EQ reports inside its own console and changes nothing else."""
     body = _demo().get("/").get_data(as_text=True)
-    assert "Your program updates instantly." in body
-    assert "RESET MIX" in body
-    assert body.count('class="sbeq-bank"') == 3
-    assert "streetBankerArtistSignalProfile" in body
+    assert "Your recommended tools and next actions update instantly." in body
+    assert "Reset EQ" in body
+    assert "streetBankerArtistEq" in body
     # The subtle per-card reactions are gone: no lane badges, no tool
     # badges, no Sweep CTA swap hook. The page responds through one
     # coordinated visual mode instead.
     for gone in ["sb-lane-badge", "sb-tool-badge", "sb-sweep-cta",
                  "sb-lanes-balanced", "data-lane=", "data-tool="]:
         assert gone not in body, gone
-    # The page is STATIC: the EQ reports inside its own racks (the signal
-    # line) and touches nothing else. Every page-reaction hook that was
-    # tried - badges, tints, adaptive layers, CTA rewording, the banner
-    # strip - is gone.
+    # The page is STATIC: the EQ reports inside its own racks and touches
+    # nothing else. Every page-reaction hook that was tried - badges,
+    # tints, adaptive layers, CTA rewording, the banner strip - is gone.
     for gone in ["data-artist-mode", "sb-hero-adaptive", "sb-mode-banner",
                  "sb-final-cta", "sb-adaptive-layer"]:
         assert gone not in body, gone
-    assert 'id="sbeq-signal"' in body
+    assert 'id="sbeq-score"' in body and 'id="sbeq-lane"' in body
     # The hero's own fade is now the Section 2 veil: the same idea (the
     # photograph falling off into the page rather than ending at an edge)
     # on the rebuilt hero rather than the old white-page one.
@@ -5369,46 +5373,45 @@ def test_artist_signal_profile_api_validates():
     client = app_obj.test_client()
     client.post("/login", data={"email": "demo@streetbanker.io",
                                 "password": "sweep"})
-    keys = ["rightsSplits", "royaltyRecovery", "distribution", "metadata",
-            "releaseStrategy", "content", "audienceGrowth", "fanOwnership",
-            "touringLive", "syncLicensing", "funding", "brand",
-            "partnerships", "catalogValue", "longTermVision"]
-    junk = {"priorities": {k: (99 if k == "distribution" else 5) for k in keys},
+    keys = ["release", "creative", "audience", "rights", "revenue", "growth"]
+    junk = {"priorities": {k: (99 if k == "release" else 5) for k in keys},
             "recommendedLane": "Fake Lane",
             "recommendedModules": ["Royalty Sweep", "EvilModule"],
             "firstActions": ["Run your Royalty Sweep", 123, "y" * 500],
             "preset": "x" * 100}
     assert client.post("/api/artist-signal-profile", json=junk).status_code == 200
     p = client.get("/api/artist-signal-profile").get_json()["profile"]
-    assert p["priorities"]["distribution"] == 10
+    assert p["priorities"]["release"] == 10
     assert p["recommendedLane"] == ""
     assert p["recommendedModules"] == ["Royalty Sweep"]
     assert len(p["preset"]) <= 32 and len(p["firstActions"][1]) <= 120
     assert p["source"] == "homepage_artist_eq"
     # Missing priorities are rejected, not guessed.
     bad = client.post("/api/artist-signal-profile",
-                      json={"priorities": {"rightsSplits": 5}})
+                      json={"priorities": {"release": 5}})
     assert bad.status_code == 400
 
 
 def test_signal_profile_reaches_dashboard_twin_and_onboarding():
     """The saved mix shows up where the spec says: Command Center card,
     Artist Twin selected-priorities context, onboarding program panel."""
+    from artist_eq_config import get_artist_eq_config
+
     app_obj = create_app()
     client = app_obj.test_client()
     client.post("/login", data={"email": "demo@streetbanker.io",
                                 "password": "sweep"})
-    keys = ["rightsSplits", "royaltyRecovery", "distribution", "metadata",
-            "releaseStrategy", "content", "audienceGrowth", "fanOwnership",
-            "touringLive", "syncLicensing", "funding", "brand",
-            "partnerships", "catalogValue", "longTermVision"]
+    keys = ["release", "creative", "audience", "rights", "revenue", "growth"]
+    lane = get_artist_eq_config()["lanes"][1]["name"]
     client.post("/api/artist-signal-profile", json={
         "priorities": {k: 6 for k in keys},
-        "recommendedLane": "Development Lane",
-        "recommendedModules": ["Artist Twin"],
-        "firstActions": ["Build your release timeline"], "preset": "Custom Mix"})
+        "recommendedLane": lane,
+        "recommendedModules": ["AI Artist Twin"],
+        "firstActions": ["Build a 21-day rollout around the active release"],
+        "preset": "Custom"})
     cc = client.get("/command-center").get_data(as_text=True)
     assert "Artist Signal Profile" in cc
+    assert lane in cc
     assert "Retune my priorities" in cc and "View my program" in cc
     tw = client.get("/artist-twin").get_data(as_text=True)
     assert "priorities you selected" in tw

@@ -1,339 +1,394 @@
-"""Data for the Artist EQ — the 15-band priority equaliser on the homepage.
+"""The Artist EQ: six strategic channels, and the plan they produce.
 
-Content and wiring live here so the route mapping stays testable; the live
-behaviour (dragging, presets, the curve, the recommendation) runs in
-static/js/artist-eq.js off the JSON this module emits.
+This replaces the fifteen-band frequency equaliser. The bands were
+engraved 25 Hz through 16 kHz, which was a joke the interface could not
+land: these are business priorities, and dressing them as audio
+frequencies made a serious diagnostic read as a novelty plug-in.
 
-Nothing here forecasts money, streams, or results. The EQ reports what the
-visitor told it: which lane their own priorities point at, which real
-modules serve those priorities, and what to do first.
+Everything here is configuration plus deterministic functions over it.
+Nothing is random and nothing is a prediction - the same six numbers
+always produce the same plan, which matters because the browser computes
+it live while /plan recomputes it server-side from a link, and the two
+have to agree.
+
+What the score is: a weighted average of six self-reported priorities,
+scaled to 100, with a small preset weighting. What it is not: a
+forecast. It cannot say whether a record will land, whether a label will
+call, or whether money will come back - and nothing here claims it can.
 """
 
-# --- the fifteen channels ------------------------------------------------
-# `hz` is the engraved frequency on the faceplate. `short` is the engraved
-# priority word - one word per channel so fifteen labels stay readable.
-# `label` is the full business name and lives everywhere that has room:
-# aria-labels, tooltips, the recommendation panel, saved profiles.
-# `bank` groups the channel for the mobile view (five sliders at a time).
-# The keys are the stable storage identifiers - display names may evolve,
-# keys never do, or every saved profile orphans.
-BANDS = [
-    {"key": "rightsSplits",    "hz": "25 Hz",   "short": "RIGHTS",
-     "label": "Rights & Splits",    "bank": "foundation"},
-    {"key": "royaltyRecovery", "hz": "40 Hz",   "short": "ROYALTIES",
-     "label": "Royalty Recovery",   "bank": "foundation"},
-    {"key": "distribution",    "hz": "63 Hz",   "short": "DISTRO",
-     "label": "Distribution",       "bank": "foundation"},
-    {"key": "metadata",        "hz": "100 Hz",  "short": "METADATA",
-     "label": "Metadata",           "bank": "foundation"},
-    {"key": "releaseStrategy", "hz": "160 Hz",  "short": "RELEASE",
-     "label": "Release Strategy",   "bank": "foundation"},
-    {"key": "content",         "hz": "250 Hz",  "short": "CONTENT",
-     "label": "Content & Rollout",  "bank": "growth"},
-    {"key": "audienceGrowth",  "hz": "400 Hz",  "short": "AUDIENCE",
-     "label": "Audience Growth",    "bank": "growth"},
-    {"key": "fanOwnership",    "hz": "630 Hz",  "short": "FANS",
-     "label": "Fan Ownership",      "bank": "growth"},
-    {"key": "touringLive",     "hz": "1 kHz",   "short": "LIVE",
-     "label": "Touring & Live",     "bank": "growth"},
-    {"key": "syncLicensing",   "hz": "1.6 kHz", "short": "SYNC",
-     "label": "Sync & Licensing",   "bank": "opportunity"},
-    {"key": "funding",         "hz": "2.5 kHz", "short": "FUNDING",
-     "label": "Funding & Valuation", "bank": "opportunity"},
-    {"key": "brand",           "hz": "4 kHz",   "short": "BRAND",
-     "label": "Brand Development",  "bank": "growth"},
-    {"key": "partnerships",    "hz": "6.3 kHz", "short": "PARTNERS",
-     "label": "Label Partnerships", "bank": "opportunity"},
-    {"key": "catalogValue",    "hz": "10 kHz",  "short": "CATALOG",
-     "label": "Catalog Value",      "bank": "opportunity"},
-    {"key": "longTermVision",  "hz": "16 kHz",  "short": "VISION",
-     "label": "Long-Term Vision",   "bank": "opportunity"},
+# --- channels ---------------------------------------------------------------
+# icon: pipe-joined SVG paths on a 20x20 grid, the same convention hubs.py
+# uses, so the template renders them the same way.
+CHANNELS = [
+    {
+        "key": "release", "label": "Release", "short": "RELEASE",
+        "icon": "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6.5v4l2.5 2",
+        "desc": ("Release preparation, timing, metadata completion, "
+                 "delivery readiness and the launch checklist."),
+    },
+    {
+        "key": "creative", "label": "Creative", "short": "CREATIVE",
+        "icon": "M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 17h4",
+        "desc": ("Cover artwork, visual identity, content production, "
+                 "merch direction and creative consistency."),
+    },
+    {
+        "key": "audience", "label": "Audience", "short": "AUDIENCE",
+        "icon": ("M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 "
+                 "2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4"),
+        "desc": ("Fan discovery and capture, segmentation, geographic "
+                 "response, and streaming and social engagement."),
+    },
+    {
+        "key": "rights", "label": "Rights", "short": "RIGHTS",
+        "icon": "M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M7.5 10l2 2 3.5-4",
+        "desc": ("Ownership, credits, splits, registrations, metadata "
+                 "conflicts and the documents that prove them."),
+    },
+    {
+        "key": "revenue", "label": "Revenue", "short": "REVENUE",
+        "icon": "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6",
+        "desc": ("Royalty visibility, missing-income detection, statement "
+                 "review and monetisation opportunities."),
+    },
+    {
+        "key": "growth", "label": "Growth", "short": "GROWTH",
+        "icon": "M3 14l4-4 3 3 7-7|M14 6h3v3",
+        "desc": ("Artist development, campaign expansion, partner "
+                 "readiness, catalog growth and long-term leverage."),
+    },
 ]
 
-# Mobile banks: five channels each, shown one bank at a time below 640px.
-# Membership is an attribute, not a slice - Brand (4 kHz) belongs to
-# Growth even though it sits between two Opportunity frequencies.
-BANKS = [
-    {"id": "foundation", "name": "FOUNDATION"},
-    {"id": "growth", "name": "GROWTH"},
-    {"id": "opportunity", "name": "OPPORTUNITY"},
-]
+CHANNEL_KEYS = [c["key"] for c in CHANNELS]
 
-# --- presets -------------------------------------------------------------
-# 0-10 per channel, mapped onto the -12/0/+12 dB engraving. Custom Mix
-# carries no values: it is what the panel switches to the moment a visitor
-# moves a slider themselves.
+# --- presets ----------------------------------------------------------------
+# Product-routing logic, not validated research. These weights decide which
+# part of Street Banker gets recommended first, and nothing else.
 PRESETS = [
-    {"id": "new-artist", "name": "New Artist", "values": {
-        "rightsSplits": 9, "royaltyRecovery": 4, "distribution": 9,
-        "metadata": 9, "releaseStrategy": 8, "content": 6,
-        "audienceGrowth": 6, "fanOwnership": 4, "touringLive": 3,
-        "syncLicensing": 3, "funding": 3, "brand": 8, "partnerships": 3,
-        "catalogValue": 4, "longTermVision": 6}},
-    {"id": "releasing-soon", "name": "Releasing Soon", "values": {
-        "rightsSplits": 6, "royaltyRecovery": 3, "distribution": 9,
-        "metadata": 9, "releaseStrategy": 10, "content": 9,
-        "audienceGrowth": 8, "fanOwnership": 5, "touringLive": 4,
-        "syncLicensing": 3, "funding": 3, "brand": 8, "partnerships": 3,
-        "catalogValue": 3, "longTermVision": 4}},
-    {"id": "growing-catalog", "name": "Growing Catalog", "values": {
-        "rightsSplits": 6, "royaltyRecovery": 5, "distribution": 6,
-        "metadata": 6, "releaseStrategy": 8, "content": 9,
-        "audienceGrowth": 9, "fanOwnership": 8, "touringLive": 5,
-        "syncLicensing": 5, "funding": 4, "brand": 6, "partnerships": 4,
-        "catalogValue": 9, "longTermVision": 9}},
-    {"id": "missing-royalties", "name": "Missing Royalties", "values": {
-        "rightsSplits": 9, "royaltyRecovery": 10, "distribution": 4,
-        "metadata": 9, "releaseStrategy": 3, "content": 2,
-        "audienceGrowth": 3, "fanOwnership": 3, "touringLive": 2,
-        "syncLicensing": 4, "funding": 4, "brand": 3, "partnerships": 4,
-        "catalogValue": 8, "longTermVision": 5}},
-    {"id": "label-ready", "name": "Label Ready", "values": {
-        "rightsSplits": 9, "royaltyRecovery": 6, "distribution": 7,
-        "metadata": 9, "releaseStrategy": 8, "content": 6,
-        "audienceGrowth": 8, "fanOwnership": 6, "touringLive": 5,
-        "syncLicensing": 6, "funding": 9, "brand": 8, "partnerships": 9,
-        "catalogValue": 9, "longTermVision": 9}},
-    {"id": "custom-mix", "name": "Custom Mix", "values": None},
+    {"id": "new-artist", "name": "New Artist",
+     "icon": "M10 3v14M3 10h14|M5.5 5.5l9 9M14.5 5.5l-9 9",
+     "values": {"release": 6, "creative": 8, "audience": 7, "rights": 4,
+                "revenue": 3, "growth": 7},
+     "weights": {"creative": 1.25, "audience": 1.15, "growth": 1.1}},
+    {"id": "releasing-soon", "name": "Releasing Soon",
+     "icon": ("M10 6a4 4 0 100 8 4 4 0 000-8z|M4 4c3.5 3.5 3.5 8.5 0 12"
+              "M16 4c-3.5 3.5-3.5 8.5 0 12"),
+     "values": {"release": 10, "creative": 8, "audience": 8, "rights": 7,
+                "revenue": 5, "growth": 6},
+     "weights": {"release": 1.35, "creative": 1.15, "audience": 1.15,
+                 "rights": 1.1}},
+    {"id": "growing-catalog", "name": "Growing Catalog",
+     "icon": ("M10 4c3.5 0 6 1 6 2s-2.5 2-6 2-6-1-6-2 2.5-2 6-2z"
+              "|M4 6v8c0 1 2.5 2 6 2s6-1 6-2V6"),
+     "values": {"release": 6, "creative": 6, "audience": 8, "rights": 8,
+                "revenue": 8, "growth": 9},
+     "weights": {"audience": 1.15, "rights": 1.15, "revenue": 1.2,
+                 "growth": 1.25}},
+    {"id": "missing-royalties", "name": "Missing Royalties",
+     "icon": "M9 4a5 5 0 100 10 5 5 0 000-10z|M13 12l4 4",
+     "values": {"release": 4, "creative": 3, "audience": 4, "rights": 10,
+                "revenue": 10, "growth": 5},
+     "weights": {"rights": 1.4, "revenue": 1.4}},
+    {"id": "label-ready", "name": "Label Ready",
+     "icon": "M3 6l3 3 4-5 4 5 3-3v8H3z|M3 16h14",
+     "values": {"release": 9, "creative": 9, "audience": 9, "rights": 9,
+                "revenue": 8, "growth": 10},
+     "weights": {}},
+    {"id": "custom", "name": "Custom",
+     "icon": "M4 6h12M4 10h12M4 14h12|M7 4v4M13 8v4M9 12v4",
+     "values": None, "weights": {}},
 ]
 
-DEFAULT_PRESET = "new-artist"
+DEFAULT_PRESET = "releasing-soon"
 
-# --- lanes ---------------------------------------------------------------
-# Royalty Recovery deliberately belongs to no lane group: it is not a lane,
-# it is the thing you do before a lane, so it gets its own rule below.
+# --- lanes ------------------------------------------------------------------
 LANES = [
-    {"id": "distribution", "name": "Distribution Lane",
+    {"id": "distribution", "name": "Distribution — Release the Record",
      "href": "/services/distribution",
-     "blurb": "Get the record out clean, registered, and collecting.",
-     "keys": ["rightsSplits", "distribution", "metadata", "releaseStrategy"]},
-    {"id": "development", "name": "Development Lane",
-     "href": "/audience",
-     "blurb": "Grow the audience and the direct relationship with it.",
-     "keys": ["releaseStrategy", "content", "audienceGrowth", "fanOwnership",
-              "touringLive", "brand"]},
-    {"id": "partnership", "name": "Partnership Lane",
-     "href": "/capital",
-     "blurb": "Build the catalog into an asset other people invest in.",
-     "keys": ["syncLicensing", "funding", "partnerships", "catalogValue",
-              "longTermVision"]},
+     "keys": ["release", "creative", "rights"],
+     "why": "Your highest priorities are getting the record out clean, on time and correctly registered."},
+    {"id": "development", "name": "Development — Build the Artist",
+     "href": "/catalog-sweep",
+     "keys": ["creative", "audience", "growth"],
+     "why": "Your highest priorities are creative work and audience, which is artist development."},
+    {"id": "partnership", "name": "Partnership — Build the Asset",
+     "href": "/services",
+     "keys": ["rights", "revenue", "growth"],
+     "why": "Your highest priorities are rights and income, which is where a catalog becomes an asset."},
 ]
 
-# Royalty Recovery has to be a top-two priority AND at least this high.
-SWEEP_FIRST_MIN = 8
-SWEEP_FIRST = {
-    "id": "sweep-first", "name": "Royalty Sweep First", "href": "/recovery",
-    "blurb": "Money already earned comes before money not yet made.",
-}
-# When the top two lane scores sit inside this many points of each other,
-# there is no dominant lane and we say so instead of picking one.
-LANE_TIE_GAP = 0.75
-INTEGRATED = {
-    "id": "integrated", "name": "Integrated Artist Program", "href": "/overview",
-    "blurb": "Your priorities span every lane, so the work runs in parallel.",
-}
-
-# --- modules -------------------------------------------------------------
-# href None means the module is real but has no page of its own yet: the
-# panel prints the name without wrapping it in a dead link.
+# --- modules ----------------------------------------------------------------
+# Ordered per channel, strongest fit first. `slug` anchors the public plan
+# page, which is where a signed-out visitor reads what each one does.
 MODULES = {
-    "Clean Release": "/releases/clean-release",
-    "Metadata Passport": "/metadata-passport",
-    "Royalty Sweep": "/recovery",
-    "Money Queue": "/money-queue",
-    "Distribution": "/services/distribution",
-    "Release Autopilot": "/releases/autopilot",
+    "release": [("Rollout Studio", "rollout-studio"),
+                ("Metadata Passport", "metadata-passport"),
+                ("Smart Links", "smart-links")],
+    "creative": [("Creative Studio", "creative-studio"),
+                 ("Artwork Generator", "artwork-generator"),
+                 ("AI Artist Twin", "artist-twin")],
+    "audience": [("Fan Intelligence", "fan-intelligence"),
+                 ("Smart Links", "smart-links"),
+                 ("Rollout Studio", "rollout-studio")],
+    "rights": [("Rights & Ownership", "rights-ownership"),
+               ("Metadata Passport", "metadata-passport"),
+               ("Royalty Sweep", "royalty-sweep")],
+    "revenue": [("Royalty Sweep", "royalty-sweep"),
+                ("Catalog Intelligence", "catalog-intelligence"),
+                ("Rights & Ownership", "rights-ownership")],
+    "growth": [("AI Artist Twin", "artist-twin"),
+               ("Deal Room", "deal-room"),
+               ("Catalog Intelligence", "catalog-intelligence")],
+}
+
+MODULE_NOTES = {
+    "rollout-studio": "Generates a dated rollout — captions, assets and a schedule — from the release you are working on.",
+    "metadata-passport": "One record per track of every field a distributor, PRO or society asks for, with the gaps marked.",
+    "smart-links": "One link per release that shows where the clicks came from and captures the fans who consent.",
+    "creative-studio": "Cover directions, campaign visuals and merch concepts kept beside the release they belong to.",
+    "artwork-generator": "Cover-art directions to compare side by side before committing to one.",
+    "artist-twin": "A strategist read on your own numbers: what moved, what stalled, and what to do next.",
+    "fan-intelligence": "Who is listening, where they are, and which of them you actually own the relationship with.",
+    "rights-ownership": "Splits, credits and signatures in one place, with the documents attached to the track.",
+    "royalty-sweep": "Reads your uploaded statements for money paid but unattributed, and for sources that have gone quiet.",
+    "catalog-intelligence": "What the catalog earns, where it earns it, and what that pace is worth.",
+    "deal-room": "The export a partner asks for: income on record, rights position and catalog shape in one document.",
+}
+
+# --- actions ----------------------------------------------------------------
+ACTIONS = {
+    "release": [("Complete the release metadata passport", "metadata-passport"),
+                ("Build a 21-day rollout around the active release", "rollout-studio")],
+    "creative": [("Generate and compare three cover-art directions", "artwork-generator"),
+                 ("Set the visual direction for the campaign", "creative-studio")],
+    "audience": [("Create a fan-capture smart link", "smart-links"),
+                 ("Segment the fans you already own", "fan-intelligence")],
+    "rights": [("Complete missing songwriter and producer splits", "rights-ownership"),
+               ("File the documents that prove each split", "rights-ownership")],
+    "revenue": [("Run a preliminary Royalty Sweep on the catalog", "royalty-sweep"),
+                ("Upload a recent statement so the sweep has rows to read", "royalty-sweep")],
+    "growth": [("Review the Artist Twin's campaign assessment", "artist-twin"),
+               ("Assemble the deal room export for a partner", "deal-room")],
+}
+
+# Where each module lives inside the app. The public plan page explains
+# modules by slug and never links into the product; these routes are for
+# the signed-in surfaces (onboarding, the command desk) that already have
+# an account behind them.
+MODULE_ROUTES = {
     "Rollout Studio": "/rollout-studio",
-    "Artist Twin": "/artist-twin",
+    "Metadata Passport": "/metadata-passport",
     "Smart Links": "/links",
-    "Fan CRM": "/fans",
-    "Fan Club": "/fan-club",
-    "Tour Hub": "/tour",
-    "Sync Packs": "/sync/clearance-packs",
-    "Funding": "/funding",
-    "Catalog Valuation": "/valuation",
-    "EPK": "/epk",
+    "Creative Studio": "/artwork",
+    "Artwork Generator": "/artwork",
+    "AI Artist Twin": "/artist-twin",
+    "Fan Intelligence": "/fans",
+    "Rights & Ownership": "/tracks",
+    "Royalty Sweep": "/recovery",
+    "Catalog Intelligence": "/catalog",
     "Deal Room": "/deal-room",
-    "Label Services": None,
-    "Command Center": "/command-center",
 }
 
-PRIORITY_MODULES = {
-    "rightsSplits":    ["Clean Release", "Metadata Passport"],
-    "royaltyRecovery": ["Royalty Sweep", "Money Queue"],
-    "distribution":    ["Distribution"],
-    "metadata":        ["Metadata Passport", "Clean Release"],
-    "releaseStrategy": ["Release Autopilot"],
-    "content":         ["Rollout Studio"],
-    "audienceGrowth":  ["Artist Twin", "Smart Links"],
-    "fanOwnership":    ["Fan CRM", "Fan Club"],
-    "touringLive":     ["Tour Hub"],
-    "syncLicensing":   ["Sync Packs"],
-    "funding":         ["Funding", "Catalog Valuation"],
-    "brand":           ["Artist Twin", "EPK"],
-    "partnerships":    ["Deal Room", "Label Services"],
-    "catalogValue":    ["Catalog Valuation", "Deal Room"],
-    "longTermVision":  ["Artist Twin", "Command Center"],
-}
-MAX_MODULES = 4
-
-# --- first actions -------------------------------------------------------
-PRIORITY_ACTIONS = {
-    "rightsSplits":    ["Confirm ownership and collaborator splits"],
-    "royaltyRecovery": ["Connect your royalty sources", "Run your Royalty Sweep"],
-    "distribution":    ["Prepare your next release"],
-    "metadata":        ["Complete your Metadata Passport"],
-    "releaseStrategy": ["Build your release timeline"],
-    "content":         ["Generate your rollout campaign"],
-    "audienceGrowth":  ["Connect audience analytics"],
-    "fanOwnership":    ["Set up your fan capture system"],
-    "touringLive":     ["Build your Tour Hub"],
-    "syncLicensing":   ["Prepare a sync-ready rights pack"],
-    "funding":         ["Review funding readiness"],
-    "brand":           ["Complete your Artist Twin profile"],
-    "partnerships":    ["Build your Deal Room"],
-    "catalogValue":    ["Run a catalog valuation"],
-    "longTermVision":  ["Create your 12-month artist plan"],
-}
-ACTION_COUNT = 3
-
-# Every first action leads somewhere real. Used by the onboarding program
-# panel to turn the three actions into links; anything unmapped renders as
-# plain text rather than a dead link.
+# Every action leads somewhere real for an account that has one. Derived
+# from the module each action belongs to rather than hand-listed, so a
+# renamed action cannot orphan its link.
+_SLUG_TO_MODULE = {slug: name for options in MODULES.values()
+                   for name, slug in options}
 ACTION_ROUTES = {
-    "Confirm ownership and collaborator splits": "/releases/clean-release",
-    "Connect your royalty sources": "/connections",
-    "Run your Royalty Sweep": "/recovery",
-    "Prepare your next release": "/releases/autopilot",
-    "Complete your Metadata Passport": "/metadata-passport",
-    "Build your release timeline": "/releases/autopilot",
-    "Generate your rollout campaign": "/rollout-studio",
-    "Connect audience analytics": "/audience",
-    "Set up your fan capture system": "/fans",
-    "Build your Tour Hub": "/tour",
-    "Prepare a sync-ready rights pack": "/sync/clearance-packs",
-    "Review funding readiness": "/funding",
-    "Complete your Artist Twin profile": "/artist-twin",
-    "Build your Deal Room": "/deal-room",
-    "Run a catalog valuation": "/valuation",
-    "Create your 12-month artist plan": "/command-center",
+    label: MODULE_ROUTES.get(_SLUG_TO_MODULE.get(slug, ""), "")
+    for options in ACTIONS.values() for label, slug in options
 }
 
-# Where BUILD MY PROGRAM continues to. Reuses the existing signup flow and
-# tags the source so the saved mix can become an Artist Priorities profile.
-CTA = {"label": "BUILD MY PROGRAM", "href": "/signup?source=artist-eq"}
-
-# --- Adaptive Visual Modes ------------------------------------------------
-# Five deterministic modes computed from the fifteen priorities. Scoring is
-# the MEAN of each mode's member priorities (normalized, so a four-band
-# mode and a five-band mode compete on the same 0-10 scale). Recovery is a
-# rule, not a race: Royalty Recovery in the top two AND >= SWEEP_FIRST_MIN.
-# Full-stack fires when the top two mode scores sit within MODE_TIE_GAP.
-# The same EQ configuration always produces the same mode.
-#
-# Each mode carries: the one signal line shown under the recommendation
-# panel, the one main-CTA label, restrained neutral tints (page /
-# secondary / dark - Street Banker gold never changes), and its two
-# optional image slots. Missing images fall back to the current homepage
-# hero and band photography; nothing breaks before the ten files exist.
-MODES = [
-    {"id": "release", "name": "RELEASE",
-     "keys": ["rightsSplits", "distribution", "metadata", "releaseStrategy"],
-     "signal": "YOUR SIGNAL IS RELEASE-FOCUSED.",
-     "cta": "BUILD MY RELEASE PROGRAM",
-     "tints": {"page": "#f3f3f0", "secondary": "#e7e7e2", "dark": "#171717"},
-     "hero": "/static/img/adaptive/hero-release.jpg",
-     "banner": "/static/img/adaptive/banner-release.jpg"},
-    {"id": "growth", "name": "GROWTH",
-     "keys": ["content", "audienceGrowth", "fanOwnership", "touringLive",
-              "brand"],
-     "signal": "YOUR SIGNAL IS GROWTH-FOCUSED.",
-     "cta": "BUILD MY GROWTH PROGRAM",
-     "tints": {"page": "#f5efe2", "secondary": "#eadfc9", "dark": "#1b1813"},
-     "hero": "/static/img/adaptive/hero-growth.jpg",
-     "banner": "/static/img/adaptive/banner-growth.jpg"},
-    {"id": "recovery", "name": "RECOVERY",
-     "keys": ["royaltyRecovery", "rightsSplits", "metadata", "catalogValue"],
-     "signal": "YOUR SIGNAL IS RECOVERY-FIRST.",
-     "cta": "START MY RECOVERY PROGRAM",
-     "tints": {"page": "#f1eee6", "secondary": "#d9d4c8", "dark": "#101010"},
-     "hero": "/static/img/adaptive/hero-recovery.jpg",
-     "banner": "/static/img/adaptive/banner-recovery.jpg"},
-    {"id": "partnership", "name": "PARTNERSHIP",
-     "keys": ["syncLicensing", "funding", "partnerships", "catalogValue",
-              "longTermVision"],
-     "signal": "YOUR SIGNAL IS PARTNERSHIP-READY.",
-     "cta": "BUILD MY PARTNERSHIP PROGRAM",
-     "tints": {"page": "#f4ead5", "secondary": "#dfcfaa", "dark": "#17140f"},
-     "hero": "/static/img/adaptive/hero-partnership.jpg",
-     "banner": "/static/img/adaptive/banner-partnership.png"},
-    # Full-stack restores the original balanced treatment exactly.
-    {"id": "full-stack", "name": "FULL STACK",
-     "keys": [],
-     "signal": "YOUR SIGNAL NEEDS THE FULL STACK.",
-     "cta": "BUILD MY ARTIST PROGRAM",
-     "tints": {"page": "#ffffff", "secondary": "#f6f3f0", "dark": "#0f0e0c"},
-     "hero": "/static/img/adaptive/hero-full-stack.png",
-     "banner": "/static/img/adaptive/banner-full-stack.png"},
+READINESS_BANDS = [
+    (40, "Foundation Stage"),
+    (60, "Building Momentum"),
+    (75, "Release Ready"),
+    (88, "Growth Ready"),
+    (101, "Partner Ready"),
 ]
-MODE_TIE_GAP = 0.6          # top two modes closer than this -> full-stack
-MODE_SWITCH_MARGIN = 0.5    # challenger must beat incumbent by this much
-BANNER_LABEL = "YOUR STREET BANKER MODE"
 
-# Storage: the Artist Signal Profile. The old key is read once and
-# migrated; new writes go to the new key only.
-STORAGE_KEY = "streetBankerArtistSignalProfile"
-LEGACY_STORAGE_KEY = "streetBankerArtistEq"
-PROFILE_VERSION = 2   # v2 adds activeVisualMode; v1 profiles still restore
-PROFILE_SOURCE = "homepage_artist_eq"
+# Rough, and labelled rough everywhere it is shown.
+SETUP_TIMES = ["10–15 minutes", "20–30 minutes", "45–60 minutes"]
 
-# Lane hysteresis: a challenger must beat the incumbent by this much
-# (normalized 0-10 scale) to switch mid-drag; anything closer waits for
-# the settle timer, so the recommendation never flickers under a moving
-# slider.
-LANE_SWITCH_MARGIN = 0.5
-SETTLE_MS = 600
-SAVE_DEBOUNCE_MS = 500
+MAX_MODULES = 4
+ACTION_COUNT = 3
+STORAGE_KEY = "streetBankerArtistEq"
+
+
+# --- the engine -------------------------------------------------------------
+
+def _preset(preset_id):
+    for p in PRESETS:
+        if p["id"] == preset_id:
+            return p
+    return None
+
+
+def default_values():
+    return dict(_preset(DEFAULT_PRESET)["values"])
+
+
+def clean_values(raw):
+    """Coerce whatever arrived into six numbers between 0 and 10."""
+    out = default_values()
+    for key in CHANNEL_KEYS:
+        value = (raw or {}).get(key)
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+        out[key] = max(0.0, min(10.0, round(value * 2) / 2))
+    return out
+
+
+def readiness(values, preset_id=None):
+    """0-100 from the six numbers, with a small preset weighting.
+
+    A weighted mean and nothing cleverer, written out so the page can say
+    exactly what it did.
+    """
+    values = clean_values(values)
+    weights = ((_preset(preset_id) or {}).get("weights") or {}) if preset_id else {}
+    total = weighted = 0.0
+    for key in CHANNEL_KEYS:
+        w = float(weights.get(key, 1.0))
+        weighted += values[key] * w
+        total += w
+    score = (weighted / total) * 10 if total else 0
+    return int(max(0, min(100, round(score))))
+
+
+def readiness_band(score):
+    for ceiling, label in READINESS_BANDS:
+        if score < ceiling:
+            return label
+    return READINESS_BANDS[-1][1]
+
+
+def recommended_lane(values):
+    values = clean_values(values)
+    best, best_score = LANES[0], -1.0
+    for lane in LANES:
+        score = sum(values[k] for k in lane["keys"])
+        if score > best_score:
+            best, best_score = lane, score
+    return best
+
+
+def _ranked_keys(values):
+    """Channels strongest first. Ties break in declared order, so the same
+    input never produces two different plans."""
+    values = clean_values(values)
+    return sorted(CHANNEL_KEYS, key=lambda k: (-values[k], CHANNEL_KEYS.index(k)))
+
+
+def recommended_modules(values, limit=MAX_MODULES):
+    picked, seen = [], set()
+    ranked = _ranked_keys(values)
+    for depth in range(3):
+        for key in ranked:
+            options = MODULES[key]
+            if depth >= len(options):
+                continue
+            name, slug = options[depth]
+            if slug in seen:
+                continue
+            seen.add(slug)
+            picked.append({"name": name, "slug": slug, "channel": key,
+                           "note": MODULE_NOTES.get(slug, "")})
+            if len(picked) >= limit:
+                return picked
+    return picked
+
+
+def top_actions(values, count=ACTION_COUNT):
+    picked, seen = [], set()
+    ranked = _ranked_keys(values)
+    for depth in range(2):
+        for key in ranked:
+            options = ACTIONS[key]
+            if depth >= len(options):
+                continue
+            label, slug = options[depth]
+            if label in seen:
+                continue
+            seen.add(label)
+            picked.append({"label": label, "slug": slug, "channel": key})
+            if len(picked) >= count:
+                return picked
+    return picked
+
+
+def setup_time(values):
+    """Longer when the priorities point at work that takes longer."""
+    values = clean_values(values)
+    heavy = values["rights"] + values["revenue"]
+    if heavy >= 16:
+        return SETUP_TIMES[2]
+    if heavy >= 10 or values["release"] >= 8:
+        return SETUP_TIMES[1]
+    return SETUP_TIMES[0]
+
+
+def build_plan(values, preset_id=None):
+    """Everything the output panel and the public plan page show."""
+    values = clean_values(values)
+    score = readiness(values, preset_id)
+    return {
+        "values": values,
+        "preset": preset_id or "custom",
+        "score": score,
+        "band": readiness_band(score),
+        "lane": recommended_lane(values),
+        "modules": recommended_modules(values),
+        "actions": top_actions(values),
+        "setup_time": setup_time(values),
+    }
 
 
 def get_artist_eq_config():
-    """Everything the section needs, in one dict."""
+    """Config for the template and, as JSON, for the browser."""
     return {
-        "eyebrow": "THE ARTIST EQ",
-        "heading": "WHAT MATTERS MOST TO YOUR ART?",
-        "support": ("Tune your priorities and Street Banker will build your "
-                    "recommended path."),
-        "instruction": ("Choose a preset or adjust the mix yourself. "
-                        "Your program updates instantly."),
-        "helper": "Lower = less important · Higher = more important",
-        "bands": BANDS,
-        "banks": BANKS,
+        "eyebrow": "ARTIST EQ",
+        "heading": "TUNE YOUR ARTIST SYSTEM.",
+        "support": "Set your priorities. Street Banker builds the plan.",
+        "instruction": ("Adjust the six areas below or choose a preset. Your "
+                        "recommended tools and next actions update instantly."),
+        "channels": CHANNELS,
         "presets": PRESETS,
         "default_preset": DEFAULT_PRESET,
+        "default_values": default_values(),
         "lanes": LANES,
-        "sweep_first": SWEEP_FIRST,
-        "sweep_first_min": SWEEP_FIRST_MIN,
-        "integrated": INTEGRATED,
-        "lane_tie_gap": LANE_TIE_GAP,
-        "lane_switch_margin": LANE_SWITCH_MARGIN,
-        "settle_ms": SETTLE_MS,
-        "save_debounce_ms": SAVE_DEBOUNCE_MS,
         "modules": MODULES,
-        "priority_modules": PRIORITY_MODULES,
+        "module_notes": MODULE_NOTES,
+        "actions": ACTIONS,
+        "readiness_bands": READINESS_BANDS,
+        "setup_times": SETUP_TIMES,
         "max_modules": MAX_MODULES,
-        "priority_actions": PRIORITY_ACTIONS,
         "action_count": ACTION_COUNT,
-        "action_routes": ACTION_ROUTES,
-        "cta": CTA,
-        "modes": MODES,
-        "mode_tie_gap": MODE_TIE_GAP,
-        "mode_switch_margin": MODE_SWITCH_MARGIN,
-        "banner_label": BANNER_LABEL,
         "storage_key": STORAGE_KEY,
-        "legacy_storage_key": LEGACY_STORAGE_KEY,
-        "profile_version": PROFILE_VERSION,
-        "profile_source": PROFILE_SOURCE,
-        "columns": ["YOUR LANE", "YOUR RECOMMENDED MODULES",
-                    "YOUR FIRST THREE ACTIONS"],
-        "reset_label": "RESET MIX",
+        "module_routes": MODULE_ROUTES,
+        "action_routes": ACTION_ROUTES,
+        "cta": {"label": "Build my Street Banker plan", "href": "/plan"},
+        "reset_label": "Reset EQ",
+        # What the panel reads before a single line of script has run. The
+        # server paints the same plan the browser would, so the first frame
+        # is never a placeholder that the page then corrects.
+        "default_plan": build_plan(default_values(), DEFAULT_PRESET),
+        "default_query": plan_query(default_values(), DEFAULT_PRESET),
     }
+
+
+def plan_query(values, preset_id=None):
+    """The /plan query string for a set of values - built here so the
+    server-rendered links and the ones the browser rewrites are the same
+    string, in the same order."""
+    from urllib.parse import urlencode
+
+    values = clean_values(values)
+    # "%g" so a whole number is 10 and not 10.0, matching what the browser
+    # writes into the same link.
+    pairs = [(key, "%g" % values[key]) for key in CHANNEL_KEYS]
+    pairs.append(("preset", preset_id or "custom"))
+    return urlencode(pairs)
