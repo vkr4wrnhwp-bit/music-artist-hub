@@ -26,15 +26,22 @@ def test_index_renders_landing_page():
 def test_landing_page_nav_and_ctas_link_into_the_app():
     client = _demo()
     body = client.get("/").get_data(as_text=True)
+    # The footer and the page body still link into the app; the header
+    # deliberately does not, because those pages need an account and the
+    # header is what a stranger reads first.
     assert 'href="/overview"' in body
     assert 'href="/recovery"' in body
-    assert "Login" in body
+    assert "Log in" in body                 # the header's own wording now
 
 
 def _all_landing_hrefs(config):
     """Every href the homepage renders, in one flat list."""
     hrefs = [l["href"] for l in config["nav"]["links"]]
-    hrefs += [a["href"] for a in config["nav"]["actions"]]
+    # The header's actions are now a named pair rather than a list: one
+    # log-in and one CTA, because a header with a list of actions is a
+    # header nobody chose.
+    hrefs += [l["href"] for l in config["nav"]["drawer_links"]]
+    hrefs += [config["nav"]["login"]["href"], config["nav"]["cta"]["href"]]
     hrefs += [c["href"] for c in config["hero"]["ctas"]]
     hrefs += [c["link"]["href"] for c in config["lanes"]["cards"]]
     hrefs.append(config["sweep"]["cta"]["href"])

@@ -134,7 +134,7 @@ def test_the_header_assets_exist_and_are_versioned():
     # The service worker caches /static first, so a changed asset needs a
     # new cache version or returning visitors keep the old header.
     sw = open("static/js/sw.js", encoding="utf-8").read()
-    assert 'VERSION = "sb-v83"' in sw
+    assert 'VERSION = "sb-v84"' in sw
 
 
 def test_the_header_holds_its_own_space():
