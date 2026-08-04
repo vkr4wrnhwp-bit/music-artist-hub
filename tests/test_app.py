@@ -318,15 +318,6 @@ def test_overview_includes_earnings_trend():
     assert 'id="earningsChart"' in body
 
 
-def test_recovery_includes_leak_alerts_ui():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Royalty Leak Alerts" in body
-    assert 'id="alert-filters"' in body
-    assert 'data-filter="High"' in body
-    assert 'data-filter="Resolved"' in body
-
-
 def test_royalties_page_matches_tracking_dashboard():
     client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
@@ -395,13 +386,6 @@ def test_settings_includes_notification_preferences_ui():
     assert "Weekly summary email" in body
     assert 'data-key="leak_high"' in body
     assert 'data-key="new_song_detected"' in body
-
-
-def test_recovery_includes_scanner_ui():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert 'id="scan-btn"' in body
-    assert "Missing Money Scanner" in body
 
 
 def test_scan_endpoint_returns_findings():
@@ -535,13 +519,6 @@ def test_royalties_includes_payout_calendar():
     assert "Upcoming total" in body
 
 
-def test_recovery_includes_claim_workflow_ui():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Claim Workflow" in body
-    assert "Detected" in body
-
-
 def test_advance_claim_route():
     client = _demo()
     try:
@@ -568,22 +545,6 @@ def test_advance_unknown_claim_returns_404():
     client = _demo()
     response = client.post("/claims/not-a-real-claim/advance")
     assert response.status_code == 404
-
-
-def test_recovery_includes_smart_recommendations():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Smart Recommendations" in body
-    assert "urgency" in body
-
-
-def test_valuation_includes_catalog_value_and_advance_eligibility():
-    client = _demo()
-    body = client.get("/valuation").get_data(as_text=True)
-    assert "Catalog Value Estimate" in body
-    assert "Advance Eligibility" in body
-    assert 'id="custom-multiple"' in body
-    assert "Suggested advance amount" in body
 
 
 def test_add_split_route():
@@ -661,52 +622,12 @@ def test_base_includes_collapsible_section_script():
     assert "royaltySweep.collapsed." in body
 
 
-def test_recovery_includes_fixes_queue_ui():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Fixes Needed Queue" in body
-    assert 'id="fixes-queue-list"' in body
-    assert "Fix Now" in body
-    assert "Mark Complete" in body
-
-
-def test_recovery_includes_top_royalty_leaks():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Top Royalty Leaks" in body
-
-
-def test_recovery_includes_command_center_header():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    assert "Estimated Uncollected" in body
-    assert "Ready to Claim" in body
-    assert "Affected Recordings" in body
-    assert 'id="recoveryChart"' in body
-    assert "Top Sources" in body
-
-
 def test_catalog_releases_tab_lists_releases():
     client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
     assert 'id="tab-Releases"' in body
     assert "The Collection Vol. 1" in body
     assert "Survival Mode" in body
-
-
-def test_valuation_includes_royalty_forecast():
-    client = _demo()
-    body = client.get("/valuation").get_data(as_text=True)
-    assert "Royalty Forecast" in body
-    assert "Conservative" in body
-    assert "Aggressive" in body
-
-
-def test_valuation_includes_catalog_value_tracker():
-    client = _demo()
-    body = client.get("/valuation").get_data(as_text=True)
-    assert "Catalog Value Tracker" in body
-    assert 'id="value-tracker-current"' in body
 
 
 def test_catalog_splits_tab_lists_splits():
@@ -867,12 +788,6 @@ def test_tier2_pages_render_and_are_in_nav():
         assert 'data-hub="%s"' % hub in promote_nav
 
 
-def test_documents_page_content():
-    body = _demo().get("/documents").get_data(as_text=True)
-    assert "Documents Vault" in body
-    assert "Vault Completeness" in body
-
-
 def test_identifiers_page_content():
     body = _demo().get("/identifiers").get_data(as_text=True)
     assert "Identifiers" in body
@@ -1021,9 +936,17 @@ def test_funding_offers_derive_from_advance():
 
 
 def test_tax_page_real_income_by_year():
+    """A fresh account, not the demo: the showcase carries seeded
+    statements of its own now, so per-year totals asserted against the
+    demo would be asserting against somebody else's rows too."""
     import io
+    import uuid as _uuid
     app_obj = create_app()
-    client = _demo(app_obj)
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "T",
+                                 "email": "tax%s@x.com" % _uuid.uuid4().hex[:8],
+                                 "password": "secret1", "account_type": "artist"})
+    client.post("/plan/switch", data={"plan": "pro"})
     # Empty state points at Statements.
     body = client.get("/tax").get_data(as_text=True)
     assert "Tax Center" in body
@@ -3429,20 +3352,6 @@ def test_catalog_data_config_shapes():
     assert data["publishers"] and data["splits"] and data["recently_added"]
     assert data["registered_pct"] == 82.7
     assert data["health"]["total"] == 76
-
-
-def test_update_fix_status_route():
-    client = _demo()
-    body = client.get("/recovery").get_data(as_text=True)
-    import re
-    match = re.search(r'data-fix-id="([^"]+)"', body)
-    fix_id = match.group(1)
-    try:
-        response = client.post(f"/fixes/{fix_id}/status", json={"status": "Complete"})
-        assert response.status_code == 200
-        assert response.get_json() == {"ok": True, "status": "Complete"}
-    finally:
-        reset_fix_status_state()
 
 
 def test_update_fix_status_invalid_status_returns_400():

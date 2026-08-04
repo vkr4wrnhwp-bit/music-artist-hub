@@ -140,8 +140,9 @@ def test_chart_js_is_not_loaded_on_every_page():
 
 
 def test_the_pages_that_draw_charts_still_load_chart_js():
-    for name in ("valuation", "royalties", "overview", "stats", "recovery",
-                 "audience"):
+    # Valuation and Recovery draw their own bars from the artist's
+    # statement months now - no Chart.js, so nothing to keep in step.
+    for name in ("royalties", "overview", "stats", "audience"):
         s = io.open(os.path.join(HERE, "templates", name + ".html"),
                     encoding="utf8").read()
         assert "new Chart(" in s, name

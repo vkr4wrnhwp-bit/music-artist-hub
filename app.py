@@ -13,6 +13,7 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
+import demo_seed
 import documents_engine
 import inbox_engine
 import recovery_engine
@@ -435,6 +436,11 @@ def create_app():
                 _db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                             (generate_password_hash(os.environ["DEMO_PASSWORD"]),
                              _acct["id"]))
+        # Real statements for the non-fan demos, so the showcase runs on
+        # the same engines an artist's account does. Idempotent, and it
+        # never touches an account that already has rows.
+        if _plan != "fan":
+            demo_seed.seed_statements(_acct["id"])
 
     # Owner accounts get the top plan at boot as well as at login, so an
     # existing long-lived session does not have to sign out and back in
@@ -1541,19 +1547,14 @@ def create_app():
 
     @app.route("/recovery")
     def recovery():
-        # recovery.html is the showcase: its figures come from
-        # royalty_data's hardcoded platform list, which describes nobody's
-        # account. A real artist gets recovery_real.html, computed from
-        # the statements they uploaded and empty when they have uploaded
-        # nothing.
+        # One page for every account, including the showcase - the demo
+        # has real statements now, so it is scanned by the same engine
+        # rather than shown a hardcoded copy of what a scan looks like.
         user = current_user()
-        if user is not None and not _session_is_demo():
-            return render_template("recovery_real.html", active_page="recovery",
-                                   recovery_view=recovery_engine.build(user["id"]),
-                                   **build_dashboard_context())
-        return render_template("recovery.html", active_page="recovery",
-                               real_royalty=_real_royalty(),
-                               **build_dashboard_context())
+        return render_template(
+            "recovery.html", active_page="recovery",
+            recovery_view=recovery_engine.build(user["id"]) if user else None,
+            **build_dashboard_context())
 
     @app.route("/valuation")
     def valuation():
@@ -1564,16 +1565,10 @@ def create_app():
         trend = (score_history.summarise(
             "valuation", store.score_trend(user["id"], "valuation"))
             if user else None)
-        # Same split as /recovery: valuation.html's figures all annualise
-        # get_earnings_trend(), six hardcoded months. A real account is
-        # valued on the months it uploaded, or on nothing.
-        if user is not None and not _session_is_demo():
-            return render_template("valuation_real.html", active_page="valuation",
-                                   valuation_view=valuation_engine.build(user["id"]),
-                                   trend=trend, **build_dashboard_context())
-        return render_template("valuation.html", active_page="valuation",
-                               real_royalty=_real_royalty(), trend=trend,
-                               **build_dashboard_context())
+        return render_template(
+            "valuation.html", active_page="valuation",
+            valuation_view=valuation_engine.build(user["id"]) if user else None,
+            trend=trend, **build_dashboard_context())
 
     @app.route("/reports")
     def reports():
@@ -6083,16 +6078,11 @@ def create_app():
         ctx["real_docs"] = store.list_documents(user["id"]) if user else []
         ctx["doc_types"] = _DOC_TYPES
         ctx["doc_error"] = error
-        # documents.html's lower half reads _DOCUMENT_PRESENCE: five
-        # invented song ids and their paperwork, which no upload could
-        # ever change. A real account gets its own vault counted instead.
-        if user is not None and not _session_is_demo():
-            return render_template(
-                "documents_real.html", active_page="documents",
-                documents_view=documents_engine.build(user["id"]),
-                documents_per_track_types=documents_engine.PER_TRACK_TYPES,
-                documents_catalog_types=documents_engine.CATALOG_TYPES, **ctx)
-        return render_template("documents.html", active_page="documents", **ctx)
+        return render_template(
+            "documents.html", active_page="documents",
+            documents_view=documents_engine.build(user["id"]) if user else None,
+            documents_per_track_types=documents_engine.PER_TRACK_TYPES,
+            documents_catalog_types=documents_engine.CATALOG_TYPES, **ctx)
 
     @app.route("/documents/<doc_id>/delete", methods=["POST"])
     def document_delete(doc_id):
