@@ -1,7 +1,7 @@
 """Street Banker Command Center + global Actions.
 
 The operating-system spine: unified scores computed live from the real
-modules (Links, Rollout Studio, Fan CRM, Catalog, EPK), derived health
+modules (Links, Rollout Engine, Fan CRM, Catalog, EPK), derived health
 alerts that always point at a destination, a persistent action/task
 system, and the registry of every OS module with an honest Live/Preview
 status. Scores are derived fresh on every load rather than snapshotted —
@@ -79,7 +79,7 @@ _NOT_FINANCIAL = "Estimates only — not financial advice."
 
 MODULES = [
     ("/links", "Smart Links 2.0", "Campaigns, pre-saves, fan capture, variants, QR, attribution.", "live", None),
-    ("/rollout-studio", "Rollout Studio", "Generated social rollouts with per-post tracked links.", "live", None),
+    ("/rollout-studio", "Rollout Engine", "Generated social rollouts with per-post tracked links.", "live", None),
     ("/links/fans", "Fan CRM", "Owned fan data with consent logs and intent scoring.", "live", None),
     ("/epk", "Press Office / EPK", "Editable press kit with public share link and media assets.", "live", None),
     ("/releases/autopilot", "Release Autopilot", "One release in, the full operating plan out.", "live", None),

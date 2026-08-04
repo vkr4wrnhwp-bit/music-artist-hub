@@ -51,9 +51,13 @@ def test_navigation_reaches_real_places():
     for label in ("Platform", "AI Artist Twin", "Creative + Rollout",
                   "Royalty Sweep", "For Labels"):
         assert label in body, label
-    # Every same-page target exists in the document.
-    for anchor in ("platform", "artist-twin", "creative-rollout", "royalty-sweep"):
+    # Every same-page target exists in the document, and every hash link
+    # is written /#name rather than #name - the header renders on eleven
+    # public pages, and a bare #platform on /rollout scrolls to nothing.
+    for anchor in ("platform", "artist-twin-section", "creative-studio",
+                   "royalty-sweep"):
         assert 'id="%s"' % anchor in body, anchor
+        assert 'href="/#%s"' % anchor in body, anchor
 
 
 def test_no_navigation_item_bounces_a_visitor_to_login():

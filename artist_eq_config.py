@@ -122,7 +122,7 @@ LANES = [
 # Ordered per channel, strongest fit first. `slug` anchors the public plan
 # page, which is where a signed-out visitor reads what each one does.
 MODULES = {
-    "release": [("Rollout Studio", "rollout-studio"),
+    "release": [("Rollout Engine", "rollout-studio"),
                 ("Metadata Passport", "metadata-passport"),
                 ("Smart Links", "smart-links")],
     "creative": [("Creative Studio", "creative-studio"),
@@ -130,7 +130,7 @@ MODULES = {
                  ("AI Artist Twin", "artist-twin")],
     "audience": [("Fan Intelligence", "fan-intelligence"),
                  ("Smart Links", "smart-links"),
-                 ("Rollout Studio", "rollout-studio")],
+                 ("Rollout Engine", "rollout-studio")],
     "rights": [("Rights & Ownership", "rights-ownership"),
                ("Metadata Passport", "metadata-passport"),
                ("Royalty Sweep", "royalty-sweep")],
@@ -177,7 +177,7 @@ ACTIONS = {
 # the signed-in surfaces (onboarding, the command desk) that already have
 # an account behind them.
 MODULE_ROUTES = {
-    "Rollout Studio": "/rollout-studio",
+    "Rollout Engine": "/rollout-studio",
     "Metadata Passport": "/metadata-passport",
     "Smart Links": "/links",
     "Creative Studio": "/artwork",

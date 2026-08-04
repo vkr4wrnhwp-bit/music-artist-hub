@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=21">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=22">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="/static/css/sweep.css?v=2">
   <link rel="stylesheet" href="/static/css/distribution.css?v=2">
   <link rel="stylesheet" href="/static/css/passport.css?v=1">
+  <link rel="stylesheet" href="/static/css/closing.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -97,7 +98,7 @@
       </div>
       <div class="sbhero-preview-rows">
         {% set checks = [
-          ('done', 'Metadata passport complete'),
+          ('done', 'Metadata Passport complete'),
           ('done', 'Splits signed by every collaborator'),
           ('open', 'Rollout scheduled for release week'),
           ('open', 'Royalty lanes claimed on all sources'),
@@ -170,99 +171,61 @@
      blueprint, seven connected records around it. Additive. -->
 {% include "partials/passport.html" %}
 
-<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
+<!-- 11.5 TRUST BAND — the promises made across the page, in one place. -->
+{% include "partials/trust_band.html" %}
 
-  <span id="artist-twin" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-  <!-- 12. SIGNATURE TOOLS -->
-  {% set tools = config.tools %}
-  <section id="tools" class="scroll-mt-6 py-20 lg:py-24">
-    <span id="creative-rollout" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-
-    <div class="text-center">
-      <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ tools.heading }}</h2>
-      <p class="mx-auto mt-3 max-w-lg text-sm text-[#5a544a]">{{ tools.support }}</p>
-    </div>
-    <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-5">
-      {% for t in tools['items'] %}
-      <a href="{{ t.href }}" class="group flex flex-col items-center gap-4 rounded-lg px-1 py-6 text-center transition-colors hover:bg-[#141210]/[0.04] sm:px-2">
-        <!-- A rack module, not a badge: black face, light legend, two
-             mounting screws, and a bevel along the top edge where the panel
-             catches the light - the same object the lane artwork is made of.
-             Outlines on a pale chip read as weak next to the photography. -->
-        <span class="relative grid h-16 w-16 place-items-center rounded-md bg-[#1a1611] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-[#141210]/25 transition-colors group-hover:bg-[#241f16]">
-          <span class="absolute left-2 top-1/2 h-[3px] w-[3px] -translate-y-1/2 rounded-full bg-[#8a8377] transition-colors group-hover:bg-[#d8b25a]"></span>
-          <span class="absolute right-2 top-1/2 h-[3px] w-[3px] -translate-y-1/2 rounded-full bg-[#8a8377] transition-colors group-hover:bg-[#d8b25a]"></span>
-          <svg class="h-7 w-7 text-[#ece8de] transition-colors group-hover:text-[#d8b25a]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            {% for d in t.icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
-          </svg>
-        </span>
-        <span class="text-[11px] font-bold uppercase leading-tight tracking-[0.12em]">{{ t.name }}</span>
-      </a>
-      {% endfor %}
-    </div>
-  </section>
-</div>
-
-<!-- Full-bleed band: the archive the closing line is about. Anchored to the
-     top so the crop always keeps Masters and Catalog rather than drifting to
-     a random slice of wall as the viewport widens. -->
-{% if config.band_image %}
-<figure class="w-full overflow-hidden bg-[#e8e6e0]">
-  <img src="{{ config.band_image.src }}" alt="{{ config.band_image.alt }}" class="block h-48 w-full object-cover object-left-top sm:h-64 lg:h-[22rem]" loading="lazy">
-</figure>
-{% endif %}
-
-<div class="mx-auto max-w-6xl px-6 lg:px-10">
-
-  <!-- 13. FINAL CTA -->
-  {% set fin = config.final_cta %}
-  <section class="py-24 text-center lg:py-32">
-    <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
-      {% for line in fin.headline %}<span class="block">{{ line }}</span>{% endfor %}
-    </h2>
-    <a href="{{ fin.cta.href }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
-    <p class="mx-auto mt-6 max-w-sm text-[12px] leading-relaxed text-[#6b6459]">{{ fin.note }}</p>
-  </section>
+<!-- 12. CLOSING STATEMENT — the catalog as the asset. Last frame; nothing
+     after it but the footer. -->
+{% include "partials/closing.html" %}
 
   </main>
 
-  <!-- 8. MINIMAL FOOTER -->
+  <!-- FOOTER. Dark, because the closing frame above it fades to the same
+       ink: a pale footer would put a hard line under the last photograph.
+       Five columns, every link public. -->
   {% set f = config.footer %}
-  <footer class="border-t border-black/10 py-14">
-    <div class="grid grid-cols-2 gap-10 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
-      <div class="col-span-2 lg:col-span-1">
-        <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ f.logo.primary }}" class="h-8 w-auto">
-        <div class="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f]">{{ f.logo.secondary }}</div>
-        <p class="mt-4 max-w-xs text-xs leading-relaxed text-[#6b6459]">{{ f.description }}</p>
-        <div class="mt-5 flex gap-4 text-[11px] font-semibold text-[#6b6459]">
-          {% for s in f.socials %}
-          <a href="{{ s.href }}" target="_blank" rel="noopener" class="-my-2 inline-block py-3.5 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ s.label }}</a>
-          {% endfor %}
+  <footer class="bg-[#080807] text-[#EEE8DC]">
+    <div class="mx-auto max-w-[1600px] px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
+      <div class="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))] lg:gap-8">
+        <div>
+          <img src="/static/img/streetbanker-logo-light.svg" alt="{{ f.logo.primary }}" width="920" height="250" class="h-8 w-auto">
+          <div class="mt-2 text-[9px] font-semibold uppercase tracking-[0.24em] text-[#A7A198]">{{ f.logo.secondary }}</div>
+          <p class="mt-4 max-w-xs text-[12.5px] leading-relaxed text-[#A7A198]">{{ f.description }}</p>
+          {% if f.socials %}
+          <div class="mt-5 flex gap-4 text-[11px] font-semibold text-[#A7A198]">
+            {% for s in f.socials %}
+            <a href="{{ s.href }}" target="_blank" rel="noopener" class="-my-2 inline-block py-3.5 transition-colors hover:text-[#C9A86A] sm:my-0 sm:py-0">{{ s.label }}</a>
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
+        {% for col in f.columns %}
+        <div>
+          <h2 class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A86A]">{{ col.title }}</h2>
+          <ul class="mt-4 space-y-2.5">
+            {% for l in col.links %}
+            <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-[12.5px] text-[#A7A198] transition-colors hover:text-[#EEE8DC] sm:my-0 sm:py-0">{{ l.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
       </div>
-      {% for col in f.columns %}
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-[0.2em]">{{ col.title }}</div>
-        <ul class="mt-4 space-y-2.5">
-          {% for l in col.links %}
-          <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-xs text-[#6b6459] transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ l.label }}</a></li>
-          {% endfor %}
-        </ul>
+      <div class="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(238_232_220_/_0.08)] pt-6 text-[11px] text-[#7E786F]">
+        <span>{{ f.copyright }}</span>
+        <span>Your music. Your data. Your decisions.</span>
       </div>
-      {% endfor %}
     </div>
-    <div class="mt-12 border-t border-black/10 pt-6 text-[11px] text-[#797369] font-medium">{{ f.copyright }}</div>
   </footer>
-</div>
 
 <script src="/static/js/artist-eq.js?v=8" defer></script>
 <script src="/static/js/departments.js?v=3" defer></script>
-<script src="/static/js/artist-twin.js?v=1" defer></script>
+<script src="/static/js/artist-twin.js?v=2" defer></script>
 <script src="/static/js/lanes.js?v=1" defer></script>
 <script src="/static/js/creative-studio.js?v=1" defer></script>
 <script src="/static/js/rollout.js?v=1" defer></script>
 <script src="/static/js/sweep.js?v=1" defer></script>
 <script src="/static/js/distribution.js?v=1" defer></script>
 <script src="/static/js/passport.js?v=1" defer></script>
+<script src="/static/js/closing.js?v=1" defer></script>
 </body>
 </html>

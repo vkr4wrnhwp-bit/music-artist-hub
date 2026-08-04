@@ -13,7 +13,7 @@ PLANS = [
     ("fan", "Fan", "Free", "Discover music, follow artists, collect moments.",
      ["Discover & Network", "Fan Dashboard", "Mintable Moments", "Marketplace"]),
     ("artist", "Artist", "$9/mo", "The Promote suite — own your fans.",
-     ["Smart Links + pre-saves", "Rollout Studio", "Press Kit + public EPK",
+     ["Smart Links + pre-saves", "Rollout Engine", "Press Kit + public EPK",
       "Fan CRM", "Command Center & Actions", "Audience & playlist tools"]),
     ("pro", "Pro", "$29/mo", "Everything in Artist plus the money engine.",
      ["Royalty Sweep: statements, recovery, catalog", "Valuation & funding tools",

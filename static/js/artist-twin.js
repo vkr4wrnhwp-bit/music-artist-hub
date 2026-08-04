@@ -59,7 +59,7 @@
       target.scrollIntoView({block: "nearest",
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
           ? "auto" : "smooth"});
-      track("artist_twin_see_how_it_thinks", {});
+      track("artist_twin_reasoning_opened", {});
     });
   }
 

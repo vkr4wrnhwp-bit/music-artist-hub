@@ -37,8 +37,8 @@ def test_the_section_sits_after_the_departments_and_displaces_nothing():
     assert body.index('id="departments"') < body.index('id="artist-twin-section"')
     assert body.index('id="artist-twin-section"') < body.index('id="lanes"')
     for kept in ["One system. Six departments.", "TUNE YOUR ARTIST SYSTEM.",
-                 "Choose your lane.", "EVERYTHING BEHIND THE ARTIST.",
-                 "sbhero-veil", "YOUR MUSIC IS THE PRODUCT."]:
+                 "Choose your lane.", "Built for artist control.",
+                 "sbhero-veil", "Your catalog is the "]:
         assert kept in body, kept
 
 
@@ -253,7 +253,7 @@ def test_accessibility_scaffolding():
 def test_the_analytics_report_rows_and_nothing_else():
     js = open("static/js/artist-twin.js", encoding="utf-8").read()
     for event in ("artist_twin_section_viewed", "artist_twin_row_expanded",
-                  "artist_twin_build_clicked", "artist_twin_see_how_it_thinks",
+                  "artist_twin_build_clicked", "artist_twin_reasoning_opened",
                   "artist_twin_ai_trust_clicked"):
         assert '"%s"' % event in js, event
     # Look at the code, not the comments: the events carry row ids only.

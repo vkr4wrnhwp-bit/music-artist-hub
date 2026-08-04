@@ -38,8 +38,8 @@ def _css():
 def test_the_section_sits_after_distribution_and_displaces_nothing():
     body = _home()
     assert body.index('id="global-distribution"') < body.index('id="metadata-passport"')
-    assert body.index('id="metadata-passport"') < body.index("EVERYTHING BEHIND THE ARTIST.")
-    for kept in ["EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
+    assert body.index('id="metadata-passport"') < body.index("Built for artist control.")
+    for kept in ["Built for artist control.", "Your catalog is the ",
                  "Your music. Everywhere.", "Find what&#39;s yours.",
                  "Choose your lane."]:
         assert kept in body, kept

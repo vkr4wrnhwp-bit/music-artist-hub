@@ -69,7 +69,7 @@ CAPABILITIES = [
                             "social platforms ask for."),
         ("Apparel and merch", "Put a direction on real garment mock-ups before "
                               "committing to a print run."),
-        ("Rollout Studio", "The campaign the assets hang off: what goes out, "
+        ("Rollout Engine", "The campaign the assets hang off: what goes out, "
                            "when, and in what order."),
         ("Smart links and EPK", "Where the approved artwork ends up in front of "
                                 "somebody."),

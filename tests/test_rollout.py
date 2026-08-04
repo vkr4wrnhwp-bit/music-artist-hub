@@ -39,7 +39,7 @@ def test_the_section_sits_after_creative_studio_and_displaces_nothing():
     assert body.index('id="creative-studio"') < body.index('id="rollout-engine"')
     assert body.index('id="rollout-engine"') < body.index('id="royalty-sweep-section"')
     for kept in ["Build the", "Choose your lane.", "Find what&#39;s yours.",
-                 "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
+                 "Built for artist control.", "Your catalog is the ",
                  "One system. Six departments."]:
         assert kept in body, kept
 

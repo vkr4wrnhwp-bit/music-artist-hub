@@ -103,6 +103,7 @@ from rollout_config import get_rollout_config
 from sweep_config import get_sweep_config
 from distro_config import get_distro_config
 from passport_config import get_passport_config, completeness as passport_completeness
+from closing_config import get_closing_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1338,8 +1339,6 @@ def create_app():
                                 max(hero_img.get("wide_widths") or [0]))
         if not _has_file({"src": widest}):
             config["hero"] = {**config["hero"], "image": None}
-        if not _has_file(config["sweep"].get("image")):
-            config["sweep"] = {**config["sweep"], "image": None}
 
         # The Artist EQ ships its data twice: once as a dict for Jinja to
         # render the plate from, once as JSON for the component script.
@@ -1356,7 +1355,8 @@ def create_app():
                                sweep=get_sweep_config(),
                                distro=get_distro_config(),
                                passport=get_passport_config(),
-                               completeness=passport_completeness())
+                               completeness=passport_completeness(),
+                               closing=get_closing_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2484,7 +2484,13 @@ def create_app():
                      "/artist-twin/start", "/ai", "/lanes",
                      "/creative-studio", "/rollout",
                      "/royalty-sweep", "/distribution",
-                     "/metadata"}
+                     "/metadata",
+                     # The closing CTAs and the trust band. A guided start
+                     # that demands an account before it will say anything
+                     # is not a guided start, and a control policy nobody
+                     # can read without signing in is not a policy.
+                     "/start", "/artist-control",
+                     "/product-tour", "/product-tour/smart-link"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -5500,7 +5506,7 @@ def create_app():
         return render_template("admin_review.html", active_page="review",
                                queue=queue, **build_dashboard_context())
 
-    # --- Rollout Studio: social rollout campaigns wired into Links ------------
+    # --- Rollout Engine: social rollout campaigns wired into Links ------------
 
     def _ro_owned(cid):
         user = current_user()
@@ -7115,6 +7121,69 @@ def create_app():
         preset = (request.args.get("preset") or "").strip()[:40]
         plan = build_plan(values, preset)
         return render_template("plan.html", plan=plan, channels=CHANNELS)
+
+    @app.route("/start")
+    def guided_start():
+        """BUILD MY STREET BANKER - the guided start, in public.
+
+        The closing CTA carries the Artist EQ mix down the page as query
+        parameters, so this opens on the plan those settings produce
+        rather than on a default. Same build_plan the console and /plan
+        already use, so the two surfaces cannot disagree. A visitor can
+        change the mix here with the preset buttons; an account is asked
+        for only when there is something to save.
+        """
+        from artist_eq_config import CHANNEL_KEYS, PRESETS, build_plan
+
+        values, carried = {}, False
+        for key in CHANNEL_KEYS:
+            raw = request.args.get(key)
+            if raw is not None:
+                values[key] = raw
+                carried = True
+        preset = (request.args.get("preset") or "").strip()[:40]
+        plan = build_plan(values, preset)
+        return render_template("start_public.html", plan=plan,
+                               presets=PRESETS, carried=carried)
+
+    @app.route("/artist-control")
+    def artist_control_policy():
+        """The artist-control policy the trust band links to.
+
+        Public by design: a promise a visitor has to make an account to
+        read is not a promise. Ten statements, each one a commitment made
+        somewhere else on the homepage.
+        """
+        from closing_config import POLICY
+
+        return render_template("artist_control.html", policy=POLICY)
+
+    # The public product tour. Named /product-tour rather than /tour
+    # because /tour is the signed-in touring pipeline (/tour/<id>,
+    # /tour/add, /tour/<id>/status) and has been for a long time.
+    @app.route("/product-tour")
+    def product_tour():
+        """Twelve steps through one example release, no account anywhere."""
+        from tour_config import get_tour_config
+
+        return render_template("product_tour.html", tour=get_tour_config())
+
+    @app.route("/product-tour/smart-link")
+    def product_tour_smart_link():
+        """The Smart Links, Fan Intelligence and artwork-generator proof.
+
+        Everything here is a labelled example: the destination rows are
+        not connected to a platform, the fan readings are invented for
+        illustration, and the page collects nothing from the visitor.
+        """
+        from tour_config import (SMART_LINK, FAN_PANEL, CREATIVE_STEPS,
+                                 CREATIVE_OUTPUTS, BRAND_MEMORY)
+
+        return render_template("product_tour_smart_link.html",
+                               sl=SMART_LINK, fi=FAN_PANEL,
+                               creative_steps=CREATIVE_STEPS,
+                               creative_outputs=CREATIVE_OUTPUTS,
+                               brand=BRAND_MEMORY)
 
     @app.route("/artist-twin/start")
     def artist_twin_start():

@@ -20,28 +20,33 @@ def get_landing_config():
         "ownership_image": None,
         "patchbay_image": None,
 
-        # The public header. Every destination here is reachable without an
-        # account: the old nav pointed Platform at /overview and the CTA at
+        # The public header. Every hash destination is written /#name rather
+        # than #name: the header renders on eleven public pages, and a bare
+        # #platform on /rollout scrolls to nothing. Every destination is
+        # reachable without an account: the old nav pointed Platform at /overview and the CTA at
         # /recovery, both of which bounce a visitor to a login wall for
         # asking what the product is.
         "nav": {
             "logo": {"primary": "STREET BANKER",
                      "secondary": "THE ARTIST OPERATING SYSTEM"},
             "links": [
-                {"label": "Platform", "href": "#platform"},
-                {"label": "AI Artist Twin", "href": "#artist-twin"},
-                {"label": "Creative + Rollout", "href": "#creative-rollout"},
-                {"label": "Royalty Sweep", "href": "#royalty-sweep"},
+                {"label": "Platform", "href": "/#platform"},
+                {"label": "AI Artist Twin", "href": "/#artist-twin-section"},
+                {"label": "Creative + Rollout", "href": "/#creative-studio"},
+                {"label": "Royalty Sweep", "href": "/#royalty-sweep"},
+                {"label": "Product tour", "href": "/product-tour"},
                 {"label": "For Labels", "href": "/services"},
             ],
             # The drawer names the two studios separately, because on a
             # phone there is room to say what "Creative + Rollout" means.
             "drawer_links": [
-                {"label": "Platform", "href": "#platform"},
-                {"label": "AI Artist Twin", "href": "#artist-twin"},
-                {"label": "Creative Studio", "href": "#creative-rollout"},
-                {"label": "Rollout Studio", "href": "#creative-rollout"},
-                {"label": "Royalty Sweep", "href": "#royalty-sweep"},
+                {"label": "Platform", "href": "/#platform"},
+                {"label": "AI Artist Twin", "href": "/#artist-twin-section"},
+                {"label": "Creative Studio", "href": "/#creative-studio"},
+                {"label": "Rollout Engine", "href": "/#rollout-engine"},
+                {"label": "Royalty Sweep", "href": "/#royalty-sweep"},
+                {"label": "Metadata Passport", "href": "/#metadata-passport"},
+                {"label": "Product tour", "href": "/product-tour"},
                 {"label": "For Labels", "href": "/services"},
             ],
             "login": {"label": "Log in", "href": "/login"},
@@ -79,149 +84,62 @@ def get_landing_config():
             },
         },
 
-        "lanes": {
-            "heading": "THE THREE STREET BANKER LANES",
-            "support": "Three paths. One infrastructure.",
-            "cards": [
-                {"label": "01 · DISTRIBUTION",
-                 "headline": "RELEASE THE RECORD.",
-                 "description": ("Global distribution, metadata, reporting, "
-                                 "and payouts."),
-                 "link": {"label": "Explore Distribution",
-                          "href": "/services/distribution"},
-                 "image": "/static/img/sb-lane-01.jpg?v=5"},
-                {"label": "02 · DEVELOPMENT",
-                 "headline": "BUILD THE ARTIST.",
-                 "description": ("Campaigns, content, fan growth, and "
-                                 "release strategy."),
-                 "link": {"label": "Explore Development",
-                          "href": "/audience"},
-                 "image": "/static/img/sb-lane-02.jpg?v=5"},
-                {"label": "03 · PARTNERSHIP",
-                 "headline": "BUILD THE ASSET.",
-                 "description": ("Label services, funding, catalog growth, "
-                                 "and long-term alignment."),
-                 "link": {"label": "Explore Partnership", "href": "/capital"},
-                 "image": "/static/img/sb-lane-03.jpg?v=5"},
-            ],
-        },
+        # Retired with the homepage rebuild: "lanes" (now Section 6,
+        # lanes_config), "sweep" (Section 9, sweep_config), "tools" - the
+        # Signature Tools strip, whose five links all went into the login
+        # wall - and "band_image" + "final_cta", the old closing pair,
+        # replaced by the trust band and Section 12 in closing_config.
+        # Sections 3-12 each own their own config module now, so this file
+        # holds only what is still rendered: the header, the hero and the
+        # footer.
 
-        "sweep": {
-            "eyebrow": "ROYALTY SWEEP",
-            "headline": ["FIND WHAT YOU EARNED.", "FIX WHAT IS MISSING."],
-            "description": ("Scan your catalog, identify collection gaps, "
-                            "and track recovery through payout."),
-            "cta": {"label": "START A FREE SCAN", "href": "/recovery"},
-            "note": ("No upfront scan fee. Results depend on available "
-                     "catalog and registration data."),
-            # The section IS the photograph: corridor of road cases behind
-            # a dark scrim, copy set over it. No product screenshot here,
-            # so there are no figures to label or mistake for real data.
-            "background": {
-                "src": "/static/img/sb-band-sweep.jpg?v=1",
-                "alt": "Road cases lined along a backstage corridor",
-            },
-        },
-
-        "tools": {
-            "heading": "EVERYTHING BEHIND THE ARTIST.",
-            "support": ("Strategy, rights, releases, campaigns, and "
-                        "opportunities in one system."),
-            # Every icon is a piece of studio hardware, drawn in the same
-            # vocabulary as the rack units in the lanes above and the road
-            # cases in the band below: knobs, faders, a patchbay, a VU
-            # meter, a flight case. Stroked paths on a 20x20 grid, split on
-            # "|" by the template.
-            "items": [
-                # One large knob, pointer turned off the panel index mark.
-                # Two small knobs were tried for the "twin" reading, but a
-                # side-by-side pair only fills a third of the square and
-                # went weak next to the other four.
-                {"name": "Artist Twin", "href": "/artist-twin",
-                 "icon": "M10 3.8a6.2 6.2 0 100 12.4 6.2 6.2 0 100-12.4"
-                         "|M10 10l2.6-2.6|M10 3.8V2.2"},
-                # A fader bank with the scene already set.
-                {"name": "Release Autopilot", "href": "/releases/autopilot",
-                 "icon": "M6 4.5v11|M10 4.5v11|M14 4.5v11"
-                         "|M4.4 11.5h3.2|M8.4 7.2h3.2|M12.4 9.4h3.2"},
-                # A stencilled label plate with its barcode, like the ones on
-                # the road cases in the artwork. Metadata is the identifier.
-                # Patchbay jacks were tried first: outlined holes small
-                # enough to fit three across close up at this stroke weight.
-                {"name": "Metadata Passport", "href": "/metadata-passport",
-                 "icon": "M3 5.5h14v9H3z"
-                         "|M6.1 8v3M8.7 8v3M11.3 8v3M13.9 8v3"
-                         "|M5.5 12.6h9"},
-                # VU meter: the needle is what a rollout is measured on.
-                {"name": "Rollout Studio", "href": "/rollout-studio",
-                 "icon": "M3.6 13.4h12.8v2.8H3.6z"
-                         "|M4.9 13.4a5.1 5.1 0 0110.2 0"
-                         "|M10 13.4l1.8-2.5"},
-                # Road case: body, grab handle, and the stencilled label
-                # plate the artwork's own SB-01 cases carry. A lid seam was
-                # tried and cut - at 24px it merged with the plate into one
-                # thick belt. Handle stays wide and shallow so it reads as a
-                # case grip rather than a padlock shackle.
-                {"name": "Deal Room", "href": "/deal-room",
-                 "icon": "M3.5 7h13v8h-13z"
-                         "|M7.6 7V6.2a2.4 1.3 0 014.8 0V7"
-                         "|M6.8 10h6.4v2.6H6.8z"},
-            ],
-        },
-
-        # Full-bleed band between the tools strip and the closing statement.
-        # The archive wall is the closing line as a photograph: shelves of
-        # masters, catalog and merch. Shelf labels are real categories, not
-        # data, so there is nothing here to mistake for a client's numbers.
-        "band_image": {
-            "src": "/static/img/sb-band-catalog.jpg?v=1",
-            "alt": "Archive shelves of master tapes, catalog and merch, "
-                   "each shelf labelled",
-        },
-
-        "final_cta": {
-            "headline": ["YOUR MUSIC IS THE PRODUCT.",
-                         "YOUR CATALOG IS THE ASSET."],
-            "cta": {"label": "START FREE", "href": "/signup"},
-            "note": ("No upfront scan fee. You keep ownership of your music "
-                     "and data."),
-        },
-
+        # The footer. Five columns, and every href in it answers a
+        # signed-out visitor: the previous one sent seven of its fifteen
+        # links (/overview, /recovery, /artist-twin, /roster, /audience,
+        # /capital, /network) straight into the login wall. The social row
+        # now carries only the account that exists - x.com, youtube.com and
+        # linkedin.com were the bare domains, not profiles.
         "footer": {
             "logo": {"primary": "STREET BANKER",
-                     "secondary": "ARTIST INFRASTRUCTURE"},
-            "description": ("Infrastructure for independent artists and "
-                            "labels."),
+                     "secondary": "The Artist Operating System"},
+            "description": ("One connected system to build, protect, "
+                            "distribute, promote and grow the work."),
             "columns": [
                 {"title": "Platform", "links": [
-                    {"label": "Overview", "href": "/overview"},
-                    {"label": "Royalty Sweep", "href": "/recovery"},
-                    {"label": "Distribution", "href": "/services/distribution"},
-                    {"label": "Artist Twin", "href": "/artist-twin"},
+                    {"label": "Product tour", "href": "/product-tour"},
+                    {"label": "AI Artist Twin", "href": "/artist-twin/start"},
+                    {"label": "Creative Studio", "href": "/creative-studio"},
+                    {"label": "Rollout Engine", "href": "/rollout"},
+                    {"label": "Royalty Sweep", "href": "/royalty-sweep"},
+                    {"label": "Global Distribution", "href": "/distribution"},
+                    {"label": "Metadata Passport", "href": "/metadata"},
+                    {"label": "Smart Links", "href": "/product-tour/smart-link"},
                 ]},
                 {"title": "Solutions", "links": [
-                    {"label": "For Artists", "href": "/overview"},
-                    {"label": "For Labels", "href": "/roster"},
-                    {"label": "Development", "href": "/audience"},
-                    {"label": "Partnership", "href": "/capital"},
+                    {"label": "Start a plan", "href": "/start"},
+                    {"label": "Find your lane", "href": "/lanes"},
+                    {"label": "Free catalog sweep", "href": "/catalog-sweep"},
+                    {"label": "For labels", "href": "/services"},
+                ]},
+                {"title": "Trust", "links": [
+                    {"label": "Artist control policy", "href": "/artist-control"},
+                    {"label": "How we use AI", "href": "/ai"},
+                    {"label": "Privacy", "href": "/privacy"},
+                    {"label": "Terms", "href": "/terms"},
                 ]},
                 {"title": "Company", "links": [
                     {"label": "About", "href": "/services"},
                     {"label": "Contact", "href": "/submit"},
-                    {"label": "Partners", "href": "/network"},
                 ]},
-                {"title": "Legal", "links": [
-                    {"label": "Terms", "href": "/terms"},
-                    {"label": "Privacy", "href": "/privacy"},
-                    {"label": "Copyright", "href": "/privacy"},
+                {"title": "Account", "links": [
+                    {"label": "Create an account", "href": "/signup"},
+                    {"label": "Log in", "href": "/login"},
+                    {"label": "Reset password", "href": "/forgot"},
                 ]},
             ],
             "socials": [
                 {"label": "Instagram",
                  "href": "https://instagram.com/summitartsgroup"},
-                {"label": "X", "href": "https://x.com"},
-                {"label": "YouTube", "href": "https://youtube.com"},
-                {"label": "LinkedIn", "href": "https://linkedin.com"},
             ],
             "copyright": "© 2026 Street Banker LLC. All rights reserved.",
         },

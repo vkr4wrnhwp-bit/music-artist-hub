@@ -1,4 +1,4 @@
-"""Social publishing provider registry for Rollout Studio.
+"""Social publishing provider registry for Rollout Engine.
 
 Manual mode works today: copy the caption, download the asset, post it
 yourself, paste the published URL, mark it posted. API providers activate

@@ -1,4 +1,4 @@
-"""Rollout Studio data layer: rollout campaigns, creative assets, and the
+"""Rollout Engine data layer: rollout campaigns, creative assets, and the
 generated post schedule. Posts link to Street Banker Links variants so every
 piece of content is individually trackable."""
 

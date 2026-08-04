@@ -1,0 +1,50 @@
+{# The artist-control policy, in public. Ten statements, no login. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Artist control · Street Banker</title>
+  <meta name="description" content="Data ownership, AI training consent, recommendation limits, royalty verification, deletion, export, collaborator permissions and audit history.">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=22">
+  <link rel="stylesheet" href="/static/css/public-header.css?v=3">
+</head>
+<body class="min-h-screen bg-[#080807] text-[#EEE8DC] antialiased">
+
+{% include "partials/public_header.html" %}
+
+<main id="main" class="mx-auto max-w-2xl px-6 py-14 lg:px-10 lg:py-20">
+  <div class="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#C9A86A]">Built for artist control</div>
+  <h1 class="mt-4 text-[clamp(1.9rem,5vw,2.8rem)] font-semibold uppercase leading-[1.04] tracking-tight">
+    Artist control policy
+  </h1>
+  <p class="mt-5 max-w-xl text-[15px] leading-relaxed text-[#A7A198]">
+    What you keep, what happens to what you upload, what a recommendation is
+    worth, and how to leave. Short on purpose — the long version is in the
+    terms.
+  </p>
+
+  <dl class="mt-11 space-y-8">
+    {% for title, body in policy %}
+    <div class="border-t border-[rgb(201_168_106_/_0.22)] pt-6">
+      <dt class="text-[16px] font-semibold text-[#EEE8DC]">{{ title }}</dt>
+      <dd class="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-[#A7A198]">{{ body }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+
+  <p class="mt-11 text-[12px] leading-relaxed text-[#A7A198]">
+    The full terms are in the
+    <a href="/terms" class="border-b border-[rgb(201_168_106_/_0.4)] text-[#C9A86A] hover:border-[#C9A86A]">terms of service</a>
+    and the
+    <a href="/privacy" class="border-b border-[rgb(201_168_106_/_0.4)] text-[#C9A86A] hover:border-[#C9A86A]">privacy policy</a>.
+    How the Artist Twin uses AI is set out on
+    <a href="/ai" class="border-b border-[rgb(201_168_106_/_0.4)] text-[#C9A86A] hover:border-[#C9A86A]">its own page</a>.
+  </p>
+</main>
+
+<footer class="mx-auto max-w-2xl px-6 pb-14 text-[11px] text-[#7E786F] lg:px-10">
+  <a href="/#artist-control" class="font-semibold hover:text-[#EEE8DC]">← Back to Street Banker</a>
+</footer>
+</body>
+</html>

@@ -1,6 +1,6 @@
 """What past rollouts actually converted, so the next one can start there.
 
-Rollout Studio measures this properly already. Every post gets its own
+Rollout Engine measures this properly already. Every post gets its own
 Street Banker Links variant, named `rollout_{platform}_{phase}_{date}`
 and carrying `utm_source={platform}`, so every click and every fan signup
 is attributable to a platform and a release phase.

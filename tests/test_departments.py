@@ -40,9 +40,9 @@ def test_the_section_sits_after_the_eq_and_displaces_nothing():
     assert body.index('id="artist-eq"') < body.index('id="departments"')
     assert body.index('id="departments"') < body.index('id="lanes"')
     # Everything that was on the page before it is still on it.
-    for kept in ["Choose your lane.", "EVERYTHING BEHIND THE ARTIST.",
+    for kept in ["Choose your lane.", "Built for artist control.",
                  "TUNE YOUR ARTIST SYSTEM.", "sbhero-veil", "Run a Royalty Sweep",
-                 "YOUR MUSIC IS THE PRODUCT."]:
+                 "Your catalog is the "]:
         assert kept in body, kept
 
 
@@ -132,10 +132,14 @@ def test_no_department_hands_a_stranger_a_login():
             assert "/login" not in response.headers.get("Location", "")
 
 
-def test_the_free_sweep_is_the_one_route_that_leaves_the_page():
+def test_fan_intelligence_is_the_one_department_that_leaves_the_page():
+    """Five departments point at the homepage section that covers them.
+
+    Fan Intelligence has no homepage section, so it goes to its public
+    example workspace rather than to nothing or to a login wall."""
     eq = _section()
-    assert 'href="/catalog-sweep"' in eq
-    assert _anon().get("/catalog-sweep").status_code == 200
+    assert 'href="/product-tour/smart-link#fans"' in eq
+    assert _anon().get("/product-tour/smart-link").status_code == 200
 
 
 # --- what the brief rules out --------------------------------------------

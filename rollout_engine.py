@@ -1,4 +1,4 @@
-"""Rollout Studio generation engine.
+"""Rollout Engine generation engine.
 
 Turns a release (title, artist, date, lyrics, assets, goal, tone) into a
 dated social rollout: phased posting schedule, platform-specific captions

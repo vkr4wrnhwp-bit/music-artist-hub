@@ -38,14 +38,14 @@ def test_the_section_replaces_the_old_sweep_band_and_keeps_its_anchor():
     body = _home()
     assert 'id="royalty-sweep"' in body                  # the header links at it
     assert body.index('id="rollout-engine"') < body.index('id="royalty-sweep-section"')
-    assert body.index('id="royalty-sweep-section"') < body.index("EVERYTHING BEHIND THE ARTIST.")
+    assert body.index('id="royalty-sweep-section"') < body.index("Built for artist control.")
     # The old band is gone, and its photograph with it.
     assert "FIND WHAT YOU EARNED." not in body
     assert "FIX WHAT IS MISSING." not in body
     assert "sb-band-sweep.jpg" not in body
     # Everything below is untouched.
-    for kept in ["EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
-                 "sb-band-catalog.jpg", "Plan it.", "Choose your lane."]:
+    for kept in ["Built for artist control.", "Your catalog is the ",
+                 "closing-wide-1672", "Plan it.", "Choose your lane."]:
         assert kept in body, kept
 
 

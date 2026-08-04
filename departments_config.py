@@ -5,12 +5,11 @@ The picture is a single documentary frame; the slices, the dividers, the
 tonal steps and every word are markup, so the photograph is never cut up
 into six files that could drift apart.
 
-Destinations: only eleven routes on this site answer a signed-out
-visitor, and none of them is a per-department explainer. So a department
-points at a public route where one exists (the free sweep) and at the
-homepage surface that already covers it otherwise. Nothing here points at
-a login wall - a stranger asking what a department does must never be
-handed a password field.
+Destinations: each department points at the section of this homepage
+that covers it, or - where the homepage has no surface for it - at the
+public example workspace in the product tour. Nothing here points at a
+login wall: a stranger asking what a department does must never be handed
+a password field.
 """
 
 # Tone per slice, left to right. These are washes at very low alpha laid
@@ -23,7 +22,7 @@ DEPARTMENTS = [
         "slug": "artist-twin",
         "name": "AI Artist Twin",
         "desc": "Evaluate and plan.",
-        "href": "#artist-twin",
+        "href": "#artist-twin-section",
         "tone": "graphite neutral",
         "wash": "rgba(150, 156, 168, 0.05)",
     },
@@ -32,7 +31,7 @@ DEPARTMENTS = [
         "slug": "creative-studio",
         "name": "Creative Studio",
         "desc": "Build the visual world.",
-        "href": "#creative-rollout",
+        "href": "#creative-studio",
         "tone": "warm charcoal",
         "wash": "rgba(126, 100, 74, 0.07)",
     },
@@ -41,7 +40,7 @@ DEPARTMENTS = [
         "slug": "rollout-engine",
         "name": "Rollout Engine",
         "desc": "Turn the release into a campaign.",
-        "href": "#creative-rollout",
+        "href": "#rollout-engine",
         "tone": "muted brown",
         "wash": "rgba(112, 82, 56, 0.08)",
     },
@@ -50,7 +49,7 @@ DEPARTMENTS = [
         "slug": "royalty-sweep",
         "name": "Royalty Sweep",
         "desc": "Find potential missing income.",
-        "href": "/catalog-sweep",
+        "href": "#royalty-sweep-section",
         "tone": "soft amber",
         "wash": "rgba(190, 142, 72, 0.07)",
     },
@@ -59,7 +58,7 @@ DEPARTMENTS = [
         "slug": "rights",
         "name": "Rights",
         "desc": "Protect ownership and metadata.",
-        "href": "#tools",
+        "href": "#metadata-passport",
         "tone": "olive charcoal",
         "wash": "rgba(112, 116, 82, 0.07)",
     },
@@ -68,7 +67,7 @@ DEPARTMENTS = [
         "slug": "fan-intelligence",
         "name": "Fan Intelligence",
         "desc": "Understand and grow the audience.",
-        "href": "#lanes",
+        "href": "/product-tour/smart-link#fans",
         "tone": "cool slate",
         "wash": "rgba(118, 138, 166, 0.08)",
     },

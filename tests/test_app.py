@@ -24,15 +24,21 @@ def test_index_renders_landing_page():
     assert "ROYALTY SWEEP" in body                # the sweep section below
 
 
-def test_landing_page_nav_and_ctas_link_into_the_app():
-    client = _demo()
+def test_no_part_of_the_landing_page_links_into_the_gated_app():
+    """Not the header, and now not the footer either.
+
+    The footer used to send seven of its fifteen links into the login
+    wall - /overview, /recovery, /artist-twin, /roster, /audience,
+    /capital, /network - on the theory that the body could link into the
+    app even if the header could not. A stranger reading the footer is
+    still a stranger.
+    """
+    client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
-    # The footer and the page body still link into the app; the header
-    # deliberately does not, because those pages need an account and the
-    # header is what a stranger reads first.
-    assert 'href="/overview"' in body
-    assert 'href="/recovery"' in body
-    assert "Log in" in body                 # the header's own wording now
+    assert "Log in" in body                 # the header's own wording
+    for gated in ("/overview", "/recovery", "/artist-twin", "/roster",
+                  "/audience", "/capital", "/network"):
+        assert 'href="%s"' % gated not in body, gated
 
 
 def _all_landing_hrefs(config):
@@ -44,10 +50,6 @@ def _all_landing_hrefs(config):
     hrefs += [l["href"] for l in config["nav"]["drawer_links"]]
     hrefs += [config["nav"]["login"]["href"], config["nav"]["cta"]["href"]]
     hrefs += [c["href"] for c in config["hero"]["ctas"]]
-    hrefs += [c["link"]["href"] for c in config["lanes"]["cards"]]
-    hrefs.append(config["sweep"]["cta"]["href"])
-    hrefs += [t["href"] for t in config["tools"]["items"]]
-    hrefs.append(config["final_cta"]["cta"]["href"])
     for col in config["footer"]["columns"]:
         hrefs += [l["href"] for l in col["links"]]
     return hrefs
@@ -68,8 +70,8 @@ def test_landing_page_links_all_resolve():
                       if "GET" in rule.methods and "<" in rule.rule]
 
     for href in _all_landing_hrefs(get_landing_config()):
-        if href.startswith("#"):
-            assert href[1:] in page_ids, f"dead anchor: {href}"
+        if href.startswith("/#") or href.startswith("#"):
+            assert href.lstrip("/#") in page_ids, f"dead anchor: {href}"
         elif href.startswith("http"):
             continue
         else:
@@ -78,42 +80,40 @@ def test_landing_page_links_all_resolve():
             assert ok, f"unknown route: {href}"
 
 
-def test_landing_page_includes_feature_cards():
-    # Signature Tools strip: five real modules, names only, each linking
-    # at its own page.
-    client = _demo()
-    body = client.get("/").get_data(as_text=True)
-    for name in ["Artist Twin", "Release Autopilot", "Metadata Passport",
-                 "Rollout Studio", "Deal Room"]:
-        assert name in body
-    for href in ["/artist-twin", "/releases/autopilot", "/metadata-passport",
-                 "/rollout-studio", "/deal-room"]:
-        assert 'href="%s"' % href in body
+def test_the_footer_carries_the_modules_and_every_link_is_public():
+    """The Signature Tools strip is gone.
 
-
-def test_signature_tool_icons_are_hardware_on_rack_panels():
-    """The icons are studio objects, not generic pictograms.
-
-    Each is drawn as several stroked subpaths on a 20x20 grid - a single
-    subpath means someone dropped back to a one-line glyph. Each sits on a
-    rack panel with two mounting screws.
+    It named five modules and sent all five into the login wall. The
+    footer's Platform column names them instead, and every destination in
+    the whole footer answers a signed-out visitor.
     """
     from landing_config import get_landing_config
 
-    for tool in get_landing_config()["tools"]["items"]:
-        parts = [p for p in tool["icon"].split("|") if p.strip()]
-        assert len(parts) >= 3, "%s lost its detail" % tool["name"]
-        for d in parts:
-            assert d.startswith("M"), (tool["name"], d)
+    client = create_app().test_client()
+    body = client.get("/").get_data(as_text=True)
+    for name in ["AI Artist Twin", "Metadata Passport", "Rollout Engine",
+                 "Royalty Sweep", "Creative Studio", "Smart Links"]:
+        assert name in body, name
 
-    body = _demo().get("/").get_data(as_text=True)
-    # Two screws per panel, five panels.
-    assert body.count("-translate-y-1/2 rounded-full") == 10
+    for col in get_landing_config()["footer"]["columns"]:
+        for link in col["links"]:
+            assert 'href="%s"' % link["href"] in body, link["href"]
+            assert client.get(link["href"]).status_code == 200, link["href"]
 
-    # Black rack faces with a light legend, not pale outlined chips - the
-    # outlines read as weak beside the photography.
-    assert "h-16 w-16 place-items-center rounded-md bg-[#1a1611]" in body
-    assert "text-[#ece8de]" in body
+
+def test_the_retired_homepage_blocks_are_gone_from_config_and_page():
+    """Dead config outlives dead markup unless something checks."""
+    from landing_config import get_landing_config
+
+    config = get_landing_config()
+    for retired in ("tools", "final_cta", "band_image", "lanes", "sweep"):
+        assert retired not in config, retired
+
+    body = create_app().test_client().get("/").get_data(as_text=True)
+    for gone in ["EVERYTHING BEHIND THE ARTIST.", "START FREE",
+                 "sb-band-catalog.jpg", 'href="/overview"',
+                 'href="/recovery"', 'href="/roster"', 'href="/capital"']:
+        assert gone not in body, gone
 
 
 # --- the Artist EQ ------------------------------------------------------
@@ -127,9 +127,8 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     assert body.index("sbhero") < body.index("TUNE YOUR ARTIST SYSTEM.")
     assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("Choose your lane.")
     # Every section that was on the page before is still on it.
-    for kept in ["Release the Record", "Find what&#39;s yours.",
-                 "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
-                 "sb-band-catalog.jpg"]:
+    for kept in ["Choose your lane.", "Built for artist control.",
+                 "Your catalog is the ", "closing-wide-1672"]:
         assert kept in body, kept
 
 
@@ -219,28 +218,41 @@ def test_artist_eq_assets_are_served():
         assert client.get(asset).status_code == 200, asset
 
 
-def test_landing_is_seven_editorial_sections():
-    """Seven sections, one message each, no feature directory."""
-    body = _demo().get("/").get_data(as_text=True)
-    assert "Choose your lane." in body
-    for h in ["Release the Record", "Build the Artist", "Build the Asset"]:
-        assert h in body
-    assert "Find what&#39;s yours." in body
-    assert "EVERYTHING BEHIND THE ARTIST." in body
-    assert "YOUR MUSIC IS THE PRODUCT." in body
-    # The archive-shelf band separates the tools strip from the closing
-    # line; it illustrates the catalog claim rather than decorating it.
-    assert "sb-band-catalog.jpg" in body
-    assert body.index("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
-    assert body.index("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
-    # The Sweep section is an archive table with the copy above and the
-    # workflow below it - no product screenshot, so there are no figures
-    # that could read as real data.
-    assert "sweep-wide-1400.jpg" in body
-    assert "sb-patchbay.jpg" not in body
+def test_landing_is_the_twelve_approved_sections_in_order():
+    """The homepage is an editorial sequence, not a feature directory.
+
+    Order matters here: each section answers the one before it, and the
+    closing frame only lands after the trust band has said what the
+    artist keeps. Checked by position rather than by presence.
+    """
+    body = create_app().test_client().get("/").get_data(as_text=True)
+    order = [
+        "sbhero",                       # 2  hero
+        'id="artist-eq"',               # 3  Artist EQ
+        'id="departments"',             # 4  one system, six departments
+        'id="artist-twin-section"',     # 5  AI Artist Twin
+        'id="lanes"',                   # 6  three lanes
+        'id="creative-studio"',         # 7  Creative Studio
+        'id="rollout-engine"',          # 8  Rollout Engine
+        'id="royalty-sweep-section"',   # 9  Royalty Sweep
+        'id="global-distribution"',     # 10 Global Distribution
+        'id="metadata-passport"',       # 11 Metadata Passport + Rights
+        'id="artist-control"',          # 11.5 trust band
+        'id="closing"',                 # 12 closing statement
+    ]
+    positions = []
+    for marker in order:
+        assert marker in body, marker
+        positions.append(body.index(marker))
+    assert positions == sorted(positions), "sections are out of order"
+
+    # The footer is last, and it is the only thing after the closing frame.
+    assert body.index("<footer") > positions[-1]
+
     # Everything moved deeper into the site stays gone.
     for old in ["Everything Street Banker Is", "Nightdrive", "ONE PLATFORM",
-                "FROM RELEASE TO OWNERSHIP", "No Upfront Fees"]:
+                "FROM RELEASE TO OWNERSHIP", "No Upfront Fees",
+                "sb-patchbay.jpg"]:
         assert old not in body
 
 
@@ -2179,7 +2191,7 @@ def test_ml_autofill_and_cover_upload(monkeypatch):
     assert client.get(camp["cover_url"]).status_code == 200  # actually served
 
 
-# --- Rollout Studio ------------------------------------------------------------
+# --- Rollout Engine ------------------------------------------------------------
 
 def test_rollout_studio_full_flow():
     import io
@@ -2723,7 +2735,7 @@ def test_fan_accounts_get_fan_shell():
     body = client.get("/discover").get_data(as_text=True)
     # Fan shell: Community nav, no artist tooling, no world switcher.
     assert "Fan Account" in body and ">Community<" in body
-    assert "Rollout Studio" not in body and "Statements" not in body
+    assert "Rollout Engine" not in body and "Statements" not in body
     # Artist tools are gated for fans.
     assert client.get("/links").status_code == 402
     assert client.get("/overview").status_code == 402
@@ -2741,7 +2753,7 @@ def test_world_switcher_and_public_pages():
     body = client.get("/links").get_data(as_text=True)
     assert "/world/sweep" in body and "/world/fan" in body
     # Ecosystem Hub model: every artist world carries all five hubs.
-    assert "Rollout Studio" in body and "Statements" in body
+    assert "Rollout Engine" in body and "Statements" in body
     assert 'data-hub="launch"' in body and 'data-hub="money"' in body
     assert client.get("/world/label").headers["Location"] == "/services"
     # Signed-out visitors are sent to login; share pages stay public.
@@ -5366,7 +5378,7 @@ def test_homepage_carries_the_signal_profile_hooks():
     assert "sbhero-veil" in body
     assert 'class="min-h-screen bg-white' in body
     assert "Run a Royalty Sweep" in body
-    assert "START FREE" in body
+    assert "Build my Street Banker" in body
 
 
 def test_artist_signal_profile_api_validates():
@@ -6059,7 +6071,7 @@ def test_command_palette_respects_the_fan_shell():
                               "password": "secret1", "account_type": "fan"})
     page = fan.get("/discover").get_data(as_text=True)
     assert 'id="cmdk"' in page                    # they still get a palette
-    assert "Rollout Studio" not in page
+    assert "Rollout Engine" not in page
     assert "Royalty Lanes" not in page
     assert "Discover (Fans)" in page              # scoped to their world
 

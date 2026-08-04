@@ -83,7 +83,7 @@ def spend_plan(user_id, budget=500.0):
     alloc = {"Content (short-form video)": 40, "Targeted ads": 25,
              "Fan re-engagement": 15, "Release-day reserve": 20}
     reasons = {
-        "Content (short-form video)": "Highest organic ceiling per dollar; every rollout post is already scripted for you in Rollout Studio.",
+        "Content (short-form video)": "Highest organic ceiling per dollar; every rollout post is already scripted for you in Rollout Engine.",
         "Targeted ads": "Only worth funding once a link converts — send traffic to your best-scoring campaign.",
         "Fan re-engagement": "You own this list; email costs almost nothing per fan reached.",
         "Release-day reserve": "Hold this until you see which channel converts, then double down.",
