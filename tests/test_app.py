@@ -269,8 +269,9 @@ def test_overview_renders_command_center():
     response = client.get("/overview")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Your royalty command center." in body
-    assert "Total Royalties Collected" in body
+    assert "What came in, what is missing, and the next thing worth doing." in body
+    assert "Total Royalties Collected" in body   # the ledger line's eyebrow
+    assert "Royalty Goal" in body
 
 
 def test_overview_includes_goal_card_and_modal():

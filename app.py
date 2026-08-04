@@ -1400,14 +1400,26 @@ def create_app():
                 store.roll_seen(user["id"])
                 session["seen_rolled"] = True
             since = store.get_prev_seen(user["id"])
+        # The months this page charts and totals. A template should not be
+        # choosing between a real trend and the showcase's hardcoded one -
+        # and a {% set %} at the top of a template is invisible inside
+        # {% block scripts %}, which is how the chart came to read seed
+        # data on an account that had statements of its own.
+        rr = _real_royalty()
+        showcase = _session_is_demo()
+        balances = get_platform_balances() if showcase else []
         return render_template("overview.html", active_page="overview",
                                since_visit=(since_engine.build(user["id"], since)
                                             if user is not None
-                                            and not _session_is_demo() else None),
-                               real_royalty=_real_royalty(),
+                                            and not showcase else None),
+                               real_royalty=rr,
+                               months=(rr["monthly_trend"] if rr
+                                       else (get_earnings_trend() if showcase else [])),
+                               tracked=(rr["total"] if rr
+                                        else (total_royalties(balances) if showcase else 0)),
                                recovery_view=(recovery_engine.build(user["id"])
                                               if user is not None
-                                              and not _session_is_demo() else None),
+                                              and not showcase else None),
                                **build_dashboard_context())
 
     @app.route("/dashboard")

@@ -23,12 +23,35 @@
     </div>
 
     {% if campaigns %}
-    <div class="mt-7 space-y-2.5">
-      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">Music</div>
-      {% for c in campaigns %}
+    {# The newest release is what someone arriving from a bio link came
+       for. Five identical stacked buttons made it the same size as a
+       three-year-old single, so the latest one carries the cover and the
+       weight, and the back catalogue stays a quiet list under it. #}
+    {% set latest = campaigns[0] %}
+    <div class="mt-7">
+      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">Latest</div>
+      <a href="/l/{{ latest.slug }}" class="mt-2 block overflow-hidden rounded-2xl border border-[#c9a24a]/40 bg-gradient-to-b from-[#151310] to-[#0f0e0b] transition-colors hover:border-[#d8b25a]/40">
+        {% if latest.cover_url %}
+        <img src="{{ latest.cover_url }}" alt="" class="aspect-square w-full object-cover">
+        {% endif %}
+        <span class="flex items-center justify-between gap-3 px-4 py-3.5">
+          <span class="min-w-0">
+            <span class="block truncate text-base font-black uppercase tracking-tight">{{ latest.title }}</span>
+            <span class="block text-[11px] font-medium text-gray-300">{{ latest.release_type or 'Single' }}{% if latest.release_date %} · {{ latest.release_date }}{% endif %}</span>
+          </span>
+          <span class="shrink-0 rounded-lg bg-gradient-to-b from-[#eecd7c] to-[#a37c2a] px-3 py-2 text-[11px] font-black uppercase tracking-wide text-[#1c1302]">Listen</span>
+        </span>
+      </a>
+    </div>
+
+    {% if campaigns | length > 1 %}
+    <div class="mt-6 space-y-2.5">
+      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#d8b25a]">More music</div>
+      {% for c in campaigns[1:] %}
       <a href="/l/{{ c.slug }}" class="block rounded-xl border border-[#c9a24a]/25 bg-gradient-to-b from-[#151310] to-[#0f0e0b] px-4 py-3.5 text-center text-sm font-bold transition-colors hover:border-[#d8b25a]/40 hover:bg-[#d8b25a]/5">{{ c.title }}</a>
       {% endfor %}
     </div>
+    {% endif %}
     {% endif %}
 
     {% if club %}
@@ -64,6 +87,15 @@
       {% if store_url %}
       <a href="{{ store_url }}" target="_blank" rel="noopener" class="mt-2 block rounded-xl border border-[#d8b25a]/40 px-4 py-3 text-center text-sm font-bold text-[#e8c667] transition-colors hover:bg-[#d8b25a]/10">Full store ↗</a>
       {% endif %}
+    </div>
+    {% endif %}
+
+    {% if not campaigns and not club and not shows and not merch and not store_url %}
+    {# A hub with nothing on it is still somebody's link in somebody's
+       bio. Send the visitor to the one page that always has something. #}
+    <div class="mt-8 rounded-2xl border border-dashed border-[#c9a24a]/30 px-5 py-8 text-center">
+      <p class="text-xs text-gray-200">No releases or shows posted here yet.</p>
+      <a href="/epk/{{ slug }}" class="mt-3 inline-block rounded-lg border border-[#d8b25a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#d8b25a]/10">See the press kit →</a>
     </div>
     {% endif %}
 

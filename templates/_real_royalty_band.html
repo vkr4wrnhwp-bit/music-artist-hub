@@ -10,9 +10,10 @@
   </div>
 
   {% if band_mode == 'overview' %}
-  <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Tracked Revenue</div>
-      <div class="mt-1 text-xl font-black tabular-nums text-[#e8c667] sm:text-2xl">${{ "{:,.2f}".format(rr.total) }}</div></div>
+  {# The tracked total is the page's ledger line now, set once and large
+     at the top; repeating it here made the same number twice in one
+     screen and neither read as the headline. #}
+  <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
     <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Unmatched Found</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-red-400' if rr.unmatched_revenue else 'text-gray-300' }}">${{ "{:,.2f}".format(rr.unmatched_revenue) }}</div></div>
     <div><div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Coverage Gaps</div>
