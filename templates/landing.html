@@ -12,35 +12,18 @@
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=9">
+  <link rel="stylesheet" href="/static/css/public-header.css?v=2">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
 </head>
 <body class="min-h-screen bg-white text-[#141210] antialiased">
 
-<div class="mx-auto max-w-6xl px-6 lg:px-10">
+<!-- 1. NAVIGATION -->
+{% include "partials/public_header.html" %}
 
-  <!-- 1. NAVIGATION -->
-  <header class="flex flex-col items-center gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-6">
-    <a href="/" class="flex flex-col items-center leading-none sm:items-start">
-      <img src="/static/img/streetbanker-logo-dark.svg" alt="{{ config.nav.logo.primary }}" class="h-8 w-auto sm:h-9">
-      <span class="mt-1 text-[8px] font-semibold uppercase tracking-[0.3em] text-[#8a6d1f] sm:pl-1">{{ config.nav.logo.secondary }}</span>
-    </a>
-    <nav class="hidden items-center gap-9 text-[13px] font-medium text-[#4a463e] lg:flex">
-      {% for link in config.nav.links %}
-      <a href="{{ link.href }}" class="-my-2 inline-block py-3.5 transition-colors hover:text-[#141210] sm:my-0 sm:py-0">{{ link.label }}</a>
-      {% endfor %}
-    </nav>
-    <div class="flex items-center gap-4">
-      {% for a in config.nav.actions %}
-      {% if a.variant == 'primary' %}
-      <a href="{{ a.href }}" class="rounded-md bg-[#141210] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2a251d] sm:px-5 sm:py-2.5 sm:text-[13px]">{{ a.label }}</a>
-      {% else %}
-      <a href="{{ a.href }}" class="text-[13px] font-semibold text-[#4a463e] transition-colors hover:text-[#141210]">{{ a.label }}</a>
-      {% endif %}
-      {% endfor %}
-    </div>
-  </header>
+<main id="main">
+<div class="mx-auto max-w-6xl px-6 lg:px-10">
 
   <!-- 2. HERO -->
   {% set hero = config.hero %}
@@ -71,6 +54,7 @@
      that moves is coded; nothing here replaces an existing section. -->
 {% include "partials/artist_eq.html" %}
 
+<span id="platform" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
 <!-- 4. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting
      in a narrower gutter than the bands above and below. -->
@@ -100,6 +84,7 @@
   </div>
 </section>
 
+<span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
 <!-- 5. ROYALTY SWEEP — the one dark section; the photograph IS the section.
      Padding kept tight to the copy: the corridor should frame the words, not
      run on past them. -->
@@ -122,9 +107,12 @@
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
+  <span id="artist-twin" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
   <!-- 6. SIGNATURE TOOLS -->
   {% set tools = config.tools %}
   <section id="tools" class="scroll-mt-6 py-20 lg:py-24">
+    <span id="creative-rollout" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
+
     <div class="text-center">
       <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ tools.heading }}</h2>
       <p class="mx-auto mt-3 max-w-lg text-sm text-[#5a544a]">{{ tools.support }}</p>
@@ -170,6 +158,8 @@
     <a href="{{ fin.cta.href }}" class="mt-10 inline-flex items-center justify-center rounded-md bg-[#141210] px-9 py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#2a251d]">{{ fin.cta.label }}</a>
     <p class="mx-auto mt-6 max-w-sm text-[12px] leading-relaxed text-[#6b6459]">{{ fin.note }}</p>
   </section>
+
+  </main>
 
   <!-- 8. MINIMAL FOOTER -->
   {% set f = config.footer %}

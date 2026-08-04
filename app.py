@@ -14,8 +14,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
 import demo_seed
+import acr_provider
 import documents_engine
 import inbox_engine
+import producers
 import recovery_engine
 import report_builder
 import shopify_buy
@@ -415,6 +417,12 @@ def create_app():
     app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # statement uploads
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
+    # The public header reads its links from landing_config. A callable
+    # rather than a context processor, so an authenticated page that never
+    # renders the header never pays to build the landing config - and so
+    # the partial cannot collide with Flask's own `config` in templates
+    # that do not pass the landing one.
+    app.jinja_env.globals["public_nav"] = lambda: get_landing_config()["nav"]
 
     store.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
@@ -2401,8 +2409,13 @@ def create_app():
                         "/stem-src/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
-                        "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@")
+                        "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@",
+                        # A beat licence is read and signed by somebody who
+                        # has no account here, and the cleared list exists to
+                        # be checked by a label that never will.
+                        "/licence/", "/cleared/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
+                     "/catalog-sweep",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
                      "/api/artist-signal-profile"}
 
@@ -4538,6 +4551,178 @@ def create_app():
     for _route, _name, _blurb, _status, _disc in cc.MODULES:
         if _status == "preview":
             app.add_url_rule(_route, view_func=_module_preview(_route))
+
+    # --- Producers: beats, licences, cleared list, usage cases ----------------
+
+    @app.route("/beats", methods=["GET", "POST"])
+    def beats():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            if title:
+                store.add_beat(user["id"], title,
+                               (request.form.get("bpm") or "").strip(),
+                               (request.form.get("song_key") or "").strip(),
+                               (request.form.get("tags") or "").strip(),
+                               (request.form.get("note") or "").strip())
+            return redirect("/beats")
+        ctx = build_dashboard_context()
+        ctx["desk"] = producers.desk(user["id"])
+        ctx["monitoring"] = acr_provider.status()
+        return render_template("beats.html", active_page="beats", **ctx)
+
+    @app.route("/beats/<beat_id>", methods=["GET", "POST"])
+    def beat_detail(beat_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        beat = store.get_beat(beat_id, user["id"])
+        if beat is None:
+            abort(404)
+        if request.method == "POST":
+            action = request.form.get("action")
+            if action == "licence":
+                store.add_beat_licence(beat_id, user["id"], {
+                    "licensee_name": request.form.get("licensee_name"),
+                    "licensee_email": request.form.get("licensee_email"),
+                    "licence_type": (request.form.get("licence_type")
+                                     if request.form.get("licence_type") in
+                                     dict(producers.LICENCE_TYPES) else "lease"),
+                    "territory": request.form.get("territory"),
+                    "term": request.form.get("term"),
+                    "fee": _hours_float(request.form.get("fee")),
+                    "producer_split": _hours_float(
+                        request.form.get("producer_split"), 50.0),
+                    "terms": request.form.get("terms"),
+                    "send": True})
+            elif action == "clear" and (request.form.get("value") or "").strip():
+                store.add_beat_clearance(
+                    beat_id,
+                    (request.form.get("kind")
+                     if request.form.get("kind") in dict(producers.CLEARANCE_KINDS)
+                     else "channel"),
+                    request.form.get("value"), request.form.get("note") or "",
+                    request.form.get("licence_id") or "")
+            elif action == "unclear" and request.form.get("row_id"):
+                store.delete_beat_clearance(beat_id, request.form["row_id"])
+            elif action == "use":
+                store.add_beat_use(beat_id, user["id"], {
+                    "url": request.form.get("url"),
+                    "platform": request.form.get("platform"),
+                    "notes": request.form.get("notes")})
+            elif action == "use_status" and request.form.get("use_id"):
+                fields = {"status": request.form.get("status")
+                          if request.form.get("status") in producers.USE_STATUSES
+                          else "open"}
+                if request.form.get("resolved_amount"):
+                    fields["resolved_amount"] = _hours_float(
+                        request.form.get("resolved_amount"))
+                store.update_beat_use(user["id"], request.form["use_id"], fields)
+            elif action == "revoke" and request.form.get("licence_id"):
+                store.set_beat_licence_status(user["id"],
+                                              request.form["licence_id"], "revoked")
+            return redirect("/beats/" + beat_id)
+        ctx = build_dashboard_context()
+        ctx.update({
+            "beat": beat,
+            "licences": store.list_beat_licences(beat_id),
+            "clearances": store.list_beat_clearances(beat_id),
+            "uses": store.list_beat_uses(user["id"], beat_id),
+            "summary": producers.beat_summary(beat_id),
+            "licence_types": producers.LICENCE_TYPES,
+            "clearance_kinds": producers.CLEARANCE_KINDS,
+            "use_statuses": producers.USE_STATUSES,
+            "monitoring": acr_provider.status(),
+            "public_base": request.host_url.rstrip("/"),
+        })
+        return render_template("beat_detail.html", active_page="beats", **ctx)
+
+    @app.route("/beats/<beat_id>/delete", methods=["POST"])
+    def beat_delete(beat_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_beat(user["id"], beat_id)
+        return redirect("/beats")
+
+    @app.route("/beats/<beat_id>/clearance.csv")
+    def beat_clearance_csv(beat_id):
+        """The cleared list as a file, for the label that asked for it."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        beat = store.get_beat(beat_id, user["id"])
+        if beat is None:
+            abort(404)
+        import csv as _csv
+        import io as _io
+        out = _io.StringIO()
+        w = _csv.writer(out, lineterminator="\n")
+        w.writerow(["Beat", "Cleared item", "Kind", "Licence", "Note", "Added"])
+        licences = {l["id"]: l for l in store.list_beat_licences(beat_id)}
+        for row in store.list_beat_clearances(beat_id):
+            lic = licences.get(row["licence_id"] or "")
+            w.writerow([beat["title"], row["value"], row["kind"],
+                        ("%s (%s)" % (lic["licensee_name"] or lic["licensee_email"],
+                                      lic["status"])) if lic else "",
+                        row["note"], row["created"][:10]])
+        return Response(out.getvalue(), mimetype="text/csv", headers={
+            "Content-Disposition":
+                'attachment; filename="cleared-%s.csv"' % beat_id[:8]})
+
+    @app.route("/licence/<token>", methods=["GET", "POST"])
+    def beat_licence_public(token):
+        """The licensee's end: read the terms, sign once, keep the link."""
+        licence = store.get_beat_licence_by_token(token)
+        if licence is None:
+            abort(404)
+        signed = False
+        if request.method == "POST":
+            name = (request.form.get("signed_by") or "").strip()
+            if name:
+                signed = store.sign_beat_licence(token, name)
+                if signed:
+                    store.notify(licence["producer_id"], "recovery",
+                                 "Licence signed: %s" % licence["beat_title"],
+                                 "%s signed the %s licence." % (
+                                     name, producers.licence_label(
+                                         licence["licence_type"])),
+                                 "/beats/%s" % licence["beat_id"])
+                licence = store.get_beat_licence_by_token(token)
+        return render_template("licence_public.html", licence=licence,
+                               just_signed=signed,
+                               type_label=producers.licence_label(
+                                   licence["licence_type"]))
+
+    @app.route("/cleared/<beat_id>")
+    def beat_cleared_public(beat_id):
+        """The page a label, distributor or supervisor checks.
+
+        Public on purpose: its whole job is being checkable by somebody
+        with no account here. It shows what the producer listed and the
+        licence status behind it - never the fee, the terms text or the
+        licensee's email.
+        """
+        beat = store.get_beat(beat_id)
+        if beat is None:
+            abort(404)
+        query = (request.args.get("q") or "").strip()
+        result = producers.clearance_for(beat_id, query) if query else None
+        producer = store.get_user(beat["user_id"]) or {}
+        rows = []
+        licences = {l["id"]: l for l in store.list_beat_licences(beat_id)}
+        for row in store.list_beat_clearances(beat_id):
+            lic = licences.get(row["licence_id"] or "")
+            rows.append({"value": row["value"], "kind": row["kind"],
+                         "note": row["note"],
+                         "licence_status": lic["status"] if lic else "",
+                         "licence_type": producers.licence_label(
+                             lic["licence_type"]) if lic else ""})
+        return render_template("cleared_public.html", beat=beat, rows=rows,
+                               query=query, result=result,
+                               producer_name=producer.get("name") or "the producer")
 
     # --- OS Phase 2: recovery case management + deal room ----------------------
 
@@ -6837,6 +7022,77 @@ def create_app():
                 store.notify(owner["id"], "system", "Off-box backup failed",
                              detail[:200], "/settings")
         return jsonify({"ok": bool(ok), "run": record}), (200 if ok else 502)
+
+    _SWEEP_ROLES = [("artist", "Artist"), ("songwriter", "Songwriter"),
+                    ("producer", "Producer"), ("manager", "Manager"),
+                    ("label", "Label")]
+
+    @app.route("/catalog-sweep", methods=["GET", "POST"])
+    def catalog_sweep():
+        """The free-sweep entry, open to a visitor with no account.
+
+        The CTA used to point at /recovery, which is behind the login
+        wall - so the first thing a stranger got for asking what a sweep
+        is was a password field. This asks three questions and then says
+        plainly what a sweep checks and what it cannot know yet. It does
+        not claim a scan has run, because none has: the engine reads
+        uploaded statements, and there are none until somebody uploads
+        one.
+        """
+        form = {}
+        error = None
+        result = None
+        if request.method == "POST":
+            form = {
+                "catalog": (request.form.get("catalog") or "").strip()[:120],
+                "url": (request.form.get("url") or "").strip()[:400],
+                "role": request.form.get("role") or "artist",
+            }
+            roles = dict(_SWEEP_ROLES)
+            if not form["catalog"]:
+                error = "Tell us which artist or catalog to look at."
+            else:
+                if form["role"] not in roles:
+                    form["role"] = "artist"
+                # A lead worth keeping, filed where demo-access requests
+                # already go: platform-level, owner-visible, never on an
+                # artist's own inbox page.
+                try:
+                    store.add_inbox("catalog_sweep", {
+                        "catalog": form["catalog"], "url": form["url"],
+                        "role": form["role"]})
+                except Exception:
+                    pass  # a lead record must never cost the visitor the page
+                result = {
+                    "catalog": form["catalog"],
+                    "role_label": roles[form["role"]],
+                    "checks": [
+                        {"title": "Unattributed revenue",
+                         "detail": "Rows on your statements that were paid "
+                                   "with no track title on them. Actual "
+                                   "money, missing its attribution."},
+                        {"title": "Coverage gaps",
+                         "detail": "Tracks earning on some sources and "
+                                   "silent on others, priced at that "
+                                   "track's own per-source average."},
+                        {"title": "Royalty lanes per song",
+                         "detail": "Nine income lanes, marked claimed or "
+                                   "missing from what your statements show."},
+                        {"title": "Catalog valuation",
+                         "detail": "A 3-5x range on the run rate your own "
+                                   "statement months produce."},
+                    ],
+                    "limits": [
+                        "It does not read a platform, a PRO or The MLC "
+                        "directly - no public feed exists for that.",
+                        "It cannot see revenue from a source you have never "
+                        "uploaded, and it will not guess at one.",
+                        "Estimates are labelled as estimates everywhere they "
+                        "appear, and separated from money already paid.",
+                    ],
+                }
+        return render_template("catalog_sweep.html", form=form, error=error,
+                               result=result, roles=_SWEEP_ROLES)
 
     @app.route("/scan/missing-royalties", methods=["POST"])
     def scan_missing_royalties():

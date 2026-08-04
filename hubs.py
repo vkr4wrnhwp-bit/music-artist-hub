@@ -20,6 +20,7 @@ HUBS = [
         ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Real browser DSP: EQ, tube, comp, hooks, WAV export."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Asset Vault", "Stems, bounces, and press assets in one place."),
+        ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
         ("tracks", "/tracks", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h4", "Track Passports", "Per-track rights, metadata, and lockbox sign-offs."),
         ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, with its status."),
         ("identifiers", "/identifiers", "M4 6h12M4 10h12M4 14h7|", "Identifiers", "ISRCs, UPCs, and codes in one registry."),
@@ -119,7 +120,7 @@ HUB_ICONS = {
 }
 
 # Features that genuinely work today; everything else shows a lock.
-LIVE_KEYS = ["apparel", "statements", "notifications", "documents", "identifiers", "cases",
+LIVE_KEYS = ["apparel", "beats", "statements", "notifications", "documents", "identifiers", "cases",
              "deal-room", "sync-packs", "deal-simulator", "artist-twin",
              "revenue-os", "trust-score", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",

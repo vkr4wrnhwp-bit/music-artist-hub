@@ -20,20 +20,33 @@ def get_landing_config():
         "ownership_image": None,
         "patchbay_image": None,
 
+        # The public header. Every destination here is reachable without an
+        # account: the old nav pointed Platform at /overview and the CTA at
+        # /recovery, both of which bounce a visitor to a login wall for
+        # asking what the product is.
         "nav": {
             "logo": {"primary": "STREET BANKER",
-                     "secondary": "ARTIST INFRASTRUCTURE"},
+                     "secondary": "THE ARTIST OPERATING SYSTEM"},
             "links": [
-                {"label": "Platform", "href": "/overview"},
-                {"label": "Solutions", "href": "/services"},
-                {"label": "Company", "href": "/network"},
-                {"label": "Resources", "href": "/reports"},
+                {"label": "Platform", "href": "#platform"},
+                {"label": "AI Artist Twin", "href": "#artist-twin"},
+                {"label": "Creative + Rollout", "href": "#creative-rollout"},
+                {"label": "Royalty Sweep", "href": "#royalty-sweep"},
+                {"label": "For Labels", "href": "/services"},
             ],
-            "actions": [
-                {"label": "Login", "href": "/login", "variant": "text"},
-                {"label": "Start Free Scan", "href": "/recovery",
-                 "variant": "primary"},
+            # The drawer names the two studios separately, because on a
+            # phone there is room to say what "Creative + Rollout" means.
+            "drawer_links": [
+                {"label": "Platform", "href": "#platform"},
+                {"label": "AI Artist Twin", "href": "#artist-twin"},
+                {"label": "Creative Studio", "href": "#creative-rollout"},
+                {"label": "Rollout Studio", "href": "#creative-rollout"},
+                {"label": "Royalty Sweep", "href": "#royalty-sweep"},
+                {"label": "For Labels", "href": "/services"},
             ],
+            "login": {"label": "Log in", "href": "/login"},
+            "cta": {"label": "Run a Free Catalog Sweep",
+                    "short": "Free Sweep", "href": "/catalog-sweep"},
         },
 
         "hero": {

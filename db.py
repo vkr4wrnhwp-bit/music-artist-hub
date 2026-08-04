@@ -275,6 +275,56 @@ def init_db():
                 used INTEGER NOT NULL DEFAULT 0,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS beats (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                bpm TEXT NOT NULL DEFAULT '',
+                song_key TEXT NOT NULL DEFAULT '',
+                tags TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS beat_licences (
+                id TEXT PRIMARY KEY,
+                beat_id TEXT NOT NULL,
+                producer_id TEXT NOT NULL,
+                licensee_name TEXT NOT NULL DEFAULT '',
+                licensee_email TEXT NOT NULL DEFAULT '',
+                licence_type TEXT NOT NULL DEFAULT 'lease',
+                territory TEXT NOT NULL DEFAULT 'Worldwide',
+                term TEXT NOT NULL DEFAULT '',
+                fee REAL NOT NULL DEFAULT 0,
+                producer_split REAL NOT NULL DEFAULT 50,
+                terms TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft',
+                token TEXT NOT NULL DEFAULT '',
+                signed_by TEXT NOT NULL DEFAULT '',
+                signed_at TEXT,
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS beat_clearances (
+                id TEXT PRIMARY KEY,
+                beat_id TEXT NOT NULL,
+                licence_id TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'channel',
+                value TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS beat_uses (
+                id TEXT PRIMARY KEY,
+                beat_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                url TEXT NOT NULL DEFAULT '',
+                platform TEXT NOT NULL DEFAULT '',
+                found_via TEXT NOT NULL DEFAULT 'manual',
+                status TEXT NOT NULL DEFAULT 'open',
+                notes TEXT NOT NULL DEFAULT '',
+                resolved_amount REAL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS score_history (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -2006,6 +2056,197 @@ def referral_stats(referrer_id):
             "SELECT COUNT(*) AS n FROM users WHERE referred_by = ? AND ref_credited = 1",
             (referrer_id,)).fetchone()["n"]
     return {"signups": signups, "converted": converted}
+
+
+# --- Beats: registry, licences, cleared list, usage cases ---------------------
+# The producer side. A licence has two ends, so every read here is keyed
+# on who is asking: the producer who owns the beat, or the licensee whose
+# email the licence names.
+
+def add_beat(user_id, title, bpm="", song_key="", tags="", note=""):
+    beat_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO beats (id, user_id, title, bpm, song_key, tags, note,"
+            " created) VALUES (?,?,?,?,?,?,?,?)",
+            (beat_id, user_id, title[:200], bpm[:20], song_key[:20],
+             tags[:200], note[:600], _now()))
+    return beat_id
+
+
+def list_beats(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM beats WHERE user_id = ? ORDER BY created DESC",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_beat(beat_id, user_id=None):
+    q = "SELECT * FROM beats WHERE id = ?"
+    args = [beat_id]
+    if user_id:
+        q += " AND user_id = ?"
+        args.append(user_id)
+    with get_db() as db:
+        row = db.execute(q, args).fetchone()
+    return dict(row) if row else None
+
+
+def delete_beat(user_id, beat_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM beats WHERE id = ? AND user_id = ?",
+                         (beat_id, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM beat_licences WHERE beat_id = ?", (beat_id,))
+            db.execute("DELETE FROM beat_clearances WHERE beat_id = ?", (beat_id,))
+            db.execute("DELETE FROM beat_uses WHERE beat_id = ?", (beat_id,))
+        return bool(cur.rowcount)
+
+
+def add_beat_licence(beat_id, producer_id, fields):
+    licence_id = uuid.uuid4().hex
+    token = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO beat_licences (id, beat_id, producer_id, licensee_name,"
+            " licensee_email, licence_type, territory, term, fee, producer_split,"
+            " terms, status, token, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (licence_id, beat_id, producer_id,
+             (fields.get("licensee_name") or "")[:120],
+             (fields.get("licensee_email") or "").strip().lower()[:200],
+             fields.get("licence_type") or "lease",
+             (fields.get("territory") or "Worldwide")[:80],
+             (fields.get("term") or "")[:80],
+             float(fields.get("fee") or 0),
+             float(fields.get("producer_split") or 50),
+             (fields.get("terms") or "")[:2000],
+             "sent" if fields.get("send") else "draft", token, _now()))
+    return licence_id
+
+
+def list_beat_licences(beat_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM beat_licences WHERE beat_id = ? ORDER BY created DESC",
+            (beat_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def licences_for_licensee(email):
+    """The other end of the licence: what this person has been granted."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT l.*, b.title AS beat_title, u.name AS producer_name"
+            " FROM beat_licences l JOIN beats b ON b.id = l.beat_id"
+            " JOIN users u ON u.id = l.producer_id"
+            " WHERE l.licensee_email = ? ORDER BY l.created DESC",
+            ((email or "").strip().lower(),)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_beat_licence_by_token(token):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT l.*, b.title AS beat_title, b.bpm, b.song_key,"
+            " u.name AS producer_name FROM beat_licences l"
+            " JOIN beats b ON b.id = l.beat_id JOIN users u ON u.id = l.producer_id"
+            " WHERE l.token = ?", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def sign_beat_licence(token, signed_by):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE beat_licences SET status = 'signed', signed_by = ?,"
+            " signed_at = ? WHERE token = ? AND status != 'signed'",
+            (signed_by[:120], _now(), token))
+        return bool(cur.rowcount)
+
+
+def set_beat_licence_status(producer_id, licence_id, status):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE beat_licences SET status = ? WHERE id = ? AND producer_id = ?",
+            (status, licence_id, producer_id))
+        return bool(cur.rowcount)
+
+
+def add_beat_clearance(beat_id, kind, value, note="", licence_id=""):
+    row_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO beat_clearances (id, beat_id, licence_id, kind, value,"
+            " note, created) VALUES (?,?,?,?,?,?,?)",
+            (row_id, beat_id, licence_id, kind, value.strip()[:300],
+             note[:300], _now()))
+    return row_id
+
+
+def list_beat_clearances(beat_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM beat_clearances WHERE beat_id = ? ORDER BY created DESC",
+            (beat_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_beat_clearance(beat_id, row_id):
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM beat_clearances WHERE id = ? AND beat_id = ?",
+            (row_id, beat_id))
+        return bool(cur.rowcount)
+
+
+def add_beat_use(beat_id, user_id, fields):
+    use_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO beat_uses (id, beat_id, user_id, url, platform,"
+            " found_via, status, notes, created, updated)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (use_id, beat_id, user_id, (fields.get("url") or "")[:600],
+             (fields.get("platform") or "")[:60],
+             fields.get("found_via") or "manual",
+             fields.get("status") or "open",
+             (fields.get("notes") or "")[:1000], now, now))
+    return use_id
+
+
+def list_beat_uses(user_id, beat_id=None):
+    q = "SELECT u.*, b.title AS beat_title FROM beat_uses u JOIN beats b ON b.id = u.beat_id WHERE u.user_id = ?"
+    args = [user_id]
+    if beat_id:
+        q += " AND u.beat_id = ?"
+        args.append(beat_id)
+    q += (" ORDER BY CASE u.status WHEN 'open' THEN 0 WHEN 'contacted' THEN 1"
+          " WHEN 'invoiced' THEN 2 ELSE 3 END, u.updated DESC")
+    with get_db() as db:
+        rows = db.execute(q, args).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_beat_use(user_id, use_id, fields):
+    sets, vals = [], []
+    for key in ("status", "notes", "platform", "url"):
+        if key in fields:
+            sets.append("%s = ?" % key)
+            vals.append(fields[key])
+    if "resolved_amount" in fields:
+        sets.append("resolved_amount = ?")
+        vals.append(fields["resolved_amount"])
+    if not sets:
+        return False
+    sets.append("updated = ?")
+    vals.extend([_now(), use_id, user_id])
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE beat_uses SET %s WHERE id = ? AND user_id = ?" % ", ".join(sets),
+            vals)
+        return bool(cur.rowcount)
 
 
 def add_sign_token(token, user_id, track_id, doc_key, email):
