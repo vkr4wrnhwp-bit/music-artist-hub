@@ -84,13 +84,9 @@
       </p>
       {% endif %}
 
-      <!-- Bio -->
-      <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-[#141210]/10 py-7">
-        <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Biography</h3>
-        <p class="mt-3 max-w-2xl text-[15px] leading-relaxed text-[#141210]/85">{{ e.profile.bio }}</p>
-        <p class="mt-2 text-xs text-[#141210]/55">Strongest platform: <span class="font-bold text-[#141210]">{{ e.top_platform }}</span></p>
-      </section>
-
+      {# Same order as the published sheet: sound before story.
+         An editor that previews the sections in a different order
+         than the page it publishes is lying to the artist. #}
       <!-- Top tracks -->
       <section data-section="tracks" class="{{ '' if e.sections_on.tracks else 'hidden' }} border-b border-[#141210]/10 py-7">
         <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Top Tracks</h3>
@@ -102,6 +98,13 @@
           </li>
           {% endfor %}
         </ol>
+      </section>
+
+      <!-- Bio -->
+      <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-[#141210]/10 py-7">
+        <h3 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#a8862f]">Biography</h3>
+        <p class="mt-3 max-w-2xl text-[15px] leading-relaxed text-[#141210]/85">{{ e.profile.bio }}</p>
+        <p class="mt-2 text-xs text-[#141210]/55">Strongest platform: <span class="font-bold text-[#141210]">{{ e.top_platform }}</span></p>
       </section>
 
       <!-- Press -->
