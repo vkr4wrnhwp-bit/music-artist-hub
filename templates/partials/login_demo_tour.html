@@ -62,12 +62,17 @@
     </form>
 
     {# State 2: open the workspace (known leads, or anyone with the password) #}
-    <form method="post" action="/login" class="lsr-demo-form"
+    {# Posts to /demo-open, not /login, and its fields are not called
+       email/password. Two forms on one page both posting credentials to
+       /login is what stops a browser offering to save the real one: the
+       password manager cannot tell which pair belongs to the account, and
+       frequently attached itself to the demo address instead. #}
+    <form method="post" action="/demo-open" class="lsr-demo-form"
           id="lsr-open-form" {% if not known_lead %}hidden{% endif %}>
-      <input type="hidden" name="email" value="demo-artist@streetbanker.io" id="lsr-demo-email">
+      <input type="hidden" name="demo_workspace" value="demo-artist@streetbanker.io" id="lsr-demo-email">
       <div class="lsr-demo-row">
         <label class="lsr-sr" for="lsr-demo-pw">Demo password</label>
-        <input type="password" id="lsr-demo-pw" name="password" required
+        <input type="password" id="lsr-demo-pw" name="demo_password" required
                autocomplete="off" placeholder="Demo password">
         <button type="submit" class="lsr-gold-btn lsr-gold-btn--slim">OPEN SAMPLE WORKSPACE</button>
       </div>

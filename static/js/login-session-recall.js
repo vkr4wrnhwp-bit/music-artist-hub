@@ -85,6 +85,22 @@
   } catch (e) {}
   applyWorkspace();
 
+  /* "Remember this device" remembers the choice too. The box controls a
+     31-day session; arriving unticked every time meant a returning
+     artist had to opt in again on every sign-in, which is the opposite
+     of what the label promises. Stored in this browser, nowhere else. */
+  var remember = document.getElementById("lsr-remember");
+  if (remember) {
+    try {
+      if (localStorage.getItem("sbRemember") === "1") { remember.checked = true; }
+    } catch (e) {}
+    remember.addEventListener("change", function () {
+      try {
+        localStorage.setItem("sbRemember", remember.checked ? "1" : "0");
+      } catch (e) {}
+    });
+  }
+
   var openForm = document.getElementById("lsr-open-form");
   if (openForm) {
     openForm.addEventListener("submit", function () {

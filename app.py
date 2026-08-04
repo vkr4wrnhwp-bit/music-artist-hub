@@ -414,6 +414,16 @@ def create_app():
     app = Flask(__name__)
     # Session key: override via SECRET_KEY env in production.
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "royalty-sweep-demo-session")
+    # Session cookie: 31 days when "remember this device" is ticked, and
+    # Lax + Secure in production. Without SameSite set explicitly, a
+    # browser applies its own default and the cookie can be dropped on a
+    # cross-site return - arriving from an email link, say, which is
+    # exactly how somebody comes back to a dashboard.
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    # Secure only where the site is actually served over TLS. Render sets
+    # RENDER=true; keying off SECRET_KEY instead would silently break
+    # local sign-in the moment somebody set a key over http.
+    app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
     app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # statement uploads
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
@@ -500,6 +510,31 @@ def create_app():
         # arrive there.
         preselect = "fan" if request.args.get("as") == "fan" else "artist"
         return render_template("signup.html", error=error, preselect=preselect)
+
+    @app.route("/demo-open", methods=["POST"])
+    def demo_open():
+        """Open a demo workspace with the shared demo password.
+
+        Split out of /login so the login page carries exactly one form
+        that posts a credential pair. It shared the /login action and the
+        email/password field names, which is what stopped browsers
+        offering to save a real sign-in on this page - and sometimes had
+        them save the demo address instead of the artist's own.
+        """
+        email = (request.form.get("demo_workspace") or "").strip().lower()
+        password = request.form.get("demo_password") or ""
+        allowed = {"demo@streetbanker.io", "demo-pro@streetbanker.io",
+                   "demo-artist@streetbanker.io", "demo-fan@streetbanker.io"}
+        if email not in allowed:
+            return redirect("/login")
+        user = store.get_user_by_email(email)
+        if user and check_password_hash(user["password_hash"], password):
+            session["user_id"] = user["id"]
+            session.pop("seen_rolled", None)
+            if (user.get("plan") or "artist") == "fan":
+                return redirect("/discover")
+            return redirect("/walkthrough")
+        return redirect("/login?demo=wrong")
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -2415,7 +2450,7 @@ def create_app():
                         # be checked by a label that never will.
                         "/licence/", "/cleared/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
-                     "/catalog-sweep",
+                     "/catalog-sweep", "/demo-open",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
                      "/api/artist-signal-profile"}
 

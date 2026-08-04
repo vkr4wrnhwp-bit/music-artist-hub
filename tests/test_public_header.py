@@ -146,3 +146,75 @@ def test_the_header_holds_its_own_space():
     assert "--sbh-height-mobile: 70px" in css
     assert "prefers-reduced-motion" in css
     assert "env(safe-area-inset" in css
+
+
+# --- login: one credential form, and a box that remembers its own state ----
+
+def test_the_login_page_has_exactly_one_credential_form():
+    """Two forms posting email+password to /login is what stops a browser
+    offering to save the real sign-in: the password manager cannot tell
+    which pair belongs to the account, and would sometimes save the demo
+    address instead."""
+    body = _anon().get("/login").get_data(as_text=True)
+    forms = re.findall(r"<form[^>]*>", body)
+    to_login = [f for f in forms if 'action="/login"' in f]
+    assert len(to_login) == 1, to_login
+    # The demo workspace form is still there - it just is not a login.
+    assert 'action="/demo-open"' in body
+    assert 'name="demo_password"' in body
+    assert 'name="demo_workspace"' in body
+
+
+def test_the_real_form_is_labelled_for_a_password_manager():
+    body = _anon().get("/login").get_data(as_text=True)
+    assert 'autocomplete="username"' in body
+    assert 'autocomplete="current-password"' in body
+    assert 'name="remember"' in body
+
+
+def test_demo_open_only_opens_demo_accounts():
+    app_obj = create_app()
+    # Right password, real demo workspace: in.
+    good = app_obj.test_client()
+    good.post("/demo-open", data={"demo_workspace": "demo-artist@streetbanker.io",
+                                  "demo_password": "sweep"})
+    with good.session_transaction() as sess:
+        assert sess.get("user_id")
+    # Wrong password: not in.
+    bad = app_obj.test_client()
+    bad.post("/demo-open", data={"demo_workspace": "demo-artist@streetbanker.io",
+                                 "demo_password": "wrong"})
+    with bad.session_transaction() as sess:
+        assert not sess.get("user_id")
+    # A real account cannot be opened through the demo door, whatever is
+    # typed into it.
+    other = app_obj.test_client()
+    other.post("/demo-open", data={"demo_workspace": "someone@real.com",
+                                   "demo_password": "sweep"})
+    with other.session_transaction() as sess:
+        assert not sess.get("user_id")
+
+
+def test_remember_this_device_keeps_its_own_answer():
+    """A box labelled 'remember this device' that arrives unticked every
+    visit is not remembering anything."""
+    js = open("static/js/login-session-recall.js", encoding="utf-8").read()
+    assert "sbRemember" in js
+    body = _anon().get("/login").get_data(as_text=True)
+    assert 'id="lsr-remember"' in body
+
+
+def test_the_session_cookie_is_configured_for_a_real_return_visit():
+    """31 days when asked for, Lax so a click from an email keeps you
+    signed in, and Secure only where the site is actually on TLS."""
+    import os
+    app_obj = create_app()
+    assert app_obj.permanent_session_lifetime.days == 31
+    assert app_obj.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+    assert app_obj.config["SESSION_COOKIE_HTTPONLY"] is True
+    assert app_obj.config["SESSION_COOKIE_SECURE"] is False      # local http
+    os.environ["RENDER"] = "true"
+    try:
+        assert create_app().config["SESSION_COOKIE_SECURE"] is True
+    finally:
+        os.environ.pop("RENDER", None)
