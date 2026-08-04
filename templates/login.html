@@ -32,21 +32,22 @@
     <!-- 4. B. TOUR STREET BANKER -->
     {% include "partials/login_demo_tour.html" %}
 
-    <!-- 5. new-account and fan rows -->
+    <!-- 5. one row, because there is one question: which account -->
+    {# These were two rows of identical weight, and both buttons went to
+       the same /signup with the artist type already selected - so
+       "GO TO FAN EXPERIENCE" promised a different destination and
+       delivered the artist form. One row, two named choices, and the fan
+       link now actually arrives on the fan side. #}
     <div class="lsr-rows">
       <section class="lsr-row" aria-labelledby="lsr-new-h">
         <div>
-          <h2 class="lsr-row-title" id="lsr-new-h">NEW HERE?</h2>
-          <p class="lsr-row-sub">Create your account and build your back office.</p>
+          <h2 class="lsr-row-title" id="lsr-new-h">NO ACCOUNT YET?</h2>
+          <p class="lsr-row-sub">
+            Artists get the back office — royalties, releases, catalog.
+            Or <a class="lsr-row-alt" href="/signup?as=fan">Create a free fan account →</a>
+          </p>
         </div>
-        <a class="lsr-row-btn" href="/signup">CREATE ACCOUNT</a>
-      </section>
-      <section class="lsr-row" aria-labelledby="lsr-fan-h">
-        <div>
-          <h2 class="lsr-row-title" id="lsr-fan-h">CONTINUE AS A FAN</h2>
-          <p class="lsr-row-sub">Create a free fan account for fan features and drops.</p>
-        </div>
-        <a class="lsr-row-btn" href="/signup">GO TO FAN EXPERIENCE</a>
+        <a class="lsr-row-btn" href="/signup">CREATE ARTIST ACCOUNT</a>
       </section>
     </div>
 

@@ -40,11 +40,12 @@
         <div>
           <label class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">I am a...</label>
           <div class="mt-1.5 grid grid-cols-2 gap-2">
-            <label class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400">
-              <input type="radio" name="account_type" value="artist" checked class="accent-amber-500"> Artist / Team
+            {% set fan_first = preselect == 'fan' %}
+            <label class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold {{ 'border-white/10 text-gray-200' if fan_first else 'border-amber-500/40 bg-amber-500/10 text-amber-400' }}">
+              <input type="radio" name="account_type" value="artist" {{ '' if fan_first else 'checked' }} class="accent-amber-500"> Artist / Team
             </label>
-            <label class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-gray-200">
-              <input type="radio" name="account_type" value="fan" class="accent-amber-500"> Music Fan
+            <label class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold {{ 'border-amber-500/40 bg-amber-500/10 text-amber-400' if fan_first else 'border-white/10 text-gray-200' }}">
+              <input type="radio" name="account_type" value="fan" {{ 'checked' if fan_first else '' }} class="accent-amber-500"> Music Fan
             </label>
           </div>
         </div>

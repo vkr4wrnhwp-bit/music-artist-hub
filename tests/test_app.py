@@ -5336,7 +5336,11 @@ def test_login_session_recall_page():
     # Four workspaces, secondary rows, security line, minimal footer.
     for w in ["ARTIST", "PRO", "LABEL", "FAN"]:
         assert w in body
-    assert "CREATE ACCOUNT" in body and "GO TO FAN EXPERIENCE" in body
+    # One row, two named destinations - and the fan link arrives on the
+    # fan side rather than on an artist-ticked form.
+    assert "CREATE ARTIST ACCOUNT" in body
+    assert 'href="/signup?as=fan"' in body
+    assert "GO TO FAN EXPERIENCE" not in body
     assert "Secure account access. Demo workspaces contain sample data." in body
     assert 'href="/forgot"' in body and 'href="/terms"' in body
     # No unverified security marketing, no implementation language.

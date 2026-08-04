@@ -539,7 +539,12 @@ def create_app():
                         return redirect("/discover")
                     session["user_id"] = user_id
                     return redirect(url_for("onboarding"))
-        return render_template("signup.html", error=error)
+        # /signup?as=fan preselects the fan side. The login page offers a
+        # fan account as a distinct choice, and it landed on a form with
+        # Artist already ticked - a link that names a destination has to
+        # arrive there.
+        preselect = "fan" if request.args.get("as") == "fan" else "artist"
+        return render_template("signup.html", error=error, preselect=preselect)
 
     @app.route("/login", methods=["GET", "POST"])
     def login():

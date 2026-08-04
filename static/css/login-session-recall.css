@@ -481,6 +481,23 @@ body.lsr {
   letter-spacing: 0.14em;
 }
 .lsr-row-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--lsr-muted); }
+/* The second way in. It is a real alternative, not a second primary, so
+   it reads as a line of the sentence rather than a rival button. */
+.lsr-row-alt {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 6px 2px;
+  font-weight: 700;
+  color: var(--lsr-gold);
+  text-decoration: underline;
+  text-decoration-color: rgba(216, 178, 90, 0.45);
+}
+.lsr-row-alt:hover { color: #f0dcae; }
+.lsr-row-alt:focus-visible { outline: 2px solid var(--lsr-gold); outline-offset: 2px; }
+@media (pointer: coarse) {
+  /* An inline link is still a control someone has to hit with a thumb. */
+  .lsr-row-alt { padding: 13px 2px; margin: -7px 0; }
+}
 .lsr-row-btn {
   flex: 0 0 auto;
   padding: 11px 20px;

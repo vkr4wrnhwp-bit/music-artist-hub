@@ -64,3 +64,20 @@ def test_fan_shell_has_no_artist_hubs_and_still_renders():
     body = client.get("/discover").get_data(as_text=True)
     assert body
     assert 'href="/desk/money"' not in body
+
+
+# --- login: two doors, named honestly --------------------------------------
+
+def test_the_fan_link_lands_on_the_fan_side():
+    """It read "GO TO FAN EXPERIENCE" and delivered /signup with Artist
+    already ticked. A link that names a destination has to arrive there."""
+    client = create_app().test_client()
+    body = client.get("/signup?as=fan").get_data(as_text=True)
+    fan = body.index('value="fan"')
+    artist = body.index('value="artist"')
+    assert 'checked' in body[fan:fan + 60]
+    assert 'checked' not in body[artist:artist + 60]
+    # The default is unchanged for everybody arriving without the flag.
+    plain = client.get("/signup").get_data(as_text=True)
+    a2 = plain.index('value="artist"')
+    assert 'checked' in plain[a2:a2 + 60]
