@@ -40,9 +40,9 @@ def test_the_section_sits_after_the_eq_and_displaces_nothing():
     assert body.index('id="artist-eq"') < body.index('id="departments"')
     assert body.index('id="departments"') < body.index('id="lanes"')
     # Everything that was on the page before it is still on it.
-    for kept in ["THE THREE STREET BANKER LANES", "EVERYTHING BEHIND THE ARTIST.",
+    for kept in ["Choose your lane.", "EVERYTHING BEHIND THE ARTIST.",
                  "TUNE YOUR ARTIST SYSTEM.", "sbhero-veil", "START A FREE SCAN",
-                 "sb-lane-01.jpg", "YOUR MUSIC IS THE PRODUCT."]:
+                 "YOUR MUSIC IS THE PRODUCT."]:
         assert kept in body, kept
 
 

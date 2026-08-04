@@ -97,6 +97,7 @@ from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
 from artist_twin_config import get_artist_twin_config
+from lanes_config import get_lanes_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1343,7 +1344,8 @@ def create_app():
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
                                departments_json=json.dumps(departments),
-                               artist_twin=get_artist_twin_config())
+                               artist_twin=get_artist_twin_config(),
+                               lanes=get_lanes_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2468,7 +2470,7 @@ def create_app():
                      # A stranger asking what the Artist Twin does, and how
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
-                     "/artist-twin/start", "/ai"}
+                     "/artist-twin/start", "/ai", "/lanes"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7115,6 +7117,24 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/lanes")
+    def lanes_public():
+        """Find my lane, in public.
+
+        One situation in, one lane out, with the reason printed next to
+        it and all three lanes set out underneath - so the suggestion can
+        be disagreed with rather than just accepted. No account.
+        """
+        from lanes_config import LANES, SITUATIONS
+
+        wanted = (request.args.get("situation") or "").strip()[:40]
+        picked = next((s for s in SITUATIONS if s["id"] == wanted), None)
+        suggested = next((l for l in LANES if picked and l["slug"] == picked["lane"]),
+                         None)
+        return render_template("lanes_public.html", lanes=LANES,
+                               situations=SITUATIONS, picked=picked,
+                               suggested=suggested)
 
     @app.route("/ai")
     def ai_trust():

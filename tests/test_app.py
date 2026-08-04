@@ -125,12 +125,11 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     assert 'id="artist-eq"' in body
     assert "TUNE YOUR ARTIST SYSTEM." in body
     assert body.index("sbhero") < body.index("TUNE YOUR ARTIST SYSTEM.")
-    assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("THE THREE STREET BANKER LANES")
+    assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("Choose your lane.")
     # Every section that was on the page before is still on it.
-    for kept in ["RELEASE THE RECORD.", "FIND WHAT YOU EARNED.",
+    for kept in ["Release the Record", "FIND WHAT YOU EARNED.",
                  "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
-                 "sb-band-catalog.jpg", "sb-band-sweep.jpg",
-                 "sb-lane-01.jpg"]:
+                 "sb-band-catalog.jpg", "sb-band-sweep.jpg"]:
         assert kept in body, kept
 
 
@@ -223,8 +222,8 @@ def test_artist_eq_assets_are_served():
 def test_landing_is_seven_editorial_sections():
     """Seven sections, one message each, no feature directory."""
     body = _demo().get("/").get_data(as_text=True)
-    assert "THE THREE STREET BANKER LANES" in body
-    for h in ["RELEASE THE RECORD.", "BUILD THE ARTIST.", "BUILD THE ASSET."]:
+    assert "Choose your lane." in body
+    for h in ["Release the Record", "Build the Artist", "Build the Asset"]:
         assert h in body
     assert "FIND WHAT YOU EARNED." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
@@ -5344,8 +5343,15 @@ def test_homepage_carries_the_signal_profile_hooks():
     # badges, no Sweep CTA swap hook. The page responds through one
     # coordinated visual mode instead.
     for gone in ["sb-lane-badge", "sb-tool-badge", "sb-sweep-cta",
-                 "sb-lanes-balanced", "data-lane=", "data-tool="]:
+                 "sb-lanes-balanced", "data-tool="]:
         assert gone not in body, gone
+    # `data-lane` exists again in Section 6, where it belongs to that
+    # section's own hover state. What matters here is that the EQ still
+    # writes nothing outside itself.
+    eq_js = open("static/js/artist-eq.js", encoding="utf-8").read()
+    for reach in ("document.body", "data-lane", "data-artist-mode",
+                  "querySelectorAll(\".sb-"):
+        assert reach not in eq_js, reach
     # The page is STATIC: the EQ reports inside its own racks and touches
     # nothing else. Every page-reaction hook that was tried - badges,
     # tints, adaptive layers, CTA rewording, the banner strip - is gone.

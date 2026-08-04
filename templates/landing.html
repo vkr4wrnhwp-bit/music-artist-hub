@@ -10,12 +10,13 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=15">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=16">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
   <link rel="stylesheet" href="/static/css/departments.css?v=2">
   <link rel="stylesheet" href="/static/css/artist-twin.css?v=3">
+  <link rel="stylesheet" href="/static/css/lanes.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -136,37 +137,13 @@
      touch. Additive: it displaces nothing below it. -->
 {% include "partials/artist_twin.html" %}
 
-<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
-
 <span id="platform" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 6. THE THREE LANES — breaks out of the reading column. The rack units
-     are the argument here, so they get the page width rather than sitting
-     in a narrower gutter than the bands above and below. -->
-{% set lanes = config.lanes %}
-<section id="lanes" class="scroll-mt-6 border-t border-black/10 py-20 lg:py-24">
-  <div class="mx-auto max-w-[1800px] px-6 lg:px-8">
-    <div class="text-center">
-      <h2 class="text-2xl font-black uppercase tracking-tight sm:text-3xl">{{ lanes.heading }}</h2>
-      <p class="mt-3 text-sm text-[#5a544a]">{{ lanes.support }}</p>
-    </div>
-    <div class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-8">
-      {% for card in lanes.cards %}
-      <article class="flex flex-col">
-        <img src="{{ card.image }}" alt="{{ card.headline }}" class="block w-full object-cover" loading="lazy">
-        <div class="mt-6">
-          <div class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#8a6d1f]">{{ card.label }}</div>
-          <h3 class="mt-3 text-xl font-black uppercase tracking-tight">{{ card.headline }}</h3>
-          <p class="mt-2.5 text-sm leading-relaxed text-[#5a544a]">{{ card.description }}</p>
-          <a href="{{ card.link.href }}" class="mt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold transition-colors hover:text-[#8a6d1f]">
-            {{ card.link.label }}
-            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
-          </a>
-        </div>
-      </article>
-      {% endfor %}
-    </div>
-  </div>
-</section>
+<!-- 6. THE THREE LANES — one unit, three channels. Full width like the
+     three dark bands above it: the hardware is the argument here, and it
+     cannot be the hero object from inside a narrow gutter. -->
+{% include "partials/lanes.html" %}
+
+<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
 
 <span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
 <!-- 7. ROYALTY SWEEP — the one dark section; the photograph IS the section.
@@ -277,5 +254,6 @@
 <script src="/static/js/artist-eq.js?v=8" defer></script>
 <script src="/static/js/departments.js?v=3" defer></script>
 <script src="/static/js/artist-twin.js?v=1" defer></script>
+<script src="/static/js/lanes.js?v=1" defer></script>
 </body>
 </html>
