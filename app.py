@@ -99,6 +99,7 @@ from departments_config import get_departments_config
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
 from creative_config import get_creative_config
+from rollout_config import get_rollout_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1347,7 +1348,8 @@ def create_app():
                                departments_json=json.dumps(departments),
                                artist_twin=get_artist_twin_config(),
                                lanes=get_lanes_config(),
-                               creative=get_creative_config())
+                               creative=get_creative_config(),
+                               rollout=get_rollout_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2473,7 +2475,7 @@ def create_app():
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
                      "/artist-twin/start", "/ai", "/lanes",
-                     "/creative-studio"}
+                     "/creative-studio", "/rollout"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7120,6 +7122,20 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/rollout")
+    def rollout_public():
+        """Rollout Engine, explained before an account is asked for.
+
+        The example campaign is printed in full and labelled as one, and
+        the middle group says plainly that nothing posts itself.
+        """
+        from rollout_config import (TOUR_SECTIONS, WORKFLOW, SAMPLE, STATUSES,
+                                    PLAN_LENGTHS)
+
+        return render_template("rollout_public.html", sections=TOUR_SECTIONS,
+                               workflow=WORKFLOW, sample=SAMPLE,
+                               statuses=STATUSES, plan_lengths=PLAN_LENGTHS)
 
     @app.route("/creative-studio")
     def creative_studio_public():

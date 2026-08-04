@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=17">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=18">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/static/css/artist-twin.css?v=3">
   <link rel="stylesheet" href="/static/css/lanes.css?v=1">
   <link rel="stylesheet" href="/static/css/creative-studio.css?v=5">
+  <link rel="stylesheet" href="/static/css/rollout.css?v=5">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -148,10 +149,14 @@
      bottom edge. Additive: it displaces nothing below it. -->
 {% include "partials/creative_studio.html" %}
 
+<!-- 8. ROLLOUT ENGINE — one photograph the section is made of, with the
+     copy over its darkened right side. Additive: nothing below moves. -->
+{% include "partials/rollout.html" %}
+
 <div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
 
 <span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 8. ROYALTY SWEEP — the one dark section; the photograph IS the section.
+<!-- 9. ROYALTY SWEEP — the one dark section; the photograph IS the section.
      Padding kept tight to the copy: the corridor should frame the words, not
      run on past them. -->
 {% set sweep = config.sweep %}
@@ -174,7 +179,7 @@
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
   <span id="artist-twin" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-  <!-- 9. SIGNATURE TOOLS -->
+  <!-- 10. SIGNATURE TOOLS -->
   {% set tools = config.tools %}
   <section id="tools" class="scroll-mt-6 py-20 lg:py-24">
     <span id="creative-rollout" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
@@ -215,7 +220,7 @@
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
-  <!-- 10. FINAL CTA -->
+  <!-- 11. FINAL CTA -->
   {% set fin = config.final_cta %}
   <section class="py-24 text-center lg:py-32">
     <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
@@ -261,5 +266,6 @@
 <script src="/static/js/artist-twin.js?v=1" defer></script>
 <script src="/static/js/lanes.js?v=1" defer></script>
 <script src="/static/js/creative-studio.js?v=1" defer></script>
+<script src="/static/js/rollout.js?v=1" defer></script>
 </body>
 </html>
