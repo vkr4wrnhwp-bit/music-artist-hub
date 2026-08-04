@@ -13,12 +13,13 @@
   </div>
 
   {% if not rv.has_data %}
-  <section class="rounded-2xl border border-dashed border-[#c9a24a]/30 bg-[#141210] p-8 text-center">
-    <div class="text-sm font-bold text-gray-100">Nothing scanned yet</div>
-    <p class="mx-auto mt-2 max-w-lg text-xs text-gray-200">This page has no statements to read, so it has not found that your royalties are clean — it has found nothing at all. Those are different things, and only one of them would be worth telling you.</p>
-    <p class="mx-auto mt-2 max-w-lg text-xs text-gray-200">Upload a distributor, PRO or MLC statement CSV and the scan runs on your own rows: money paid without a track title, and tracks earning on some sources and silent on others.</p>
-    <a href="/statements" class="mt-4 inline-block rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Upload a statement →</a>
-  </section>
+  {% with motif = 'scan',
+          title = 'Nothing scanned yet',
+          body = 'This page has no statements to read, so it has not found that your royalties are clean — it has found nothing at all. Those are different things, and only one of them would be worth telling you.',
+          body2 = 'Upload a distributor, PRO or MLC statement CSV and the scan runs on your own rows: money paid without a track title, and tracks earning on some sources and silent on others.',
+          cta_href = '/statements', cta_label = 'Upload a statement →' %}
+    {% include "partials/empty_state.html" %}
+  {% endwith %}
 
   {% else %}
 

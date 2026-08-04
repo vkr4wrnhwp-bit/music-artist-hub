@@ -12,7 +12,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,900;1,9..144,300&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
   <style>
-    body { font-family: 'Inter', system-ui, sans-serif; background: #efece5; }
+    /* The desk the sheet lies on. Flat #efece5 read as "unstyled page";
+       the same tone with a grain and a slight vignette reads as a
+       surface, which is what makes the ivory sheet on top of it read as
+       paper. The file is 20 lines of SVG, not a photograph. */
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: #efece5;
+      background-image:
+        radial-gradient(ellipse 90% 55% at 50% 0%, rgba(20, 18, 16, 0.07), transparent 70%),
+        url("/static/img/tex-paper.svg");
+      background-repeat: no-repeat, repeat;
+      background-attachment: fixed, scroll;
+    }
+    @media print { body { background-image: none !important; } }
     .serif { font-family: 'Fraunces', Georgia, serif; }
     /* Printed-paper sheet */
     .sheet {

@@ -8,7 +8,17 @@
   {% if data.tagline %}<meta property="og:description" content="{{ data.tagline }}">{% endif %}
   <link rel="stylesheet" href="/static/css/tailwind.css?v=12">
 </head>
-<body class="min-h-screen text-gray-100 antialiased" style="background: radial-gradient(ellipse 80% 40% at 50% -5%, rgba(201,162,74,0.14), transparent 60%), #0b0a09;">
+{# The lamp over the stage, as a drawn backdrop rather than one flat
+   gradient: brass wash at the crown, two faint arcs under it, grain over
+   the whole thing. The gradient stays underneath as the fallback if the
+   asset ever fails to load. #}
+<body class="min-h-screen text-gray-100 antialiased"
+      style="background-color: #0b0a09;
+             background-image: url('/static/img/hub-backdrop.svg'),
+                               radial-gradient(ellipse 80% 40% at 50% -5%, rgba(201,162,74,0.14), transparent 60%);
+             background-repeat: no-repeat, no-repeat;
+             background-size: 100% auto, auto;
+             background-position: top center, top center;">
   <main class="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-12">
     <div class="text-center">
       {% if prof.photo %}
