@@ -48,12 +48,17 @@
   .sbeq-room img { opacity: 0.35; object-position: 50% 30%; }
 }
 
+/* The section runs the full width of the page so its own near-black is
+   the ground rather than a dark card on white. The console keeps the
+   measurements it was approved at: this max-width and padding reproduce
+   the reading column it used to sit inside, so only what is behind it
+   changed. */
 .sbeq-inner {
   position: relative;
   width: 100%;
-  max-width: 1440px;
+  max-width: 1152px;
   margin: 0 auto;
-  padding: 0 clamp(16px, 3vw, 40px);
+  padding: 0 clamp(40px, 6.2vw, 80px);
 }
 
 /* --- heading ------------------------------------------------------------ */
