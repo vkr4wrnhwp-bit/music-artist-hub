@@ -38,8 +38,8 @@ def _css():
 def test_the_section_sits_after_the_lanes_and_displaces_nothing():
     body = _home()
     assert body.index('id="lanes"') < body.index('id="creative-studio"')
-    assert body.index('id="creative-studio"') < body.index("FIND WHAT YOU EARNED.")
-    for kept in ["Choose your lane.", "FIND WHAT YOU EARNED.",
+    assert body.index('id="creative-studio"') < body.index('id="royalty-sweep-section"')
+    for kept in ["Choose your lane.", "Find what&#39;s yours.",
                  "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
                  "One system. Six departments.", "TUNE YOUR ARTIST SYSTEM."]:
         assert kept in body, kept

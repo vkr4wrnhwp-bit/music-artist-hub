@@ -100,6 +100,7 @@ from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
 from creative_config import get_creative_config
 from rollout_config import get_rollout_config
+from sweep_config import get_sweep_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1349,7 +1350,8 @@ def create_app():
                                artist_twin=get_artist_twin_config(),
                                lanes=get_lanes_config(),
                                creative=get_creative_config(),
-                               rollout=get_rollout_config())
+                               rollout=get_rollout_config(),
+                               sweep=get_sweep_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2475,7 +2477,8 @@ def create_app():
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
                      "/artist-twin/start", "/ai", "/lanes",
-                     "/creative-studio", "/rollout"}
+                     "/creative-studio", "/rollout",
+                     "/royalty-sweep"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7122,6 +7125,19 @@ def create_app():
         selected = next((g for g in GOALS if g["id"] == wanted), None)
         return render_template("artist_twin_start.html", goals=GOALS,
                                selected=selected)
+
+    @app.route("/royalty-sweep")
+    def sweep_method():
+        """How Royalty Sweep works, in public.
+
+        What is read, what counts as an opportunity, how an estimate is
+        arrived at, how a case is verified, which steps need a person and
+        what happens to the data. No figures and no promises.
+        """
+        from sweep_config import METHOD, SOURCES
+
+        return render_template("sweep_method.html", method=METHOD,
+                               sources=SOURCES)
 
     @app.route("/rollout")
     def rollout_public():

@@ -38,14 +38,14 @@ def test_the_section_replaces_the_old_lanes_and_keeps_its_anchor():
     body = _home()
     assert 'id="lanes"' in body                     # Section 4 links at it
     assert body.index('id="artist-twin-section"') < body.index('id="lanes"')
-    assert body.index('id="lanes"') < body.index("FIND WHAT YOU EARNED.")
+    assert body.index('id="lanes"') < body.index('id="royalty-sweep-section"')
     # The old three-card strip is gone, and its images with it.
     assert "THE THREE STREET BANKER LANES" not in body
     assert "Three paths. One infrastructure." not in body
     for old in ("sb-lane-01.jpg", "sb-lane-02.jpg", "sb-lane-03.jpg"):
         assert old not in body, old
     # Everything below it is untouched.
-    for kept in ["FIND WHAT YOU EARNED.", "EVERYTHING BEHIND THE ARTIST.",
+    for kept in ["Find what&#39;s yours.", "EVERYTHING BEHIND THE ARTIST.",
                  "YOUR MUSIC IS THE PRODUCT.", "sb-band-catalog.jpg"]:
         assert kept in body, kept
 

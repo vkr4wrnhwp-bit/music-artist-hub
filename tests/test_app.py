@@ -127,9 +127,9 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     assert body.index("sbhero") < body.index("TUNE YOUR ARTIST SYSTEM.")
     assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("Choose your lane.")
     # Every section that was on the page before is still on it.
-    for kept in ["Release the Record", "FIND WHAT YOU EARNED.",
+    for kept in ["Release the Record", "Find what&#39;s yours.",
                  "EVERYTHING BEHIND THE ARTIST.", "YOUR MUSIC IS THE PRODUCT.",
-                 "sb-band-catalog.jpg", "sb-band-sweep.jpg"]:
+                 "sb-band-catalog.jpg"]:
         assert kept in body, kept
 
 
@@ -225,7 +225,7 @@ def test_landing_is_seven_editorial_sections():
     assert "Choose your lane." in body
     for h in ["Release the Record", "Build the Artist", "Build the Asset"]:
         assert h in body
-    assert "FIND WHAT YOU EARNED." in body
+    assert "Find what&#39;s yours." in body
     assert "EVERYTHING BEHIND THE ARTIST." in body
     assert "YOUR MUSIC IS THE PRODUCT." in body
     # The archive-shelf band separates the tools strip from the closing
@@ -233,9 +233,10 @@ def test_landing_is_seven_editorial_sections():
     assert "sb-band-catalog.jpg" in body
     assert body.index("sb-band-catalog.jpg") > body.index("EVERYTHING BEHIND THE ARTIST.")
     assert body.index("sb-band-catalog.jpg") < body.index("YOUR MUSIC IS THE PRODUCT.")
-    # The Sweep section is a photograph with copy over it - no product
-    # screenshot, so there are no figures that could read as real data.
-    assert "sb-band-sweep.jpg" in body
+    # The Sweep section is an archive table with the copy above and the
+    # workflow below it - no product screenshot, so there are no figures
+    # that could read as real data.
+    assert "sweep-wide-1400.jpg" in body
     assert "sb-patchbay.jpg" not in body
     # Everything moved deeper into the site stays gone.
     for old in ["Everything Street Banker Is", "Nightdrive", "ONE PLATFORM",
@@ -5364,7 +5365,7 @@ def test_homepage_carries_the_signal_profile_hooks():
     # on the rebuilt hero rather than the old white-page one.
     assert "sbhero-veil" in body
     assert 'class="min-h-screen bg-white' in body
-    assert "START A FREE SCAN" in body
+    assert "Run a Royalty Sweep" in body
     assert "START FREE" in body
 
 

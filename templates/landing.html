@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=18">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=19">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/static/css/lanes.css?v=1">
   <link rel="stylesheet" href="/static/css/creative-studio.css?v=5">
   <link rel="stylesheet" href="/static/css/rollout.css?v=5">
+  <link rel="stylesheet" href="/static/css/sweep.css?v=2">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -153,30 +154,13 @@
      copy over its darkened right side. Additive: nothing below moves. -->
 {% include "partials/rollout.html" %}
 
-<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
-
 <span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 9. ROYALTY SWEEP — the one dark section; the photograph IS the section.
-     Padding kept tight to the copy: the corridor should frame the words, not
-     run on past them. -->
-{% set sweep = config.sweep %}
-<section class="relative isolate overflow-hidden bg-[#0f0e0c] py-16 text-gray-100 lg:py-20">
-  {% if sweep.background %}
-  <img src="{{ sweep.background.src }}" alt="{{ sweep.background.alt }}" class="absolute inset-0 -z-10 h-full w-full object-cover" loading="lazy">
-  <div class="absolute inset-0 -z-10 bg-[#0f0e0c]/75"></div>
-  {% endif %}
-  <div class="mx-auto max-w-6xl px-6 text-center lg:px-10">
-    <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#d8b25a]">{{ sweep.eyebrow }}</div>
-    <h2 class="mt-5 text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-4xl lg:text-5xl">
-      {% for line in sweep.headline %}<span class="block">{{ line }}</span>{% endfor %}
-    </h2>
-    <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-gray-200">{{ sweep.description }}</p>
-    <a href="{{ sweep.cta.href }}" class="mt-9 inline-flex items-center justify-center rounded-md bg-[#d8b25a] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[#1c1302] transition-colors hover:bg-[#e6c675]">{{ sweep.cta.label }}</a>
-    <p class="mx-auto mt-6 max-w-sm text-[11px] leading-relaxed text-gray-300 font-medium">{{ sweep.note }}</p>
-  </div>
-</section>
+<!-- 9. ROYALTY SWEEP — header, one archive photograph, five stages, one way
+     in. Full width like the dark run above it: the evidence table is the
+     argument, and it cannot be that from inside a narrow gutter. -->
+{% include "partials/sweep.html" %}
 
-<div class="mx-auto max-w-6xl px-6 lg:px-10">
+<div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
 
   <span id="artist-twin" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
   <!-- 10. SIGNATURE TOOLS -->
@@ -267,5 +251,6 @@
 <script src="/static/js/lanes.js?v=1" defer></script>
 <script src="/static/js/creative-studio.js?v=1" defer></script>
 <script src="/static/js/rollout.js?v=1" defer></script>
+<script src="/static/js/sweep.js?v=1" defer></script>
 </body>
 </html>
