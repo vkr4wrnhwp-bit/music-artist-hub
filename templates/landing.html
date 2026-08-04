@@ -10,11 +10,12 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=14">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=15">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
   <link rel="stylesheet" href="/static/css/departments.css?v=2">
+  <link rel="stylesheet" href="/static/css/artist-twin.css?v=3">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -131,10 +132,14 @@
      It displaces nothing below it. -->
 {% include "partials/departments.html" %}
 
+<!-- 5. AI ARTIST TWIN — photograph and assessment as two layers that never
+     touch. Additive: it displaces nothing below it. -->
+{% include "partials/artist_twin.html" %}
+
 <div class="mx-auto max-w-6xl px-6 lg:px-10"><!-- reading column resumes -->
 
 <span id="platform" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 5. THE THREE LANES — breaks out of the reading column. The rack units
+<!-- 6. THE THREE LANES — breaks out of the reading column. The rack units
      are the argument here, so they get the page width rather than sitting
      in a narrower gutter than the bands above and below. -->
 {% set lanes = config.lanes %}
@@ -164,7 +169,7 @@
 </section>
 
 <span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 5. ROYALTY SWEEP — the one dark section; the photograph IS the section.
+<!-- 7. ROYALTY SWEEP — the one dark section; the photograph IS the section.
      Padding kept tight to the copy: the corridor should frame the words, not
      run on past them. -->
 {% set sweep = config.sweep %}
@@ -187,7 +192,7 @@
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
   <span id="artist-twin" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-  <!-- 6. SIGNATURE TOOLS -->
+  <!-- 8. SIGNATURE TOOLS -->
   {% set tools = config.tools %}
   <section id="tools" class="scroll-mt-6 py-20 lg:py-24">
     <span id="creative-rollout" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
@@ -228,7 +233,7 @@
 
 <div class="mx-auto max-w-6xl px-6 lg:px-10">
 
-  <!-- 7. FINAL CTA -->
+  <!-- 9. FINAL CTA -->
   {% set fin = config.final_cta %}
   <section class="py-24 text-center lg:py-32">
     <h2 class="text-[clamp(1.75rem,5vw,2.75rem)] font-black uppercase leading-[1.05] tracking-tight">
@@ -271,5 +276,6 @@
 
 <script src="/static/js/artist-eq.js?v=8" defer></script>
 <script src="/static/js/departments.js?v=3" defer></script>
+<script src="/static/js/artist-twin.js?v=1" defer></script>
 </body>
 </html>

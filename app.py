@@ -96,6 +96,7 @@ from statements_engine import (analyze as analyze_statement, parse_statement,
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
+from artist_twin_config import get_artist_twin_config
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -1341,7 +1342,8 @@ def create_app():
         return render_template("landing.html", config=config, artist_eq=eq,
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
-                               departments_json=json.dumps(departments))
+                               departments_json=json.dumps(departments),
+                               artist_twin=get_artist_twin_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2462,7 +2464,11 @@ def create_app():
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
-                     "/api/artist-signal-profile"}
+                     "/api/artist-signal-profile",
+                     # A stranger asking what the Artist Twin does, and how
+                     # their music would be treated, must not meet a password
+                     # field first. /artist-twin itself stays gated.
+                     "/artist-twin/start", "/ai"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7093,6 +7099,29 @@ def create_app():
         preset = (request.args.get("preset") or "").strip()[:40]
         plan = build_plan(values, preset)
         return render_template("plan.html", plan=plan, channels=CHANNELS)
+
+    @app.route("/artist-twin/start")
+    def artist_twin_start():
+        """The public Artist Twin entry.
+
+        A visitor picks what they are working on and gets the route the
+        Twin would take, plus what it would need to read. No account, no
+        upload, and no claim that anything of theirs has been looked at -
+        an account is offered at the end, when there is something to save.
+        """
+        from artist_twin_config import GOALS
+
+        wanted = (request.args.get("goal") or "").strip()[:40]
+        selected = next((g for g in GOALS if g["id"] == wanted), None)
+        return render_template("artist_twin_start.html", goals=GOALS,
+                               selected=selected)
+
+    @app.route("/ai")
+    def ai_trust():
+        """How Street Banker uses AI, in five statements, signed out."""
+        from artist_twin_config import TRUST_POINTS
+
+        return render_template("ai_trust.html", points=TRUST_POINTS)
 
     @app.route("/catalog-sweep", methods=["GET", "POST"])
     def catalog_sweep():

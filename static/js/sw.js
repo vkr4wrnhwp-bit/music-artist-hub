@@ -1,7 +1,7 @@
 /* Street Banker service worker — conservative on purpose:
    static assets cache-first, pages always network (dashboards must
    never go stale), offline navigations get a friendly fallback. */
-var VERSION = "sb-v87";   /* EQ + departments run full width */
+var VERSION = "sb-v88";   /* AI Artist Twin */
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
 
