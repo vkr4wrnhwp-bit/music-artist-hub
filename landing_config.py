@@ -61,12 +61,11 @@ def get_landing_config():
         "hero": {
             "eyebrow": "STREET BANKER · THE ARTIST OPERATING SYSTEM",
             "headline": ["BUILD THE RELEASE.", "OWN THE MOMENT."],
-            "support": ("Street Banker brings creative tools, rollout "
-                        "intelligence, artist development, rights "
-                        "management, fan data, and royalty recovery into "
-                        "one platform."),
+            "support": ("Street Banker gives artists one place to build the "
+                        "release, shape the campaign, protect the work, and "
+                        "track where the money is going."),
             "ctas": [
-                {"label": "Explore Street Banker", "href": "#platform",
+                {"label": "Explore Street Banker", "href": "/product-tour",
                  "variant": "primary"},
                 {"label": "Run a Royalty Sweep", "href": "/catalog-sweep",
                  "variant": "outline"},
@@ -106,35 +105,39 @@ def get_landing_config():
                             "distribute, promote and grow the work."),
             "columns": [
                 {"title": "Platform", "links": [
-                    {"label": "Product tour", "href": "/product-tour"},
                     {"label": "AI Artist Twin", "href": "/artist-twin/start"},
                     {"label": "Creative Studio", "href": "/creative-studio"},
                     {"label": "Rollout Engine", "href": "/rollout"},
+                    {"label": "Smart Links", "href": "/product-tour/smart-link"},
+                    {"label": "Fan Intelligence", "href": "/product-tour/smart-link#fans"},
                     {"label": "Royalty Sweep", "href": "/royalty-sweep"},
                     {"label": "Global Distribution", "href": "/distribution"},
                     {"label": "Metadata Passport", "href": "/metadata"},
-                    {"label": "Smart Links", "href": "/product-tour/smart-link"},
                 ]},
                 {"title": "Solutions", "links": [
-                    {"label": "Start a plan", "href": "/start"},
-                    {"label": "Find your lane", "href": "/lanes"},
-                    {"label": "Free catalog sweep", "href": "/catalog-sweep"},
-                    {"label": "For labels", "href": "/services"},
+                    {"label": "Independent Artists", "href": "/start"},
+                    {"label": "Managers", "href": "/lanes#development"},
+                    {"label": "Labels", "href": "/services"},
+                    {"label": "Partners", "href": "/partners"},
                 ]},
                 {"title": "Trust", "links": [
-                    {"label": "Artist control policy", "href": "/artist-control"},
-                    {"label": "How we use AI", "href": "/ai"},
+                    {"label": "Artist Control", "href": "/artist-control"},
+                    {"label": "Data Ownership", "href": "/artist-control#data-ownership"},
+                    {"label": "AI and Consent", "href": "/ai"},
+                    {"label": "Royalty Methodology", "href": "/royalty-sweep#how"},
+                    {"label": "Security", "href": "/artist-control#security"},
                     {"label": "Privacy", "href": "/privacy"},
                     {"label": "Terms", "href": "/terms"},
                 ]},
                 {"title": "Company", "links": [
-                    {"label": "About", "href": "/services"},
-                    {"label": "Contact", "href": "/submit"},
+                    {"label": "About", "href": "/about"},
+                    {"label": "Contact", "href": "/contact"},
+                    {"label": "Submit Music", "href": "/submit"},
+                    {"label": "Partner Network", "href": "/partners"},
                 ]},
                 {"title": "Account", "links": [
-                    {"label": "Create an account", "href": "/signup"},
-                    {"label": "Log in", "href": "/login"},
-                    {"label": "Reset password", "href": "/forgot"},
+                    {"label": "Log In", "href": "/login"},
+                    {"label": "Create Account", "href": "/signup"},
                 ]},
             ],
             "socials": [

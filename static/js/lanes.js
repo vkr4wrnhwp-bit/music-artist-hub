@@ -2,9 +2,15 @@
  *
  * The section reads and links with this file absent: the summaries are
  * anchors, the comparison is in the document, and hover on a summary is
- * CSS. What is here is the part that crosses between the two - pointing
- * at a summary lights its channel on the unit - plus the comparison
- * toggle and measurement.
+ * CSS. What is here is the live half - engaging one lane, driving the
+ * three controls that mean something, carrying the Artist EQ
+ * recommendation down the page, and measurement.
+ *
+ * Only three controls move: the VU (engagement), the fader (depth of
+ * support - Core, Guided, High-touch, never volume) and the lamp
+ * (engaged). Every other knob on the unit belongs to the photograph. A
+ * decorative knob that responds to dragging teaches people the controls
+ * are fake.
  */
 (function () {
   "use strict";
@@ -109,4 +115,128 @@
     }, {threshold: 0.25});
     obs.observe(root);
   }
+
+  /* --- engaging a lane ---------------------------------------------------
+     Hover lights a channel; a click engages it. One at a time, and the
+     engaged lane survives the pointer leaving. */
+  var channels = {};
+  [].slice.call(root.querySelectorAll(".sblane-channel")).forEach(function (c) {
+    channels[c.dataset.channel] = c;
+  });
+
+  var supportRow = document.getElementById("sblane-support");
+  var supportNote = document.getElementById("sblane-support-note");
+  var supportBtns = [].slice.call(root.querySelectorAll(".sblane-support-btn"));
+  var LEVELS = supportBtns.map(function (b) { return b.textContent.trim(); });
+
+  var engaged = null;
+  var engagedRest = 0;
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Needle travel across the arc, in degrees. Resting is hard left. */
+  function needle(channel, level, animate) {
+    var vu = channel.querySelector(".sblane-vu");
+    if (!vu) { return; }
+    var deg = -38 + (level + 1) * 24;          /* three usable detents */
+    var line = vu.querySelector(".sblane-vu-needle");
+    if (!line) { return; }
+    if (animate && !reduced) {
+      vu.classList.add("is-live");
+      /* Fast rise past the mark, then settle back onto it. The overshoot
+         is what makes a meter read as mechanical rather than as a bar
+         chart growing. */
+      line.style.transform = "rotate(" + (deg + 7) + "deg)";
+      window.setTimeout(function () {
+        line.style.transform = "rotate(" + deg + "deg)";
+      }, 190);
+    } else {
+      vu.classList.remove("is-live");
+      line.style.transform = "rotate(" + deg + "deg)";
+    }
+  }
+
+  function setSupport(level, animate) {
+    if (!engaged || !channels[engaged]) { return; }
+    var channel = channels[engaged];
+    channel.dataset.support = String(level);
+    needle(channel, level, animate);
+    supportBtns.forEach(function (b) {
+      b.setAttribute("aria-pressed", Number(b.dataset.support) === level ? "true" : "false");
+    });
+    if (supportNote) {
+      /* Partnership is reviewed case by case at every depth. Saying so
+         at the top detent is the difference between a setting and a
+         promise. */
+      supportNote.textContent = engaged === "partnership"
+        ? LEVELS[level] + " support. Partnership is reviewed case by case at every level."
+        : LEVELS[level] + " support on the " + engaged + " lane.";
+    }
+  }
+
+  function engage(lane, animate) {
+    engaged = lane;
+    Object.keys(channels).forEach(function (k) {
+      channels[k].classList.toggle("is-engaged", k === lane);
+    });
+    if (unit) {
+      if (lane) { unit.dataset.active = lane; } else { delete unit.dataset.active; }
+    }
+    summaries.forEach(function (s) {
+      s.classList.toggle("is-engaged", s.dataset.lane === lane);
+    });
+    if (!lane) {
+      if (supportRow) { supportRow.hidden = true; }
+      return;
+    }
+    var link = root.querySelector('[data-lane-link="' + lane + '"]');
+    engagedRest = link ? Number(link.dataset.rest || 0) : 0;
+    if (supportRow) { supportRow.hidden = false; }
+    setSupport(engagedRest, animate !== false);
+    track("lane_engaged", {lane: lane});
+  }
+
+  supportBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setSupport(Number(btn.dataset.support), true);
+      track("lane_support_selected",
+            {lane: engaged, level: LEVELS[Number(btn.dataset.support)]});
+    });
+  });
+
+  /* Clicking the summary engages the lane; the link still navigates, so
+     a click on the CTA itself is not swallowed. */
+  summaries.forEach(function (summary) {
+    summary.addEventListener("click", function (e) {
+      if (e.target.closest(".sblane-cta")) { return; }
+      if (engaged !== summary.dataset.lane) {
+        e.preventDefault();
+        engage(summary.dataset.lane);
+      }
+    });
+  });
+
+  /* --- the Artist EQ hand-off --------------------------------------------
+     If the visitor moved the console at the top of the page, the lane it
+     recommended is engaged here and named. With no EQ interaction there
+     is no recommendation, and the line stays hidden rather than
+     defaulting to one nobody asked for. */
+  var fromEq = document.getElementById("sblane-fromeq");
+  var fromEqLane = document.getElementById("sblane-fromeq-lane");
+  try {
+    var raw = window.localStorage.getItem("streetBankerArtistEq");
+    var saved = raw ? JSON.parse(raw) : null;
+    var laneId = saved && saved.plan && saved.plan.lane && saved.plan.lane.id;
+    if (laneId && channels[laneId]) {
+      if (fromEq && fromEqLane) {
+        var link = root.querySelector('[data-lane-link="' + laneId + '"]');
+        var name = link ? link.querySelector(".sblane-name") : null;
+        fromEqLane.textContent = name ? name.textContent.trim() : laneId;
+        fromEq.hidden = false;
+      }
+      engage(laneId, false);
+      track("lane_recommended_from_eq", {lane: laneId});
+    }
+  } catch (e) { /* private mode: no recommendation, no line */ }
+
 })();

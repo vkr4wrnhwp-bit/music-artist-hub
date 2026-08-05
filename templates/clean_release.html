@@ -18,7 +18,7 @@
        light up its checks below -->
   <div class="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-[#111113] px-4 py-3">
     {% for n in cat_nodes %}
-    <button type="button" data-cats="{{ n.keys }}" class="cat-node flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors
+    <button type="button" data-cats="{{ n.cat_keys }}" class="cat-node flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors
       {{ 'border-[#c9a24a]/60 bg-[#c9a24a]/10' if n.done == n.total and n.total else 'border-amber-500/40' if n.done else 'border-white/10' }}">
       <span class="text-sm font-black tabular-nums {{ 'text-[#e8c667]' if n.done == n.total and n.total else 'text-amber-400' if n.done else 'text-gray-300' }}">{{ n.done }}/{{ n.total }}</span>
       <span class="text-[9px] font-bold uppercase tracking-wide {{ 'text-gray-200' if n.done else 'text-gray-300' }}">{{ n.label }}</span>

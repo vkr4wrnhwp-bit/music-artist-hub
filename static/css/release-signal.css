@@ -1,0 +1,71 @@
+/* Release Signal — the compact homepage entry.
+ *
+ * One row inside the Artist EQ band: label, one line, one button. It is
+ * a door, not a room. The full explanation lives on its own page.
+ */
+
+.sbrs {
+  max-width: 1480px;
+  margin: clamp(28px, 3.5vw, 44px) auto 0;
+  padding: 0 clamp(20px, 4vw, 52px);
+}
+.sbrs-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  padding: clamp(18px, 2.2vw, 26px) clamp(18px, 2.4vw, 30px);
+  border: 1px solid rgb(201 168 106 / 0.22);
+  border-radius: 4px;
+  background: #100F0E;
+}
+.sbrs-copy { min-width: 0; }
+.sbrs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sbrs-eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #C9A86A;
+}
+.sbrs-title {
+  margin: 8px 0 0;
+  font-size: clamp(1.05rem, 1.9vw, 1.45rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #F2EEE6;
+}
+.sbrs-support {
+  margin: 6px 0 0;
+  max-width: 62ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #A29A8C;
+}
+.sbrs-cta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid rgb(201 168 106 / 0.45);
+  border-radius: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #C9A86A;
+  text-decoration: none;
+  transition: border-color 200ms ease, color 200ms ease, background-color 200ms ease;
+}
+.sbrs-cta:hover { border-color: #C9A86A; color: #14120E; background: #C9A86A; }
+.sbrs-cta:focus-visible { outline: 2px solid #C9A86A; outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  .sbrs-inner { flex-direction: column; align-items: stretch; }
+  .sbrs-cta { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .sbrs-cta { transition: none; } }

@@ -172,7 +172,7 @@ def real_stats(statement_rows, track_count):
 
     The press kit is the one page that leaves the building. It goes to
     labels, managers and partners, and until now every number on it came
-    from the demo catalogue - the same Total Streams, the same Catalog
+    from the demo catalog - the same Total Streams, the same Catalog
     Earnings, the same Est. Catalog Value, identical for every account,
     rendered in gold and captioned "Mid valuation" with nothing to say it
     was illustrative.

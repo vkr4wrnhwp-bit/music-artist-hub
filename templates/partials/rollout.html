@@ -100,7 +100,7 @@
             <span class="sbro-sample-len">{{ ro.sample.length }}</span>
           </p>
           <ol class="sbro-sample-list">
-            {% for day, item, status in ro.sample['items'] %}
+            {% for day, item, status in ro.sample['entries'] %}
             <li>
               <span class="sbro-day">{{ day }}</span>
               <span class="sbro-item">{{ item }}</span>

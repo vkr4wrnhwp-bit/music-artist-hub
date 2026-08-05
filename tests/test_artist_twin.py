@@ -50,7 +50,7 @@ def test_the_copy_is_the_approved_copy():
             "goals" in eq)
     assert "Example Artist Twin assessment" in eq
     assert ("Your Artist Twin supports your decisions. It does not replace your "
-            "judgement." in eq)
+            "judgment." in eq)
 
 
 def test_five_rows_in_order_each_with_a_status():
@@ -171,7 +171,7 @@ def test_the_public_start_flow_offers_six_goals_and_promises_nothing():
                  "Growing an audience", "Reviewing rights",
                  "Checking royalty opportunities"):
         assert goal in body, goal
-    assert "Nothing has been analysed yet" in body
+    assert "Nothing has been analyzed yet" in body
     assert "Where it would start" not in body        # nothing picked yet
 
     picked = client.get("/artist-twin/start?goal=artwork").get_data(as_text=True)

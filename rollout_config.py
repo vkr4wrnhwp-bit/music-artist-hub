@@ -11,9 +11,9 @@ rather than scheduled.
 
 EYEBROW = "Rollout Engine"
 NUMBER = "08"
-HEADLINE = ["Plan it.", "Launch it.", "Live it."]
-SUPPORT = ("From release calendars to content drops and tour routing—build "
-           "your rollout and hit every moment that matters.")
+HEADLINE = ["The release is one day.", "The rollout is everything around it."]
+SUPPORT = ("Plan the drops, assign the work, and keep the campaign moving "
+           "before and after release day.")
 
 PRIMARY_CTA = {"label": "Open Rollout Engine", "href": "/rollout"}
 SECONDARY_CTA = {"label": "See a sample rollout"}
@@ -32,7 +32,7 @@ CAPABILITIES = [
 WORKFLOW = [
     ("Plan", "Choose release dates, campaign length, target markets, goals and "
              "available assets."),
-    ("Build", "Generate or organise the creative, copy, pitches, emails and "
+    ("Build", "Generate or organize the creative, copy, pitches, emails and "
               "content required."),
     ("Schedule", "Assign dates, channels, owners, approvals and tracking links."),
     ("Launch", "Execute the release sequence across approved channels."),
@@ -53,7 +53,7 @@ SAMPLE = {
     "length": "21-day rollout",
     "note": ("Days are counted from release day. This is a shape, not a "
              "schedule: nothing here is anyone's real campaign."),
-    "items": [
+    "entries": [
         ("Day −21", "Release announcement", "Approved"),
         ("Day −18", "Teaser post", "Scheduled"),
         ("Day −14", "Pre-save push", "Scheduled"),

@@ -1,0 +1,190 @@
+"""One source of truth for what is real.
+
+Every public surface — homepage, product tour, product pages, partner
+page, privacy language — reads its status from here. Before this, the
+same capability could read Live on one page and Integration ready on
+another, and nothing failed when they disagreed.
+
+Six statuses and no others:
+
+    LIVE                  working in the product today
+    EXAMPLE               a worked example, nobody's real data
+    PARTNER_DELIVERED     performed by a named partner, not by us
+    INTEGRATION_READY     built here; the outside connection is not live
+    COMING_SOON           not built yet
+    REQUIRES_VERIFICATION a finding a person must check before it is acted on
+
+The important part is `resolve()`. Some capabilities are only live when
+credentials are actually present in the environment, and a hardcoded
+"Live" on a marketing page is a claim that silently becomes false the
+moment a key is missing. Those entries carry a `probe` instead of a fixed
+status, so the page says what is true of the running deployment rather
+than what was true when somebody wrote the copy.
+
+Spotify pre-save is the case that forced this: the OAuth flow, token
+storage and release-day save are all implemented, but every one of them
+is gated on SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET. With those unset
+the feature falls back to notify-me, and any page claiming Live is wrong.
+"""
+import os
+
+LIVE = "live"
+EXAMPLE = "example"
+PARTNER_DELIVERED = "partner"
+INTEGRATION_READY = "integration-ready"
+COMING_SOON = "coming-soon"
+REQUIRES_VERIFICATION = "verify"
+
+LABELS = {
+    LIVE: "Live",
+    EXAMPLE: "Example",
+    PARTNER_DELIVERED: "Partner delivered",
+    INTEGRATION_READY: "Integration ready",
+    COMING_SOON: "Coming soon",
+    REQUIRES_VERIFICATION: "Requires verification",
+}
+
+MEANINGS = {
+    LIVE: "Working in the product today.",
+    EXAMPLE: "A worked example, not an artist's data.",
+    PARTNER_DELIVERED: "Carried out through a named partner.",
+    INTEGRATION_READY: "Built here; the outside connection is not live.",
+    COMING_SOON: "Not built yet.",
+    REQUIRES_VERIFICATION: "A finding a person must check before it is acted on.",
+}
+
+
+def _env(*names):
+    """True only when every named variable is present and non-empty."""
+    return all(os.environ.get(n) for n in names)
+
+
+def _spotify_presave():
+    return _env("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET")
+
+
+def _email_delivery():
+    return _env("RESEND_API_KEY")
+
+
+def _billing():
+    return _env("STRIPE_SECRET_KEY")
+
+
+# Capability -> fixed status, or a probe that decides at request time.
+#
+# `probe` entries take the first status when the probe passes and the
+# second when it does not. That is the whole mechanism: a missing key
+# demotes the claim instead of leaving a false one on the page.
+CAPABILITIES = {
+    # --- the artist's own workspace ---
+    "artist_eq": {"status": LIVE, "name": "Artist EQ"},
+    "starting_plan": {"status": LIVE, "name": "Starting plan"},
+    "metadata_passport": {"status": LIVE, "name": "Metadata Passport"},
+    "rights_ownership": {"status": LIVE, "name": "Rights & Ownership"},
+    "creative_studio": {"status": LIVE, "name": "Creative Studio"},
+    "artwork_generator": {"status": LIVE, "name": "Artwork generator"},
+    "smart_links": {"status": LIVE, "name": "Smart Links"},
+    "email_capture": {"status": LIVE, "name": "Email capture with consent"},
+    "rollout_plans": {"status": LIVE, "name": "Rollout plans"},
+    "lanes": {"status": LIVE, "name": "Three Street Banker Lanes"},
+
+    # --- things that depend on the environment ---
+    "spotify_presave": {
+        "name": "Spotify pre-save",
+        "probe": _spotify_presave,
+        "when_true": LIVE,
+        "when_false": INTEGRATION_READY,
+        "note_true": ("Fans authorize Spotify directly. The token is "
+                      "encrypted at rest and deleted once the release-day "
+                      "save completes."),
+        "note_false": ("The flow is built and not connected on this "
+                       "deployment. Pre-save buttons collect a notify-me "
+                       "instead, and no Spotify token is requested, stored "
+                       "or processed."),
+    },
+    "release_emails": {
+        "name": "Release-day email",
+        "probe": _email_delivery,
+        "when_true": LIVE,
+        "when_false": INTEGRATION_READY,
+        "note_true": "Consented fans are emailed the listen link on release day.",
+        "note_false": "Built, and no email provider is connected on this deployment.",
+    },
+    "billing": {
+        "name": "Subscriptions and billing",
+        "probe": _billing,
+        "when_true": LIVE,
+        "when_false": COMING_SOON,
+        "note_true": "Checkout and plan changes run through Stripe.",
+        "note_false": "No payment provider is connected on this deployment.",
+    },
+
+    # --- somebody else performs these ---
+    "distribution_delivery": {
+        "status": PARTNER_DELIVERED, "name": "Delivery to platforms",
+        "note": ("Street Banker assembles and validates the package; "
+                 "delivery goes out through the distribution partnership."),
+    },
+
+    # --- built here, outside connection not live ---
+    "social_publishing": {"status": INTEGRATION_READY,
+                          "name": "Social publishing"},
+    "streaming_destinations": {"status": INTEGRATION_READY,
+                               "name": "Streaming destination links"},
+    "geographic_response": {"status": INTEGRATION_READY,
+                            "name": "Geographic response"},
+    "conversion_events": {"status": INTEGRATION_READY,
+                          "name": "Conversion events"},
+
+    # --- not built ---
+    "sms_capture": {"status": COMING_SOON, "name": "SMS capture"},
+    "qr_codes": {"status": COMING_SOON, "name": "QR codes"},
+    "motion_assets": {"status": COMING_SOON, "name": "Motion and video assets"},
+    "print_separations": {"status": COMING_SOON, "name": "Print-ready separations"},
+    "release_signal": {"status": COMING_SOON, "name": "Release Signal"},
+
+    # --- never asserted without a person ---
+    "royalty_finding": {"status": REQUIRES_VERIFICATION,
+                        "name": "Royalty Sweep finding"},
+
+    # --- worked examples ---
+    "artist_twin_reading": {"status": EXAMPLE, "name": "Artist Twin assessment"},
+    "fan_intelligence": {"status": EXAMPLE, "name": "Fan Intelligence"},
+}
+
+
+def resolve(key):
+    """The status of one capability on the running deployment."""
+    spec = CAPABILITIES[key]
+    if "probe" in spec:
+        ok = spec["probe"]()
+        status = spec["when_true"] if ok else spec["when_false"]
+        note = spec.get("note_true" if ok else "note_false")
+    else:
+        status = spec["status"]
+        note = spec.get("note")
+    return {"key": key, "name": spec["name"], "status": status,
+            "label": LABELS[status], "meaning": MEANINGS[status], "note": note}
+
+
+def label(key):
+    return resolve(key)["label"]
+
+
+def status(key):
+    return resolve(key)["status"]
+
+
+def is_live(key):
+    return status(key) == LIVE
+
+
+def all_statuses():
+    """Every capability, for the product tour and the audit documents."""
+    return [resolve(k) for k in CAPABILITIES]
+
+
+def get_status_config():
+    return {"labels": LABELS, "meanings": MEANINGS,
+            "capabilities": {k: resolve(k) for k in CAPABILITIES}}

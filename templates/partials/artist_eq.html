@@ -115,8 +115,6 @@
                       transform="rotate(-90 32 32)"/>
             </svg>
           </div>
-          <p class="sbeq-score-note">A weighted average of the six priorities you set. It describes your
-            focus, not your prospects — it predicts no hit, no signing and no recovered money.</p>
         </div>
 
         <div class="sbeq-out-block">
@@ -152,6 +150,34 @@
             <strong id="sbeq-setup">{{ eq.default_plan.setup_time }}</strong>
             <span class="sbeq-setup-note">(an estimate)</span>
           </p>
+        </div>
+
+        {# Why this plan. Collapsed: the panel above is the answer, this
+           is the working. Rendered in the DOM either way so it is
+           searchable and readable with JavaScript off. #}
+        <div class="sbeq-why sbeq-out-block">
+          <button type="button" class="sbeq-why-toggle" id="sbeq-why-toggle"
+                  aria-expanded="false" aria-controls="sbeq-why-body">
+            Why this plan?
+            <svg class="sbeq-why-caret" width="12" height="12" viewBox="0 0 20 20" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+          </button>
+          <dl class="sbeq-why-body" id="sbeq-why-body" hidden>
+            <dt>How the readiness number is made</dt>
+            <dd>A weighted average of the six priorities you set. It describes
+              your focus, not your prospects — it predicts no hit, no signing
+              and no recovered money.</dd>
+            <dt>How the lane is chosen</dt>
+            <dd id="sbeq-why-lane">{{ eq.default_plan.lane.why }}</dd>
+            <dt>How the modules are ordered</dt>
+            <dd>Your highest channels first. Each module is the one that does
+              the most for the priority you raised, and no module appears
+              twice.</dd>
+            <dt>What the setup estimate assumes</dt>
+            <dd>That your catalog information is to hand. It is an estimate of
+              setup work, not a quote and not a delivery date.</dd>
+          </dl>
         </div>
       </div>
     </div>

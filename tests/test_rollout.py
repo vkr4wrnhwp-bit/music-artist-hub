@@ -48,10 +48,11 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Rollout Engine" in eq
     assert ">08<" in eq
-    for line in ("Plan it.", "Launch it.", "Live it."):
+    for line in ("The release is one day.",
+                 "The rollout is everything around it."):
         assert ">%s<" % line in eq, line
-    assert ("From release calendars to content drops and tour routing—build "
-            "your rollout and hit every moment that matters." in eq)
+    assert ("Plan the drops, assign the work, and keep the campaign moving "
+            "before and after release day." in eq)
     assert "Open Rollout Engine" in eq
     assert "See a sample rollout" in eq
 
@@ -101,7 +102,7 @@ def test_the_sample_is_labelled_an_example_and_dated_in_offsets():
     for day in days:
         assert day.startswith("Day "), day
         assert not re.search(r"\d{4}|/|Jan|Feb|Mar", day), day
-    for _day, item, status in SAMPLE["items"]:
+    for _day, item, status in SAMPLE["entries"]:
         assert item in eq, item
         assert status in STATUSES, status
 
@@ -214,7 +215,7 @@ def test_the_photograph_carries_no_functional_text():
     # Nothing in the section depends on reading the wall.
     eq = _section()
     for word in ("Release Calendar", "Content Schedule", "Tour Routing",
-                 "Impact Tracking", "Plan it."):
+                 "Impact Tracking", "The release is one day."):
         assert word in eq, word
 
 

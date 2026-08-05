@@ -49,14 +49,14 @@
 }
 
 /* The section runs the full width of the page so its own near-black is
-   the ground rather than a dark card on white. The console keeps the
-   measurements it was approved at: this max-width and padding reproduce
-   the reading column it used to sit inside, so only what is behind it
-   changed. */
+   the ground rather than a dark card on white.
+   The console is one of the two interactive anchors on this page, so it
+   is no longer held to the reading column it started in - it gets the
+   width the six controls actually need. */
 .sbeq-inner {
   position: relative;
   width: 100%;
-  max-width: 1152px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 0 clamp(40px, 6.2vw, 80px);
 }
@@ -86,7 +86,7 @@
 /* --- console ------------------------------------------------------------ */
 .sbeq-console {
   display: grid;
-  grid-template-columns: minmax(0, 66fr) minmax(0, 34fr);
+  grid-template-columns: minmax(0, 68fr) minmax(0, 32fr);
   gap: 18px;
   align-items: stretch;
 }
@@ -448,3 +448,53 @@
     animation-duration: 0.01ms !important;
   }
 }
+
+
+/* --- "Why this plan?" ----------------------------------------------------
+   The reasoning behind the recommendation is worth reading once and in
+   the way. Collapsed by default so the panel shows the answer rather
+   than the argument. */
+.sbeq-why { margin-top: 4px; }
+.sbeq-why-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--eq-line);
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--eq-brass);
+  cursor: pointer;
+  min-height: 44px;
+  text-align: left;
+}
+.sbeq-why-toggle:hover { color: var(--eq-brass-lit); }
+.sbeq-why-toggle:focus-visible { outline: 2px solid var(--eq-brass); outline-offset: 3px; }
+.sbeq-why-caret {
+  margin-left: auto;
+  transition: transform 200ms ease;
+}
+.sbeq-why-toggle[aria-expanded="true"] .sbeq-why-caret { transform: rotate(180deg); }
+.sbeq-why-body[hidden] { display: none; }
+.sbeq-why-body {
+  padding-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--eq-muted);
+}
+.sbeq-why-body dt {
+  margin-top: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eq-ivory);
+}
+.sbeq-why-body dd { margin: 3px 0 0; }
+@media (prefers-reduced-motion: reduce) { .sbeq-why-caret { transition: none; } }

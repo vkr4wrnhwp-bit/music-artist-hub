@@ -1,4 +1,4 @@
-"""Global search over the signed-in artist's own catalogue.
+"""Global search over the signed-in artist's own catalog.
 
 It used to search royalty_data._SONGS and disputes_config._seed(), both
 hardcoded. Typing "midnight" returned "Midnight Drive · ISRC
@@ -8,7 +8,7 @@ belong to nobody are worse than no results, because search is where
 people go to confirm a thing exists.
 
 Now it reads statement rows and disputes for one user_id. The demo
-account keeps the seeded catalogue, because the tour needs something to
+account keeps the seeded catalog, because the tour needs something to
 find.
 """
 
@@ -30,7 +30,7 @@ def _demo_search(q):
         if q in hay:
             song_hits.append({"label": s.title, "sub": "Song · " + (s.isrc or "no ISRC"), "route": "/catalog"})
     if song_hits:
-        groups.append({"type": "Songs", "items": song_hits})
+        groups.append({"type": "Songs", "entries": song_hits})
 
     # Connected sources / platforms.
     catalog = get_platform_catalog()
@@ -39,7 +39,7 @@ def _demo_search(q):
         for p in catalog if q in p.platform.lower()
     ]
     if source_hits:
-        groups.append({"type": "Sources", "items": source_hits})
+        groups.append({"type": "Sources", "entries": source_hits})
 
     # Claims.
     claim_hits = [
@@ -48,7 +48,7 @@ def _demo_search(q):
         if q in c.issue_type.lower() or q in c.source.lower()
     ]
     if claim_hits:
-        groups.append({"type": "Claims", "items": claim_hits})
+        groups.append({"type": "Claims", "entries": claim_hits})
 
     # Disputes.
     dispute_hits = [
@@ -57,7 +57,7 @@ def _demo_search(q):
         if q in d["title"].lower() or q in d["counterparty"].lower() or (d.get("song") and q in d["song"].lower())
     ]
     if dispute_hits:
-        groups.append({"type": "Disputes", "items": dispute_hits})
+        groups.append({"type": "Disputes", "entries": dispute_hits})
 
     return groups
 
@@ -66,7 +66,7 @@ def search(query, user_id=None, demo=False):
     """Real accounts search their own statements and disputes.
 
     `demo` defaults to False, so a caller that forgets the flag gets an
-    honest empty result rather than a stranger's catalogue.
+    honest empty result rather than a stranger's catalog.
     """
     q = (query or "").strip().lower()
     if not q:
@@ -75,7 +75,7 @@ def search(query, user_id=None, demo=False):
     if demo:
         groups = _demo_search(q)
         return {"query": query, "groups": groups, "is_demo": True,
-                "total": sum(len(g["items"]) for g in groups)}
+                "total": sum(len(g["entries"]) for g in groups)}
 
     groups = []
     rows = store.get_statement_rows(user_id) if user_id else []
@@ -95,13 +95,13 @@ def search(query, user_id=None, demo=False):
              "route": "/catalog"}
             for t, s in sorted(tracks.items()) if q in t.lower()]
     if hits:
-        groups.append({"type": "Tracks", "items": hits})
+        groups.append({"type": "Tracks", "entries": hits})
 
     hits = [{"label": s, "sub": "Source · $%s tracked" % format(amt, ",.2f"),
              "route": "/royalties"}
             for s, amt in sorted(sources.items()) if q in s.lower()]
     if hits:
-        groups.append({"type": "Sources", "items": hits})
+        groups.append({"type": "Sources", "entries": hits})
 
     if user_id:
         try:
@@ -115,8 +115,8 @@ def search(query, user_id=None, demo=False):
                 if q in (d.get("title") or "").lower()
                 or q in (d.get("counterparty") or "").lower()]
         if hits:
-            groups.append({"type": "Disputes", "items": hits})
+            groups.append({"type": "Disputes", "entries": hits})
 
     return {"query": query, "groups": groups, "is_demo": False,
             "searched_rows": len(rows),
-            "total": sum(len(g["items"]) for g in groups)}
+            "total": sum(len(g["entries"]) for g in groups)}

@@ -49,7 +49,7 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Metadata Passport + Rights" in eq and ">11<" in eq
     assert "One release." in eq and "Every detail connected." in eq
-    assert ("Organise credits, splits, identifiers, ownership, agreements, "
+    assert ("Organize credits, splits, identifiers, ownership, agreements, "
             "assets, versions and release history in one living record." in eq)
     assert "Open Metadata Passport" in eq
     assert "See how it connects" in eq

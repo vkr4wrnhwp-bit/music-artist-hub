@@ -1,5 +1,10 @@
 """The public product tour.
 
+Never name a content field `copy`, `items`, `keys`, `values` or `get`:
+Jinja resolves `thing.copy` to the dict's built-in method and renders
+`<built-in method copy of dict object at 0x...>` onto the public page.
+Content fields here are `body`.
+
 Twelve steps through one example artist journey, in the order the work
 actually happens. Every step is labelled an example workspace, every one
 says what it can and cannot do today, and none of them asks for an
@@ -39,7 +44,7 @@ STEPS = [
     },
     {
         "slug": "release", "module": "Metadata Passport",
-        "title": "The release gets organised",
+        "title": "The release gets organized",
         "body": ("Credits, ownership, identifiers, versions, agreements, "
                  "assets and history as one connected record. Adding a "
                  "songwriter under Credits asks something of four other "
@@ -100,8 +105,7 @@ STEPS = [
         "slug": "rights", "module": "Rights & Ownership",
         "title": "The splits get confirmed",
         "body": ("Shares that add up, signed by the people they name, with "
-                 "identifiers attached. This is the single most common reason "
-                 "money sits uncollected later."),
+                 "identifiers attached. Incomplete or unsigned splits are a common reason royalty income becomes delayed or difficult to reconcile."),
         "status": "live", "href": "/metadata#used",
         "link": "Who can see what",
     },
@@ -135,14 +139,11 @@ STEPS = [
     },
 ]
 
-STATUS_LABELS = {
-    "live": "Live",
-    "example": "Example",
-    "partner": "Partner delivered",
-    "integration-ready": "Integration ready",
-    "coming-soon": "Coming soon",
-    "verify": "Requires verification",
-}
+# One source of truth. Statuses used to be written out here as well as
+# on the homepage and the product pages, and nothing failed when the
+# three disagreed.
+from capability_status import LABELS as STATUS_LABELS, MEANINGS as STATUS_MEANINGS  # noqa: E402
+import capability_status  # noqa: E402
 
 # --- the public smart-link example ---------------------------------------
 SMART_LINK = {
@@ -150,17 +151,20 @@ SMART_LINK = {
     "artist": "Example Artist",
     "release": "Example Single",
     "state": "Pre-save",
+    # Resolved at call time: with Spotify credentials set this reads Live
+    # and with them unset it reads Integration ready, on every page at once.
     "destinations": [
-        ("Spotify", "Integration ready"),
-        ("Apple Music", "Integration ready"),
-        ("YouTube Music", "Integration ready"),
-        ("Bandcamp", "Integration ready"),
+        ("Spotify pre-save", None),
+        ("Apple Music", "streaming_destinations"),
+        ("YouTube Music", "streaming_destinations"),
+        ("Bandcamp", "streaming_destinations"),
     ],
     "capture": [
-        ("Email capture", "Live"),
-        ("Consent text recorded with every signup", "Live"),
-        ("SMS capture", "Coming soon"),
-        ("QR code for the printed run", "Coming soon"),
+        ("Email capture", "email_capture"),
+        ("Consent text recorded with every signup", "email_capture"),
+        ("Release-day email", "release_emails"),
+        ("SMS capture", "sms_capture"),
+        ("QR code for the printed run", "qr_codes"),
     ],
     "note": ("An example page. The destination buttons are not connected to a "
              "platform here — on a real release they carry the links you add. "
@@ -170,18 +174,18 @@ SMART_LINK = {
 FAN_PANEL = {
     "label": "Example fan intelligence workspace",
     "positioning": "Own the relationship, not just the stream.",
-    "copy": ("Street Banker helps artists capture permission-based fan "
+    "body": ("Street Banker helps artists capture permission-based fan "
              "information, understand where listeners come from, and build "
              "direct audience relationships outside individual platforms."),
     "trust": ("Fan information is collected only with consent and remains "
               "controlled by the artist."),
     "rows": [
-        ("Campaign source", "Example: link shared in a story", "Live"),
-        ("Device and platform", "Example: mobile, iOS", "Live"),
-        ("Return visitor", "Example: second visit", "Live"),
-        ("Fan signup", "Example: address captured with consent", "Live"),
-        ("Geographic response", "Example: grouped by country", "Integration ready"),
-        ("Conversion event", "Example: pre-save confirmed", "Integration ready"),
+        ("Campaign source", "Example: link shared in a story", "smart_links"),
+        ("Device and platform", "Example: mobile, iOS", "smart_links"),
+        ("Return visitor", "Example: second visit", "smart_links"),
+        ("Fan signup", "Example: address captured with consent", "email_capture"),
+        ("Geographic response", "Example: grouped by country", "geographic_response"),
+        ("Conversion event", "Example: pre-save confirmed", "conversion_events"),
     ],
     "note": ("Example rows, not a real campaign. Where a row says integration "
              "ready, the interface is built and the connection is not live."),
@@ -201,22 +205,22 @@ CREATIVE_STEPS = [
 ]
 
 CREATIVE_OUTPUTS = [
-    ("Single and album covers", "Live"),
-    ("Alternate cover versions", "Live"),
-    ("Explicit and clean variants", "Live"),
-    ("Merchandise concepts", "Live"),
-    ("Posters and tour flyers", "Live"),
-    ("Social campaign assets", "Live"),
-    ("Story and vertical formats", "Live"),
-    ("Thumbnails and smart-link backgrounds", "Live"),
-    ("Press-kit graphics", "Live"),
-    ("Motion and video assets", "Coming soon"),
-    ("Print-ready separations", "Coming soon"),
+    ("Single and album covers", "artwork_generator"),
+    ("Alternate cover versions", "artwork_generator"),
+    ("Explicit and clean variants", "artwork_generator"),
+    ("Merchandise concepts", "creative_studio"),
+    ("Posters and tour flyers", "creative_studio"),
+    ("Social campaign assets", "creative_studio"),
+    ("Story and vertical formats", "creative_studio"),
+    ("Thumbnails and smart-link backgrounds", "creative_studio"),
+    ("Press-kit graphics", "creative_studio"),
+    ("Motion and video assets", "motion_assets"),
+    ("Print-ready separations", "print_separations"),
 ]
 
 BRAND_MEMORY = {
     "title": "Built around your identity.",
-    "copy": ("Creative Studio remembers approved colours, logos, image "
+    "body": ("Creative Studio remembers approved colors, logos, image "
              "direction, wardrobe language, recurring symbols and rejected "
              "styles so each release still feels like the same artist."),
     "states": ["Approved direction", "Needs revision", "Rejected",
@@ -224,6 +228,11 @@ BRAND_MEMORY = {
     "trust": ("Artist assets are not used for AI training without explicit "
               "permission."),
 }
+
+
+def resolved(key):
+    """Status label for a capability key, or None to hide the chip."""
+    return capability_status.label(key) if key else None
 
 
 def get_tour_config():

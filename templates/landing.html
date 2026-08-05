@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=22">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=23">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/static/css/distribution.css?v=2">
   <link rel="stylesheet" href="/static/css/passport.css?v=1">
   <link rel="stylesheet" href="/static/css/closing.css?v=1">
+  <link rel="stylesheet" href="/static/css/release-signal.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -101,7 +102,7 @@
           ('done', 'Metadata Passport complete'),
           ('done', 'Splits signed by every collaborator'),
           ('open', 'Rollout scheduled for release week'),
-          ('open', 'Royalty lanes claimed on all sources'),
+          ('open', 'Royalty source coverage reviewed'),
         ] %}
         {% for state, label in checks %}
         <div class="sbhero-preview-row">
@@ -134,6 +135,10 @@
      Everything that moves is coded; nothing here replaces an existing
      section. -->
 {% include "partials/artist_eq.html" %}
+
+<!-- 3b. RELEASE SIGNAL - the compact quick-scan entry, inside the EQ
+     band rather than a cinematic section of its own. -->
+{% include "partials/release_signal.html" %}
 
 <!-- 4. ONE SYSTEM. SIX DEPARTMENTS. — one photograph, six coded slices.
      It displaces nothing below it. -->

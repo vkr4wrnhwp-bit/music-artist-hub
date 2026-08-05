@@ -104,6 +104,8 @@ from sweep_config import get_sweep_config
 from distro_config import get_distro_config
 from passport_config import get_passport_config, completeness as passport_completeness
 from closing_config import get_closing_config
+from release_signal import get_release_signal_config
+import capability_status
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -442,6 +444,9 @@ def create_app():
     # the partial cannot collide with Flask's own `config` in templates
     # that do not pass the landing one.
     app.jinja_env.globals["public_nav"] = lambda: get_landing_config()["nav"]
+    # Capability status, resolved against the running deployment. One
+    # source of truth for every public surface - see capability_status.py.
+    app.jinja_env.globals["cap"] = capability_status.resolve
 
     store.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
@@ -832,7 +837,14 @@ def create_app():
         return render_template("legal.html", title="Privacy Policy",
                                updated="July 9, 2026", sections=[
             ("What we collect", "Account data (name, email, hashed password), the content you upload (statements, artwork, documents), campaign analytics (link clicks, referrers), and — when you connect them — data from services you authorize, like Spotify artist stats."),
-            ("Fan data you capture", "When a fan subscribes or pre-saves on your campaign pages, we store their email or Spotify identity with a consent record, on your behalf. Artists control this data; we process it. Pre-save tokens are encrypted at rest and deleted after the release-day save completes."),
+            # The pre-save sentence is resolved against the running
+            # deployment rather than asserted. With Spotify credentials
+            # unset the flow falls back to notify-me and no token is ever
+            # requested - claiming we encrypt one would be false.
+            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. " + (
+                "Where a fan pre-saves, they authorize Spotify directly; that token is encrypted at rest and deleted once the release-day save completes."
+                if capability_status.is_live("spotify_presave")
+                else "Spotify pre-save is not connected on this deployment: pre-save buttons collect a notify-me address instead, and no Spotify token is requested, stored or processed.")),
             ("What we don't do", "We don't sell personal data. We don't use your uploads to train AI models. We don't read fan tokens for anything beyond the save and the consented email."),
             ("Service providers", "We use Render (hosting), Resend (email delivery), and public music APIs (Spotify, Deezer, iTunes, Odesli, MusicBrainz, Bandsintown) to provide features you invoke. Each receives only what's needed for that feature."),
             ("Cookies", "We use a single session cookie to keep you signed in. No advertising trackers."),
@@ -1356,7 +1368,8 @@ def create_app():
                                distro=get_distro_config(),
                                passport=get_passport_config(),
                                completeness=passport_completeness(),
-                               closing=get_closing_config())
+                               closing=get_closing_config(),
+                               release_signal=get_release_signal_config())
 
     def _real_royalty():
         """Real statement analysis for the signed-in user, or None."""
@@ -2490,7 +2503,9 @@ def create_app():
                      # is not a guided start, and a control policy nobody
                      # can read without signing in is not a policy.
                      "/start", "/artist-control",
-                     "/product-tour", "/product-tour/smart-link"}
+                     "/product-tour", "/product-tour/smart-link",
+                     "/about", "/contact", "/partners", "/release-check",
+                     "/release-signal"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -2955,7 +2970,7 @@ def create_app():
                             (("fan_growth", "rights"), "Fans & rights"),
                             (("rollout",), "Rollout")):
             in_cat = [ck for ck in checks if ck[4] in keys]
-            cat_nodes.append({"keys": " ".join(keys), "label": label,
+            cat_nodes.append({"cat_keys": " ".join(keys), "label": label,
                               "total": len(in_cat),
                               "done": sum(1 for ck in in_cat if ck[1])})
         # Passport pull: fields a matching Track Passport could fill in the
@@ -7145,6 +7160,90 @@ def create_app():
         plan = build_plan(values, preset)
         return render_template("start_public.html", plan=plan,
                                presets=PRESETS, carried=carried)
+
+    # About, Contact and Partner Network. The footer named all three and
+    # had none of them: About went to /services, Contact went to /submit,
+    # and Partner Network went to /network, which is behind the login wall.
+    @app.route("/release-signal")
+    def release_signal_page():
+        """Release Signal, in public.
+
+        No analysis provider is connected on this deployment, so the page
+        explains what the read contains and does not accept an upload.
+        Taking a file and returning an invented genre would be a fake
+        scan, which is the one thing this feature must never do.
+        """
+        from release_signal import get_release_signal_config
+
+        return render_template("release_signal.html",
+                               rs=get_release_signal_config())
+
+    @app.route("/release-check")
+    def release_check():
+        """DISTRIBUTE NOW - the public release-readiness check.
+
+        The distribution section had both of its buttons pointing at
+        /distribution, so "Distribute now" and "View distribution guide"
+        were the same click. This is the first one: tick what you have,
+        see what the release still needs. Counted server-side so the page
+        works with JavaScript off and the URL stays shareable.
+
+        A completion count, never a judgement about the record.
+        """
+        from distro_config import CHECKLIST
+
+        have = set(request.args.getlist("have"))
+        total = sum(len(entries) for _, entries in CHECKLIST)
+        # Only count ticks that correspond to a real requirement, so a
+        # hand-edited query string cannot inflate the readout.
+        valid = set()
+        for group, entries in CHECKLIST:
+            for entry in entries:
+                slug = ("%s-%s" % (group, entry)).lower().replace(" ", "-").replace(",", "")
+                valid.add(slug)
+        have &= valid
+        done = len(have)
+
+        if done == total:
+            state = "Delivery ready"
+        elif done >= -(-total * 3 // 4):
+            state = "Ready for review"
+        elif done >= -(-total * 35 // 100):
+            state = "Needs information"
+        else:
+            state = "Setup incomplete"
+
+        return render_template("release_check.html", checklist=CHECKLIST,
+                               have=have, done=done, total=total, state=state,
+                               pct=round(100 * done / total) if total else 0)
+
+    @app.route("/about")
+    def about_page():
+        from public_pages_config import get_about
+
+        return render_template(
+            "public_page.html", pg=get_about(), page_title="About",
+            page_description=("What Street Banker is, why it exists, how it "
+                              "makes money, and what it is not."))
+
+    @app.route("/contact")
+    def contact_page():
+        from public_pages_config import get_contact
+
+        return render_template(
+            "public_page.html", pg=get_contact(), page_title="Contact",
+            page_description=("How to reach Street Banker, and where each "
+                              "kind of question actually goes."))
+
+    @app.route("/partners")
+    def partners_page():
+        from public_pages_config import get_partners
+
+        return render_template(
+            "public_page.html", pg=get_partners(), page_title="Partner network",
+            page_description=("Who delivers what: the distribution "
+                              "partnership that exists today, and the "
+                              "integrations we are looking for."))
 
     @app.route("/artist-control")
     def artist_control_policy():

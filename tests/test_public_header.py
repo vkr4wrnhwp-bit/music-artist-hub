@@ -319,9 +319,9 @@ def test_every_preset_produces_a_different_plan():
     import artist_eq_config as cfg
     seen = {}
     for preset in cfg.PRESETS:
-        if not preset["values"]:
+        if not preset["channel_values"]:
             continue
-        plan = cfg.build_plan(preset["values"], preset["id"])
+        plan = cfg.build_plan(preset["channel_values"], preset["id"])
         key = (plan["lane"]["id"], tuple(m["slug"] for m in plan["modules"]))
         seen.setdefault(key, []).append(preset["id"])
         assert 0 <= plan["score"] <= 100

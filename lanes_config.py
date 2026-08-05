@@ -10,10 +10,10 @@ and the only claim made about any of them is what is in it.
 """
 
 EYEBROW = "Three lanes. One system."
-HEADLINE = ["Choose your lane.", "Build your career."]
-SUPPORT = ("Street Banker meets artists where they are—whether they need "
-           "release infrastructure, deeper development, or long-term "
-           "strategic partnership.")
+HEADLINE = ["Choose your lane.", "Build what's next."]
+SUPPORT = ("Some artists need the record out. Some need a plan around it. "
+           "Some are building a catalog with real long-term value. Street "
+           "Banker meets you there.")
 
 # Where each channel sits across the unit, measured off the asset. The
 # overlays that light a lane on hover use these, so the highlight lands
@@ -32,10 +32,10 @@ LANES = [
         "includes": ["Delivery to the stores and services",
                      "Metadata and credits kept release-ready",
                      "Smart links and pre-save pages",
-                     "Statements read and reported back to you"],
+                     "Uploaded and partner-provided statements organized in one place"],
         "for_you_if": ("You have the record and you need it out, correctly and "
                        "on time."),
-        "cta": "Explore Distribution",
+        "cta": "Start a release",
     },
     {
         "num": "02",
@@ -51,7 +51,7 @@ LANES = [
                      "Audience and fan development, read from your own data"],
         "for_you_if": ("The releases are landing and the next thing you need is "
                        "a plan around them."),
-        "cta": "Explore Development",
+        "cta": "Build my artist plan",
     },
     {
         "num": "03",
@@ -67,9 +67,27 @@ LANES = [
                      "Partnership-level opportunities, case by case"],
         "for_you_if": ("There is a catalog behind you and the question is what "
                        "it is worth in five years."),
-        "cta": "Explore Partnership",
+        "cta": "See if I qualify",
     },
 ]
+
+# What the main fader means. It is depth of support - not audio volume,
+# and not a quality setting. Partnership is review-based at every
+# position, which is why its top detent still says "case by case".
+SUPPORT_LEVELS = ["Core", "Guided", "High-touch"]
+
+# Where each lane's fader sits by default, as an index into
+# SUPPORT_LEVELS: the deeper the lane, the higher the resting position.
+FADER_REST = {"distribution": 0, "development": 1, "partnership": 2}
+
+# The lane CTAs. "Explore <lane>" said nothing about what happens next,
+# and "Join Partnership" would promise an outcome that is reviewed case
+# by case rather than joined.
+LANE_CTAS = {
+    "distribution": {"label": "Start a release", "href": "/release-check"},
+    "development": {"label": "Build my artist plan", "href": "/start"},
+    "partnership": {"label": "See if I qualify", "href": "/lanes#partnership"},
+}
 
 # The public matcher. Five situations, each pointing at one lane, and the
 # page says why - a selector that will not explain itself is a quiz, not
@@ -118,6 +136,9 @@ def get_lanes_config():
         "lanes": LANES,
         "seams": SEAMS,
         "image": IMAGE,
+        "support_levels": SUPPORT_LEVELS,
+        "fader_rest": FADER_REST,
+        "lane_ctas": LANE_CTAS,
         "primary_cta": PRIMARY_CTA,
         "secondary_cta": SECONDARY_CTA,
         "situations": SITUATIONS,

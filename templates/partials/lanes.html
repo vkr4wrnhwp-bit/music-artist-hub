@@ -22,6 +22,13 @@
       <p class="sblane-support">{{ cfg.support }}</p>
     </header>
 
+    {# Carried down from the Artist EQ, when the visitor used it. Hidden
+       until then rather than defaulted, so it never claims a
+       recommendation nobody asked for. #}
+    <p class="sblane-fromeq" id="sblane-fromeq" hidden>
+      Based on your Artist EQ: <strong id="sblane-fromeq-lane"></strong>
+    </p>
+
     {# The unit. On a phone this rail scrolls rather than shrinking the
        hardware until its own engraving is unreadable. #}
     <div class="sblane-rail">
@@ -42,17 +49,49 @@
         {# Decorative: the channel is named in its summary, once. #}
         <div class="sblane-channels" aria-hidden="true">
           {% for lane in cfg.lanes %}
-          <span class="sblane-channel" data-channel="{{ lane.slug }}"></span>
+          <span class="sblane-channel" data-channel="{{ lane.slug }}">
+            {# Live controls, drawn over the photograph rather than baked
+               into it. Only the three that mean something move: the VU
+               reads engagement, the fader reads depth of support, the
+               lamp reads engaged. Every other knob on the unit is part
+               of the picture and stays still. #}
+            <svg class="sblane-vu" viewBox="0 0 100 56" aria-hidden="true">
+              <path class="sblane-vu-arc" d="M12 48 A38 38 0 0 1 88 48"
+                    fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <line class="sblane-vu-needle" x1="50" y1="48" x2="50" y2="14"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="50" cy="48" r="3" fill="currentColor"/>
+            </svg>
+            <span class="sblane-fader">
+              <span class="sblane-fader-track"></span>
+              <span class="sblane-fader-cap"></span>
+            </span>
+            <span class="sblane-lamp"></span>
+          </span>
           {% endfor %}
         </div>
       </div>
     </div>
 
+    {# Depth of support for the engaged lane. Appears only once a lane is
+       engaged, because there is nothing to set the depth of otherwise. #}
+    <div class="sblane-support-row" id="sblane-support" hidden>
+      <span id="sblane-support-label">Depth of support</span>
+      <span class="sblane-support-levels" role="group" aria-labelledby="sblane-support-label">
+        {% for level in cfg.support_levels %}
+        <button type="button" class="sblane-support-btn" data-support="{{ loop.index0 }}"
+                aria-pressed="false">{{ level }}</button>
+        {% endfor %}
+      </span>
+      <span class="sblane-support-note" id="sblane-support-note"></span>
+    </div>
+
     <ol class="sblane-summaries">
       {% for lane in cfg.lanes %}
       <li class="sblane-summary" data-lane="{{ lane.slug }}">
-        <a class="sblane-link" href="{{ cfg.primary_cta.href }}#{{ lane.slug }}"
-           data-lane-link="{{ lane.slug }}">
+        <a class="sblane-link" href="{{ cfg.lane_ctas[lane.slug].href }}"
+           data-lane-link="{{ lane.slug }}"
+           data-rest="{{ cfg.fader_rest[lane.slug] }}">
           <span class="sblane-num">{{ lane.num }}</span>
           <span class="sblane-name">{{ lane.name }}</span>
           <span class="sblane-subline">{{ lane.subline }}</span>
