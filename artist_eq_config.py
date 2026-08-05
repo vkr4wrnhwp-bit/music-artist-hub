@@ -50,7 +50,7 @@ CHANNELS = [
         "key": "revenue", "label": "Revenue", "short": "REVENUE",
         "icon": "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6",
         "desc": ("Royalty visibility, missing-income detection, statement "
-                 "review and monetization opportunities."),
+                 "review and monetisation opportunities."),
     },
     {
         "key": "growth", "label": "Growth", "short": "GROWTH",
@@ -68,36 +68,36 @@ CHANNEL_KEYS = [c["key"] for c in CHANNELS]
 PRESETS = [
     {"id": "new-artist", "name": "New Artist",
      "icon": "M10 3v14M3 10h14|M5.5 5.5l9 9M14.5 5.5l-9 9",
-     "channel_values": {"release": 6, "creative": 8, "audience": 7, "rights": 4,
+     "values": {"release": 6, "creative": 8, "audience": 7, "rights": 4,
                 "revenue": 3, "growth": 7},
      "weights": {"creative": 1.25, "audience": 1.15, "growth": 1.1}},
     {"id": "releasing-soon", "name": "Releasing Soon",
      "icon": ("M10 6a4 4 0 100 8 4 4 0 000-8z|M4 4c3.5 3.5 3.5 8.5 0 12"
               "M16 4c-3.5 3.5-3.5 8.5 0 12"),
-     "channel_values": {"release": 10, "creative": 8, "audience": 8, "rights": 7,
+     "values": {"release": 10, "creative": 8, "audience": 8, "rights": 7,
                 "revenue": 5, "growth": 6},
      "weights": {"release": 1.35, "creative": 1.15, "audience": 1.15,
                  "rights": 1.1}},
     {"id": "growing-catalog", "name": "Growing Catalog",
      "icon": ("M10 4c3.5 0 6 1 6 2s-2.5 2-6 2-6-1-6-2 2.5-2 6-2z"
               "|M4 6v8c0 1 2.5 2 6 2s6-1 6-2V6"),
-     "channel_values": {"release": 6, "creative": 6, "audience": 8, "rights": 8,
+     "values": {"release": 6, "creative": 6, "audience": 8, "rights": 8,
                 "revenue": 8, "growth": 9},
      "weights": {"audience": 1.15, "rights": 1.15, "revenue": 1.2,
                  "growth": 1.25}},
     {"id": "missing-royalties", "name": "Missing Royalties",
      "icon": "M9 4a5 5 0 100 10 5 5 0 000-10z|M13 12l4 4",
-     "channel_values": {"release": 4, "creative": 3, "audience": 4, "rights": 10,
+     "values": {"release": 4, "creative": 3, "audience": 4, "rights": 10,
                 "revenue": 10, "growth": 5},
      "weights": {"rights": 1.4, "revenue": 1.4}},
     {"id": "label-ready", "name": "Label Ready",
      "icon": "M3 6l3 3 4-5 4 5 3-3v8H3z|M3 16h14",
-     "channel_values": {"release": 9, "creative": 9, "audience": 9, "rights": 9,
+     "values": {"release": 9, "creative": 9, "audience": 9, "rights": 9,
                 "revenue": 8, "growth": 10},
      "weights": {}},
     {"id": "custom", "name": "Custom",
      "icon": "M4 6h12M4 10h12M4 14h12|M7 4v4M13 8v4M9 12v4",
-     "channel_values": None, "weights": {}},
+     "values": None, "weights": {}},
 ]
 
 DEFAULT_PRESET = "releasing-soon"
@@ -106,15 +106,15 @@ DEFAULT_PRESET = "releasing-soon"
 LANES = [
     {"id": "distribution", "name": "Distribution — Release the Record",
      "href": "/services/distribution",
-     "channel_keys": ["release", "creative", "rights"],
+     "keys": ["release", "creative", "rights"],
      "why": "Your highest priorities are getting the record out clean, on time and correctly registered."},
     {"id": "development", "name": "Development — Build the Artist",
      "href": "/catalog-sweep",
-     "channel_keys": ["creative", "audience", "growth"],
+     "keys": ["creative", "audience", "growth"],
      "why": "Your highest priorities are creative work and audience, which is artist development."},
     {"id": "partnership", "name": "Partnership — Build the Asset",
      "href": "/services",
-     "channel_keys": ["rights", "revenue", "growth"],
+     "keys": ["rights", "revenue", "growth"],
      "why": "Your highest priorities are rights and income, which is where a catalog becomes an asset."},
 ]
 
@@ -226,7 +226,7 @@ def _preset(preset_id):
 
 
 def default_values():
-    return dict(_preset(DEFAULT_PRESET)["channel_values"])
+    return dict(_preset(DEFAULT_PRESET)["values"])
 
 
 def clean_values(raw):
@@ -270,7 +270,7 @@ def recommended_lane(values):
     values = clean_values(values)
     best, best_score = LANES[0], -1.0
     for lane in LANES:
-        score = sum(values[k] for k in lane["channel_keys"])
+        score = sum(values[k] for k in lane["keys"])
         if score > best_score:
             best, best_score = lane, score
     return best
@@ -336,7 +336,7 @@ def build_plan(values, preset_id=None):
     values = clean_values(values)
     score = readiness(values, preset_id)
     return {
-        "channel_values": values,
+        "values": values,
         "preset": preset_id or "custom",
         "score": score,
         "band": readiness_band(score),
@@ -352,9 +352,9 @@ def get_artist_eq_config():
     return {
         "eyebrow": "ARTIST EQ",
         "heading": "TUNE YOUR ARTIST SYSTEM.",
-        "support": "Tell us what matters right now. Street Banker builds the route from there.",
-        "instruction": ("Move the six controls or choose a preset. The plan "
-                        "updates as you do."),
+        "support": "Set your priorities. Street Banker builds the plan.",
+        "instruction": ("Adjust the six areas below or choose a preset. Your "
+                        "recommended tools and next actions update instantly."),
         "channels": CHANNELS,
         "presets": PRESETS,
         "default_preset": DEFAULT_PRESET,

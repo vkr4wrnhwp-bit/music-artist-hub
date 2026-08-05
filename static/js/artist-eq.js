@@ -73,7 +73,7 @@
   function lane(values) {
     var best = CFG.lanes[0], bestScore = -1;
     CFG.lanes.forEach(function (l) {
-      var s = l.channel_keys.reduce(function (sum, k) { return sum + clamp(values[k]); }, 0);
+      var s = l.keys.reduce(function (sum, k) { return sum + clamp(values[k]); }, 0);
       if (s > bestScore) { best = l; bestScore = s; }
     });
     return best;
@@ -183,7 +183,6 @@
     lane: document.getElementById("sbeq-lane"),
     laneName: document.getElementById("sbeq-lane-name"),
     laneWhy: document.getElementById("sbeq-lane-why"),
-    whyLane: document.getElementById("sbeq-why-lane"),
     modules: document.getElementById("sbeq-modules"),
     actions: document.getElementById("sbeq-actions"),
     setup: document.getElementById("sbeq-setup"),
@@ -222,8 +221,6 @@
     }
     if (el.laneName) { el.laneName.textContent = chosenLane.name; }
     if (el.laneWhy) { el.laneWhy.textContent = chosenLane.why; }
-    /* Keep the disclosure in step so it never argues for a stale plan. */
-    if (el.whyLane) { el.whyLane.textContent = chosenLane.why; }
     if (el.lane) { el.lane.setAttribute("href", chosenLane.href); }
 
     if (el.modules) {
@@ -250,9 +247,7 @@
         var li = document.createElement("li");
         var link = document.createElement("a");
         link.className = "sbeq-action";
-        /* Actions are "<slug>-action" on /plan: a slug can name both a
-           module and an action, and two elements cannot share an id. */
-        link.href = planHref("/plan") + "#" + a.slug + "-action";
+        link.href = planHref("/plan") + "#" + a.slug;
         link.textContent = a.label;
         link.addEventListener("click", function () {
           track("artist_eq_action_clicked", {action: a.slug, preset: state.preset});
@@ -265,26 +260,16 @@
     if (el.setup) { el.setup.textContent = setupTime(v); }
     if (el.cta) { el.cta.setAttribute("href", planHref("/plan")); }
 
-    lastPlan = {laneId: chosenLane.id, laneName: chosenLane.name};
     drawTrace(v);
     save();
     if (interacted) { saveProfile(chosenLane, mods, acts); }
   }
-
-  var lastPlan = null;
 
   /* --- state ------------------------------------------------------------- */
   function save() {
     try {
       localStorage.setItem(CFG.storage_key, JSON.stringify({
         preset: state.preset, values: state.values,
-        /* Read by Section 6 to engage the recommended lane, and by the
-           closing CTA to carry the mix into the starting plan. Only
-           written once something has actually been moved: an untouched
-           console is not a choice. */
-        interacted: interacted,
-        plan: interacted && lastPlan ? {lane: {id: lastPlan.laneId,
-                                               name: lastPlan.laneName}} : null,
       }));
     } catch (e) { /* private mode: the page still works, it just forgets */ }
   }
@@ -377,8 +362,8 @@
   function applyPreset(id, quiet) {
     var preset = presetById(id);
     if (!preset) { return; }
-    if (preset.channel_values) {
-      KEYS.forEach(function (k) { state.values[k] = preset.channel_values[k]; });
+    if (preset.values) {
+      KEYS.forEach(function (k) { state.values[k] = preset.values[k]; });
       syncInputs();
     }
     markPreset(id);
@@ -443,20 +428,4 @@
   syncInputs();
   markPreset(state.preset);
   render();
-
-  /* --- "Why this plan?" disclosure --------------------------------------
-     Collapsed by default. The lane reasoning inside it is kept in step
-     with the panel above, so opening it never shows a stale argument for
-     a plan that has since changed. */
-  var whyToggle = document.getElementById("sbeq-why-toggle");
-  var whyBody = document.getElementById("sbeq-why-body");
-  if (whyToggle && whyBody) {
-    whyToggle.addEventListener("click", function () {
-      var open = whyToggle.getAttribute("aria-expanded") === "true";
-      whyToggle.setAttribute("aria-expanded", open ? "false" : "true");
-      whyBody.hidden = open;
-      if (!open) { track("artist_eq_why_opened", {}); }
-    });
-  }
-
 })();

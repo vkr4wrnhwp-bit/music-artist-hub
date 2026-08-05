@@ -178,18 +178,11 @@ def test_the_slices_are_coded_rather_than_cut():
     assert "grid-row: 1 / 3" in css
     assert "grid-template-rows: subgrid" in css      # exact row register
     assert "aspect-ratio: 1553 / 4056" in css        # and the fallback
-    # Below 1024 the whole photograph scales to the viewport instead.
-    # The six per-slice background windows and the snap scroller are gone:
-    # the scroller put a horizontal scrollbar on the homepage and hid five
-    # of the six departments behind an unadvertised gesture.
-    assert "scroll-snap-type: x mandatory" not in css
-    assert "background-size: 600% auto" not in css
-    assert ".sbdept-window { display: none; }" in css
-    assert "object-fit: contain" in css
-    # The controls become a grid beneath it, sharing one description.
-    assert "width: 50%" in css                       # 2 x 3 on a phone
-    assert "width: 33.3333%" in css                  # 3 x 2 from 560px
-    assert ".sbdept-shared" in css
+    # Below 1024 the same six links become windows onto the same file.
+    assert "background-size: 600% auto" in css
+    assert "background-position: calc(var(--sbdept-i) * 20%) center" in css
+    assert "scroll-snap-type: x mandatory" in css
+    assert "departments-1200.jpg" in css             # one source, not six
 
 
 def test_the_interaction_has_three_ways_in_and_survives_without_script():

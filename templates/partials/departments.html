@@ -7,12 +7,9 @@
 
    Desktop: the six links sit in one grid over the picture, each spanning
    its slice and the label beneath it, so a department is one control.
-
-   Below 1024px the whole photograph scales to the viewport - all six
-   slices visible at once, continuity intact - and the six links become a
-   grid of controls beneath it sharing one description panel. It used to
-   be a horizontal snap scroller, which meant a scrollbar on the homepage
-   and five departments hidden behind a gesture nobody is told about. #}
+   Below 1024px the same six links become a snap scroller and each one
+   carries its own sixth of the same file as a background window; the
+   picture itself stays in the document for anyone reading it aloud. #}
 
 {% set dep = departments %}
 {% set img = dep.image %}
@@ -55,13 +52,6 @@
       </a>
       {% endfor %}
     </div>
-
-    {# Phone and tablet only: the six controls above share this one line,
-       so choosing a department changes one thing instead of six. #}
-    <p class="sbdept-shared" id="sbdept-shared" aria-live="polite">
-      <span class="sbdept-shared-name" id="sbdept-shared-name">{{ dep.departments[0].name }}</span>
-      <span class="sbdept-shared-desc" id="sbdept-shared-desc">{{ dep.departments[0].desc }}</span>
-    </p>
   </div>
 
   <script type="application/json" id="sbdept-config">{{ departments_json | safe }}</script>

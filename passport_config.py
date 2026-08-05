@@ -13,10 +13,10 @@ named for that so it can never be read as a forecast.
 EYEBROW = "Metadata Passport + Rights"
 NUMBER = "11"
 HEADLINE = ["One release.", "Every detail connected."]
-SUPPORT = ("Every credit, split, identifier, agreement, asset, and version "
-           "tied to the same release record.")
+SUPPORT = ("Organise credits, splits, identifiers, ownership, agreements, "
+           "assets, versions and release history in one living record.")
 TRUST = "Your credits. Your rights. Your record."
-TRUST_COPY = ("Street Banker organizes the information. Artists and authorised "
+TRUST_COPY = ("Street Banker organises the information. Artists and authorised "
               "collaborators control what is confirmed, shared or submitted.")
 
 PRIMARY_CTA = {"label": "Open Metadata Passport", "href": "/metadata"}
@@ -52,10 +52,9 @@ CATEGORIES = [
         "stored": ["Master owner", "Composition owners", "Publishing shares",
                    "Administration", "Territories", "Ownership percentages",
                    "Effective dates"],
-        "why": ("Incomplete or unsigned splits are a common reason royalty "
-                "income becomes delayed or difficult to reconcile. Ownership "
-                "is also the first thing anybody reviewing the catalog asks "
-                "for."),
+        "why": ("Splits that do not add up are the most common reason money "
+                "sits uncollected. Ownership is also the first thing anybody "
+                "reviewing the catalog asks for."),
         "status": "Conflicts Detected",
         "missing": "Composition shares total 90%.",
         "action": ("Reconcile the composition split with the writers named in "
@@ -65,7 +64,7 @@ CATEGORIES = [
         "num": "03", "slug": "identifiers", "label": "Identifiers",
         "zone": (0.058, 0.575, 0.312, 0.870),
         "short": ("Keep the identifiers that connect the release across "
-                  "platforms, organizations and payment systems."),
+                  "platforms, organisations and payment systems."),
         "stored": ["ISRC", "UPC or EAN", "ISWC", "IPI or CAE", "ISNI",
                    "Catalog number", "Internal release ID"],
         "why": ("Identifiers connect the release to platforms, registrations, "
@@ -108,7 +107,7 @@ CATEGORIES = [
     {
         "num": "06", "slug": "assets", "label": "Assets",
         "zone": (0.640, 0.335, 0.918, 0.560),
-        "short": "Organize the media and files connected to the release.",
+        "short": "Organise the media and files connected to the release.",
         "stored": ["Audio masters", "Stems", "Artwork", "Artist photography",
                    "Lyrics", "Videos", "Canvas clips", "Campaign files",
                    "Press materials", "Supporting documents"],

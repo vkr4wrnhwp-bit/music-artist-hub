@@ -72,12 +72,7 @@ def test_landing_page_links_all_resolve():
     for href in _all_landing_hrefs(get_landing_config()):
         if href.startswith("/#") or href.startswith("#"):
             assert href.lstrip("/#") in page_ids, f"dead anchor: {href}"
-            continue
-        # A route may carry its own fragment, e.g. /metadata#used.
-        href = href.split("#")[0]
-        if not href:
-            continue
-        if href.startswith("http"):
+        elif href.startswith("http"):
             continue
         else:
             ok = href in real_routes or any(
@@ -182,11 +177,11 @@ def test_artist_eq_data_is_complete_and_consistent():
             assert slug and cfg["module_notes"].get(slug), name
         for label, slug in cfg["actions"][key]:
             assert slug and label
-    named = [p for p in cfg["presets"] if p["channel_values"] is not None]
+    named = [p for p in cfg["presets"] if p["values"] is not None]
     assert len(named) == 5                # five real presets + Custom
     for preset in named:
-        assert sorted(preset["channel_values"]) == sorted(keys), preset["name"]
-        for v in preset["channel_values"].values():
+        assert sorted(preset["values"]) == sorted(keys), preset["name"]
+        for v in preset["values"].values():
             assert 0 <= v <= 10
         # Weights are sparse - an unlisted channel simply weighs 1.0 - but
         # a typo'd key would silently weigh nothing at all.
@@ -194,7 +189,7 @@ def test_artist_eq_data_is_complete_and_consistent():
         assert all(w > 0 for w in preset["weights"].values()), preset["name"]
     # The section must not start with every fader on the floor.
     default = [p for p in cfg["presets"] if p["id"] == cfg["default_preset"]]
-    assert default and any(v > 5 for v in default[0]["channel_values"].values())
+    assert default and any(v > 5 for v in default[0]["values"].values())
     # Bands are ordered and cover the whole scale.
     cuts = [c for c, _label in cfg["readiness_bands"]]
     assert cuts == sorted(cuts) and cuts[-1] > 100
@@ -3765,7 +3760,7 @@ def test_homepage_distribution_links():
     client = app_obj.test_client()
     home = client.get("/").get_data(as_text=True)
     assert 'href="/services/distribution"' in home
-    assert "Start a release" in home
+    assert "Explore Distribution" in home
     assert client.get("/services/distribution").status_code == 200
 
 
@@ -5339,7 +5334,7 @@ def test_artist_signal_profile_config_shape():
     assert [l["id"] for l in cfg["lanes"]] == [
         "distribution", "development", "partnership"]
     for lane in cfg["lanes"]:
-        assert set(lane["channel_keys"]) <= keys and len(lane["channel_keys"]) == 3
+        assert set(lane["keys"]) <= keys and len(lane["keys"]) == 3
         assert lane["why"] and lane["href"]
     # Every module and action the panel can print has a route on file.
     named = {n for options in cfg["modules"].values() for n, _s in options}
@@ -5354,7 +5349,7 @@ def test_artist_signal_profile_config_shape():
 def test_homepage_carries_the_signal_profile_hooks():
     """The EQ reports inside its own console and changes nothing else."""
     body = _demo().get("/").get_data(as_text=True)
-    assert "The plan updates as you do." in body
+    assert "Your recommended tools and next actions update instantly." in body
     assert "Reset EQ" in body
     assert "streetBankerArtistEq" in body
     # The subtle per-card reactions are gone: no lane badges, no tool

@@ -71,15 +71,34 @@ def test_public_page_renders_no_bare_none_or_undefined(client, route):
     assert "undefined" not in text, route
 
 
-def test_no_config_uses_a_key_that_shadows_a_dict_method():
-    """The cheap guard: a colliding key makes a correct-looking template
-    render the method instead of the value."""
+def test_no_template_dot_accesses_a_dict_method_name():
+    """The real hazard is dot-access in a template, not the key name.
+
+    `thing.copy` in Jinja resolves to the dict's built-in method before it
+    looks for the key, and renders `<built-in method copy of dict object
+    at 0x...>` onto the page. Subscript access — `thing["copy"]` — is
+    always safe, which is why configs may legitimately carry keys called
+    copy, items, keys or values.
+
+    This test therefore bans the dangerous *access*, not the name. It
+    caught a live one: `clean_release.html` read `n.keys` on a dict that
+    really did have a "keys" key, and shipped the built-in method into a
+    data-cats attribute, silently breaking the hover-highlight it fed.
+    """
+    import glob
+    import os
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pattern = re.compile(r"\{\{[^}]*?[a-z_][a-z0-9_]*\.(%s)" % "|".join(RESERVED),
+                         re.IGNORECASE)
     offenders = []
-    for path in glob.glob("*_config.py"):
+    for path in glob.glob(os.path.join(root, "templates", "**", "*.html"),
+                          recursive=True):
         source = open(path, encoding="utf-8").read()
-        for name in RESERVED:
-            if '"%s":' % name in source or "'%s':" % name in source:
-                offenders.append("%s has a %r key" % (path, name))
+        for match in pattern.finditer(source):
+            line = source[:match.start()].count(chr(10)) + 1
+            offenders.append("%s:%d %s" % (os.path.basename(path), line,
+                                           match.group(0).strip()))
     assert not offenders, (
-        "rename these to description/body/content — Jinja resolves the "
-        "dict method first: %s" % offenders)
+        "these render a dict method instead of the value — use subscript "
+        "access instead: %s" % offenders)

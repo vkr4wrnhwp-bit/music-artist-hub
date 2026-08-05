@@ -45,7 +45,7 @@ def test_the_section_replaces_the_old_sweep_band_and_keeps_its_anchor():
     assert "sb-band-sweep.jpg" not in body
     # Everything below is untouched.
     for kept in ["Built for artist control.", "Your catalog is the ",
-                 "closing-wide-1672", "The release is one day.", "Choose your lane."]:
+                 "closing-wide-1672", "Plan it.", "Choose your lane."]:
         assert kept in body, kept
 
 
@@ -54,9 +54,9 @@ def test_the_copy_is_the_approved_copy():
     assert "Royalty Sweep" in eq
     assert "Find what&#39;s yours." in eq or "Find what's yours." in eq
     assert "Keep what&#39;s earned." in eq or "Keep what's earned." in eq
-    assert ("Connect the catalog, flag missing registrations and income "
-            "gaps, and track every case from first question to final "
-            "resolution." in eq)
+    assert ("Connect the catalog, trace missing registrations and income "
+            "sources, and turn every potential gap into a trackable recovery "
+            "case." in eq)
     assert "Run a Royalty Sweep" in eq
     assert "See how the sweep works" in eq
     assert "Your catalog. Your data. Your approval." in eq

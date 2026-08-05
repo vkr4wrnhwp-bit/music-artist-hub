@@ -14,9 +14,9 @@ NUMBER = "07"
 # Two lines, set here rather than left to the wrap: the site face is
 # not condensed, so "visual world." decides its own break otherwise
 # and leaves "the" stranded.
-HEADLINE = ["Build the", "visual world."]
-SUPPORT = ("Cover art, merch, campaign pieces, and every format the release "
-           "needs — without losing the artist in the process.")
+HEADLINE = ["Build the", "Visual world."]
+SUPPORT = ("Artwork, merch, campaign assets, and release content built around "
+           "one clear artist identity.")
 
 PRIMARY_CTA = {"label": "Open Creative Studio", "href": "/creative-studio"}
 SECONDARY_CTA = {"label": "See the workflow"}
@@ -44,7 +44,7 @@ WORKFLOW = [
 ]
 
 MEMORY_TITLE = "Built around your identity."
-MEMORY_COPY = ("Creative Studio remembers approved visual directions, colors, "
+MEMORY_COPY = ("Creative Studio remembers approved visual directions, colours, "
                "logos, imagery and rejected styles so every release still feels "
                "like the same artist.")
 
@@ -63,7 +63,7 @@ CAPABILITIES = [
         ("Cover Studio", "Write the brief, get cover directions back, remix one, "
                          "set the title and artist type, and save the result to "
                          "your uploads."),
-        ("Brand kit", "Save the colors, logo and type once and apply them across "
+        ("Brand kit", "Save the colours, logo and type once and apply them across "
                       "covers so the next release matches the last one."),
         ("Format previews", "See an approved cover at the sizes the stores and "
                             "social platforms ask for."),

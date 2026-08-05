@@ -211,94 +211,63 @@
    six pictures. The <img> stays in the document, read but not shown, so
    the scene still has exactly one description. */
 @media (max-width: 1023px) {
-  .sbdept-inner { padding-right: clamp(16px, 4vw, 48px); }
+  .sbdept-inner { padding-right: 0; }
 
-  /* The complete photograph, scaled. Every slice visible at once, so the
-     picture still reads as one room rather than six crops. */
-  .sbdept-grid {
-    display: block;
-    overflow: visible;
-  }
   .sbdept-photo {
-    position: static;
-    display: block;
-    width: 100%;
-    height: auto;
-    clip-path: none;
-    overflow: visible;
-  }
-  .sbdept-photo img {
-    display: block;
-    width: 100%;
-    height: auto;
-    object-fit: contain;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
-  /* The controls move under the picture and become a grid: two columns
-     by three rows on a phone, three by two from 560px. */
+  .sbdept-grid {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-right: clamp(16px, 4vw, 48px);
+  }
+  .sbdept-grid::-webkit-scrollbar { display: none; }
+
   .sbdept-dept {
     display: block;
+    flex: 0 0 var(--sbdept-panel, 80vw);
+    max-width: 420px;
+    scroll-snap-align: start;
     border-left: 0;
-    max-width: none;
   }
-  .sbdept-window { display: none; }        /* the photo above is the picture now */
+  .sbdept-dept + .sbdept-dept { border-left: 1px solid var(--sbdept-rule); }
+
+  .sbdept-window {
+    aspect-ratio: 3 / 4;
+    background-repeat: no-repeat;
+    /* Six panels wide, so each one is positioned on its own sixth: at
+       600% the browser's percentage positioning lands 0%, 20% ... 100%
+       exactly on the six slice boundaries. */
+    background-size: 600% auto;
+    background-position: calc(var(--sbdept-i) * 20%) center;
+    background-image: url("/static/img/departments-1200.jpg");
+    background-image: image-set(
+      url("/static/img/departments-1200.avif") type("image/avif"),
+      url("/static/img/departments-1200.webp") type("image/webp"),
+      url("/static/img/departments-1200.jpg") type("image/jpeg"));
+  }
+
+  .sbdept-body { padding: 16px 16px 6px; }
+  .sbdept-desc { margin-top: 8px; }
+
   .sbdept-dept::after { display: none; }
-
-  .sbdept-grid { position: relative; }
-  .sbdept-grid > .sbdept-dept {
-    border-top: 1px solid var(--sbdept-rule);
-  }
-
-  .sbdept-body { padding: 14px 12px; }
-  /* Each control keeps its number and name; the description is shared
-     below, so six paragraphs do not stack up on a phone. */
-  .sbdept-desc { display: none; }
-
-  .sbdept-shared {
-    display: block;
-    margin: 18px 0 0;
-    padding-top: 14px;
-    border-top: 1px solid var(--sbdept-rule);
-    min-height: 3.4em;                      /* no jump when the line changes */
-  }
-  .sbdept-shared-name {
-    display: block;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #C9A86A;
-  }
-  .sbdept-shared-desc {
-    display: block;
-    margin-top: 5px;
-    font-size: 14px;
-    line-height: 1.55;
-    color: #A7A198;
-  }
+  .sbdept-dept:hover .sbdept-wash { opacity: 1; }
 }
 
-/* Phone: two by three. */
-@media (max-width: 559px) {
-  .sbdept-grid > .sbdept-dept {
-    display: inline-block;
-    width: 50%;
-    vertical-align: top;
-  }
+@media (min-width: 640px) and (max-width: 1023px) {
+  .sbdept-dept { --sbdept-panel: 34vw; }
+  .sbdept-window { aspect-ratio: 2 / 3; }
 }
-
-/* Large phone and tablet: three by two. */
-@media (min-width: 560px) and (max-width: 1023px) {
-  .sbdept-grid > .sbdept-dept {
-    display: inline-block;
-    width: 33.3333%;
-    vertical-align: top;
-  }
-}
-
-/* The shared line is a phone affordance; on desktop each control carries
-   its own description and this would repeat one of them. */
-@media (min-width: 1024px) { .sbdept-shared { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .sbdept-wash, .sbdept-desc, .sbdept-num, .sbdept-dept::after {

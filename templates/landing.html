@@ -10,21 +10,19 @@
   <meta name="theme-color" content="#0d0c0a">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=24">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=22">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=12">
   <link rel="stylesheet" href="/static/css/public-header.css?v=3">
   <link rel="stylesheet" href="/static/css/hero.css?v=3">
-  <link rel="stylesheet" href="/static/css/departments.css?v=3">
+  <link rel="stylesheet" href="/static/css/departments.css?v=2">
   <link rel="stylesheet" href="/static/css/artist-twin.css?v=3">
-  <link rel="stylesheet" href="/static/css/lanes.css?v=2">
-  <link rel="stylesheet" href="/static/css/creative-studio.css?v=6">
+  <link rel="stylesheet" href="/static/css/lanes.css?v=1">
+  <link rel="stylesheet" href="/static/css/creative-studio.css?v=5">
   <link rel="stylesheet" href="/static/css/rollout.css?v=5">
   <link rel="stylesheet" href="/static/css/sweep.css?v=2">
   <link rel="stylesheet" href="/static/css/distribution.css?v=2">
   <link rel="stylesheet" href="/static/css/passport.css?v=1">
-  <link rel="stylesheet" href="/static/css/disclosure.css?v=1">
   <link rel="stylesheet" href="/static/css/closing.css?v=1">
-  <link rel="stylesheet" href="/static/css/release-signal.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -103,7 +101,7 @@
           ('done', 'Metadata Passport complete'),
           ('done', 'Splits signed by every collaborator'),
           ('open', 'Rollout scheduled for release week'),
-          ('open', 'Royalty source coverage reviewed'),
+          ('open', 'Royalty lanes claimed on all sources'),
         ] %}
         {% for state, label in checks %}
         <div class="sbhero-preview-row">
@@ -136,10 +134,6 @@
      Everything that moves is coded; nothing here replaces an existing
      section. -->
 {% include "partials/artist_eq.html" %}
-
-<!-- 3b. RELEASE SIGNAL - the compact quick-scan entry, inside the EQ
-     band rather than a cinematic section of its own. -->
-{% include "partials/release_signal.html" %}
 
 <!-- 4. ONE SYSTEM. SIX DEPARTMENTS. — one photograph, six coded slices.
      It displaces nothing below it. -->
@@ -223,10 +217,10 @@
     </div>
   </footer>
 
-<script src="/static/js/artist-eq.js?v=9" defer></script>
-<script src="/static/js/departments.js?v=4" defer></script>
+<script src="/static/js/artist-eq.js?v=8" defer></script>
+<script src="/static/js/departments.js?v=3" defer></script>
 <script src="/static/js/artist-twin.js?v=2" defer></script>
-<script src="/static/js/lanes.js?v=2" defer></script>
+<script src="/static/js/lanes.js?v=1" defer></script>
 <script src="/static/js/creative-studio.js?v=1" defer></script>
 <script src="/static/js/rollout.js?v=1" defer></script>
 <script src="/static/js/sweep.js?v=1" defer></script>

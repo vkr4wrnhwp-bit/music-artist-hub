@@ -20,17 +20,15 @@ codebase or in the terms on file, so none of them is on the page.
 
 EYEBROW = "Global Distribution"
 NUMBER = "10"
-HEADLINE = ["Get the release right.", "Then get it out."]
-SUPPORT = ("Street Banker checks the package and moves it through the "
-           "distribution partnership. You keep control of the masters and "
-           "metadata under your agreement.")
+HEADLINE = ["Your music. Everywhere.", "On your terms."]
+SUPPORT = ("Prepare and deliver your release to supported platforms while "
+           "keeping control of your masters, metadata, timing, territories "
+           "and release information.")
 TRUST = "Your masters. Your metadata. Your release plan."
 
-# Two buttons, two destinations. These both pointed at
-# /distribution, which made the primary CTA a no-op.
-PRIMARY_CTA = {"label": "Distribute now", "href": "/release-check"}
+PRIMARY_CTA = {"label": "Distribute now", "href": "/distribution"}
 GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
-FINAL_CTA = {"label": "Start a release", "href": "/release-check"}
+FINAL_CTA = {"label": "Start a release", "href": "/distribution"}
 
 # "copy" would resolve to dict.copy in a Jinja attribute lookup and print
 # the bound method, so the key is named for what it is.
@@ -60,7 +58,7 @@ CAPABILITIES = [
      "Manage release dates, territories, versions, metadata, credits, artwork "
      "and delivery status from one release workspace."),
     ("04", "Reporting",
-     "Organize available performance reports, royalty statements, delivery "
+     "Organise available performance reports, royalty statements, delivery "
      "updates and release activity in one place."),
     ("05", "Splits and Credits",
      "Confirm contributors, ownership splits, identifiers, performer roles, "
@@ -142,8 +140,8 @@ GUIDE = [
                 "Metadata Passport in the app holds these against the track "
                 "so the next release starts from them."),
     ("Ownership", "Splits that add up, confirmed by the people they name. "
-                  "Incomplete or unsigned splits are a common reason royalty "
-                  "income becomes delayed or difficult to reconcile."),
+                  "This is the single most common reason money sits "
+                  "uncollected later."),
     ("ISRC and UPC", "Bring your own or have them assigned at delivery. Once "
                      "a recording has an ISRC it keeps it - a new one on a "
                      "re-release splits the history in two."),
@@ -161,7 +159,7 @@ GUIDE = [
                                "propagate. Audio replacements are not routine "
                                "- get the master right first."),
     ("Reporting", "Statements arrive from the partner on their own schedule. "
-                  "Street Banker organizes what you upload or receive; it "
+                  "Street Banker organises what you upload or receive; it "
                   "does not read a platform directly."),
     ("Takedowns and updates", "A takedown removes availability, not history. "
                               "Plan it as a release step of its own rather "

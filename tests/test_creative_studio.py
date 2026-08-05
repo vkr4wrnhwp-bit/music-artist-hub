@@ -49,9 +49,9 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Creative Studio" in eq
     assert ">07<" in eq
-    assert "Build the" in eq and "visual world." in eq
-    assert ("Cover art, merch, campaign pieces, and every format the release "
-            "needs — without losing the artist in the process." in eq)
+    assert "Build the" in eq and "Visual world." in eq
+    assert ("Artwork, merch, campaign assets, and release content built around "
+            "one clear artist identity." in eq)
     assert "Open Creative Studio" in eq
     assert "See the workflow" in eq
     # One differentiator, not another feature block.

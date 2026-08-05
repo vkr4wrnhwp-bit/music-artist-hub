@@ -45,7 +45,7 @@ BAND = [
      "Artist Twin recommendations show observations, confidence, missing "
      "inputs and recommended actions — not guaranteed outcomes."),
     ("Royalty findings are verified",
-     "Royalty Sweep identifies potential gaps and organizes recovery cases. "
+     "Royalty Sweep identifies potential gaps and organises recovery cases. "
      "Findings require evidence and verification before submission."),
 ]
 
@@ -54,7 +54,7 @@ POLICY = [
     ("Data ownership",
      "Uploading music, artwork, statements or catalog information to Street "
      "Banker transfers no right in any of it. The work is yours; the account "
-     "is where it is organized."),
+     "is where it is organised."),
     ("AI training consent",
      "Your music and images are not used to train models without your "
      "explicit, separate permission. It is a choice you make, not a default "
@@ -66,7 +66,7 @@ POLICY = [
     ("What a recommendation is",
      "Every Artist Twin reading shows what it looked at, how sure it is and "
      "what it is missing. It does not predict a hit, a signing or a sum of "
-     "money, and it does not replace your judgment."),
+     "money, and it does not replace your judgement."),
     ("Royalty verification",
      "A finding is a question with evidence attached. It requires "
      "verification before anything is submitted anywhere, and the estimate "
@@ -86,12 +86,6 @@ POLICY = [
     ("Collaborator permissions",
      "Access is per release and per role. Somebody invited to confirm a split "
      "sees that release and nothing else in the catalog."),
-    ("Security",
-     "Access needs an account and a password you control. Uploads and "
-     "statements are stored against your account rather than pooled, and "
-     "connections to outside services are held as revocable tokens you can "
-     "withdraw. We are a small team and we would rather say plainly what "
-     "the model is than list certifications we do not hold."),
     ("Audit history",
      "Changes are recorded with a date and an author. Nothing is overwritten "
      "silently, which is what makes the record worth anything in a dispute."),

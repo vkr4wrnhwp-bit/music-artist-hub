@@ -53,8 +53,8 @@ def test_the_section_replaces_the_old_lanes_and_keeps_its_anchor():
 def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Three lanes. One system." in eq
-    assert "Choose your lane." in eq and "Build what&#39;s next." in eq
-    assert ("Some artists need the record out." in eq)
+    assert "Choose your lane." in eq and "Build your career." in eq
+    assert ("Street Banker meets artists where they are" in eq)
     nums = re.findall(r'sblane-num">([^<]+)<', eq)
     names = re.findall(r'sblane-name">([^<]+)<', eq)
     sublines = re.findall(r'sblane-subline">([^<]+)<', eq)
@@ -74,14 +74,8 @@ def test_the_lane_copy_is_live_text_not_only_pixels():
     assert eq.count("<img") == 1
     for lane in ("Distribution", "Development", "Partnership"):
         assert eq.count(lane) >= 2, lane      # summary and comparison
-    # The summary now carries "for you if" - shorter, and the thing a
-    # reader actually scans for. The full description moved into the
-    # comparison panel, which is where somebody weighing lanes looks.
-    fors = re.findall(r'sblane-for">([^<]+)<', eq)
-    assert len(fors) == 3
-    for f in fors:
-        assert 40 < len(f) < 200, f
-    descs = re.findall(r'sblane-compare-desc">([^<]+)<', eq)
+    # Descriptions are in the markup, at a readable length.
+    descs = re.findall(r'sblane-desc">([^<]+)<', eq)
     assert len(descs) == 3
     for d in descs:
         assert 80 < len(d) < 260, d
@@ -139,10 +133,8 @@ def test_the_unit_ships_in_three_formats_and_three_sizes():
 def test_no_lane_and_no_cta_hits_a_login_wall():
     eq = _section()
     hrefs = re.findall(r'class="sblane-link" href="([^"]+)"', eq)
-    # Each lane's CTA now says what happens next and goes there, rather
-    # than three anchors on the same page. "See if I qualify" stays on
-    # /lanes because partnership is reviewed rather than started.
-    assert hrefs == ["/release-check", "/start", "/lanes#partnership"]
+    assert hrefs == ["/lanes#distribution", "/lanes#development",
+                     "/lanes#partnership"]
     assert 'class="sblane-primary" href="/lanes"' in eq
     client = _anon()
     assert client.get("/lanes").status_code == 200
@@ -251,11 +243,7 @@ def test_accessibility_scaffolding():
     assert '<div class="sblane-channels" aria-hidden="true">' in eq
     css = _css()
     assert "min-height: 48px" in css                 # tap target on the CTAs
-    # No phone rail any more. It scrolled at 175vw, which put a
-    # horizontal scrollbar on the homepage and hid two of the three
-    # channels behind a gesture nobody is told about.
-    assert "scroll-snap-type: x mandatory" not in css
-    assert "object-fit: contain" in css              # the rack scales instead
+    assert "scroll-snap-type: x mandatory" in css    # the phone rail
 
 
 def test_the_analytics_report_lanes_and_nothing_else():
@@ -265,11 +253,7 @@ def test_the_analytics_report_lanes_and_nothing_else():
                   "lane_comparison_opened"):
         assert '"%s"' % event in js, event
     code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
-    # Reading the Artist EQ recommendation is the point of the hand-off,
-    # so localStorage.getItem is expected. Writing is not.
-    assert "localStorage.setItem" not in js
-    assert js.count("localStorage") == js.count("localStorage.getItem")
-    for sensitive in ("email", "user_id", "description"):
+    for sensitive in ("email", "user_id", "localStorage", "description"):
         assert sensitive not in code, sensitive
 
 

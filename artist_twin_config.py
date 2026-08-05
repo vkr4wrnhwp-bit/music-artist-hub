@@ -12,12 +12,12 @@ working shown, not an oracle.
 
 EYEBROW = "AI Artist Twin"
 HEADLINE = ["Know the artist.", "Test the move."]
-SUPPORT = ("The Twin learns how you sound, how you look, who is listening, "
-           "and what you are building. Then it helps test the next move "
-           "before you spend time or money on it.")
+SUPPORT = ("The Artist Twin learns your music, visuals, audience, catalog and "
+           "goals—then helps evaluate releases, artwork, campaigns and "
+           "opportunities before you commit.")
 EXAMPLE_LABEL = "Example Artist Twin assessment"
 MICROCOPY = ("Your Artist Twin supports your decisions. It does not replace "
-             "your judgment.")
+             "your judgement.")
 
 # Line icons, drawn as stroke paths so there is no icon dependency and
 # nothing to load. Split on the pipe.
@@ -46,9 +46,8 @@ ASSESSMENT = [
         "observation": ("Masters, artwork and credits are present for every track, "
                         "and the release date leaves room for a normal delivery "
                         "window. Two tracks are still missing songwriter splits."),
-        "why": ("Stores reject or hold deliveries on missing metadata, and "
-                "incomplete or unsigned splits are a common reason royalty "
-                "income becomes delayed or difficult to reconcile."),
+        "why": ("Stores reject or hold deliveries on missing metadata, and unsigned "
+                "splits are the most common reason royalties sit unclaimed later."),
         "missing": "Signed splits on two tracks; final track order.",
         "action": ("Complete the metadata passport, then lock the sequence before "
                    "delivery."),
@@ -65,7 +64,7 @@ ASSESSMENT = [
         "observation": ("Artwork, press copy and the last three campaigns use the "
                         "same vocabulary and the same restrained palette. Nothing "
                         "in this release reads as borrowed from somewhere else."),
-        "why": ("An audience recognizes an artist before it reads a name. "
+        "why": ("An audience recognises an artist before it reads a name. "
                 "Consistency is what makes a catalog feel like one body of work."),
         "missing": "Nothing material.",
         "action": "Carry the same language into the release-week assets.",

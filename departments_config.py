@@ -15,7 +15,7 @@ a password field.
 # Tone per slice, left to right. These are washes at very low alpha laid
 # over the photograph, not filters: the brief for this section asks for a
 # progression a reader feels rather than sees, and anything heavier turns
-# a documentary frame into six colored panels.
+# a documentary frame into six coloured panels.
 DEPARTMENTS = [
     {
         "num": "01",

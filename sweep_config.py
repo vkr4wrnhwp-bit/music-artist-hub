@@ -13,16 +13,16 @@ labelled an estimated value range and said to need checking.
 EYEBROW = "Royalty Sweep"
 NUMBER = "09"
 HEADLINE = ["Find what's yours.", "Keep what's earned."]
-SUPPORT = ("Connect the catalog, flag missing registrations and income "
-           "gaps, and track every case from first question to final "
-           "resolution.")
+SUPPORT = ("Connect the catalog, trace missing registrations and income "
+           "sources, and turn every potential gap into a trackable recovery "
+           "case.")
 
 PRIMARY_CTA = {"label": "Run a Royalty Sweep", "href": "/catalog-sweep"}
 SECONDARY_CTA = {"label": "See how the sweep works"}
 METHOD_LINK = {"label": "How Royalty Sweep works", "href": "/royalty-sweep"}
 
 TRUST = "Your catalog. Your data. Your approval."
-TRUST_COPY = ("Royalty Sweep identifies potential gaps and organizes recovery "
+TRUST_COPY = ("Royalty Sweep identifies potential gaps and organises recovery "
               "work. Every finding requires verification before submission.")
 
 WORKFLOW = [
@@ -46,10 +46,10 @@ SOURCES = [
     ("Distributors", "Upload Supported"),
     ("Labels", "Upload Supported"),
     ("Publishers", "Upload Supported"),
-    ("Performing-rights organizations", "Integration Ready"),
-    ("Mechanical-rights organizations", "Integration Ready"),
-    ("Neighbouring-rights organizations", "Integration Ready"),
-    ("Digital-performance organizations", "Integration Ready"),
+    ("Performing-rights organisations", "Integration Ready"),
+    ("Mechanical-rights organisations", "Integration Ready"),
+    ("Neighbouring-rights organisations", "Integration Ready"),
+    ("Digital-performance organisations", "Integration Ready"),
     ("YouTube and UGC systems", "Coming Soon"),
     ("Sync administrators", "Coming Soon"),
     ("International collection societies", "Coming Soon"),
@@ -91,7 +91,7 @@ METHOD = [
     ("What gets reviewed",
      "Whatever you give it: royalty statements you upload, the catalog you "
      "enter or import, the identifiers attached to it, and the registrations "
-     "you record. Nothing is read from an organization Street Banker is not "
+     "you record. Nothing is read from an organisation Street Banker is not "
      "connected to, and no connection is implied that does not exist."),
     ("What counts as a potential opportunity",
      "A gap between what your catalog says and what the paperwork shows: a "

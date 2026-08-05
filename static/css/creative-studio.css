@@ -283,18 +283,16 @@
   .sbcs-img { aspect-ratio: 600 / 520; }
 }
 @media (max-width: 640px) {
-  /* Four labels do not fit a phone in one row. They used to scroll
-     sideways, which put a second horizontal scroller on the homepage and
-     left two of the four off-screen behind a gesture nobody is told
-     about. They wrap into two rows of two instead: every label visible,
-     every one still a full-size target. */
+  /* Four labels do not fit a phone in one row without shrinking them into
+     nothing, so the row scrolls and each label stays a real target. */
   .sbcs-feature-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
   }
-  .sbcs-feature-row > li { min-width: 0; }
-  .sbcs-feature { width: 100%; }
+  .sbcs-feature-row::-webkit-scrollbar { display: none; }
+  .sbcs-feature-row > li { flex: 0 0 auto; scroll-snap-align: start; }
   .sbcs-feature { padding: 10px 18px; }
   .sbcs-feature-line { text-align: left; }
 }
