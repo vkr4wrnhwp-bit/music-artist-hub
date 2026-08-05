@@ -1,0 +1,20 @@
+{# Photo credit for real photography.
+
+   Rendered only when the image config carries a `credit` key, so the
+   generated frames that carry no credit stay exactly as they were.
+
+   Deliberately a credit and nothing more: it names the photographer and,
+   where the config gives one, the subject. It does not say the person in
+   the picture is a Street Banker client, because a face on a marketing
+   page is read as an endorsement and that would be a claim about a
+   business relationship rather than a photograph.
+
+   Usage:  {% with credit = cfg.image.credit %}{% include "partials/photo_credit.html" %}{% endwith %}
+#}
+{% if credit %}
+<p class="sb-credit{{ ' ' ~ credit.tone if credit.tone }}">
+  {%- if credit.subject %}{{ credit.subject }} · {% endif -%}
+  {%- if credit.photographer %}Photo {{ credit.photographer }}{% endif -%}
+  {%- if credit.year %} · {{ credit.year }}{% endif -%}
+</p>
+{% endif %}

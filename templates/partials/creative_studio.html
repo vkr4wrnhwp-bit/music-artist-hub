@@ -77,6 +77,7 @@
              alt="{{ img.alt }}" loading="lazy" decoding="async">
       </picture>
       <span class="sbcs-veil" aria-hidden="true"></span>
+      {% with credit = img.credit %}{% include "partials/photo_credit.html" %}{% endwith %}
     </figure>
 
     {# Production credits along the bottom edge, not feature cards. #}

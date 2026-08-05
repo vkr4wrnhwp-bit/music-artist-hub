@@ -1,0 +1,37 @@
+/* Photo credit for real photography.
+ *
+ * Small, quiet, and out of the way of the copy — a credit is an
+ * obligation, not a design element. Two tones because the three sections
+ * that carry credits sit on different grounds: `on-photo` for a credit
+ * laid over the picture itself (the hero), the default for one sitting
+ * on the page beside it.
+ */
+
+.sb-credit {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7E786F;
+}
+
+/* Over the photograph: bottom-right of the frame, with enough shadow to
+   survive a light patch of sky without needing a scrim of its own. */
+.sb-credit.on-photo {
+  position: absolute;
+  right: clamp(12px, 2vw, 24px);
+  bottom: clamp(10px, 1.6vw, 18px);
+  z-index: 2;
+  margin: 0;
+  color: rgb(238 232 220 / 0.62);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.65);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .sb-credit { font-size: 10px; letter-spacing: 0.12em; }
+  /* On a phone the hero copy runs close to the bottom edge; the credit
+     moves left so it never collides with a full-width CTA. */
+  .sb-credit.on-photo { right: auto; left: clamp(12px, 4vw, 20px); }
+}

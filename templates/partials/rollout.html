@@ -37,6 +37,7 @@
            alt="{{ img.alt }}" loading="lazy" decoding="async">
     </picture>
     <span class="sbro-veil" aria-hidden="true"></span>
+    {% with credit = img.credit %}{% include "partials/photo_credit.html" %}{% endwith %}
 
     <div class="sbro-inner">
       <div class="sbro-copy">
