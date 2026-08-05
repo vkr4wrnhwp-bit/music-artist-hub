@@ -96,7 +96,7 @@ stored or processed.
 | Object-string leaks on public pages | 2 live, 3 latent | 0 |
 | Footer links into the login wall | 7 of 15 | 0 |
 | Unsupported claims | 6 | 0 |
-| Horizontal-overflow sources on mobile | 2 (lanes rack, departments strip) | 1 (departments) |
+| Horizontal-overflow sources on mobile | 3 (lanes rack, departments strip, creative labels) | 0 |
 
 Visible-word counting excludes closed `<details>`, `[hidden]` elements
 and the eight visually-hidden classes discovered from the stylesheets —
@@ -114,4 +114,6 @@ what landed and what did not. The three that matter most:
    brief lists were largely already collapsed before this pass, and the
    remaining visible text is the approved copy the same brief specifies.
    Hitting the number means deleting copy Phase 2 mandates.
-3. **Six Departments still uses a horizontal strip on mobile.**
+3. **Static overflow analysis, not a rendered measurement.** The
+   overflow tests check the causes in CSS, not `scrollWidth` in a
+   browser.

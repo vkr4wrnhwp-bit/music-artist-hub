@@ -32,8 +32,23 @@
      its own; this mirrors it onto a class so the same state reaches a
      touch or assistive-technology focus, and so the other five dim in
      browsers without :has(). */
+  /* The phone grid shares one description line, so choosing a department
+     changes one thing rather than stacking six paragraphs. Written from
+     the control's own markup, so it cannot drift from the label. */
+  var sharedName = document.getElementById("sbdept-shared-name");
+  var sharedDesc = document.getElementById("sbdept-shared-desc");
+
+  function writeShared(a) {
+    if (!a || !sharedName || !sharedDesc) { return; }
+    var name = a.querySelector(".sbdept-name");
+    var desc = a.querySelector(".sbdept-desc");
+    if (name) { sharedName.textContent = name.textContent.trim(); }
+    if (desc) { sharedDesc.textContent = desc.textContent.trim(); }
+  }
+
   function select(a) {
     depts.forEach(function (d) { d.classList.toggle("is-active", d === a); });
+    writeShared(a);
     if (grid) {
       if (a) { grid.dataset.active = a.dataset.index; }
       else { delete grid.dataset.active; }
@@ -64,7 +79,18 @@
     a.addEventListener("focus", note);
     a.addEventListener("mouseleave", release);
     a.addEventListener("blur", function () { window.setTimeout(release, 0); });
-    a.addEventListener("click", function () {
+    a.addEventListener("click", function (e) {
+      /* Touch, and this department is not the one being described yet:
+         describe it instead of navigating. A second tap follows the
+         link. On a pointer device the description is already showing by
+         the time a click happens, so nothing is intercepted. */
+      var coarse = window.matchMedia("(hover: none)").matches;
+      if (coarse && !a.classList.contains("is-active")) {
+        e.preventDefault();
+        select(a);
+        track("department_focused", {department: slug, index: Number(a.dataset.index)});
+        return;
+      }
       track("department_clicked", {department: slug, index: Number(a.dataset.index),
                                    href: a.getAttribute("href")});
     });

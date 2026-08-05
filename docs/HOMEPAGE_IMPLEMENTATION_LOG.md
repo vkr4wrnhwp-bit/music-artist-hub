@@ -11,7 +11,7 @@ be checkable: where a phase is partial or not done, it says so and why.
 | 3 — Page rhythm and composition | **Partial** |
 | 4 — Full-width Artist EQ | **Done** |
 | 5 — Interactive Three Lanes | **Done** |
-| 6 — Mobile responsive rebuild | **Partial** |
+| 6 — Mobile responsive rebuild | **Mostly done** |
 | 7 — Visible content reduction | **Missed the target** |
 | 8 — Image credibility audit | **Blocked** |
 | 9 — Release Signal | **Done, disabled by design** |
@@ -95,7 +95,7 @@ baked JPEG: a VU per channel, a fader, and a lamp. Only those three move.
 Decorative knobs stay still — a decorative control that responds to
 dragging teaches people the controls are fake.
 
-VU response is fast rise, 7° overshoot, settle at 190ms. No idle loop, no
+VU response is fast rise, 7° overshoot, settle at 240ms — inside the repo's own 150–250ms motion rule, which the test suite enforces. No idle loop, no
 randomness, no audio. Honours `prefers-reduced-motion`.
 
 The fader is **depth of support** — Core, Guided, High-touch — not
@@ -108,18 +108,39 @@ hidden rather than defaulting to a recommendation nobody asked for.
 
 CTAs: Start a release / Build my artist plan / See if I qualify.
 
-## Phase 6 — mobile — PARTIAL
+## Phase 6 — mobile — MOSTLY DONE
 
-**Done:** the Three Lanes rack no longer scrolls horizontally. It used to
-render at 175vw inside an overflow-x rail, which put a scrollbar on the
-homepage and hid two of three channels behind an unadvertised gesture.
-The complete rack now scales to the viewport with `object-fit: contain`,
-all three meters visible, and real buttons underneath.
+**All three horizontal scrollers are gone.** There were three, not the
+two the audit first found — the third was located by the regression test
+rather than by reading:
 
-**Not done:** the Six Departments horizontal carousel is still a swipe
-strip; the per-section mobile recompositions for Twin, Creative Studio,
-Rollout, Sweep, Distribution and Passport were not individually rebuilt;
-no testing at 320/375/390/430/768/1024 because nothing could be rendered.
+1. **Three Lanes** rendered at 175vw inside an `overflow-x` rail. The
+   complete rack now scales to the viewport with `object-fit: contain`,
+   all three meters visible, and real buttons underneath.
+2. **Six Departments** was a snap carousel showing one department at a
+   time. The whole photograph now scales to the viewport with every slice
+   visible, and the six controls sit beneath it as a grid — two columns
+   by three rows on a phone, three by two from 560px — sharing one
+   description line. On a touch device the first tap describes a
+   department and the second follows the link, which is the same
+   two-stage read the desktop hover gives.
+3. **Creative Studio** scrolled its four capability labels sideways.
+   They now wrap into two rows of two.
+
+`tests/test_no_horizontal_overflow.py` guards this: no homepage
+stylesheet may declare a width above 100vw, set `overflow-x` to auto,
+scroll **or hidden** (hiding the overflow leaves the content off-screen
+and unreachable, which is not a fix), or carry a horizontal snap
+scroller. A fourth test fails if a new section stylesheet is added
+without being covered, so the next scroller cannot ship simply because
+its file was not in the list.
+
+**Not done:** the per-section mobile recompositions for Twin, Rollout,
+Sweep, Distribution and Passport were not individually rebuilt against
+the brief's stacking order, and there is no testing at
+320/375/390/430/768/1024 because nothing here can render a page. The
+overflow tests are static analysis of the *cause*, which is weaker than
+measuring `scrollWidth` on a real viewport.
 
 ## Phase 7 — content reduction — MISSED
 
