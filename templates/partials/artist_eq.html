@@ -145,7 +145,7 @@
           <div class="sbeq-panel-label">Top 3 actions</div>
           <ol class="sbeq-actions" id="sbeq-actions">
             {% for a in eq.default_plan.actions %}
-            <li><a class="sbeq-action" href="{{ eq.cta.href }}?{{ eq.default_query }}#{{ a.slug }}">{{ a.label }}</a></li>
+            <li><a class="sbeq-action" href="{{ eq.cta.href }}?{{ eq.default_query }}#{{ a.slug }}-action">{{ a.label }}</a></li>
             {% endfor %}
           </ol>
           <p class="sbeq-setup">Estimated setup time:

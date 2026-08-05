@@ -247,7 +247,9 @@
         var li = document.createElement("li");
         var link = document.createElement("a");
         link.className = "sbeq-action";
-        link.href = planHref("/plan") + "#" + a.slug;
+        /* /plan gives an action id="<slug>-action": a slug can name both a
+           module and an action, and two elements cannot share an id. */
+        link.href = planHref("/plan") + "#" + a.slug + "-action";
         link.textContent = a.label;
         link.addEventListener("click", function () {
           track("artist_eq_action_clicked", {action: a.slug, preset: state.preset});
