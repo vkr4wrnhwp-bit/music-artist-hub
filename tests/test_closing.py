@@ -150,3 +150,42 @@ def test_footer_columns_are_public_and_named(client, home):
 def test_the_product_is_called_rollout_engine_everywhere(home):
     assert "Rollout Studio" not in home
     assert "Rollout Engine" in home
+
+
+def test_every_eq_module_and_action_link_lands_on_something(client, home):
+    """The EQ panel's deep links must hit a real element on /plan.
+
+    They did not. `/plan` gives a module `id="<slug>"` and an action
+    `id="<slug>-action"`, because a slug can name both and two elements
+    cannot share an id. The action links were built with the bare slug,
+    so each one either landed on the module of the same name or — when
+    that module was not recommended for the current mix — on nothing.
+    Three of the seven links on the default mix were dead.
+    """
+    import re
+
+    import artist_eq_config as eq_config
+
+    targets = set(re.findall(r'href="(/plan\?[^"#]*)#([a-z-]+)"', home))
+    assert targets, "the EQ panel stopped emitting deep links"
+
+    seen = {}
+    for query, fragment in sorted(targets):
+        if query not in seen:
+            body = client.get(query.replace("&amp;", "&")).get_data(as_text=True)
+            seen[query] = set(re.findall(r'id="([^"]+)"', body))
+        assert fragment in seen[query], "#%s has no target on %s" % (fragment, query)
+
+    # And the same holds for a mix nobody has visited, so this is not
+    # just true of whatever the default preset happens to recommend.
+    for preset in eq_config.PRESETS:
+        if not preset["channel_values"]:
+            continue
+        query = eq_config.plan_query(preset["channel_values"], preset["id"])
+        body = client.get("/plan?" + query).get_data(as_text=True)
+        ids = set(re.findall(r'id="([^"]+)"', body))
+        plan = eq_config.build_plan(preset["channel_values"], preset["id"])
+        for module in plan["modules"]:
+            assert module["slug"] in ids, (preset["id"], module["slug"])
+        for action in plan["actions"]:
+            assert action["slug"] + "-action" in ids, (preset["id"], action["slug"])
