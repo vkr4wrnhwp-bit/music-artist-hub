@@ -6,19 +6,28 @@ quality that cannot be recovered.
 
 ## Slots waiting for a photograph
 
-| Slot | Section | Aspect | Master width |
-| --- | --- | --- | --- |
-| `hero-wide` | 2 Hero, desktop | 1342 x 775 | 1342 |
-| `hero-tall` | 2 Hero, phone | 900 x 1200 | 900 |
-| `creative-wide` | 7 Creative Studio, desktop | 830 x 980 | 830 |
-| `creative-close` | 7 Creative Studio, phone | 600 x 520 | 600 |
-| `rollout-wide` | 8 Rollout Engine, desktop | 940 x 710 | 940 |
-| `rollout-close` | 8 Rollout Engine, phone | 600 x 630 | 600 |
+Two photographs, both documentary and both anonymous: a crowd frame shot
+from the stage, and a backstage corridor. Neither shows a recognisable
+face, which is the point — a homepage selling infrastructure for any
+artist should not read as one artist's press kit.
 
-The hero takes **two different photographs**, not two crops of one: a
-landscape frame for desktop and a separate portrait frame for phones. A
-wide crowd shot cropped to 3:4 keeps about a fifth of its width and loses
-the crowd, which is the whole subject.
+| Slot | Section | Aspect | Master | Source |
+| --- | --- | --- | --- | --- |
+| `hero-wide` | 2 Hero, desktop | 1342 x 775 | 1342 | crowd |
+| `hero-tall` | 2 Hero, phone | 900 x 1200 | 900 | crowd, cropped tight on the performer |
+| `rollout-wide` | 8 Rollout Engine, desktop | 940 x 710 | 940 | corridor |
+| `rollout-close` | 8 Rollout Engine, phone | 600 x 630 | 600 | corridor, tighter |
+
+**Section 7 Creative Studio keeps its current image.** There is no real
+photograph for it, and the artist portrait series was ruled out: putting
+the same recognisable person across three sections turns the page into a
+press kit for one artist.
+
+The hero's two crops both come from the crowd frame after all. A 3:4 crop
+centred on the performer keeps the performer, the raised hands and the
+front of the crowd; it loses the width but not the subject. The corridor
+is not reused for the hero, because the same photograph appearing twice
+on one page reads as a shortage rather than a motif.
 
 ## Building
 
