@@ -73,7 +73,7 @@
   function lane(values) {
     var best = CFG.lanes[0], bestScore = -1;
     CFG.lanes.forEach(function (l) {
-      var s = l.keys.reduce(function (sum, k) { return sum + clamp(values[k]); }, 0);
+      var s = l.channel_keys.reduce(function (sum, k) { return sum + clamp(values[k]); }, 0);
       if (s > bestScore) { best = l; bestScore = s; }
     });
     return best;
@@ -377,8 +377,8 @@
   function applyPreset(id, quiet) {
     var preset = presetById(id);
     if (!preset) { return; }
-    if (preset.values) {
-      KEYS.forEach(function (k) { state.values[k] = preset.values[k]; });
+    if (preset.channel_values) {
+      KEYS.forEach(function (k) { state.values[k] = preset.channel_values[k]; });
       syncInputs();
     }
     markPreset(id);
