@@ -39,17 +39,17 @@ def test_the_section_sits_after_the_sweep_and_displaces_nothing():
     assert body.index('id="royalty-sweep-section"') < body.index('id="global-distribution"')
     assert body.index('id="global-distribution"') < body.index("Built for artist control.")
     for kept in ["Built for artist control.", "Your catalog is the ",
-                 "Find what&#39;s yours.", "Plan it.", "Choose your lane."]:
+                 "Find what&#39;s yours.", "The release is one day.", "Choose your lane."]:
         assert kept in body, kept
 
 
 def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Global Distribution" in eq and ">10<" in eq
-    assert "Your music. Everywhere." in eq and "On your terms." in eq
-    assert ("Prepare and deliver your release to supported platforms while "
-            "keeping control of your masters, metadata, timing, territories "
-            "and release information." in eq)
+    assert "Get the release right." in eq and "Then get it out." in eq
+    assert ("Street Banker checks the package and moves it through the "
+            "distribution partnership. You keep control of the masters and "
+            "metadata under your agreement." in eq)
     assert "Distribute now" in eq
     assert "View distribution guide" in eq
     assert "Your masters. Your metadata. Your release plan." in eq
@@ -225,7 +225,9 @@ def test_every_cta_is_public_and_explains_before_it_asks():
     hrefs = [re.search(r'class="sbds-cta" href="([^"]+)"', eq).group(1),
              re.search(r'class="sbds-guide" href="([^"]+)"', eq).group(1),
              re.search(r'class="sbds-final-cta" href="([^"]+)"', eq).group(1)]
-    assert hrefs == ["/distribution", "/distribution#guide", "/distribution"]
+    # DISTRIBUTE NOW and VIEW DISTRIBUTION GUIDE used to be the same
+    # click. The first now opens the public release-readiness check.
+    assert hrefs == ["/release-check", "/distribution#guide", "/release-check"]
     client = _anon()
     page = client.get("/distribution")
     assert page.status_code == 200

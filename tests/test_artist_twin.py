@@ -46,8 +46,8 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "AI Artist Twin" in eq
     assert "Know the artist." in eq and "Test the move." in eq
-    assert ("The Artist Twin learns your music, visuals, audience, catalog and "
-            "goals" in eq)
+    assert ("The Twin learns how you sound, how you look, who is listening, "
+            "and what you are building." in eq)
     assert "Example Artist Twin assessment" in eq
     assert ("Your Artist Twin supports your decisions. It does not replace your "
             "judgment." in eq)

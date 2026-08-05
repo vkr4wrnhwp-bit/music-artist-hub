@@ -97,14 +97,19 @@
         <p class="sbds-check-tag">Example release checklist</p>
         <p class="sbds-check-state">{{ ds.readiness[0] }} — nothing has been entered yet</p>
       </div>
-      <div class="sbds-check-grid">
-        {% for group, items in ds.checklist %}
-        <div class="sbds-check-group">
-          <p class="sbds-check-group-name">{{ group }}</p>
-          <ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
+      <details class="sbd">
+        <summary>See everything a release needs</summary>
+        <div class="sbd-body">
+          <div class="sbds-check-grid">
+            {% for group, items in ds.checklist %}
+            <div class="sbds-check-group">
+              <p class="sbds-check-group-name">{{ group }}</p>
+              <ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+            {% endfor %}
+          </div>
         </div>
-        {% endfor %}
-      </div>
+      </details>
       <p class="sbds-check-note">
         Readiness is completion, and nothing else: it counts required fields
         that are filled in. It says nothing about how a release will perform.

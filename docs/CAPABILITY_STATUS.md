@@ -1,68 +1,106 @@
 # Capability status
 
-One vocabulary for what is real, used on the homepage, the public product
-tour and the example workspaces. Six labels and nothing else. The list is
-enforced by `tests/test_closing.py::test_status_vocabulary_is_the_agreed_six`,
-and the labels live in `tour_config.STATUS_LABELS`.
+One source of truth: `capability_status.py`. Every public surface reads
+from it — homepage, product tour, product pages, partner page and the
+privacy language. Before this, the same capability could read Live on
+one page and Integration ready on another and nothing failed.
 
-| Label | Means | Colour |
-| --- | --- | --- |
-| **Live** | Working in the product today. | green |
-| **Example** | A worked example. Not any artist's data. | brass |
-| **Partner delivered** | Carried out through a distribution partner, not by Street Banker directly. | blue |
-| **Integration ready** | Built here; the outside connection is not live. | tan |
-| **Coming soon** | Not built yet. Named so nobody assumes it is. | grey |
-| **Requires verification** | A finding a person must check before it is acted on. | orange |
+Six statuses and no others. Colour is never the only signal: every chip
+carries its own word, so the meaning survives greyscale and
+colour-blindness.
 
-Colour is never the only signal. Every chip carries its own word, so the
-meaning survives greyscale and colour-blindness.
+| Status | Means |
+| --- | --- |
+| **Live** | Working in the product today. |
+| **Example** | A worked example, not an artist's data. |
+| **Partner delivered** | Carried out through a named partner. |
+| **Integration ready** | Built here; the outside connection is not live. |
+| **Coming soon** | Not built yet. |
+| **Requires verification** | A finding a person must check before it is acted on. |
 
-## Where each label is used
+## Resolved against the deployment
 
-### Live
-Artist EQ and the plan it produces · Metadata Passport record and
-conflict detection · Creative Studio brief → directions → revision →
-approval → adaptation · cover, merch, poster, social, story, thumbnail
-and press-kit output · Smart Link pages, email capture and consent
-recording · campaign-source, device, return-visitor and signup readings ·
-Rights & Ownership splits and documents · the lanes · the starting plan.
+Some capabilities are only live when credentials are actually present.
+A hardcoded "Live" on a marketing page silently becomes false the
+moment a key is missing, so these carry a probe instead of a fixed
+status and the page states what is true of the running deployment.
 
-### Example
-Every Artist Twin reading shown publicly · the example passport · the
-example recovery opportunity · the example smart link · the example fan
-intelligence rows · the 21-day rollout example.
+| Capability | Probe | If present | If absent |
+| --- | --- | --- | --- |
+| Spotify pre-save | `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` | Live | Integration ready |
+| Release-day email | `RESEND_API_KEY` | Live | Integration ready |
+| Subscriptions and billing | `STRIPE_SECRET_KEY` | Live | Coming soon |
 
-### Partner delivered
-Delivery to stores and platforms. Street Banker assembles and validates
-the release package; delivery goes out through the distribution
-partnership (SummitArts on Symphonic Distribution), not a direct line
-from this application.
+**On this deployment right now** (as generated):
 
-### Integration ready
-Rollout Engine publishing — the campaign is prepared here and posted by a
-person · smart-link streaming destinations · geographic response ·
-conversion events.
+- **Spotify pre-save** — Integration ready. The flow is built and not connected on this deployment. Pre-save buttons collect a notify-me instead, and no Spotify token is requested, stored or processed.
+- **Release-day email** — Integration ready. Built, and no email provider is connected on this deployment.
+- **Subscriptions and billing** — Coming soon. No payment provider is connected on this deployment.
 
-### Coming soon
-SMS capture · QR codes for a printed run · motion and video assets ·
-print-ready separations.
+### Why this matters for Spotify pre-save
 
-### Requires verification
-Every Royalty Sweep finding, without exception. A finding is a question
-with evidence attached. It is never submitted anywhere on the strength of
-the match alone, and any figure attached to it is arithmetic on the
-artist's own statements rather than a prediction.
+The OAuth flow, token storage and release-day save are all implemented,
+and all of them are gated on credentials. With those unset the feature
+falls back to notify-me and no token is ever requested. The privacy
+page's statement about encrypting pre-save tokens is therefore
+conditional on the same probe: with credentials absent it says instead
+that no Spotify token is requested, stored or processed.
+
+## Every capability
+
+### Live (10)
+
+- Artist EQ
+- Starting plan
+- Metadata Passport
+- Rights & Ownership
+- Creative Studio
+- Artwork generator
+- Smart Links
+- Email capture with consent
+- Rollout plans
+- Three Street Banker Lanes
+
+### Example (2)
+
+- Artist Twin assessment
+- Fan Intelligence
+
+### Partner delivered (1)
+
+- Delivery to platforms — Street Banker assembles and validates the package; delivery goes out through the distribution partnership.
+
+### Integration ready (6)
+
+- Spotify pre-save — The flow is built and not connected on this deployment. Pre-save buttons collect a notify-me instead, and no Spotify token is requested, stored or processed.
+- Release-day email — Built, and no email provider is connected on this deployment.
+- Social publishing
+- Streaming destination links
+- Geographic response
+- Conversion events
+
+### Coming soon (6)
+
+- Subscriptions and billing — No payment provider is connected on this deployment.
+- SMS capture
+- QR codes
+- Motion and video assets
+- Print-ready separations
+- Release Signal
+
+### Requires verification (1)
+
+- Royalty Sweep finding
 
 ## Rules for adding a capability
 
-1. If it is not built, it is **Coming soon**. There is no label meaning
-   "nearly".
+1. If it is not built, it is **Coming soon**. There is no label meaning "nearly".
 2. If the interface exists and the outside connection does not, it is
    **Integration ready** — never Live.
-3. If somebody else performs it, it is **Partner delivered**, and the
-   partner is named.
+3. If somebody else performs it, it is **Partner delivered**, and the partner is named.
 4. If the data on screen is invented, the label is **Example** and the
-   surrounding copy says so in words as well.
-5. Nothing on any public surface carries a figure that was not computed
-   from a real input. No recovery totals, stream counts, artist counts,
-   country counts, earnings or accuracy percentages appear anywhere.
+   surrounding copy says so in words as well as in a chip.
+5. If it depends on a credential, give it a **probe**, not a fixed status.
+6. No figure appears on any public surface that was not computed from a
+   real input. No recovery totals, stream counts, artist counts, country
+   counts, earnings or accuracy percentages.

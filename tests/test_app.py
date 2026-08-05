@@ -3765,7 +3765,7 @@ def test_homepage_distribution_links():
     client = app_obj.test_client()
     home = client.get("/").get_data(as_text=True)
     assert 'href="/services/distribution"' in home
-    assert "Explore Distribution" in home
+    assert "Start a release" in home
     assert client.get("/services/distribution").status_code == 200
 
 
@@ -5354,7 +5354,7 @@ def test_artist_signal_profile_config_shape():
 def test_homepage_carries_the_signal_profile_hooks():
     """The EQ reports inside its own console and changes nothing else."""
     body = _demo().get("/").get_data(as_text=True)
-    assert "Your recommended tools and next actions update instantly." in body
+    assert "The plan updates as you do." in body
     assert "Reset EQ" in body
     assert "streetBankerArtistEq" in body
     # The subtle per-card reactions are gone: no lane badges, no tool

@@ -235,7 +235,7 @@ def test_the_hero_is_live_html_over_a_photograph():
     assert 'class="sbhero"' in body
     assert "BUILD THE RELEASE." in body and "OWN THE MOMENT." in body
     assert "STREET BANKER · THE ARTIST OPERATING SYSTEM" in body
-    assert "creative tools, rollout intelligence" in body
+    assert "build the release, shape the campaign" in body
     assert body.count("<h1") == 1
 
 
@@ -256,7 +256,7 @@ def test_the_hero_ships_a_responsive_image_set():
 
 def test_the_hero_ctas_go_somewhere_public():
     body = _home()
-    assert 'href="#platform"' in body                 # the product story
+    assert 'href="/product-tour"' in body                 # the product story
     assert 'href="/catalog-sweep"' in body            # the sweep entry
     client = _anon()
     assert client.get("/catalog-sweep").status_code == 200

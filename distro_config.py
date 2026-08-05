@@ -30,7 +30,7 @@ TRUST = "Your masters. Your metadata. Your release plan."
 # /distribution, which made the primary CTA a no-op.
 PRIMARY_CTA = {"label": "Distribute now", "href": "/release-check"}
 GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
-FINAL_CTA = {"label": "Start a release", "href": "/distribution"}
+FINAL_CTA = {"label": "Start a release", "href": "/release-check"}
 
 # "copy" would resolve to dict.copy in a Jinja attribute lookup and print
 # the bound method, so the key is named for what it is.

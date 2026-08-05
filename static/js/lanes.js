@@ -149,7 +149,7 @@
       line.style.transform = "rotate(" + (deg + 7) + "deg)";
       window.setTimeout(function () {
         line.style.transform = "rotate(" + deg + "deg)";
-      }, 190);
+      }, 90);
     } else {
       vu.classList.remove("is-live");
       line.style.transform = "rotate(" + deg + "deg)";

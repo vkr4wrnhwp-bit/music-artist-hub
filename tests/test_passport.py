@@ -40,7 +40,7 @@ def test_the_section_sits_after_distribution_and_displaces_nothing():
     assert body.index('id="global-distribution"') < body.index('id="metadata-passport"')
     assert body.index('id="metadata-passport"') < body.index("Built for artist control.")
     for kept in ["Built for artist control.", "Your catalog is the ",
-                 "Your music. Everywhere.", "Find what&#39;s yours.",
+                 "Get the release right.", "Find what&#39;s yours.",
                  "Choose your lane."]:
         assert kept in body, kept
 
@@ -49,8 +49,8 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Metadata Passport + Rights" in eq and ">11<" in eq
     assert "One release." in eq and "Every detail connected." in eq
-    assert ("Organize credits, splits, identifiers, ownership, agreements, "
-            "assets, versions and release history in one living record." in eq)
+    assert ("Every credit, split, identifier, agreement, asset, and version "
+            "tied to the same release record." in eq)
     assert "Open Metadata Passport" in eq
     assert "See how it connects" in eq
     assert "Your credits. Your rights. Your record." in eq

@@ -138,7 +138,7 @@
   opacity: 0.75;
   transition: opacity 200ms ease;
 }
-.sblane-desc {
+.sblane-desc, .sblane-for {
   margin-top: 12px;
   max-width: 46ch;
   font-size: clamp(13px, 0.92vw, 14.5px);
@@ -177,9 +177,10 @@
   background: rgb(201 168 106 / 0.05);
   border-top-color: var(--ln-brass);
 }
-.sblane-link:hover .sblane-desc,
-.sblane-link:focus-visible .sblane-desc,
-.sblane-summary.is-active .sblane-desc { color: var(--ln-ivory); }
+.sblane-link:hover .sblane-desc, .sblane-link:hover .sblane-for,
+.sblane-link:focus-visible .sblane-desc, .sblane-link:focus-visible .sblane-for,
+.sblane-summary.is-active .sblane-desc,
+.sblane-summary.is-active .sblane-for { color: var(--ln-ivory); }
 .sblane-link:hover .sblane-subline,
 .sblane-link:focus-visible .sblane-subline,
 .sblane-summary.is-active .sblane-subline { opacity: 1; }
@@ -244,7 +245,7 @@
   color: var(--ln-ivory);
 }
 .sblane-compare-title span { color: var(--ln-brass); margin-right: 6px; letter-spacing: 0.18em; }
-.sblane-compare-for {
+.sblane-compare-desc, .sblane-compare-for {
   margin: 8px 0 0;
   font-size: clamp(12.5px, 0.9vw, 14px);
   line-height: 1.6;
@@ -327,7 +328,7 @@
    natural settle. No idle loop and nothing random - the needle moves
    when the reader does something and then stops. */
 .sblane-vu.is-live .sblane-vu-needle {
-  transition: transform 620ms cubic-bezier(0.17, 1.24, 0.36, 1);
+  transition: transform 240ms cubic-bezier(0.17, 1.24, 0.36, 1);
 }
 
 .sblane-fader {
@@ -355,7 +356,7 @@
   background: linear-gradient(#4A443B, #2A2620);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.18);
   bottom: 6%;                          /* Core, the resting detent */
-  transition: bottom 520ms cubic-bezier(0.22, 0.9, 0.3, 1);
+  transition: bottom 240ms cubic-bezier(0.22, 0.9, 0.3, 1);
 }
 .sblane-channel[data-support="1"] .sblane-fader-cap { bottom: 44%; }
 .sblane-channel[data-support="2"] .sblane-fader-cap { bottom: 82%; }

@@ -95,7 +95,7 @@
           <span class="sblane-num">{{ lane.num }}</span>
           <span class="sblane-name">{{ lane.name }}</span>
           <span class="sblane-subline">{{ lane.subline }}</span>
-          <span class="sblane-desc">{{ lane.description }}</span>
+          <span class="sblane-for">{{ lane.for_you_if }}</span>
           <span class="sblane-cta">{{ lane.cta }}
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
@@ -119,7 +119,7 @@
         {% for lane in cfg.lanes %}
         <div class="sblane-compare-col" data-lane="{{ lane.slug }}">
           <h3 class="sblane-compare-title"><span>{{ lane.num }}</span> {{ lane.name }}</h3>
-          <p class="sblane-compare-for">{{ lane.for_you_if }}</p>
+          <p class="sblane-compare-desc">{{ lane.description }}</p>
           <ul>
             {% for item in lane.includes %}<li>{{ item }}</li>{% endfor %}
           </ul>

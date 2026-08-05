@@ -95,6 +95,9 @@
   <div class="sbmp-body">
     {# One detail at a time, and every one of them printed, so the whole
        thing reads with no script at all. #}
+    <details class="sbd">
+      <summary>Read the full example record</summary>
+      <div class="sbd-body">
     <div class="sbmp-detail" id="sbmp-detail">
       <p class="sbmp-detail-tag">{{ mp.example_label }}</p>
       {% for cat in mp.categories %}
@@ -117,6 +120,8 @@
       </article>
       {% endfor %}
     </div>
+      </div>
+    </details>
 
     {# What one entry asks of everything else. Hidden, not absent. #}
     <div class="sbmp-connect" id="sbmp-connect" hidden>
@@ -139,14 +144,19 @@
            aria-label="{{ mp.health_label }} on the example passport: {{ completeness }} per cent.">
         <span style="width: {{ completeness }}%"></span>
       </div>
-      <ul class="sbmp-health-list">
-        {% for cat in mp.categories %}
-        <li>
-          <span class="sbmp-health-name">{{ cat.label }}</span>
-          <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
-        </li>
-        {% endfor %}
-      </ul>
+      <details class="sbd">
+        <summary>Status by category</summary>
+        <div class="sbd-body">
+          <ul class="sbmp-health-list">
+            {% for cat in mp.categories %}
+            <li>
+              <span class="sbmp-health-name">{{ cat.label }}</span>
+              <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </details>
       <p class="sbmp-health-note">{{ mp.health_note }}</p>
     </div>
 
