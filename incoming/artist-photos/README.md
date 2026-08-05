@@ -15,9 +15,10 @@ quality that cannot be recovered.
 | `rollout-wide` | 8 Rollout Engine, desktop | 940 x 710 | 940 |
 | `rollout-close` | 8 Rollout Engine, phone | 600 x 630 | 600 |
 
-The hero needs a wide frame and a tall one. They can come from the same
-original if it is large enough, but a landscape crowd shot rarely
-survives a 3:4 crop — a second frame for phones is usually better.
+The hero takes **two different photographs**, not two crops of one: a
+landscape frame for desktop and a separate portrait frame for phones. A
+wide crowd shot cropped to 3:4 keeps about a fifth of its width and loses
+the crowd, which is the whole subject.
 
 ## Building
 
@@ -34,10 +35,22 @@ Check the crop before writing anything:
 ## After building
 
 1. Update the `alt` text in the config to describe the new scene.
-2. Add the `credit` block to the same config.
-3. Bump the `?v=` on any changed asset and bump `VERSION` in
+2. Bump the `?v=` on any changed asset and bump `VERSION` in
    `static/js/sw.js` — the service worker is cache-first on `/static`
    and will keep serving the old picture otherwise.
 
 This folder is for source material and is not served. Nothing in it
 reaches the site until it has been through `build_photo.py`.
+
+## Credit
+
+None. These photographs are the owner's own work, so there is no
+photographer to attribute and no licence to acknowledge. The credit
+partial that briefly existed for this was removed rather than left
+unused.
+
+The alt text still describes the scene, because that is an accessibility
+requirement rather than a credit — and it does not name anyone in the
+picture as a Street Banker artist, because a face on a marketing page is
+read as an endorsement and that would be a claim about a business
+relationship.
