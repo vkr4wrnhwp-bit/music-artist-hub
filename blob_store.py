@@ -221,6 +221,67 @@ def url_for(path, ttl=DEFAULT_TTL):
         return path
 
 
+def diagnose():
+    """Why the bucket is unreachable, without printing any secret.
+
+    A URLError out of put() means the request never got to Cloudflare, so
+    the useful question is whether the endpoint host resolves - and the
+    host is built entirely from R2_ACCOUNT_ID. A Cloudflare account id is
+    32 hex characters; anything else is usually a pasted URL, a token id
+    or a truncated copy.
+    """
+    import socket
+
+    account = _env("R2_ACCOUNT_ID")
+    bucket = _env("R2_BUCKET")
+    report = {
+        "account_id_len": len(account),
+        "account_id_is_32_hex": bool(
+            len(account) == 32 and all(c in "0123456789abcdefABCDEF" for c in account)),
+        "account_id_has_scheme_or_slash": ("/" in account or ":" in account),
+        "bucket_len": len(bucket),
+        "bucket_has_slash": "/" in bucket,
+        "host_suffix": ".r2.cloudflarestorage.com",
+    }
+    try:
+        socket.getaddrinfo(_host(), 443)
+        report["host_resolves"] = True
+    except Exception as exc:
+        report["host_resolves"] = False
+        report["dns_error"] = str(exc)[:180]
+        report["verdict"] = "DNS failed for the endpoint host"
+        return report
+
+    # DNS is not the discriminator: Cloudflare wildcards
+    # *.r2.cloudflarestorage.com, so any account id resolves. What it does
+    # NOT do is complete a TLS handshake for an account that does not
+    # exist - it rejects the SNI. So the handshake is the real test, and
+    # it needs no credentials to run.
+    import ssl
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((_host(), 443), timeout=15) as raw:
+            with ctx.wrap_socket(raw, server_hostname=_host()):
+                report["tls_handshake"] = True
+                report["verdict"] = ("endpoint is real; a failure past this "
+                                     "point is credentials or bucket, not the "
+                                     "account id")
+    except ssl.SSLError as exc:
+        report["tls_handshake"] = False
+        report["tls_error"] = str(exc)[:180]
+        report["verdict"] = ("Cloudflare refused the TLS handshake for this "
+                             "account subdomain, which means R2_ACCOUNT_ID is "
+                             "not an account Cloudflare recognises. It is the "
+                             "32-hex id in the R2 S3 endpoint "
+                             "https://<id>.r2.cloudflarestorage.com - not the "
+                             "bucket name, token id or token value.")
+    except Exception as exc:
+        report["tls_handshake"] = False
+        report["tls_error"] = "%s: %s" % (type(exc).__name__, str(exc)[:140])
+        report["verdict"] = "could not reach the endpoint at all"
+    return report
+
+
 def fetch(path, timeout=30):
     """Read an object back as bytes, or None.
 

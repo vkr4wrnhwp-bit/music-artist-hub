@@ -1041,6 +1041,11 @@ def create_app():
         except Exception as exc:
             result["put"] = False
             result["put_error"] = type(exc).__name__
+            # The type alone does not say why. URLError means the request
+            # never reached Cloudflare, which is a hostname problem, and
+            # the hostname is built from R2_ACCOUNT_ID alone.
+            result["put_reason"] = str(getattr(exc, "reason", exc))[:180]
+            result["why"] = blob_store.diagnose()
             return result
         try:
             got = blob_store.fetch(blob_store.PREFIX + key)
