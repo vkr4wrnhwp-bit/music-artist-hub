@@ -1,28 +1,21 @@
 /* Section 10 — Global Distribution.
  *
- * The section reads with this file absent: the five capabilities are
- * printed, every workflow detail is in the document, and
- * plain markup and both CTAs are links. What is here is the workflow
- * reveal and measurement.
+ * The section reads with this file absent: the heading, the partner line
+ * and the five capabilities are all printed, and both CTAs are plain
+ * links. What is left here is measurement.
+ *
+ * The five-stage workflow reveal used to live here. The workflow moved
+ * off the homepage to /distribution, so the stage handling went with it,
+ * along with the example-checklist observer.
  *
  * No release metadata, contributor name, audio detail or ownership
- * information exists in this section to send anywhere, and the events
- * carry stage names from the config only.
+ * information exists in this section to send anywhere.
  */
 (function () {
   "use strict";
 
   var root = document.getElementById("global-distribution");
   if (!root) { return; }
-
-  var stages = [].slice.call(root.querySelectorAll(".sbds-stage"));
-  var detail = root.querySelector(".sbds-flow-text");
-  var details = {};
-  var terms = root.querySelectorAll(".sbds-flow-fallback dt");
-  var defs = root.querySelectorAll(".sbds-flow-fallback dd");
-  for (var i = 0; i < terms.length; i++) {
-    if (defs[i]) { details[terms[i].textContent.toLowerCase()] = defs[i].textContent; }
-  }
 
   function track(name, payload) {
     try {
@@ -36,22 +29,8 @@
     } catch (e) { /* analytics must never break the page */ }
   }
 
-  var seenStage = {};
-  stages.forEach(function (button, index) {
-    var id = button.dataset.stage;
-    function show() {
-      stages.forEach(function (b) { b.classList.toggle("is-active", b === button); });
-      if (detail && details[id]) { detail.textContent = details[id]; }
-      if (seenStage[id]) { return; }
-      seenStage[id] = true;
-      track("distribution_stage_selected", {stage: id});
-    }
-    button.addEventListener("mouseenter", show);
-    button.addEventListener("focus", show);
-    button.addEventListener("click", show);
-    if (index === 0) { button.classList.add("is-active"); }
-  });
-
+  /* The two CTAs, which now go to two different places: the release
+     readiness check and the informational guide. */
   var primary = root.querySelector(".sbds-cta");
   if (primary) {
     primary.addEventListener("click", function () {
@@ -62,14 +41,7 @@
   var guide = root.querySelector(".sbds-guide");
   if (guide) {
     guide.addEventListener("click", function () {
-      track("distribution_guide_clicked", {});
-    });
-  }
-
-  var final = root.querySelector(".sbds-final-cta");
-  if (final) {
-    final.addEventListener("click", function () {
-      track("start_a_release_clicked", {href: final.getAttribute("href")});
+      track("distribution_guide_clicked", {href: guide.getAttribute("href")});
     });
   }
 

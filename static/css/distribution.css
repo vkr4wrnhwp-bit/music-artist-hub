@@ -110,8 +110,7 @@
   color: var(--ds-muted);
 }
 
-.sbds-cta:focus-visible, .sbds-guide:focus-visible,
-.sbds-stage:focus-visible, .sbds-final-cta:focus-visible {
+.sbds-cta:focus-visible, .sbds-guide:focus-visible {
   outline: 2px solid var(--ds-brass);
   outline-offset: 3px;
 }
@@ -234,113 +233,13 @@
 .sbds-cap:hover .sbds-cap-name { color: var(--ds-brass-lit); }
 .sbds-cap:hover .sbds-cap-detail { color: var(--ds-ivory); }
 
-/* --- the workflow --------------------------------------------------------- */
-.sbds-flow { margin-top: clamp(28px, 3vw, 40px); text-align: center; }
-.sbds-flow-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.sbds-flow-row > li { display: flex; align-items: center; }
-.sbds-flow-row > li + li::before {
-  content: "";
-  width: 18px;
-  height: 1px;
-  background: var(--ds-line);
-  flex: 0 0 18px;
-}
-.sbds-stage {
-  background: none;
-  border: 0;
-  padding: 8px 12px;
-  font-family: inherit;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ds-muted);
-  cursor: pointer;
-  min-height: 40px;
-  transition: color 200ms ease;
-}
-.sbds-stage:hover, .sbds-stage.is-active { color: var(--ds-brass); }
-
-.sbds-flow-detail {
-  margin: 6px auto 0;
-  min-height: 3em;
-  max-width: 62ch;
-  font-size: clamp(12px, 0.88vw, 13.5px);
-  line-height: 1.6;
-  color: var(--ds-muted);
-}
-.sbds-flow-fallback {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* --- the example package -------------------------------------------------- */
-/* --- the closing block ---------------------------------------------------- */
-.sbds-final {
-  margin-top: clamp(26px, 3vw, 40px);
-  border: 1px solid var(--ds-line);
-  border-radius: 3px;
-  padding: clamp(20px, 2.4vw, 30px) clamp(18px, 2.4vw, 34px);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px 28px;
-}
-.sbds-final-title {
-  margin: 0;
-  font-size: clamp(16px, 1.5vw, 22px);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ds-ivory);
-}
-.sbds-final-copy {
-  margin: 8px 0 0;
-  max-width: 62ch;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--ds-muted);
-}
-.sbds-final-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 50px;
-  padding: 0 30px;
-  border: 1px solid var(--ds-brass);
-  border-radius: 2px;
-  color: var(--ds-brass);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background-color 200ms ease, color 200ms ease;
-}
-.sbds-final-cta:hover { background: var(--ds-brass); color: #14120E; }
-
 /* --- small screens -------------------------------------------------------- */
 @media (max-width: 767px) {
   .sbds-img { aspect-ratio: 740 / 422; }
   .sbds-cap { text-align: left; }
-  .sbds-cta, .sbds-final-cta { width: 100%; }
-  .sbds-final { flex-direction: column; align-items: stretch; }
+  .sbds-cta, .sbds-guide { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sbds-cta, .sbds-guide, .sbds-stage, .sbds-cap-name, .sbds-cap-detail,
-  .sbds-final-cta { transition: none; }
+  .sbds-cta, .sbds-guide, .sbds-cap-name, .sbds-cap-detail { transition: none; }
 }

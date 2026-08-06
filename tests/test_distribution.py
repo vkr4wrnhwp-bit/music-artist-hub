@@ -53,8 +53,8 @@ def test_the_copy_is_the_approved_copy():
     assert "Distribute now" in eq
     assert "View distribution guide" in eq
     assert "Your masters. Your metadata. Your release plan." in eq
-    assert "Ready to release?" in eq
-    assert "Start a release" in eq
+    assert "Ready to release?" not in eq
+    assert "Start a release" not in eq        # closing block removed
 
 
 # --- the claims audit -----------------------------------------------------
@@ -110,7 +110,7 @@ def test_no_fabricated_figures_anywhere_in_the_section():
 
 # --- structure ------------------------------------------------------------
 
-def test_the_shape_is_photograph_capabilities_workflow_cta():
+def test_the_shape_is_photograph_partner_capabilities():
     """The heading is over the bench, not above it.
 
     The example release checklist that used to sit between the workflow
@@ -122,11 +122,14 @@ def test_the_shape_is_photograph_capabilities_workflow_cta():
     # The header is now inside the figure.
     assert eq.index('class="sbds-photo"') < eq.index('class="sbds-head"')
     assert eq.index('class="sbds-head"') < eq.index("</figure>")
-    for earlier, later in [('class="sbds-photo"', 'class="sbds-caps"'),
-                           ('class="sbds-caps"', 'class="sbds-flow"'),
-                           ('class="sbds-flow"', 'class="sbds-final"')]:
+    for earlier, later in [('class="sbds-photo"', 'class="sbds-partner"'),
+                           ('class="sbds-partner"', 'class="sbds-caps"')]:
         assert eq.index(earlier) < eq.index(later), (earlier, later)
-    assert 'class="sbds-check"' not in eq
+    # Three blocks are off the homepage: the release checklist, the
+    # five-stage workflow and the "Ready to release?" closing block. All
+    # of them are on /distribution, which the guide button opens.
+    for gone in ('class="sbds-check"', 'class="sbds-flow"', 'class="sbds-final"'):
+        assert gone not in eq, gone
 
     css = _css()
     assert "text-align: center" in css
@@ -152,17 +155,24 @@ def test_five_capabilities_with_the_reviewed_wording():
     assert "according to your agreement" in ownership
 
 
-def test_the_workflow_is_five_stages_with_its_detail_in_the_document():
+def test_the_workflow_lives_on_the_guide_page_not_the_homepage():
     from distro_config import WORKFLOW
 
     eq = _section()
     assert [s for s, _ in WORKFLOW] == ["Prepare", "Validate", "Deliver",
                                         "Monitor", "Maintain"]
+    # Not on the homepage any more: the live detail line and the
+    # screen-reader fallback printed every stage twice.
     for step, detail in WORKFLOW:
-        assert ">%s<" % step in eq, step
-        assert detail[:40] in eq, step
-    assert 'class="sbds-flow-fallback"' in eq      # readable with no script
-    assert 'aria-live="polite"' in eq
+        assert ">%s<" % step not in eq, step
+    assert 'class="sbds-flow-fallback"' not in eq
+
+    # Still complete on /distribution.
+    from app import create_app
+    body = create_app().test_client().get("/distribution").get_data(as_text=True)
+    for step, detail in WORKFLOW:
+        assert step in body, step
+        assert detail[:40] in body, step
 
 
 def test_the_checklist_is_not_duplicated_on_the_homepage():
@@ -171,7 +181,8 @@ def test_the_checklist_is_not_duplicated_on_the_homepage():
     assert "Example release checklist" not in eq
     assert 'class="sbds-check' not in eq
     js = open("static/js/distribution.js", encoding="utf-8").read()
-    assert "checklist" not in js
+    assert "sbds-check" not in js
+    assert "distribution_checklist_viewed" not in js
     # And the button that opens the real one still points at it.
     from distro_config import PRIMARY_CTA
     assert PRIMARY_CTA["href"] == "/release-check"
@@ -250,12 +261,13 @@ def test_both_crops_ship_in_three_formats():
 def test_every_cta_is_public_and_explains_before_it_asks():
     eq = _section()
     hrefs = [re.search(r'class="sbds-cta" href="([^"]+)"', eq).group(1),
-             re.search(r'class="sbds-guide" href="([^"]+)"', eq).group(1),
-             re.search(r'class="sbds-final-cta" href="([^"]+)"', eq).group(1)]
-    # Three CTAs, and the first two must not share a destination: they
-    # used to, which made "Distribute now" do exactly what the guide
-    # button did.
-    assert hrefs == ["/release-check", "/distribution#guide", "/distribution"]
+             re.search(r'class="sbds-guide" href="([^"]+)"', eq).group(1)]
+    assert 'class="sbds-final-cta"' not in eq       # closing block removed
+    # Two CTAs, and they must not share a destination: they once did,
+    # which made "Distribute now" do exactly what the guide button did.
+    # Two CTAs now - the closing "Start a release" went with its block -
+    # and they must not share a destination, which they once did.
+    assert hrefs == ["/release-check", "/distribution#guide"]
     assert hrefs[0] != hrefs[1]
     client = _anon()
     page = client.get("/distribution")
@@ -306,19 +318,22 @@ def test_accessibility_scaffolding():
     eq = _section()
     assert 'aria-labelledby="sbds-heading"' in eq
     assert '<h2 class="sbds-title" id="sbds-heading">' in eq
-    assert 'aria-describedby="sbds-flow-detail"' in eq
-    assert 'aria-live="polite"' in eq
+    # The workflow's aria-describedby and live region went with it.
+    assert 'aria-describedby="sbds-flow-detail"' not in eq
+    assert 'aria-live' not in eq
     css = _css()
     assert "outline: 2px solid var(--ds-brass)" in css
     assert "min-height: 52px" in css               # primary CTA target
-    assert "min-height: 40px" in css               # workflow stage target
+    # The 40px workflow-stage target went with the workflow. The two
+    # CTAs that remain carry their own min-height.
+    assert "min-height" in css
 
 
 def test_the_analytics_carry_no_release_information():
     js = open("static/js/distribution.js", encoding="utf-8").read()
     for event in ("distribution_section_viewed", "distribute_now_clicked",
-                  "distribution_guide_clicked", "start_a_release_clicked",
-                  "distribution_stage_selected"):
+                  "distribution_guide_clicked",
+                  ):
         assert '"%s"' % event in js, event
     code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
     for sensitive in ("isrc", "upc", "contributor", "owner", "email",

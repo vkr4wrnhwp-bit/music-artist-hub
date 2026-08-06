@@ -1,7 +1,13 @@
 {# Section 10 — Global Distribution.
 
    The heading sits centred over the bench of release materials; below it
-   come five capabilities, the release workflow and one closing block.
+   come the partner line and five capabilities, and that is the section.
+
+   The five-stage workflow and the "Ready to release?" block were removed
+   from the homepage. Both live on /distribution, which the View
+   distribution guide button opens, and the workflow in particular was
+   printing each stage twice - once in the live detail line and again in
+   the screen-reader fallback beneath it.
 
    The example release checklist used to live here. It is the same list
    the Distribute Now button opens at /release-check, where a visitor can
@@ -79,30 +85,5 @@
       {% endfor %}
     </ol>
 
-    <div class="sbds-flow">
-      <ol class="sbds-flow-row">
-        {% for step, detail in ds.workflow %}
-        <li>
-          <button type="button" class="sbds-stage" data-stage="{{ step | lower }}"
-                  aria-describedby="sbds-flow-detail">{{ step }}</button>
-        </li>
-        {% endfor %}
-      </ol>
-      <p class="sbds-flow-detail" id="sbds-flow-detail" aria-live="polite">
-        <span class="sbds-flow-text">{{ ds.workflow[0][1] }}</span>
-      </p>
-      {# The same detail, readable with no pointer and no script. #}
-      <dl class="sbds-flow-fallback">
-        {% for step, detail in ds.workflow %}<dt>{{ step }}</dt><dd>{{ detail }}</dd>{% endfor %}
-      </dl>
-    </div>
-
-    <div class="sbds-final">
-      <div>
-        <p class="sbds-final-title">{{ ds.final.headline }}</p>
-        <p class="sbds-final-copy">{{ ds.final.line }}</p>
-      </div>
-      <a class="sbds-final-cta" href="{{ ds.final_cta.href }}">{{ ds.final_cta.label }}</a>
-    </div>
   </div>
 </section>

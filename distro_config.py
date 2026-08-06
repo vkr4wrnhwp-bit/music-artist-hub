@@ -33,15 +33,9 @@ TRUST = "Your masters. Your metadata. Your release plan."
 # "Distribute now" opens.
 PRIMARY_CTA = {"label": "Distribute now", "href": "/release-check"}
 GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
-FINAL_CTA = {"label": "Start a release", "href": "/distribution"}
 
 # "copy" would resolve to dict.copy in a Jinja attribute lookup and print
 # the bound method, so the key is named for what it is.
-FINAL = {
-    "headline": "Ready to release?",
-    "line": ("Build the complete release package, check every requirement, and "
-             "move toward delivery from one workspace."),
-}
 
 # The partner, named, because "supported platforms" means nothing without
 # saying who supports them.
@@ -181,8 +175,6 @@ def get_distro_config():
         "trust": TRUST,
         "primary_cta": PRIMARY_CTA,
         "guide_cta": GUIDE_CTA,
-        "final_cta": FINAL_CTA,
-        "final": FINAL,
         "partner": PARTNER,
         "capabilities": CAPABILITIES,
         "workflow": WORKFLOW,
