@@ -23,7 +23,7 @@
   background: var(--sbdept-ink);
   color: var(--sbdept-ivory);
   padding: clamp(56px, 8vw, 104px) 0 clamp(48px, 7vw, 88px);
-  overflow: hidden;                    /* the mobile scroller lives inside */
+  overflow: hidden;                    /* the desktop slices are clipped to it */
 }
 
 .sbdept-inner {
@@ -205,13 +205,21 @@
   outline-offset: -2px;
 }
 
-/* --- below 1024px: the same six links, scrolled ------------------------- */
-/* Each link carries its own sixth of the same file as a background
-   window, so the panels stay adjacent crops of one photograph rather than
-   six pictures. The <img> stays in the document, read but not shown, so
-   the scene still has exactly one description. */
+/* --- below 1024px: the same six links, as a grid ------------------------ */
+/* Each link keeps its own sixth of the same file as a background window,
+   so the cards stay crops of one photograph rather than six pictures. The
+   <img> stays in the document, read but not shown, so the scene still has
+   exactly one description.
+
+   This was a horizontal snap scroller. It showed one department at a time
+   and hid the other five behind a swipe, which is a poor trade on a page
+   whose whole point is that the six work together.
+
+   CSS Grid, not inline-block: inline-block siblings inherit the
+   whitespace between their tags, so two 50% cards do not fit on one row
+   and the last one drops. Grid has no such problem and the 1px gap over a
+   rule-coloured background draws the hairlines between cards for free. */
 @media (max-width: 1023px) {
-  .sbdept-inner { padding-right: 0; }
 
   .sbdept-photo {
     position: absolute;
@@ -223,27 +231,23 @@
   }
 
   .sbdept-grid {
-    display: flex;
-    gap: 0;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-right: clamp(16px, 4vw, 48px);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;                          /* the hairline between cards */
+    background: var(--sbdept-rule);
+    overflow: visible;
   }
-  .sbdept-grid::-webkit-scrollbar { display: none; }
 
   .sbdept-dept {
     display: block;
-    flex: 0 0 var(--sbdept-panel, 80vw);
-    max-width: 420px;
-    scroll-snap-align: start;
+    min-width: 0;                      /* long labels must not widen a track */
+    max-width: none;
     border-left: 0;
+    background: var(--sbdept-ink);     /* so only the 1px gap shows the rule */
   }
-  .sbdept-dept + .sbdept-dept { border-left: 1px solid var(--sbdept-rule); }
 
   .sbdept-window {
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 1 / 1;
     background-repeat: no-repeat;
     /* Six panels wide, so each one is positioned on its own sixth: at
        600% the browser's percentage positioning lands 0%, 20% ... 100%
@@ -257,16 +261,18 @@
       url("/static/img/departments-1200.jpg") type("image/jpeg"));
   }
 
-  .sbdept-body { padding: 16px 16px 6px; }
+  .sbdept-body { padding: 13px 13px 15px; }
   .sbdept-desc { margin-top: 8px; }
 
   .sbdept-dept::after { display: none; }
   .sbdept-dept:hover .sbdept-wash { opacity: 1; }
 }
 
-@media (min-width: 640px) and (max-width: 1023px) {
-  .sbdept-dept { --sbdept-panel: 34vw; }
-  .sbdept-window { aspect-ratio: 2 / 3; }
+/* Wider phones and tablets take a third column; the window can afford to
+   be taller again once each card is not half a small screen. */
+@media (min-width: 620px) and (max-width: 1023px) {
+  .sbdept-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sbdept-window { aspect-ratio: 3 / 4; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -178,11 +178,34 @@ def test_the_slices_are_coded_rather_than_cut():
     assert "grid-row: 1 / 3" in css
     assert "grid-template-rows: subgrid" in css      # exact row register
     assert "aspect-ratio: 1553 / 4056" in css        # and the fallback
-    # Below 1024 the same six links become windows onto the same file.
+    # Below 1024 the same six links become windows onto the same file,
+    # laid out as a grid. Each card keeps its own sixth regardless of how
+    # wide the card is, because the window is positioned by index.
     assert "background-size: 600% auto" in css
     assert "background-position: calc(var(--sbdept-i) * 20%) center" in css
-    assert "scroll-snap-type: x mandatory" in css
     assert "departments-1200.jpg" in css             # one source, not six
+
+    mobile = css[css.index("@media (max-width: 1023px)"):
+                 css.index("@media (prefers-reduced-motion")]
+
+    # It was a horizontal snap scroller showing one department at a time.
+    assert "scroll-snap-type: x" not in mobile
+    assert "overflow-x: auto" not in mobile
+    assert "80vw" not in mobile
+
+    # Grid, and specifically not inline-block: inline-block siblings
+    # inherit the whitespace between their tags, so two 50%-wide cards do
+    # not fit on one row and the sixth drops to a line of its own. That
+    # exact mistake shipped once.
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in mobile
+    assert "inline-block" not in mobile
+    assert "width: 50%" not in mobile
+    assert "min-width: 0" in mobile                  # long labels cannot widen a track
+    assert "repeat(3, minmax(0, 1fr))" in css        # three across on a tablet
+
+    # The scroller bled to the right edge, so the wrapper dropped its
+    # right padding. A grid inside that gutter would sit off-centre.
+    assert "padding-right: 0" not in mobile
 
 
 def test_the_interaction_has_three_ways_in_and_survives_without_script():
