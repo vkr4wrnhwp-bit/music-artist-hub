@@ -110,15 +110,30 @@ def test_no_fabricated_figures_anywhere_in_the_section():
 
 # --- structure ------------------------------------------------------------
 
-def test_the_shape_is_header_photograph_capabilities_checklist_cta():
+def test_the_shape_is_photograph_capabilities_workflow_cta():
+    """The heading is over the bench, not above it.
+
+    The example release checklist that used to sit between the workflow
+    and the closing block is gone: it is the same list /release-check
+    serves, where a visitor can actually tick it, so a static copy here
+    said the same thing twice and said it worse.
+    """
     eq = _section()
-    for earlier, later in [('class="sbds-head"', 'class="sbds-photo"'),
-                           ('class="sbds-photo"', 'class="sbds-caps"'),
+    # The header is now inside the figure.
+    assert eq.index('class="sbds-photo"') < eq.index('class="sbds-head"')
+    assert eq.index('class="sbds-head"') < eq.index("</figure>")
+    for earlier, later in [('class="sbds-photo"', 'class="sbds-caps"'),
                            ('class="sbds-caps"', 'class="sbds-flow"'),
-                           ('class="sbds-flow"', 'class="sbds-check"'),
-                           ('class="sbds-check"', 'class="sbds-final"')]:
+                           ('class="sbds-flow"', 'class="sbds-final"')]:
         assert eq.index(earlier) < eq.index(later), (earlier, later)
-    assert "text-align: center" in _css()
+    assert 'class="sbds-check"' not in eq
+
+    css = _css()
+    assert "text-align: center" in css
+    # Centred over the picture, per the brief - not to one side.
+    assert ".sbds-over" in css and "align-items: center" in css
+    assert ".sbds-scrim" in css
+    assert ".sbds-check" not in css              # no dead rules
 
 
 def test_five_capabilities_with_the_reviewed_wording():
@@ -150,7 +165,19 @@ def test_the_workflow_is_five_stages_with_its_detail_in_the_document():
     assert 'aria-live="polite"' in eq
 
 
-def test_the_checklist_is_labelled_an_example_and_nothing_is_ticked():
+def test_the_checklist_is_not_duplicated_on_the_homepage():
+    """It lives at /release-check, where it is interactive."""
+    eq = _section()
+    assert "Example release checklist" not in eq
+    assert 'class="sbds-check' not in eq
+    js = open("static/js/distribution.js", encoding="utf-8").read()
+    assert "checklist" not in js
+    # And the button that opens the real one still points at it.
+    from distro_config import PRIMARY_CTA
+    assert PRIMARY_CTA["href"] == "/release-check"
+
+
+def _retired_test_the_checklist_is_labelled_an_example_and_nothing_is_ticked():
     from distro_config import CHECKLIST, READINESS
 
     eq = _section()
@@ -225,7 +252,11 @@ def test_every_cta_is_public_and_explains_before_it_asks():
     hrefs = [re.search(r'class="sbds-cta" href="([^"]+)"', eq).group(1),
              re.search(r'class="sbds-guide" href="([^"]+)"', eq).group(1),
              re.search(r'class="sbds-final-cta" href="([^"]+)"', eq).group(1)]
-    assert hrefs == ["/distribution", "/distribution#guide", "/distribution"]
+    # Three CTAs, and the first two must not share a destination: they
+    # used to, which made "Distribute now" do exactly what the guide
+    # button did.
+    assert hrefs == ["/release-check", "/distribution#guide", "/distribution"]
+    assert hrefs[0] != hrefs[1]
     client = _anon()
     page = client.get("/distribution")
     assert page.status_code == 200
@@ -287,7 +318,7 @@ def test_the_analytics_carry_no_release_information():
     js = open("static/js/distribution.js", encoding="utf-8").read()
     for event in ("distribution_section_viewed", "distribute_now_clicked",
                   "distribution_guide_clicked", "start_a_release_clicked",
-                  "distribution_checklist_viewed", "distribution_stage_selected"):
+                  "distribution_stage_selected"):
         assert '"%s"' % event in js, event
     code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
     for sensitive in ("isrc", "upc", "contributor", "owner", "email",

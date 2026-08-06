@@ -1,7 +1,12 @@
 {# Section 10 — Global Distribution.
 
-   Centred header, one wide bench of release materials, five capabilities,
-   the release workflow, an example checklist and one closing block.
+   The heading sits centred over the bench of release materials; below it
+   come five capabilities, the release workflow and one closing block.
+
+   The example release checklist used to live here. It is the same list
+   the Distribute Now button opens at /release-check, where a visitor can
+   actually tick it, so keeping a static copy on the homepage was saying
+   the same thing twice and saying it worse.
 
    Every claim on this page was checked before it was written. Street
    Banker prepares and validates the release; delivery goes out through
@@ -11,26 +16,6 @@
 {% set ds = distro %}
 {% set img = ds.image %}
 <section class="sbds" id="global-distribution" aria-labelledby="sbds-heading">
-  <header class="sbds-head">
-    <p class="sbds-eyebrow">
-      <span class="sbds-num">{{ ds.number }}</span>
-      <span class="sbds-rule" aria-hidden="true"></span>
-      {{ ds.eyebrow }}
-    </p>
-    <h2 class="sbds-title" id="sbds-heading">
-      {% for line in ds.headline %}<span>{{ line }}</span>{% endfor %}
-    </h2>
-    <p class="sbds-support">{{ ds.support }}</p>
-    <div class="sbds-ctas">
-      <a class="sbds-cta" href="{{ ds.primary_cta.href }}">{{ ds.primary_cta.label }}
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
-      </a>
-      <a class="sbds-guide" href="{{ ds.guide_cta.href }}">{{ ds.guide_cta.label }}</a>
-    </div>
-    <p class="sbds-trust">{{ ds.trust }}</p>
-  </header>
-
   <figure class="sbds-photo">
     <picture>
       {# The phone keeps the passport, the masters, the stems and the
@@ -56,6 +41,28 @@
            width="{{ img.wide.width }}" height="{{ img.wide.height }}"
            alt="{{ img.alt }}" loading="lazy" decoding="async">
     </picture>
+    <span class="sbds-scrim" aria-hidden="true"></span>
+    <div class="sbds-over">
+    <header class="sbds-head">
+    <p class="sbds-eyebrow">
+      <span class="sbds-num">{{ ds.number }}</span>
+      <span class="sbds-rule" aria-hidden="true"></span>
+      {{ ds.eyebrow }}
+    </p>
+    <h2 class="sbds-title" id="sbds-heading">
+      {% for line in ds.headline %}<span>{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="sbds-support">{{ ds.support }}</p>
+    <div class="sbds-ctas">
+      <a class="sbds-cta" href="{{ ds.primary_cta.href }}">{{ ds.primary_cta.label }}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+      </a>
+      <a class="sbds-guide" href="{{ ds.guide_cta.href }}">{{ ds.guide_cta.label }}</a>
+    </div>
+    <p class="sbds-trust">{{ ds.trust }}</p>
+    </header>
+    </div>
   </figure>
 
   <div class="sbds-body">
@@ -88,27 +95,6 @@
       <dl class="sbds-flow-fallback">
         {% for step, detail in ds.workflow %}<dt>{{ step }}</dt><dd>{{ detail }}</dd>{% endfor %}
       </dl>
-    </div>
-
-    {# The package a release actually needs, labelled an example so nobody
-       reads it as their own release being ready. #}
-    <div class="sbds-check">
-      <div class="sbds-check-head">
-        <p class="sbds-check-tag">Example release checklist</p>
-        <p class="sbds-check-state">{{ ds.readiness[0] }} — nothing has been entered yet</p>
-      </div>
-      <div class="sbds-check-grid">
-        {% for group, items in ds.checklist %}
-        <div class="sbds-check-group">
-          <p class="sbds-check-group-name">{{ group }}</p>
-          <ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
-        </div>
-        {% endfor %}
-      </div>
-      <p class="sbds-check-note">
-        Readiness is completion, and nothing else: it counts required fields
-        that are filled in. It says nothing about how a release will perform.
-      </p>
     </div>
 
     <div class="sbds-final">

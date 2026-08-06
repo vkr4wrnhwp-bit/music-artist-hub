@@ -20,10 +20,12 @@
 }
 
 /* --- header --------------------------------------------------------------- */
+/* The heading sits over the bench now, so it drops the section padding
+   and lets .sbds-over place it. Still centred. */
 .sbds-head {
-  max-width: 1600px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 0 clamp(20px, 4vw, 56px) clamp(30px, 4vw, 50px);
+  padding: 0;
   text-align: center;
 }
 
@@ -115,15 +117,56 @@
 }
 
 /* --- the bench ------------------------------------------------------------ */
-.sbds-photo { margin: 0; }
+/* Picture, scrim and copy all occupy one grid cell, so the row is as tall
+   as whichever needs more room. The bench is a 3:1 band — wide enough to
+   centre a heading on at desktop, far too short at 390px — and this way
+   the photograph grows to hold the copy instead of the copy being sized
+   down to fit a band. No min-height to guess at. */
+.sbds-photo {
+  margin: 0;
+  display: grid;
+  isolation: isolate;
+}
+.sbds-photo > picture,
+.sbds-scrim,
+.sbds-over { grid-area: 1 / 1; }
+
+.sbds-photo > picture { display: block; min-width: 0; }
+
 .sbds-img {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1402 / 462;
+  height: 100%;
+  aspect-ratio: 1402 / 462;      /* the floor, not a cap */
   object-fit: cover;
   object-position: center;
 }
+
+/* --- the heading, over the bench ----------------------------------------- */
+/* Centred, per the brief. A vertical scrim rather than a box: the bench
+   is busy across its whole width, so darkening the middle band leaves the
+   road cases at the edges legible. */
+.sbds-scrim {
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom,
+      rgb(8 8 7 / 0.52) 0%,
+      rgb(8 8 7 / 0.80) 38%,
+      rgb(8 8 7 / 0.80) 62%,
+      rgb(8 8 7 / 0.52) 100%);
+}
+
+.sbds-over {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(30px, 4.5vw, 74px) clamp(20px, 4vw, 56px);
+}
+.sbds-over .sbds-ctas { justify-content: center; }
+.sbds-over .sbds-trust { margin-left: auto; margin-right: auto; }
 
 /* --- body ----------------------------------------------------------------- */
 .sbds-body {
@@ -243,74 +286,6 @@
 }
 
 /* --- the example package -------------------------------------------------- */
-.sbds-check {
-  margin-top: clamp(28px, 3vw, 40px);
-  border: 1px solid var(--ds-line);
-  border-radius: 3px;
-  background: var(--ds-raised);
-  padding: 16px clamp(16px, 2vw, 26px) 20px;
-}
-.sbds-check-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.sbds-check-tag {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ds-brass);
-}
-.sbds-check-state { margin: 0; font-size: 11.5px; color: var(--ds-muted); }
-
-.sbds-check-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px clamp(18px, 2vw, 32px);
-}
-@media (min-width: 620px) { .sbds-check-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .sbds-check-grid { grid-template-columns: repeat(4, 1fr); } }
-
-.sbds-check-group-name {
-  margin: 0 0 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ds-ivory);
-}
-.sbds-check-group ul { margin: 0; padding: 0; list-style: none; }
-.sbds-check-group li {
-  position: relative;
-  padding-left: 18px;
-  margin-top: 5px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ds-muted);
-}
-/* An empty box, because nothing has been entered - a tick here would be
-   a claim about somebody's release. */
-.sbds-check-group li::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0.32em;
-  width: 9px; height: 9px;
-  border: 1px solid rgb(201 168 106 / 0.5);
-  border-radius: 1px;
-}
-.sbds-check-note {
-  margin: 16px 0 0;
-  max-width: 76ch;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--ds-muted);
-}
-
 /* --- the closing block ---------------------------------------------------- */
 .sbds-final {
   margin-top: clamp(26px, 3vw, 40px);

@@ -1,7 +1,7 @@
 /* Section 10 — Global Distribution.
  *
  * The section reads with this file absent: the five capabilities are
- * printed, every workflow detail is in the document, the checklist is
+ * printed, every workflow detail is in the document, and
  * plain markup and both CTAs are links. What is here is the workflow
  * reveal and measurement.
  *
@@ -71,23 +71,6 @@
     final.addEventListener("click", function () {
       track("start_a_release_clicked", {href: final.getAttribute("href")});
     });
-  }
-
-  /* The example checklist counted as seen once it has actually been on
-     screen, so "viewed" means viewed. */
-  var checklist = root.querySelector(".sbds-check");
-  if (checklist && "IntersectionObserver" in window) {
-    var listSeen = false;
-    var listObs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting && !listSeen) {
-          listSeen = true;
-          track("distribution_checklist_viewed", {});
-          listObs.disconnect();
-        }
-      });
-    }, {threshold: 0.4});
-    listObs.observe(checklist);
   }
 
   /* Section viewed, once. */

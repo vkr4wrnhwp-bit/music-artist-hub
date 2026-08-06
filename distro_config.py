@@ -26,7 +26,12 @@ SUPPORT = ("Prepare and deliver your release to supported platforms while "
            "and release information.")
 TRUST = "Your masters. Your metadata. Your release plan."
 
-PRIMARY_CTA = {"label": "Distribute now", "href": "/distribution"}
+# Two buttons need two destinations. Both pointed at /distribution,
+# which made the primary CTA a no-op next to the guide button. The
+# release checklist that used to be printed on the homepage lives at
+# /release-check, where it can actually be ticked - so that is what
+# "Distribute now" opens.
+PRIMARY_CTA = {"label": "Distribute now", "href": "/release-check"}
 GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
 FINAL_CTA = {"label": "Start a release", "href": "/distribution"}
 
