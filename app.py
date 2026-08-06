@@ -1024,6 +1024,40 @@ def create_app():
             info["resend"] = emailer.domain_status()
         return jsonify(info)
 
+    def _r2_check():
+        """Write, sign, read back and delete one tiny object.
+
+        Presence booleans only prove four variables are set. This is the
+        thing that actually fails when a key is wrong, the bucket name is
+        misspelled or the account id belongs to a different tenant.
+        """
+        if not blob_store.configured():
+            return {"configured": False, "note": "R2 vars not set; uploads go to disk"}
+        key = "_diag/roundtrip-%d.txt" % int(datetime.now(timezone.utc).timestamp())
+        payload = b"street-banker r2 round trip"
+        result = {"configured": True}
+        try:
+            result["put"] = bool(blob_store.put(key, payload, "text/plain"))
+        except Exception as exc:
+            result["put"] = False
+            result["put_error"] = type(exc).__name__
+            return result
+        try:
+            got = blob_store.fetch(blob_store.PREFIX + key)
+            result["get"] = got == payload
+            if got is not None and got != payload:
+                result["get_note"] = "read back %d bytes, expected %d" % (len(got), len(payload))
+        except Exception as exc:
+            result["get"] = False
+            result["get_error"] = type(exc).__name__
+        try:
+            result["delete"] = bool(blob_store.delete(key))
+        except Exception as exc:
+            result["delete"] = False
+            result["delete_error"] = type(exc).__name__
+        result["ok"] = bool(result.get("put") and result.get("get") and result.get("delete"))
+        return result
+
     @app.route("/presave/diag")
     def presave_diag():
         # Owner-only config check: reports WHICH credentials the running
@@ -1050,6 +1084,13 @@ def create_app():
             "email_configured": emailer.configured(),
             "email_sender": emailer.sender(),
             "var_data_is_real_mount": os.path.ismount("/var/data"),
+            "R2_ACCOUNT_ID": bool(os.environ.get("R2_ACCOUNT_ID")),
+            "R2_BUCKET": bool(os.environ.get("R2_BUCKET")),
+            "R2_ACCESS_KEY_ID": bool(os.environ.get("R2_ACCESS_KEY_ID")),
+            "R2_SECRET_ACCESS_KEY": bool(os.environ.get("R2_SECRET_ACCESS_KEY")),
+            # Not a secret - it is a public CDN hostname if it is set at all.
+            "R2_PUBLIC_BASE_URL": os.environ.get("R2_PUBLIC_BASE_URL", ""),
+            "r2_check": _r2_check(),
             "app_token_check": _app_token_check(),
             "search_check": _search_check(),
             "artist_check": _probe("/artists/3TVXtAsR1Inumwj472S9r4"),
