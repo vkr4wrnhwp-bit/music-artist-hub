@@ -1,11 +1,11 @@
 /* Section 11 — Metadata Passport + Rights.
  *
- * The section reads with this file absent: all seven descriptions are
- * printed, the first detail panel is open, the completeness figure is
- * rendered server-side and the CTA is a link. What is here is the part
- * that connects the two sets of controls - the transparent areas on the
- * blueprint and the row of names beneath it are the same seven
- * categories - plus the connected-data disclosure and measurement.
+ * The section reads with this file absent: all seven records are printed
+ * with their descriptions and the CTA is a link. What is left here is the
+ * connected-data disclosure and measurement.
+ *
+ * The category selection went with the example passport detail it drove.
+ * The seven are a list now, not seven controls that change a panel.
  *
  * No credit, share, identifier, agreement or file name exists in this
  * section to send anywhere. The events carry category slugs only.
@@ -15,12 +15,6 @@
 
   var root = document.getElementById("metadata-passport");
   if (!root) { return; }
-
-  /* The blueprint carries no controls. The row of seven named buttons is
-     the only control set, which is what a keyboard always had anyway. */
-  var cats = [].slice.call(root.querySelectorAll(".sbmp-cat"));
-  var panels = [].slice.call(root.querySelectorAll(".sbmp-panel"));
-  if (!cats.length) { return; }
 
   function track(name, payload) {
     try {
@@ -33,48 +27,6 @@
       }
     } catch (e) { /* analytics must never break the page */ }
   }
-
-  /* One category at a time, in both control sets and in the detail. */
-  function select(slug) {
-    cats.forEach(function (c) {
-      var on = c.dataset.category === slug;
-      c.classList.toggle("is-active", on);
-      c.setAttribute("aria-pressed", on ? "true" : "false");
-    });
-    panels.forEach(function (p) {
-      if (p.dataset.panel === slug) { p.removeAttribute("hidden"); }
-      else { p.setAttribute("hidden", ""); }
-    });
-  }
-
-  var seen = {};
-  function note(slug, how) {
-    var key = slug + how;
-    if (seen[key]) { return; }
-    seen[key] = true;
-    track(how === "hover" ? "passport_category_hovered"
-          : how === "focus" ? "passport_category_focused"
-          : "passport_category_selected", {category: slug});
-  }
-
-  cats.forEach(function (control) {
-    var slug = control.dataset.category;
-    control.addEventListener("mouseenter", function () {
-      select(slug);
-      note(slug, "hover");
-    });
-    control.addEventListener("focus", function () {
-      select(slug);
-      note(slug, "focus");
-    });
-    control.addEventListener("click", function () {
-      select(slug);
-      note(slug, "click");
-    });
-  });
-
-  /* The first category is the one the server rendered open. */
-  select(cats[0].dataset.category);
 
   var connectBtn = document.getElementById("sbmp-connect-btn");
   var connect = document.getElementById("sbmp-connect");

@@ -72,10 +72,13 @@ def test_seven_categories_in_order_with_live_copy():
     # the writing in the photograph is set dressing.
     for cat in CATEGORIES:
         assert cat["short"] in eq, cat["slug"]
-        assert cat["why"][:40] in eq, cat["slug"]
-        assert cat["action"][:40] in eq, cat["slug"]
+        # The long fields moved to /metadata with the detail panel.
+        assert cat["why"][:40] not in eq, cat["slug"]
+        # `action` and `stored` were part of the detail panel and moved
+        # to /metadata with it.
+        assert cat["action"][:40] not in eq, cat["slug"]
         for item in cat["stored"][:3]:
-            assert item in eq, (cat["slug"], item)
+            assert item not in eq, (cat["slug"], item)
 
 
 def test_the_blueprint_carries_no_controls():
@@ -110,7 +113,22 @@ def test_the_blueprint_carries_no_controls():
     assert "sbmp-zone" not in js
 
 
-def test_only_one_detail_is_open_and_all_seven_are_printed():
+def test_the_example_detail_is_not_on_the_homepage():
+    """It was the longest block on the page and repeated in full what the
+    seven one-line descriptions already say in short. It lives on
+    /metadata, which the Open Metadata Passport button opens."""
+    eq = _section()
+    assert eq.count('class="sbmp-panel"') == 0
+    assert 'class="sbmp-detail"' not in eq
+    assert "What is stored" not in eq
+
+    from app import create_app
+    body = create_app().test_client().get("/metadata").get_data(as_text=True)
+    from passport_config import CATEGORIES
+    for cat in CATEGORIES:
+        assert cat["why"][:40] in body, cat["slug"]
+
+def _retired_only_one_detail_is_open():
     eq = _section()
     assert eq.count('class="sbmp-panel"') == 7
     # Six hidden, one open, server-side - so it reads with no script.
@@ -125,7 +143,7 @@ def test_only_one_detail_is_open_and_all_seven_are_printed():
 
 def test_the_passport_is_labelled_an_example():
     eq = _section()
-    assert "Example metadata passport" in eq
+    assert "Example metadata passport" not in eq   # moved to /metadata
     body = _anon().get("/metadata").get_data(as_text=True)
     assert "From the example passport" in body
     assert "Nothing here has been verified" in body
@@ -205,7 +223,7 @@ def test_the_approved_photograph_is_used_unaltered():
     # Every category name is markup as well as pixels.
     for label in ("Credits", "Ownership", "Identifiers", "Versions",
                   "Agreements", "Assets", "Release History"):
-        assert eq.count(label) >= 2, label       # control, panel
+        assert eq.count(label) >= 1, label       # the record, once
 
 
 def test_two_crops_ship_in_three_formats():
@@ -305,8 +323,11 @@ def test_accessibility_scaffolding():
     assert '<h2 class="sbmp-title" id="sbmp-heading">' in eq
     # Seven, not fourteen: the blueprint no longer duplicates the row of
     # named buttons as hotspots.
-    assert eq.count('aria-pressed="false"') == 7   # one per named category
-    assert 'aria-controls="sbmp-detail"' in eq
+    # They were buttons that swapped a detail panel. The panel is gone,
+    # so they are records rather than seven controls that do nothing.
+    assert eq.count('aria-pressed="false"') == 0
+    assert 'aria-controls="sbmp-detail"' not in eq
+    assert '<button type="button" class="sbmp-cat"' not in eq
     # The completeness bar carried role="img" with a spoken label. Both
     # went with the block; there is no meter on the homepage to describe.
     assert 'role="img"' not in eq
@@ -324,9 +345,7 @@ def test_the_analytics_carry_no_release_information():
     js = open("static/js/passport.js", encoding="utf-8").read()
     # The completeness summary is off the homepage, and so is its event.
     assert "passport_health_opened" not in js
-    for event in ("passport_section_viewed", "passport_category_hovered",
-                  "passport_category_focused", "passport_category_selected",
-                  "passport_open_clicked", "passport_connected_example_viewed",
+    for event in ("passport_section_viewed", "passport_open_clicked", "passport_connected_example_viewed",
                   "passport_trust_link_clicked"):
         assert '"%s"' % event in js, event
     code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)

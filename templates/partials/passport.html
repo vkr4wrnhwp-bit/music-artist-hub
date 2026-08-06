@@ -1,9 +1,14 @@
 {# Section 11 — Metadata Passport + Rights.
 
    One release in the middle of a floor blueprint, seven records around
-   it. The photograph is the environment; the seven categories, their
-   descriptions, their statuses and the whole example passport are
-   markup.
+   it. The photograph is the environment; the seven categories and their
+   descriptions are markup.
+
+   The example passport detail — what is stored, why it matters, what is
+   missing and the recommended action, for each of the seven — is on
+   /metadata rather than here. It was the longest block on the homepage
+   and it repeated in full what the seven one-line descriptions already
+   say in short.
 
    The heading, the support line, the two CTAs and the trust line sit
    over the photograph in its right third, on a gradient scrim so the
@@ -76,47 +81,22 @@
       </div>
     </figure>
 
-    {# The same seven, as a row. On a phone this is the only control. #}
+    {# The seven records, named and described in one line each. They used
+       to be buttons that swapped a detail panel below; the panel is gone,
+       so they are a list rather than seven controls that do nothing. The
+       full detail lives on /metadata. #}
     <ol class="sbmp-cats">
       {% for cat in mp.categories %}
-      <li>
-        <button type="button" class="sbmp-cat" data-category="{{ cat.slug }}"
-                aria-pressed="false" aria-controls="sbmp-detail">
-          <span class="sbmp-cat-num">{{ cat.num }}</span>
-          <span class="sbmp-cat-label">{{ cat.label }}</span>
-          <span class="sbmp-cat-short">{{ cat.short }}</span>
-        </button>
+      <li class="sbmp-cat" data-category="{{ cat.slug }}">
+        <span class="sbmp-cat-num">{{ cat.num }}</span>
+        <span class="sbmp-cat-label">{{ cat.label }}</span>
+        <span class="sbmp-cat-short">{{ cat.short }}</span>
       </li>
       {% endfor %}
     </ol>
   </div>
 
   <div class="sbmp-body">
-    {# One detail at a time, and every one of them printed, so the whole
-       thing reads with no script at all. #}
-    <div class="sbmp-detail" id="sbmp-detail">
-      <p class="sbmp-detail-tag">{{ mp.example_label }}</p>
-      {% for cat in mp.categories %}
-      <article class="sbmp-panel" data-panel="{{ cat.slug }}"
-               {% if not loop.first %}hidden{% endif %}>
-        <div class="sbmp-panel-head">
-          <h3 class="sbmp-panel-title"><span>{{ cat.num }}</span> {{ cat.label }}</h3>
-          <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
-        </div>
-        <dl class="sbmp-fields">
-          <dt>What is stored</dt>
-          <dd>{{ cat.stored | join(" · ") }}</dd>
-          <dt>Why it matters</dt>
-          <dd>{{ cat.why }}</dd>
-          <dt>Missing information</dt>
-          <dd>{{ cat.missing }}</dd>
-          <dt>Recommended action</dt>
-          <dd>{{ cat.action }}</dd>
-        </dl>
-      </article>
-      {% endfor %}
-    </div>
-
     {# What one entry asks of everything else. Hidden, not absent. #}
     <div class="sbmp-connect" id="sbmp-connect" hidden>
       <p class="sbmp-connect-trigger">{{ mp.connected.trigger }}</p>
