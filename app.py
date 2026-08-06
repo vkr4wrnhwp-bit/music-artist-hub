@@ -1041,10 +1041,24 @@ def create_app():
         except Exception as exc:
             result["put"] = False
             result["put_error"] = type(exc).__name__
-            # The type alone does not say why. URLError means the request
-            # never reached Cloudflare, which is a hostname problem, and
-            # the hostname is built from R2_ACCOUNT_ID alone.
             result["put_reason"] = str(getattr(exc, "reason", exc))[:180]
+            # S3 puts a machine-readable <Code> in the error body and it
+            # names the failure exactly: InvalidAccessKeyId,
+            # SignatureDoesNotMatch, NoSuchBucket, AccessDenied. Throwing
+            # that away and reporting "Unauthorized" loses the answer.
+            body = getattr(exc, "read", None)
+            if callable(body):
+                try:
+                    raw = exc.read().decode("utf-8", "replace")[:600]
+                    result["s3_error_body"] = raw
+                    code = re.search(r"<Code>([^<]+)</Code>", raw)
+                    msg = re.search(r"<Message>([^<]+)</Message>", raw)
+                    if code:
+                        result["s3_code"] = code.group(1)
+                    if msg:
+                        result["s3_message"] = msg.group(1)[:200]
+                except Exception:
+                    pass
             result["why"] = blob_store.diagnose()
             return result
         try:
