@@ -1,7 +1,7 @@
 /* Street Banker service worker — conservative on purpose:
    static assets cache-first, pages always network (dashboards must
    never go stale), offline navigations get a friendly fallback. */
-var VERSION = "sb-v101";   /* Status module, live lanes, Release Signal */
+var VERSION = "sb-v102";   /* Status module, live lanes, Release Signal */
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
 

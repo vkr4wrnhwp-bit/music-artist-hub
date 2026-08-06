@@ -78,9 +78,16 @@ def test_seven_categories_in_order_with_live_copy():
             assert item in eq, (cat["slug"], item)
 
 
-def test_the_hotspots_land_on_their_own_areas():
-    """Seven zones measured off the blueprint. They must sit inside the
-    picture and never overlap, or a pointer selects the wrong record."""
+def test_the_blueprint_carries_no_controls():
+    """The photograph is a picture, not a control surface.
+
+    It used to carry seven transparent hotspots on desktop. They asked a
+    visitor to hunt for targets on a photograph, and the row of seven
+    named buttons beneath does the same job for pointer and keyboard
+    alike. The zone geometry stays in the config - it is still the record
+    of where each category sits in the scene - so it is still checked for
+    sanity here even though nothing renders it.
+    """
     from passport_config import CATEGORIES
 
     boxes = []
@@ -95,13 +102,12 @@ def test_the_hotspots_land_on_their_own_areas():
             overlap = (a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4])
             assert not overlap, (a[0], b[0])
     eq = _section()
-    assert eq.count('class="sbmp-zone"') == 7
-    assert "--l: 15.0%" in eq                     # rendered from the config
+    assert 'class="sbmp-zone"' not in eq
+    assert "sbmp-zones" not in eq
     css = _css()
-    assert "left: var(--l)" in css
-    # The hotspots are for a pointer that can hit them. Below 1024 they go.
-    assert ".sbmp-zones { position: absolute; inset: 0; display: none; }" in css
-    assert "@media (min-width: 1024px) { .sbmp-zones { display: block; } }" in css
+    assert ".sbmp-zone" not in css                # no dead rules either
+    js = open("static/js/passport.js", encoding="utf-8").read()
+    assert "sbmp-zone" not in js
 
 
 def test_only_one_detail_is_open_and_all_seven_are_printed():
@@ -137,10 +143,14 @@ def test_completeness_is_completion_and_named_for_it():
                                "Complete", "Verified"]
     # Deterministic: it is a count of categories with nothing outstanding.
     assert completeness() == 29
+
+    # It is no longer shown on the homepage. A percentage on a marketing
+    # page invites reading as a score for the artist rather than a count
+    # of filled fields on a worked example. The helper and its wording
+    # stay for the product pages.
     eq = _section()
-    assert "Metadata completeness" in eq
-    assert ">29<" in eq
-    assert "It is not a prediction, not a valuation and not a confirmation" in eq
+    assert "Metadata completeness" not in eq
+    assert "sbmp-health" not in eq
 
 
 def test_nothing_predicts_and_no_conflict_is_called_verified():
@@ -195,7 +205,7 @@ def test_the_approved_photograph_is_used_unaltered():
     # Every category name is markup as well as pixels.
     for label in ("Credits", "Ownership", "Identifiers", "Versions",
                   "Agreements", "Assets", "Release History"):
-        assert eq.count(label) >= 3, label       # zone, control, panel
+        assert eq.count(label) >= 2, label       # control, panel
 
 
 def test_two_crops_ship_in_three_formats():
@@ -273,8 +283,11 @@ def test_the_motion_is_restrained():
     for ms in re.findall(r"transition:[^;]*?(\d+)ms", css):
         assert 150 <= int(ms) <= 250, ms
     assert "prefers-reduced-motion" in css
-    # Idle: nothing over the photograph.
-    assert "border: 1px solid transparent" in css
+    # The only thing over the photograph is the heading and its scrim,
+    # and the scrim is a gradient rather than a panel.
+    assert "border: 1px solid transparent" not in css
+    assert ".sbmp-scrim" in css
+    assert "linear-gradient" in css
 
 
 def test_the_dark_system_is_the_one_in_the_brief():
@@ -290,23 +303,31 @@ def test_accessibility_scaffolding():
     eq = _section()
     assert 'aria-labelledby="sbmp-heading"' in eq
     assert '<h2 class="sbmp-title" id="sbmp-heading">' in eq
-    assert eq.count('aria-pressed="false"') == 14   # seven zones, seven names
+    # Seven, not fourteen: the blueprint no longer duplicates the row of
+    # named buttons as hotspots.
+    assert eq.count('aria-pressed="false"') == 7   # one per named category
     assert 'aria-controls="sbmp-detail"' in eq
-    assert 'role="img"' in eq                       # the completeness bar
+    # The completeness bar carried role="img" with a spoken label. Both
+    # went with the block; there is no meter on the homepage to describe.
+    assert 'role="img"' not in eq
+    # The heading over the photograph is real markup, not baked pixels.
+    assert 'class="sbmp-over"' in eq
+    assert 'aria-hidden="true"' in eq              # the scrim is decorative
     css = _css()
     assert "outline: 2px solid var(--mp-brass)" in css
     assert "min-height: 46px" in css
-    # A hotspot with no visible label still has one for a screen reader.
-    assert 'class="sbmp-zone-label"' in eq
-    assert ".sbmp-zone-label" in css and "clip-path: inset(50%)" in css
+    # The hotspots and their screen-reader labels are gone together; the
+    # named buttons carry visible text, so nothing needs a hidden label.
 
 
 def test_the_analytics_carry_no_release_information():
     js = open("static/js/passport.js", encoding="utf-8").read()
+    # The completeness summary is off the homepage, and so is its event.
+    assert "passport_health_opened" not in js
     for event in ("passport_section_viewed", "passport_category_hovered",
                   "passport_category_focused", "passport_category_selected",
                   "passport_open_clicked", "passport_connected_example_viewed",
-                  "passport_health_opened", "passport_trust_link_clicked"):
+                  "passport_trust_link_clicked"):
         assert '"%s"' % event in js, event
     code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
     for sensitive in ("isrc", "iswc", "ipi", "split", "owner", "agreement",

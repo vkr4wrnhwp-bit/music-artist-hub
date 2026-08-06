@@ -16,10 +16,10 @@
   var root = document.getElementById("metadata-passport");
   if (!root) { return; }
 
-  var zones = [].slice.call(root.querySelectorAll(".sbmp-zone"));
+  /* The blueprint carries no controls. The row of seven named buttons is
+     the only control set, which is what a keyboard always had anyway. */
   var cats = [].slice.call(root.querySelectorAll(".sbmp-cat"));
   var panels = [].slice.call(root.querySelectorAll(".sbmp-panel"));
-  var zoneWrap = root.querySelector(".sbmp-zones");
   if (!cats.length) { return; }
 
   function track(name, payload) {
@@ -36,11 +36,6 @@
 
   /* One category at a time, in both control sets and in the detail. */
   function select(slug) {
-    zones.forEach(function (z) {
-      var on = z.dataset.category === slug;
-      z.classList.toggle("is-active", on);
-      z.setAttribute("aria-pressed", on ? "true" : "false");
-    });
     cats.forEach(function (c) {
       var on = c.dataset.category === slug;
       c.classList.toggle("is-active", on);
@@ -50,7 +45,6 @@
       if (p.dataset.panel === slug) { p.removeAttribute("hidden"); }
       else { p.setAttribute("hidden", ""); }
     });
-    if (zoneWrap) { zoneWrap.classList.toggle("has-active", !!slug); }
   }
 
   var seen = {};
@@ -63,7 +57,7 @@
           : "passport_category_selected", {category: slug});
   }
 
-  zones.concat(cats).forEach(function (control) {
+  cats.forEach(function (control) {
     var slug = control.dataset.category;
     control.addEventListener("mouseenter", function () {
       select(slug);
@@ -111,22 +105,6 @@
     trust.addEventListener("click", function () {
       track("passport_trust_link_clicked", {});
     });
-  }
-
-  /* The completeness summary counted as opened once it has been seen. */
-  var health = root.querySelector(".sbmp-health");
-  if (health && "IntersectionObserver" in window) {
-    var healthSeen = false;
-    var healthObs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting && !healthSeen) {
-          healthSeen = true;
-          track("passport_health_opened", {});
-          healthObs.disconnect();
-        }
-      });
-    }, {threshold: 0.4});
-    healthObs.observe(health);
   }
 
   /* Section viewed, once. */

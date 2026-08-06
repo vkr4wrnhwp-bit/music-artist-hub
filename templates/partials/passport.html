@@ -5,35 +5,20 @@
    descriptions, their statuses and the whole example passport are
    markup.
 
-   Desktop puts a transparent control over each area of the blueprint and
-   a matching row of names beneath it — the same seven buttons, so a
-   pointer and a keyboard reach the same thing. Below 1024 the hotspots
-   are dropped: seven targets over a shrunken photograph would be seven
-   places to miss. #}
+   The heading, the support line, the two CTAs and the trust line sit
+   over the photograph in its right third, on a gradient scrim so the
+   type stays legible without flattening the picture. Below 1024 the
+   scrim covers the whole frame instead, because a narrow crop has no
+   quiet third to sit in.
+
+   The blueprint carries no controls. It used to have seven transparent
+   hotspots over it on desktop; the row of seven named buttons beneath
+   does the same job, reads the same to a keyboard, and does not ask
+   anyone to hunt for a target on a photograph. #}
 
 {% set mp = passport %}
 {% set img = mp.image %}
 <section class="sbmp" id="metadata-passport" aria-labelledby="sbmp-heading">
-  <header class="sbmp-head">
-    <p class="sbmp-eyebrow">
-      <span class="sbmp-num">{{ mp.number }}</span>
-      <span class="sbmp-rule" aria-hidden="true"></span>
-      {{ mp.eyebrow }}
-    </p>
-    <h2 class="sbmp-title" id="sbmp-heading">
-      {% for line in mp.headline %}<span>{{ line }}</span>{% endfor %}
-    </h2>
-    <p class="sbmp-support">{{ mp.support }}</p>
-    <div class="sbmp-ctas">
-      <a class="sbmp-cta" href="{{ mp.primary_cta.href }}">{{ mp.primary_cta.label }}
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
-      </a>
-      <button type="button" class="sbmp-connect-btn" id="sbmp-connect-btn"
-              aria-expanded="false" aria-controls="sbmp-connect">{{ mp.secondary_cta.label }}</button>
-    </div>
-  </header>
-
   <div class="sbmp-plan">
     <figure class="sbmp-photo">
       <picture>
@@ -61,19 +46,33 @@
              alt="{{ img.alt }}" loading="lazy" decoding="async">
       </picture>
 
-      {# Transparent controls over the blueprint. Each is positioned from
-         the fraction measured off the photograph, so it sits on its own
-         area at every width. #}
-      <div class="sbmp-zones">
-        {% for cat in mp.categories %}
-        <button type="button" class="sbmp-zone" data-category="{{ cat.slug }}"
-                aria-pressed="false"
-                style="--l: {{ cat.zone[0] * 100 }}%; --t: {{ cat.zone[1] * 100 }}%;
-                       --w: {{ (cat.zone[2] - cat.zone[0]) * 100 }}%;
-                       --h: {{ (cat.zone[3] - cat.zone[1]) * 100 }}%">
-          <span class="sbmp-zone-label">{{ cat.label }}</span>
-        </button>
-        {% endfor %}
+      <span class="sbmp-scrim" aria-hidden="true"></span>
+      <div class="sbmp-over">
+      <header class="sbmp-head">
+    <p class="sbmp-eyebrow">
+      <span class="sbmp-num">{{ mp.number }}</span>
+      <span class="sbmp-rule" aria-hidden="true"></span>
+      {{ mp.eyebrow }}
+    </p>
+    <h2 class="sbmp-title" id="sbmp-heading">
+      {% for line in mp.headline %}<span>{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="sbmp-support">{{ mp.support }}</p>
+    <div class="sbmp-ctas">
+      <a class="sbmp-cta" href="{{ mp.primary_cta.href }}">{{ mp.primary_cta.label }}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+      </a>
+      <button type="button" class="sbmp-connect-btn" id="sbmp-connect-btn"
+              aria-expanded="false" aria-controls="sbmp-connect">{{ mp.secondary_cta.label }}</button>
+    </div>
+      </header>
+        {# The trust line rides with the heading rather than trailing the
+           section, so the claim and the qualifier are read together. #}
+        <p class="sbmp-over-trust">
+          <span class="sbmp-trust-line">{{ mp.trust }}</span>
+          <a class="sbmp-trust-link" href="{{ mp.trust_link.href }}">{{ mp.trust_link.label }}</a>
+        </p>
       </div>
     </figure>
 
@@ -129,31 +128,8 @@
       <p class="sbmp-connect-note">{{ mp.connected.note }}</p>
     </div>
 
-    {# Completion, named for what it measures. #}
-    <div class="sbmp-health">
-      <div class="sbmp-health-row">
-        <p class="sbmp-health-label">{{ mp.health_label }}</p>
-        <p class="sbmp-health-value"><span>{{ completeness }}</span>%</p>
-      </div>
-      <div class="sbmp-health-bar" role="img"
-           aria-label="{{ mp.health_label }} on the example passport: {{ completeness }} per cent.">
-        <span style="width: {{ completeness }}%"></span>
-      </div>
-      <ul class="sbmp-health-list">
-        {% for cat in mp.categories %}
-        <li>
-          <span class="sbmp-health-name">{{ cat.label }}</span>
-          <span class="sbmp-status sbmp-status--{{ cat.status | lower | replace(' ', '-') }}">{{ cat.status }}</span>
-        </li>
-        {% endfor %}
-      </ul>
-      <p class="sbmp-health-note">{{ mp.health_note }}</p>
-    </div>
-
-    <p class="sbmp-trust">
-      <span class="sbmp-trust-line">{{ mp.trust }}</span>
-      <span class="sbmp-trust-copy">{{ mp.trust_copy }}</span>
-      <a class="sbmp-trust-link" href="{{ mp.trust_link.href }}">{{ mp.trust_link.label }}</a>
-    </p>
+    {# The qualifier stays in the body; the headline claim is on the
+       image above. #}
+    <p class="sbmp-trust"><span class="sbmp-trust-copy">{{ mp.trust_copy }}</span></p>
   </div>
 </section>

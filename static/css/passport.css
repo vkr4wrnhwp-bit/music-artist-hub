@@ -24,11 +24,13 @@
 }
 
 /* --- header --------------------------------------------------------------- */
+/* The heading sits over the photograph now, so it drops the section
+   padding and the centring; .sbmp-over places it. */
 .sbmp-head {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 0 clamp(20px, 4vw, 56px) clamp(28px, 3.6vw, 46px);
-  text-align: center;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 .sbmp-eyebrow {
   display: inline-flex;
@@ -107,7 +109,7 @@
 .sbmp-connect-btn:hover { color: var(--mp-brass); border-bottom-color: var(--mp-brass); }
 
 .sbmp-cta:focus-visible, .sbmp-connect-btn:focus-visible,
-.sbmp-cat:focus-visible, .sbmp-zone:focus-visible,
+.sbmp-cat:focus-visible,
 .sbmp-trust-link:focus-visible {
   outline: 2px solid var(--mp-brass);
   outline-offset: 3px;
@@ -124,37 +126,80 @@
   object-fit: cover;
 }
 
-/* Idle: nothing over the photograph at all. */
-.sbmp-zones { position: absolute; inset: 0; display: none; }
-@media (min-width: 1024px) { .sbmp-zones { display: block; } }
+/* --- the heading, over the blueprint -------------------------------------- */
+/* Desktop: the copy takes the right third, where the floor markings are
+   quietest. The scrim is a horizontal gradient rather than a panel, so
+   the photograph darkens toward the type instead of ending at an edge. */
+.sbmp-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to left,
+              rgb(8 8 7 / 0.90) 0%,
+              rgb(8 8 7 / 0.78) 26%,
+              rgb(8 8 7 / 0.42) 46%,
+              rgb(8 8 7 / 0) 66%);
+}
 
-.sbmp-zone {
+.sbmp-over {
   position: absolute;
-  left: var(--l);
-  top: var(--t);
-  width: var(--w);
-  height: var(--h);
-  padding: 0;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background-color 200ms ease, border-color 200ms ease,
-              box-shadow 200ms ease;
+  inset: 0 0 0 auto;
+  z-index: 1;
+  width: min(46%, 620px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  padding: clamp(24px, 3vw, 56px) clamp(20px, 3.4vw, 60px);
 }
-.sbmp-zone-label {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+
+.sbmp-over .sbmp-title { margin-left: 0; margin-right: 0; max-width: 18ch; }
+.sbmp-over .sbmp-support { margin-left: 0; margin-right: 0; max-width: 46ch; }
+.sbmp-over .sbmp-ctas { justify-content: flex-start; }
+
+.sbmp-over-trust {
+  margin: clamp(18px, 2vw, 28px) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 16px;
 }
-.sbmp-zone:hover, .sbmp-zone.is-active {
-  border-color: rgb(201 168 106 / 0.55);
-  background: rgb(201 168 106 / 0.07);
-  box-shadow: inset 0 0 34px rgb(201 168 106 / 0.10);
+.sbmp-over-trust .sbmp-trust-line {
+  font-size: clamp(11px, 0.85vw, 13px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-ivory);
 }
-/* The others settle rather than the selected one shouting. */
-.sbmp-zones.has-active .sbmp-zone:not(.is-active):not(:hover) { background: rgb(8 8 7 / 0.30); }
+
+/* Tablet and phone: a tight crop has no quiet third, so the scrim covers
+   the whole frame and the copy is centred on it. */
+@media (max-width: 1023px) {
+  .sbmp-scrim {
+    background: linear-gradient(to bottom,
+                rgb(8 8 7 / 0.62) 0%,
+                rgb(8 8 7 / 0.78) 55%,
+                rgb(8 8 7 / 0.90) 100%);
+  }
+  .sbmp-over {
+    inset: 0;
+    width: auto;
+    text-align: center;
+    align-items: center;
+  }
+  .sbmp-over .sbmp-head { text-align: center; }
+  .sbmp-over .sbmp-title,
+  .sbmp-over .sbmp-support { margin-left: auto; margin-right: auto; }
+  .sbmp-over .sbmp-ctas { justify-content: center; }
+  .sbmp-over-trust { justify-content: center; }
+}
+
+/* Where the copy cannot fit over the picture without covering all of it,
+   the picture gets taller rather than the type getting smaller. */
+@media (max-width: 640px) {
+  .sbmp-img { aspect-ratio: 3 / 4; }
+  .sbmp-over { padding: 22px 18px; }
+}
 
 /* --- the seven names ------------------------------------------------------ */
 .sbmp-cats {
@@ -339,70 +384,6 @@
 }
 
 /* --- completeness --------------------------------------------------------- */
-.sbmp-health {
-  margin-top: 16px;
-  border: 1px solid var(--mp-line);
-  border-radius: 3px;
-  padding: 16px clamp(16px, 2vw, 26px) 18px;
-}
-.sbmp-health-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.sbmp-health-label {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--mp-brass);
-}
-.sbmp-health-value {
-  margin: 0;
-  font-size: 13px;
-  color: var(--mp-muted);
-  font-variant-numeric: tabular-nums;
-}
-.sbmp-health-value span { font-size: 22px; color: var(--mp-ivory); }
-
-.sbmp-health-bar {
-  margin-top: 10px;
-  height: 3px;
-  background: rgb(238 232 220 / 0.08);
-}
-.sbmp-health-bar span { display: block; height: 100%; background: var(--mp-brass); }
-
-.sbmp-health-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-@media (min-width: 640px) { .sbmp-health-list { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .sbmp-health-list { grid-template-columns: repeat(4, 1fr); } }
-.sbmp-health-list li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 0;
-  border-top: 1px solid rgb(238 232 220 / 0.07);
-  font-size: 12.5px;
-}
-@media (min-width: 640px) { .sbmp-health-list li + li { margin-left: 0; } }
-.sbmp-health-name { color: var(--mp-ivory); }
-.sbmp-health-note {
-  margin: 14px 0 0;
-  max-width: 84ch;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--mp-muted);
-}
-
 /* --- trust ---------------------------------------------------------------- */
 .sbmp-trust {
   margin: clamp(20px, 2.4vw, 28px) auto 0;
@@ -436,6 +417,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sbmp-zone, .sbmp-cat, .sbmp-cat-label, .sbmp-cat-short, .sbmp-cta,
+  .sbmp-cat, .sbmp-cat-label, .sbmp-cat-short, .sbmp-cta,
   .sbmp-connect-btn { transition: none; }
 }
