@@ -234,7 +234,14 @@ def diagnose():
 
     account = _env("R2_ACCOUNT_ID")
     bucket = _env("R2_BUCKET")
+    access = _env("R2_ACCESS_KEY_ID")
     report = {
+        # A Cloudflare access key id is also 32 hex characters, so it is
+        # indistinguishable from an account id by shape. Comparing them
+        # is the only way to catch the swap, and it prints neither.
+        "account_id_equals_access_key_id": bool(account and account == access),
+        "bucket_looks_like_an_id": bool(
+            len(bucket) == 32 and all(c in "0123456789abcdefABCDEF" for c in bucket)),
         "account_id_len": len(account),
         "account_id_is_32_hex": bool(
             len(account) == 32 and all(c in "0123456789abcdefABCDEF" for c in account)),
@@ -275,6 +282,23 @@ def diagnose():
                              "32-hex id in the R2 S3 endpoint "
                              "https://<id>.r2.cloudflarestorage.com - not the "
                              "bucket name, token id or token value.")
+        # If the value sitting in R2_BUCKET completes the handshake, the
+        # two variables are simply the wrong way round. Worth one more
+        # connection to be able to say so outright.
+        if report.get("bucket_looks_like_an_id"):
+            try:
+                alt = "%s.r2.cloudflarestorage.com" % bucket
+                with socket.create_connection((alt, 443), timeout=15) as raw2:
+                    with ctx.wrap_socket(raw2, server_hostname=alt):
+                        report["bucket_value_is_the_account"] = True
+                        report["verdict"] = (
+                            "R2_ACCOUNT_ID and R2_BUCKET are swapped: the "
+                            "value in R2_BUCKET completes the handshake as an "
+                            "account subdomain and the one in R2_ACCOUNT_ID "
+                            "does not. Put the 32-hex account id in "
+                            "R2_ACCOUNT_ID and the bucket's name in R2_BUCKET.")
+            except Exception:
+                report["bucket_value_is_the_account"] = False
     except Exception as exc:
         report["tls_handshake"] = False
         report["tls_error"] = "%s: %s" % (type(exc).__name__, str(exc)[:140])
