@@ -1,21 +1,18 @@
 {# Section 9 — Royalty Sweep.
 
-   Centred header, one wide archive photograph, five stages under it, one
-   way in. Not the left-image/right-copy shape of Sections 7 and 8, and
-   not a dashboard: the picture is an evidence table, and everything that
-   means anything is markup above and below it. #}
+   The heading, the primary CTA and the trust line sit centred over the
+   archive photograph; the five stages and the example case stay below
+   it. Not the left-image/right-copy shape of Sections 7 and 8, and not a
+   dashboard: the picture is an evidence table, and everything that means
+   anything is markup over and under it.
+
+   The "See how the sweep works" toggle deliberately stays below with the
+   panel it opens. A disclosure button on the picture would reveal
+   something a screenful further down. #}
 
 {% set sw = sweep %}
 {% set img = sw.image %}
 <section class="sbsw" id="royalty-sweep-section" aria-labelledby="sbsw-heading">
-  <header class="sbsw-head">
-    <p class="sbsw-eyebrow">{{ sw.eyebrow }}</p>
-    <h2 class="sbsw-title" id="sbsw-heading">
-      {% for line in sw.headline %}<span>{{ line }}</span>{% endfor %}
-    </h2>
-    <p class="sbsw-support">{{ sw.support }}</p>
-  </header>
-
   <figure class="sbsw-photo">
     <picture>
       {# The phone keeps the deck, the drives and the documents; anything
@@ -41,6 +38,27 @@
            width="{{ img.wide.width }}" height="{{ img.wide.height }}"
            alt="{{ img.alt }}" loading="lazy" decoding="async">
     </picture>
+    <span class="sbsw-scrim" aria-hidden="true"></span>
+    <div class="sbsw-over">
+    <header class="sbsw-head">
+    <p class="sbsw-eyebrow">{{ sw.eyebrow }}</p>
+    <h2 class="sbsw-title" id="sbsw-heading">
+      {% for line in sw.headline %}<span>{{ line }}</span>{% endfor %}
+    </h2>
+    <p class="sbsw-support">{{ sw.support }}</p>
+    </header>
+      <div class="sbsw-over-cta">
+        <a class="sbsw-cta" href="{{ sw.primary_cta.href }}">{{ sw.primary_cta.label }}
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+        </a>
+      </div>
+      <p class="sbsw-trust">
+        <span class="sbsw-trust-line">{{ sw.trust }}</span>
+        <span class="sbsw-trust-copy">{{ sw.trust_copy }}</span>
+        <a class="sbsw-method" href="{{ sw.method_link.href }}">{{ sw.method_link.label }}</a>
+      </p>
+    </div>
   </figure>
 
   <div class="sbsw-foot">
@@ -55,19 +73,9 @@
     </ol>
 
     <div class="sbsw-ctas">
-      <a class="sbsw-cta" href="{{ sw.primary_cta.href }}">{{ sw.primary_cta.label }}
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
-      </a>
       <button type="button" class="sbsw-example-btn" id="sbsw-example-btn"
               aria-expanded="false" aria-controls="sbsw-example">{{ sw.secondary_cta.label }}</button>
     </div>
-
-    <p class="sbsw-trust">
-      <span class="sbsw-trust-line">{{ sw.trust }}</span>
-      <span class="sbsw-trust-copy">{{ sw.trust_copy }}</span>
-      <a class="sbsw-method" href="{{ sw.method_link.href }}">{{ sw.method_link.label }}</a>
-    </p>
 
     {# One example case, labelled as one, carrying no figure. Hidden, not
        absent, so it reads with no script at all. #}

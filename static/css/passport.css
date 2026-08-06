@@ -134,34 +134,39 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to left,
-              rgb(8 8 7 / 0.90) 0%,
-              rgb(8 8 7 / 0.78) 26%,
-              rgb(8 8 7 / 0.42) 46%,
-              rgb(8 8 7 / 0) 66%);
+  /* Vertical, darkest through the middle, so the blueprint markings at
+     the top and bottom edges stay readable under centred copy. */
+  background: linear-gradient(to bottom,
+              rgb(8 8 7 / 0.50) 0%,
+              rgb(8 8 7 / 0.80) 38%,
+              rgb(8 8 7 / 0.80) 62%,
+              rgb(8 8 7 / 0.50) 100%);
 }
 
 .sbmp-over {
   position: absolute;
-  inset: 0 0 0 auto;
+  inset: 0;
   z-index: 1;
-  width: min(46%, 620px);
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
+  text-align: center;
   gap: 0;
   padding: clamp(24px, 3vw, 56px) clamp(20px, 3.4vw, 60px);
 }
 
-.sbmp-over .sbmp-title { margin-left: 0; margin-right: 0; max-width: 18ch; }
-.sbmp-over .sbmp-support { margin-left: 0; margin-right: 0; max-width: 46ch; }
-.sbmp-over .sbmp-ctas { justify-content: flex-start; }
+.sbmp-over .sbmp-head { text-align: center; }
+.sbmp-over .sbmp-title { margin-left: auto; margin-right: auto; max-width: 20ch; }
+.sbmp-over .sbmp-support { margin-left: auto; margin-right: auto; max-width: 52ch; }
+.sbmp-over .sbmp-ctas { justify-content: center; }
 
 .sbmp-over-trust {
   margin: clamp(18px, 2vw, 28px) 0 0;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: center;
   gap: 6px 16px;
 }
 .sbmp-over-trust .sbmp-trust-line {
@@ -172,26 +177,14 @@
   color: var(--mp-ivory);
 }
 
-/* Tablet and phone: a tight crop has no quiet third, so the scrim covers
-   the whole frame and the copy is centred on it. */
+/* Phone: a touch more scrim, because the close crop is busier per pixel. */
 @media (max-width: 1023px) {
   .sbmp-scrim {
     background: linear-gradient(to bottom,
                 rgb(8 8 7 / 0.62) 0%,
-                rgb(8 8 7 / 0.78) 55%,
-                rgb(8 8 7 / 0.90) 100%);
+                rgb(8 8 7 / 0.82) 50%,
+                rgb(8 8 7 / 0.62) 100%);
   }
-  .sbmp-over {
-    inset: 0;
-    width: auto;
-    text-align: center;
-    align-items: center;
-  }
-  .sbmp-over .sbmp-head { text-align: center; }
-  .sbmp-over .sbmp-title,
-  .sbmp-over .sbmp-support { margin-left: auto; margin-right: auto; }
-  .sbmp-over .sbmp-ctas { justify-content: center; }
-  .sbmp-over-trust { justify-content: center; }
 }
 
 /* Where the copy cannot fit over the picture without covering all of it,

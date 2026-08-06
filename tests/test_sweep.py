@@ -63,16 +63,31 @@ def test_the_copy_is_the_approved_copy():
     assert "Every finding requires verification before submission." in eq
 
 
-def test_the_shape_is_header_photograph_workflow_cta():
-    """Not the left-image/right-copy split of Sections 7 and 8."""
+def test_the_shape_is_photograph_with_the_heading_over_it_then_the_stages():
+    """Heading, primary CTA and trust line sit on the picture.
+
+    Not the left-image/right-copy split of Sections 7 and 8, and no
+    longer a centred header stacked above the frame.
+    """
     eq = _section()
-    assert eq.index('class="sbsw-head"') < eq.index('class="sbsw-photo"')
-    assert eq.index('class="sbsw-photo"') < eq.index('class="sbsw-flow"')
-    assert eq.index('class="sbsw-flow"') < eq.index('class="sbsw-cta"')
+    # The header is inside the figure.
+    assert eq.index('class="sbsw-photo"') < eq.index('class="sbsw-head"')
+    assert eq.index('class="sbsw-head"') < eq.index("</figure>")
+    assert eq.index('class="sbsw-cta"') < eq.index("</figure>")
+    assert eq.index('class="sbsw-trust"') < eq.index("</figure>")
+    # The stages and the example stay below it.
+    assert eq.index("</figure>") < eq.index('class="sbsw-flow"')
+    # The disclosure button stays with the panel it opens, rather than
+    # riding up onto the picture and revealing something off-screen.
+    assert eq.index("</figure>") < eq.index('class="sbsw-example-btn"')
+    assert eq.index('class="sbsw-example-btn"') < eq.index('id="sbsw-example"')
+
     css = _css()
     assert "text-align: center" in css
-    # The picture is the section's own width, not a column of it.
-    assert ".sbsw-photo { margin: 0; }" in css
+    # Picture, scrim and copy in one grid cell, so the frame grows to hold
+    # the copy rather than the copy shrinking to fit a 3:1 band.
+    assert "grid-area: 1 / 1" in css
+    assert ".sbsw-scrim" in css
     assert "aspect-ratio: 1672 / 555" in css
 
 

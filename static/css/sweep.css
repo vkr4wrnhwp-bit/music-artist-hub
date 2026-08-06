@@ -21,10 +21,12 @@
 }
 
 /* --- header --------------------------------------------------------------- */
+/* The heading is over the archive table now, so it drops the section
+   padding and lets .sbsw-over place it. Still centred. */
 .sbsw-head {
-  max-width: 1600px;
+  max-width: 780px;
   margin: 0 auto;
-  padding: 0 clamp(20px, 4vw, 56px) clamp(28px, 4vw, 48px);
+  padding: 0;
   text-align: center;
 }
 
@@ -63,17 +65,61 @@
 }
 
 /* --- the photograph ------------------------------------------------------- */
-.sbsw-photo { margin: 0; }
+/* Picture, scrim and copy share one grid cell, so the row is as tall as
+   whichever needs more room. The table is a 3:1 band — enough to centre a
+   heading on at desktop, nowhere near enough at 390px — so the
+   photograph grows to hold the copy rather than the copy shrinking to
+   fit the band. Same construction as Section 10. */
+.sbsw-photo {
+  margin: 0;
+  display: grid;
+  isolation: isolate;
+}
+.sbsw-photo > picture,
+.sbsw-scrim,
+.sbsw-over { grid-area: 1 / 1; }
+.sbsw-photo > picture { display: block; min-width: 0; }
+
 .sbsw-img {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1672 / 555;
+  height: 100%;
+  aspect-ratio: 1672 / 555;      /* the floor, not a cap */
   object-fit: cover;
   object-position: center;
 }
 
 /* --- the workflow --------------------------------------------------------- */
+/* --- the heading, over the archive table --------------------------------- */
+/* A vertical scrim, darkest through the middle. The table is covered
+   edge to edge with tapes and documents, so darkening the centre band
+   keeps the objects at the edges readable. */
+.sbsw-scrim {
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom,
+      rgb(8 8 7 / 0.50) 0%,
+      rgb(8 8 7 / 0.80) 38%,
+      rgb(8 8 7 / 0.80) 62%,
+      rgb(8 8 7 / 0.50) 100%);
+}
+
+.sbsw-over {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: clamp(30px, 4.5vw, 74px) clamp(20px, 4vw, 56px);
+}
+.sbsw-over-cta { margin-top: clamp(18px, 2.2vw, 28px); }
+.sbsw-over .sbsw-trust {
+  margin: clamp(16px, 2vw, 24px) auto 0;
+  max-width: 62ch;
+}
+
 .sbsw-foot {
   max-width: 1600px;
   margin: 0 auto;
