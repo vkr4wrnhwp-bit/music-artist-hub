@@ -92,6 +92,9 @@
 }
 @media (max-width: 1023px) { .sbeq-console { grid-template-columns: 1fr; } }
 
+/* A column, so the button row can be pinned to its foot. */
+.sbeq-channels-wrap { display: flex; flex-direction: column; }
+
 .sbeq-channels-wrap,
 .sbeq-output {
   border: 1px solid var(--eq-line);
@@ -289,8 +292,6 @@
 
 /* --- output panel -------------------------------------------------------- */
 .sbeq-output { display: flex; flex-direction: column; gap: 16px; }
-/* The live wrapper stretches so the buttons can sit at the bottom. */
-.sbeq-out-live { flex: 1 1 auto; }
 .sbeq-out-block + .sbeq-out-block { border-top: 1px solid var(--eq-line); padding-top: 16px; }
 
 .sbeq-score-row { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -389,29 +390,18 @@
   color: var(--eq-brass-lit);
 }
 
-/* The plan, and then the two buttons that act on it, inside the output
-   panel. The live wrapper takes the space it needs and `margin-top: auto`
-   drops the buttons to the bottom of the panel — which is the gap the six
-   faders leave beside the shorter plan, rather than a row underneath
-   both columns. */
-.sbeq-out-live {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
+/* The two buttons sit under the System output trace, at the foot of the
+   channel column. `margin-top: auto` inside a column-flex wrapper drops
+   them to the bottom, so they fill the space the six faders leave rather
+   than floating right under the trace with a gap below. */
 .sbeq-ctas {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid var(--eq-line);
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
-/* A ~350px column has no room for two buttons abreast without squeezing
-   the labels, so they stack and take the full width. */
-.sbeq-ctas > .sbeq-cta,
-.sbeq-ctas > .sbeq-reset { width: 100%; }
 
 /* Phone order, from the brief: heading, presets, channels, trace, output,
    then the buttons — which the buttons now satisfy by sitting at the end

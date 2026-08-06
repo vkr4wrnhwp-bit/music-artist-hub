@@ -96,14 +96,17 @@
             </g>
           </svg>
         </div>
+
+        {# Under the System output trace, filling the space the six faders
+           leave at the bottom of this column. #}
+        <div class="sbeq-ctas">
+          <a class="sbeq-cta" id="sbeq-cta" href="{{ eq.cta.href }}?{{ eq.default_query }}">{{ eq.cta.label }}</a>
+          <button type="button" class="sbeq-reset" id="sbeq-reset">{{ eq.reset_label }}</button>
+        </div>
       </div>
 
       {# --- output panel ------------------------------------------------- #}
-      <div class="sbeq-output">
-        {# aria-live wraps only the plan. The buttons below it do not
-           change, and announcing them on every fader move would bury the
-           readout they are meant to sit under. #}
-        <div class="sbeq-out-live" aria-live="polite">
+      <div class="sbeq-output" aria-live="polite">
         <div class="sbeq-out-block">
           <div class="sbeq-panel-label">System readiness</div>
           <div class="sbeq-score-row">
@@ -156,15 +159,6 @@
             <strong id="sbeq-setup">{{ eq.default_plan.setup_time }}</strong>
             <span class="sbeq-setup-note">(an estimate)</span>
           </p>
-        </div>
-        </div>
-
-        {# The two buttons live in the output panel, under the readout
-           they act on. The channel column is taller than the plan, so
-           this is the gap they fill rather than a row below both. #}
-        <div class="sbeq-ctas">
-          <a class="sbeq-cta" id="sbeq-cta" href="{{ eq.cta.href }}?{{ eq.default_query }}">{{ eq.cta.label }}</a>
-          <button type="button" class="sbeq-reset" id="sbeq-reset">{{ eq.reset_label }}</button>
         </div>
       </div>
     </div>
