@@ -45,7 +45,7 @@
       <!-- Hero -->
       <header class="flex flex-col gap-6 border-b-2 border-[#141210] pb-8 sm:flex-row sm:items-center">
         {% if e.photo %}
-        <img id="epk-photo" src="{{ e.photo }}" alt="{{ e.name }}" class="h-32 w-32 shrink-0 rounded-2xl object-cover shadow-md">
+        <img id="epk-photo" src="{{ e.photo | media_url }}" alt="{{ e.name }}" class="h-32 w-32 shrink-0 rounded-2xl object-cover shadow-md">
         {% else %}
         <span id="epk-photo-fallback" class="grid h-32 w-32 shrink-0 place-items-center rounded-2xl bg-[#141210] text-4xl font-black text-[#d8b25a]">{{ e.initials }}</span>
         {% endif %}
@@ -153,8 +153,8 @@
         {% if e.assets or e.video_url %}
         <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {% for a in e.assets %}
-          <a href="{{ a.path }}" download class="group block overflow-hidden rounded-xl border border-[#141210]/15">
-            <img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
+          <a href="{{ a.path | media_url }}" download class="group block overflow-hidden rounded-xl border border-[#141210]/15">
+            <img src="{{ a.path | media_url }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
             <div class="flex items-center justify-between px-2.5 py-2 text-[10px] font-bold"><span>{{ a.label }}</span><span class="text-[#a8862f]">↓</span></div>
           </a>
           {% endfor %}
@@ -406,7 +406,7 @@
           {% set a = asset_map.get(kind) %}
           <div class="asset-block flex items-center gap-3 rounded-lg border border-[#141210]/10 bg-[#f7f5f0] p-2.5" data-kind="{{ kind }}">
             {% if a %}
-            <img src="{{ a.path }}" alt="{{ label }}" class="asset-thumb h-11 w-11 shrink-0 rounded-md object-cover">
+            <img src="{{ a.path | media_url }}" alt="{{ label }}" class="asset-thumb h-11 w-11 shrink-0 rounded-md object-cover">
             {% else %}
             <span class="asset-thumb grid h-11 w-11 shrink-0 place-items-center rounded-md border border-dashed border-[#141210]/25 text-[#141210]/30">+</span>
             {% endif %}

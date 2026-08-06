@@ -101,7 +101,7 @@
       {% if e.photo %}
       <!-- Full-bleed cover photograph -->
       <figure class="relative -mx-8 sm:-mx-14">
-        <img src="{{ e.photo }}" alt="{{ e.name }}" class="aspect-[4/5] w-full object-cover sm:aspect-[21/10]" style="filter: contrast(1.04) saturate(1.05);">
+        <img src="{{ e.photo | media_url }}" alt="{{ e.name }}" class="aspect-[4/5] w-full object-cover sm:aspect-[21/10]" style="filter: contrast(1.04) saturate(1.05);">
         <div class="pointer-events-none absolute inset-x-0 top-0 h-16" style="background-image: linear-gradient(to bottom, {{ e.bg_color }}, transparent);"></div>
         <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-gradient-to-r from-[#a8862f] via-[#e5c878] to-[#a8862f]"></div>
       </figure>
@@ -144,7 +144,7 @@
           {% for a in pitch_audio %}
           <div class="rounded-xl border border-white/10 bg-black/30 p-4">
             <div class="mb-2 text-sm font-bold">{{ a.label }}</div>
-            <audio controls preload="none" src="{{ a.path }}" data-label="{{ a.label }}" class="pitch-audio w-full"></audio>
+            <audio controls preload="none" src="{{ a.path | media_url }}" data-label="{{ a.label }}" class="pitch-audio w-full"></audio>
           </div>
           {% endfor %}
         </div>
@@ -295,9 +295,9 @@
         {% if e.assets %}
         <div class="mt-8 grid gap-8 sm:grid-cols-2">
           {% for a in e.assets %}
-          <a href="{{ a.path }}" download class="group block">
+          <a href="{{ a.path | media_url }}" download class="group block">
             <div class="relative overflow-hidden border border-[#141210]/15">
-              <img src="{{ a.path }}" alt="{{ a.label }}" class="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" style="filter: contrast(1.03) saturate(1.04);">
+              <img src="{{ a.path | media_url }}" alt="{{ a.label }}" class="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" style="filter: contrast(1.03) saturate(1.04);">
               <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-[#a8862f] via-[#e5c878] to-[#a8862f] opacity-0 transition-opacity group-hover:opacity-100"></div>
             </div>
             <div class="mt-3 flex items-baseline justify-between">

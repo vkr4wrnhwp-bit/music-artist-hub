@@ -106,6 +106,7 @@ from passport_config import get_passport_config, completeness as passport_comple
 from closing_config import get_closing_config
 from release_signal import get_release_signal_config
 import capability_status
+import blob_store
 import stemsplit_provider as stemsplit
 import hours_engine
 import backup_store
@@ -447,6 +448,11 @@ def create_app():
     # Capability status, resolved against the running deployment. One
     # source of truth for every public surface - see capability_status.py.
     app.jinja_env.globals["cap"] = capability_status.resolve
+    # Stored paths come in two shapes - "/uploads/..." on disk and
+    # "r2:<key>" in the bucket. Templates print media_url(path) and do
+    # not care which; the bucket stays private and the URL expires.
+    app.jinja_env.globals["media_url"] = blob_store.url_for
+    app.jinja_env.filters["media_url"] = blob_store.url_for
 
     store.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
@@ -2006,10 +2012,17 @@ def create_app():
         added = 0
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for a in assets:
-                fpath = os.path.join(UPLOADS_DIR, os.path.basename(a["path"]))
+                name = os.path.basename(a["path"].split("?")[0])
+                ext = name.rsplit(".", 1)[-1]
+                arc = "%s-%s.%s" % (slug, a["kind"].replace("_", "-"), ext)
+                if blob_store.is_remote(a["path"]):
+                    blob = blob_store.fetch(a["path"])
+                    if blob is not None:
+                        zf.writestr(arc, blob)
+                    continue
+                fpath = os.path.join(UPLOADS_DIR, name)
                 if os.path.exists(fpath):
-                    ext = fpath.rsplit(".", 1)[-1]
-                    zf.write(fpath, "%s-%s.%s" % (slug, a["kind"].replace("_", "-"), ext))
+                    zf.write(fpath, arc)
                     added += 1
         if not added:
             abort(404)
@@ -5437,8 +5450,12 @@ def create_app():
         fname = "vault_%s_%d.%s" % (user["id"],
                                     int(datetime.now(timezone.utc).timestamp() * 1000),
                                     ext)
-        f.save(os.path.join(UPLOADS_DIR, fname))
-        path = "/uploads/" + fname
+        # The object store when it is configured, the disk when it is
+        # not. blob_store.save returns the path to record either way:
+        # "r2:<key>" or "/uploads/<name>". Nothing below branches on it.
+        path = blob_store.save(fname, f.read(),
+                               content_type=f.mimetype,
+                               uploads_dir=UPLOADS_DIR)
         store.add_vault_file(user["id"], path, label, kind)
         return jsonify({"ok": True, "path": path})
 
@@ -5448,11 +5465,10 @@ def create_app():
         if user is None:
             return login_required_redirect()
         path = store.delete_vault_file(user["id"], file_id)
-        if path and path.startswith("/uploads/vault_"):
-            try:
-                os.remove(os.path.join(UPLOADS_DIR, os.path.basename(path)))
-            except OSError:
-                pass
+        # Handles both shapes: deletes the object, or unlinks the file.
+        if path and (blob_store.is_remote(path)
+                     or path.startswith("/uploads/vault_")):
+            blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/vault")
 
     @app.route("/vault/zip", methods=["POST"])
@@ -5484,11 +5500,21 @@ def create_app():
         added = 0
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for p in wanted & allowed:
+                name = os.path.basename(p.split("?")[0])
+                if blob_store.is_remote(p):
+                    # Pull the object back through the presigned URL. A
+                    # failure skips that one file rather than losing the
+                    # whole archive.
+                    blob = blob_store.fetch(p)
+                    if blob is not None:
+                        zf.writestr(name, blob)
+                        added += 1
+                    continue
                 if not p.startswith("/uploads/"):
                     continue
-                fpath = os.path.join(UPLOADS_DIR, os.path.basename(p))
+                fpath = os.path.join(UPLOADS_DIR, name)
                 if os.path.exists(fpath):
-                    zf.write(fpath, os.path.basename(p))
+                    zf.write(fpath, name)
                     added += 1
         if not added:
             return redirect("/vault")

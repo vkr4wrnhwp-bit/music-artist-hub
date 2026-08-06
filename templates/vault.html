@@ -50,7 +50,11 @@
     {% for a in items %}
     <div class="vault-card overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#15130f] to-[#0e0d0b]" data-type="{{ a.type }}" data-name="{{ (a.name ~ ' ' ~ a.type) | lower }}">
       {% if a.path and a.type not in ('Lyrics', 'Video', 'Video / Canvas', 'Master', 'Master Bounce', 'Stems', 'File', 'Other File') %}
-      <a href="{{ a.path }}" target="_blank"><img src="{{ a.path }}" alt="{{ a.name }}" class="aspect-[3/2] w-full border-b border-white/5 object-cover" loading="lazy"></a>
+      {# media_url resolves both shapes: a disk path unchanged, an "r2:"
+         object to a short-lived signed URL. Resolved once so the link and
+         the thumbnail share one signature rather than signing twice. #}
+      {% set src = a.path | media_url %}
+      <a href="{{ src }}" target="_blank"><img src="{{ src }}" alt="{{ a.name }}" class="aspect-[3/2] w-full border-b border-white/5 object-cover" loading="lazy"></a>
       {% else %}
       <div class="grid aspect-[3/2] place-items-center border-b border-white/5 bg-black/30 text-3xl text-gray-300">{{ '♫' if a.type in ('Lyrics', 'Master', 'Master Bounce', 'Stems') else ('▶' if 'Video' in a.type else '▤') }}</div>
       {% endif %}
