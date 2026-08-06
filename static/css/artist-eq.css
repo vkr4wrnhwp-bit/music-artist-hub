@@ -62,7 +62,19 @@
 }
 
 /* --- heading ------------------------------------------------------------ */
-.sbeq-head { text-align: center; max-width: 720px; margin: 0 auto 28px; }
+/* The heading now sits at the foot of the channel column rather than
+   full width above the console, so it loses the centring and the display
+   size: 62px type in a 66%-wide column would shout over the controls it
+   is meant to introduce. `margin-top: auto` pushes the whole block —
+   heading, note and buttons — to the bottom of the column, which is the
+   space the six faders leave. */
+.sbeq-head {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--eq-line);
+  text-align: left;
+  max-width: 62ch;
+}
 .sbeq-eyebrow {
   margin: 0;
   font-size: 11px;
@@ -72,15 +84,15 @@
   color: var(--eq-brass);
 }
 .sbeq-title {
-  margin: 12px 0 0;
-  font-size: clamp(30px, 5vw, 62px);
+  margin: 10px 0 0;
+  font-size: clamp(24px, 2.6vw, 38px);
   line-height: 0.95;
   font-weight: 900;
   letter-spacing: -0.02em;
   text-transform: uppercase;
   color: var(--eq-ivory);
 }
-.sbeq-support { margin: 14px 0 0; font-size: clamp(15px, 1.3vw, 18px); color: #DED8CD; }
+.sbeq-support { margin: 10px 0 0; font-size: clamp(14px, 1.05vw, 16px); color: #DED8CD; }
 .sbeq-instruction { margin: 8px 0 0; font-size: 13px; color: var(--eq-muted); }
 
 /* --- console ------------------------------------------------------------ */
@@ -395,8 +407,7 @@
    them to the bottom, so they fill the space the six faders leave rather
    than floating right under the trace with a gap below. */
 .sbeq-ctas {
-  margin-top: auto;
-  padding-top: 16px;
+  margin-top: 16px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -409,7 +420,6 @@
    console with `order`. */
 @media (min-width: 901px) {
   .sbeq-inner { display: flex; flex-direction: column; }
-  .sbeq-head { order: 1; }
   .sbeq-console { order: 2; }
   .sbeq-presets-wrap { order: 3; }
 }

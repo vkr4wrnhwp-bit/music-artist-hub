@@ -19,13 +19,6 @@
   </picture>
 
   <div class="sbeq-inner">
-    <header class="sbeq-head">
-      <p class="sbeq-eyebrow">{{ eq.eyebrow }}</p>
-      <h2 class="sbeq-title" id="sbeq-heading">{{ eq.heading }}</h2>
-      <p class="sbeq-support">{{ eq.support }}</p>
-      <p class="sbeq-instruction">{{ eq.instruction }}</p>
-    </header>
-
     {# --- presets -------------------------------------------------------- #}
     <div class="sbeq-presets-wrap">
       <div class="sbeq-panel-label">Choose your focus preset</div>
@@ -97,8 +90,18 @@
           </svg>
         </div>
 
-        {# Under the System output trace, filling the space the six faders
-           leave at the bottom of this column. #}
+        {# Everything that used to sit above the console, and the note
+           that used to sit under the score, now fill the space the six
+           faders leave at the foot of this column. #}
+        <header class="sbeq-head">
+          <p class="sbeq-eyebrow">{{ eq.eyebrow }}</p>
+          <h2 class="sbeq-title" id="sbeq-heading">{{ eq.heading }}</h2>
+          <p class="sbeq-support">{{ eq.support }}</p>
+          <p class="sbeq-instruction">{{ eq.instruction }}</p>
+          <p class="sbeq-score-note">A weighted average of the six priorities you set. It describes your
+            focus, not your prospects — it predicts no hit, no signing and no recovered money.</p>
+        </header>
+
         <div class="sbeq-ctas">
           <a class="sbeq-cta" id="sbeq-cta" href="{{ eq.cta.href }}?{{ eq.default_query }}">{{ eq.cta.label }}</a>
           <button type="button" class="sbeq-reset" id="sbeq-reset">{{ eq.reset_label }}</button>
@@ -122,8 +125,6 @@
                       transform="rotate(-90 32 32)"/>
             </svg>
           </div>
-          <p class="sbeq-score-note">A weighted average of the six priorities you set. It describes your
-            focus, not your prospects — it predicts no hit, no signing and no recovered money.</p>
         </div>
 
         <div class="sbeq-out-block">
