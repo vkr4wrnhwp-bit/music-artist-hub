@@ -27,6 +27,14 @@ export async function GET() {
     node: process.version,
     environment: process.env.NODE_ENV ?? "unknown",
     aiProvider: process.env.CANVAS_AI_PROVIDER ?? "deterministic",
+    // Which build is actually serving. Without this there is no way to tell a
+    // fix that did not work from a fix that has not deployed yet — a
+    // distinction that costs a lot of time to get wrong.
+    commit: (process.env.RENDER_GIT_COMMIT ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "unknown").slice(0, 8),
+    branch: process.env.RENDER_GIT_BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? "unknown",
+    // Bumped by hand when a user-visible change ships, so a person can compare
+    // it against what they were told to expect.
+    release: "phase1-mobile-1",
   };
 
   try {
