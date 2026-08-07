@@ -31,9 +31,10 @@ architected so CNC is one process among many.
 ## Running it
 
 ```bash
-npm install
-npx prisma migrate dev      # creates prisma/dev.db
-npx prisma db seed          # demo shop + TEST PART 001
+cp .env.example .env
+npm install                 # also generates the Prisma client
+npm run db:migrate          # creates prisma/dev.db
+npm run db:seed             # demo shop + TEST PART 001
 npm run dev
 ```
 
