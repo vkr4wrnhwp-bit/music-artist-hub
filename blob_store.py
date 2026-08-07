@@ -37,11 +37,14 @@ plain public URLs for non-sensitive assets instead of signed ones.
 
 import datetime
 import hashlib
+import logging
 import hmac
 import os
 import urllib.error
 import urllib.parse
 import urllib.request
+
+log = logging.getLogger("blob_store")
 
 REGION = "auto"
 SERVICE = "s3"
@@ -184,14 +187,41 @@ def save(fname, data, content_type=None, uploads_dir=None):
         try:
             if put(fname, data, content_type):
                 return PREFIX + fname
-        except Exception:
-            # A bucket outage must not lose the artist's upload. Fall
-            # through to the disk; url_for resolves either shape.
-            pass
+            log.error("blob_store: PUT returned a non-2xx for %s; using disk", fname)
+        except urllib.error.HTTPError as exc:
+            # A 4xx is a permanent misconfiguration, not an outage: it
+            # will fail identically on every upload until somebody fixes
+            # a credential. Swallowing it silently is how a bucket stays
+            # unused for weeks while every upload still reports success
+            # and the disk this exists to protect fills up anyway.
+            #
+            # Safe to log: the secret never appears in an HTTPError, and
+            # the S3 body is Cloudflare naming its own refusal.
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", "replace")[:300]
+            except Exception:
+                pass
+            log.error("blob_store: R2 refused PUT %s with %s %s. %s "
+                      "Falling back to disk; check the R2 env vars.",
+                      fname, exc.code, exc.reason, body)
+        except Exception as exc:
+            # Transient: a timeout or a network blip. Quiet fallback,
+            # because the artist's upload must not be lost over it.
+            log.warning("blob_store: PUT %s failed (%s); using disk",
+                        fname, type(exc).__name__)
+
     if uploads_dir:
         with open(os.path.join(uploads_dir, fname), "wb") as fh:
             fh.write(data)
-    return "/uploads/" + fname
+        return "/uploads/" + fname
+
+    # No object store and nowhere on disk to put it. Returning a path
+    # here would record a database row pointing at a file that was never
+    # written - a broken download later instead of an error now.
+    raise RuntimeError(
+        "blob_store.save: nothing to save into. The object store is "
+        "unconfigured or refused the write, and no uploads_dir was given.")
 
 
 def is_remote(path):
@@ -240,6 +270,10 @@ def diagnose():
         # indistinguishable from an account id by shape. Comparing them
         # is the only way to catch the swap, and it prints neither.
         "account_id_equals_access_key_id": bool(account and account == access),
+        # A 32-hex bucket is the shape of an access key id. If it IS the
+        # access key, the paste was shifted across the four variables.
+        "bucket_equals_access_key_id": bool(bucket and bucket == access),
+        "bucket_equals_account_id": bool(bucket and bucket == account),
         "bucket_looks_like_an_id": bool(
             len(bucket) == 32 and all(c in "0123456789abcdefABCDEF" for c in bucket)),
         "account_id_len": len(account),

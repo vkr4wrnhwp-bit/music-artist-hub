@@ -138,3 +138,74 @@ def test_fetch_on_a_configured_but_unreachable_bucket_returns_none(fake_r2):
     """acct123 does not exist. This must be a None, not an exception —
     one unreachable object cannot be allowed to kill a batch download."""
     assert blob_store.fetch("r2:x.mp3") is None
+
+
+# --- the two defects the SigV4 audit found ---------------------------------
+
+def test_the_signing_key_matches_the_published_aws_vector():
+    """The signing is not the reason for a 401.
+
+    This is AWS's own worked example from the Signature Version 4
+    documentation. It pins the whole derivation chain — AWS4+secret,
+    date, region, service, aws4_request — so a 401 can be attributed to
+    credentials rather than to the signer.
+    """
+    import blob_store as bs
+
+    region, service = bs.REGION, bs.SERVICE
+    try:
+        bs.REGION, bs.SERVICE = "us-east-1", "iam"
+        key = bs._signing_key("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20120215")
+    finally:
+        bs.REGION, bs.SERVICE = region, service
+    assert key.hex() == ("f4780e2d9f65fa895f9c67b32ce1baf0"
+                         "b0d8a43505a000a1a9e090d414db404d")
+
+
+def test_a_permanent_refusal_is_logged_rather_than_swallowed(
+        fake_r2, uploads, monkeypatch, caplog):
+    """A 401 is a misconfiguration, not an outage.
+
+    The bare `except Exception: pass` meant a wrong credential produced a
+    successful-looking upload, no log line, and bytes on the very disk
+    the object store exists to protect — for as long as nobody noticed.
+    """
+    import urllib.error
+
+    def refuse(*a, **k):
+        raise urllib.error.HTTPError(
+            "https://x", 401, "Unauthorized", {},
+            io.BytesIO(b"<Error><Code>InvalidAccessKeyId</Code></Error>"))
+    monkeypatch.setattr(blob_store, "put", refuse)
+
+    with caplog.at_level("ERROR", logger="blob_store"):
+        path = blob_store.save("vault_1_9.mp3", b"x", uploads_dir=uploads)
+
+    assert path == "/uploads/vault_1_9.mp3"          # still not lost
+    assert caplog.records, "a permanent refusal must not be silent"
+    logged = caplog.text
+    assert "401" in logged
+    assert "InvalidAccessKeyId" in logged            # the S3 code reaches the log
+    assert "s3cr3t" not in logged                    # but never the secret
+
+
+def test_saving_with_nowhere_to_write_raises_instead_of_lying(no_r2):
+    """It used to return "/uploads/<name>" without writing anything.
+
+    That records a database row pointing at a file which does not exist —
+    a broken download weeks later instead of an error now.
+    """
+    with pytest.raises(RuntimeError):
+        blob_store.save("vault_1_9.mp3", b"x", uploads_dir=None)
+
+
+def test_a_shifted_paste_across_the_four_variables_is_detected(monkeypatch):
+    """R2's account id and access key id are both 32 hex characters, so
+    shape cannot tell them apart. Comparing the values can."""
+    monkeypatch.setenv("R2_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "k" * 32)
+    monkeypatch.setenv("R2_BUCKET", "k" * 32)        # the access key, misplaced
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "s")
+    report = blob_store.diagnose()
+    assert report["bucket_equals_access_key_id"] is True
+    assert report["account_id_equals_access_key_id"] is False
