@@ -1,5 +1,4 @@
 import { PrismaClient } from "../src/generated/prisma";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import bcrypt from "bcryptjs";
 
 /**
@@ -10,12 +9,37 @@ import bcrypt from "bcryptjs";
  * manufacturer-verified for a real machine on a real floor.
  */
 
-const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./prisma/dev.db" });
-const db = new PrismaClient({ adapter });
+// Same provider selection as the application: SQLite locally, Postgres in a
+// deployment. Chosen from the connection string so there is nothing extra to
+// configure on either side.
+const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+const isPostgres = url.startsWith("postgres://") || url.startsWith("postgresql://");
+
+function createClient(): PrismaClient {
+  if (isPostgres) {
+    const { PrismaPg } = require("@prisma/adapter-pg") as typeof import("@prisma/adapter-pg");
+    return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  }
+  const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3") as typeof import("@prisma/adapter-better-sqlite3");
+  return new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+}
+
+const db = createClient();
 
 const json = (v: unknown) => JSON.stringify(v);
 
 async function main() {
+  // A deployment runs the seed on every build, so it must be safe to re-run.
+  // If the demo shop is already there, leave it alone — re-seeding would
+  // discard any parts, jobs or measurements added since, which on a shared
+  // demo instance means throwing away someone else's work.
+  const existing = await db.organization.findUnique({ where: { slug: "canvas-prototype-shop" } });
+  if (existing && process.env.CANVAS_FORCE_RESEED !== "1") {
+    console.log("CANVAS demo shop already present — leaving it untouched.");
+    console.log("  Set CANVAS_FORCE_RESEED=1 to replace it.");
+    return;
+  }
+
   console.log("Seeding CANVAS demo shop…");
 
   await db.organization.deleteMany({ where: { slug: "canvas-prototype-shop" } });

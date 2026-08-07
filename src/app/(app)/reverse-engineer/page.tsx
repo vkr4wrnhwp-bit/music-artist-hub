@@ -6,6 +6,7 @@ import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
 import { PhotoSetUploader } from "@/components/reverse/photo-set";
+import { storageIsEphemeral } from "@/lib/storage";
 import { AxisTriad, Button, EmptyState, Field, LinkButton, Notice, Panel, SectionHeading, StatusChip, Table, Td, inputClass } from "@/components/ui";
 
 /**
@@ -108,6 +109,15 @@ export default async function ReverseEngineerPage() {
         </section>
 
         <div className="mx-auto max-w-4xl space-y-6 p-8">
+          {storageIsEphemeral && (
+            <Notice tone="risk" title="Uploads on this deployment are temporary">
+              This instance has no persistent disk, so photographs are held only for the life of the
+              server instance and will disappear. Measurements, parts and every other record are
+              stored in the database and are unaffected. Configure object storage for durable uploads
+              — see docs/DEPLOYMENT.md.
+            </Notice>
+          )}
+
           <Notice tone="review" title="What a photograph can and cannot do">
             An uncalibrated photograph establishes what features exist, roughly where they are, and what to measure
             next. It does not establish dimensions. CANVAS will not report a diameter it derived from pixels, with or

@@ -48,6 +48,17 @@ No API key, no external services, no network. The intake parser is a real
 grammar, not a stub — CANVAS is fully usable out of the box. To enable the full
 copilot, set `CANVAS_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` server-side.
 
+## Deploying it
+
+CANVAS runs on SQLite locally and PostgreSQL in a deployment, from the same
+codebase and schema — only the driver adapter differs, chosen from the
+connection string. Import the repo into Vercel, set `DATABASE_URL` to a
+Postgres connection string, and deploy; the build migrates and seeds itself.
+
+Both paths are verified against a real PostgreSQL instance. See
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), including the limitations of a
+serverless deployment.
+
 ## The five-minute demo
 
 Open **CANVAS Bearing Support** from the part library.
@@ -102,6 +113,7 @@ satisfies an engineering gate. Nothing exports without a named human.
 | [FUTURE_MANUFACTURING](docs/FUTURE_MANUFACTURING.md) | Processes beyond CNC, volume crossovers |
 | [CANVAS_ROADMAP](docs/CANVAS_ROADMAP.md) | Phases 2–6 and the decisions taken |
 | [BUILD_STATUS](docs/BUILD_STATUS.md) | Done / in progress / next / blocked |
+| [DEPLOYMENT](docs/DEPLOYMENT.md) | Vercel + Postgres, dual-provider schema, known limits |
 
 ## Stack
 

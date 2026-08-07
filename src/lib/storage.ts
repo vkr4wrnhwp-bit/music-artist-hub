@@ -25,7 +25,20 @@ export interface StorageDriver {
   url(storageKey: string): Promise<string>;
 }
 
-const ROOT = process.env.CANVAS_STORAGE_DIR ?? path.join(process.cwd(), ".storage");
+/**
+ * On a serverless host the project directory is read-only and the only
+ * writable path is the OS temp directory — which is per-instance and cleared
+ * between invocations. Uploads therefore work within a session but do not
+ * persist. That is a real limitation, and `storageIsEphemeral` exists so the
+ * interface can say so rather than letting a file silently vanish.
+ */
+const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+const ROOT =
+  process.env.CANVAS_STORAGE_DIR ??
+  (IS_SERVERLESS ? path.join("/tmp", "canvas-storage") : path.join(process.cwd(), ".storage"));
+
+export const storageIsEphemeral = IS_SERVERLESS && !process.env.CANVAS_STORAGE_DIR;
 
 /** File types CANVAS will accept. Anything else is rejected at the boundary. */
 export const ALLOWED_MIME = new Set([
