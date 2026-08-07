@@ -16,7 +16,11 @@ services:
     runtime: node
     plan: free
     # Render sets PORT; `next start` reads it.
-    buildCommand: npm ci && npm run deploy:build
+    # --include=dev is required: Render sets NODE_ENV=production, which makes
+    # npm omit devDependencies — but the build needs tsx (to run the seed),
+    # tailwindcss and typescript. They are correctly dev dependencies; they
+    # just have to be present while building.
+    buildCommand: npm ci --include=dev && npm run deploy:build
     startCommand: npm start
     healthCheckPath: /sign-in
     autoDeployTrigger: commit
