@@ -276,6 +276,20 @@ def diagnose():
         "bucket_equals_account_id": bool(bucket and bucket == account),
         "bucket_looks_like_an_id": bool(
             len(bucket) == 32 and all(c in "0123456789abcdefABCDEF" for c in bucket)),
+        # R2's S3 pair has a fixed shape: the access key id is 32 hex
+        # (it is the token's id) and the secret is 64 hex (it is the
+        # SHA-256 of the token value). Anything else means the pair did
+        # not come from R2 -> Manage R2 API Tokens. A raw "cfk_..." token
+        # value in either slot is the classic case.
+        "access_key_len": len(access),
+        "access_key_is_32_hex": bool(
+            len(access) == 32 and all(c in "0123456789abcdefABCDEF" for c in access)),
+        "access_key_looks_like_a_cf_token": access.startswith("cfk_"),
+        "secret_len": len(_env("R2_SECRET_ACCESS_KEY")),
+        "secret_is_64_hex": bool(
+            len(_env("R2_SECRET_ACCESS_KEY")) == 64
+            and all(c in "0123456789abcdefABCDEF" for c in _env("R2_SECRET_ACCESS_KEY"))),
+        "secret_looks_like_a_cf_token": _env("R2_SECRET_ACCESS_KEY").startswith("cfk_"),
         "account_id_len": len(account),
         "account_id_is_32_hex": bool(
             len(account) == 32 and all(c in "0123456789abcdefABCDEF" for c in account)),
