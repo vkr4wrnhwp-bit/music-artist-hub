@@ -12,7 +12,7 @@ export default async function MachinesPage() {
       <TopBar>
         <span className="tech-label">Machines</span>
       </TopBar>
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="Machine profiles are hard constraints. CANVAS validates travel, spindle limits, tool capacity and post-processor against these values — it never assumes a capability that is not recorded here.">
           Machines
         </SectionHeading>

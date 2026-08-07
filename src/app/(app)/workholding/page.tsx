@@ -16,7 +16,7 @@ export default async function WorkholdingPage() {
       <TopBar>
         <span className="tech-label">Workholding</span>
       </TopBar>
-      <main className="flex-1 space-y-6 overflow-y-auto p-6">
+      <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="Workholding is where most real machining failures start. CANVAS reasons about grip depth, jaw engagement, projection and cutting load per setup — but only against devices recorded here with real dimensions.">
           Workholding
         </SectionHeading>

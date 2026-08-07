@@ -77,6 +77,9 @@ export function Workspace(props: WorkspaceProps) {
   const [showTool, setShowTool] = useState(false);
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
+  // Three side-by-side columns cannot work on a phone, so below `lg` exactly
+  // one is shown at a time and this chooses which.
+  const [mobilePane, setMobilePane] = useState<"model" | "data" | "copilot">("model");
 
   const selected = useMemo(
     () => props.features.find((f) => f.id === selectedFeature) ?? null,
@@ -99,15 +102,36 @@ export function Workspace(props: WorkspaceProps) {
     window.dispatchEvent(new CustomEvent("canvas:setview", { detail: { position } }));
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {/* ---------------- Mobile pane switcher ---------------- */}
+      <div className="flex shrink-0 gap-px border-b border-line bg-line lg:hidden">
+        {([
+          ["model", "Model"],
+          ["data", "Data"],
+          ["copilot", "Copilot"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setMobilePane(id)}
+            className={`flex-1 bg-surface py-2.5 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors ${
+              mobilePane === id ? "text-precision" : "text-muted"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* ---------------- Left: navigator ---------------- */}
-      <aside className="flex w-72 shrink-0 flex-col border-r border-line bg-surface">
+      <aside
+        className={`${mobilePane === "data" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-72 lg:flex-none lg:border-r`}
+      >
         <div className="flex flex-wrap gap-px border-b border-line bg-line">
           {PANEL_ORDER.map((p) => (
             <button
               key={p}
               onClick={() => setPanel(p)}
-              className={`flex-1 bg-surface px-2 py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] transition-colors ${
+              className={`flex-1 bg-surface px-2 py-2.5 font-mono text-[9px] uppercase tracking-[0.1em] transition-colors lg:py-1.5 ${
                 panel === p ? "text-precision" : "text-muted hover:text-platinum"
               }`}
             >
@@ -125,9 +149,9 @@ export function Workspace(props: WorkspaceProps) {
       </aside>
 
       {/* ---------------- Centre: viewport ---------------- */}
-      <section className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-3 py-1.5">
-          <div className="flex items-center gap-1">
+      <section className={`${mobilePane === "model" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col lg:flex`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-3 py-1.5">
+          <div className="flex items-center gap-1 overflow-x-auto">
             {VIEWS.map((v) => (
               <button key={v.label} onClick={() => setView(v.position)} className={buttonClass("ghost", "sm")}>
                 {v.label}
@@ -193,7 +217,7 @@ export function Workspace(props: WorkspaceProps) {
         </div>
 
         {/* ---------------- Toolpath transport ---------------- */}
-        <div className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-surface px-3 py-2">
           <button onClick={() => setPlaying((p) => !p)} disabled={props.moves.length === 0} className={buttonClass("default", "sm")}>
             {playing ? "Pause" : "Play"}
           </button>
@@ -209,6 +233,7 @@ export function Workspace(props: WorkspaceProps) {
           </button>
           <input
             type="range"
+            aria-label="Toolpath position"
             min={0}
             max={1}
             step={0.001}
@@ -217,7 +242,7 @@ export function Workspace(props: WorkspaceProps) {
               setPlaying(false);
               setPlayhead(Number(e.target.value));
             }}
-            className="h-1 flex-1 accent-[color:var(--c-blue)]"
+            className="h-1 min-w-[120px] flex-1 accent-[color:var(--c-blue)]"
           />
           <span className="tech-value w-28 shrink-0 text-right text-[10px] text-muted">
             {Math.floor(props.moves.length * playhead)} / {props.moves.length} moves
@@ -232,7 +257,9 @@ export function Workspace(props: WorkspaceProps) {
       </section>
 
       {/* ---------------- Right: copilot ---------------- */}
-      <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
+      <aside
+        className={`${mobilePane === "copilot" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-80 lg:flex-none lg:border-l`}
+      >
         <Copilot partId={props.partId} partName={props.partName} context={props.copilotContext} />
       </aside>
     </div>

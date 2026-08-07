@@ -12,7 +12,7 @@ export default async function MaterialsPage() {
       <TopBar>
         <span className="tech-label">Materials</span>
       </TopBar>
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="Material drives speeds, feeds, the cutting-force model and the material line of every quote. Specific cutting energy is what turns a depth of cut into an estimated load on the workholding.">
           Materials
         </SectionHeading>

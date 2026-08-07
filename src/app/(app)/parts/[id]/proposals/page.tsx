@@ -95,7 +95,7 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
         <span className="tech-label">Proposals</span>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
           <SectionHeading sub="Nothing a model proposes enters the part model on its own. Accepting is a human act with a name and a timestamp on it, recorded in the audit trail as such.">
             AI proposals

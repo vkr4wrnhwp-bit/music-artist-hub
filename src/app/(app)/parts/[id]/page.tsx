@@ -394,14 +394,14 @@ export default async function PartWorkspace(props: {
         </div>
       )}
 
-      <div className="flex items-center gap-4 border-b border-line bg-surface px-5 py-2">
-        <span className="tech-label">Readiness</span>
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-4 overflow-x-auto border-b border-line bg-surface px-5 py-2">
+        <span className="tech-label shrink-0">Readiness</span>
+        <div className="flex items-center gap-3 lg:flex-wrap">
           {readiness.gates.map((g) => {
             const tone: Tone =
               g.status === "PASS" ? "pass" : g.status === "REVIEW" ? "review" : g.status === "NOT_ATTEMPTED" ? "unknown" : "risk";
             return (
-              <span key={g.id} className="group relative flex items-center gap-1.5" title={g.detail}>
+              <span key={g.id} className="group relative flex shrink-0 items-center gap-1.5" title={g.detail}>
                 <Dot tone={tone} />
                 <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted group-hover:text-platinum">
                   {g.label}
@@ -410,7 +410,7 @@ export default async function PartWorkspace(props: {
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <LinkButton href={`/parts/${id}/readiness`} size="sm" variant="ghost">
             Full readiness
           </LinkButton>

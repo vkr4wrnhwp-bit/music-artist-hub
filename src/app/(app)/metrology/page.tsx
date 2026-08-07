@@ -13,7 +13,7 @@ export default async function MetrologyPage() {
       <TopBar>
         <span className="tech-label">Metrology</span>
       </TopBar>
-      <main className="flex-1 space-y-6 overflow-y-auto p-6">
+      <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="CANVAS designs measurement instructions around the instruments you actually own. Instrument uncertainty also sets how confidently a measurement can be matched to a standard nominal value — a caliper reading cannot resolve a 40 mm bearing seat the way a bore gauge can.">
           Metrology
         </SectionHeading>

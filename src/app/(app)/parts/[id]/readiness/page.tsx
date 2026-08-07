@@ -68,7 +68,7 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
         <span className="tech-label">Readiness</span>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-4xl space-y-6">
           <div className="flex items-start justify-between gap-6">
             <SectionHeading sub="Not a percentage. Each gate passes, needs review, is missing, or was never attempted — and the overall status is the worst of them, never an average. Averaging would let a part with no inspection plan read as 90% ready.">

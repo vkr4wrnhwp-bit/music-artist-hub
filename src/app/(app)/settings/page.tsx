@@ -63,7 +63,7 @@ export default async function SettingsPage() {
       <TopBar>
         <span className="tech-label">Settings</span>
       </TopBar>
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
           <SectionHeading sub="Rates here drive every cost estimate and quote in the system. They are stored with each estimate, so changing them does not silently rewrite quotes you have already sent.">
             Settings

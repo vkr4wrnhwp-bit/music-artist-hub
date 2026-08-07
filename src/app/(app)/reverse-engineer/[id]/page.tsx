@@ -44,7 +44,7 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
         <StatusChip tone={session.status === "COMPLETE" ? "pass" : "precision"}>{session.status}</StatusChip>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-5xl space-y-6">
           <div className="flex items-start justify-between gap-6">
             <SectionHeading sub="CANVAS asks for measurements in the order that constrains the model fastest: datums first, then everything referenced to them. Each request names the instrument to use and what the result is worth.">

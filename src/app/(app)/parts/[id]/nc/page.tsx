@@ -157,7 +157,7 @@ export default async function NcPage(props: {
         <DevLabel>Development / simulation post</DevLabel>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-5xl space-y-6">
           <SectionHeading sub="An LLM never produces machine motion in CANVAS. This program came from the deterministic toolpath engine through a modular post processor. It is a development post, it is not certified for production, and it says so in its own header.">
             NC output

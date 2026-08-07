@@ -40,7 +40,7 @@ export default async function IntelligencePage() {
         <DevLabel>Capability inventory real · opportunity discovery not implemented</DevLabel>
       </TopBar>
 
-      <main className="flex-1 space-y-6 overflow-y-auto p-6">
+      <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-4xl space-y-6">
           <SectionHeading sub="What your shop can physically make, derived from your machines, tooling, workholding and materials. This is the substrate the opportunity engine will eventually run on — the inventory is real today, the discovery is not.">
             Shop intelligence

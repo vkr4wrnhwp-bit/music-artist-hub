@@ -20,7 +20,7 @@ export default async function JobsPage() {
       <TopBar>
         <span className="tech-label">Jobs</span>
       </TopBar>
-      <main className="flex-1 space-y-6 overflow-y-auto p-6">
+      <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="A job outcome is the most valuable data a shop generates and the one most often lost. What held, what chattered, what scrapped and why — recorded structurally so it can teach the workholding and process models rather than living in someone's memory.">
           Jobs
         </SectionHeading>

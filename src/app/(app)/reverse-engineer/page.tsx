@@ -80,7 +80,7 @@ export default async function ReverseEngineerPage() {
       </TopBar>
 
       <main className="flex-1 overflow-y-auto">
-        <section className="precision-grid relative border-b border-line px-8 py-12">
+        <section className="precision-grid relative border-b border-line px-5 py-10 sm:px-8 sm:py-12">
           <AxisTriad className="absolute right-8 top-8 opacity-50" />
           <div className="mx-auto max-w-3xl">
             <h1 className="mb-2 text-[24px] font-light tracking-[0.1em] text-white">HAVE THE PART. NEED ANOTHER ONE?</h1>
@@ -108,7 +108,7 @@ export default async function ReverseEngineerPage() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-4xl space-y-6 p-8">
+        <div className="mx-auto max-w-4xl space-y-6 p-5 sm:p-8">
           {storageIsEphemeral && (
             <Notice tone="risk" title="Uploads on this deployment are temporary">
               This instance has no persistent disk, so photographs are held only for the life of the

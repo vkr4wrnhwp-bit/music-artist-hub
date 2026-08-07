@@ -153,7 +153,7 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
         <span className="tech-label">Responsibility</span>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-2xl">
           <SectionHeading sub="CANVAS will not recommend an alternative manufacturing method without understanding what the part is responsible for. Switching a fatigue-loaded billet part to a casting is a materials decision, not a cost decision, and it needs these answers first.">
             Part responsibility profile

@@ -74,7 +74,7 @@ export default async function OnboardingPage() {
       <TopBar>
         <span className="tech-label">Shop setup</span>
       </TopBar>
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-2xl space-y-6">
           <SectionHeading sub="Six questions. Each one changes what CANVAS can validate, so skipping them means the system is quieter rather than smarter.">
             Tell CANVAS about your shop

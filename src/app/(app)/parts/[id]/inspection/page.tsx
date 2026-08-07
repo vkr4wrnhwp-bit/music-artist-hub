@@ -29,7 +29,7 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
         <span className="tech-label">Inspection</span>
       </TopBar>
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-4xl space-y-6">
           <SectionHeading sub="A critical dimension with no measurement method is a dimension nobody checks. The plan names the instrument for each characteristic so the person at the surface plate is not guessing at 6am.">
             Inspection

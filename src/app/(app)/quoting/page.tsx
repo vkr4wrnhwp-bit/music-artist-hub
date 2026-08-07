@@ -26,7 +26,7 @@ export default async function QuotingPage() {
       <TopBar>
         <span className="tech-label">Quoting</span>
       </TopBar>
-      <main className="flex-1 space-y-6 overflow-y-auto p-6">
+      <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="Quotes carry their assumption set. Machine rate, cycle time, material utilisation, scrap allowance and margin are all stored with the estimate, so a quote can be defended, re-run against changed rates, or compared against what the job actually cost.">
           Quoting
         </SectionHeading>

@@ -13,7 +13,7 @@ export default async function ToolCribPage() {
       <TopBar>
         <span className="tech-label">Tool crib</span>
       </TopBar>
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <SectionHeading sub="Tool geometry drives what CANVAS will and will not plan. Corner radius decides whether an internal corner is machinable at all; stickout decides whether a depth is reachable. A tool that is not in the crib does not exist to the planner.">
           Tool crib
         </SectionHeading>
