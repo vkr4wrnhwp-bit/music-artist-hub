@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+/* ============================================================
+   CANVAS DESIGN SYSTEM
+   Precision Manufacturing Intelligence
+   ============================================================ */
+
+:root {
+  /* Graphite / near-black surfaces */
+  --c-void: #080a0c;
+  --c-surface: #0d1014;
+  --c-raised: #13171c;
+  --c-line: #1e242b;
+  --c-line-strong: #2b333c;
+
+  /* Platinum information */
+  --c-platinum: #d8dade;
+  --c-platinum-dim: #b8bdc5;
+  --c-muted: #737b86;
+  --c-white: #f4f5f6;
+
+  /* Precision blue — active state, datum, measurement, toolpath */
+  --c-blue: #2078ff;
+  --c-blue-dim: #1a5ec9;
+  --c-blue-wash: rgba(32, 120, 255, 0.1);
+
+  /* Status — desaturated, instrument-panel, never festive */
+  --c-pass: #4c9e77;
+  --c-review: #c39034;
+  --c-risk: #c25b4e;
+  --c-unknown: #5c6672;
+
+  --radius: 2px;
+}
+
+@theme inline {
+  --color-void: var(--c-void);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-platinum: var(--c-platinum);
+  --color-platinum-dim: var(--c-platinum-dim);
+  --color-muted: var(--c-muted);
+  --color-precision: var(--c-blue);
+  --color-precision-dim: var(--c-blue-dim);
+  --color-pass: var(--c-pass);
+  --color-review: var(--c-review);
+  --color-risk: var(--c-risk);
+  --color-unknown: var(--c-unknown);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono-tech);
+}
+
+html,
+body {
+  background: var(--c-void);
+  color: var(--c-platinum);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---- Technical label: the small uppercase tracked type used everywhere ---- */
+.tech-label {
+  font-family: var(--font-mono-tech), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.tech-value {
+  font-family: var(--font-mono-tech), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Precision grid: used sparingly behind viewports and hero areas ---- */
+.precision-grid {
+  background-image:
+    linear-gradient(to right, rgba(216, 218, 222, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(216, 218, 222, 0.028) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.precision-grid-fine {
+  background-image:
+    linear-gradient(to right, rgba(216, 218, 222, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(216, 218, 222, 0.02) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+/* ---- Framing corners: the machinist bracket motif from the brand mark ---- */
+.datum-frame {
+  position: relative;
+}
+.datum-frame::before,
+.datum-frame::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--c-line-strong);
+  pointer-events: none;
+}
+.datum-frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.datum-frame::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+/* ---- Restrained motion ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Scrollbars: thin, graphite ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--c-line-strong);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: var(--c-blue);
+  color: var(--c-white);
+}
+
+input,
+textarea,
+select {
+  background: transparent;
+  color: inherit;
+}
+input:focus,
+textarea:focus,
+select:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--c-blue);
+  outline-offset: 1px;
+}
