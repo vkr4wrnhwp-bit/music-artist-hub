@@ -13,12 +13,17 @@ import bcrypt from "bcryptjs";
 // deployment. Chosen from the connection string so there is nothing extra to
 // configure on either side.
 const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
-const isPostgres = url.startsWith("postgres://") || url.startsWith("postgresql://");
 
 function createClient(): PrismaClient {
-  if (isPostgres) {
+  if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
     const { PrismaPg } = require("@prisma/adapter-pg") as typeof import("@prisma/adapter-pg");
     return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  }
+  if (/^(libsql|wss?|https?):\/\//.test(url)) {
+    const { PrismaLibSql } = require("@prisma/adapter-libsql") as typeof import("@prisma/adapter-libsql");
+    return new PrismaClient({
+      adapter: new PrismaLibSql({ url, authToken: process.env.DATABASE_AUTH_TOKEN }),
+    });
   }
   const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3") as typeof import("@prisma/adapter-better-sqlite3");
   return new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });

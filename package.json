@@ -16,7 +16,9 @@
     "vercel-build": "npm run prepare:schema && prisma generate && prisma migrate deploy && prisma db seed && next build"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/adapter-libsql": "^7.9.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@react-three/drei": "^10.7.8",

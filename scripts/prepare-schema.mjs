@@ -16,9 +16,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const PROVIDERS = { sqlite: "sqlite", postgresql: "postgresql", postgres: "postgresql" };
+const PROVIDERS = { sqlite: "sqlite", libsql: "sqlite", turso: "sqlite", postgresql: "postgresql", postgres: "postgresql" };
 
-const requested = (process.env.DATABASE_PROVIDER ?? inferFromUrl() ?? "sqlite").toLowerCase();
+const requested = (process.env.DATABASE_PROVIDER ?? kindFromUrl()).toLowerCase();
 const provider = PROVIDERS[requested];
 
 if (!provider) {
@@ -28,12 +28,17 @@ if (!provider) {
   process.exit(1);
 }
 
-/** A Postgres connection string is unambiguous, so honour it without ceremony. */
-function inferFromUrl() {
+/**
+ * Mirrors databaseKind() in src/lib/database-url.ts. Kept as a few lines of
+ * duplication rather than an import because this script runs before the
+ * TypeScript build exists — postinstall is the first thing that happens.
+ * Turso speaks the SQLite dialect, so it maps to the sqlite provider.
+ */
+function kindFromUrl() {
   const url = process.env.DATABASE_URL ?? "";
   if (url.startsWith("postgres://") || url.startsWith("postgresql://")) return "postgresql";
-  if (url.startsWith("file:")) return "sqlite";
-  return null;
+  if (/^(libsql|wss?|https?):\/\//.test(url)) return "libsql";
+  return "sqlite";
 }
 
 const root = path.join(import.meta.dirname, "..");

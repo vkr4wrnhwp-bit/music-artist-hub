@@ -50,14 +50,15 @@ copilot, set `CANVAS_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` server-side.
 
 ## Deploying it
 
-CANVAS runs on SQLite locally and PostgreSQL in a deployment, from the same
-codebase and schema — only the driver adapter differs, chosen from the
-connection string. Import the repo into Vercel, set `DATABASE_URL` to a
-Postgres connection string, and deploy; the build migrates and seeds itself.
+CANVAS runs on three database homes from one codebase and one schema — local
+SQLite, Turso, or PostgreSQL — with the driver chosen from the connection
+string. The smallest live deployment is Vercel plus a free Turso database:
+because Turso is SQLite over the network, the committed migrations apply to it
+unchanged. Import the repo, set `DATABASE_URL`, deploy; the build migrates and
+seeds itself.
 
-Both paths are verified against a real PostgreSQL instance. See
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), including the limitations of a
-serverless deployment.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the steps, what is verified,
+and the real limitations of a serverless deployment.
 
 ## The five-minute demo
 

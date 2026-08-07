@@ -16,6 +16,8 @@ const generated = path.join("prisma", ".generated", "schema.prisma");
 const schema = existsSync(generated) ? generated : path.join("prisma", "schema.prisma");
 
 const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+// Turso reuses the SQLite migration set — same dialect, so the committed
+// migrations apply to it unchanged.
 const isPostgres = url.startsWith("postgres://") || url.startsWith("postgresql://");
 
 export default defineConfig({

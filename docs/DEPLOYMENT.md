@@ -1,46 +1,52 @@
 # Deployment
 
-CANVAS runs on SQLite locally and PostgreSQL in a deployment, from the same
-codebase and the same schema. Nothing about the application changes between
-them — only the driver adapter.
+CANVAS runs on three database homes from one codebase and one schema. The
+driver is chosen from the connection string; nothing else in the application
+knows which one it got.
 
-Both paths are verified: the application was built, migrated, seeded and driven
-through a browser against a real PostgreSQL 16 instance, producing the same 668
-toolpath moves and the same zero console errors as the SQLite build.
+| Home | Connection string | Use |
+|---|---|---|
+| **SQLite** | `file:./prisma/dev.db` | Local development. No services |
+| **Turso** | `libsql://…` | Smallest live deployment. SQLite over the network |
+| **PostgreSQL** | `postgresql://…` | Any managed provider |
 
 ---
 
-## Vercel + Neon (about five minutes)
+## The easiest live deployment: Vercel + Turso
 
-**1. Create a Postgres database.** Neon, Supabase, Vercel Postgres or any
-managed Postgres works. Copy the connection string — it looks like
-`postgresql://user:password@host/dbname?sslmode=require`.
+Turso is SQLite over HTTP. Because it speaks the same dialect, **the committed
+migrations in `prisma/migrations` apply to it unchanged** — no second migration
+set, no schema rewrite, nothing to keep in sync. It is the smallest step from
+"runs on my laptop" to "has a URL", and the free tier needs no card.
 
-**2. Import the repository into Vercel.** New Project → import your `canvas`
-repo. Leave the framework preset on Next.js; do not override the build command,
-because `package.json` already defines `vercel-build`, which Vercel prefers
-automatically.
+**1. Create the database.**
 
-**3. Set one environment variable.**
+```bash
+curl -sSfL https://get.tur.so/install.sh | bash
+turso auth signup
+turso db create canvas
+turso db show canvas --url          # libsql://canvas-….turso.io
+turso db tokens create canvas       # the auth token
+```
+
+**2. Import the repo into Vercel.** New Project → import `canvas`. Leave the
+framework preset alone and do not override the build command — `package.json`
+defines `vercel-build`, which Vercel picks up automatically.
+
+**3. Set two environment variables.**
 
 | Name | Value |
 |---|---|
-| `DATABASE_URL` | your Postgres connection string |
+| `DATABASE_URL` | the `libsql://…` URL |
+| `DATABASE_AUTH_TOKEN` | the token from `turso db tokens create` |
 
-That is the only required variable. The provider is detected from the string —
-there is nothing else to configure.
+**4. Deploy.** Sign in at `/sign-in` with `demo@canvas.local` / `canvas-demo`.
 
-**4. Deploy.** The build runs:
+### If you would rather use PostgreSQL
 
-```
-prepare:schema     rewrite the schema for postgresql
-prisma generate    generate the client for that provider
-prisma migrate deploy   apply prisma/migrations-postgres
-prisma db seed     create the demo shop, only if it is missing
-next build
-```
-
-Sign in at `/sign-in` with `demo@canvas.local` / `canvas-demo`.
+Identical, with one variable instead of two: set `DATABASE_URL` to a Neon,
+Supabase or Vercel Postgres connection string. The build detects the provider,
+regenerates the schema and applies `prisma/migrations-postgres`.
 
 ### Optional variables
 
@@ -52,69 +58,97 @@ Sign in at `/sign-in` with `demo@canvas.local` / `canvas-demo`.
 | `CANVAS_FORCE_RESEED=1` | Replaces the demo shop on the next deploy |
 | `CANVAS_STORAGE_DIR` | Storage root, if you mount a persistent volume |
 
+### What the build actually runs
+
+```
+prepare:schema          rewrite the schema for the detected provider
+prisma generate         generate the client for that provider
+prisma migrate deploy   apply the matching migration set
+prisma db seed          create the demo shop, only if it is missing
+next build
+```
+
 ---
 
-## How the two providers share one schema
+## How one schema serves all three
 
 `prisma/schema.prisma` is the single source of truth, authored for SQLite.
 `scripts/prepare-schema.mjs` rewrites exactly one line — the datasource
 provider — into `prisma/.generated/schema.prisma`, which `prisma.config.ts`
-points at.
+points at. Turso maps to the `sqlite` provider because it is SQLite.
 
-This works because the schema was deliberately written to be portable: no
+This works because the schema was written portable from the start: no
 SQLite-specific column types, and enumerated values stored as strings validated
 in `src/lib/domain` rather than as native database enums. Generating the second
 schema rather than maintaining it means a schema change cannot be applied to
 one provider and forgotten on the other.
 
-Migration SQL *is* dialect-specific, so each provider keeps its own directory:
+Migration SQL *is* dialect-specific, so PostgreSQL keeps its own directory:
 
 ```
-prisma/migrations/            SQLite
+prisma/migrations/            SQLite and Turso
 prisma/migrations-postgres/   PostgreSQL
 ```
 
-When you change the schema, generate the migration for both:
+After changing the schema, generate the migration for both dialects:
 
 ```bash
-DATABASE_URL="file:./prisma/dev.db"        npm run db:migrate:new
-DATABASE_URL="postgresql://…"              npm run db:migrate:new
+DATABASE_URL="file:./prisma/dev.db"   npm run db:migrate:new
+DATABASE_URL="postgresql://…"         npm run db:migrate:new
 ```
+
+`src/lib/database-url.ts` holds the routing — one function, unit-tested against
+all six connection-string forms.
+
+---
+
+## What is verified, and what is not
+
+**Verified here.** The PostgreSQL path end to end against a real PostgreSQL 16
+instance: clean install, `vercel-build`, migrate, seed, production build, then
+driven through a browser — same 668 toolpath moves and zero console errors as
+the SQLite build. The SQLite path re-verified unchanged. The libSQL adapter
+verified against this schema and the generated client. The URL routing tested
+across all six forms.
+
+**Not verified here.** Turso over the network, and Vercel itself — both need
+accounts this environment does not have. The adapter, the dialect and the
+routing are all confirmed; what is untested is the network hop.
 
 ---
 
 ## Known limitations of a serverless deployment
 
-These are real and the interface states them rather than hiding them.
+These are real, and the interface states them rather than hiding them.
 
-**Uploaded files do not persist.** A serverless filesystem is read-only except
-for the OS temp directory, which is per-instance and cleared between
-invocations. `src/lib/storage.ts` detects this, writes to `/tmp`, and exports
-`storageIsEphemeral` so the UI can say so. Photographs uploaded during a
-session work; they will not be there tomorrow.
+**Uploaded files do not persist.** A serverless filesystem is read-only apart
+from a per-instance temp directory that is cleared between invocations.
+`src/lib/storage.ts` detects this, writes to `/tmp`, and exports
+`storageIsEphemeral`; the Reverse Engineer screen shows a warning when it is
+set. Photographs uploaded during a session work, and will not be there
+tomorrow. Everything else — parts, measurements, jobs, audit — is in the
+database and unaffected.
 
 For durable uploads, implement `StorageDriver` against S3, R2 or GCS. It is
-three methods — `put`, `get`, `url` — and nothing else in the application knows
-where bytes live.
+three methods — `put`, `get`, `url` — and nothing else knows where bytes live.
 
 **The demo shop is shared.** Everyone hitting a public deployment signs in as
-the same seeded operator and edits the same parts. That is fine for showing the
-product and wrong for anything else. Real use means real accounts — sign-up
-already exists at `/sign-up`, and every query is organisation-scoped, so
-separate organisations are already isolated from each other.
+the same seeded operator and edits the same parts. Fine for showing the
+product, wrong for anything else. Real use means real accounts: `/sign-up`
+already exists and every query is organisation-scoped, so organisations are
+already isolated from each other.
 
-**Cold starts.** The 3D viewport and its dependencies are a client bundle, so
-first paint on a cold function is slower than the local build.
+**Cold starts.** The 3D viewport is a client bundle, so first paint on a cold
+function is slower than a local build.
 
 ---
 
 ## Self-hosting instead
 
-The application is an ordinary Next.js server with a Postgres connection, so
-anything that runs Node 20+ will host it:
+An ordinary Next.js server plus a database URL:
 
 ```bash
-export DATABASE_URL="postgresql://…"
+export DATABASE_URL="postgresql://…"   # or libsql://… or file:…
 npm ci
 npm run db:migrate
 npm run db:seed
@@ -122,5 +156,5 @@ npm run build
 npm start
 ```
 
-On a host with a persistent disk, set `CANVAS_STORAGE_DIR` to a mounted volume
-and uploads become durable with no code change.
+On a host with a persistent disk, point `CANVAS_STORAGE_DIR` at a mounted
+volume and uploads become durable with no code change.

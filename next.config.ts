@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     "@prisma/adapter-better-sqlite3",
     "better-sqlite3",
     "@prisma/adapter-pg",
+    "@prisma/adapter-libsql",
+    "@libsql/client",
     "pg",
   ],
 };
