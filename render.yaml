@@ -1,0 +1,59 @@
+# Render blueprint for CANVAS.
+#
+# Creates the web service and its PostgreSQL database together and wires the
+# connection string between them, so there is nothing to copy by hand.
+#
+# Render runs a long-lived Node process rather than a serverless function,
+# which matters for two reasons: uploaded files survive for the life of the
+# instance (and permanently if you attach the disk below), and there are no
+# cold starts on the 3D viewport.
+#
+# To deploy: Render dashboard → New → Blueprint → point at this repository.
+
+services:
+  - type: web
+    name: canvas
+    runtime: node
+    plan: free
+    # Render sets PORT; `next start` reads it.
+    buildCommand: npm ci && npm run deploy:build
+    startCommand: npm start
+    healthCheckPath: /sign-in
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Injected from the database below — never entered by hand.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: canvas-db
+          property: connectionString
+      # The deterministic intake parser needs no key and no network. Set this
+      # to "anthropic" and add ANTHROPIC_API_KEY to enable the full copilot.
+      - key: CANVAS_AI_PROVIDER
+        value: deterministic
+      # Uploads land here. Without the disk below this survives until the next
+      # deploy; with it, permanently.
+      - key: CANVAS_STORAGE_DIR
+        value: /var/data/canvas-storage
+
+    # Durable uploads need a disk, which requires a paid instance type. Leave
+    # this commented out on the free plan — uploads still work, they just do
+    # not survive a redeploy, and the app says so.
+    # disk:
+    #   name: canvas-storage
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    #
+    # When the disk above is enabled, also set CANVAS_STORAGE_DURABLE=1 so the
+    # app stops warning that uploads are temporary. Durability cannot be
+    # detected — a mounted volume looks the same as the container filesystem —
+    # so it is declared.
+
+databases:
+  - name: canvas-db
+    plan: free
+    databaseName: canvas
+    user: canvas

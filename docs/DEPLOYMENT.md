@@ -12,7 +12,35 @@ knows which one it got.
 
 ---
 
-## The easiest live deployment: Vercel + Turso
+## Render (recommended — one blueprint, nothing to copy)
+
+`render.yaml` in the repository root declares the web service and its
+PostgreSQL database together and wires the connection string between them, so
+there is nothing to paste by hand.
+
+**Render dashboard → New → Blueprint → point at this repository → Apply.**
+
+That is the whole procedure. The build runs `npm ci && npm run deploy:build`,
+which migrates, seeds and builds; the service starts with `npm start` on the
+port Render provides. Sign in at `/sign-in` with
+`demo@canvas.local` / `canvas-demo`.
+
+Render suits CANVAS better than a serverless host in two ways: it runs a
+long-lived Node process, so there are no cold starts on the 3D viewport, and
+its filesystem survives the life of the instance rather than a single request.
+
+**Free plan caveats.** The service sleeps after inactivity, so the first
+request after a quiet period takes ~30 seconds to wake. Render's free
+PostgreSQL instances expire after a fixed period — check the current terms
+before relying on one for anything you care about.
+
+**Durable uploads.** Uncomment the `disk` block in `render.yaml` (requires a
+paid instance) and set `CANVAS_STORAGE_DURABLE=1`. Until you do, uploads work
+but do not survive a redeploy, and the Reverse Engineer screen says so.
+
+---
+
+## Vercel + Turso
 
 Turso is SQLite over HTTP. Because it speaks the same dialect, **the committed
 migrations in `prisma/migrations` apply to it unchanged** — no second migration
@@ -57,12 +85,14 @@ regenerates the schema and applies `prisma/migrations-postgres`.
 | `CANVAS_AI_MODEL` | Overrides the model |
 | `CANVAS_FORCE_RESEED=1` | Replaces the demo shop on the next deploy |
 | `CANVAS_STORAGE_DIR` | Storage root, if you mount a persistent volume |
+| `CANVAS_STORAGE_DURABLE=1` | Declares that the storage root is a persistent volume, which silences the temporary-uploads warning |
 
 ### What the build actually runs
 
 ```
-prepare:schema          rewrite the schema for the detected provider
-prisma generate         generate the client for that provider
+prepare:db              rewrite the schema for the detected provider and
+                        generate the matching client — always together, so
+                        the two can never disagree
 prisma migrate deploy   apply the matching migration set
 prisma db seed          create the demo shop, only if it is missing
 next build
@@ -104,29 +134,37 @@ all six connection-string forms.
 
 ## What is verified, and what is not
 
-**Verified here.** The PostgreSQL path end to end against a real PostgreSQL 16
-instance: clean install, `vercel-build`, migrate, seed, production build, then
-driven through a browser — same 668 toolpath moves and zero console errors as
-the SQLite build. The SQLite path re-verified unchanged. The libSQL adapter
-verified against this schema and the generated client. The URL routing tested
-across all six forms.
+**Verified here**, against a real PostgreSQL 16 instance:
 
-**Not verified here.** Turso over the network, and Vercel itself — both need
-accounts this environment does not have. The adapter, the dialect and the
-routing are all confirmed; what is untested is the network hop.
+- Render's exact commands — `npm ci && npm run deploy:build`, then `npm start`
+  under `RENDER=true`, `NODE_ENV=production` and a Render-style `PORT` — driven
+  through a browser afterwards: 668 toolpath moves, every part route 200, zero
+  console errors.
+- The same for Vercel's build path.
+- Both storage states: the ephemeral-uploads warning appears without a
+  persistent disk, and is correctly suppressed by `CANVAS_STORAGE_DURABLE=1`.
+- The SQLite path re-verified unchanged, and the libSQL adapter verified
+  against this schema and generated client.
+- URL routing across all six connection-string forms.
+
+**Not verified here.** The hosts themselves — Render, Vercel and Turso all need
+accounts this environment does not have. Every command they will run has been
+executed locally against a real database; what is untested is the network hop
+and the platform's own orchestration.
 
 ---
 
-## Known limitations of a serverless deployment
+## Known limitations of a hosted deployment
 
 These are real, and the interface states them rather than hiding them.
 
-**Uploaded files do not persist.** A serverless filesystem is read-only apart
-from a per-instance temp directory that is cleared between invocations.
-`src/lib/storage.ts` detects this, writes to `/tmp`, and exports
-`storageIsEphemeral`; the Reverse Engineer screen shows a warning when it is
-set. Photographs uploaded during a session work, and will not be there
-tomorrow. Everything else — parts, measurements, jobs, audit — is in the
+**Uploaded files are not durable by default.** On a serverless host nothing
+survives the request; on a container host like Render the filesystem survives
+the instance but not a redeploy. Durability cannot be inferred — a mounted
+volume looks identical to the container filesystem — so it is declared: set
+`CANVAS_STORAGE_DURABLE=1` when a persistent volume is actually attached.
+Until then the Reverse Engineer screen states plainly that uploads are
+temporary. Everything else — parts, measurements, jobs, audit — is in the
 database and unaffected.
 
 For durable uploads, implement `StorageDriver` against S3, R2 or GCS. It is
@@ -138,8 +176,9 @@ product, wrong for anything else. Real use means real accounts: `/sign-up`
 already exists and every query is organisation-scoped, so organisations are
 already isolated from each other.
 
-**Cold starts.** The 3D viewport is a client bundle, so first paint on a cold
-function is slower than a local build.
+**Cold starts.** On a serverless host the 3D viewport's client bundle makes
+first paint slower than a local build. On Render's free plan the service sleeps
+after inactivity, so the first request wakes it (~30s) before anything renders.
 
 ---
 

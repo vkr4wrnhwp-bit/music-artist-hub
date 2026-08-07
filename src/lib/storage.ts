@@ -26,19 +26,28 @@ export interface StorageDriver {
 }
 
 /**
- * On a serverless host the project directory is read-only and the only
- * writable path is the OS temp directory — which is per-instance and cleared
- * between invocations. Uploads therefore work within a session but do not
- * persist. That is a real limitation, and `storageIsEphemeral` exists so the
- * interface can say so rather than letting a file silently vanish.
+ * Uploads are only durable when they land on a disk that outlives the process.
+ *
+ * On a serverless host nothing does: the project directory is read-only and
+ * the only writable path is a per-instance temp directory cleared between
+ * invocations. On a container host like Render the filesystem survives the
+ * instance but not a redeploy, unless a persistent volume is mounted.
+ *
+ * Durability therefore cannot be inferred — mounting a volume looks identical
+ * to writing into the container. So it is declared: set CANVAS_STORAGE_DURABLE=1
+ * when a persistent volume is actually attached. Anything else is reported as
+ * ephemeral, because quietly losing a file is far worse than an unnecessary
+ * warning.
  */
 const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const IS_MANAGED_HOST = IS_SERVERLESS || Boolean(process.env.RENDER || process.env.FLY_APP_NAME);
 
 const ROOT =
   process.env.CANVAS_STORAGE_DIR ??
   (IS_SERVERLESS ? path.join("/tmp", "canvas-storage") : path.join(process.cwd(), ".storage"));
 
-export const storageIsEphemeral = IS_SERVERLESS && !process.env.CANVAS_STORAGE_DIR;
+export const storageIsEphemeral =
+  IS_MANAGED_HOST && process.env.CANVAS_STORAGE_DURABLE !== "1";
 
 /** File types CANVAS will accept. Anything else is rejected at the boundary. */
 export const ALLOWED_MIME = new Set([

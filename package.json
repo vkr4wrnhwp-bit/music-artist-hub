@@ -7,13 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prepare:schema": "node scripts/prepare-schema.mjs",
-    "postinstall": "npm run prepare:schema && prisma generate",
-    "db:migrate": "npm run prepare:schema && prisma migrate deploy",
-    "db:seed": "npm run prepare:schema && prisma db seed",
-    "db:reset": "npm run prepare:schema && prisma migrate reset --force",
-    "db:migrate:new": "npm run prepare:schema && prisma migrate dev",
-    "vercel-build": "npm run prepare:schema && prisma generate && prisma migrate deploy && prisma db seed && next build"
+    "postinstall": "npm run prepare:db",
+    "db:migrate": "npm run prepare:db && prisma migrate deploy",
+    "db:seed": "npm run prepare:db && prisma db seed",
+    "db:reset": "npm run prepare:db && prisma migrate reset --force",
+    "db:migrate:new": "npm run prepare:db && prisma migrate dev",
+    "vercel-build": "npm run deploy:build",
+    "deploy:build": "npm run prepare:db && prisma migrate deploy && prisma db seed && next build",
+    "prepare:db": "node scripts/prepare-schema.mjs && prisma generate"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
@@ -49,5 +50,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.11",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.9"
   }
 }

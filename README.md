@@ -50,12 +50,13 @@ copilot, set `CANVAS_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` server-side.
 
 ## Deploying it
 
-CANVAS runs on three database homes from one codebase and one schema — local
-SQLite, Turso, or PostgreSQL — with the driver chosen from the connection
-string. The smallest live deployment is Vercel plus a free Turso database:
-because Turso is SQLite over the network, the committed migrations apply to it
-unchanged. Import the repo, set `DATABASE_URL`, deploy; the build migrates and
-seeds itself.
+`render.yaml` declares the web service and its database together, so on Render
+it is one step: **New → Blueprint → this repository → Apply**. Nothing to copy,
+nothing to configure; the build migrates, seeds and builds itself.
+
+CANVAS also runs on Vercel, and on three database homes from one codebase and
+one schema — local SQLite, Turso, or PostgreSQL — with the driver chosen from
+the connection string.
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the steps, what is verified,
 and the real limitations of a serverless deployment.
