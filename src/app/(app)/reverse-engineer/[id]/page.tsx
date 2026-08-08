@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -6,6 +6,11 @@ import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
 import { inchesToMm } from "@/lib/engines/nominal";
 import { TopBar } from "@/components/nav";
+import { revalidatePath } from "next/cache";
+import { audit } from "@/lib/audit";
+import { buildReconstructionPlan } from "@/lib/engines/reconstruction";
+import { loadRevision } from "@/lib/data";
+import { ReconstructionPlanPanel } from "@/components/reverse/reconstruction-plan";
 import { GuidedMeasurement } from "@/components/reverse/guided-measurement";
 import { PhotoSetUploader } from "@/components/reverse/photo-set";
 import { LinkButton, Notice, Panel, SectionHeading, StatusChip } from "@/components/ui";
@@ -23,13 +28,89 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
   });
   if (!session) notFound();
 
-  const [devices, photos] = await Promise.all([
+  const [devices, photos, datums] = await Promise.all([
     getMetrology(user.organizationId),
     db.uploadedAsset.findMany({
       where: { organizationId: user.organizationId, partId: session.partRevision.partId, kind: "PHOTO" },
       orderBy: { createdAt: "asc" },
     }),
+    db.datum.findMany({ where: { partRevisionId: session.partRevisionId }, orderBy: { letter: "asc" } }),
   ]);
+
+  /* ---------------- Reconstruction plan ---------------- */
+
+  // The plan reads the hydrated, validated feature models rather than the raw
+  // rows, so the tasks it proposes are about geometry the rest of CANVAS also
+  // agrees exists.
+  const revision = await loadRevision(user.organizationId, session.partRevision.partId);
+
+  const plan = buildReconstructionPlan({
+    features: revision?.features ?? [],
+    uploadedViews: photos.map((p) => p.viewLabel ?? "").filter(Boolean),
+    establishedDatums: datums
+      .filter((d) => d.acceptedByUser)
+      .map((d) => ({ system: d.system, letter: d.letter })),
+    completedLabels: session.measurements.map((m) => m.label),
+    inferredAwaitingReview: session.measurements.filter(
+      (m) => m.resolution === "PENDING" && m.suggestedNominal != null,
+    ).length,
+  });
+
+  const establishedKeys = new Set(
+    datums.filter((d) => d.acceptedByUser).map((d) => `${d.system}:${d.letter}`),
+  );
+
+  /**
+   * Establishing a datum is a human act. CANVAS proposes the frame and says
+   * why; it does not get to decide what the part is referenced to, because the
+   * person holding the component knows which face actually seats in service
+   * and the feature list does not.
+   */
+  async function establishDatum(formData: FormData) {
+    "use server";
+    const currentUser = await requireUser();
+    const owned = await db.measurementSession.findFirst({
+      where: { id, partRevision: { part: { organizationId: currentUser.organizationId } } },
+    });
+    if (!owned) notFound();
+
+    const letter = String(formData.get("letter") ?? "").trim();
+    const system = String(formData.get("system") ?? "DESIGN");
+    const featureId = String(formData.get("featureId") ?? "").trim() || null;
+    if (!letter) redirect(`/reverse-engineer/${id}`);
+
+    await db.datum.upsert({
+      where: { partRevisionId_system_letter: { partRevisionId: owned.partRevisionId, system, letter } },
+      create: {
+        partRevisionId: owned.partRevisionId,
+        letter,
+        system,
+        featureId,
+        description: String(formData.get("description") ?? ""),
+        geometryType: String(formData.get("geometryType") ?? "PLANE"),
+        proposedReason: String(formData.get("reason") ?? ""),
+        acceptedByUser: true,
+        acceptedAt: new Date(),
+        source: "USER",
+      },
+      update: { acceptedByUser: true, acceptedAt: new Date(), source: "USER", featureId },
+    });
+
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "Datum",
+      entityId: `${owned.partRevisionId}:${system}:${letter}`,
+      action: "CREATE",
+      actorType: "HUMAN",
+      field: `${system} datum ${letter}`,
+      newValue: String(formData.get("description") ?? ""),
+      reason: "Datum accepted by operator",
+    });
+
+    revalidatePath(`/reverse-engineer/${id}`);
+    redirect(`/reverse-engineer/${id}`);
+  }
 
   const pending = session.measurements.filter((m) => m.resolution === "PENDING" && m.suggestedNominal);
 
@@ -60,6 +141,12 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
               CANVAS has matched these readings against published standards. It will not change a dimension for you.
             </Notice>
           )}
+
+          <ReconstructionPlanPanel
+            plan={plan}
+            establishDatum={establishDatum}
+            establishedKeys={establishedKeys}
+          />
 
           <GuidedMeasurement
             sessionId={session.id}

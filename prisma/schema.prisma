@@ -426,6 +426,7 @@ model PartRevision {
   recommendations    AIRecommendation[]
   operationStates    OperationState[]
   disagreements      Disagreement[]
+  datums             Datum[]
 
   @@unique([partId, revision])
   @@index([partId])
@@ -465,6 +466,7 @@ model Feature {
   operations   Operation[]
   measurements Measurement[]
   inspectionItems InspectionItem[]
+  datums       Datum[]
 
   @@index([partRevisionId])
 }
@@ -590,12 +592,18 @@ model Measurement {
   // Dependency graph: which measurements must exist before this one is valid.
   dependsOn String @default("[]") // JSON array of Measurement ids
 
+  // What this dimension is measured FROM. A number without this is not
+  // reproducible: the next person measures from a different edge and gets a
+  // different answer that is equally defensible.
+  datumId   String?
+
   createdAt DateTime @default(now())
 
   session MeasurementSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   feature Feature?           @relation(fields: [featureId], references: [id])
   asset   UploadedAsset?     @relation(fields: [assetId], references: [id], onDelete: SetNull)
   device  MetrologyDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  datum   Datum?             @relation(fields: [datumId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
 }
@@ -1197,5 +1205,51 @@ model Disagreement {
   shopKnowledge ShopKnowledge? @relation(fields: [shopKnowledgeId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+  @@index([partRevisionId])
+}
+
+// DATUM-FIRST REVERSE ENGINEERING
+//
+// Reverse engineering is not a pile of disconnected dimensions. A bore is
+// 2.000 *from something*, and until that something is named, the number is
+// not reproducible — the next person measures from a different edge and gets
+// a different answer that is equally defensible.
+//
+// Three datum systems, because they are genuinely different questions and a
+// shop that conflates them makes parts that inspect fine and do not fit:
+//
+//   DESIGN        what the part's function is referenced to
+//   MANUFACTURING what the part is located from in the fixture
+//   INSPECTION    what it is set up on to be measured
+//
+// They often differ, and where they differ, error stacks between them. Naming
+// all three is what lets CANVAS say by how much.
+model Datum {
+  id             String @id @default(cuid())
+  partRevisionId String
+  // A, B, C — the reference letter used on the drawing and in inspection.
+  letter         String
+  system         String // DESIGN | MANUFACTURING | INSPECTION
+  // What the datum physically is. A face, a bore centreline, a dowel centre.
+  featureId      String?
+  description    String
+  // PLANE | AXIS | POINT — governs how many degrees of freedom it constrains.
+  geometryType   String @default("PLANE")
+
+  // Why CANVAS proposed it, kept verbatim so the operator can disagree with
+  // the reasoning rather than only with the conclusion.
+  proposedReason String?
+  // Datums are never established by inference alone.
+  acceptedByUser Boolean  @default(false)
+  acceptedAt     DateTime?
+  source         String   @default("SYSTEM")
+
+  createdAt DateTime @default(now())
+
+  partRevision PartRevision @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
+  feature      Feature?     @relation(fields: [featureId], references: [id], onDelete: SetNull)
+  measurements Measurement[]
+
+  @@unique([partRevisionId, system, letter])
   @@index([partRevisionId])
 }
