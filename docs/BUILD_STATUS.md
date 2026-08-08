@@ -60,6 +60,45 @@ Phase 1. Updated at the end of the first implementation pass.
   plan, a completed job with a `PART_MOVED` outcome, and a 1.5744" measurement
   that exercises the 40 mm nominal-reasoning demo
 
+## PHASE 2 — BUILT
+
+**Cutting force model v0.2 (Kienzle).** `engines/cutting-force.ts`. Replaces the
+Phase 1 specific-energy approximation. Published material coefficients, average
+and peak reported separately, uncertainty band on every result, and a refusal to
+return anything when an input is missing. Confidence capped at MEDIUM — it is a
+calculation, not a measurement, and must not be able to satisfy a gate alone.
+
+**Holding margin v0.1.** `engines/holding-margin.ts`. Applied load against
+resisting load: friction across both jaw faces plus any positive stop, checked
+against both sliding and overturning, worst mode governs. Replaces grip depth as
+the deciding factor — grip depth is demoted to advice once the force balance is
+available. Returns INDETERMINATE when clamping force is unrecorded rather than
+assuming one. Classified DEVELOPMENT ANALYSIS.
+
+**Inspection capability.** `engines/inspection-capability.ts`. Gauge maker's rule
+— instrument uncertainty against tolerance band, 10% target, 25% limit. Blocking
+and not clearable by confirmation. Upgrade suggestions exclude equipment the shop
+already owns and equipment that still would not reach the required uncertainty.
+
+**Show your work.** `components/show-calculation.tsx`. Every consequential
+calculated number opens to method, inputs, assumptions and uncertainty.
+
+**Next required action.** `engines/next-action.ts`. One instruction, ordered by
+what invalidates what rather than by what is easiest.
+
+**Part status everywhere.** Readiness travels with the part on every screen.
+
+**I disagree.** `lib/disagreement.ts`, `/knowledge`. Recorded as evidence,
+scoped, never clearing a gate.
+
+**Tool reality.** Condition, actual stickout, measured runout, helix, regrind
+count, previous material and shop notes on the tool record. Condition and helix
+feed the force model.
+
+**Operation-state geometry.** `OperationState` model — the addressable state and
+scalar envelope of the part at a point in the process. The material-removal
+solid modelling that would populate it automatically is not built.
+
 ## IN PROGRESS
 
 - Feature editing in the workspace (currently read-only; features are created
@@ -67,6 +106,24 @@ Phase 1. Updated at the end of the first implementation pass.
 - Setup editing (setups render and assess; grip is written by the soft jaw
   generator, not yet directly editable)
 - Inspection plan creation UI (plans render; creation is seed-only)
+
+## PHASE 2 — NOT BUILT
+
+These are named in the Phase 2 brief and are deliberately not faked:
+
+- Reverse engineering as the flagship seven-view intake with a reconstruction
+  plan and a guided sequential measurement mission
+- Datum-first reverse engineering — design, manufacturing and inspection datums
+  as distinct coordinate systems, with measurements referencing them
+- Nominal reasoning 2.0 — reasoning from the mating component (bearing number,
+  shaft, seal) rather than from the measured dimension alone
+- Soft jaws 2.0 — jaw geometry as real project geometry driven by
+  operation-state, with a MACHINE THESE JAWS path into actual operations
+- Manufacturing strategy modes (conservative / balanced / aggressive /
+  lights-out) affecting whole strategy rather than feeds and speeds
+- Copilot as a control surface proposing structured project mutations
+- Shop knowledge review queue — the promotion path from disagreement to
+  knowledge exists in the data model but has no UI
 
 ## NEXT
 

@@ -106,3 +106,69 @@ Anything not fully implemented says so in the interface: `DEVELOPMENT`,
 `SIMULATION ONLY`, `NOT IMPLEMENTED`, `SHELL`. There are no buttons that appear
 to perform collision validation and merely play an animation. Where a page has
 nothing real to show, it says why rather than filling the space.
+
+## Engineering models and what they are worth (Phase 2)
+
+CANVAS now carries two quantitative models. Both are deterministic, both are
+replaceable, and both state their own limits in their output rather than only in
+this document.
+
+### Cutting force — `CANVAS Cutting Model v0.2 (Kienzle)`
+
+A published specific-cutting-force formulation, chosen over a bespoke
+approximation specifically because it is traceable: the coefficients are
+published machining data for a material family, not values CANVAS invented.
+
+What it does not model: tool deflection, built-up edge, chip packing,
+re-cutting, entry shock, runout, and any dynamic behaviour. Interrupted cuts and
+plunging entries produce peaks above what it returns. It is a rigid-body,
+steady-state estimate.
+
+Confidence is capped at MEDIUM by construction. It is a calculation from a model
+against representative coefficients — not a measurement — and labelling it HIGH
+would let it satisfy gates it has no business satisfying.
+
+When any required input is absent it returns `ok: false` with the list of what
+is missing. It never substitutes a default. A partially-guessed force is worse
+than no force, because it looks authoritative.
+
+### Holding margin — `CANVAS Holding Model v0.1`
+
+**Classification: DEVELOPMENT ANALYSIS.** Not validated against instrumented
+pull-off testing. It is a defensible basis for comparing setups and for catching
+the ones that are obviously wrong. It is not a certification that a part will
+stay in the fixture, and the UI carries that statement on every instance.
+
+It compares peak applied lateral load against resisting load — friction across
+both jaw faces, plus any positive stop, which carries load in shear and does not
+depend on the coefficient of friction. Two failure modes are computed, sliding
+and overturning, and the worse governs.
+
+It returns INDETERMINATE when clamping force has not been recorded, which in
+most shops it has not been. That refusal is the honest answer and it is
+accompanied by what would have to be recorded to replace it.
+
+The `developmentAnalysis` field is typed as the literal `true`, not as a
+boolean, so no caller can construct a result that claims otherwise.
+
+### Inspection capability
+
+Follows the gauge maker's rule and the decision-rule framing of ASME B89.7.3.1:
+the measurement system should consume no more than 10% of the tolerance band,
+and 25% is the outer limit at which a measurement is still discriminating rather
+than reporting its own noise.
+
+This gate cannot be cleared by acknowledgement. `clearableByConfirmation` is
+typed as the literal `false`. Clicking Confirm does not buy a bore gauge, and
+the verdict is a property of the instruments the shop owns.
+
+### Disagreement
+
+Recording a disagreement never clears a gate. `gateCleared` is written false on
+creation and false again on promotion to shop knowledge, and there is no code
+path from the disagree action to any gate evaluation. A gate reflects the state
+of the evidence; disagreeing with it is a claim about the evidence rather than a
+change to it.
+
+Shop knowledge is scoped to the shop, machine, tool and material it was observed
+on, and is never promoted into a published engineering fact.
