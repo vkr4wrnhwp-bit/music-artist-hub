@@ -5,6 +5,7 @@ import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, L
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
+import { buildPartSolid } from "./part-solid";
 import type { Move } from "@/lib/engines/cam/types";
 
 /**
@@ -183,7 +184,7 @@ function SceneContent({
 
   return (
     <group position={[0, 0, zOffset]}>
-      {showStock && <StockBox stock={stock} mode={mode} />}
+      {showStock && <PartBody stock={stock} features={features} mode={mode} />}
 
       {features.map((f) => (
         <FeatureMesh
@@ -191,9 +192,7 @@ function SceneContent({
           feature={f}
           stock={stock}
           selected={selectedFeatureId === f.id}
-          // Everything unrelated to what the cursor is on steps back, rather
-          // than the thing under the cursor shouting. The part stays legible.
-          receded={Boolean((selectedFeatureId ?? hoveredFeatureId) && (selectedFeatureId ?? hoveredFeatureId) !== f.id)}
+          hovered={hoveredFeatureId === f.id}
           onSelect={() => onSelectFeature?.(f.id)}
           onHover={onHoverFeature}
         />
@@ -249,6 +248,38 @@ function appearanceFor(material: string) {
   return { color: "#adb1b6", metalness: 0.55, roughness: 0.5 };
 }
 
+/**
+ * The part as an actual solid — stock with the features genuinely removed,
+ * rather than a block with translucent volumes floating inside it.
+ *
+ * Memoised on the geometry inputs because rebuilding the cross-sections on
+ * every render would rebuild them on every hover.
+ */
+function PartBody({ stock, features, mode }: { stock: Stock; features: Feature[]; mode: ViewMode }) {
+  const solid = useMemo(() => buildPartSolid(stock, features), [stock, features]);
+  const look = appearanceFor(stock.material);
+
+  return (
+    <mesh geometry={solid.geometry}>
+      {mode === "WIREFRAME" ? (
+        <meshBasicMaterial wireframe color="#9aa0a8" />
+      ) : (
+        <meshStandardMaterial
+          color={look.color}
+          metalness={look.metalness}
+          roughness={look.roughness}
+          transparent={mode === "TRANSPARENT"}
+          opacity={mode === "TRANSPARENT" ? 0.25 : 1}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {/* Edge breaks. A machined part has crisp arrises, and drawing them is
+          what separates a milled component from a rendered blob. */}
+      <Edges threshold={28} color={mode === "WIREFRAME" ? "#9aa0a8" : "#6f757d"} />
+    </mesh>
+  );
+}
+
 function StockBox({ stock, mode }: { stock: Stock; mode: ViewMode }) {
   const args: [number, number, number] = [stock.x, stock.y, stock.z];
   const look = appearanceFor(stock.material);
@@ -281,19 +312,24 @@ function FeatureMesh({
   feature: f,
   stock,
   selected,
-  receded,
+  hovered,
   onSelect,
   onHover,
 }: {
   feature: Feature;
   stock: Stock;
   selected: boolean;
-  receded: boolean;
+  hovered: boolean;
   onSelect: () => void;
   onHover?: (id: string | null, pointer: { x: number; y: number } | null) => void;
 }) {
-  const color = selected ? BLUE : f.critical ? "#8f6212" : "#5d6675";
-  const opacity = selected ? 0.5 : receded ? 0.12 : 0.3;
+  // Now that the part is a real solid with the material genuinely removed,
+  // these volumes are no longer how a feature is drawn — they are the pick
+  // target and the highlight. Invisible at rest, so the part reads as a part;
+  // they light up under the cursor, which is what makes hover feel physical.
+  const active = selected || hovered;
+  const color = selected ? BLUE : f.critical ? "#8f6212" : BLUE;
+  const opacity = selected ? 0.42 : hovered ? 0.3 : 0;
 
   const common = {
     onClick: (e: { stopPropagation: () => void }) => {
@@ -325,7 +361,7 @@ function FeatureMesh({
         <mesh position={[f.centerX, f.centerY, top - f.depth / 2]} {...common}>
           <boxGeometry args={[f.width, f.length, f.depth]} />
           {material}
-          <Edges threshold={20} color={selected ? BLUE : receded ? "#c6cac7" : "#7d8593"} />
+          <Edges threshold={20} color={active ? BLUE : "#c6cac7"} visible={active} />
         </mesh>
       );
     }
@@ -337,7 +373,7 @@ function FeatureMesh({
         <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
           <cylinderGeometry args={[f.diameter / 2, f.diameter / 2, depth, 48]} />
           {material}
-          <Edges threshold={20} color={selected ? BLUE : receded ? "#c6cac7" : "#7d8593"} />
+          <Edges threshold={20} color={active ? BLUE : "#c6cac7"} visible={active} />
         </mesh>
       );
     }
@@ -379,15 +415,19 @@ function FeatureMesh({
         </mesh>
       );
     case "OUTSIDE_CONTOUR": {
-      // The finished profile, drawn as an outline on the top face.
+      // The finished profile. This existed to show where the profile would be
+      // cut, back when the part was drawn as an uncut block — now the solid IS
+      // the finished profile, so drawing it permanently is a duplicate line
+      // floating above the part. It survives only as a highlight.
+      if (!active) return null;
       const pts: [number, number, number][] = [
-        [-f.width / 2, -f.length / 2, stock.z + 0.002],
-        [f.width / 2, -f.length / 2, stock.z + 0.002],
-        [f.width / 2, f.length / 2, stock.z + 0.002],
-        [-f.width / 2, f.length / 2, stock.z + 0.002],
-        [-f.width / 2, -f.length / 2, stock.z + 0.002],
+        [-f.width / 2, -f.length / 2, stock.z + 0.004],
+        [f.width / 2, -f.length / 2, stock.z + 0.004],
+        [f.width / 2, f.length / 2, stock.z + 0.004],
+        [-f.width / 2, f.length / 2, stock.z + 0.004],
+        [-f.width / 2, -f.length / 2, stock.z + 0.004],
       ];
-      return <Line points={pts} color={selected ? BLUE : "#6d7684"} lineWidth={selected ? 2 : 1} dashed dashSize={0.06} gapSize={0.04} />;
+      return <Line points={pts} color={BLUE} lineWidth={2} dashed dashSize={0.06} gapSize={0.04} />;
     }
     default:
       return null;
