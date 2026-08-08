@@ -411,6 +411,9 @@ export default async function PartWorkspace(props: {
           })}
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <LinkButton href={`/parts/${id}/machinist`} size="sm" variant="ghost">
+            Machinist
+          </LinkButton>
           <LinkButton href={`/parts/${id}/readiness`} size="sm" variant="ghost">
             Full readiness
           </LinkButton>
