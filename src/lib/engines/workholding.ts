@@ -1,5 +1,11 @@
 import type { Feature, Stock } from "@/lib/domain/features";
 import type { JawBlank, Tool, WorkholdingDevice } from "@/lib/domain/shop";
+import {
+  estimateCuttingForce as runCuttingModel,
+  type CuttingForceEstimate,
+  type ToolCondition,
+} from "./cutting-force";
+import { assessHoldingMargin, type HoldingMargin, type JawSurface } from "./holding-margin";
 
 /**
  * WORKHOLDING INTELLIGENCE
@@ -57,6 +63,10 @@ export interface WorkholdingAssessment {
   engagementPercent: number | null;
   stockProjection: number | null;
   estimatedCuttingForce: number | null;
+  /** Full traceable output of the cutting model, for "show calculation". */
+  forceEstimate: CuttingForceEstimate;
+  /** Force-based holding margin. Null when the setup cannot support one. */
+  holdingMargin: HoldingMargin | null;
 }
 
 export interface SetupContext {
@@ -78,6 +88,19 @@ export interface SetupContext {
   /** Material specific cutting energy, hp/in³/min. Aluminium ≈ 0.3, steel ≈ 1.0. */
   specificEnergy: number | null;
   materialFamily?: string;
+
+  /* ---- Phase 2: inputs the force-based holding model needs ---- */
+
+  /** Clamping force the vise applies, lbf. Falls back to the device record. */
+  clampForce?: number | null;
+  jawSurface?: JawSurface;
+  /** Condition of the roughing tool — a dull tool pulls harder. */
+  toolCondition?: ToolCondition;
+  /** True when the part seats against a machined step or fixed stop. */
+  hasPositiveStop?: boolean;
+  /** Direction the governing cut pushes the part, e.g. "+X". */
+  loadDirection?: string;
+  operationLabel?: string;
 }
 
 const worst = (levels: RiskLevel[]): RiskLevel =>
@@ -99,29 +122,35 @@ export function recommendedGripDepth(ctx: SetupContext): number | null {
 }
 
 /**
- * Simplified tangential cutting force estimate, lbf.
- *
- *   MRR (in³/min) = ae × ap × feed
- *   Power (hp)    = MRR × specific energy
- *   Force (lbf)   ≈ Power × 33000 / surface speed (ft/min)
- *
- * Returns null unless every input is present — a partially-guessed force is
- * worse than no force, because it looks authoritative.
+ * Runs the cutting model against a setup. The arithmetic lives in
+ * ./cutting-force so there is exactly one force model in CANVAS and every
+ * consumer sees the same inputs, assumptions and uncertainty band.
+ */
+export function cuttingForceFor(ctx: SetupContext): CuttingForceEstimate {
+  const t = ctx.roughingTool;
+  const sfm = t ? (t.sfmMin + t.sfmMax) / 2 : null;
+  const rpm = t && sfm ? Math.min(t.maxRPM, (sfm * 12) / (Math.PI * t.diameter)) : null;
+  return runCuttingModel({
+    materialFamily: ctx.materialFamily ?? null,
+    toolDiameter: t?.diameter ?? null,
+    flutes: t?.flutes ?? null,
+    axialDepth: ctx.axialDepthOfCut,
+    radialWidth: t && ctx.radialEngagement != null ? ctx.radialEngagement * t.diameter : null,
+    chipload: t ? (t.chiploadMin + t.chiploadMax) / 2 : null,
+    rpm,
+    toolCondition: ctx.toolCondition ?? t?.condition ?? "UNKNOWN",
+    helixAngle: t?.helixAngle ?? null,
+  });
+}
+
+/**
+ * Tangential cutting force, lbf, or null when the model declined to run.
+ * Retained as a convenience for callers that only want the headline number;
+ * anything showing the figure to an operator should use cuttingForceFor() and
+ * display the method and assumptions alongside it.
  */
 export function estimateCuttingForce(ctx: SetupContext): number | null {
-  const { roughingTool: t, radialEngagement, axialDepthOfCut, specificEnergy } = ctx;
-  if (!t || radialEngagement == null || axialDepthOfCut == null || specificEnergy == null) {
-    return null;
-  }
-  const sfm = (t.sfmMin + t.sfmMax) / 2;
-  const rpm = Math.min(t.maxRPM, (sfm * 12) / (Math.PI * t.diameter));
-  const chipload = (t.chiploadMin + t.chiploadMax) / 2;
-  const feed = rpm * t.flutes * chipload; // in/min
-  const ae = radialEngagement * t.diameter;
-  const mrr = ae * axialDepthOfCut * feed;
-  const hp = mrr * specificEnergy;
-  const force = (hp * 33000) / Math.max(sfm, 1);
-  return Number(force.toFixed(1));
+  return cuttingForceFor(ctx).tangential;
 }
 
 export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
@@ -134,8 +163,50 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
   if (!ctx.roughingTool) missing.push("No roughing tool assigned — cutting load unknown");
   if (ctx.specificEnergy == null) missing.push("Material specific cutting energy unknown");
 
-  const force = estimateCuttingForce(ctx);
+  const forceEstimate = cuttingForceFor(ctx);
+  const force = forceEstimate.tangential;
   const recommended = recommendedGripDepth(ctx);
+
+  /* ---- Holding margin ---- */
+
+  // The force-based model is the real answer when the inputs exist. Grip depth
+  // on its own is a proxy, and a poor one: it is the ratio of applied load to
+  // resisting load that decides whether a part stays in the vise.
+  const clampForce = ctx.clampForce ?? ctx.device?.clampForce ?? null;
+  const margin = assessHoldingMargin({
+    clampForce,
+    jawSurface: ctx.jawSurface ?? "UNKNOWN",
+    gripDepth: ctx.gripDepth,
+    gripLength: ctx.gripLength,
+    jawHeight: ctx.device?.jawHeight ?? null,
+    hasPositiveStop: ctx.hasPositiveStop ?? false,
+    force: forceEstimate,
+    loadDirection: ctx.loadDirection,
+    operationLabel: ctx.operationLabel,
+    // The cut happens at the top of the projecting stock, which is the worst
+    // lever arm available in the setup.
+    cutHeightAboveJaws: ctx.stockProjection,
+  });
+
+  if (margin.verdict !== "INDETERMINATE") {
+    const level: RiskLevel =
+      margin.verdict === "ADEQUATE" ? "SAFE" : margin.verdict === "MARGINAL" ? "REVIEW" : "HIGH_RISK";
+    factors.push({
+      id: "holding-margin",
+      label: "Holding margin",
+      level,
+      observed: `${margin.margin?.toFixed(2)}× — ${margin.resistingForce} lbf resisting against ${margin.appliedLoad} lbf applied at peak`,
+      expected: "≥ 2.00×",
+      reason:
+        margin.primaryRisk ??
+        "Clamping friction and any positive stop exceed the peak lateral load of the governing cut by the target factor.",
+      suggestions: margin.recommendations,
+    });
+  } else if (clampForce == null) {
+    missing.push(
+      "Clamping force not recorded for this vise — the holding margin cannot be calculated, only approximated by grip depth",
+    );
+  }
 
   /* ---- Grip depth ---- */
   if (ctx.gripDepth == null || recommended == null) {
@@ -150,8 +221,18 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
     });
   } else {
     const ratio = ctx.gripDepth / recommended;
-    const level: RiskLevel =
+    const heuristic: RiskLevel =
       ratio >= 1.25 ? "SAFE" : ratio >= 1.0 ? "LIKELY_SAFE" : ratio >= 0.75 ? "REVIEW" : "HIGH_RISK";
+    // Grip depth is a rule of thumb standing in for a force balance. Once the
+    // force balance itself is available it governs, and the rule of thumb is
+    // demoted to advice — otherwise a setup the real model clears would still
+    // be failed by a proxy for it.
+    const governed = margin.verdict !== "INDETERMINATE";
+    const level: RiskLevel = governed
+      ? heuristic === "HIGH_RISK"
+        ? "REVIEW"
+        : heuristic
+      : heuristic;
     factors.push({
       id: "grip-depth",
       label: "Grip depth",
@@ -289,6 +370,8 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
     engagementPercent: engagement === null ? null : Number((engagement * 100).toFixed(0)),
     stockProjection: ctx.stockProjection,
     estimatedCuttingForce: force,
+    forceEstimate,
+    holdingMargin: margin.verdict === "INDETERMINATE" ? null : margin,
   };
 }
 

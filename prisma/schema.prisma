@@ -64,6 +64,8 @@ model Organization {
   conversations Conversation[]
   fingerprints NetworkFingerprint[]
   permissions  NetworkPermission[]
+  shopKnowledge ShopKnowledge[]
+  disagreements Disagreement[]
 }
 
 model User {
@@ -80,6 +82,8 @@ model User {
   sessions     Session[]
   auditLogs    AuditLog[]
   approvals    Approval[]
+  shopKnowledge ShopKnowledge[]
+  disagreements Disagreement[]
 
   @@index([organizationId])
 }
@@ -160,6 +164,7 @@ model Machine {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   setups       Setup[]
   ncPrograms   NCProgram[]
+  shopKnowledge ShopKnowledge[]
 
   @@index([organizationId])
 }
@@ -197,8 +202,21 @@ model Tool {
   expectedLifeMinutes  Float  @default(120)
   notes                String?
 
+  // Tool reality. What is actually in the holder, as opposed to what the
+  // catalogue page said. The cutting model reads condition and helix; a worn
+  // edge ploughs rather than cuts and raises specific cutting force.
+  condition        String  @default("UNKNOWN") // NEW | GOOD | WORN | REGRIND | UNKNOWN
+  actualStickout   Float?
+  measuredRunout   Float?
+  helixAngle       Float?
+  regrindCount     Int     @default(0)
+  previousMaterial String?
+  lastUsedAt       DateTime?
+  shopNotes        String?
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   operations   Operation[]
+  shopKnowledge ShopKnowledge[]
 
   @@unique([organizationId, toolNumber])
   @@index([organizationId])
@@ -328,6 +346,7 @@ model Material {
   notes          String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shopKnowledge ShopKnowledge[]
 
   @@index([organizationId])
 }
@@ -405,6 +424,8 @@ model PartRevision {
   ncPrograms         NCProgram[]
   approvals          Approval[]
   recommendations    AIRecommendation[]
+  operationStates    OperationState[]
+  disagreements      Disagreement[]
 
   @@unique([partId, revision])
   @@index([partId])
@@ -588,6 +609,12 @@ model Setup {
   gripLength      Float?
   stockProjection Float?
   parallelHeight  Float?
+
+  // Inputs to the force-based holding margin. Grip depth alone decides nothing.
+  jawSurface      String?  // SMOOTH | SERRATED | SOFT_MACHINED | GRIP_INSERT
+  clampForce      Float?   // lbf actually applied, overriding the device record
+  hasPositiveStop Boolean  @default(false)
+  loadDirection   String?
 
   // Cached assessment output, recomputed on change. Stored so a job record
   // preserves what the risk looked like when the part was actually run.
@@ -781,6 +808,7 @@ model Job {
   part         Part         @relation(fields: [partId], references: [id], onDelete: Cascade)
   outcomes     JobOutcome[]
   inspectionResults InspectionResult[]
+  disagreements Disagreement[]
 
   @@index([organizationId])
   @@index([partId])
@@ -1006,4 +1034,156 @@ model AuditLog {
 
   @@index([organizationId])
   @@index([entityType, entityId])
+}
+
+/* ------------------------------------------------------------------ */
+/* PHASE 2                                                             */
+/* ------------------------------------------------------------------ */
+
+// OPERATION-STATE GEOMETRY
+//
+// A component is not one shape. It is stock, then a sequence of intermediate
+// shapes, then the finished part — and almost every question worth asking is
+// about one of the intermediate ones. "Is there enough material to clamp on"
+// and "is this wall thin enough to buzz" have different answers before and
+// after Op 20.
+//
+// This records the state of the part at a point in the process so that
+// workholding, rigidity and tool-access analysis can reference the geometry as
+// it actually is during a given operation rather than as it is at the end.
+//
+// The material-removal solid modelling that would populate `derivedGeometryJson`
+// automatically is DEVELOPMENT. What exists now is the addressable state and
+// the scalar envelope, which is what the holding model consumes.
+model OperationState {
+  id             String @id @default(cuid())
+  partRevisionId String
+  setupId        String?
+  // Ordering key across the whole process, e.g. 0 for stock, 10, 20, 30.
+  sequence       Int
+  kind           String // STOCK | AFTER_OPERATION | FINAL
+  label          String
+
+  // Bounding envelope of the part in this state.
+  envelopeX Float?
+  envelopeY Float?
+  envelopeZ Float?
+
+  // Volume remaining, in³, and the mass that follows from it.
+  remainingVolume Float?
+  removedVolume   Float?
+
+  // Thinnest wall present in this state. The number that decides whether the
+  // part can be clamped where the plan says to clamp it.
+  minWallThickness Float?
+  // Whether the surfaces the previous setup gripped still exist.
+  clampingSurfacesIntact Boolean @default(true)
+
+  // Reserved for the solid model once material removal is implemented.
+  derivedGeometryJson String?
+  // How this state was arrived at, so nothing here is mistaken for measured.
+  source     String @default("CALCULATED")
+  confidence String @default("LOW")
+  notes      String?
+
+  partRevision PartRevision @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
+
+  @@unique([partRevisionId, sequence])
+  @@index([partRevisionId])
+}
+
+// SHOP KNOWLEDGE
+//
+// What this shop has learned on this machine with this tool, which is not the
+// same category of fact as a published feed and speed and must never be
+// promoted into one. It is evidence, it is scoped, and it carries its sample
+// size so a claim backed by one job reads differently from a claim backed by
+// seventeen.
+model ShopKnowledge {
+  id             String @id @default(cuid())
+  organizationId String
+
+  // What the observation is about. Any subset may be set; the more that are,
+  // the narrower and more trustworthy the claim.
+  machineId    String?
+  toolId       String?
+  materialId   String?
+  toolClass    String?
+  toolDiameter Float?
+
+  category    String // TOOL_BEHAVIOUR | FIXTURE_BEHAVIOUR | MACHINE_BEHAVIOUR | MATERIAL_BEHAVIOUR | INSPECTION_OUTCOME | OPERATOR_CORRECTION
+  observation String
+
+  // The quantitative boundary, when the observation has one.
+  parameter     String? // e.g. "axialDepth"
+  thresholdValue Float?
+  thresholdUnit  String?
+  direction      String? // ABOVE | BELOW
+
+  // Evidence behind it.
+  origin        String @default("OPERATOR") // OPERATOR | SUCCESSFUL_JOB | FAILED_JOB | INSPECTION | DISAGREEMENT
+  jobCount      Int    @default(1)
+  lastObservedAt DateTime @default(now())
+  recordedById  String?
+  confidence    String @default("LOW")
+  // Set false to retire a belief without deleting the history behind it.
+  active        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  machine      Machine?     @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  tool         Tool?        @relation(fields: [toolId], references: [id], onDelete: SetNull)
+  material     Material?    @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  recordedBy   User?        @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  disagreements Disagreement[]
+
+  @@index([organizationId])
+  @@index([organizationId, category])
+}
+
+// "I DISAGREE"
+//
+// An experienced machinist disagreeing with CANVAS is information, not noise,
+// and it is the single richest source of shop knowledge available.
+//
+// Recording a disagreement does NOT clear a required safety gate. It is
+// evidence to be evaluated, and the gate it relates to stays where it was
+// until the underlying evidence changes.
+model Disagreement {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String?
+
+  // What is being disagreed with.
+  subjectType String // READINESS_GATE | WORKHOLDING | TOOL_CHOICE | FEED_SPEED | PROCESS | NOMINAL | COST | OTHER
+  subjectId   String?
+  partRevisionId String?
+  setupId        String?
+  canvasPosition String // what CANVAS said, captured verbatim at the time
+
+  reasoning       String
+  hasRunComparable Boolean @default(false)
+  comparableJobId  String?
+  proposedValue    String?
+
+  // Resolution. A disagreement stays OPEN until somebody does something about
+  // it; it never silently clears anything.
+  status       String  @default("OPEN") // OPEN | ACCEPTED_AS_KNOWLEDGE | EVIDENCE_REQUESTED | DECLINED | SUPERSEDED
+  resolution   String?
+  gateCleared  Boolean @default(false)
+  shopKnowledgeId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  partRevision  PartRevision? @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
+  comparableJob Job?          @relation(fields: [comparableJobId], references: [id], onDelete: SetNull)
+  shopKnowledge ShopKnowledge? @relation(fields: [shopKnowledgeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([partRevisionId])
 }

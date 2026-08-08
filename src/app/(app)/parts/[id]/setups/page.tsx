@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { buildPackage } from "@/lib/package";
 import { RISK_LABEL } from "@/lib/engines/workholding";
+import { ShowCalculation, MissingInputs } from "@/components/show-calculation";
 import { TopBar } from "@/components/nav";
 import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
@@ -63,6 +64,91 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
                     <DataRow label="Tool changes" value={String(toolChanges)} />
                     <DataRow label="Estimated cycle" value={`${minutes.toFixed(2)} min`} />
                   </div>
+
+                  {/* Holding margin — the force balance, not the rule of thumb */}
+                  {a && (
+                    <div className="mt-4 space-y-2">
+                      {a.holdingMargin ? (
+                        <ShowCalculation
+                          title="Holding margin"
+                          headline={a.holdingMargin.margin?.toFixed(2) ?? null}
+                          unit="× against a 2.00× target"
+                          method={a.holdingMargin.method}
+                          inputs={a.holdingMargin.inputs}
+                          assumptions={a.holdingMargin.assumptions}
+                          developmentAnalysis
+                        >
+                          <div className="grid gap-x-8 sm:grid-cols-2">
+                            <DataRow label="Resisting — friction" value={`${a.holdingMargin.frictionComponent} lbf`} />
+                            <DataRow label="Resisting — positive stop" value={`${a.holdingMargin.stopComponent} lbf`} />
+                            <DataRow label="Applied at peak" value={`${a.holdingMargin.appliedLoad} lbf`} />
+                            <DataRow
+                              label="Governing failure mode"
+                              value={a.holdingMargin.governingMode === "TIPPING" ? "Rolling out of the jaws" : "Sliding in the jaws"}
+                            />
+                            <DataRow label="Margin — sliding" value={a.holdingMargin.slidingMargin?.toFixed(2) ?? "—"} />
+                            <DataRow label="Margin — tipping" value={a.holdingMargin.tippingMargin?.toFixed(2) ?? "not checked"} />
+                            <DataRow
+                              label="Clamping pressure"
+                              value={a.holdingMargin.contactPressure != null ? `${a.holdingMargin.contactPressure} psi` : "—"}
+                            />
+                          </div>
+                          {a.holdingMargin.primaryRisk && (
+                            <div>
+                              <p className="tech-label mb-1 text-risk">Primary risk</p>
+                              <p className="text-[12px] leading-relaxed text-platinum">{a.holdingMargin.primaryRisk}</p>
+                            </div>
+                          )}
+                          {a.holdingMargin.recommendations.length > 0 && (
+                            <div>
+                              <p className="tech-label mb-1.5">What would change it</p>
+                              <ul className="space-y-1.5">
+                                {a.holdingMargin.recommendations.map((r) => (
+                                  <li key={r} className="flex gap-2 text-[12px] leading-relaxed text-muted">
+                                    <span className="text-precision">—</span>
+                                    <span>{r}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </ShowCalculation>
+                      ) : (
+                        <MissingInputs
+                          title="Holding margin not calculable"
+                          items={a.missingInputs}
+                        />
+                      )}
+
+                      {a.forceEstimate.ok ? (
+                        <ShowCalculation
+                          title="Estimated cutting force"
+                          headline={a.forceEstimate.tangential?.toFixed(0) ?? null}
+                          unit={`lbf tangential · ${a.forceEstimate.peakTangential?.toFixed(0)} lbf peak`}
+                          method={a.forceEstimate.method}
+                          inputs={a.forceEstimate.inputs}
+                          assumptions={a.forceEstimate.assumptions}
+                          uncertaintyPercent={a.forceEstimate.uncertaintyPercent}
+                          confidence={a.forceEstimate.confidence}
+                          cautions={a.forceEstimate.cautions}
+                        >
+                          <div className="grid gap-x-8 sm:grid-cols-2">
+                            <DataRow label="Tangential" value={`${a.forceEstimate.tangential} lbf`} />
+                            <DataRow label="Radial" value={`${a.forceEstimate.radial} lbf`} />
+                            <DataRow label="Axial" value={`${a.forceEstimate.axial} lbf`} />
+                            <DataRow label="Resultant" value={`${a.forceEstimate.resultant} lbf`} />
+                            <DataRow label="Spindle power at cut" value={`${a.forceEstimate.spindlePower} hp`} />
+                            <DataRow label="Material removal" value={`${a.forceEstimate.materialRemovalRate} in³/min`} />
+                          </div>
+                        </ShowCalculation>
+                      ) : (
+                        <MissingInputs
+                          title="Cutting force not calculable"
+                          items={a.forceEstimate.missingInputs}
+                        />
+                      )}
+                    </div>
+                  )}
 
                   {s.datumNote && <p className="mt-3 text-[12px] leading-relaxed text-muted">{s.datumNote}</p>}
                   {s.notes && <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{s.notes}</p>}

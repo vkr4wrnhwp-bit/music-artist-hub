@@ -94,6 +94,14 @@ export async function getTools(organizationId: string): Promise<Tool[]> {
     coolant: t.coolant,
     lifeRemaining: t.lifeRemaining,
     notes: t.notes ?? undefined,
+    condition: t.condition as Tool["condition"],
+    actualStickout: t.actualStickout ?? undefined,
+    measuredRunout: t.measuredRunout ?? undefined,
+    helixAngle: t.helixAngle ?? undefined,
+    regrindCount: t.regrindCount,
+    previousMaterial: t.previousMaterial ?? undefined,
+    lastUsedAt: t.lastUsedAt ?? undefined,
+    shopNotes: t.shopNotes ?? undefined,
   }));
 }
 

@@ -1,3 +1,5 @@
+import type { ToolCondition } from "@/lib/engines/cutting-force";
+
 /**
  * Shop resource models — machines, tooling, workholding, materials and
  * metrology. These are the hard constraints CANVAS validates against. Nothing
@@ -168,6 +170,22 @@ export interface Tool {
   /** 0–1 remaining life estimate. */
   lifeRemaining: number;
   notes?: string;
+
+  /* ---- Tool reality: what is in the holder, not what the catalogue said ---- */
+
+  /** NEW | GOOD | WORN | REGRIND | UNKNOWN. Feeds the cutting force model. */
+  condition: ToolCondition;
+  /** Stickout as actually set, when it has been measured. */
+  actualStickout?: number;
+  /** Measured runout, inches. */
+  measuredRunout?: number;
+  helixAngle?: number;
+  regrindCount: number;
+  /** Last material this cutter was run in — relevant to contamination and wear. */
+  previousMaterial?: string;
+  lastUsedAt?: Date;
+  /** Shop-specific observations. SHOP_KNOWLEDGE, never universal fact. */
+  shopNotes?: string;
 }
 
 /** Effective cutting reach below the holder nose. */

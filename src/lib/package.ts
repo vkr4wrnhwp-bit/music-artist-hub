@@ -3,6 +3,8 @@ import { db } from "./db";
 import { getMachines, getMaterials, getTools, getWorkholding, loadRevision, getSetups, getShopSettings, parseJson } from "./data";
 import type { LoadedRevision } from "./data";
 import { assessWorkholding, type WorkholdingAssessment } from "./engines/workholding";
+import type { JawSurface } from "./engines/holding-margin";
+import type { ToolCondition } from "./engines/cutting-force";
 import { evaluateReadiness, type ReadinessReport } from "./engines/readiness";
 import { generateToolpath, totalCycleTime } from "./engines/cam/engine";
 import type { Toolpath, ToolpathError, MachiningContext, OperationRequest } from "./engines/cam/types";
@@ -156,6 +158,12 @@ export async function buildPackage(
       axialDepthOfCut: roughingTool ? roughingTool.diameter * 0.5 : null,
       specificEnergy: material?.specificEnergy ?? null,
       materialFamily: material?.family,
+      clampForce: setup.clampForce ?? device?.clampForce ?? null,
+      jawSurface: (setup.jawSurface as JawSurface | null) ?? "UNKNOWN",
+      hasPositiveStop: setup.hasPositiveStop || setup.jaws.length > 0,
+      toolCondition: (roughingTool?.condition as ToolCondition | undefined) ?? "UNKNOWN",
+      loadDirection: setup.loadDirection ?? undefined,
+      operationLabel: setup.operations.find((o) => o.type.includes("ROUGH"))?.label ?? undefined,
     });
   }
 
