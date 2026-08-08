@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { POSTS, defaultPostForController, getPost, preflightPassed, verifyNc, type PostContext, type PreflightItem } from "@/lib/engines/cam/post";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
 import { Button, DevLabel, Dot, Field, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 
 /**
@@ -155,6 +156,7 @@ export default async function NcPage(props: {
         <span className="text-muted">/</span>
         <span className="tech-label">NC output</span>
         <DevLabel>Development / simulation post</DevLabel>
+              <PartStatusChip readiness={pkg.readiness} />
       </TopBar>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">

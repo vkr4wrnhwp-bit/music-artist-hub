@@ -5,6 +5,7 @@ import { buildPackage } from "@/lib/package";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { ShowCalculation, MissingInputs } from "@/components/show-calculation";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
 import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 /**
@@ -28,6 +29,7 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
         </Link>
         <span className="text-muted">/</span>
         <span className="tech-label">Setups</span>
+              <PartStatusChip readiness={pkg.readiness} />
       </TopBar>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">

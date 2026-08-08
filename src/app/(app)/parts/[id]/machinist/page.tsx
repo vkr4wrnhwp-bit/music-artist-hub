@@ -10,6 +10,7 @@ import { THOUGHT_PATTERNS, PHILOSOPHIES, type ThoughtPattern } from "@/lib/engin
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { money } from "@/lib/engines/cost";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Dot, EmptyState, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 /**
@@ -198,6 +199,7 @@ export default async function MachinistPage(props: {
         </Link>
         <span className="text-muted">/</span>
         <span className="tech-label">Machinist</span>
+              <PartStatusChip readiness={pkg.readiness} />
       </TopBar>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">

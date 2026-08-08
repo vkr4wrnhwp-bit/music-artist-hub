@@ -7,6 +7,7 @@ import { getShopSettings } from "@/lib/data";
 import { planHole } from "@/lib/engines/tool-substitution";
 import { findExistingJaws, proposeFamily, jawEconomics, type JawSet, type JawProfile } from "@/lib/engines/jaw-family";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
 import { DataRow, EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
 
 /**
@@ -98,6 +99,7 @@ export default async function ToolingPage(props: { params: Promise<{ id: string 
         </Link>
         <span className="text-muted">/</span>
         <span className="tech-label">Working with what you have</span>
+              <PartStatusChip readiness={pkg.readiness} />
       </TopBar>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">

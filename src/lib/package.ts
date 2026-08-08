@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./db";
-import { getMachines, getMaterials, getTools, getWorkholding, loadRevision, getSetups, getShopSettings, parseJson } from "./data";
+import { getMachines, getMaterials, getTools, getWorkholding, getMetrology, loadRevision, getSetups, getShopSettings, parseJson } from "./data";
 import type { LoadedRevision } from "./data";
 import { assessWorkholding, type WorkholdingAssessment } from "./engines/workholding";
 import type { JawSurface } from "./engines/holding-margin";
@@ -55,12 +55,13 @@ export async function buildPackage(
   const revision = await loadRevision(organizationId, partId, revisionLabel);
   if (!revision) return null;
 
-  const [setups, machines, tools, workholdingDevices, materials, shop, plan, approval, nc, sim] = await Promise.all([
+  const [setups, machines, tools, workholdingDevices, materials, metrology, shop, plan, approval, nc, sim] = await Promise.all([
     getSetups(revision.revisionId),
     getMachines(organizationId),
     getTools(organizationId),
     getWorkholding(organizationId),
     getMaterials(organizationId),
+    getMetrology(organizationId),
     getShopSettings(organizationId),
     db.inspectionPlan.findFirst({ where: { partRevisionId: revision.revisionId } }),
     db.approval.findFirst({ where: { partRevisionId: revision.revisionId, revokedAt: null } }),
@@ -174,6 +175,17 @@ export async function buildPackage(
 
   /* ---------------- Readiness ---------------- */
 
+  const instruments = metrology.map((d) => ({
+    id: d.id,
+    deviceType: d.deviceType as string,
+    description: d.description,
+    resolution: d.resolution,
+    uncertainty: d.uncertainty,
+    rangeMin: d.rangeMin ?? null,
+    rangeMax: d.rangeMax ?? null,
+    calibrated: d.calibrated,
+  }));
+
   const readiness = evaluateReadiness({
     intent: revision.intent,
     stock: revision.stock,
@@ -183,6 +195,7 @@ export async function buildPackage(
     workholding: primaryWorkholding,
     workholdingAssessment: worstAssessment,
     hasInspectionPlan: Boolean(plan),
+    instruments,
     simulationRun: Boolean(sim),
     ncGenerated: Boolean(nc),
     operatorApproved: Boolean(approval),

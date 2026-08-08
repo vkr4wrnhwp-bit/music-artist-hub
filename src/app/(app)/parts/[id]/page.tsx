@@ -9,6 +9,8 @@ import { money } from "@/lib/engines/cost";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { GATE_LABEL } from "@/lib/engines/readiness";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip, NextActionPanel } from "@/components/part-status";
+import { nextActions } from "@/lib/engines/next-action";
 import { Workspace } from "@/components/workspace/workspace";
 import { DataRow, DevLabel, Dot, LinkButton, Notice, StatusChip, ValueRow, type Tone } from "@/components/ui";
 
@@ -383,6 +385,7 @@ export default async function PartWorkspace(props: {
         <StatusChip tone="neutral">Rev {revision.revision}</StatusChip>
         <StatusChip tone={readinessTone}>{readiness.overall.replace(/_/g, " ")}</StatusChip>
         {critical && <StatusChip tone="risk">Critical application</StatusChip>}
+              <PartStatusChip readiness={readiness} />
       </TopBar>
 
       {intake === "1" && (
@@ -393,6 +396,10 @@ export default async function PartWorkspace(props: {
           </p>
         </div>
       )}
+
+      <div className="border-b border-line px-5 py-3">
+        <NextActionPanel actions={nextActions(readiness, id, pkg.workholdingBySetup[pkg.setups[0]?.id ?? ""] ?? null)} />
+      </div>
 
       <div className="flex items-center gap-4 overflow-x-auto border-b border-line bg-surface px-5 py-2">
         <span className="tech-label shrink-0">Readiness</span>

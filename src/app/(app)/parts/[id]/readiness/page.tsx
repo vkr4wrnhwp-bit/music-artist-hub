@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { PROCESS_LABEL } from "@/lib/engines/process-advisor";
 import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
 import { Button, Dot, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -66,6 +67,7 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
         </Link>
         <span className="text-muted">/</span>
         <span className="tech-label">Readiness</span>
+              <PartStatusChip readiness={pkg.readiness} />
       </TopBar>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">

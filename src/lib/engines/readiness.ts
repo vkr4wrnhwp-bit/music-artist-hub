@@ -5,6 +5,7 @@ import { maximumDepth, minimumInternalRadius } from "@/lib/domain/features";
 import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop";
 import { canReach, checkEnvelope, fitsInternalCorner } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
+import { assessCapability, worstCapability, type CapabilityResult, type Instrument, type MeasurementGeometry } from "./inspection-capability";
 
 /**
  * MANUFACTURING READINESS
@@ -42,6 +43,8 @@ export interface ReadinessReport {
   overall: "READY_TO_RUN" | "NOT_READY_TO_RUN" | "REVIEW_REQUIRED";
   criticalApplication: boolean;
   blockingCount: number;
+  /** Per-feature measurement capability, surfaced so the UI can explain it. */
+  capability: CapabilityResult[];
 }
 
 export interface ReadinessInput {
@@ -53,6 +56,8 @@ export interface ReadinessInput {
   workholding: WorkholdingDevice | null;
   workholdingAssessment: WorkholdingAssessment | null;
   hasInspectionPlan: boolean;
+  /** Metrology the shop actually owns. Drives the inspection capability gate. */
+  instruments?: Instrument[];
   simulationRun: boolean;
   ncGenerated: boolean;
   operatorApproved: boolean;
@@ -188,6 +193,72 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
           ),
   );
 
+  /* ---- Inspection capability ---- */
+
+  // A tolerance nobody can measure is not a tolerance. This gate is decided by
+  // the instruments in the drawer, which is why it cannot be cleared by
+  // acknowledging it: clicking Confirm does not buy a bore gauge.
+  const instruments = input.instruments ?? [];
+  const capability: CapabilityResult[] = input.features
+    .filter((f) => f.tolerance != null || f.critical)
+    .map((f) =>
+      assessCapability(
+        {
+          featureId: f.id,
+          featureLabel: f.label,
+          geometry: measurementGeometry(f),
+          nominal: "diameter" in f ? f.diameter : null,
+          toleranceBand: f.tolerance ? f.tolerance.plus + f.tolerance.minus : null,
+          critical: f.critical,
+        },
+        instruments,
+      ),
+    );
+
+  const worstCap = worstCapability(capability);
+  const incapable = capability.filter((c) => c.verdict === "NOT_CAPABLE" || c.verdict === "NO_INSTRUMENT");
+  const marginal = capability.filter((c) => c.verdict === "MARGINAL");
+
+  gates.push(
+    capability.length === 0
+      ? gate("inspection-capability", "Inspection capability", "NOT_ATTEMPTED", "No toleranced features to verify.", false, [])
+      : instruments.length === 0
+        ? gate(
+            "inspection-capability",
+            "Inspection capability",
+            "MISSING",
+            "No metrology equipment is recorded, so no toleranced dimension on this part can be shown to be verifiable.",
+            true,
+            ["Record the shop's measuring equipment, with resolution and uncertainty"],
+          )
+        : incapable.length > 0
+          ? gate(
+              "inspection-capability",
+              "Inspection capability",
+              "FAIL",
+              `${incapable.length} toleranced ${incapable.length === 1 ? "feature cannot" : "features cannot"} be verified with the instruments on hand. ${incapable[0].reason}`,
+              true,
+              incapable[0].recommendations,
+            )
+          : marginal.length > 0
+            ? gate(
+                "inspection-capability",
+                "Inspection capability",
+                "REVIEW",
+                `${marginal.length} ${marginal.length === 1 ? "measurement consumes" : "measurements consume"} more than 10% of the tolerance band. ${marginal[0].reason}`,
+                false,
+                marginal[0].recommendations,
+              )
+            : gate(
+                "inspection-capability",
+                "Inspection capability",
+                "PASS",
+                `Every toleranced feature can be measured within 10% of its band by equipment on hand.`,
+                true,
+                [],
+              ),
+  );
+
   /* ---- Inspection plan ---- */
   gates.push(
     input.hasInspectionPlan
@@ -253,7 +324,26 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
         ? "NOT_READY_TO_RUN"
         : "REVIEW_REQUIRED";
 
-  return { gates, overall, criticalApplication: critical, blockingCount: blockingFailures };
+  return { gates, overall, criticalApplication: critical, blockingCount: blockingFailures, capability };
+}
+
+/**
+ * Which family of instrument a feature needs. A bore and a boss of the same
+ * size are not measured with the same tool, and a position is not measured with
+ * either of them.
+ */
+function measurementGeometry(f: Feature): MeasurementGeometry {
+  switch (f.kind) {
+    case "DRILLED_HOLE":
+    case "TAPPED_HOLE":
+    case "BORE":
+    case "CIRC_POCKET":
+    case "RECT_POCKET":
+    case "SLOT":
+      return f.functionalRole === "DOWEL_HOLE" || f.functionalRole === "MOUNTING_HOLE" ? "POSITION" : "INTERNAL";
+    default:
+      return "EXTERNAL";
+  }
 }
 
 function workholdingDetail(a: WorkholdingAssessment): string {
