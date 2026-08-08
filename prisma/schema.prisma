@@ -446,6 +446,18 @@ model Feature {
   toleranceMinus Float?
   surfaceFinish  Float?
   inspectionMethod String?
+
+  // FUNCTION BEFORE DIMENSION
+  //
+  // What this feature has to interface with. A dimension without this is a
+  // number; with it, the tolerance follows from the standard rather than from
+  // whatever the worn original happened to measure.
+  matingComponent   String?  // BEARING | BUSHING | SHAFT | SEAL | FASTENER | DOWEL | UNKNOWN
+  matingDesignation String?  // e.g. "6203-2RS", when the operator knows it
+  interfaceSide     String?  // HOUSING (feature is the hole) | SHAFT (feature is the journal)
+  rotatingUnderLoad Boolean  @default(false)
+  // Fit class accepted by a human. Never written by inference alone.
+  fitClass          String?
   notes          String?
   orderIndex     Int    @default(0)
 

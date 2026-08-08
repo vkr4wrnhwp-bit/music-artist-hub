@@ -192,7 +192,7 @@ function WorkspaceInner(props: WorkspaceProps) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {panel === "features" ? (
-            <FeatureTree features={props.features} selected={selectedFeature} onSelect={setSelectedFeature} />
+            <FeatureTree partId={props.partId} features={props.features} selected={selectedFeature} onSelect={setSelectedFeature} />
           ) : (
             props.panels[panel] ?? <p className="tech-label">No data</p>
           )}
@@ -339,10 +339,12 @@ function Toggle({ label, on, set }: { label: string; on: boolean; set: (v: boole
 }
 
 function FeatureTree({
+  partId,
   features,
   selected,
   onSelect,
 }: {
+  partId: string;
   features: Feature[];
   selected: string | null;
   onSelect: (id: string | null) => void;
@@ -381,6 +383,14 @@ function FeatureTree({
               </span>
             )}
           </button>
+          {selected === f.id && (
+            <a
+              href={`/parts/${partId}/features/${f.id}`}
+              className="ml-2 mt-1 inline-block border border-precision/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+            >
+              Function and fit
+            </a>
+          )}
         </li>
       ))}
     </ul>
