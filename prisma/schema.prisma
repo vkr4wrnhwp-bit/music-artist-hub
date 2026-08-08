@@ -53,6 +53,7 @@ model Organization {
   tools        Tool[]
   workholding  WorkholdingDevice[]
   jawBlanks    JawBlank[]
+  jawSets      JawSet[]
   materials    Material[]
   metrology    MetrologyDevice[]
   jobs         Job[]
@@ -182,7 +183,7 @@ model Tool {
   stickout     Float
 
   holderId String?
-  holder   ToolHolder? @relation(fields: [holderId], references: [id])
+  holder   ToolHolder? @relation(fields: [holderId], references: [id], onDelete: SetNull)
 
   maxRPM               Int
   recommendedMaterials String // JSON array
@@ -273,10 +274,37 @@ model Jaw {
   createdAt   DateTime @default(now())
 
   setup  Setup?             @relation(fields: [setupId], references: [id], onDelete: Cascade)
-  device WorkholdingDevice? @relation(fields: [deviceId], references: [id])
-  blank  JawBlank?          @relation(fields: [blankId], references: [id])
+  device WorkholdingDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  blank  JawBlank?          @relation(fields: [blankId], references: [id], onDelete: SetNull)
 
   @@index([setupId])
+}
+
+// A machined soft jaw set sitting in the drawer, described by what it can
+// hold rather than by the part it was originally cut for. This is the record
+// that turns soft jaws from a per-job expense into shop tooling: a jaw bored
+// 6.000 holds everything down to what the shim stack allows.
+model JawSet {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  profile        String // ROUND | RECTANGULAR
+  // Bore diameter for ROUND, opening across the clamped axis for RECTANGULAR.
+  nominalSize    Float
+  nominalLength  Float?
+  stepDepth      Float
+  jawHeight      Float
+  material       String
+  viseDescription String
+  // Drives amortisation — the whole argument for cutting a family size.
+  timesUsed      Int    @default(0)
+  minutesToCut   Float  @default(35)
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model Material {
@@ -444,7 +472,7 @@ model Drawing {
   processingState String @default("PENDING")
 
   partRevision PartRevision   @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
-  asset        UploadedAsset? @relation(fields: [assetId], references: [id])
+  asset        UploadedAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index([partRevisionId])
 }
@@ -533,8 +561,8 @@ model Measurement {
 
   session MeasurementSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   feature Feature?           @relation(fields: [featureId], references: [id])
-  asset   UploadedAsset?     @relation(fields: [assetId], references: [id])
-  device  MetrologyDevice?   @relation(fields: [deviceId], references: [id])
+  asset   UploadedAsset?     @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  device  MetrologyDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
 }
@@ -570,8 +598,8 @@ model Setup {
   notes           String?
 
   partRevision PartRevision       @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
-  machine      Machine?           @relation(fields: [machineId], references: [id])
-  workholding  WorkholdingDevice? @relation(fields: [workholdingId], references: [id])
+  machine      Machine?           @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  workholding  WorkholdingDevice? @relation(fields: [workholdingId], references: [id], onDelete: SetNull)
   operations   Operation[]
   jaws         Jaw[]
   simulations  Simulation[]
@@ -608,7 +636,7 @@ model Operation {
 
   setup   Setup    @relation(fields: [setupId], references: [id], onDelete: Cascade)
   feature Feature? @relation(fields: [featureId], references: [id])
-  tool    Tool?    @relation(fields: [toolId], references: [id])
+  tool    Tool?    @relation(fields: [toolId], references: [id], onDelete: SetNull)
   toolpath Toolpath?
 
   @@index([setupId])
@@ -661,7 +689,7 @@ model NCProgram {
   createdAt      DateTime @default(now())
 
   partRevision PartRevision @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
-  machine      Machine?     @relation(fields: [machineId], references: [id])
+  machine      Machine?     @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   @@index([partRevisionId])
 }
@@ -790,7 +818,7 @@ model ManufacturingDNA {
   recordedAt DateTime @default(now())
 
   part     Part      @relation(fields: [partId], references: [id], onDelete: Cascade)
-  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@index([partId])
 }

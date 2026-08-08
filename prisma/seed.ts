@@ -47,7 +47,7 @@ async function main() {
 
   console.log("Seeding CANVAS demo shop…");
 
-  await db.organization.deleteMany({ where: { slug: "canvas-prototype-shop" } });
+  await teardownOrganization("canvas-prototype-shop");
 
   const org = await db.organization.create({
     data: {
@@ -188,6 +188,26 @@ async function main() {
       quantityOnHand: 6,
     },
   });
+
+  /* ---------------- Soft jaw drawer ---------------- */
+
+  // A real drawer: jaws cut for previous jobs at round sizes, which is exactly
+  // what makes them reusable. The 6" round is the one the demo part can borrow.
+  const jawSets = [
+    { name: "Round soft jaws — 6.000", profile: "ROUND", nominalSize: 6, stepDepth: 0.25, jawHeight: 2, timesUsed: 4, minutesToCut: 38, notes: "Cut for the pump housing job. Shims down to about 4.5\" comfortably." },
+    { name: "Round soft jaws — 3.000", profile: "ROUND", nominalSize: 3, stepDepth: 0.2, jawHeight: 2, timesUsed: 7, minutesToCut: 32, notes: "The most-used set in the drawer." },
+    { name: "Rectangular soft jaws — 4.000 × 6.000", profile: "RECTANGULAR", nominalSize: 4, nominalLength: 6, stepDepth: 0.15, jawHeight: 2, timesUsed: 2, minutesToCut: 40, notes: "Cut for a plate job. Step is shallow — check grip before reusing." },
+  ];
+  for (const j of jawSets) {
+    await db.jawSet.create({
+      data: {
+        organizationId: org.id,
+        material: "ALUMINUM_6061",
+        viseDescription: '6" machinist vise',
+        ...j,
+      },
+    });
+  }
 
   /* ---------------- Materials ---------------- */
 
@@ -573,6 +593,29 @@ async function main() {
   console.log(`Seeded organisation ${org.name}`);
   console.log("  Sign in: demo@canvas.local / canvas-demo");
   console.log(`  Part: ${part.name} (${part.partNumber}) Rev A — ${features.length} features, 2 setups`);
+}
+
+/**
+ * Removes an organisation and everything under it, in dependency order.
+ *
+ * A plain cascade from Organization does not work, and the reason is worth
+ * recording: Setup points at both PartRevision (cascade) and Machine (set
+ * null). Deleting the organisation triggers both paths, and PostgreSQL may run
+ * the SET NULL update against Setup rows whose PartRevision the other path has
+ * already deleted — which re-validates the cascade FK and fails. Deleting the
+ * dependent rows first removes the ambiguity entirely, and is provider
+ * independent besides.
+ */
+async function teardownOrganization(slug: string) {
+  const org = await db.organization.findUnique({ where: { slug }, select: { id: true } });
+  if (!org) return;
+
+  await db.operation.deleteMany({ where: { setup: { partRevision: { part: { organizationId: org.id } } } } });
+  await db.jaw.deleteMany({ where: { setup: { partRevision: { part: { organizationId: org.id } } } } });
+  await db.simulation.deleteMany({ where: { setup: { partRevision: { part: { organizationId: org.id } } } } });
+  await db.setup.deleteMany({ where: { partRevision: { part: { organizationId: org.id } } } });
+  await db.measurement.deleteMany({ where: { session: { partRevision: { part: { organizationId: org.id } } } } });
+  await db.organization.delete({ where: { id: org.id } });
 }
 
 /* Provenance helpers, mirrored from src/lib/provenance.ts. */
