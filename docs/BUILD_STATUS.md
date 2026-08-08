@@ -1,6 +1,8 @@
 # Build status
 
-Phase 1. Updated at the end of the first implementation pass.
+Updated through Phase 3A. Read /docs/PHASE_3A_SUMMARY.md first — it states
+REAL / PARTIAL / SIMULATED / DEVELOPMENT ONLY / SHELL / BLOCKED per feature,
+and is the honest answer to "what actually works".
 
 ## DONE
 
@@ -59,6 +61,21 @@ Phase 1. Updated at the end of the first implementation pass.
 - TEST PART 001 — CANVAS Bearing Support, 11 features, 2 setups, inspection
   plan, a completed job with a `PART_MOVED` outcome, and a 1.5744" measurement
   that exercises the 40 mm nominal-reasoning demo
+
+## PHASE 3A — PARTIAL
+
+See /docs/PHASE_3A_SUMMARY.md for the item-by-item status. 8 of 12
+acceptance criteria met; Phase 3A is not complete.
+
+**Real subtracted part geometry.** `components/viewport/part-solid.ts`. The
+part is built as a stack of extruded cross-sections sliced at every Z where a
+feature begins or ends. Holes are holes. Chamfers, fillets, countersinks and
+angled slots are not represented and are reported as unrepresented rather than
+approximated — they need a geometry kernel.
+
+Not built in this phase, and named in the brief: feature specimen view, visual
+datums on the part, operation timeline, VERIFY mode, soft jaw visual sequence,
+copilot structured mutations.
 
 ## PHASE 2 — BUILT
 
