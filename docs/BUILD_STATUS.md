@@ -62,6 +62,16 @@ and is the honest answer to "what actually works".
   plan, a completed job with a `PART_MOVED` outcome, and a 1.5744" measurement
   that exercises the 40 mm nominal-reasoning demo
 
+## PHASE 3B — PARTIAL
+
+See /docs/PHASE_3B_SUMMARY.md. 3 of 9 acceptance criteria.
+
+**Run It Past CANVAS** (`/parts/[id]/review`) is built: a pre-flight review
+producing structured findings with severity, location, evidence and method,
+from real engines and real toolpath moves. Importing a job package from another
+CAM is not built. Make vs Buy, Manufacturing DNA, provenance drilldown and the
+tool reality UI are not built.
+
 ## PHASE 3A — PARTIAL
 
 See /docs/PHASE_3A_SUMMARY.md for the item-by-item status. 8 of 12

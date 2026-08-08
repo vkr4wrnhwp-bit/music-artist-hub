@@ -444,6 +444,9 @@ export default async function PartWorkspace(props: {
         </details>
 
         <div className="flex shrink-0 items-center gap-2">
+          <LinkButton href={`/parts/${id}/review`} size="sm" variant="ghost">
+            Run it past CANVAS
+          </LinkButton>
           <LinkButton href={`/parts/${id}/machinist`} size="sm" variant="ghost">
             Machinist
           </LinkButton>

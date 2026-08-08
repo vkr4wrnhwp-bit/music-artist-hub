@@ -1,0 +1,182 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { requireUser } from "@/lib/auth";
+import { buildPackage } from "@/lib/package";
+import { reviewPackage, type Severity } from "@/lib/engines/review";
+import { TopBar } from "@/components/nav";
+import { PartStatusChip } from "@/components/part-status";
+import { DataRow, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
+
+/**
+ * RUN IT PAST CANVAS
+ *
+ * A shop that already trusts its CAM is not going to abandon it, and asking
+ * them to is how this product gets ignored. What they will do is run a job
+ * past a second opinion before pressing Cycle Start — the same way they would
+ * ask the other machinist to look at a setup.
+ *
+ * The page is careful about one thing above all: a clean review is not a
+ * safety claim. It means the checks CANVAS knows how to make found nothing,
+ * and what CANVAS cannot check is listed with equal prominence.
+ */
+
+const TONE: Record<Severity, Tone> = { HIGH: "risk", MEDIUM: "review", LOW: "unknown" };
+
+export default async function ReviewPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params;
+  const user = await requireUser();
+  const pkg = await buildPackage(user.organizationId, id);
+  if (!pkg) notFound();
+
+  const movesByOperation: Record<string, typeof pkg.toolpaths[number]["moves"]> = {};
+  for (const tp of pkg.toolpaths) movesByOperation[tp.operationId] = tp.moves;
+
+  const review = reviewPackage({
+    setups: pkg.setups.map((s) => ({
+      id: s.id,
+      name: s.name,
+      sequence: s.sequence,
+      gripDepth: s.gripDepth,
+      stockProjection: s.stockProjection,
+      operations: s.operations.map((o) => ({
+        id: o.id,
+        label: o.label,
+        toolId: o.toolId,
+        finalZ: o.finalZ,
+        type: o.type,
+      })),
+    })),
+    workholdingBySetup: pkg.workholdingBySetup,
+    device: pkg.primaryWorkholding,
+    machine: pkg.primaryMachine,
+    tools: pkg.tools,
+    movesByOperation,
+    capability: pkg.readiness.capability,
+    stockZ: pkg.revision.stock?.z ?? null,
+  });
+
+  return (
+    <>
+      <TopBar>
+        <Link href={`/parts/${id}`} className="tech-label hover:text-platinum">
+          {pkg.revision.partName}
+        </Link>
+        <span className="text-muted">/</span>
+        <span className="tech-label">Run it past CANVAS</span>
+        <PartStatusChip readiness={pkg.readiness} />
+      </TopBar>
+
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <SectionHeading sub="A second opinion before Cycle Start. This does not replace your CAM and does not verify your program — it runs the checks CANVAS knows how to make against the setups, the tooling and the actual toolpath moves, and tells you what it found and what it could not look at.">
+            Run it past CANVAS
+          </SectionHeading>
+
+          {/* ---------------- Headline ---------------- */}
+          <Panel
+            title={review.findings.length === 0 ? "Nothing found" : "Review required"}
+            meta={
+              review.findings.length > 0 ? (
+                <span className="flex gap-2">
+                  {review.highCount > 0 && <StatusChip tone="risk">{review.highCount} high</StatusChip>}
+                  {review.mediumCount > 0 && <StatusChip tone="review">{review.mediumCount} medium</StatusChip>}
+                  {review.lowCount > 0 && <StatusChip tone="unknown">{review.lowCount} low</StatusChip>}
+                </span>
+              ) : null
+            }
+          >
+            <p className="max-w-2xl text-[14px] leading-relaxed text-platinum">{review.headline}</p>
+          </Panel>
+
+          {/* ---------------- Findings ---------------- */}
+          {review.findings.map((f, i) => (
+            <Panel
+              key={f.id}
+              title={`${String(i + 1).padStart(2, "0")} — ${f.title}`}
+              meta={<StatusChip tone={TONE[f.severity]}>{f.severity}</StatusChip>}
+            >
+              <p className="max-w-2xl text-[13px] leading-relaxed text-platinum">{f.detail}</p>
+
+              <p className="mt-3 max-w-2xl text-[12.5px] leading-relaxed text-muted">
+                <span className="tech-label">Do this</span> {f.recommendation}
+              </p>
+
+              <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
+                {f.evidence.map((e) => (
+                  <DataRow key={e.label} label={e.label} value={e.value} />
+                ))}
+              </div>
+
+              <p className="tech-label mt-3">Method — {f.method}</p>
+
+              {/* SHOW ME. The context each finding is best understood in is
+                  carried on the finding itself, so this deep-links to the
+                  right view rather than dropping the user on the workspace. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <LinkButton
+                  href={
+                    f.location.setupId
+                      ? `/parts/${id}/setups`
+                      : f.location.featureId
+                        ? `/parts/${id}/features/${f.location.featureId}`
+                        : `/parts/${id}`
+                  }
+                  size="sm"
+                  variant="primary"
+                >
+                  Show me
+                </LinkButton>
+                <span className="tech-label">
+                  {f.location.context}
+                  {f.location.point &&
+                    ` · X${f.location.point.x.toFixed(2)} Y${f.location.point.y.toFixed(2)} Z${f.location.point.z.toFixed(3)}`}
+                </span>
+              </div>
+            </Panel>
+          ))}
+
+          {/* ---------------- What was checked ---------------- */}
+          <Panel title="What CANVAS checked">
+            <ul className="space-y-1">
+              {review.checksRun.map((c) => (
+                <li key={c} className="flex gap-2 text-[12.5px] leading-relaxed text-platinum-dim">
+                  <span className="text-pass">✓</span>
+                  <span>{c}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel title="What CANVAS did not check">
+            <p className="mb-3 max-w-2xl text-[12.5px] leading-relaxed text-muted">
+              This list matters as much as the findings. A clean review means these checks found nothing — not that the
+              program is safe.
+            </p>
+            <ul className="space-y-2">
+              {review.checksSkipped.map((c) => (
+                <li key={c.check} className="text-[12.5px] leading-relaxed">
+                  <span className="text-review">— {c.check}</span>
+                  <span className="block pl-4 text-muted">{c.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Notice tone="risk" title="This is not NC verification">
+            There is no stock-removal simulation and no collision engine behind this review. It cannot tell you a
+            program is safe. Dry run above the part, confirm work offsets and tool length offsets at the machine, and
+            treat this as a second pair of eyes rather than a sign-off.
+          </Notice>
+
+          <Notice tone="review" title="Importing an existing job package is not built">
+            Phase 3B describes uploading a STEP model, an NC program, a tool list and a setup file from whatever CAM the
+            shop already runs. That import does not exist — STEP needs a geometry kernel, and parsing arbitrary posted
+            NC back into operations is its own project. What this page reviews is the package CANVAS itself holds.
+          </Notice>
+        </div>
+      </main>
+    </>
+  );
+}
+
+export const dynamic = "force-dynamic";
