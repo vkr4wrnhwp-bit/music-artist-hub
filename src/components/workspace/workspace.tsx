@@ -7,6 +7,9 @@ import { featureSummary, fmtTol } from "@/lib/domain/features";
 import type { Move } from "@/lib/engines/cam/types";
 import type { ViewMode } from "@/components/viewport/scene";
 import { Copilot } from "./copilot";
+import { InteractionProvider, useInteraction, type Context } from "./interaction";
+import { ContextRail, sceneFlagsFor } from "./context-rail";
+import { FeatureLens } from "./feature-lens";
 import { buttonClass, Dot, StatusChip, type Tone } from "@/components/ui";
 
 const Viewport = dynamic(() => import("@/components/viewport/scene").then((m) => m.Viewport), {
@@ -31,18 +34,22 @@ export interface WorkspaceProps {
   readinessLabel: string;
 }
 
-const PANEL_ORDER = [
-  "part",
-  "features",
-  "stock",
-  "setups",
-  "workholding",
-  "tools",
-  "operations",
-  "inspection",
-  "cost",
-  "history",
-] as const;
+/**
+ * Panels grouped by the question they answer.
+ *
+ * The old workspace showed ten equal-weight tabs, which taught the operator
+ * that they were ten separate things to fill in. They are not — they are
+ * answers to five questions about one part, and grouping them that way means
+ * choosing a context already narrows what is on screen to what bears on the
+ * decision being made.
+ */
+const PANELS_BY_CONTEXT: Record<Context, readonly string[]> = {
+  PART: ["part", "features", "stock"],
+  HOLD: ["setups", "workholding"],
+  CUT: ["tools", "operations"],
+  VERIFY: ["inspection", "history"],
+  COST: ["cost"],
+};
 
 const PANEL_LABEL: Record<string, string> = {
   part: "Part",
@@ -57,24 +64,47 @@ const PANEL_LABEL: Record<string, string> = {
   history: "History",
 };
 
+/**
+ * View presets, in WORLD space.
+ *
+ * The scene authors geometry Z-up and rotates the whole group once, which maps
+ * part (x, y, z) onto world (x, z, -y). The part's top face is therefore world
+ * +Y, not world +Z — these were previously written as though it were world +Z,
+ * which put "Top" on the front of the part and "Front" underneath it.
+ */
 const VIEWS: { label: string; position: [number, number, number] }[] = [
-  { label: "Iso", position: [8, -10, 8] },
-  { label: "Top", position: [0, 0, 16] },
-  { label: "Bottom", position: [0, 0, -16] },
-  { label: "Front", position: [0, -16, 0] },
-  { label: "Rear", position: [0, 16, 0] },
-  { label: "Left", position: [-16, 0, 0] },
-  { label: "Right", position: [16, 0, 0] },
+  { label: "Iso", position: [10, 8.5, 13] },
+  { label: "Top", position: [0, 18, 0.001] },
+  { label: "Bottom", position: [0, -18, 0.001] },
+  { label: "Front", position: [0, 0, 18] },
+  { label: "Rear", position: [0, 0, -18] },
+  { label: "Left", position: [-18, 0, 0] },
+  { label: "Right", position: [18, 0, 0] },
 ];
 
 export function Workspace(props: WorkspaceProps) {
+  return (
+    <InteractionProvider>
+      <WorkspaceInner {...props} />
+    </InteractionProvider>
+  );
+}
+
+function WorkspaceInner(props: WorkspaceProps) {
+  const { state, hover, select, setContext, setDisplayMode, escape } = useInteraction();
   const [panel, setPanel] = useState<string>("part");
-  const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>("SHADED");
-  const [showStock, setShowStock] = useState(true);
-  const [showFixture, setShowFixture] = useState(false);
-  const [showToolpath, setShowToolpath] = useState(true);
-  const [showTool, setShowTool] = useState(false);
+  const selectedFeature = state.selectedFeature;
+  const setSelectedFeature = select;
+  const mode = state.displayMode as ViewMode;
+  const setMode = setDisplayMode;
+  // The context decides what is drawn around the part. These stay overridable
+  // below, because a machinist who wants the fixture visible while looking at
+  // the toolpath should not have to argue with the software about it.
+  const contextFlags = sceneFlagsFor(state.activeContext);
+  const [overrides, setOverrides] = useState<Partial<ReturnType<typeof sceneFlagsFor>>>({});
+  const flags = { ...contextFlags, ...overrides };
+  const { showStock, showFixture, showToolpath, showTool } = flags;
+  const setFlag = (k: keyof typeof contextFlags) => (v: boolean) => setOverrides((o) => ({ ...o, [k]: v }));
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
   // Three side-by-side columns cannot work on a phone, so below `lg` exactly
@@ -85,6 +115,27 @@ export function Workspace(props: WorkspaceProps) {
     () => props.features.find((f) => f.id === selectedFeature) ?? null,
     [props.features, selectedFeature],
   );
+
+  const hovered = useMemo(
+    () => props.features.find((f) => f.id === state.hoveredFeature) ?? null,
+    [props.features, state.hoveredFeature],
+  );
+
+  // Switching context resets the inspector to that context's first panel, and
+  // clears any scene overrides so the context means what it says again.
+  const panels = PANELS_BY_CONTEXT[state.activeContext];
+  useEffect(() => {
+    setPanel(panels[0]);
+    setOverrides({});
+  }, [state.activeContext]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") escape();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [escape]);
 
   // Playback is a scrub over the move list, driven by rAF while playing.
   useAnimationLoop(playing, (dt) => {
@@ -124,10 +175,10 @@ export function Workspace(props: WorkspaceProps) {
 
       {/* ---------------- Left: navigator ---------------- */}
       <aside
-        className={`${mobilePane === "data" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-72 lg:flex-none lg:border-r`}
+        className={`${mobilePane === "data" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-64 lg:flex-none lg:border-r`}
       >
         <div className="flex flex-wrap gap-px border-b border-line bg-line">
-          {PANEL_ORDER.map((p) => (
+          {panels.map((p) => (
             <button
               key={p}
               onClick={() => setPanel(p)}
@@ -148,8 +199,11 @@ export function Workspace(props: WorkspaceProps) {
         </div>
       </aside>
 
-      {/* ---------------- Centre: viewport ---------------- */}
+      {/* ---------------- Centre: the part ---------------- */}
       <section className={`${mobilePane === "model" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col lg:flex`}>
+        {/* Five views onto one object, not five modules */}
+        <ContextRail className="border-b border-line" />
+
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-3 py-1.5">
           <div className="flex items-center gap-1 overflow-x-auto">
             {VIEWS.map((v) => (
@@ -183,9 +237,14 @@ export function Workspace(props: WorkspaceProps) {
             showTool={showTool}
             mode={mode}
             selectedFeatureId={selectedFeature}
+            hoveredFeatureId={state.hoveredFeature}
             onSelectFeature={setSelectedFeature}
+            onHoverFeature={hover}
             fixture={props.fixture}
           />
+
+          {/* Feature lens — appears on hover, no click required */}
+          {hovered && !selected && <FeatureLens feature={hovered} pointer={state.pointer} />}
 
           {/* Selected feature readout, overlaid on the viewport */}
           {selected && (
@@ -248,17 +307,17 @@ export function Workspace(props: WorkspaceProps) {
             {Math.floor(props.moves.length * playhead)} / {props.moves.length} moves
           </span>
           <div className="flex items-center gap-1">
-            <Toggle label="Stock" on={showStock} set={setShowStock} />
-            <Toggle label="Fixture" on={showFixture} set={setShowFixture} />
-            <Toggle label="Path" on={showToolpath} set={setShowToolpath} />
-            <Toggle label="Tool" on={showTool} set={setShowTool} />
+            <Toggle label="Stock" on={showStock} set={setFlag("showStock")} />
+            <Toggle label="Fixture" on={showFixture} set={setFlag("showFixture")} />
+            <Toggle label="Path" on={showToolpath} set={setFlag("showToolpath")} />
+            <Toggle label="Tool" on={showTool} set={setFlag("showTool")} />
           </div>
         </div>
       </section>
 
       {/* ---------------- Right: copilot ---------------- */}
       <aside
-        className={`${mobilePane === "copilot" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-80 lg:flex-none lg:border-l`}
+        className={`${mobilePane === "copilot" ? "flex" : "hidden"} min-h-0 flex-1 flex-col border-line bg-surface lg:flex lg:w-72 lg:flex-none lg:border-l`}
       >
         <Copilot partId={props.partId} partName={props.partName} context={props.copilotContext} />
       </aside>

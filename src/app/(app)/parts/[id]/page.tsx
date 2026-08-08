@@ -9,7 +9,7 @@ import { money } from "@/lib/engines/cost";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { GATE_LABEL } from "@/lib/engines/readiness";
 import { TopBar } from "@/components/nav";
-import { PartStatusChip, NextActionPanel } from "@/components/part-status";
+import { PartStatusSummary, NextActionPanel } from "@/components/part-status";
 import { nextActions } from "@/lib/engines/next-action";
 import { Workspace } from "@/components/workspace/workspace";
 import { DataRow, DevLabel, Dot, LinkButton, Notice, StatusChip, ValueRow, type Tone } from "@/components/ui";
@@ -383,9 +383,11 @@ export default async function PartWorkspace(props: {
         <span className="text-muted">/</span>
         <span className="text-[13px] text-white">{revision.partName}</span>
         <StatusChip tone="neutral">Rev {revision.revision}</StatusChip>
-        <StatusChip tone={readinessTone}>{readiness.overall.replace(/_/g, " ")}</StatusChip>
         {critical && <StatusChip tone="risk">Critical application</StatusChip>}
-              <PartStatusChip readiness={readiness} />
+        {/* One status, centred, reading the same on every screen. */}
+        <span className="ml-auto shrink-0 lg:mr-auto">
+          <PartStatusSummary readiness={readiness} />
+        </span>
       </TopBar>
 
       {intake === "1" && (
@@ -397,27 +399,51 @@ export default async function PartWorkspace(props: {
         </div>
       )}
 
-      <div className="border-b border-line px-5 py-3">
+      <div className="border-b border-line px-5 py-2.5">
         <NextActionPanel actions={nextActions(readiness, id, pkg.workholdingBySetup[pkg.setups[0]?.id ?? ""] ?? null)} />
       </div>
 
-      <div className="flex items-center gap-4 overflow-x-auto border-b border-line bg-surface px-5 py-2">
-        <span className="tech-label shrink-0">Readiness</span>
-        <div className="flex items-center gap-3 lg:flex-wrap">
-          {readiness.gates.map((g) => {
-            const tone: Tone =
-              g.status === "PASS" ? "pass" : g.status === "REVIEW" ? "review" : g.status === "NOT_ATTEMPTED" ? "unknown" : "risk";
-            return (
-              <span key={g.id} className="group relative flex shrink-0 items-center gap-1.5" title={g.detail}>
-                <Dot tone={tone} />
-                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted group-hover:text-platinum">
-                  {g.label}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-5 py-2">
+        {/* Gates on demand rather than permanently. Fourteen labels across the
+            top of every screen is noise the eye learns to skip, which is the
+            opposite of what a readiness system is for. */}
+        <details className="group min-w-0 flex-1">
+          <summary className="flex cursor-pointer list-none items-center gap-3">
+            <span className="tech-label shrink-0">Readiness</span>
+            <span className="flex items-center gap-2.5 overflow-x-auto">
+              {readiness.gates
+                .filter((g) => g.status !== "PASS" && g.status !== "NOT_ATTEMPTED")
+                .slice(0, 4)
+                .map((g) => (
+                  <span key={g.id} className="flex shrink-0 items-center gap-1.5">
+                    <Dot tone={g.status === "REVIEW" ? "review" : "risk"} />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">{g.label}</span>
+                  </span>
+                ))}
+              {readiness.gates.every((g) => g.status === "PASS" || g.status === "NOT_ATTEMPTED") && (
+                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-pass">All gates pass</span>
+              )}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-precision">
+              <span className="group-open:hidden">All gates</span>
+              <span className="hidden group-open:inline">Hide</span>
+            </span>
+          </summary>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-2.5">
+            {readiness.gates.map((g) => {
+              const tone: Tone =
+                g.status === "PASS" ? "pass" : g.status === "REVIEW" ? "review" : g.status === "NOT_ATTEMPTED" ? "unknown" : "risk";
+              return (
+                <span key={g.id} className="flex shrink-0 items-center gap-1.5" title={g.detail}>
+                  <Dot tone={tone} />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">{g.label}</span>
                 </span>
-              </span>
-            );
-          })}
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+              );
+            })}
+          </div>
+        </details>
+
+        <div className="flex shrink-0 items-center gap-2">
           <LinkButton href={`/parts/${id}/machinist`} size="sm" variant="ghost">
             Machinist
           </LinkButton>

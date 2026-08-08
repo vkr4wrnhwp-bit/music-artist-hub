@@ -14,6 +14,49 @@ import type { NextAction } from "@/lib/engines/next-action";
  * The two that do not pass are the whole story.
  */
 
+/**
+ * The persistent status summary. Worst unresolved required gate, plus how many
+ * things are in each state — never a score, never a percentage, and never
+ * "9 of 11 passed", because the two that did not pass are the whole story.
+ */
+export function PartStatusSummary({ readiness }: { readiness: ReadinessReport }) {
+  const blocking = readiness.gates.filter(
+    (g) => g.blocking && (g.status === "FAIL" || g.status === "MISSING"),
+  ).length;
+  const review = readiness.gates.filter((g) => g.status === "REVIEW").length;
+
+  const label =
+    readiness.overall === "READY_TO_RUN"
+      ? "Ready to run"
+      : readiness.overall === "REVIEW_REQUIRED"
+        ? "Review required"
+        : "Not ready";
+
+  const dot =
+    readiness.overall === "READY_TO_RUN"
+      ? "bg-pass"
+      : readiness.overall === "REVIEW_REQUIRED"
+        ? "bg-review"
+        : "bg-risk";
+
+  return (
+    <span className="flex shrink-0 flex-col items-center leading-none">
+      <span className="tech-label mb-1 hidden sm:block">Part status</span>
+      <span className="flex items-center gap-2 whitespace-nowrap">
+        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+        <span className="font-mono text-[12px] uppercase tracking-[0.1em] text-platinum sm:text-[13px]">{label}</span>
+      </span>
+      {(blocking > 0 || review > 0) && (
+        <span className="tech-label mt-1 hidden whitespace-nowrap sm:block">
+          {blocking > 0 && `${blocking} blocking`}
+          {blocking > 0 && review > 0 && " · "}
+          {review > 0 && `${review} review`}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function PartStatusChip({ readiness }: { readiness: ReadinessReport }) {
   const label =
     readiness.overall === "READY_TO_RUN"
@@ -59,45 +102,49 @@ export function NextActionPanel({ actions }: { actions: NextAction[] }) {
 
   return (
     <section className={`border border-line ${border} border-l-2 bg-surface`}>
-      <div className="px-4 py-3">
-        <p className="tech-label">
-          {primary.severity === "BLOCKING"
-            ? "Next required action"
-            : primary.severity === "REVIEW"
-              ? "Next action — review"
-              : "Next action"}
-        </p>
-        <p className="mt-1.5 text-[15px] leading-snug font-light text-white">{primary.action}</p>
-        <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-muted">{primary.reason}</p>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
+        <span className="tech-label shrink-0">
+          {primary.severity === "BLOCKING" ? "Next" : primary.severity === "REVIEW" ? "Next — review" : "Next"}
+        </span>
+        <span className="min-w-0 flex-1 text-[14px] leading-snug text-platinum">{primary.action}</span>
         {primary.href && (
           <Link
             href={primary.href}
-            className="mt-2.5 inline-block border border-precision/50 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+            className="shrink-0 border border-precision/50 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
           >
             {primary.linkLabel}
           </Link>
         )}
       </div>
 
-      {rest.length > 0 && (
-        <div className="border-t border-line px-4 py-2.5">
-          <p className="tech-label mb-1.5">Then</p>
-          <ol className="space-y-1">
-            {rest.map((a, i) => (
-              <li key={`${a.gateId}-${i}`} className="flex gap-2.5 text-[12px] leading-relaxed">
-                <span className="font-mono text-[11px] text-muted">{String(i + 2).padStart(2, "0")}</span>
-                {a.href ? (
-                  <Link href={a.href} className="text-platinum-dim hover:text-platinum">
-                    {a.action}
-                  </Link>
-                ) : (
-                  <span className="text-platinum-dim">{a.action}</span>
-                )}
-              </li>
-            ))}
-          </ol>
+      {/* The evidence and the queue behind it, one disclosure away. The
+          instruction is what matters on arrival; the reasoning matters only if
+          it is questioned. */}
+      <details className="group border-t border-line">
+        <summary className="cursor-pointer list-none px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-platinum">
+          <span className="group-open:hidden">Why{rest.length > 0 ? ` · ${rest.length} more` : ""}</span>
+          <span className="hidden group-open:inline">Hide</span>
+        </summary>
+        <div className="space-y-2 px-4 pb-3">
+          <p className="max-w-3xl text-[12.5px] leading-relaxed text-muted">{primary.reason}</p>
+          {rest.length > 0 && (
+            <ol className="space-y-1">
+              {rest.map((a, i) => (
+                <li key={`${a.gateId}-${i}`} className="flex gap-2.5 text-[12px] leading-relaxed">
+                  <span className="font-mono text-[11px] text-muted">{String(i + 2).padStart(2, "0")}</span>
+                  {a.href ? (
+                    <Link href={a.href} className="text-platinum-dim hover:text-platinum">
+                      {a.action}
+                    </Link>
+                  ) : (
+                    <span className="text-platinum-dim">{a.action}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
-      )}
+      </details>
     </section>
   );
 }

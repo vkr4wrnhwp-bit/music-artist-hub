@@ -6,29 +6,46 @@
    ============================================================ */
 
 :root {
-  /* Graphite / near-black surfaces */
-  --c-void: #080a0c;
-  --c-surface: #0d1014;
-  --c-raised: #13171c;
-  --c-line: #1e242b;
-  --c-line-strong: #2b333c;
+  /* ------------------------------------------------------------------
+     LIGHT WORKSPACE
+     ------------------------------------------------------------------
+     Professional engineering software does not have to be black. A light
+     environment reads machined metal, dimensional annotation, measurement
+     lines and blue selection markedly better than a dark one, and it is
+     what a shop floor under fluorescent light actually wants.
 
-  /* Platinum information */
-  --c-platinum: #d8dade;
-  --c-platinum-dim: #b8bdc5;
-  --c-muted: #737b86;
-  --c-white: #f4f5f6;
+     Warm white ground, near-black graphite type, platinum for secondary
+     information, precision blue reserved for active state, datum,
+     measurement and toolpath. Status colours stay desaturated and
+     instrument-panel — never festive.
+     ------------------------------------------------------------------ */
 
-  /* Precision blue — active state, datum, measurement, toolpath */
-  --c-blue: #2078ff;
-  --c-blue-dim: #1a5ec9;
-  --c-blue-wash: rgba(32, 120, 255, 0.1);
+  /* Ground and surfaces */
+  --c-void: #f6f6f4;
+  --c-surface: #ffffff;
+  --c-raised: #f0f1ef;
+  --c-line: #e3e5e3;
+  --c-line-strong: #c6cac7;
 
-  /* Status — desaturated, instrument-panel, never festive */
-  --c-pass: #4c9e77;
-  --c-review: #c39034;
-  --c-risk: #c25b4e;
-  --c-unknown: #5c6672;
+  /* Type. `platinum` is the primary reading colour, so in a light
+     workspace it is graphite — the token name describes its role in the
+     hierarchy, not its hue. */
+  --c-platinum: #1b1e22;
+  --c-platinum-dim: #414851;
+  --c-muted: #6f757d;
+  --c-white: #0a0c0e;
+
+  /* Precision blue. Deeper than the dark-theme blue so that it holds
+     contrast against white without becoming a highlighter. */
+  --c-blue: #0a5fd0;
+  --c-blue-dim: #0847a0;
+  --c-blue-wash: rgba(10, 95, 208, 0.07);
+
+  /* Status — legible against white at small sizes. */
+  --c-pass: #1c7049;
+  --c-review: #8f6212;
+  --c-risk: #a83226;
+  --c-unknown: #6b727b;
 
   --radius: 2px;
 }
@@ -78,15 +95,15 @@ body {
 /* ---- Precision grid: used sparingly behind viewports and hero areas ---- */
 .precision-grid {
   background-image:
-    linear-gradient(to right, rgba(216, 218, 222, 0.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(216, 218, 222, 0.028) 1px, transparent 1px);
+    linear-gradient(to right, rgba(27, 30, 34, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 30, 34, 0.045) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
 .precision-grid-fine {
   background-image:
-    linear-gradient(to right, rgba(216, 218, 222, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(216, 218, 222, 0.02) 1px, transparent 1px);
+    linear-gradient(to right, rgba(27, 30, 34, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 30, 34, 0.03) 1px, transparent 1px);
   background-size: 8px 8px;
 }
 
@@ -151,7 +168,7 @@ body {
 
 ::selection {
   background: var(--c-blue);
-  color: var(--c-white);
+  color: #ffffff;
 }
 
 input,
