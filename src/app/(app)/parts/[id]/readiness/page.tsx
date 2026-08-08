@@ -7,6 +7,9 @@ import { buildPackage } from "@/lib/package";
 import { PROCESS_LABEL } from "@/lib/engines/process-advisor";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
+import { Disagree } from "@/components/disagree";
+import { recordDisagreement } from "@/lib/disagreement";
+import { revalidatePath } from "next/cache";
 import { Button, Dot, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -54,6 +57,36 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
     });
 
     redirect(`/parts/${id}/readiness`);
+  }
+
+  /**
+   * Recording a disagreement is a write, and it is deliberately the only thing
+   * this action does. It does not touch the gate, it does not set a flag that
+   * any gate reads, and there is no code path from here to a gate clearing.
+   */
+  async function disagree(formData: FormData) {
+    "use server";
+    const currentUser = await requireUser();
+    const fresh = await buildPackage(currentUser.organizationId, id);
+    if (!fresh) notFound();
+
+    const reasoning = String(formData.get("reasoning") ?? "").trim();
+    if (!reasoning) redirect(`/parts/${id}/readiness`);
+
+    await recordDisagreement({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      subjectType: "READINESS_GATE",
+      subjectId: String(formData.get("subjectId") ?? "") || null,
+      partRevisionId: fresh.revision.revisionId,
+      canvasPosition: String(formData.get("canvasPosition") ?? ""),
+      reasoning,
+      hasRunComparable: formData.get("hasRunComparable") === "yes",
+      proposedValue: String(formData.get("proposedValue") ?? "") || null,
+    });
+
+    revalidatePath(`/parts/${id}/readiness`);
+    redirect(`/parts/${id}/readiness?recorded=1`);
   }
 
   const overallTone: Tone =
@@ -115,6 +148,17 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                     </div>
                     <StatusChip tone={STATUS_TONE[g.status]}>{g.status.replace(/_/g, " ")}</StatusChip>
                   </div>
+                  {g.status !== "PASS" && g.status !== "NOT_ATTEMPTED" && (
+                    <div className="mt-2.5 pl-6">
+                      <Disagree
+                        action={disagree}
+                        subjectType="READINESS_GATE"
+                        subjectId={g.id}
+                        partRevisionId={pkg.revision.revisionId}
+                        canvasPosition={`${g.label} — ${g.status.replace(/_/g, " ")}. ${g.detail}`}
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

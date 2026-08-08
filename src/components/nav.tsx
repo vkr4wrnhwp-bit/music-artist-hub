@@ -38,6 +38,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/jobs", label: "Jobs" },
       { href: "/quoting", label: "Quoting" },
       { href: "/network", label: "Network", shell: true },
+      { href: "/knowledge", label: "Shop knowledge" },
       { href: "/intelligence", label: "Shop intelligence", shell: true },
     ],
   },
