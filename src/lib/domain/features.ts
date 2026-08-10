@@ -243,8 +243,47 @@ export function maximumDepth(features: Feature[], stock: Stock): number {
   return max;
 }
 
+/**
+ * Features flagged critical. Nothing else.
+ *
+ * The body used to be `f.critical || f.functionalRole !== "NONE"`, which is not
+ * what the name says. That set is critical features UNION everything carrying
+ * any role at all — including CLEARANCE and COSMETIC, the two roles that exist
+ * precisely to say nothing hangs on this. It put the demo part's clearance
+ * relief in the same bucket as a ±0.0005"/-0 bearing seat.
+ *
+ * It never had a caller, so nothing was ever wrong on screen. What made it
+ * worth fixing is the shape of the trap: the readiness engine derives the same
+ * idea inline as `f.critical`, so an author who imported this helper expecting
+ * agreement would have got a superset, and the "Critical tolerance strategy"
+ * gate would have demoted from PASS to REVIEW on the strength of a clearance
+ * pocket having no inspection method. On a part where `isCriticalApplication`
+ * holds, that REVIEW is blocking — so the mislabelled predicate could have
+ * blocked NC export on a part with no critical features on it at all.
+ *
+ * Two things this deliberately is not:
+ *
+ * It is not a general "features that matter" set. Criticality is a severity
+ * flag; a functional role is a statement of what a feature is for. They are
+ * different axes and welding them with an OR produces a set with no name a
+ * machinist would use. Whoever wants the role question wants a different
+ * predicate — the feature index asks it as `functionalRole === "NONE"`.
+ *
+ * It is not yet the single definition. `f.critical` is still derived inline in
+ * the readiness gate, the NC preflight, the inspection page and the part
+ * detail page. They all agree today. Consolidating them onto this helper is
+ * worth doing, but it is not a free tidy-up: this would become a shared symbol
+ * whose next edit moves a gate that blocks executable NC, so it needs every
+ * caller routed through it at once — not one, with the others left inline.
+ *
+ * If you do wire it into `readiness.ts`, replace the local const rather than
+ * importing alongside it. The local shadows the import, so the inline filter
+ * survives while the import sits unused, and `criticalFeatures.length === 0`
+ * then reads the function's arity — 1, never 0 — which type-checks clean and
+ * silently kills the NOT_ATTEMPTED branch.
+ */
 export function criticalFeatures(features: Feature[]): Feature[] {
-  return features.filter((f) => f.critical || f.functionalRole !== "NONE");
+  return features.filter((f) => f.critical);
 }
 
 export function featureSummary(f: Feature): string {
