@@ -382,28 +382,68 @@ function FeatureMesh({
     case "BORE": {
       const depth = f.through ? stock.z : f.depth;
       const top = stock.z + (f.top ?? 0);
-      // 96 radial segments: at 48 the polygon edges around the lower rim were
-      // visible at 2x, which reads as a low-poly game asset rather than as a
-      // bored hole.
+      // A capped cylinder filling the bore renders as a translucent puck
+      // sitting in the hole — the thing you notice is a blue disc, not the
+      // feature. Open-ended and back-faced, the highlight is the bore WALL
+      // lit from inside, which is what selecting a bore should look like.
+      // Pulled a hair inside the true radius so it sits in the void rather
+      // than fighting the machined surface for the same pixels.
+      const r = (f.diameter / 2) * 0.997;
       return (
-        <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
-          <cylinderGeometry args={[f.diameter / 2, f.diameter / 2, depth, 96]} />
-          {material}
-          <Edges threshold={20} color={active ? BLUE : "#c6cac7"} visible={active} />
-        </mesh>
+        <group>
+          {/* The wall, tinted. Looking down into a through hole you see the far
+              side of the tube, so anything above a light tint fills the circle
+              and reads as a plug sitting in the bore rather than as the bore
+              being selected. */}
+          <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
+            <cylinderGeometry args={[r, r, depth, 96, 1, true]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={active ? (selected ? 0.2 : 0.12) : 0}
+              depthWrite={false}
+              side={THREE.BackSide}
+            />
+          </mesh>
+          {/* The rim. This is what actually identifies the feature: a crisp
+              annulus around the mouth, the way a machinist would ring a
+              diameter on a print. */}
+          {active && (
+            <mesh position={[f.centerX, f.centerY, top + 0.004]}>
+              <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * 1.055, 96]} />
+              <meshBasicMaterial color={BLUE} transparent opacity={selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
+            </mesh>
+          )}
+        </group>
       );
     }
     case "DRILLED_HOLE":
     case "TAPPED_HOLE":
     case "COUNTERBORE":
     case "COUNTERSINK": {
+      // Same reasoning as the bore above: light the wall, do not fill the hole.
       const depth = f.through ? stock.z : f.depth;
       const top = stock.z + (f.top ?? 0);
+      const hr = (f.diameter / 2) * 0.997;
       return (
-        <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
-          <cylinderGeometry args={[f.diameter / 2, f.diameter / 2, depth, 24]} />
-          {material}
-        </mesh>
+        <group>
+          <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
+            <cylinderGeometry args={[hr, hr, depth, 48, 1, true]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={active ? (selected ? 0.2 : 0.12) : 0}
+              depthWrite={false}
+              side={THREE.BackSide}
+            />
+          </mesh>
+          {active && (
+            <mesh position={[f.centerX, f.centerY, top + 0.004]}>
+              <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * 1.16, 64]} />
+              <meshBasicMaterial color={BLUE} transparent opacity={selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
+            </mesh>
+          )}
+        </group>
       );
     }
     case "SLOT": {
@@ -467,19 +507,36 @@ function FeatureMesh({
  * Now: clamped inside the stock on both axes, and lifted clear of the top
  * face, which is where a setup origin actually is.
  */
+/**
+ * The work offset origin, drawn as a machinist's datum mark.
+ *
+ * This used to span 40% of the part in X and Y, which meant two long blue
+ * lines lying across the component. At a glance that reads as annotation drawn
+ * *on* the part rather than as a marker sitting at a point — and on this part
+ * the origin is the bore centre, so the arms ran straight through the feature
+ * you were trying to look at.
+ *
+ * A datum mark is a symbol, not a measurement. It is now sized as a fixed
+ * fraction of the smaller plan dimension, small enough to read as a target and
+ * to stay clear of whatever it sits on, with a short Z stem so the axis the
+ * offset is set on is unambiguous.
+ */
 function DatumIndicator({ stock }: { stock: Stock }) {
-  const base = Math.min(stock.x, stock.y) * 0.4;
-  const sx = Math.max(0.05, Math.min(base, stock.x / 2 - 0.05));
-  const sy = Math.max(0.05, Math.min(base, stock.y / 2 - 0.05));
+  const span = Math.max(0.12, Math.min(stock.x, stock.y) * 0.09);
   const zz = stock.z + 0.02;
-  const r = Math.min(sx, sy);
+  const ring = span * 0.34;
+
   return (
     <group>
-      <Line points={[[-sx, 0, zz], [sx, 0, zz]]} color={BLUE} lineWidth={1} />
-      <Line points={[[0, -sy, zz], [0, sy, zz]]} color={BLUE} lineWidth={1} />
-      <Line points={[[0, 0, zz], [0, 0, zz + r * 0.5]]} color={BLUE} lineWidth={1} />
+      {/* Crosshair, broken at the centre so the ring reads as the origin. */}
+      <Line points={[[-span, 0, zz], [-ring * 1.3, 0, zz]]} color={BLUE} lineWidth={1.5} />
+      <Line points={[[ring * 1.3, 0, zz], [span, 0, zz]]} color={BLUE} lineWidth={1.5} />
+      <Line points={[[0, -span, zz], [0, -ring * 1.3, zz]]} color={BLUE} lineWidth={1.5} />
+      <Line points={[[0, ring * 1.3, zz], [0, span, zz]]} color={BLUE} lineWidth={1.5} />
+      {/* Z stem — the axis the offset is set on. */}
+      <Line points={[[0, 0, zz], [0, 0, zz + span * 1.1]]} color={BLUE} lineWidth={1.5} />
       <mesh position={[0, 0, zz]}>
-        <ringGeometry args={[r * 0.06, r * 0.08, 32]} />
+        <ringGeometry args={[ring * 0.72, ring, 48]} />
         <meshBasicMaterial color={BLUE} side={THREE.DoubleSide} />
       </mesh>
     </group>
