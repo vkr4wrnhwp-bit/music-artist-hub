@@ -66,6 +66,7 @@ model Organization {
   permissions  NetworkPermission[]
   shopKnowledge ShopKnowledge[]
   disagreements Disagreement[]
+  ncExportAuthorizations NCExportAuthorization[]
 }
 
 model User {
@@ -737,8 +738,53 @@ model NCProgram {
 
   partRevision PartRevision @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
   machine      Machine?     @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  exportAuthorizations NCExportAuthorization[]
 
   @@index([partRevisionId])
+}
+
+// A single-use, short-lived permission to take NC bytes out of CANVAS.
+//
+// The only server surface that emits program bytes is the mint action, and it
+// re-runs the pre-flight gate every time. The row exists so the export the
+// operator completes is provably the export the gate approved: same digest,
+// same byte count, minted minutes ago, spent once. A client cannot request
+// program text by any id — it can only spend a token it was just issued.
+//
+// Tenancy: organizationId is written from the session at mint time and checked
+// again at record time. NCProgram itself carries no organizationId column, so
+// this table must never be reached by bare token without the organization
+// check, and NCProgram must never be fetched by id from client input.
+model NCExportAuthorization {
+  id             String @id @default(cuid())
+  // Random, unguessable, single-use. The client holds this and nothing else.
+  token          String @unique
+  organizationId String
+  ncProgramId    String
+  partRevisionId String
+  filename       String
+  byteLength     Int
+  // SHA-256 of the program text, computed server-side at mint.
+  digest         String
+  issuedToUserId String
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  // WRITTEN_VERIFIED | WRITTEN_MISMATCH | DOWNLOAD_OFFERED | WRITE_FAILED |
+  // REFUSED_GATE — what actually happened, reported at record time.
+  outcome        String?
+  // The leaf name the operator chose. Media type is not verifiable from a
+  // browser and is deliberately not recorded as if it were.
+  destinationName String?
+  writtenFilename String?
+  // Digest the export island computed from the read-back, verbatim.
+  clientDigest   String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ncProgram    NCProgram    @relation(fields: [ncProgramId], references: [id], onDelete: Cascade)
+
+  @@index([ncProgramId])
+  @@index([organizationId])
 }
 
 model PostProcessor {
@@ -1040,7 +1086,7 @@ model AuditLog {
   userId         String?
   entityType     String
   entityId       String
-  action         String // CREATE | UPDATE | DELETE | APPROVE | GENERATE | ACCEPT_SUGGESTION
+  action         String // CREATE | UPDATE | DELETE | APPROVE | GENERATE | EXPORT | ACCEPT_SUGGESTION
   field          String?
   oldValue       String?
   newValue       String?

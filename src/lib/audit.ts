@@ -18,7 +18,7 @@ export interface AuditEntry {
   userId?: string | null;
   entityType: string;
   entityId: string;
-  action: "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "GENERATE" | "ACCEPT_SUGGESTION" | "REJECT_SUGGESTION";
+  action: "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "GENERATE" | "EXPORT" | "ACCEPT_SUGGESTION" | "REJECT_SUGGESTION";
   actorType: ActorType;
   field?: string;
   oldValue?: string | null;

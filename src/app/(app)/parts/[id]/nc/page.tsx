@@ -4,10 +4,12 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
-import { POSTS, defaultPostForController, getPost, preflightPassed, verifyNc, type PostContext, type PreflightItem } from "@/lib/engines/cam/post";
+import { POSTS, defaultPostForController, getPost, preflightPassed, verifyNc, type PostContext } from "@/lib/engines/cam/post";
+import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
-import { Button, DevLabel, Dot, Field, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
+import { NcExportPanel } from "@/components/nc/export-panel";
+import { Button, DevLabel, Dot, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 
 /**
  * NC OUTPUT
@@ -42,46 +44,9 @@ export default async function NcPage(props: {
 
   /* ---------------- Pre-flight ---------------- */
 
-  const realToolpaths = pkg.toolpaths.filter((t) => !t.isPlaceholder);
-  const preflight: PreflightItem[] = [
-    item("machine", "Machine selected", Boolean(machine), machine ? `${machine.manufacturer} ${machine.model}` : "No machine on this setup", true),
-    item("post", "Post processor selected", Boolean(selectedPost), selectedPost ? selectedPost.name : "None", true),
-    item("units", "Units confirmed", pkg.revision.units === "IN" || pkg.revision.units === "MM", `Program in ${pkg.revision.units === "IN" ? "inches (G20)" : "millimetres (G21)"}`, true),
-    item("stock", "Stock verified", Boolean(pkg.revision.stock), pkg.revision.stock ? `${pkg.revision.stock.x} × ${pkg.revision.stock.y} × ${pkg.revision.stock.z}` : "Stock not defined", true),
-    item(
-      "workholding",
-      "Workholding verified",
-      Object.values(pkg.workholdingBySetup).every((a) => a.level === "SAFE" || a.level === "LIKELY_SAFE"),
-      workholdingSummary(pkg),
-      true,
-    ),
-    item("tools", "Tools verified", pkg.assignedTools.length > 0, `${pkg.assignedTools.length} tools assigned`, true),
-    item(
-      "toollengths",
-      "Tool lengths verified",
-      pkg.assignedTools.every((t) => t.stickout > 0),
-      "Stickout recorded for every assigned tool. Length offsets must still be set at the machine.",
-      true,
-    ),
-    item(
-      "toolpaths",
-      "Toolpaths generated",
-      pkg.toolpaths.length > 0 && realToolpaths.length === pkg.toolpaths.length,
-      toolpathDetail(pkg.toolpaths.length, realToolpaths.length),
-      true,
-    ),
-    item("errors", "No toolpath errors", pkg.toolpathErrors.length === 0, pkg.toolpathErrors.length === 0 ? "All operations produced a path" : `${pkg.toolpathErrors.length} operations failed`, true),
-    item(
-      "criticaldims",
-      "Critical dimensions reviewed",
-      pkg.revision.features.filter((f) => f.critical).every((f) => Boolean(f.inspectionMethod)),
-      "Every critical feature has an inspection method",
-      true,
-    ),
-    item("simulation", "Simulation completed", pkg.simulationRun, pkg.simulationRun ? "Development visualisation run" : "Not run", true),
-    item("approval", "Operator approval", pkg.approved, pkg.approved ? "Package approved" : "No approval recorded", true),
-  ];
-
+  // One gate, shared with the generate action and the export mint. If the
+  // gate logic exists in two places, it does not exist.
+  const preflight = buildPreflight(pkg, selectedPost);
   const canExport = preflightPassed(preflight) && Boolean(selectedPost) && Boolean(machine);
 
   /* ---------------- Generate ---------------- */
@@ -95,6 +60,12 @@ export default async function NcPage(props: {
     const postId = String(formData.get("postId"));
     const post = getPost(postId);
     if (!post) redirect(`/parts/${id}/nc`);
+
+    // The disabled button is not the gate. A server action is a POST endpoint
+    // reachable regardless of rendered button state, so the gate is re-run
+    // here, against a package built fresh for this request.
+    const gate = buildPreflight(fresh, post);
+    if (!preflightPassed(gate)) redirect(`/parts/${id}/nc?post=${post.id}`);
 
     const programNumber = String(formData.get("programNumber") || "1001");
     const workOffset = String(formData.get("workOffset") || "G54");
@@ -131,6 +102,8 @@ export default async function NcPage(props: {
         code,
         certified: false,
         verificationIssuesJson: JSON.stringify(issues),
+        // The gate state this program was generated under travels with it.
+        preflightJson: JSON.stringify(gate),
         generatedBy: currentUser.id,
       },
     });
@@ -266,10 +239,27 @@ export default async function NcPage(props: {
                 }
                 dense
               >
-                <pre className="max-h-[520px] overflow-auto bg-void px-4 py-3 font-mono text-[11.5px] leading-relaxed text-platinum-dim">
-                  {existing.code}
-                </pre>
+                {/* The program body renders only while the gate currently
+                    passes. A program generated under a passing gate does not
+                    stay copy-pasteable after a tool change, a revoked
+                    approval or a downgraded workholding assessment has
+                    invalidated it. */}
+                {canExport ? (
+                  <pre className="max-h-[520px] overflow-auto bg-void px-4 py-3 font-mono text-[11.5px] leading-relaxed text-platinum-dim">
+                    {existing.code}
+                  </pre>
+                ) : (
+                  <div className="px-4 py-3">
+                    <p className="text-[12px] leading-relaxed text-platinum-dim">
+                      A program exists for this revision ({existing.code.split("\n").length} lines, generated{" "}
+                      {existing.createdAt.toISOString().slice(0, 10)}), but the pre-flight no longer passes, so the
+                      program text and export are withheld until it does. The failing items are listed above.
+                    </p>
+                  </div>
+                )}
               </Panel>
+
+              {canExport && <NcExportPanel partId={id} />}
             </>
           )}
 
@@ -280,45 +270,6 @@ export default async function NcPage(props: {
       </main>
     </>
   );
-}
-
-function item(id: string, label: string, pass: boolean, detail: string, required: boolean): PreflightItem {
-  return { id, label, status: pass ? "PASS" : "FAIL", detail, required };
-}
-
-/**
- * The toolpath pre-flight item, stated as the worst fact rather than the best.
- *
- * This used to pass on `realToolpaths.length > 0` — one operation with motion
- * out of any number — while its own detail line read "3 operations with
- * motion, 6 without an engine". A green PASS next to a sentence describing six
- * missing operations, on the list `preflightPassed()` uses to decide whether
- * executable NC may leave the building.
- *
- * The consequence is not cosmetic. An operation with no engine is not omitted
- * from the program; the post writes it in as a comment and moves on. The
- * program is syntactically complete, runs start to finish, and simply never
- * cuts those features — and the operations that reach that path are BORE, TAP
- * and ADAPTIVE_2D, which is to say the bearing seats and the threads. An
- * operator who trusts the PASS gets a part that looks machined and is missing
- * the features nobody would think to check for absence.
- *
- * So the gate passes only when every operation produced motion. Zero
- * operations is a FAIL rather than a vacuous pass, for the same reason.
- */
-function toolpathDetail(total: number, real: number): string {
-  if (total === 0) return "No operations to post";
-  const missing = total - real;
-  if (missing === 0) return `All ${total} operations produced motion`;
-  return `${missing} of ${total} operations have no toolpath engine. The post writes each one into the program as a skipped comment, so the program would run to completion without cutting them.`;
-}
-
-function workholdingSummary(pkg: Awaited<ReturnType<typeof buildPackage>>): string {
-  if (!pkg) return "";
-  const levels = Object.values(pkg.workholdingBySetup).map((a) => a.level);
-  if (levels.length === 0) return "No setups to evaluate";
-  const bad = levels.filter((l) => l !== "SAFE" && l !== "LIKELY_SAFE");
-  return bad.length === 0 ? "All setups assessed safe or likely safe" : `${bad.length} setup(s) at ${bad.join(", ")}`;
 }
 
 export const dynamic = "force-dynamic";
