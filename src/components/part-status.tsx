@@ -41,13 +41,15 @@ export function PartStatusSummary({ readiness }: { readiness: ReadinessReport })
 
   return (
     <span className="flex shrink-0 flex-col items-center leading-none">
-      <span className="tech-label mb-1 hidden sm:block">Part status</span>
+      <span className="instrument-label mb-1 hidden sm:block">Part status</span>
       <span className="flex items-center gap-2 whitespace-nowrap">
         <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-        <span className="font-mono text-[12px] uppercase tracking-[0.1em] text-platinum sm:text-[13px]">{label}</span>
+        <span className="text-[12px] font-semibold uppercase tracking-[0.1em] text-platinum sm:text-[13px]">
+          {label}
+        </span>
       </span>
       {(blocking > 0 || review > 0) && (
-        <span className="tech-label mt-1 hidden whitespace-nowrap sm:block">
+        <span className="instrument-label mt-1 hidden whitespace-nowrap sm:block">
           {blocking > 0 && `${blocking} blocking`}
           {blocking > 0 && review > 0 && " · "}
           {review > 0 && `${review} review`}
@@ -74,7 +76,7 @@ export function PartStatusChip({ readiness }: { readiness: ReadinessReport }) {
 
   return (
     <span
-      className={`border ${tone} px-2 py-[3px] font-mono text-[10px] uppercase tracking-[0.14em] whitespace-nowrap`}
+      className={`border ${tone} px-2 py-[3px] text-[10px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap`}
     >
       {label}
     </span>
@@ -103,14 +105,14 @@ export function NextActionPanel({ actions }: { actions: NextAction[] }) {
   return (
     <section className={`border border-line ${border} border-l-2 bg-surface`}>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
-        <span className="tech-label shrink-0">
+        <span className="instrument-label shrink-0">
           {primary.severity === "BLOCKING" ? "Next" : primary.severity === "REVIEW" ? "Next — review" : "Next"}
         </span>
         <span className="min-w-0 flex-1 text-[14px] leading-snug text-platinum">{primary.action}</span>
         {primary.href && (
           <Link
             href={primary.href}
-            className="shrink-0 border border-precision/50 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+            className="shrink-0 border border-precision/50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-precision-dim hover:bg-precision/10"
           >
             {primary.linkLabel}
           </Link>
@@ -121,7 +123,7 @@ export function NextActionPanel({ actions }: { actions: NextAction[] }) {
           instruction is what matters on arrival; the reasoning matters only if
           it is questioned. */}
       <details className="group border-t border-line">
-        <summary className="cursor-pointer list-none px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-platinum">
+        <summary className="cursor-pointer list-none px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
           <span className="group-open:hidden">Why{rest.length > 0 ? ` · ${rest.length} more` : ""}</span>
           <span className="hidden group-open:inline">Hide</span>
         </summary>

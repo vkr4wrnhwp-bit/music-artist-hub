@@ -1,6 +1,6 @@
 "use client";
 
-import { CONTEXTS, CONTEXT_LABEL, useInteraction, type Context } from "./interaction";
+import { CONTEXTS, useInteraction, type Context } from "./interaction";
 
 /**
  * CONTEXT RAIL
@@ -33,7 +33,7 @@ const CONTEXT_SYMBOL: Record<Context, string> = {
   COST: "$",
 };
 
-export function ContextRail({ className = "" }: { className?: string }) {
+export function ContextRail({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   const { state, setContext } = useInteraction();
 
   return (
@@ -47,9 +47,9 @@ export function ContextRail({ className = "" }: { className?: string }) {
             aria-selected={active}
             title={CONTEXT_QUESTION[c]}
             onClick={() => setContext(c)}
-            className={`group relative flex-1 bg-surface px-3 py-2.5 text-left transition-colors ${
-              active ? "text-precision" : "text-muted hover:text-platinum"
-            }`}
+            className={`group relative flex-1 bg-surface text-left transition-colors ${
+              compact ? "px-1.5 py-1.5 text-center" : "px-3 py-2.5"
+            } ${active ? "text-precision" : "text-muted hover:text-platinum"}`}
           >
             <span
               aria-hidden
@@ -57,14 +57,18 @@ export function ContextRail({ className = "" }: { className?: string }) {
                 active ? "bg-precision" : "bg-transparent"
               }`}
             />
-            <span className="block font-mono text-[11px] uppercase tracking-[0.16em]">{CONTEXT_SYMBOL[c]}</span>
-            <span
-              className={`mt-0.5 hidden text-[11px] leading-tight sm:block ${
-                active ? "text-platinum-dim" : "text-muted/70"
-              }`}
-            >
-              {CONTEXT_QUESTION[c]}
-            </span>
+            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.14em]">{CONTEXT_SYMBOL[c]}</span>
+            {/* In a 356px column the question line wraps to three lines and
+                stops being a question. It stays as the button's title there. */}
+            {!compact && (
+              <span
+                className={`mt-0.5 hidden text-[11px] leading-tight sm:block ${
+                  active ? "text-platinum-dim" : "text-muted/70"
+                }`}
+              >
+                {CONTEXT_QUESTION[c]}
+              </span>
+            )}
           </button>
         );
       })}

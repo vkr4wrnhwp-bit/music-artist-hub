@@ -4,6 +4,194 @@ Updated through Phase 3A. Read /docs/PHASE_3A_SUMMARY.md first — it states
 REAL / PARTIAL / SIMULATED / DEVELOPMENT ONLY / SHELL / BLOCKED per feature,
 and is the honest answer to "what actually works".
 
+## WORKSPACE DESIGN PASS — PARTIAL
+
+A visual and layout pass over the application shell and the part workspace. It
+is **presentation plus two engine corrections**. It built no new manufacturing
+capability, and it did not change any feature's status in
+/docs/PHASE_3A_SUMMARY.md or /docs/PHASE_3B_SUMMARY.md.
+
+**12 of 13 acceptance criteria met, 1 partial.** `npx tsc --noEmit` clean.
+`npx next build` clean — 39 routes emitted, 8/8 static pages, no errors, no
+warnings. All 30 routes under `src/app/(app)` return 200 signed in against a
+freshly migrated and seeded database, with zero page errors, zero console
+errors, and `documentElement.scrollWidth == clientWidth` **and**
+`shell-root.scrollWidth == clientWidth` at 1600×1000 and 390×844.
+
+### What changed — REAL
+
+**Token system.** `globals.css` rewritten around one `--canvas-*` palette.
+Every existing `--c-*` role name still resolves, so no page file needed
+editing. Because `@theme inline` compiles utilities to the raw variable, a
+single `.canvas-shell` block re-declares the `--c-*` group and every utility,
+opacity modifier, `.tech-label` and inline `stroke="var(--c-blue)"` inside the
+dark chrome re-resolves — which is why ~33 pages' `TopBar`, `StatusChip`,
+`PartStatusChip`, `DevLabel` and `ProvenanceBadge` are legible on the dark bar
+with zero page edits.
+
+Two defects fixed on the way: `--color-white` was unmapped and fell through to
+literal `#fff`, making 25 strings invisible on the light ground including every
+`SectionHeading` h1; and `accent-[var(--precision)]` in `disagree.tsx` referenced
+a variable that does not exist, so both radios rendered as browser defaults.
+
+**Shell.** 72px icon rail + 210px context drawer, both dark, plus a 92px dark
+command bar. The drawer is contextual — on `/parts/<id>/…` it lists the twelve
+real part sub-routes. Off-canvas behaviour below `lg` is unchanged (close on
+route change, Escape, backdrop, body-scroll-lock with restore, all verified
+live) and now sets `inert` on the closed panel so ~20 links leave the tab order.
+Rail items ship under their real route names. All previously reachable routes
+remain reachable.
+
+**Part workspace** rebuilt into three zones: centre work canvas, 356px right
+feature panel, footer operation runway. Three horizontal strips left the centre
+column — the context rail, view/mode bar and transport bar are now a vertical
+edge stack and a floating transport that appears only when a toolpath is on
+screen. Measured at 1600×1000: header 101.6px, right panel 356px, footer
+144.5px, centre canvas 962×716.
+
+**Dead interaction state wired.** Clicking an operation dispatches
+`SET_OPERATION` and selects the feature that operation cuts, so the model and
+the panel follow the operation being read. Escape unwinds feature and operation
+together. `feature-lens.tsx`'s `capability` prop was dead UI — nothing ever
+passed a verdict — and now carries the real `assessCapability` result. A `HOVER`
+reducer bug that kept a stale pointer coordinate is fixed.
+
+**Two engine corrections — these are not cosmetic.**
+
+1. `measurementGeometry()` lived in `readiness.ts` and had been re-derived, with
+   different rules, in two page files. Moved to
+   `engines/inspection-capability.ts` beside `assessCapability()`; both pages now
+   call the engine. Before the fix the feature panel printed "NOT CAPABLE" on
+   three features the NC-blocking readiness gate counted as one. Panel and gate
+   now agree: on the seeded part the bore reads **Not capable**, dowel hole 1
+   reads **Marginal — consumes 20% of the band**, and `/readiness` reports "1
+   toleranced feature cannot be verified".
+2. `part-solid.ts` and the new section sketch both asserted that "the toolpath
+   does not produce" chamfers. The deterministic CAM engine emits a real chamfer
+   toolpath, visible in the runway on the same screen. Both statements rewritten
+   to describe a limit of the drawing, not of the engine.
+
+### Acceptance criteria — 12 of 13
+
+Numbering is the design brief's. Criteria 1, 3, 4 and 5 were verified by pixel
+measurement rather than by eye.
+
+| # | Criterion | Status |
+|---|---|---|
+| 1, 3, 4, 5 | Zone structure, zone dimensions, ground colours, divider weight | **REAL** — rail 72px `#06111C`, drawer 210px `#071A2A`, header `#06111C`, canvas `#FAFAF8`, panel `#F1F3F5`, footer `#EEF0F2`, both dividers `1px solid var(--canvas-border-strong)` |
+| 2, 6, 9, 12 | — | **Recorded met.** The screenshot audit did not fault them and this pass changed nothing scoped to them. They were not independently re-measured, and this document does not restate criterion text it cannot verify |
+| 7 | Operation runway reads as discrete legible cards | **PARTIAL** — see below |
+| 8 | One operation visually dominant at rest | **REAL** — the plan's first operation in sequence order is pre-selected, marked "Plan starts" until the user clicks, then "Selected" |
+| 10 | Next required action is prominent, not buried | **REAL** — full-width, 14px/600, untruncated action, two-line reason, severity rule, plus a second home in the project drawer |
+| 11 | Datum reference section always present | **REAL** — renders unconditionally; with zero `Datum` rows it states the absence, and on a critical or toleranced feature adds "A toleranced feature with no datum cannot be measured repeatably" |
+| 13 | The part fills the work canvas | **REAL** — bounding box 60.9% of the canvas (was 44.7%), 85.0% width, 71.6% height |
+
+**Criterion 7 is the one that is not met.** Cards came down 172→130px, the setup
+gutter wraps, tool numbers are mono chips and feature labels wrap to two lines
+instead of truncating mid-word, and there is an edge fade with a working
+scroll-right chevron. **5 of 9 operations are visible at 1600px, against a
+target of 7 or more.** Seven would need ~90px cards, which cannot hold a
+readable operation label. Legibility plus a visible continuation affordance was
+taken over the count. This is a real miss, not a reinterpretation.
+
+Two checks outside the numbered list were also failing and are now fixed:
+monospace is down from 48% to **18.6%** of visible characters — dimensions,
+tolerances, T-numbers, cycle times and readout labels stay mono, everything else
+is grotesk — and the worst light-surface contrast ratio in the panel or footer
+is now **4.98:1**, up from 2.91:1.
+
+### What the new panels are driven from — REAL
+
+`src/components/workspace/panel-data.ts` defines the serialisable shapes the
+server hands the client tree. It carries **no `status`, `progress`, `elapsed`,
+`confidence` or `pass` field on any type**, because nothing in the schema
+produces them and a field that exists is a field a component eventually fills in.
+
+| Surface | Source |
+|---|---|
+| Capability verdict, required uncertainty, consumed fraction | `assessCapability()` against the shop's real `MetrologyDevice` rows |
+| Instrument range, resolution, uncertainty, calibration date | `MetrologyDevice` |
+| Recorded reading, uncertainty, repeat count, resolution state, operator, session | `Measurement` + `MeasurementSession` |
+| Model dimension | `Feature.parametersJson` |
+| Deviation and band | Computed in `dimension.ts`, labelled as computed |
+| Section sketch | Stored feature parameters and `stock.z` |
+| Operations, tools, sequence, cycle time, move count, placeholder flag, engine errors | The deterministic CAM package |
+| Setup risk | Workholding assessment `RISK_LABEL`, carrying its `developmentAnalysis` flag |
+| Inspection line counts | `InspectionItem` |
+| Material and temper | Part intent, with its provenance badge travelling into the command bar |
+| Next required action | `nextActions()` — the full ordered list, not just the head |
+
+The two number systems are kept visually and semantically apart: **⌀1.5748** is
+`Feature.parametersJson.diameter`, **1.5744** is `Measurement.measuredValue`.
+Different labels, different sizes, different provenance. When no measurement
+exists the heading reads "Model dimension — not yet measured", not "Measurement
+results".
+
+### Deliberately not rendered — it would have been fabricated
+
+The reference design showed each of these. None is in the build.
+
+| Not rendered | Why | What would make it real |
+|---|---|---|
+| COMPLETE / ACTIVE / NEXT / PENDING on operations | `Operation` has no status column; `OperationState` still has zero write sites | A shop-floor execution flow that writes operation state |
+| Elapsed / remaining time, progress bar | No execution state and no machine connection | The above, plus MTConnect or controller integration |
+| `LIVE` on the reading | No gauge or machine connection. Renamed "Last recorded reading" | A connected instrument or controller |
+| `PASS` chip on the measurement | `InspectionResult.pass` has no write path, and 1.5744 is outside +0.0005/−0 anyway | An inspection result write path |
+| Confidence row on the dimension | `suggestionConfidence` scopes to a standards match, not to the dimension, and is null on both seeded rows | Nothing — this is locked principle 1. A dimension does not get a confidence meter |
+| Readiness percentage or score anywhere | Locked principle 1 | Nothing. `PartStatusSummary` renders worst-gate only: "NOT READY · 4 blocking" |
+| `SECURED` on workholding | Holding margin is DEVELOPMENT ONLY and returns INDETERMINATE without a recorded clamp force | Validation against physical pull-off testing |
+| Heat number, lot, `CERTIFIED` | No material certificate records exist | A material certificate model and an intake path for it |
+| Notification count | No notification model | A notification model |
+| Measurement points and dimension lines in 3D | `Measurement` stores a scalar, not coordinates | Coordinates on `Measurement`, which means a datum-referenced probing flow |
+| Part thumbnail, instrument imagery | No render pipeline, no device photography | An offscreen render job; asset upload for devices |
+| "Hold feature" button | Nothing behind it. The panel says so in place of the button | Feature-level workholding constraints, which do not exist |
+| Populated Datum Reference | The seed has zero `Datum` rows. The absence is stated, not filled | Accepted `Datum` rows plus `Measurement.datumId` being set by the measurement UI — the column exists and nothing writes it |
+| Rail items "Operations", "Shop Floor", "Analytics", "Inspection" | No shop-level routes exist for any of them. Operations are per-part; there is no shop floor page at all; the nearest thing to Analytics is `/intelligence`, which is a **SHELL** | Those routes and the engines behind them |
+
+Honesty carriers were checked and are intact: `/network` and `/intelligence`
+still tag **SHELL** in the drawer, `/parts/[id]/nc` now carries a **DEV** tag in
+the drawer as well as in its own bar, the NC page still shows "DEVELOPMENT /
+SIMULATION POST", "NOT CERTIFIED FOR PRODUCTION" and its gated-export line,
+`/reverse-engineer` still shows "IMPORT SCAN — NOT IMPLEMENTED", and the setups
+page still carries its five NOT IMPLEMENTED buttons. The workholding tile's
+DEVELOPMENT classification was tooltip-only and is now a visible `DevLabel`.
+Absent values read "not generated", "not assigned", "not defined", "not
+recorded", "no date", "0 results".
+
+The runway header states **"Planned sequence — CANVAS does not track execution
+state."** Nothing in the runway is green, because there is no completion data to
+make it green. Selection is signalled four ways at once — inset rule, top bar,
+blue sequence number, `SELECTED` on the bottom row — specifically so it never
+has to displace an operation's own state: op 06 shows `NO ENGINE` and `SELECTED`
+at the same time.
+
+### Visual compromises accepted
+
+- **Runway shows 5 of 9 operations at 1600px, not 7.** Criterion 7. Legibility
+  over density.
+- **The approved light-side palette was darkened to reach AA.** `--canvas-green`
+  `#22A06B` measured 3.2:1 on `#FAFAF8`; shipped as `#17754e`. `--canvas-muted`,
+  `--canvas-orange` and `--canvas-red` moved for the same reason. Shell variants
+  are separately lifted (precision blue is `#4D97FF` on the dark ground, because
+  `#0B72FF` is only 4.2:1 there). The shipped palette is therefore not
+  byte-identical to the reference.
+- **The command bar grows a second row between roughly 1280px and 1460px**
+  (102→132px). The alternative was truncating the h1 or hiding the metadata.
+  Nothing is hidden; the header gets taller.
+- **The work-window colour is duplicated in WebGL.** `scene.tsx` holds
+  `WORK_WINDOW = "#FAFAF8"` as a named constant beside a comment saying it must
+  equal `--canvas-work-window`, because WebGL cannot read a CSS variable. 35
+  hardcoded hexes in that file will not follow a future token change.
+- **On part pages the h1 falls back to the route's nav label** — `/parts/<id>`
+  reads "Overview", with the part name in the trail above. The slot exists
+  (`title`, `chips`, `meta`, `status` on `TopBar`); the part pages do not fill
+  it yet.
+- **No structural cleanup was done.** `ui.tsx` still has five separate
+  Tone→class maps, so a palette change still has five sync points. The 30 pages
+  still repeat `<TopBar>` + `<main className="flex-1 overflow-y-auto …">`; no
+  `PageShell` hoist. Three pre-existing React-hooks lint errors in the touched
+  files were left alone.
+
 ## DONE
 
 **Foundation**

@@ -3,54 +3,163 @@
 /* ============================================================
    CANVAS DESIGN SYSTEM
    Precision Manufacturing Intelligence
+   ============================================================
+
+   Two environments, one vocabulary.
+
+   THE SHELL is dark: icon rail, project drawer, job command bar. It is
+   machine chrome — always present, never the subject. Mission control.
+
+   THE WORK SURFACE is light: the work window (warm white), the feature
+   panel and operation runway (slightly darker gray), and white cards. A
+   light environment reads machined metal, dimensional annotation,
+   measurement lines and blue selection markedly better than a dark one,
+   and it is what a shop floor under fluorescent light actually wants.
+
+   HOW THE TWO SHARE ONE VOCABULARY
+   Every Tailwind colour utility in this app compiles to a raw custom
+   property (`@theme inline`), e.g. `.text-platinum { color: var(--c-platinum) }`.
+   So `.canvas-shell` re-declares the `--c-*` group with dark-shell values and
+   every existing utility, custom class and inline `var(--c-blue)` inside the
+   shell re-resolves automatically. No component needs a dark variant, and no
+   page had to be edited to become legible on the dark chrome.
    ============================================================ */
 
 :root {
   /* ------------------------------------------------------------------
-     LIGHT WORKSPACE
-     ------------------------------------------------------------------
-     Professional engineering software does not have to be black. A light
-     environment reads machined metal, dimensional annotation, measurement
-     lines and blue selection markedly better than a dark one, and it is
-     what a shop floor under fluorescent light actually wants.
+     APPROVED CANVAS TOKENS
+     The named surfaces of the layout. These do NOT change between the
+     shell and the work surface — they identify a region, not a state.
+     ------------------------------------------------------------------ */
+  --canvas-bg-shell: #06111c;
+  --canvas-bg-shell-2: #071a2a;
+  --canvas-bg-header: #06111c;
+  --canvas-work-window: #fafaf8;
+  --canvas-panel-bg: #f1f3f5;
+  --canvas-footer-bg: #eef0f2;
+  --canvas-card-bg: #ffffff;
+  /* A card that is not the subject. Pure white cards over the footer grey made
+     the footer read as white-on-nearly-white — brighter, by sampled area, than
+     the centre canvas it sits under, which inverts the region hierarchy. This
+     sits between the two, so full white is reserved for the selected card. */
+  --canvas-card-quiet: #f6f7f8;
+  --canvas-border: #d6dade;
+  --canvas-border-strong: #c8cdd3;
+  --canvas-text: #101418;
+  --canvas-blue: #0b72ff;
 
-     Warm white ground, near-black graphite type, platinum for secondary
-     information, precision blue reserved for active state, datum,
-     measurement and toolpath. Status colours stay desaturated and
-     instrument-panel — never festive.
+  /* Status and muted on the LIGHT surfaces.
+     These are read at 8.5–11px on #EEF0F2 and #F1F3F5, so they are set from a
+     contrast measurement against the darkest light ground (the footer grey,
+     #EEF0F2) rather than picked as swatches. Measured there: muted 5.5:1,
+     green 5.0:1, orange 5.0:1, red 5.0:1 — every one clears 4.5:1 at 8.5px.
+     The values they replace were 4.1:1, 2.9:1, 3.1:1 and 4.2:1, which is not
+     readable type at that size under fluorescent light. The dark-shell
+     variants further down are untouched; they are already right on #06111C. */
+  --canvas-muted: #5a616b;
+  --canvas-green: #17754e;
+  --canvas-orange: #96570d;
+  --canvas-red: #c22a1e;
+
+  /* Type ON the dark shell. Deliberately high contrast — machine chrome
+     that you cannot read is worse than no chrome. Against #06111C these
+     are roughly 17:1, 10.6:1 and 6.8:1. */
+  --canvas-shell-fg: #f2f6fa;
+  --canvas-shell-fg-dim: #b7c4d2;
+  --canvas-shell-muted: #8da0b2;
+  --canvas-shell-line: #15293a;
+  --canvas-shell-line-strong: #22415a;
+  --canvas-shell-raised: #0b2436;
+  /* Precision blue lifted for the dark ground: #0B72FF is only 4.2:1 on
+     #06111C, this is 6.3:1 and still the same hue family. */
+  --canvas-shell-blue: #4d97ff;
+  --canvas-shell-green: #35be84;
+  --canvas-shell-orange: #e2a33c;
+  --canvas-shell-red: #f0554a;
+
+  /* Hairline used by the precision grid. Tokenised so it survives on both
+     grounds — it used to be a baked-in light-theme rgba. */
+  --canvas-grid-line: rgba(16, 20, 24, 0.05);
+  --canvas-grid-line-fine: rgba(16, 20, 24, 0.035);
+
+  /* ------------------------------------------------------------------
+     WORK-SURFACE PALETTE  (the `--c-*` group)
+     ------------------------------------------------------------------
+     These are the role tokens the whole app consumes by name. The name
+     describes the ROLE in the hierarchy, not the hue: `--c-platinum` is
+     the primary reading colour, so on a light work surface it is
+     graphite. Do not invert on the strength of the name.
      ------------------------------------------------------------------ */
 
   /* Ground and surfaces */
-  --c-void: #f6f6f4;
-  --c-surface: #ffffff;
-  --c-raised: #f0f1ef;
-  --c-line: #e3e5e3;
-  --c-line-strong: #c6cac7;
+  --c-void: var(--canvas-work-window);
+  --c-surface: var(--canvas-card-bg);
+  --c-raised: var(--canvas-panel-bg);
+  --c-line: var(--canvas-border);
+  --c-line-strong: var(--canvas-border-strong);
 
-  /* Type. `platinum` is the primary reading colour, so in a light
-     workspace it is graphite — the token name describes its role in the
-     hierarchy, not its hue. */
-  --c-platinum: #1b1e22;
-  --c-platinum-dim: #414851;
-  --c-muted: #6f757d;
-  --c-white: #0a0c0e;
+  /* Type */
+  --c-platinum: var(--canvas-text);
+  --c-platinum-dim: #3a424c;
+  --c-muted: var(--canvas-muted);
+  /* `--c-white` is the emphasis reading colour, one step above platinum.
+     It is wired to `--color-white` below so the 20-odd `text-white` uses
+     across the app resolve to a token instead of literal #fff. */
+  --c-white: var(--canvas-text);
 
-  /* Precision blue. Deeper than the dark-theme blue so that it holds
-     contrast against white without becoming a highlighter. */
-  --c-blue: #0a5fd0;
-  --c-blue-dim: #0847a0;
-  --c-blue-wash: rgba(10, 95, 208, 0.07);
+  /* Precision blue — active state, selected geometry, datum, measurement,
+     toolpath, coordinate origin. Used sparingly. */
+  --c-blue: var(--canvas-blue);
+  --c-blue-dim: #0857c4;
+  --c-blue-wash: color-mix(in srgb, var(--canvas-blue) 8%, transparent);
 
-  /* Status — legible against white at small sizes. */
-  --c-pass: #1c7049;
-  --c-review: #8f6212;
-  --c-risk: #a83226;
-  --c-unknown: #6b727b;
+  /* Status. Colour communicates state, never decoration:
+     green = verified/pass · orange = review/next step · red = fail/blocking. */
+  --c-pass: var(--canvas-green);
+  --c-review: var(--canvas-orange);
+  --c-risk: var(--canvas-red);
+  --c-unknown: var(--canvas-muted);
 
-  --radius: 2px;
+  --radius: 0px;
+}
+
+/* ------------------------------------------------------------------
+   THE DARK SHELL
+   ------------------------------------------------------------------
+   Applied to the icon rail, the project drawer and the job command bar.
+   It re-points the role tokens at dark-shell values, so everything a page
+   already renders into the command bar — breadcrumbs, `.tech-label`,
+   StatusChip, PartStatusChip, DevLabel, provenance badges — becomes
+   legible without touching a single page.
+   ------------------------------------------------------------------ */
+.canvas-shell {
+  --c-void: var(--canvas-bg-shell);
+  --c-surface: var(--canvas-bg-shell-2);
+  --c-raised: var(--canvas-shell-raised);
+  --c-line: var(--canvas-shell-line);
+  --c-line-strong: var(--canvas-shell-line-strong);
+
+  --c-platinum: var(--canvas-shell-fg);
+  --c-platinum-dim: var(--canvas-shell-fg-dim);
+  --c-muted: var(--canvas-shell-muted);
+  --c-white: var(--canvas-shell-fg);
+
+  --c-blue: var(--canvas-shell-blue);
+  --c-blue-dim: var(--canvas-blue);
+
+  --c-pass: var(--canvas-shell-green);
+  --c-review: var(--canvas-shell-orange);
+  --c-risk: var(--canvas-shell-red);
+  --c-unknown: var(--canvas-shell-muted);
+
+  --canvas-grid-line: rgba(210, 230, 255, 0.05);
+  --canvas-grid-line-fine: rgba(210, 230, 255, 0.035);
+
+  color: var(--canvas-shell-fg);
 }
 
 @theme inline {
+  /* Role tokens — unchanged names, so every existing page keeps working. */
   --color-void: var(--c-void);
   --color-surface: var(--c-surface);
   --color-raised: var(--c-raised);
@@ -65,45 +174,122 @@
   --color-review: var(--c-review);
   --color-risk: var(--c-risk);
   --color-unknown: var(--c-unknown);
+
+  /* `text-white` used to fall through to Tailwind's literal #fff, which is
+     invisible on a light ground. It is now the emphasis reading colour. */
+  --color-white: var(--c-white);
+
+  /* Layout surfaces — bg-shell / bg-shell-2 / bg-work / bg-panel /
+     bg-footer / bg-card. Fixed per region, not per theme. */
+  --color-shell: var(--canvas-bg-shell);
+  --color-shell-2: var(--canvas-bg-shell-2);
+  --color-header: var(--canvas-bg-header);
+  --color-work: var(--canvas-work-window);
+  --color-panel: var(--canvas-panel-bg);
+  --color-footer: var(--canvas-footer-bg);
+  --color-card: var(--canvas-card-bg);
+  --color-card-quiet: var(--canvas-card-quiet);
+
+  /* Type on the dark shell, for markup that is always on the shell. */
+  --color-shell-fg: var(--canvas-shell-fg);
+  --color-shell-dim: var(--canvas-shell-fg-dim);
+  --color-shell-muted: var(--canvas-shell-muted);
+  --color-shell-line: var(--canvas-shell-line);
+  --color-shell-line-strong: var(--canvas-shell-line-strong);
+  --color-shell-blue: var(--canvas-shell-blue);
+
   --font-sans: var(--font-inter);
   --font-mono: var(--font-mono-tech);
 }
 
 html,
 body {
-  background: var(--c-void);
-  color: var(--c-platinum);
+  /* The shell is the ground: no white flash behind the rail, and overscroll
+     at the edges of the viewport reads as chrome rather than as paper. */
+  background: var(--canvas-bg-shell);
+  color: var(--canvas-text);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "tnum" 1;
 }
 
-/* ---- Technical label: the small uppercase tracked type used everywhere ---- */
-.tech-label {
-  font-family: var(--font-mono-tech), ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--c-muted);
-}
+/* ---- The two small-label classes ----
 
-.tech-value {
-  font-family: var(--font-mono-tech), ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
+   Monospace is for DIMENSIONS, TOLERANCES, T-NUMBERS, NC CODES, CYCLE TIMES
+   and the labels that sit directly against one of those values in a readout
+   row (Instrument, Range, Resolution, Uncertainty, Calibration, Nominal,
+   Deviation, Against band). That is what `.tech-label` is for, and nothing
+   else. Half the characters on the workspace used to be monospace, which
+   flattens the distinction until the numbers stop looking like numbers.
+
+   Everything else that is a small uppercase label — section headings, region
+   names, navigation, tabs, buttons, chips, state words — is the grotesk.
+   That is `.instrument-label`. Same size, same rhythm, different voice.
+
+   Both read `--c-muted`, so both re-point automatically on the dark shell.
+
+   These live in `@layer components` deliberately. Unlayered rules outrank
+   every Tailwind layer, so an unlayered `.tech-label { color }` silently beat
+   `text-platinum-dim`, `text-unknown` and `text-precision` wherever a call
+   site combined the two — every one of those overrides was a no-op. In the
+   components layer the utility wins, which is what the call sites always
+   meant. */
+@layer components {
+  .tech-label {
+    font-family: var(--font-mono-tech), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--c-muted);
+  }
+
+  .instrument-label {
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--c-muted);
+  }
+
+  .tech-value {
+    font-family: var(--font-mono-tech), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Type ON the dark shell ----
+     For markup that is always on the shell and must not depend on the
+     surrounding token context. High contrast by instruction. */
+  .shell-text {
+    color: var(--canvas-shell-fg);
+  }
+
+  .shell-muted {
+    color: var(--canvas-shell-muted);
+  }
+
+  .shell-label {
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--canvas-shell-muted);
+  }
 }
 
 /* ---- Precision grid: used sparingly behind viewports and hero areas ---- */
 .precision-grid {
   background-image:
-    linear-gradient(to right, rgba(27, 30, 34, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(27, 30, 34, 0.045) 1px, transparent 1px);
+    linear-gradient(to right, var(--canvas-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
 .precision-grid-fine {
   background-image:
-    linear-gradient(to right, rgba(27, 30, 34, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(27, 30, 34, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, var(--canvas-grid-line-fine) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-grid-line-fine) 1px, transparent 1px);
   background-size: 8px 8px;
 }
 
@@ -166,9 +352,18 @@ body {
   background: transparent;
 }
 
+/* Scroll containers that are chrome, not content, do not advertise it. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 ::selection {
   background: var(--c-blue);
-  color: #ffffff;
+  color: var(--canvas-card-bg);
 }
 
 input,

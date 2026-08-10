@@ -14,7 +14,7 @@ import {
   type MatingComponent,
   type InterfaceSide,
 } from "@/lib/engines/mating";
-import { assessCapability } from "@/lib/engines/inspection-capability";
+import { assessCapability, measurementGeometry } from "@/lib/engines/inspection-capability";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
@@ -61,14 +61,14 @@ export default async function FeatureDetailPage(props: {
 
   /* ---- What can measure this, and how well ---- */
 
-  const isInternal = ["DRILLED_HOLE", "TAPPED_HOLE", "BORE", "CIRC_POCKET", "RECT_POCKET", "SLOT"].includes(
-    feature.kind,
-  );
+  // Which instruments can reach this is the engine's decision, not this page's.
+  // A local list here disagreed with the readiness gate on dowel and mounting
+  // holes, which the engine classifies POSITION rather than INTERNAL.
   const capability = assessCapability(
     {
       featureId: feature.id,
       featureLabel: feature.label,
-      geometry: isInternal ? "INTERNAL" : "EXTERNAL",
+      geometry: measurementGeometry(feature),
       nominal: diameter,
       toleranceBand: band,
       critical: feature.critical,
@@ -87,8 +87,11 @@ export default async function FeatureDetailPage(props: {
 
   /* ---- Reasoning from the interface ---- */
 
+  // Which side of the fit this feature is — a hole is the housing, everything
+  // else is the shaft. Separate question from which instrument can reach it.
+  const isHole = ["DRILLED_HOLE", "TAPPED_HOLE", "BORE", "CIRC_POCKET", "RECT_POCKET", "SLOT"].includes(feature.kind);
   const component = (row.matingComponent as MatingComponent | null) ?? "UNKNOWN";
-  const side = (row.interfaceSide as InterfaceSide | null) ?? (isInternal ? "HOUSING" : "SHAFT");
+  const side = (row.interfaceSide as InterfaceSide | null) ?? (isHole ? "HOUSING" : "SHAFT");
 
   const analysis =
     diameter != null

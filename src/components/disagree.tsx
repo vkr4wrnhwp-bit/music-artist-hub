@@ -67,11 +67,11 @@ export function Disagree({
           <p className="tech-label mb-1.5">Have you successfully run a comparable setup?</p>
           <div className="flex gap-4">
             <label className="flex items-center gap-1.5 text-[12px] text-platinum-dim">
-              <input type="radio" name="hasRunComparable" value="yes" className="accent-[var(--precision)]" />
+              <input type="radio" name="hasRunComparable" value="yes" className="accent-[color:var(--c-blue)]" />
               Yes
             </label>
             <label className="flex items-center gap-1.5 text-[12px] text-platinum-dim">
-              <input type="radio" name="hasRunComparable" value="no" defaultChecked className="accent-[var(--precision)]" />
+              <input type="radio" name="hasRunComparable" value="no" defaultChecked className="accent-[color:var(--c-blue)]" />
               No
             </label>
           </div>

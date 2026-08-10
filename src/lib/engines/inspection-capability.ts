@@ -18,6 +18,8 @@
  * See ASME B89.7.3.1 for the decision-rule framing this follows.
  */
 
+import type { Feature } from "@/lib/domain/features";
+
 export const CAPABILITY_VERDICTS = ["CAPABLE", "MARGINAL", "NOT_CAPABLE", "NO_INSTRUMENT", "NOT_REQUIRED"] as const;
 export type CapabilityVerdict = (typeof CAPABILITY_VERDICTS)[number];
 
@@ -118,6 +120,31 @@ function upgradesFor(
 }
 
 export type MeasurementGeometry = "INTERNAL" | "EXTERNAL" | "POSITION";
+
+/**
+ * Which family of instrument a feature needs. A bore and a boss of the same
+ * size are not measured with the same tool, and a position is not measured with
+ * either of them.
+ *
+ * THIS IS THE ONLY CLASSIFIER. It lives beside `assessCapability` because the
+ * geometry class and the instrument list together decide the verdict, and a
+ * second copy of either produces a screen that contradicts the gate that blocks
+ * NC export. Every caller — the readiness gate, the part workspace and the
+ * feature detail page — routes through here.
+ */
+export function measurementGeometry(f: Feature): MeasurementGeometry {
+  switch (f.kind) {
+    case "DRILLED_HOLE":
+    case "TAPPED_HOLE":
+    case "BORE":
+    case "CIRC_POCKET":
+    case "RECT_POCKET":
+    case "SLOT":
+      return f.functionalRole === "DOWEL_HOLE" || f.functionalRole === "MOUNTING_HOLE" ? "POSITION" : "INTERNAL";
+    default:
+      return "EXTERNAL";
+  }
+}
 
 export interface CapabilityRequest {
   featureId: string;

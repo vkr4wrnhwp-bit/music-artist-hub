@@ -73,7 +73,7 @@ export function Copilot({
   return (
     <>
       <header className="flex items-center justify-between border-b border-line px-3 py-2.5">
-        <span className="tech-label text-platinum-dim">CANVAS Copilot</span>
+        <span className="instrument-label text-platinum-dim">CANVAS Copilot</span>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <line x1="0" y1="6" x2="12" y2="6" stroke="var(--c-blue)" strokeWidth="1" />
           <line x1="6" y1="0" x2="6" y2="12" stroke="var(--c-blue)" strokeWidth="1" />
@@ -111,7 +111,7 @@ export function Copilot({
                   <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-platinum">{m.content}</p>
                   {m.needs && m.needs.length > 0 && (
                     <div className="mt-2 border border-review/30 px-2 py-1.5">
-                      <p className="tech-label text-review">Required before this can be answered</p>
+                      <p className="instrument-label text-review">Required before this can be answered</p>
                       <ul className="mt-1 space-y-0.5">
                         {m.needs.map((n) => (
                           <li key={n} className="text-[11.5px] text-muted">

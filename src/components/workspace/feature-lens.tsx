@@ -81,8 +81,8 @@ export function FeatureLens({
       className="pointer-events-none fixed z-40 w-[248px] border border-line-strong bg-surface/95 shadow-[0_8px_28px_rgba(20,24,28,0.14)] backdrop-blur-sm"
     >
       <div className="border-b border-line px-3 py-2">
-        <p className="font-mono text-[12px] leading-tight text-platinum">{feature.label}</p>
-        <p className="tech-label mt-0.5">{KIND_LABEL[feature.kind] ?? feature.kind}</p>
+        <p className="text-[12px] font-medium leading-tight text-platinum">{feature.label}</p>
+        <p className="instrument-label mt-0.5">{KIND_LABEL[feature.kind] ?? feature.kind}</p>
       </div>
 
       <div className="space-y-1.5 px-3 py-2.5">
@@ -97,21 +97,21 @@ export function FeatureLens({
 
         {role && (
           <div className="flex items-baseline justify-between gap-3">
-            <span className="tech-label">Function</span>
+            <span className="instrument-label">Function</span>
             <span className="text-[12px] text-platinum-dim">{role}</span>
           </div>
         )}
 
         {feature.critical && (
           <div className="flex items-baseline justify-between gap-3">
-            <span className="tech-label">Criticality</span>
+            <span className="instrument-label">Criticality</span>
             <span className="text-[12px] text-review">Critical</span>
           </div>
         )}
 
         {capability && capability.verdict !== "NOT_REQUIRED" && (
           <div className="flex items-baseline justify-between gap-3">
-            <span className="tech-label">Measurable</span>
+            <span className="instrument-label">Measurable</span>
             <span
               className={`text-[12px] ${
                 capability.verdict === "CAPABLE"
@@ -131,7 +131,7 @@ export function FeatureLens({
         )}
       </div>
 
-      <p className="border-t border-line px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+      <p className="border-t border-line px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
         Click to inspect
       </p>
     </div>

@@ -43,10 +43,19 @@ export interface ViewportProps {
   fixture?: { jawWidth: number; jawHeight: number; gripDepth: number | null } | null;
 }
 
-/* Light workspace palette. Precision blue is deeper than the dark-theme blue
-   so it holds contrast against a white ground without reading as a
-   highlighter. */
-const BLUE = "#0a5fd0";
+/* WebGL cannot read CSS custom properties, so the work-window palette is
+   mirrored here as literals. These are the only place the 3D and the page can
+   disagree — if `--canvas-work-window`, `--canvas-blue` or `--canvas-text`
+   move in globals.css, they have to move here in the same commit.
+
+   WORK_WINDOW must equal `--canvas-work-window` exactly, or the canvas paints
+   a slightly different white than the page around it and the seam is visible
+   at the edge of the viewport.
+
+   BLUE is `--canvas-blue`. Selection is drawn at low opacity rather than at
+   full saturation — restrained precision blue, no bloom, no emissive. */
+const WORK_WINDOW = "#FAFAF8";
+const BLUE = "#0b72ff";
 const PLATINUM = "#414851";
 const RAPID = "#a8aeb6";
 
@@ -62,14 +71,27 @@ export function Viewport(props: ViewportProps) {
       /* Product-photography framing: a strong three-quarter view with enough
          focal length to avoid the wide-angle distortion that makes a machined
          part look like a game asset. A commercial product shot is taken on a
-         longer lens from further back, and so is this. */
-      camera={{ position: [span * 1.35, span * 1.15, span * 1.75], fov: 28, near: 0.01, far: 1000 }}
+         longer lens from further back, and so is this.
+
+         The work window is the hero of the layout, so the framing is tight.
+         Measured on the seeded 6.000 x 4.000 x 0.750 plate in a 962x637 work
+         window, this distance puts the part's bounding box at 85% of the
+         canvas width and 71% of its height — about 60% of the canvas by
+         bounding box against a 55-70% target, up from 44.7%. The previous distance left the upper-left
+         third of the canvas empty, largely because the floating dimension card
+         was reserving the top-right — that card has been moved to the bottom
+         corner and reduced, so the framing no longer has to make room for it.
+
+         Pulled in further than this and a 6" plate starts touching the frame
+         edges under orbit; the focal length stays long enough not to bow the
+         edges of a prismatic part. */
+      camera={{ position: [span * 0.9, span * 0.78, span * 1.19], fov: 30, near: 0.01, far: 1000 }}
       onPointerMissed={() => props.onSelectFeature?.(null)}
     >
       {/* A soft studio rather than a void. Product photography wants a bright
           environment with a clear key, a fill that keeps the shadow side
           readable, and a rim that separates the part from the ground. */}
-      <color attach="background" args={["#f6f6f4"]} />
+      <color attach="background" args={[WORK_WINDOW]} />
       <hemisphereLight args={["#ffffff", "#d2d5d1", 1.0]} />
       <ambientLight intensity={0.25} />
       {/* Key, fill, rim. Metal needs something to reflect or it reads as clay,
@@ -120,9 +142,9 @@ export function Viewport(props: ViewportProps) {
       <Grid
         args={[span * 6, span * 6]}
         cellSize={0.5}
-        cellColor="#eaebe9"
+        cellColor="#ebedec"
         sectionSize={span}
-        sectionColor="#dcdedb"
+        sectionColor="#d6dade"
         fadeDistance={span * 7}
         fadeStrength={2.2}
         position={[0, stock ? -stock.z / 2 - 0.001 : 0, 0]}
@@ -130,11 +152,14 @@ export function Viewport(props: ViewportProps) {
       />
 
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
-      <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
+      {/* Top-right. The bottom-right corner is where the dimension card now
+          sits, and two overlapping objects in one corner is worse than a
+          gizmo in the empty air above the part. */}
+      <GizmoHelper alignment="top-right" margin={[64, 64]}>
         <GizmoViewcube
           color="#ffffff"
-          strokeColor="#c6cac7"
-          textColor="#414851"
+          strokeColor="#c8cdd3"
+          textColor="#3a424c"
           hoverColor={BLUE}
           faces={["Right", "Left", "Top", "Bottom", "Front", "Back"]}
         />
@@ -198,7 +223,7 @@ function SceneContent({
         />
       ))}
 
-      <DatumIndicator size={Math.max(stock.x, stock.y) * 0.35} z={stock.z / 2} />
+      <DatumIndicator stock={stock} />
 
       {showFixture && fixture && <Fixture stock={stock} fixture={fixture} />}
       {showToolpath && moves && moves.length > 1 && <Toolpath moves={moves} playhead={playhead} zTop={stock.z / 2} />}
@@ -280,29 +305,10 @@ function PartBody({ stock, features, mode }: { stock: Stock; features: Feature[]
   );
 }
 
-function StockBox({ stock, mode }: { stock: Stock; mode: ViewMode }) {
-  const args: [number, number, number] = [stock.x, stock.y, stock.z];
-  const look = appearanceFor(stock.material);
-  return (
-    <mesh position={[0, 0, stock.z / 2]}>
-      <boxGeometry args={args} />
-      {mode === "WIREFRAME" ? (
-        <meshBasicMaterial wireframe color="#9aa0a8" />
-      ) : (
-        <meshStandardMaterial
-          color={look.color}
-          metalness={look.metalness}
-          roughness={look.roughness}
-          transparent={mode === "TRANSPARENT"}
-          opacity={mode === "TRANSPARENT" ? 0.2 : 1}
-        />
-      )}
-      {/* Edge breaks. A machined part has crisp arrises, and drawing them is
-          what separates a milled block from a rendered cube. */}
-      <Edges threshold={20} color={mode === "WIREFRAME" ? "#9aa0a8" : "#6f757d"} />
-    </mesh>
-  );
-}
+/* `StockBox` lived here: an uncut block drawn when the part was a box with
+   translucent volumes floating inside it. `PartBody` + `buildPartSolid` made
+   it dead the day the real subtracted solid landed, and it had no call sites.
+   Removed rather than left as a second, wrong way to draw a part. */
 
 /* ------------------------------------------------------------------ */
 /* Features — drawn as removed volume                                  */
@@ -329,7 +335,14 @@ function FeatureMesh({
   // they light up under the cursor, which is what makes hover feel physical.
   const active = selected || hovered;
   const color = selected ? BLUE : f.critical ? "#8f6212" : BLUE;
-  const opacity = selected ? 0.42 : hovered ? 0.3 : 0;
+  // Restrained. The selected volume reads as tinted glass over machined metal,
+  // not as a highlighter — the edge line is what identifies it, the fill only
+  // has to say "this one". These are deliberately low because the volumes are
+  // DoubleSide with depthWrite off, so front and back faces both contribute
+  // and the value on screen is roughly double what is written here. At 0.24 a
+  // selected bore read as a saturated translucent puck standing proud of the
+  // pocket floor; the blue Edges line was already doing the identification.
+  const opacity = selected ? 0.14 : hovered ? 0.09 : 0;
 
   const common = {
     onClick: (e: { stopPropagation: () => void }) => {
@@ -369,9 +382,12 @@ function FeatureMesh({
     case "BORE": {
       const depth = f.through ? stock.z : f.depth;
       const top = stock.z + (f.top ?? 0);
+      // 96 radial segments: at 48 the polygon edges around the lower rim were
+      // visible at 2x, which reads as a low-poly game asset rather than as a
+      // bored hole.
       return (
         <mesh position={[f.centerX, f.centerY, top - depth / 2]} rotation={[Math.PI / 2, 0, 0]} {...common}>
-          <cylinderGeometry args={[f.diameter / 2, f.diameter / 2, depth, 48]} />
+          <cylinderGeometry args={[f.diameter / 2, f.diameter / 2, depth, 96]} />
           {material}
           <Edges threshold={20} color={active ? BLUE : "#c6cac7"} visible={active} />
         </mesh>
@@ -438,15 +454,32 @@ function FeatureMesh({
 /* Datum indicator                                                     */
 /* ------------------------------------------------------------------ */
 
-function DatumIndicator({ size, z }: { size: number; z: number }) {
-  const zz = z + 0.004;
+/**
+ * The coordinate origin, drawn on the part's top face.
+ *
+ * Two things were wrong here and both were visible. The arms were sized from
+ * `max(stock.x, stock.y)`, so on a 6.000 x 4.000 plate the Y arms overran the
+ * 2.000 half-depth and a short blue stub hung off the front wall, attached to
+ * nothing. And the crosshair was drawn at `stock.z / 2` — the middle of the
+ * solid, not its top face — so it was buried in the material and survived only
+ * as disconnected fragments glimpsed inside a bore.
+ *
+ * Now: clamped inside the stock on both axes, and lifted clear of the top
+ * face, which is where a setup origin actually is.
+ */
+function DatumIndicator({ stock }: { stock: Stock }) {
+  const base = Math.min(stock.x, stock.y) * 0.4;
+  const sx = Math.max(0.05, Math.min(base, stock.x / 2 - 0.05));
+  const sy = Math.max(0.05, Math.min(base, stock.y / 2 - 0.05));
+  const zz = stock.z + 0.02;
+  const r = Math.min(sx, sy);
   return (
     <group>
-      <Line points={[[-size, 0, zz], [size, 0, zz]]} color={BLUE} lineWidth={1} />
-      <Line points={[[0, -size, zz], [0, size, zz]]} color={BLUE} lineWidth={1} />
-      <Line points={[[0, 0, zz], [0, 0, zz + size * 0.5]]} color={BLUE} lineWidth={1} />
+      <Line points={[[-sx, 0, zz], [sx, 0, zz]]} color={BLUE} lineWidth={1} />
+      <Line points={[[0, -sy, zz], [0, sy, zz]]} color={BLUE} lineWidth={1} />
+      <Line points={[[0, 0, zz], [0, 0, zz + r * 0.5]]} color={BLUE} lineWidth={1} />
       <mesh position={[0, 0, zz]}>
-        <ringGeometry args={[size * 0.06, size * 0.08, 32]} />
+        <ringGeometry args={[r * 0.06, r * 0.08, 32]} />
         <meshBasicMaterial color={BLUE} side={THREE.DoubleSide} />
       </mesh>
     </group>

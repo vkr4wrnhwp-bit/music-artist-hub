@@ -68,24 +68,44 @@ type Action =
   | { type: "SPECIMEN"; on: boolean }
   | { type: "ESCAPE" };
 
-const INITIAL: InteractionState = {
+/**
+ * `activeOperation` starts at the operation the plan starts at, when the
+ * caller has one to give.
+ *
+ * That is not execution state and it is not a guess: it is the first entry of
+ * an ordered sequence, which is a property the plan already has. It exists
+ * because the alternative — every card in the runway rendered identically
+ * until the user clicks one — means the strip has no subject on arrival.
+ * `manufacturingState` deliberately stays FINAL: choosing to look at an
+ * operation is not the same as claiming the model shows the part after it, and
+ * nothing can draw that intermediate solid yet.
+ */
+const initialState = (initialOperation: string | null): InteractionState => ({
   hoveredFeature: null,
   selectedFeature: null,
   activeContext: "PART",
-  activeOperation: null,
+  activeOperation: initialOperation,
   manufacturingState: { kind: "FINAL" },
   displayMode: "SHADED",
   cameraTarget: null,
   specimenMode: false,
   pointer: null,
-};
+});
 
 function reducer(state: InteractionState, action: Action): InteractionState {
   switch (action.type) {
     case "HOVER":
       // Hovering never changes selection. A machinist moving the cursor across
       // a part to read it should not be able to lose their place.
-      return { ...state, hoveredFeature: action.featureId, pointer: action.pointer ?? state.pointer };
+      //
+      // Leaving the geometry clears the pointer as well as the feature. It
+      // used to keep the last position, which left a stale coordinate behind
+      // for whatever read it next.
+      return {
+        ...state,
+        hoveredFeature: action.featureId,
+        pointer: action.featureId === null ? null : (action.pointer ?? state.pointer),
+      };
 
     case "SELECT":
       return {
@@ -105,9 +125,14 @@ function reducer(state: InteractionState, action: Action): InteractionState {
         activeOperation: action.operationId,
         // Choosing an operation implies looking at the part as it is during
         // that operation, which is the whole reason operation state exists.
+        //
+        // The viewport cannot draw that state yet — there is no intermediate
+        // solid — so nothing reads `manufacturingState` and the runway says
+        // out loud that the model shows the finished part. Keep the two facts
+        // together: the day the solid exists, this is already correct.
         manufacturingState: action.operationId
           ? { kind: "AFTER_OPERATION", operationId: action.operationId }
-          : state.manufacturingState,
+          : { kind: "FINAL" },
       };
 
     case "SET_MANUFACTURING_STATE":
@@ -126,8 +151,18 @@ function reducer(state: InteractionState, action: Action): InteractionState {
 
     case "ESCAPE":
       // One step back at a time, outermost first, so Escape is predictable.
+      // Feature and operation unwind together because choosing an operation in
+      // the runway selects the feature it cuts — they are one act, so they are
+      // one step back.
       if (state.specimenMode) return { ...state, specimenMode: false };
-      if (state.selectedFeature) return { ...state, selectedFeature: null, cameraTarget: null };
+      if (state.selectedFeature || state.activeOperation)
+        return {
+          ...state,
+          selectedFeature: null,
+          activeOperation: null,
+          cameraTarget: null,
+          manufacturingState: { kind: "FINAL" },
+        };
       if (state.activeContext !== "PART") return { ...state, activeContext: "PART" };
       return state;
 
@@ -151,8 +186,15 @@ interface InteractionApi {
 
 const Ctx = createContext<InteractionApi | null>(null);
 
-export function InteractionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, INITIAL);
+export function InteractionProvider({
+  children,
+  initialOperation = null,
+}: {
+  children: ReactNode;
+  /** The first operation in the plan's own order, or null when there is none. */
+  initialOperation?: string | null;
+}) {
+  const [state, dispatch] = useReducer(reducer, initialOperation, initialState);
 
   const api = useMemo<InteractionApi>(
     () => ({

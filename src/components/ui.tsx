@@ -66,10 +66,15 @@ const TONE_CLASS: Record<Tone, string> = {
   neutral: "border-line-strong text-platinum-dim",
 };
 
+/**
+ * A state, said in words. Not monospace: "Likely safe" and "High risk" are
+ * prose, and monospace here was part of what made half the workspace read as
+ * machine output when only the dimensions are.
+ */
 export function StatusChip({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${TONE_CLASS[tone]}`}
+      className={`instrument-label inline-flex items-center gap-1.5 border px-1.5 py-[2px] ${TONE_CLASS[tone]}`}
     >
       {children}
     </span>
@@ -241,13 +246,18 @@ export function LinkButton({
   );
 }
 
+/**
+ * Controls are words, not machine values, so they are set in the grotesk at
+ * 600. Monospace here was a large part of why the workspace measured 48%
+ * monospace by character — a button label is prose in a box.
+ */
 export function buttonClass(variant: "default" | "primary" | "ghost" | "danger" = "default", size: "sm" | "md" = "md") {
   const base =
-    "inline-flex items-center justify-center gap-2 border font-mono uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "inline-flex items-center justify-center gap-2 border font-semibold uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-40";
   const sizing = size === "sm" ? "px-2.5 py-1 text-[10px]" : "px-3.5 py-2 text-[11px]";
   const variants = {
     default: "border-line-strong text-platinum-dim hover:border-platinum-dim hover:text-white",
-    primary: "border-precision bg-precision/10 text-precision hover:bg-precision/20",
+    primary: "border-precision bg-precision/10 text-precision-dim hover:bg-precision/20",
     ghost: "border-transparent text-muted hover:text-platinum",
     danger: "border-risk/50 text-risk hover:bg-risk/10",
   };
@@ -309,7 +319,7 @@ export function EmptyState({
 /** Marks a capability that is not what it might look like. Used liberally. */
 export function DevLabel({ children = "Development" }: { children?: ReactNode }) {
   return (
-    <span className="border border-review/40 px-1 py-[1px] font-mono text-[9px] uppercase tracking-[0.14em] text-review">
+    <span className="shrink-0 border border-review/40 px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.14em] text-review">
       {children}
     </span>
   );
@@ -334,7 +344,7 @@ export function Notice({
   }[tone];
   return (
     <div className={`border border-line ${border} border-l-2 bg-raised px-4 py-3`}>
-      <h4 className="font-mono text-[11px] uppercase tracking-[0.16em] text-platinum">{title}</h4>
+      <h4 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-platinum">{title}</h4>
       {children && <div className="mt-1.5 text-[12px] leading-relaxed text-muted">{children}</div>}
     </div>
   );

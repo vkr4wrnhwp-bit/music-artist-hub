@@ -5,7 +5,7 @@ import { maximumDepth, minimumInternalRadius } from "@/lib/domain/features";
 import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop";
 import { canReach, checkEnvelope, fitsInternalCorner } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
-import { assessCapability, worstCapability, type CapabilityResult, type Instrument, type MeasurementGeometry } from "./inspection-capability";
+import { assessCapability, measurementGeometry, worstCapability, type CapabilityResult, type Instrument } from "./inspection-capability";
 
 /**
  * MANUFACTURING READINESS
@@ -327,24 +327,11 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   return { gates, overall, criticalApplication: critical, blockingCount: blockingFailures, capability };
 }
 
-/**
- * Which family of instrument a feature needs. A bore and a boss of the same
- * size are not measured with the same tool, and a position is not measured with
- * either of them.
- */
-function measurementGeometry(f: Feature): MeasurementGeometry {
-  switch (f.kind) {
-    case "DRILLED_HOLE":
-    case "TAPPED_HOLE":
-    case "BORE":
-    case "CIRC_POCKET":
-    case "RECT_POCKET":
-    case "SLOT":
-      return f.functionalRole === "DOWEL_HOLE" || f.functionalRole === "MOUNTING_HOLE" ? "POSITION" : "INTERNAL";
-    default:
-      return "EXTERNAL";
-  }
-}
+/* `measurementGeometry` used to live here. It now lives in
+   inspection-capability.ts beside `assessCapability`, because the workspace
+   feature panel and the feature detail page each grew their own copy of it and
+   the copies disagreed with this gate — the panel printed NOT CAPABLE on
+   features the gate counted as verifiable. One classifier, one answer. */
 
 function workholdingDetail(a: WorkholdingAssessment): string {
   const parts: string[] = [];

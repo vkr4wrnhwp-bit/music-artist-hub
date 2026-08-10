@@ -217,7 +217,7 @@ export function buildPartSolid(stock: Stock, features: Feature[]): PartSolid {
           id: f.id,
           label: f.label,
           reason:
-            "Non-vertical walls need a geometry kernel. Drawing an approximate edge break would show a finish the toolpath does not produce.",
+            "Non-vertical walls need a geometry kernel. Drawing an approximate edge break would show a finish this builder cannot derive from the stored parameters — the operation, where one is planned, still appears in the plan.",
         });
         break;
 

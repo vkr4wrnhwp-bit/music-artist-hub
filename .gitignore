@@ -14,3 +14,7 @@ prisma/dev.db-journal
 src/generated
 tsconfig.tsbuildinfo
 prisma/.generated
+prisma/wf.db
+prisma/wf.db-journal
+prisma/wf.db-shm
+prisma/wf.db-wal
