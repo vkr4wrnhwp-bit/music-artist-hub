@@ -1,5 +1,6 @@
 import { TopBar } from "@/components/nav";
 import { CommandBar } from "@/components/command-bar";
+import { StepImport } from "@/components/step-import";
 import { AxisTriad, Notice, Panel, SectionHeading } from "@/components/ui";
 
 export default function NewPartPage() {
@@ -16,6 +17,10 @@ export default function NewPartPage() {
               What are we making?
             </SectionHeading>
             <CommandBar />
+            <div className="mt-6 border-t border-line pt-4">
+              <p className="instrument-label mb-2">Or import geometry</p>
+              <StepImport />
+            </div>
           </div>
         </section>
 
