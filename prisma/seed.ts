@@ -441,17 +441,50 @@ async function main() {
       workholdingId: vise.id,
       workOffset: "G55",
       datumNote: "Located on the machined top face from Setup 1, seated in soft jaws.",
-      // Grip is deliberately marginal here: this is what makes the demo's
-      // workholding assessment produce a real HIGH RISK finding rather than a
-      // rubber stamp.
-      gripDepth: 0.08,
+      // This setup used to grip 0.080" in plain jaws and assessed HIGH RISK —
+      // 6.8:1 projection, the exact failure recorded in the shop's job
+      // history ("part shifted during the profile pass"). The resolution is
+      // the one CANVAS itself recommends: machined soft jaws. A 0.250" step
+      // grips the finished profile, leaves the 0.625" part standing 0.375"
+      // proud — 1.5:1, the model's supported limit — and the machined step is
+      // a positive stop, so the load path is steel, not friction alone. The
+      // jaw pair is recorded below, same as the soft-jaws flow records it.
+      gripDepth: 0.25,
       gripLength: 3.875,
-      stockProjection: 0.545,
+      stockProjection: 0.375,
       parallelHeight: 0.5,
+      jawSurface: "SOFT_MACHINED",
       notes:
-        "Requires soft jaws — the finished profile has no square stock left to grip and the remaining wall is thin.",
+        "Machined soft jaws — the finished profile has no square stock left to grip. Part seats on the 0.250 step against the stop.",
     },
   });
+
+  // The soft jaw pair for Setup 2, with the geometry the generator produces
+  // for a 0.250" grip on this profile (R0.25 corners → R0.28 relief).
+  const jawBlankRow = await db.jawBlank.findFirst({ where: { organizationId: org.id } });
+  for (const side of ["LEFT", "RIGHT"] as const) {
+    await db.jaw.create({
+      data: {
+        setupId: setup2.id,
+        deviceId: vise.id,
+        blankId: jawBlankRow?.id,
+        side,
+        stepDepth: 0.25,
+        stepHeight: 1.75,
+        seatWidth: 3.895,
+        seatDepth: 0.333,
+        seatCornerRadius: 0.28,
+        stopLocation: side === "LEFT" ? -1.9475 : null,
+        reliefRadius: 0.28,
+        clampingDirection: "X",
+        processJson: JSON.stringify([
+          "Face jaw blanks clamped on a spacer",
+          "Cut 3.895 seat, 0.250 step, R0.280 relief",
+          "Deburr, seat part, probe before cutting",
+        ]),
+      },
+    });
+  }
 
   /* ---------------- Operations ---------------- */
 
