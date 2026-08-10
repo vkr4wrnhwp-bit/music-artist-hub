@@ -265,6 +265,13 @@ function WorkspaceInner(props: WorkspaceProps) {
         <section
           className={`${mobilePane === "model" ? "flex" : "hidden"} relative min-h-0 min-w-0 flex-1 flex-col bg-work lg:flex`}
         >
+          {/* The five views onto the object, at the top of the object's own
+              window. This lived behind the right panel's DATA tab, which meant
+              HOLD, CUT and VERIFY existed but could not be found — you had to
+              already know they were there to go looking. A view of the part
+              belongs on the part, not two clicks into a sibling panel. */}
+          <ContextRail className="shrink-0 border-b border-line" />
+
           <div className="relative min-h-0 flex-1">
             <Viewport
               stock={props.stock}
@@ -442,7 +449,6 @@ function WorkspaceInner(props: WorkspaceProps) {
 
           {side === "data" && (
             <>
-              <ContextRail compact className="shrink-0 border-b border-line" />
               <div className="flex shrink-0 flex-wrap gap-px border-b border-line bg-line">
                 {panels.map((p) => (
                   <button
