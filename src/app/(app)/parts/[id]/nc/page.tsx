@@ -63,7 +63,13 @@ export default async function NcPage(props: {
       "Stickout recorded for every assigned tool. Length offsets must still be set at the machine.",
       true,
     ),
-    item("toolpaths", "Toolpaths generated", realToolpaths.length > 0, `${realToolpaths.length} operations with motion, ${pkg.toolpaths.length - realToolpaths.length} without an engine`, true),
+    item(
+      "toolpaths",
+      "Toolpaths generated",
+      pkg.toolpaths.length > 0 && realToolpaths.length === pkg.toolpaths.length,
+      toolpathDetail(pkg.toolpaths.length, realToolpaths.length),
+      true,
+    ),
     item("errors", "No toolpath errors", pkg.toolpathErrors.length === 0, pkg.toolpathErrors.length === 0 ? "All operations produced a path" : `${pkg.toolpathErrors.length} operations failed`, true),
     item(
       "criticaldims",
@@ -278,6 +284,33 @@ export default async function NcPage(props: {
 
 function item(id: string, label: string, pass: boolean, detail: string, required: boolean): PreflightItem {
   return { id, label, status: pass ? "PASS" : "FAIL", detail, required };
+}
+
+/**
+ * The toolpath pre-flight item, stated as the worst fact rather than the best.
+ *
+ * This used to pass on `realToolpaths.length > 0` — one operation with motion
+ * out of any number — while its own detail line read "3 operations with
+ * motion, 6 without an engine". A green PASS next to a sentence describing six
+ * missing operations, on the list `preflightPassed()` uses to decide whether
+ * executable NC may leave the building.
+ *
+ * The consequence is not cosmetic. An operation with no engine is not omitted
+ * from the program; the post writes it in as a comment and moves on. The
+ * program is syntactically complete, runs start to finish, and simply never
+ * cuts those features — and the operations that reach that path are BORE, TAP
+ * and ADAPTIVE_2D, which is to say the bearing seats and the threads. An
+ * operator who trusts the PASS gets a part that looks machined and is missing
+ * the features nobody would think to check for absence.
+ *
+ * So the gate passes only when every operation produced motion. Zero
+ * operations is a FAIL rather than a vacuous pass, for the same reason.
+ */
+function toolpathDetail(total: number, real: number): string {
+  if (total === 0) return "No operations to post";
+  const missing = total - real;
+  if (missing === 0) return `All ${total} operations produced motion`;
+  return `${missing} of ${total} operations have no toolpath engine. The post writes each one into the program as a skipped comment, so the program would run to completion without cutting them.`;
 }
 
 function workholdingSummary(pkg: Awaited<ReturnType<typeof buildPackage>>): string {
