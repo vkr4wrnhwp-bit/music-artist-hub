@@ -14,6 +14,8 @@ import { OperationRunway } from "./operation-runway";
 import { DimensionCard } from "./dimension-card";
 import { SimTransport } from "./sim-transport";
 import { ViewEnvironmentDrawer } from "./view-environment-drawer";
+import { CinematicDrawer } from "./cinematic-drawer";
+import type { CinematicInput } from "@/lib/cinematic";
 import {
   DEFAULT_ENVIRONMENT,
   loadEnvironment,
@@ -186,7 +188,10 @@ function WorkspaceInner(props: WorkspaceProps) {
   // View environment — how the viewport is drawn. Loaded from this browser's
   // storage after mount (SSR renders the default), saved on every change.
   const [viewEnv, setViewEnv] = useState<ViewEnvironment>(DEFAULT_ENVIRONMENT);
-  const [envOpen, setEnvOpen] = useState(false);
+  // One right-side drawer at a time — env settings or the cinematic panel.
+  const [drawer, setDrawer] = useState<"env" | "film" | null>(null);
+  const envOpen = drawer === "env";
+  const setEnvOpen = (v: boolean) => setDrawer(v ? "env" : null);
   useEffect(() => setViewEnv(loadEnvironment()), []);
   const updateEnv = (e: ViewEnvironment) => {
     setViewEnv(e);
@@ -197,6 +202,31 @@ function WorkspaceInner(props: WorkspaceProps) {
     setOverrides((o) => ({ ...o, ...d.flags }));
     updateEnv({ ...viewEnv, ...d.env, viewMode: m });
   };
+
+  // Cinematic prompt input — real state only. Values the workspace does not
+  // hold are null and the generator writes them as unspecified or omits them.
+  const cinematicInput = useMemo<CinematicInput>(
+    () => ({
+      partName: props.partName,
+      partNumber: null,
+      material: props.material,
+      stock: props.stock ? { x: props.stock.x, y: props.stock.y, z: props.stock.z } : null,
+      setupName: props.runway.setups[0]?.name ?? null,
+      workholding: props.runway.workholding.device,
+      hasSoftJaws: props.fixture?.jawSurface === "SOFT_MACHINED",
+      readiness: null,
+      operations: props.runway.operations
+        .filter((o) => !o.isPlaceholder)
+        .map((o) => ({
+          id: o.id,
+          label: o.label,
+          type: o.type,
+          toolDescription: o.toolDescription,
+          cycleMinutes: o.cycleMinutes,
+        })),
+    }),
+    [props.partName, props.material, props.stock, props.runway, props.fixture],
+  );
 
   // Stock-removal simulation. The simulator is built once from the real
   // toolpaths (the constructor runs the full deterministic pass, so every
@@ -354,15 +384,24 @@ function WorkspaceInner(props: WorkspaceProps) {
               env={viewEnv}
             />
 
-            {/* View environment drawer — right edge, over the viewport. */}
-            {envOpen && (
+            {/* Right-edge drawers, one at a time, over the viewport. */}
+            {drawer === "env" && (
               <div className="absolute inset-y-3 right-3 z-30 flex">
                 <ViewEnvironmentDrawer
                   env={viewEnv}
                   onChange={updateEnv}
                   material={props.material}
                   onApplyViewMode={applyViewMode}
-                  onClose={() => setEnvOpen(false)}
+                  onClose={() => setDrawer(null)}
+                />
+              </div>
+            )}
+            {drawer === "film" && (
+              <div className="absolute inset-y-3 right-3 z-30 flex">
+                <CinematicDrawer
+                  input={cinematicInput}
+                  activeOperationId={state.activeOperation}
+                  onClose={() => setDrawer(null)}
                 />
               </div>
             )}
@@ -414,9 +453,16 @@ function WorkspaceInner(props: WorkspaceProps) {
                   <ControlButton
                     title="Background, grid, shadows, line weight and text size — visibility, not accuracy"
                     on={envOpen}
-                    onClick={() => setEnvOpen((o) => !o)}
+                    onClick={() => setDrawer(envOpen ? null : "env")}
                   >
                     View env
+                  </ControlButton>
+                  <ControlButton
+                    title="Generate a cinematic video prompt from selected operations — a film, not a verification"
+                    on={drawer === "film"}
+                    onClick={() => setDrawer(drawer === "film" ? null : "film")}
+                  >
+                    Cinematic
                   </ControlButton>
                 </ControlGroup>
               </div>

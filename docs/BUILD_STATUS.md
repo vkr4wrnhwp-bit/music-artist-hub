@@ -396,3 +396,13 @@ overstate; feed-only optimization in V1 with geometry-word diff as the
 invariant; optimized NC exports through the existing mint and gates or not
 at all. Phases 4A-4C are implementable on current structure; 4D needs the
 chip-thinning/corner math; sequencing rewrite and 3D surfacing are out.
+
+## 2026-08-10 — Cinematic toolpath
+
+Prompt/storyboard generator in the CUT workspace (Scene → Cinematic):
+operation selection, 10/15/30s, six styles, include toggles, customer-safe
+mode (tested to strip identity/dimensions/tooling), full/short/shot-list/
+JSON outputs, copy + download. Deterministic — no model call; cycle-time-
+weighted shot timing from real operations. External send is a DEVELOPMENT
+stub behind a privacy notice. Technical playback, simulator and all gates
+untouched. See docs/CINEMATIC_TOOLPATH.md. 56 tests.
