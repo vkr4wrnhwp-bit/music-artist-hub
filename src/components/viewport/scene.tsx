@@ -583,6 +583,30 @@ function DatumIndicator({ stock }: { stock: Stock }) {
  * model has no value — clamping force not recorded, so no contact pressure —
  * the callout says so rather than filling the gap.
  */
+/**
+ * Vise jaws and parallels are hardened ground steel, and they were rendering
+ * as near-black slabs.
+ *
+ * The cause was the metalness workflow, not the colour. A material at
+ * metalness 0.55 has almost no diffuse response, so it can only show what the
+ * environment reflects — and this scene's environment is four small procedural
+ * lightformers at 0.5 intensity, because the drei HDR presets fetch from a CDN
+ * this sandbox cannot reach. A dark base colour under those conditions has
+ * nothing to reflect and goes to black.
+ *
+ * So: bring the base value up into the range the part materials already use,
+ * drop metalness far enough that the hemisphere and key lights contribute real
+ * diffuse shading, and raise envMapIntensity so the lightformers still read as
+ * specular highlights on the jaw faces.
+ *
+ * The jaws stay a step darker and a shade cooler than any workpiece material
+ * in MATERIAL_APPEARANCE — tooling should not compete with the part for
+ * attention, and hardened jaw steel genuinely is duller than faced aluminium.
+ * The parallels are ground finer than the jaws, so they are smoother.
+ */
+const JAW_STEEL = { color: "#878e98", metalness: 0.52, roughness: 0.34, envMapIntensity: 1.15 } as const;
+const PARALLEL_STEEL = { color: "#98a0a9", metalness: 0.58, roughness: 0.2, envMapIntensity: 1.3 } as const;
+
 function Fixture({
   stock,
   fixture,
@@ -601,8 +625,8 @@ function Fixture({
   const jaw = (side: 1 | -1) => (
     <mesh key={side} position={[side * (stock.x / 2 + jawThickness / 2), 0, jawTopZ - fixture.jawHeight / 2]}>
       <boxGeometry args={[jawThickness, Math.min(fixture.jawWidth, stock.y * 1.4), fixture.jawHeight]} />
-      <meshStandardMaterial color="#6e7480" metalness={0.55} roughness={0.55} />
-      <Edges threshold={20} color="#4a505b" />
+      <meshStandardMaterial {...JAW_STEEL} />
+      <Edges threshold={20} color="#5f6772" />
     </mesh>
   );
 
@@ -634,7 +658,8 @@ function Fixture({
       {/* Parallels the part seats on — the seating surface. */}
       <mesh position={[0, 0, jawTopZ - fixture.jawHeight - 0.25]}>
         <boxGeometry args={[stock.x * 0.9, 0.5, 0.5]} />
-        <meshStandardMaterial color="#5c626d" metalness={0.6} roughness={0.45} />
+        <meshStandardMaterial {...PARALLEL_STEEL} />
+        <Edges threshold={20} color="#5f6772" />
       </mesh>
 
       {callouts && (
