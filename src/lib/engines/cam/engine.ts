@@ -167,6 +167,15 @@ export function generateToolpath(
       warnings.push(...r.warnings);
       break;
     }
+    case "ADAPTIVE_2D": {
+      if (!feature) return missingFeature(req);
+      const r = adaptiveToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
     case "DRILL":
     case "PECK_DRILL": {
       if (!feature) return missingFeature(req);
@@ -512,6 +521,169 @@ function drillToolpath(
   moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.retractZ, feed: null });
 
   const removed = Math.PI * (ctx.tool.diameter / 2) ** 2 * depth;
+  return { moves, removed, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* ADAPTIVE 2D — bounded-engagement clearing at full depth             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Adaptive clearing, the deterministic version. What makes roughing
+ * "adaptive" is the engagement contract: SMALL radial engagement at FULL
+ * axial depth, so the whole flute works and the load never spikes the way a
+ * slotting corner does. This engine delivers that contract by construction
+ * rather than by feedback: the radial step between consecutive passes is
+ * the engagement bound, so the tool can never take more than it was
+ * promised to.
+ *
+ * Two path families:
+ * - Circular pockets/bores: an Archimedean spiral from the helical entry
+ *   outward. Loop spacing = engagement, exactly, everywhere.
+ * - Rectangular pockets: a morphed spiral — successive inward offsets of
+ *   the rounded-rect boundary interpolated toward the centre. Loop count is
+ *   set by the LARGER half-dimension, so spacing never exceeds the bound on
+ *   either axis (and is tighter than needed on the short one, which errs
+ *   toward lighter cuts).
+ *
+ * Feed carries radial chip-thinning compensation: at engagements below half
+ * the diameter the actual chip is thinner than the programmed chipload, and
+ * the standard geometric correction restores it — capped by the machine.
+ * The formula is stated in the warning it emits.
+ *
+ * Refusals, not adaptations: a depth beyond the flute length is refused
+ * (full-depth is the premise, and cutting on the shank is not a strategy),
+ * and non-pocket features are refused as everywhere else.
+ */
+const ADAPTIVE_ENGAGEMENT_FRACTION = 0.15;
+
+function adaptiveToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  const d = ctx.tool.diameter;
+  const r = d / 2;
+
+  if (feature.kind !== "RECT_POCKET" && feature.kind !== "CIRC_POCKET" && feature.kind !== "BORE") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind}; adaptive clearing requires a pocket or bore feature.`,
+        recommendations: ["Select a pocket feature", "Change the operation type"],
+      },
+    };
+  }
+  if (
+    ctx.tool.toolClass !== "FLAT_END_MILL" &&
+    ctx.tool.toolClass !== "BULL_NOSE"
+  ) {
+    return {
+      error: {
+        reason: `${ctx.tool.description} is a ${ctx.tool.toolClass}. Adaptive clearing loads the full flute; it needs an end mill.`,
+        recommendations: ["Assign a flat or bull-nose end mill"],
+      },
+    };
+  }
+
+  const totalDepth = req.topZ - req.finalZ;
+  if (totalDepth > ctx.tool.fluteLength + 1e-9) {
+    return {
+      error: {
+        reason: `Adaptive clearing cuts the full ${totalDepth.toFixed(3)}" in one pass, but the tool has ${ctx.tool.fluteLength.toFixed(3)}" of flute. Cutting on the shank is not a strategy.`,
+        recommendations: [
+          "Use a longer-flute tool",
+          "Split the depth across two adaptive operations",
+          "Use conventional 2D pocketing, which steps down",
+        ],
+      },
+    };
+  }
+
+  const ae = d * ADAPTIVE_ENGAGEMENT_FRACTION;
+  // Radial chip thinning: h = fz·√(1−(1−2·ae/D)²)⁻¹ restores programmed
+  // chipload at partial engagement. Bounded by the machine's feed ceiling.
+  const ctf = 1 / Math.sqrt(1 - (1 - (2 * ae) / d) ** 2);
+  const feed = Math.round(Math.min(p.feed * ctf, ctx.maxFeed));
+  const z = req.finalZ;
+  const moves: Move[] = [];
+  const warnings: string[] = [
+    `Adaptive contract: ${(ADAPTIVE_ENGAGEMENT_FRACTION * 100).toFixed(0)}% radial engagement (${ae.toFixed(4)}") at full ${totalDepth.toFixed(3)}" depth, feed ×${ctf.toFixed(2)} chip-thinning compensation (capped by the machine at ${ctx.maxFeed} ipm).`,
+  ];
+
+  let cx: number, cy: number, removed: number;
+
+  if (feature.kind === "RECT_POCKET") {
+    cx = feature.centerX;
+    cy = feature.centerY;
+    const innerW = feature.width - d;
+    const innerL = feature.length - d;
+    if (innerW <= 0 || innerL <= 0) {
+      return {
+        error: {
+          reason: `${feature.width.toFixed(3)} × ${feature.length.toFixed(3)} pocket is too small for the ⌀${d.toFixed(4)} tool.`,
+          recommendations: [`Use a tool smaller than ⌀${Math.min(feature.width, feature.length).toFixed(4)}`],
+        },
+      };
+    }
+    if (feature.cornerRadius > 0 && !fitsInternalCorner(ctx.tool, feature.cornerRadius)) {
+      return {
+        error: {
+          reason: `Selected ⌀${d.toFixed(4)}" end mill cannot produce the R${feature.cornerRadius.toFixed(4)} internal corner in ${feature.label}.`,
+          recommendations: [`Use a tool ⌀${(feature.cornerRadius * 2).toFixed(4)}" or smaller`],
+        },
+      };
+    }
+    const crInner = Math.max(0, feature.cornerRadius - r);
+    // Loop count from the LARGER half-dimension keeps spacing ≤ ae on both
+    // axes; the short axis just gets lighter cuts, which is the safe side.
+    const loops = Math.max(2, Math.ceil(Math.max(innerW, innerL) / 2 / ae));
+    removed = feature.width * feature.length * totalDepth;
+    for (let k = 1; k <= loops; k++) {
+      const t = k / loops;
+      rectMoves(moves, cx, cy, innerW * t, innerL * t, crInner * t, z, feed);
+    }
+  } else {
+    cx = feature.centerX;
+    cy = feature.centerY;
+    const maxR = feature.diameter / 2 - r;
+    if (maxR <= 0) {
+      return {
+        error: {
+          reason: `⌀${feature.diameter.toFixed(4)} pocket is not larger than the ⌀${d.toFixed(4)} tool.`,
+          recommendations: [`Use a tool smaller than ⌀${feature.diameter.toFixed(4)}`],
+        },
+      };
+    }
+    // Archimedean spiral: radius grows by exactly ae per revolution.
+    const revs = Math.max(1, Math.ceil(maxR / ae));
+    const segsPerRev = 48;
+    for (let i = 1; i <= revs * segsPerRev; i++) {
+      const a = (i / segsPerRev) * Math.PI * 2;
+      const rad = Math.min(maxR, (a / (Math.PI * 2)) * ae);
+      moves.push({ type: "CUT", x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a), z, feed });
+    }
+    // Closing ring at the wall.
+    ringMoves(moves, cx, cy, maxR, z, feed);
+    removed = Math.PI * (feature.diameter / 2) ** 2 * totalDepth;
+  }
+
+  // Helical entry ahead of everything: full depth means no straight plunge.
+  const entry: Move[] = [];
+  const he = Math.min(d * 0.4, 0.4);
+  const pitch = Math.max(0.02, d * 0.05);
+  const entryRevs = Math.max(1, Math.ceil(totalDepth / pitch));
+  entry.push({ type: "RAPID", x: cx + he, y: cy, z: req.clearanceZ, feed: null });
+  for (let i = 1; i <= entryRevs * 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const zz = Math.max(z, req.topZ - (totalDepth * i) / (entryRevs * 24));
+    entry.push({ type: "PLUNGE", x: cx + he * Math.cos(a), y: cy + he * Math.sin(a), z: zz, feed: p.plungeFeed });
+  }
+  entry.push({ type: "CUT", x: cx, y: cy, z, feed });
+
+  moves.unshift(...entry);
+  moves.push({ type: "RETRACT", x: moves[moves.length - 1].x, y: moves[moves.length - 1].y, z: req.retractZ, feed: null });
+
   return { moves, removed, warnings };
 }
 

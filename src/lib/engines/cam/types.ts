@@ -34,6 +34,7 @@ export type OperationType = (typeof OPERATION_TYPES)[number];
 export const IMPLEMENTED_OPERATIONS: OperationType[] = [
   "FACE",
   "POCKET_2D",
+  "ADAPTIVE_2D",
   "DRILL",
   "PECK_DRILL",
   "BORE",
@@ -44,8 +45,13 @@ export const IMPLEMENTED_OPERATIONS: OperationType[] = [
   "SOFT_JAW_POCKET",
 ];
 
-/** Operation types that exist as interfaces only. The UI labels these clearly. */
-export const PLACEHOLDER_OPERATIONS: OperationType[] = ["ADAPTIVE_2D"];
+/**
+ * Operation types that exist as interfaces only. Empty since ADAPTIVE_2D
+ * gained its engine — kept because the honesty machinery around it (labels,
+ * pre-flight wording, post comments) is exactly what a future operation
+ * type will need on day one.
+ */
+export const PLACEHOLDER_OPERATIONS: OperationType[] = [];
 
 export interface CuttingParameters {
   /** Spindle speed, RPM. */
