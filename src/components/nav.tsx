@@ -184,6 +184,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "/cost", label: "Cost" },
   { suffix: "/review", label: "Run it past CANVAS" },
   { suffix: "/nc", label: "NC output", dev: true },
+  { suffix: "/nc-analyzer", label: "NC analyzer", dev: true },
 ];
 
 /** `/parts/<id>/…` — but `/parts/new` is a form, not a part. */

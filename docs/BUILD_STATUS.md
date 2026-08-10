@@ -406,3 +406,16 @@ JSON outputs, copy + download. Deterministic — no model call; cycle-time-
 weighted shot timing from real operations. External send is a DEVELOPMENT
 stub behind a privacy notice. Technical playback, simulator and all gates
 untouched. See docs/CINEMATIC_TOOLPATH.md. 56 tests.
+
+## 2026-08-10 — NC analyzer (optimizer Phases 4A/4B) BUILT
+
+src/lib/nc/: deterministic Fanuc/Haas parser + modal interpreter (G0-G3
+with tessellated arcs, G20/21, G90/91, canned cycles expanded, G84 flagged
+never-retime, macros/subprograms refuse with line numbers, comp regions
+marked) and the analyzer: cycle breakdown per tool, replay-proven air-cut
+detection on the stock height field, slow-linking and excessive-retract
+findings, verdicts CONFIDENT/REVIEW/INSUFFICIENT_DATA with assumptions
+stated. Page at /parts/[id]/nc-analyzer (DEV) with SVG backplot. Analysis
+only — no proposals, no modification, no export. Self-test: parses CANVAS
+Haas output with zero refusals; parsed cycle time agrees with the engine.
+Ten new tests; 66 total. Phases 4C-4F remain per the audit.
