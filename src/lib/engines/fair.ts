@@ -201,7 +201,7 @@ export function buildFair(input: FairInput): FairReport {
       requirement: featureSummary(f),
       tolerance: f.tolerance ? fmtTol(f.tolerance) : "No tolerance stated",
       result,
-      conformance: conformanceOf(f, m),
+      conformance: assessConformance(f, m),
       inspectionMethod: f.inspectionMethod
         ? onFile(f.inspectionMethod)
         : missing("Inspection method not assigned"),
@@ -239,9 +239,14 @@ function nominalOf(feature: Feature): number | null {
   return null;
 }
 
-function conformanceOf(
+/**
+ * THE conformance rule. The FAIR report and the live inspection session both
+ * call this — a session screen that disagreed with the report it feeds would
+ * be the measurementGeometry bug all over again. One rule, one home.
+ */
+export function assessConformance(
   feature: Feature,
-  m: FairInput["inspectionMeasurements"][number] | undefined,
+  m: { value: number; uncertainty: number } | undefined,
 ): ConformanceVerdict {
   if (!m) return { verdict: "CANNOT_DETERMINE", reason: "No first-article measurement recorded" };
   if (!feature.tolerance) return { verdict: "CANNOT_DETERMINE", reason: "No tolerance stated on the characteristic" };

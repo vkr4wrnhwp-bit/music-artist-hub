@@ -1,10 +1,11 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
 import { TopBar } from "@/components/nav";
-import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
 
 export default async function InspectionPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -18,6 +19,38 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
   });
 
   const unmethoded = revision.features.filter((f) => f.critical && !f.inspectionMethod);
+
+  const sessions = await db.measurementSession.findMany({
+    where: { partRevisionId: revision.revisionId, mode: "INSPECTION" },
+    include: { _count: { select: { measurements: true } } },
+    orderBy: { startedAt: "desc" },
+  });
+
+  async function startSession() {
+    "use server";
+    const currentUser = await requireUser();
+    const rev = await loadRevision(currentUser.organizationId, id);
+    if (!rev) notFound();
+    const session = await db.measurementSession.create({
+      data: {
+        partRevisionId: rev.revisionId,
+        name: `First article — Rev ${rev.revision}`,
+        mode: "INSPECTION",
+        status: "IN_PROGRESS",
+        operator: currentUser.name || currentUser.email,
+      },
+    });
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "MeasurementSession",
+      entityId: session.id,
+      action: "CREATE",
+      actorType: "HUMAN",
+      reason: "First-article inspection session started",
+    });
+    redirect(`/parts/${id}/inspection/session/${session.id}`);
+  }
 
   return (
     <>
@@ -44,6 +77,49 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
               </ul>
             </Notice>
           )}
+
+          <Panel
+            title="First-article measurement sessions"
+            meta={
+              <form action={startSession}>
+                <Button type="submit" variant="primary" size="sm">
+                  Start session
+                </Button>
+              </form>
+            }
+            dense
+          >
+            {sessions.length === 0 ? (
+              <p className="px-4 py-3 text-[12px] leading-relaxed text-muted">
+                No first-article measurements exist for this revision, and the FAIR says so. Reverse-engineering
+                readings of a reference article are not first-article results and are deliberately excluded. Start a
+                session to record readings against the finished part — each one needs an instrument from the
+                metrology inventory.
+              </p>
+            ) : (
+              <ul>
+                {sessions.map((s) => (
+                  <li key={s.id} className="border-b border-line/60 last:border-0">
+                    <Link
+                      href={`/parts/${id}/inspection/session/${s.id}`}
+                      className="flex flex-wrap items-baseline justify-between gap-3 px-4 py-2.5 hover:bg-raised"
+                    >
+                      <span className="text-[13px] text-platinum">{s.name}</span>
+                      <span className="flex items-center gap-3">
+                        <span className="font-mono text-[11.5px] text-muted tabular-nums">
+                          {s._count.measurements} reading{s._count.measurements === 1 ? "" : "s"} ·{" "}
+                          {s.startedAt.toISOString().slice(0, 10)} · {s.operator ?? "operator not recorded"}
+                        </span>
+                        <StatusChip tone={s.status === "IN_PROGRESS" ? "precision" : "neutral"}>
+                          {s.status === "IN_PROGRESS" ? "In progress" : "Completed"}
+                        </StatusChip>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
           {plans.length === 0 ? (
             <EmptyState
