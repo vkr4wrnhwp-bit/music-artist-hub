@@ -176,6 +176,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "/tooling", label: "Tooling" },
   { suffix: "/soft-jaws", label: "Soft jaws" },
   { suffix: "/inspection", label: "Inspection" },
+  { suffix: "/fair", label: "First article" },
   { suffix: "/readiness", label: "Readiness" },
   { suffix: "/machinist", label: "Machinist" },
   { suffix: "/responsibility", label: "Responsibility" },
