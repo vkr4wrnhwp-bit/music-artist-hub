@@ -385,3 +385,14 @@ These are named in the Phase 2 brief and are deliberately not faked:
   stronger structural dividers (deferred to the design-phase refactor),
   server-side ViewPreferences persistence, bottom-sheet drawer on mobile
   (the drawer overlays usably but is not a sheet).
+
+## 2026-08-10 — Load-aware NC optimizer: AUDIT ONLY
+
+docs/LOAD_AWARE_NC_OPTIMIZER.md added. Nothing implemented. Key findings:
+CANVAS has no NC parser today (verifyNc is a linter); the stock-removal
+simulator is the core asset (air-cut proof and engagement estimates come
+from replay); no acceleration model exists so savings estimates would
+overstate; feed-only optimization in V1 with geometry-word diff as the
+invariant; optimized NC exports through the existing mint and gates or not
+at all. Phases 4A-4C are implementable on current structure; 4D needs the
+chip-thinning/corner math; sequencing rewrite and 3D surfacing are out.
