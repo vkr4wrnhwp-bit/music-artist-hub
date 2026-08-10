@@ -419,3 +419,16 @@ stated. Page at /parts/[id]/nc-analyzer (DEV) with SVG backplot. Analysis
 only — no proposals, no modification, no export. Self-test: parses CANVAS
 Haas output with zero refusals; parsed cycle time agrees with the engine.
 Ten new tests; 66 total. Phases 4C-4F remain per the audit.
+
+## 2026-08-10 — NC optimizer Phase 4D BUILT
+
+src/lib/nc/load.ts: load map and feed proposals, DEVELOPMENT ANALYSIS.
+Chipload from programmed F/S + tool record; MRR from per-segment height-
+field replay; power = MRR x specific energy. Bands AIR/LIGHT/TARGET/HIGH/
+REVIEW colour the backplot. Proposals are feed-only (geometry never
+changes, by construction), grouped by contiguous LIGHT runs, capped by
+strategy preset — LIGHTS_OUT the most conservative — and never touch taps,
+comped regions, or anything lacking tool+material context. Applying
+proposals (4E emission, 4F gated export) does not exist and the screen
+says so. Self-check: CANVAS's own O1001 bands 486 TARGET / 4 LIGHT —
+the generator's feeds sit in the window they were derived from. 72 tests.

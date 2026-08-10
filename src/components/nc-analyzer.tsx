@@ -24,6 +24,17 @@ interface Report {
     toolChanges: { line: number; toolNumber: number }[];
   };
   backplot: [number, number, number, number, number][];
+  load: {
+    bands: string[];
+    proposals: {
+      lines: [number, number]; toolNumber: number; originalFeed: number; proposedFeed: number;
+      estimatedSecondsSaved: number; reason: string; risk: string; assumptions: string[];
+      requiredEvidence: string; geometryChanges: false;
+    }[];
+    totalProposedSecondsSaved: number;
+    gaps: string[];
+    developmentAnalysis: true;
+  };
   analysis: {
     totalMinutes: number;
     cutMinutes: number;
@@ -40,6 +51,7 @@ interface Report {
 
 export function NcAnalyzer({ partId }: { partId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [preset, setPreset] = useState("BALANCED");
   const [state, setState] = useState<{ busy: boolean; error: string | null; report: Report | null }>({
     busy: false, error: null, report: null,
   });
@@ -50,7 +62,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
     setState({ busy: true, error: null, report: null });
     const body = new FormData();
     body.append("file", file);
-    const res = await fetch(`/api/parts/${partId}/nc-analyze`, { method: "POST", body });
+    const res = await fetch(`/api/parts/${partId}/nc-analyze?preset=${preset}`, { method: "POST", body });
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.analysis) { setState({ busy: false, error: json?.error ?? "Analysis failed.", report: null }); return; }
     setState({ busy: false, error: null, report: json as Report });
@@ -67,6 +79,18 @@ export function NcAnalyzer({ partId }: { partId: string }) {
           accept=".nc,.txt,.tap,.ngc,.prg"
           className="text-[12px] text-muted file:mr-3 file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.12em] file:text-platinum-dim hover:file:bg-raised"
         />
+        <select
+          value={preset}
+          onChange={(e) => setPreset(e.target.value)}
+          className="border border-line-strong bg-surface px-1.5 py-1.5 text-[11px] text-platinum-dim"
+          aria-label="Strategy preset"
+          title="Feed proposal ceiling. Lights-out is the most conservative — nobody is there to hear a bad cut."
+        >
+          <option value="CONSERVATIVE">Conservative (≤1.15×)</option>
+          <option value="BALANCED">Balanced (≤1.35×)</option>
+          <option value="AGGRESSIVE">Aggressive (≤1.6×, REVIEW risk)</option>
+          <option value="LIGHTS_OUT">Lights-out (≤1.1×)</option>
+        </select>
         <Button onClick={run} disabled={state.busy} variant="primary">
           {state.busy ? "Analyzing…" : "Analyze program"}
         </Button>
@@ -102,8 +126,56 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             )}
           </Panel>
 
-          <Panel title="Backplot — top view" dense>
-            <Backplot segments={r.backplot} extents={r.analysis.extents} />
+          <Panel title="Backplot — load map, top view" meta={<StatusChip tone="review">Development analysis</StatusChip>} dense>
+            <Backplot segments={r.backplot} bands={r.load.bands} extents={r.analysis.extents} />
+          </Panel>
+
+          <Panel
+            title={`Feed proposals — ${r.load.proposals.length}`}
+            meta={
+              <span className="flex items-center gap-2">
+                {r.load.totalProposedSecondsSaved > 0 && (
+                  <span className="font-mono text-[11px] text-review tabular-nums">~{r.load.totalProposedSecondsSaved}s total</span>
+                )}
+                <StatusChip tone="neutral">Feed-only · geometry never changes</StatusChip>
+              </span>
+            }
+            dense
+          >
+            {r.load.gaps.length > 0 && (
+              <ul className="border-b border-line px-4 py-2">
+                {r.load.gaps.map((g) => (
+                  <li key={g} className="text-[11.5px] leading-relaxed text-review">— {g}</li>
+                ))}
+              </ul>
+            )}
+            {r.load.proposals.length === 0 ? (
+              <p className="px-4 py-3 text-[12px] text-muted">
+                No feed proposals under this preset — nothing bands LIGHT with enough recoverable time.
+              </p>
+            ) : (
+              <ul>
+                {r.load.proposals.map((p, i) => (
+                  <li key={i} className="border-b border-line/60 px-4 py-2 last:border-0">
+                    <div className="flex flex-wrap items-baseline gap-x-3 font-mono text-[11.5px] tabular-nums">
+                      <span className="text-muted">L{p.lines[0]}{p.lines[1] !== p.lines[0] ? `–${p.lines[1]}` : ""}</span>
+                      <span className="text-muted">T{p.toolNumber}</span>
+                      <span className="text-platinum">F{p.originalFeed} → F{p.proposedFeed}</span>
+                      <span className="text-review">~{p.estimatedSecondsSaved}s</span>
+                      <StatusChip tone={p.risk === "LOW" ? "pass" : "review"}>{p.risk}</StatusChip>
+                    </div>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-platinum-dim">{p.reason}</p>
+                    <p className="text-[10.5px] leading-relaxed text-muted">
+                      Assumes: {p.assumptions.join(" ")} Evidence to raise confidence: {p.requiredEvidence}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="border-t border-line px-4 py-2 text-[11px] leading-relaxed text-muted">
+              Proposals are analysis. Applying them — an optimized program with an audit trail, simulated and exported
+              behind the same gates as any NC — is Phase 4E/4F and does not exist yet.
+            </p>
           </Panel>
 
           <Panel title="Cycle time" dense>
@@ -177,11 +249,21 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   );
 }
 
+const BAND_COLOR: Record<string, string> = {
+  AIR: "var(--c-muted)",
+  LIGHT: "#4d97ff",
+  TARGET: "var(--c-pass, #17754e)",
+  HIGH: "var(--c-review, #96570d)",
+  REVIEW: "var(--c-risk, #c22a1e)",
+};
+
 function Backplot({
   segments,
+  bands,
   extents,
 }: {
   segments: [number, number, number, number, number][];
+  bands: string[];
   extents: { minX: number; maxX: number; minY: number; maxY: number };
 }) {
   const w = 640, h = 400, pad = 20;
@@ -197,14 +279,17 @@ function Backplot({
           <line
             key={i}
             x1={X(x0)} y1={Y(y0)} x2={X(x1)} y2={Y(y1)}
-            stroke={cut ? "var(--c-blue)" : "var(--c-muted)"}
-            strokeWidth={cut ? 1.4 : 0.8}
+            stroke={cut ? (BAND_COLOR[bands[i]] ?? "var(--c-blue)") : "var(--c-muted)"}
+            strokeWidth={cut ? 1.6 : 0.8}
             strokeDasharray={cut ? undefined : "3 3"}
-            opacity={cut ? 0.9 : 0.5}
+            opacity={cut ? 0.95 : 0.4}
           />
         ))}
       </svg>
-      <p className="mt-1.5 text-[10.5px] text-muted">Blue = cutting moves · dashed gray = rapids. Top view, program coordinates.</p>
+      <p className="mt-1.5 text-[10.5px] text-muted">
+        Load bands from chipload + replay: gray/dashed rapid · blue light (rubbing) · green target · orange high ·
+        red review. Estimates, not measurements — no spindle telemetry exists.
+      </p>
     </div>
   );
 }

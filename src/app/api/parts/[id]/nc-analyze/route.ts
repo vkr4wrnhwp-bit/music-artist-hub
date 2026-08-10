@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { loadRevision, getTools, getMachines } from "@/lib/data";
+import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
+import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
 
 /**
  * NC ANALYSIS — Phase 4A/4B endpoint
@@ -27,15 +28,36 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach an .nc / .txt program." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "File exceeds the 5 MB limit." }, { status: 400 });
 
-  const [tools, machines] = await Promise.all([getTools(user.organizationId), getMachines(user.organizationId)]);
+  const [tools, machines, materials] = await Promise.all([
+    getTools(user.organizationId),
+    getMachines(user.organizationId),
+    getMaterials(user.organizationId),
+  ]);
   const toolDiameters: Record<number, number> = {};
-  for (const t of tools) toolDiameters[t.toolNumber] = t.diameter;
+  const loadTools: LoadContext["tools"] = {};
+  for (const t of tools) {
+    toolDiameters[t.toolNumber] = t.diameter;
+    loadTools[t.toolNumber] = { diameter: t.diameter, flutes: t.flutes, chiploadMin: t.chiploadMin, chiploadMax: t.chiploadMax };
+  }
+  // Material by name match against the recorded intent — no match, no energy.
+  const materialName = revision.intent.material.value ?? "";
+  const material = materials.find((m) => materialName.toLowerCase().includes(m.name.toLowerCase().split(" ")[0]) || m.name.toLowerCase().includes(materialName.toLowerCase().split(" ")[0] ?? "∅"));
+
+  const preset = (new URL(request.url).searchParams.get("preset") ?? "BALANCED") as LoadContext["preset"];
+  const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
 
   const parsed = parseNC(await file.text());
   const analysis = analyzeNC(parsed, {
-    stock: revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null,
+    stock,
     toolDiameters,
     rapidRate: machines[0]?.maxRapid ?? 600,
+  });
+  const load = analyzeLoad(parsed, {
+    stock,
+    tools: loadTools,
+    specificEnergy: material?.specificEnergy ?? null,
+    machineMaxFeed: machines[0]?.maxFeed ?? 300,
+    preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
   });
 
   return NextResponse.json({
@@ -54,6 +76,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       .filter((s) => s.kind !== "DWELL")
       .map((s) => [s.feed === null ? 0 : 1, r(s.x0), r(s.y0), r(s.x1), r(s.y1)]),
     analysis,
+    load: {
+      bands: load.segments.map((s) => s.band),
+      proposals: load.proposals,
+      totalProposedSecondsSaved: load.totalProposedSecondsSaved,
+      gaps: load.gaps,
+      developmentAnalysis: load.developmentAnalysis,
+    },
     context: {
       stockBound: Boolean(revision.stock),
       toolsKnown: Object.keys(toolDiameters).length,
