@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { getMaterials } from "@/lib/data";
 import { reviewApproaches, comparePlans, type ScoredPlan } from "@/lib/machinist-review";
+import { PLACEHOLDER_OPERATIONS, type OperationType } from "@/lib/engines/cam/types";
 import { THOUGHT_PATTERNS, PHILOSOPHIES, type ThoughtPattern } from "@/lib/engines/machinist";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { money } from "@/lib/engines/cost";
@@ -151,7 +152,9 @@ export default async function MachinistPage(props: {
             clearanceZ: 0.1,
             retractZ: 1,
             overridesJson: JSON.stringify({ stepover: o.stepover, stockToLeave: o.stockToLeave }),
-            isPlaceholder: o.type === "BORE" || o.type === "TAP" || o.type === "ADAPTIVE_2D",
+            // Membership in the engine's own list, so this cannot drift when
+            // an operation type gains an engine.
+            isPlaceholder: PLACEHOLDER_OPERATIONS.includes(o.type as OperationType),
           },
         });
       }

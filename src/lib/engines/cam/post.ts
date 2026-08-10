@@ -79,6 +79,26 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
         lines.push(`T${tp.toolNumber} M6`);
         currentTool = tp.toolNumber;
       }
+
+      if (tp.type === "TAP") {
+        // Rigid tap as a canned cycle. G84 owns the spindle — no M3, and the
+        // feed is pitch × rpm exactly as the engine locked it. Emitting these
+        // moves as G1 lines instead would strip the spindle synchronisation
+        // and break the tap, which is why the generic path is not used here.
+        const finalZ = Math.min(...tp.moves.map((m) => m.z));
+        const rPlane = tp.moves[0]?.z ?? ctx.safeZ;
+        lines.push(c(`RIGID TAP — F ${tp.parameters.feed.toFixed(2)} = ${tp.parameters.rpm} RPM x pitch`));
+        lines.push(`${ctx.workOffset} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
+        lines.push(`G43 H${entry?.lengthOffset ?? tp.toolNumber} Z${n(ctx.safeZ, 3)}`);
+        if (tp.parameters.coolant !== "OFF") lines.push("M8");
+        lines.push(`S${tp.parameters.rpm}`);
+        lines.push(`G84 Z${n(finalZ, 3)} R${n(rPlane, 3)} F${tp.parameters.feed.toFixed(2)}`);
+        lines.push("G80");
+        lines.push("M9");
+        lines.push("G53 G0 Z0.");
+        continue;
+      }
+
       lines.push(`S${tp.parameters.rpm} M3`);
       lines.push(`${ctx.workOffset} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
       lines.push(`G43 H${entry?.lengthOffset ?? tp.toolNumber} Z${n(ctx.safeZ, 3)}`);
@@ -132,6 +152,12 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
       lines.push(c(`OPERATION ${tp.type} HAS NO TOOLPATH ENGINE — SKIPPED`));
       continue;
     }
+    if (tp.type === "TAP") {
+      // GRBL has no rigid tapping. Emitting the tap moves as feed lines would
+      // strip the spindle synchronisation and break the tap in the hole.
+      lines.push(c(`TAP NOT EMITTED — GRBL CANNOT RIGID TAP. TAP THIS HOLE BY HAND.`));
+      continue;
+    }
     lines.push("");
     lines.push(c(`${tp.type} — T${tp.toolNumber}`));
     lines.push("M5");
@@ -160,6 +186,12 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   const push = (s: string) => lines.push(`${block++} ${s}`);
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
+    if (tp.type === "TAP") {
+      // Rigid tapping on TNC is cycle 207, which this development post does
+      // not implement. Unsynchronised feed lines would break the tap.
+      lines.push(`; TAP NOT EMITTED — TAPPING CYCLE 207 NOT IMPLEMENTED IN THIS DEVELOPMENT POST`);
+      continue;
+    }
     push(`TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`);
     push(`L Z+${n(ctx.safeZ, 3)} R0 FMAX M3`);
     for (const mv of tp.moves) {
@@ -185,6 +217,12 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push("G17 G90 G54");
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
+    if (tp.type === "TAP") {
+      // Rigid tapping on 840D is CYCLE84, which this development post does
+      // not implement. Unsynchronised feed lines would break the tap.
+      lines.push(c("TAP NOT EMITTED — CYCLE84 NOT IMPLEMENTED IN THIS DEVELOPMENT POST"));
+      continue;
+    }
     lines.push("");
     lines.push(c(`${tp.type}`));
     lines.push(`T="T${tp.toolNumber}" M6`);

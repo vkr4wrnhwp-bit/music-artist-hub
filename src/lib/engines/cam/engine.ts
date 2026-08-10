@@ -177,6 +177,24 @@ export function generateToolpath(
       warnings.push(...r.warnings);
       break;
     }
+    case "BORE": {
+      if (!feature) return missingFeature(req);
+      const r = boreToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
+    case "TAP": {
+      if (!feature) return missingFeature(req);
+      const r = tapToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
     case "CONTOUR_2D": {
       if (!feature) return missingFeature(req);
       const r = contourToolpath(req, feature, ctx, params);
@@ -495,6 +513,255 @@ function drillToolpath(
 
   const removed = Math.PI * (ctx.tool.diameter / 2) ** 2 * depth;
   return { moves, removed, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* BORE — finish an existing hole to size                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Two honest ways to finish a bore on a 3-axis mill, selected by the tool the
+ * plan assigned:
+ *
+ * BORING_TOOL — a single-point head cuts at the diameter it is physically set
+ * to. The motion is a feed pass down and a feed pass back out (G85-style, the
+ * feed-out is what leaves the finish). The engine cannot know what the head is
+ * set to; it requires the tool's recorded diameter to match the feature and
+ * says out loud that the operator must set the head to that diameter.
+ *
+ * End mill — helical interpolation: spiral down the finished wall, one full
+ * cleanup ring at depth, lead out. The tool must be smaller than the bore.
+ *
+ * Anything else — a drill, a tap, a chamfer mill — is refused, not adapted.
+ */
+function boreToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "BORE" && feature.kind !== "CIRC_POCKET") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind}; a bore operation requires a bore or circular pocket feature.`,
+        recommendations: ["Select the bore feature", "Change the operation type"],
+      },
+    };
+  }
+
+  const warnings: string[] = [];
+  const moves: Move[] = [];
+  const cx = feature.centerX;
+  const cy = feature.centerY;
+  const bore = feature.diameter;
+  const depth = req.topZ - req.finalZ;
+
+  // What the roughing pass left on the wall. The pocket engine leaves its
+  // stockToLeave (0.010" radial by default); the removal figure below assumes
+  // that allowance and says so, because CANVAS did not measure the roughed
+  // bore.
+  const assumedAllowance = 0.01;
+
+  if (ctx.tool.toolClass === "BORING_TOOL") {
+    if (Math.abs(ctx.tool.diameter - bore) > 0.001) {
+      return {
+        error: {
+          reason: `The boring head is recorded at ⌀${ctx.tool.diameter.toFixed(4)}" but ${feature.label} is ⌀${bore.toFixed(4)}". A single-point head cuts at the diameter it is set to — CANVAS cannot adjust it.`,
+          recommendations: [
+            `Set the boring head to ⌀${bore.toFixed(4)} and record that diameter on the tool`,
+            "Assign an end mill smaller than the bore for helical interpolation",
+          ],
+        },
+      };
+    }
+    // Single-point: feed per revolution, one cutting edge.
+    const boringFeed = Math.max(1, Math.round(p.rpm * (ctx.tool.chiploadMin + ctx.tool.chiploadMax) / 2));
+    p.feed = boringFeed;
+    p.plungeFeed = boringFeed;
+    p.stepover = 0;
+    p.stockToLeave = 0;
+
+    moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
+    moves.push({ type: "PLUNGE", x: cx, y: cy, z: req.finalZ, feed: boringFeed });
+    // Feed out, not rapid out — the spring pass is what leaves the finish.
+    moves.push({ type: "RETRACT", x: cx, y: cy, z: req.topZ + 0.05, feed: boringFeed });
+    moves.push({ type: "RETRACT", x: cx, y: cy, z: req.retractZ, feed: null });
+
+    warnings.push(
+      `Single-point bore: set the head to ⌀${bore.toFixed(4)} before running. The program cannot verify the head setting.`,
+    );
+  } else if (
+    ctx.tool.toolClass === "FLAT_END_MILL" ||
+    ctx.tool.toolClass === "BULL_NOSE" ||
+    ctx.tool.toolClass === "SHELL_MILL"
+  ) {
+    const d = ctx.tool.diameter;
+    if (d >= bore) {
+      return {
+        error: {
+          reason: `⌀${d.toFixed(4)}" end mill cannot helically interpolate a ⌀${bore.toFixed(4)}" bore — the tool is not smaller than the hole.`,
+          recommendations: [`Use an end mill smaller than ⌀${bore.toFixed(4)}`, "Use a boring head set to size"],
+        },
+      };
+    }
+    const pathR = bore / 2 - d / 2;
+    // Helix pitch per revolution: shallow enough to stay a finishing cut.
+    const pitch = Math.min(p.stepdown, d * 0.1);
+    const revs = Math.max(1, Math.ceil(depth / pitch));
+    const segments = Math.max(24, Math.round(pathR * 60));
+    const helixFeed = Math.round(p.feed * 0.65);
+
+    moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
+    moves.push({ type: "PLUNGE", x: cx, y: cy, z: req.topZ + 0.02, feed: p.plungeFeed });
+    moves.push({ type: "LEAD_IN", x: cx + pathR, y: cy, z: req.topZ + 0.02, feed: helixFeed });
+    for (let rev = 0; rev < revs; rev++) {
+      const zStart = req.topZ - (depth * rev) / revs;
+      const zEnd = req.topZ - (depth * (rev + 1)) / revs;
+      for (let i = 1; i <= segments; i++) {
+        const a = (i / segments) * Math.PI * 2;
+        moves.push({
+          type: "CUT",
+          x: cx + pathR * Math.cos(a),
+          y: cy + pathR * Math.sin(a),
+          z: Math.max(req.finalZ, zStart + ((zEnd - zStart) * i) / segments),
+          feed: helixFeed,
+        });
+      }
+    }
+    // Full flat ring at depth cleans up the helix exit ramp.
+    ringMoves(moves, cx, cy, pathR, req.finalZ, Math.round(p.feed * 0.7));
+    moves.push({ type: "LEAD_OUT", x: cx, y: cy, z: req.finalZ, feed: helixFeed });
+    moves.push({ type: "RETRACT", x: cx, y: cy, z: req.retractZ, feed: null });
+  } else {
+    return {
+      error: {
+        reason: `${ctx.tool.description} is a ${ctx.tool.toolClass} and cannot finish a bore.`,
+        recommendations: ["Assign a boring head set to size", "Assign an end mill smaller than the bore"],
+      },
+    };
+  }
+
+  const outerR = bore / 2;
+  const innerR = Math.max(0, outerR - assumedAllowance);
+  const removed = Math.PI * (outerR ** 2 - innerR ** 2) * depth;
+  warnings.push(
+    `Material-removed figure assumes the roughing pass left ${assumedAllowance.toFixed(3)}" radial. CANVAS has not measured the roughed bore.`,
+  );
+
+  return { moves, removed, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* TAP — rigid tap, feed locked to pitch × rpm                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse a pitch, in inches per revolution, out of a thread designation.
+ *
+ * Deterministic and deliberately narrow: imperial "1/4-20", "#10-32",
+ * "5/16-18 UNC" (pitch = 1 / TPI) and metric "M6x1.0" / "M6×1.0" (pitch in
+ * mm). Anything else returns null — a tap fed at an invented pitch breaks,
+ * so no pitch is ever guessed. See CLAUDE.md principle 12.
+ */
+export function parseThreadPitch(thread: string): number | null {
+  const metric = /M\s*\d+(?:\.\d+)?\s*[x×]\s*(\d+(?:\.\d+)?)/i.exec(thread);
+  if (metric) {
+    const mm = parseFloat(metric[1]);
+    return mm > 0 ? mm / 25.4 : null;
+  }
+  const imperial = /(?:\d+\/\d+|#?\d+)\s*-\s*(\d+(?:\.\d+)?)/.exec(thread);
+  if (imperial) {
+    const tpi = parseFloat(imperial[1]);
+    return tpi > 0 ? 1 / tpi : null;
+  }
+  return null;
+}
+
+/** Nominal major diameter in inches, where the designation states one. */
+export function parseThreadMajor(thread: string): number | null {
+  const metric = /M\s*(\d+(?:\.\d+)?)/i.exec(thread);
+  if (metric) return parseFloat(metric[1]) / 25.4;
+  const fraction = /^(\d+)\/(\d+)/.exec(thread.trim());
+  if (fraction) return parseInt(fraction[1], 10) / parseInt(fraction[2], 10);
+  const numbered = /^#(\d+)/.exec(thread.trim());
+  if (numbered) return 0.06 + 0.013 * parseInt(numbered[1], 10);
+  return null;
+}
+
+function tapToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "TAPPED_HOLE") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind}; a tap operation requires a tapped hole feature.`,
+        recommendations: ["Select a tapped hole feature"],
+      },
+    };
+  }
+  if (ctx.tool.toolClass !== "TAP") {
+    return {
+      error: {
+        reason: `${ctx.tool.description} is a ${ctx.tool.toolClass}, not a tap. Feed-per-rev synchronisation only holds for the tool the thread was designed for.`,
+        recommendations: ["Assign a tap matching the thread designation", "Thread mill this hole instead"],
+      },
+    };
+  }
+  if (!feature.thread) {
+    return {
+      error: {
+        reason: `${feature.label} has no thread designation, so the pitch is unknown. A tap fed at a guessed pitch breaks — CANVAS will not invent one.`,
+        recommendations: ['Record the thread on the feature (e.g. "1/4-20 UNC" or "M6x1.0")'],
+      },
+    };
+  }
+  const pitch = parseThreadPitch(feature.thread);
+  if (pitch === null) {
+    return {
+      error: {
+        reason: `Thread designation "${feature.thread}" could not be parsed for a pitch. CANVAS will not invent one.`,
+        recommendations: ['Use the form "1/4-20 UNC", "#10-32" or "M6x1.0"'],
+      },
+    };
+  }
+
+  const warnings: string[] = [];
+  const major = parseThreadMajor(feature.thread);
+  if (major !== null && Math.abs(ctx.tool.diameter - major) > 0.02) {
+    warnings.push(
+      `Assigned tap is ⌀${ctx.tool.diameter.toFixed(3)}" but ${feature.thread} has a ${major.toFixed(3)}" major diameter — confirm the right tap is loaded.`,
+    );
+  }
+
+  // Rigid tapping: the feed is not chosen, it is the thread. Cap the spindle
+  // well below the machine's rapid-tap comfort zone rather than at the
+  // milling rpm the generic derivation produced.
+  const rpm = Math.min(p.rpm, 800);
+  const feed = Number((rpm * pitch).toFixed(2));
+  p.rpm = rpm;
+  p.feed = feed;
+  p.plungeFeed = feed;
+  p.stepover = 0;
+  p.stockToLeave = 0;
+  p.coolant = "FLOOD";
+
+  const moves: Move[] = [];
+  moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: req.clearanceZ, feed: null });
+  // Down and back out at the synchronised feed — the reversal is a feed move.
+  moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z: req.finalZ, feed });
+  moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.topZ + 0.1, feed });
+  moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.retractZ, feed: null });
+
+  warnings.push(
+    "Rigid tap: the post emits a canned tapping cycle. Posts for controllers without rigid tapping refuse the operation rather than emitting unsynchronised moves.",
+  );
+
+  // A tap displaces more than it removes; the removal figure is the thread
+  // relief over the drilled hole, small and honest enough at zero.
+  return { moves, removed: 0, warnings };
 }
 
 /* ------------------------------------------------------------------ */

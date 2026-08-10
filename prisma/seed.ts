@@ -142,6 +142,7 @@ async function main() {
     { toolNumber: 7, toolClass: "CHAMFER_MILL", description: '1/2" 90° chamfer mill', diameter: 0.5, flutes: 4, material: "CARBIDE", coating: "TiAlN", fluteLength: 0.5, overallLength: 2.5, stickout: 1.1, holderId: cat40.id, maxRPM: 8100, chiploadMin: 0.001, chiploadMax: 0.003, sfmMin: 500, sfmMax: 900, costPerTool: 38, expectedLifeMinutes: 300 },
     { toolNumber: 8, toolClass: "ENGRAVER", description: '1/8" 60° engraving tool', diameter: 0.125, flutes: 1, material: "CARBIDE", fluteLength: 0.25, overallLength: 2, stickout: 0.8, holderId: cat40.id, maxRPM: 8100, chiploadMin: 0.0005, chiploadMax: 0.0015, sfmMin: 300, sfmMax: 600, costPerTool: 18, expectedLifeMinutes: 300 },
     { toolNumber: 9, toolClass: "BORING_TOOL", description: '1.0"–2.0" adjustable boring head', diameter: 1.5748, flutes: 1, material: "CARBIDE", fluteLength: 0.75, overallLength: 4, stickout: 2.2, holderId: cat40.id, maxRPM: 2000, chiploadMin: 0.001, chiploadMax: 0.003, sfmMin: 400, sfmMax: 700, costPerTool: 260, expectedLifeMinutes: 600 },
+    { toolNumber: 10, toolClass: "TAP", description: "1/4-20 spiral point tap", diameter: 0.25, flutes: 3, material: "HSS", coating: "TiN", fluteLength: 1, overallLength: 2.5, stickout: 1.5, holderId: cat40.id, maxRPM: 4000, chiploadMin: 0.001, chiploadMax: 0.002, sfmMin: 30, sfmMax: 60, costPerTool: 14, expectedLifeMinutes: 500 },
   ];
 
   for (const t of tools) {
@@ -462,6 +463,11 @@ async function main() {
     { setupId: setup1.id, label: "Rough bearing bore", type: "POCKET_2D", featureLabel: "40 mm bearing bore", toolNumber: 2, topZ: 0, finalZ: -0.7, sequence: 5 },
     { setupId: setup1.id, label: "Finish bore to 40 mm", type: "BORE", featureLabel: "40 mm bearing bore", toolNumber: 9, topZ: 0, finalZ: -0.7, sequence: 6 },
     { setupId: setup1.id, label: "Chamfer top edges", type: "CHAMFER", featureLabel: "Outside chamfer", toolNumber: 7, topZ: 0, finalZ: -0.03, sequence: 7 },
+    // The tap holes were drilled at sequence 4 and, until this operation
+    // existed, never tapped — the plan shipped the part with four plain
+    // 0.201" holes. Tapping runs after the chamfer so the countersink leads
+    // the tap in.
+    { setupId: setup1.id, label: "Tap 1/4-20 mounting holes", type: "TAP", featureLabel: "1/4-20 mounting hole 1", toolNumber: 10, topZ: 0, finalZ: -0.7, sequence: 8 },
     { setupId: setup2.id, label: "Face bottom to thickness", type: "FACE", featureLabel: "Face top", toolNumber: 1, topZ: 0.0625, finalZ: 0, sequence: 1 },
     { setupId: setup2.id, label: "Finish outside profile", type: "CONTOUR_2D", featureLabel: "Outside profile", toolNumber: 2, topZ: 0, finalZ: -0.625, sequence: 2 },
   ];
@@ -480,7 +486,7 @@ async function main() {
         finalZ: o.finalZ,
         clearanceZ: 0.1,
         retractZ: 1,
-        isPlaceholder: o.type === "BORE",
+        isPlaceholder: o.type === "ADAPTIVE_2D",
       },
     });
   }

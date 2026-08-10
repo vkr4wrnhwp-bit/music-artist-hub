@@ -36,6 +36,8 @@ export const IMPLEMENTED_OPERATIONS: OperationType[] = [
   "POCKET_2D",
   "DRILL",
   "PECK_DRILL",
+  "BORE",
+  "TAP",
   "CONTOUR_2D",
   "CHAMFER",
   "ENGRAVE",
@@ -43,7 +45,7 @@ export const IMPLEMENTED_OPERATIONS: OperationType[] = [
 ];
 
 /** Operation types that exist as interfaces only. The UI labels these clearly. */
-export const PLACEHOLDER_OPERATIONS: OperationType[] = ["ADAPTIVE_2D", "BORE", "TAP"];
+export const PLACEHOLDER_OPERATIONS: OperationType[] = ["ADAPTIVE_2D"];
 
 export interface CuttingParameters {
   /** Spindle speed, RPM. */
