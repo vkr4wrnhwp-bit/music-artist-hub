@@ -12,6 +12,9 @@ import { FeatureLens } from "./feature-lens";
 import { FeaturePanel } from "./feature-panel";
 import { OperationRunway } from "./operation-runway";
 import { DimensionCard } from "./dimension-card";
+import { SimTransport } from "./sim-transport";
+import { StockRemovalSimulator, type SimOperation } from "@/lib/sim/stock-removal";
+import type { SimHandle } from "@/components/viewport/sim-view";
 import type { DatumInfo, FeatureDetail, NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
 
 /**
@@ -58,6 +61,12 @@ export interface WorkspaceProps {
   runway: RunwayData;
   /** The whole ordered queue from `nextActions()`, head first. */
   nextActions: NextActionInfo[];
+  /** Structured operations for the CUT stock-removal simulation. */
+  simOps: SimOperation[];
+  /** Server action recording a watched-to-completion simulation run. */
+  recordSimulation?: (payload: { removedVolume: number; totalTime: number; collisions: number }) => Promise<void>;
+  /** True when a Simulation row already exists for this revision. */
+  simulationRecorded: boolean;
   hasInspectionPlan: boolean;
   measurementSessionId: string | null;
 }
@@ -162,6 +171,32 @@ function WorkspaceInner(props: WorkspaceProps) {
   const setFlag = (k: keyof typeof contextFlags) => (v: boolean) => setOverrides((o) => ({ ...o, [k]: v }));
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
+
+  // Stock-removal simulation. The simulator is built once from the real
+  // toolpaths (the constructor runs the full deterministic pass, so every
+  // collision is known before playback starts); the handle is the mutable
+  // playback state shared between the transport and the render rig.
+  const simHandle = useMemo<SimHandle | null>(() => {
+    if (!props.stock || props.simOps.length === 0) return null;
+    const sim = new StockRemovalSimulator(
+      { x: props.stock.x, y: props.stock.y, z: props.stock.z },
+      props.simOps,
+    );
+    return { sim, time: 0, playing: false, speed: 1, followTool: false, scrubbed: 0 };
+  }, [props.stock, props.simOps]);
+  const simActive = state.activeContext === "CUT" && simHandle !== null;
+  const [simRecorded, setSimRecorded] = useState(props.simulationRecorded);
+
+  // A runway click during simulation jumps the playhead to that operation.
+  useEffect(() => {
+    if (!simActive || !simHandle || !state.activeOperation) return;
+    const idx = props.simOps.findIndex((o) => o.operationId === state.activeOperation);
+    if (idx >= 0) {
+      simHandle.playing = false;
+      simHandle.time = simHandle.sim.opStartTimes[idx];
+      simHandle.scrubbed++;
+    }
+  }, [simActive, simHandle, state.activeOperation, props.simOps]);
 
   const selected = useMemo(
     () => props.features.find((f) => f.id === selectedFeature) ?? null,
@@ -289,6 +324,7 @@ function WorkspaceInner(props: WorkspaceProps) {
               onHoverFeature={hover}
               fixture={props.fixture}
               showHoldCallouts={state.activeContext === "HOLD"}
+              simHandle={simActive ? simHandle : null}
             />
 
             {/* Compact controls, left edge. Nothing here is wider than the
@@ -366,9 +402,26 @@ function WorkspaceInner(props: WorkspaceProps) {
               </div>
             )}
 
+            {/* Simulation transport — the CUT context's whole reason to
+                exist. Falls back to the static-path scrubber elsewhere. */}
+            {simActive && simHandle && (
+              <SimTransport
+                handle={simHandle}
+                recorded={simRecorded}
+                onRecordRun={
+                  props.recordSimulation
+                    ? async (payload) => {
+                        await props.recordSimulation!(payload);
+                        setSimRecorded(true);
+                      }
+                    : undefined
+                }
+              />
+            )}
+
             {/* Toolpath transport. Present only while a path is on screen —
                 a scrub bar with nothing to scrub is chrome for its own sake. */}
-            {showTransport && (
+            {!simActive && showTransport && (
               <div className="absolute bottom-3 left-16 z-20 flex items-center gap-2 border border-line-strong bg-card/95 px-2 py-1.5 backdrop-blur">
                 <button
                   onClick={() => setPlaying((p) => !p)}

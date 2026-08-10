@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { getMetrology } from "@/lib/data";
 import { fmt, fmtTol } from "@/lib/domain/features";
@@ -111,6 +112,64 @@ export default async function PartWorkspace(props: {
     ]);
 
   const moves = pkg.toolpaths.flatMap((tp) => tp.moves);
+
+  // Structured operations for the CUT stock-removal simulation: per-op moves
+  // with the real tool geometry and speeds, in plan order. Placeholders have
+  // no motion and are excluded — simulating them would be showing nothing and
+  // calling it something.
+  const allOps = pkg.setups.flatMap((s) => s.operations);
+  const simOps = pkg.toolpaths
+    .filter((tp) => !tp.isPlaceholder && tp.moves.length > 1)
+    .map((tp) => {
+      const op = allOps.find((o) => o.id === tp.operationId);
+      const tool = pkg.assignedTools.find((t) => t.toolNumber === tp.toolNumber);
+      return {
+        operationId: tp.operationId,
+        label: op?.label ?? tp.type,
+        toolNumber: tp.toolNumber,
+        toolDiameter: tool?.diameter ?? 0.25,
+        fluteLength: tool?.fluteLength ?? 0,
+        rpm: tp.parameters.rpm,
+        moves: tp.moves,
+      };
+    });
+
+  async function recordSimulation(payload: { removedVolume: number; totalTime: number; collisions: number }) {
+    "use server";
+    const currentUser = await requireUser();
+    const fresh = await buildPackage(currentUser.organizationId, id);
+    if (!fresh) notFound();
+    // One row per setup: the simulation covered the whole plan. The flags are
+    // true in the geometric sense only — stock removal and clearance were
+    // simulated; forces were not, and the result says so.
+    for (const s of fresh.setups) {
+      await db.simulation.create({
+        data: {
+          setupId: s.id,
+          kind: "VISUALIZATION",
+          status: "COMPLETE",
+          verifiedStockRemoval: true,
+          collisionChecked: true,
+          resultJson: JSON.stringify({
+            scope: "GEOMETRIC — material removal and clearance only, no forces modelled",
+            removedVolume: payload.removedVolume,
+            totalTimeMinutes: payload.totalTime,
+            collisions: payload.collisions,
+          }),
+        },
+      });
+    }
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "PartRevision",
+      entityId: fresh.revision.revisionId,
+      action: "GENERATE",
+      actorType: "HUMAN",
+      reason: "Stock-removal simulation watched to completion and recorded",
+      newValue: `${payload.removedVolume.toFixed(3)} in³ removed, ${payload.collisions} collision(s), ${payload.totalTime.toFixed(2)} min`,
+    });
+  }
 
   const primarySetup = pkg.setups[0];
   // HOLD draws the setup, so it needs what the holding model concluded about
@@ -835,6 +894,9 @@ export default async function PartWorkspace(props: {
         nextActions={actions}
         hasInspectionPlan={pkg.hasInspectionPlan}
         measurementSessionId={latestSession?.id ?? null}
+        simOps={simOps}
+        recordSimulation={recordSimulation}
+        simulationRecorded={pkg.simulationRun}
       />
 
       {/* Publishes this page's own values to the shell drawer. Renders

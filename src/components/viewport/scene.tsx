@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
 import { buildPartSolid } from "./part-solid";
+import { SimRig } from "./sim-view";
 import type { Move } from "@/lib/engines/cam/types";
 
 /**
@@ -64,6 +65,12 @@ export interface ViewportProps {
   fixture?: FixtureInfo | null;
   /** True in HOLD, where the setup itself is the subject. */
   showHoldCallouts?: boolean;
+  /**
+   * Live stock-removal simulation (CUT). When present, the machined stock
+   * replaces the finished part — the whole point is that the part does not
+   * exist yet.
+   */
+  simHandle?: import("./sim-view").SimHandle | null;
 }
 
 /* WebGL cannot read CSS custom properties, so the work-window palette is
@@ -225,6 +232,7 @@ function SceneContent({
   onHoverFeature,
   fixture,
   showHoldCallouts,
+  simHandle,
 }: ViewportProps) {
   if (!stock) return null;
 
@@ -233,9 +241,13 @@ function SceneContent({
 
   return (
     <group position={[0, 0, zOffset]}>
-      {showStock && <PartBody stock={stock} features={features} mode={mode} />}
+      {/* During simulation the machined stock IS the model — the finished
+          part, its features and the static path give way to it. */}
+      {simHandle && <SimRig handle={simHandle} stock={stock} />}
 
-      {features.map((f) => (
+      {!simHandle && showStock && <PartBody stock={stock} features={features} mode={mode} />}
+
+      {!simHandle && features.map((f) => (
         <FeatureMesh
           key={f.id}
           feature={f}
@@ -250,8 +262,8 @@ function SceneContent({
       <DatumIndicator stock={stock} />
 
       {showFixture && fixture && <Fixture stock={stock} fixture={fixture} callouts={Boolean(showHoldCallouts)} />}
-      {showToolpath && moves && moves.length > 1 && <Toolpath moves={moves} playhead={playhead} zTop={stock.z / 2} />}
-      {showTool && moves && moves.length > 1 && <ToolMarker moves={moves} playhead={playhead} zTop={stock.z / 2} />}
+      {!simHandle && showToolpath && moves && moves.length > 1 && <Toolpath moves={moves} playhead={playhead} zTop={stock.z / 2} />}
+      {!simHandle && showTool && moves && moves.length > 1 && <ToolMarker moves={moves} playhead={playhead} zTop={stock.z / 2} />}
     </group>
   );
 }
