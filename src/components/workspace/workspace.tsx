@@ -13,6 +13,15 @@ import { FeaturePanel } from "./feature-panel";
 import { OperationRunway } from "./operation-runway";
 import { DimensionCard } from "./dimension-card";
 import { SimTransport } from "./sim-transport";
+import { ViewEnvironmentDrawer } from "./view-environment-drawer";
+import {
+  DEFAULT_ENVIRONMENT,
+  loadEnvironment,
+  saveEnvironment,
+  viewModeDefaults,
+  type ViewEnvironment,
+  type ViewMode as EnvViewMode,
+} from "@/lib/view-environment";
 import { StockRemovalSimulator, type SimOperation } from "@/lib/sim/stock-removal";
 import type { SimHandle } from "@/components/viewport/sim-view";
 import type { DatumInfo, FeatureDetail, NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
@@ -67,6 +76,8 @@ export interface WorkspaceProps {
   recordSimulation?: (payload: { removedVolume: number; totalTime: number; collisions: number }) => Promise<void>;
   /** True when a Simulation row already exists for this revision. */
   simulationRecorded: boolean;
+  /** Recorded material, for the view-environment recommendation. */
+  material: string | null;
   hasInspectionPlan: boolean;
   measurementSessionId: string | null;
 }
@@ -171,6 +182,21 @@ function WorkspaceInner(props: WorkspaceProps) {
   const setFlag = (k: keyof typeof contextFlags) => (v: boolean) => setOverrides((o) => ({ ...o, [k]: v }));
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
+
+  // View environment — how the viewport is drawn. Loaded from this browser's
+  // storage after mount (SSR renders the default), saved on every change.
+  const [viewEnv, setViewEnv] = useState<ViewEnvironment>(DEFAULT_ENVIRONMENT);
+  const [envOpen, setEnvOpen] = useState(false);
+  useEffect(() => setViewEnv(loadEnvironment()), []);
+  const updateEnv = (e: ViewEnvironment) => {
+    setViewEnv(e);
+    saveEnvironment(e);
+  };
+  const applyViewMode = (m: EnvViewMode) => {
+    const d = viewModeDefaults(m);
+    setOverrides((o) => ({ ...o, ...d.flags }));
+    updateEnv({ ...viewEnv, ...d.env, viewMode: m });
+  };
 
   // Stock-removal simulation. The simulator is built once from the real
   // toolpaths (the constructor runs the full deterministic pass, so every
@@ -325,7 +351,21 @@ function WorkspaceInner(props: WorkspaceProps) {
               fixture={props.fixture}
               showHoldCallouts={state.activeContext === "HOLD"}
               simHandle={simActive ? simHandle : null}
+              env={viewEnv}
             />
+
+            {/* View environment drawer — right edge, over the viewport. */}
+            {envOpen && (
+              <div className="absolute inset-y-3 right-3 z-30 flex">
+                <ViewEnvironmentDrawer
+                  env={viewEnv}
+                  onChange={updateEnv}
+                  material={props.material}
+                  onApplyViewMode={applyViewMode}
+                  onClose={() => setEnvOpen(false)}
+                />
+              </div>
+            )}
 
             {/* Compact controls, left edge. Nothing here is wider than the
                 buttons it holds — the viewport keeps the rest. */}
@@ -368,6 +408,15 @@ function WorkspaceInner(props: WorkspaceProps) {
                   </ControlButton>
                   <ControlButton title="Show the cutter" on={showTool} onClick={() => setFlag("showTool")(!showTool)}>
                     Tool
+                  </ControlButton>
+                </ControlGroup>
+                <ControlGroup heading="Scene">
+                  <ControlButton
+                    title="Background, grid, shadows, line weight and text size — visibility, not accuracy"
+                    on={envOpen}
+                    onClick={() => setEnvOpen((o) => !o)}
+                  >
+                    View env
                   </ControlButton>
                 </ControlGroup>
               </div>

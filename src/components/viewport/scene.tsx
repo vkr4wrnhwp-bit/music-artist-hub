@@ -1,6 +1,14 @@
 "use client";
 
 import { Canvas, useThree } from "@react-three/fiber";
+import { createContext, useContext } from "react";
+import {
+  DEFAULT_ENVIRONMENT,
+  LINE_MODE_OPACITY,
+  LINE_WEIGHT_PX,
+  ANNOTATION_SCALE,
+  type ViewEnvironment,
+} from "@/lib/view-environment";
 import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Html, Lightformer, OrbitControls, Line } from "@react-three/drei";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -71,6 +79,11 @@ export interface ViewportProps {
    * exist yet.
    */
   simHandle?: import("./sim-view").SimHandle | null;
+  /**
+   * View environment — how the scene is drawn, never what it shows. Absent
+   * means the Studio White defaults.
+   */
+  env?: import("@/lib/view-environment").ViewEnvironment;
 }
 
 /* WebGL cannot read CSS custom properties, so the work-window palette is
@@ -86,6 +99,17 @@ export interface ViewportProps {
    full saturation — restrained precision blue, no bloom, no emissive. */
 const WORK_WINDOW = "#FAFAF8";
 const BLUE = "#0b72ff";
+
+/* View environment: provided inside the Canvas so every scene component can
+   read how it should be drawn without eight layers of prop threading. */
+const EnvCtx = createContext<ViewEnvironment>(DEFAULT_ENVIRONMENT);
+const useEnv = () => useContext(EnvCtx);
+
+/** Mix a line colour toward the background so "intensity" reads as strength. */
+function withOpacityToward(color: string, background: string, strength: number): string {
+  const c = new THREE.Color(background).lerp(new THREE.Color(color), Math.min(1, Math.max(0, strength)));
+  return `#${c.getHexString()}`;
+}
 const PLATINUM = "#414851";
 const RAPID = "#a8aeb6";
 
@@ -121,7 +145,7 @@ export function Viewport(props: ViewportProps) {
       {/* A soft studio rather than a void. Product photography wants a bright
           environment with a clear key, a fill that keeps the shadow side
           readable, and a rim that separates the part from the ground. */}
-      <color attach="background" args={[WORK_WINDOW]} />
+      <color attach="background" args={[props.env?.background ?? WORK_WINDOW]} />
       <hemisphereLight args={["#ffffff", "#d2d5d1", 1.0]} />
       <ambientLight intensity={0.25} />
       {/* Key, fill, rim. Metal needs something to reflect or it reads as clay,
@@ -137,7 +161,7 @@ export function Viewport(props: ViewportProps) {
           depend on the network to render a part — and fails closed to a lost
           WebGL context when that network is not there. This is generated in
           process, so it works on a shop floor with no internet. */}
-      <Environment resolution={256} environmentIntensity={0.5}>
+      <Environment resolution={256} environmentIntensity={0.2 + (props.env?.reflectionStrength ?? 0.5) * 0.6}>
         <Lightformer form="rect" intensity={3} position={[0, 8, 3]} scale={[12, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1.3} position={[-7, 3, 4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1} position={[7, 2, -4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
@@ -150,36 +174,55 @@ export function Viewport(props: ViewportProps) {
           in this file and in the view presets are in WORLD space and have to
           respect that, or the default view ends up under the part looking at
           the face nobody machines. */}
-      <group rotation={[-Math.PI / 2, 0, 0]}>
-        <SceneContent {...props} />
-      </group>
+      <EnvCtx.Provider value={props.env ?? DEFAULT_ENVIRONMENT}>
+        <group rotation={[-Math.PI / 2, 0, 0]}>
+          <SceneContent {...props} />
+        </group>
+      </EnvCtx.Provider>
 
       {/* A soft contact shadow grounds the part. Without it the component
           floats, and a floating object reads as a CAD viewport rather than as
           a physical thing sitting on a surface. */}
-      <ContactShadows
-        position={[0, stock ? -stock.z / 2 - 0.002 : 0, 0]}
-        scale={span * 3.2}
-        opacity={0.42}
-        blur={2.4}
-        far={span * 1.4}
-        resolution={1024}
-        color="#3a3f45"
-      />
+      {(props.env?.shadowStrength ?? 0.42) > 0.01 && (
+        <ContactShadows
+          position={[0, stock ? -stock.z / 2 - 0.002 : 0, 0]}
+          scale={span * 3.2}
+          opacity={props.env?.shadowStrength ?? 0.42}
+          blur={2.4}
+          far={span * 1.4}
+          resolution={1024}
+          color="#3a3f45"
+        />
+      )}
+
+      {/* Floor plane — grounds the part. Tinted and toggled by the view
+          environment; a machinist inspecting a shiny wall can turn it off. */}
+      {(props.env?.floorVisible ?? true) && props.env && props.env.preset !== "STUDIO_WHITE" && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, stock ? -stock.z / 2 - 0.004 : -0.004, 0]}>
+          <planeGeometry args={[span * 8, span * 8]} />
+          <meshStandardMaterial
+            color={props.env.floorColor}
+            metalness={props.env.floorReflectivity}
+            roughness={1 - props.env.floorReflectivity * 0.6}
+          />
+        </mesh>
+      )}
 
       {/* The datum grid stays, but quietly, and only far enough out to give
           scale without competing with the component for attention. */}
-      <Grid
-        args={[span * 6, span * 6]}
-        cellSize={0.5}
-        cellColor="#ebedec"
-        sectionSize={span}
-        sectionColor="#d6dade"
-        fadeDistance={span * 7}
-        fadeStrength={2.2}
-        position={[0, stock ? -stock.z / 2 - 0.001 : 0, 0]}
-        infiniteGrid
-      />
+      {(props.env?.gridVisible ?? true) && (
+        <Grid
+          args={[span * 6, span * 6]}
+          cellSize={0.5}
+          cellColor={props.env ? withOpacityToward(props.env.gridColor, props.env.background, 0.12 + props.env.gridIntensity * 0.2) : "#ebedec"}
+          sectionSize={span}
+          sectionColor={props.env ? withOpacityToward(props.env.gridColor, props.env.background, 0.25 + props.env.gridIntensity * 0.45) : "#d6dade"}
+          fadeDistance={span * 7}
+          fadeStrength={2.2}
+          position={[0, stock ? -stock.z / 2 - 0.001 : 0, 0]}
+          infiniteGrid
+        />
+      )}
 
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
       {/* Top-right. The bottom-right corner is where the dimension card now
@@ -335,9 +378,22 @@ function PartBody({ stock, features, mode }: { stock: Stock; features: Feature[]
         />
       )}
       {/* Edge breaks. A machined part has crisp arrises, and drawing them is
-          what separates a milled component from a rendered blob. */}
-      <Edges threshold={28} color={mode === "WIREFRAME" ? "#9aa0a8" : "#6f757d"} />
+          what separates a milled component from a rendered blob. Strength and
+          visibility follow the view environment. */}
+      <PartEdges mode={mode} />
     </mesh>
+  );
+}
+
+function PartEdges({ mode }: { mode: ViewMode }) {
+  const env = useEnv();
+  const strength = LINE_MODE_OPACITY[env.edgeMode];
+  if (mode !== "WIREFRAME" && strength === 0) return null;
+  return (
+    <Edges
+      threshold={28}
+      color={mode === "WIREFRAME" ? "#9aa0a8" : withOpacityToward("#31363d", env.background, 0.35 + strength * 0.65)}
+    />
   );
 }
 
@@ -370,7 +426,11 @@ function FeatureMesh({
   // target and the highlight. Invisible at rest, so the part reads as a part;
   // they light up under the cursor, which is what makes hover feel physical.
   const active = selected || hovered;
-  const color = selected ? BLUE : f.critical ? "#8f6212" : BLUE;
+  // The selection accent follows the view environment; it defaults to the
+  // semantic precision blue and a custom choice is contrast-checked upstream.
+  const sel = useEnv().selectedFeatureColor;
+  const ringHigh = useEnv().featureRingHighContrast;
+  const color = selected ? sel : f.critical ? "#8f6212" : sel;
   // Restrained. The selected volume reads as tinted glass over machined metal,
   // not as a highlighter — the edge line is what identifies it, the fill only
   // has to say "this one". These are deliberately low because the volumes are
@@ -410,7 +470,7 @@ function FeatureMesh({
         <mesh position={[f.centerX, f.centerY, top - f.depth / 2]} {...common}>
           <boxGeometry args={[f.width, f.length, f.depth]} />
           {material}
-          <Edges threshold={20} color={active ? BLUE : "#c6cac7"} visible={active} />
+          <Edges threshold={20} color={active ? sel : "#c6cac7"} visible={active} />
         </mesh>
       );
     }
@@ -446,8 +506,8 @@ function FeatureMesh({
               diameter on a print. */}
           {active && (
             <mesh position={[f.centerX, f.centerY, top + 0.004]}>
-              <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * 1.055, 96]} />
-              <meshBasicMaterial color={BLUE} transparent opacity={selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
+              <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * (ringHigh ? 1.08 : 1.055), 96]} />
+              <meshBasicMaterial color={sel} transparent opacity={ringHigh ? 1 : selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
             </mesh>
           )}
         </group>
@@ -558,19 +618,23 @@ function FeatureMesh({
  * offset is set on is unambiguous.
  */
 function DatumIndicator({ stock }: { stock: Stock }) {
+  const env = useEnv();
   const span = Math.max(0.12, Math.min(stock.x, stock.y) * 0.09);
   const zz = stock.z + 0.02;
   const ring = span * 0.34;
+  const strength = LINE_MODE_OPACITY[env.datumLineMode];
+  if (strength === 0) return null;
+  const lw = 1 + strength * 1.5;
 
   return (
     <group>
       {/* Crosshair, broken at the centre so the ring reads as the origin. */}
-      <Line points={[[-span, 0, zz], [-ring * 1.3, 0, zz]]} color={BLUE} lineWidth={1.5} />
-      <Line points={[[ring * 1.3, 0, zz], [span, 0, zz]]} color={BLUE} lineWidth={1.5} />
-      <Line points={[[0, -span, zz], [0, -ring * 1.3, zz]]} color={BLUE} lineWidth={1.5} />
-      <Line points={[[0, ring * 1.3, zz], [0, span, zz]]} color={BLUE} lineWidth={1.5} />
+      <Line points={[[-span, 0, zz], [-ring * 1.3, 0, zz]]} color={BLUE} lineWidth={lw} />
+      <Line points={[[ring * 1.3, 0, zz], [span, 0, zz]]} color={BLUE} lineWidth={lw} />
+      <Line points={[[0, -span, zz], [0, -ring * 1.3, zz]]} color={BLUE} lineWidth={lw} />
+      <Line points={[[0, ring * 1.3, zz], [0, span, zz]]} color={BLUE} lineWidth={lw} />
       {/* Z stem — the axis the offset is set on. */}
-      <Line points={[[0, 0, zz], [0, 0, zz + span * 1.1]]} color={BLUE} lineWidth={1.5} />
+      <Line points={[[0, 0, zz], [0, 0, zz + span * 1.1]]} color={BLUE} lineWidth={lw} />
       <mesh position={[0, 0, zz]}>
         <ringGeometry args={[ring * 0.72, ring, 48]} />
         <meshBasicMaterial color={BLUE} side={THREE.DoubleSide} />
@@ -628,6 +692,7 @@ function Fixture({
   fixture: NonNullable<ViewportProps["fixture"]>;
   callouts: boolean;
 }) {
+  const env = useEnv();
   const grip = fixture.gripDepth ?? Math.min(0.25, stock.z * 0.3);
   const jawThickness = 1;
   const jawTopZ = grip;
@@ -680,7 +745,7 @@ function Fixture({
           <Line
             points={[[stock.x / 2 + 0.02, -stock.y / 2 - 0.15, 0], [stock.x / 2 + 0.02, -stock.y / 2 - 0.15, grip]]}
             color={BLUE}
-            lineWidth={2}
+            lineWidth={LINE_WEIGHT_PX[env.measurementLineWeight]}
           />
           {/* Each callout sits off a different edge so five of them can be on
               screen at once without stacking on each other. */}
@@ -743,12 +808,15 @@ function Callout({
         : tone === "risk"
           ? "border-l-risk"
           : "border-l-precision";
+  const scale = ANNOTATION_SCALE[useEnv().annotationSize];
   return (
     // No distanceFactor: an annotation is not part of the scene and should not
     // grow when you zoom in. Fixed screen size keeps it readable at any camera
-    // distance and stops five of them filling the viewport.
+    // distance and stops five of them filling the viewport. The environment's
+    // annotation size scales the whole card for shop-floor visibility.
     <Html position={position} center zIndexRange={[20, 0]}>
       <div
+        style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
         className={`pointer-events-none whitespace-nowrap border border-line-strong ${border} border-l-2 bg-card/95 px-1.5 py-[3px] shadow-[0_1px_6px_rgba(20,24,28,0.16)]`}
       >
         <p className="text-[7.5px] font-semibold uppercase leading-none tracking-[0.1em] text-muted">{label}</p>
@@ -792,13 +860,14 @@ function Toolpath({ moves, playhead, zTop }: { moves: Move[]; playhead: number; 
     return { cut, rapid };
   }, [moves, playhead, zTop]);
 
+  const tw = LINE_WEIGHT_PX[useEnv().toolpathLineWeight];
   return (
     <group>
       {segments.rapid.map((pts, i) => (
-        <Line key={`r${i}`} points={pts} color={RAPID} lineWidth={1} dashed dashSize={0.05} gapSize={0.05} />
+        <Line key={`r${i}`} points={pts} color={RAPID} lineWidth={Math.max(1, tw * 0.5)} dashed dashSize={0.05} gapSize={0.05} />
       ))}
       {segments.cut.map((pts, i) => (
-        <Line key={`c${i}`} points={pts} color={BLUE} lineWidth={1.5} />
+        <Line key={`c${i}`} points={pts} color={BLUE} lineWidth={tw} />
       ))}
     </group>
   );

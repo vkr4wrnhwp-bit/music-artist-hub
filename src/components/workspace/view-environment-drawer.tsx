@@ -1,0 +1,322 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  VIEW_PRESETS,
+  semanticConflicts,
+  recommendPresetFor,
+  loadSavedPresets,
+  saveNamedPreset,
+  deleteNamedPreset,
+  type ViewEnvironment,
+  type LineMode,
+  type LineWeight,
+  type AnnotationSize,
+  type ViewMode,
+} from "@/lib/view-environment";
+
+/**
+ * VIEW ENVIRONMENT — the viewport's inspection lamp.
+ *
+ * Everything in this drawer changes how the scene is drawn, never what it
+ * shows. The copy holds to that line: a preset "improves visibility" or
+ * "improves contrast" — it never certifies, verifies or improves a
+ * measurement. The brand shell and the semantic status colours are not
+ * customisable from here, on purpose: a shop that can repaint its own
+ * blocking-red into invisibility has been handed a footgun, not a feature.
+ *
+ * Persistence is localStorage and the footer says so.
+ */
+
+const label = "text-[9px] font-semibold uppercase tracking-[0.14em] text-muted";
+const btn = (on: boolean) =>
+  `border px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] transition-colors ${
+    on ? "border-precision/60 text-precision-dim" : "border-line-strong text-muted hover:text-platinum"
+  }`;
+
+export function ViewEnvironmentDrawer({
+  env,
+  onChange,
+  material,
+  onApplyViewMode,
+  onClose,
+}: {
+  env: ViewEnvironment;
+  onChange: (env: ViewEnvironment) => void;
+  material: string | null;
+  /** Applies a view mode's visibility defaults in the workspace. */
+  onApplyViewMode: (mode: ViewMode) => void;
+  onClose: () => void;
+}) {
+  const [saved, setSaved] = useState(loadSavedPresets);
+  const [presetName, setPresetName] = useState("");
+  const conflicts = useMemo(() => semanticConflicts(env.background), [env.background]);
+  const recommendation = useMemo(() => recommendPresetFor(material), [material]);
+
+  const set = (patch: Partial<ViewEnvironment>) =>
+    onChange({ ...env, ...patch, preset: "background" in patch || "floorColor" in patch || "gridColor" in patch ? "CUSTOM" : (patch.preset ?? env.preset) });
+
+  function screenshot() {
+    const canvas = document.querySelector<HTMLCanvasElement>("canvas");
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = "canvas-viewport.png";
+    a.click();
+  }
+
+  return (
+    <div className="no-scrollbar max-h-full w-[248px] overflow-y-auto border border-line-strong bg-card/95 backdrop-blur">
+      <div className="flex items-center justify-between border-b border-line-strong px-3 py-2">
+        <span className="instrument-label">View environment</span>
+        <button onClick={onClose} className="text-[11px] text-muted hover:text-platinum" aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div className="space-y-4 px-3 py-3">
+        {recommendation && env.preset !== recommendation.preset && (
+          <div className="border border-precision/40 bg-precision/5 px-2 py-1.5">
+            <p className={label}>Recommended view</p>
+            <p className="mt-0.5 text-[10.5px] leading-snug text-platinum-dim">{recommendation.reason}</p>
+            <button className={`${btn(false)} mt-1.5`} onClick={() => onChange(VIEW_PRESETS[recommendation.preset].env)}>
+              Apply {VIEW_PRESETS[recommendation.preset].label}
+            </button>
+          </div>
+        )}
+
+        {/* ---- Presets ---- */}
+        <section>
+          <p className={label}>Presets</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-1">
+            {Object.entries(VIEW_PRESETS).map(([id, p]) => (
+              <button
+                key={id}
+                title={p.note}
+                onClick={() => onChange(p.env)}
+                className={`flex items-center gap-1.5 border px-1.5 py-1.5 text-left ${
+                  env.preset === id ? "border-precision/60" : "border-line-strong hover:border-line"
+                }`}
+              >
+                <span aria-hidden className="h-4 w-4 shrink-0 border border-line-strong" style={{ background: p.env.background }} />
+                <span className="text-[9.5px] leading-tight text-platinum-dim">{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* ---- Custom colours ---- */}
+        <section>
+          <p className={label}>Custom colours</p>
+          {(
+            [
+              ["Background", "background"],
+              ["Floor", "floorColor"],
+              ["Grid", "gridColor"],
+              ["Selected feature", "selectedFeatureColor"],
+            ] as const
+          ).map(([name, key]) => (
+            <div key={key} className="mt-1 flex items-center justify-between gap-2">
+              <span className="text-[10.5px] text-platinum-dim">{name}</span>
+              <span className="flex items-center gap-1">
+                <input
+                  type="color"
+                  value={env[key]}
+                  onChange={(e) => set({ [key]: e.target.value } as Partial<ViewEnvironment>)}
+                  className="h-5 w-7 cursor-pointer border border-line-strong bg-transparent p-0"
+                  aria-label={`${name} colour`}
+                />
+                <input
+                  value={env[key]}
+                  onChange={(e) => set({ [key]: e.target.value } as Partial<ViewEnvironment>)}
+                  className="w-16 border border-line-strong bg-surface px-1 py-0.5 font-mono text-[9.5px] text-platinum-dim"
+                  aria-label={`${name} hex`}
+                />
+              </span>
+            </div>
+          ))}
+          {conflicts.length > 0 && (
+            <p className="mt-1.5 border border-review/50 bg-review/5 px-2 py-1 text-[10px] leading-snug text-review">
+              This background drowns the locked {conflicts.join(", ")} status colour{conflicts.length === 1 ? "" : "s"}.
+              Status markers may stop reading at a glance — pick a ground with more contrast.
+            </p>
+          )}
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">
+            Status colours are locked: blue selected, green pass, orange review, red blocking.
+          </p>
+        </section>
+
+        {/* ---- Surface ---- */}
+        <section>
+          <p className={label}>Surface</p>
+          {(
+            [
+              ["Grid", "gridVisible"],
+              ["Floor plane", "floorVisible"],
+            ] as const
+          ).map(([name, key]) => (
+            <div key={key} className="mt-1 flex items-center justify-between">
+              <span className="text-[10.5px] text-platinum-dim">{name}</span>
+              <button className={btn(Boolean(env[key]))} onClick={() => set({ [key]: !env[key] } as Partial<ViewEnvironment>)}>
+                {env[key] ? "On" : "Off"}
+              </button>
+            </div>
+          ))}
+          {(
+            [
+              ["Grid intensity", "gridIntensity"],
+              ["Shadow", "shadowStrength"],
+              ["Reflection", "reflectionStrength"],
+              ["Floor reflectivity", "floorReflectivity"],
+            ] as const
+          ).map(([name, key]) => (
+            <div key={key} className="mt-1 flex items-center justify-between gap-2">
+              <span className="shrink-0 text-[10.5px] text-platinum-dim">{name}</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={env[key]}
+                onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<ViewEnvironment>)}
+                className="h-1 w-24 accent-[color:var(--c-blue)]"
+                aria-label={name}
+              />
+            </div>
+          ))}
+        </section>
+
+        {/* ---- Line detail ---- */}
+        <section>
+          <p className={label}>View detail</p>
+          <ModeRow name="Edges" value={env.edgeMode} onPick={(v) => set({ edgeMode: v })} />
+          <ModeRow name="Datum lines" value={env.datumLineMode} onPick={(v) => set({ datumLineMode: v })} />
+          <WeightRow name="Measurement" value={env.measurementLineWeight} onPick={(v) => set({ measurementLineWeight: v })} />
+          <WeightRow name="Toolpath" value={env.toolpathLineWeight} onPick={(v) => set({ toolpathLineWeight: v })} />
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[10.5px] text-platinum-dim">Feature ring</span>
+            <button className={btn(env.featureRingHighContrast)} onClick={() => set({ featureRingHighContrast: !env.featureRingHighContrast })}>
+              {env.featureRingHighContrast ? "High contrast" : "Normal"}
+            </button>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-1">
+            <span className="text-[10.5px] text-platinum-dim">Text</span>
+            <span className="flex gap-1">
+              {(["COMPACT", "STANDARD", "LARGE"] as AnnotationSize[]).map((s) => (
+                <button key={s} className={btn(env.annotationSize === s)} onClick={() => set({ annotationSize: s })}>
+                  {s[0]}
+                </button>
+              ))}
+            </span>
+          </div>
+        </section>
+
+        {/* ---- View modes ---- */}
+        <section>
+          <p className={label}>View mode</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-1">
+            {(
+              [
+                ["PROGRAMMING", "Programming"],
+                ["INSPECTION", "Inspection"],
+                ["PRESENTATION", "Presentation"],
+                ["SHOP_FLOOR", "Shop floor"],
+              ] as [ViewMode, string][]
+            ).map(([m, name]) => (
+              <button key={m} className={btn(env.viewMode === m)} onClick={() => onApplyViewMode(m)}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">
+            Modes change visibility emphasis. Nothing is removed — everything stays one toggle away.
+          </p>
+        </section>
+
+        {/* ---- Saved presets ---- */}
+        <section>
+          <p className={label}>Saved presets</p>
+          <div className="mt-1.5 flex gap-1">
+            <input
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              placeholder="Name — e.g. Aluminum inspection"
+              className="min-w-0 flex-1 border border-line-strong bg-surface px-1.5 py-1 text-[10px] text-platinum-dim placeholder:text-muted"
+            />
+            <button
+              className={btn(false)}
+              onClick={() => {
+                if (!presetName.trim()) return;
+                setSaved(saveNamedPreset(presetName.trim(), env));
+                setPresetName("");
+              }}
+            >
+              Save
+            </button>
+          </div>
+          {saved.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {saved.map((p) => (
+                <li key={p.name} className="flex items-center justify-between gap-2">
+                  <button className="min-w-0 flex-1 truncate text-left text-[10.5px] text-platinum-dim hover:text-platinum" onClick={() => onChange(p.env)}>
+                    {p.name}
+                  </button>
+                  <button className="text-[10px] text-muted hover:text-risk" onClick={() => setSaved(deleteNamedPreset(p.name))} aria-label={`Delete ${p.name}`}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">Stored in this browser only — not on the server yet.</p>
+        </section>
+
+        {/* ---- Export view ---- */}
+        <section>
+          <p className={label}>Export view</p>
+          <button className={`${btn(false)} mt-1.5 w-full`} onClick={screenshot}>
+            Screenshot (PNG)
+          </button>
+          <ul className="mt-1 space-y-0.5">
+            {["Annotated image", "Setup sheet", "Inspection view", "Customer-safe view"].map((x) => (
+              <li key={x} className="flex items-center justify-between text-[10px] text-muted">
+                <span>{x}</span>
+                <span className="border border-line-strong px-1 text-[8px] font-semibold uppercase tracking-[0.1em]">Development</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ModeRow({ name, value, onPick }: { name: string; value: LineMode; onPick: (v: LineMode) => void }) {
+  return (
+    <div className="mt-1 flex items-center justify-between gap-1">
+      <span className="text-[10.5px] text-platinum-dim">{name}</span>
+      <span className="flex gap-1">
+        {(["OFF", "LIGHT", "MEDIUM", "STRONG"] as LineMode[]).map((m) => (
+          <button key={m} className={btn(value === m)} onClick={() => onPick(m)} title={m.toLowerCase()}>
+            {m === "OFF" ? "0" : m[0]}
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+function WeightRow({ name, value, onPick }: { name: string; value: LineWeight; onPick: (v: LineWeight) => void }) {
+  return (
+    <div className="mt-1 flex items-center justify-between gap-1">
+      <span className="text-[10.5px] text-platinum-dim">{name}</span>
+      <span className="flex gap-1">
+        {(["THIN", "MEDIUM", "HEAVY"] as LineWeight[]).map((m) => (
+          <button key={m} className={btn(value === m)} onClick={() => onPick(m)} title={m.toLowerCase()}>
+            {m[0]}
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}

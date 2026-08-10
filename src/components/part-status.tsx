@@ -119,6 +119,38 @@ export function NextActionPanel({ actions }: { actions: NextAction[] }) {
         )}
       </div>
 
+      {/* The rest of the queue as pills, visible without a disclosure — each
+          one routes to the flow that resolves it. A pill is a doorway to the
+          evidence, never a control that clears anything. */}
+      {rest.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-4 pb-2.5">
+          {rest.map((a, i) =>
+            a.href ? (
+              <Link
+                key={`${a.gateId}-p${i}`}
+                href={a.href}
+                className={`border px-2 py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors ${
+                  a.severity === "BLOCKING"
+                    ? "border-risk/50 text-risk hover:bg-risk/10"
+                    : "border-review/50 text-review hover:bg-review/10"
+                }`}
+              >
+                {a.linkLabel}
+              </Link>
+            ) : (
+              <span
+                key={`${a.gateId}-p${i}`}
+                className={`border px-2 py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                  a.severity === "BLOCKING" ? "border-risk/50 text-risk" : "border-review/50 text-review"
+                }`}
+              >
+                {a.linkLabel ?? a.action.slice(0, 32)}
+              </span>
+            ),
+          )}
+        </div>
+      )}
+
       {/* The evidence and the queue behind it, one disclosure away. The
           instruction is what matters on arrival; the reasoning matters only if
           it is questioned. */}

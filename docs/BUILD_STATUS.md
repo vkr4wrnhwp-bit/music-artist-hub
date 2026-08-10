@@ -366,3 +366,22 @@ These are named in the Phase 2 brief and are deliberately not faked:
 | FEA / topology optimisation | An external solver. Not faked |
 | Live machine status | MTConnect or controller integration |
 | Certified post processors | Validation on real machines |
+
+## 2026-08-10 — View environment pass
+
+- View Environment drawer (viewport control stack → Scene → View env):
+  8 presets, custom background/floor/grid/selection colours with a
+  semantic-colour contrast lock, grid/shadow/reflection/floor controls,
+  line-weight and text-size controls, view modes, material-aware
+  recommendation, named presets in localStorage (labelled local-only).
+  See docs/VIEW_ENVIRONMENT.md.
+- Screenshot export is REAL; annotated/setup-sheet/inspection/customer
+  exports are DEVELOPMENT-labelled stubs.
+- Metrology geometry split: INTERNAL_ROUND vs INTERNAL_FLAT — a bore gauge
+  is no longer recommendable for a rectangular pocket. Engine + tests.
+- Next-action banner: remaining queue rendered as clickable pills routing
+  to each resolution flow.
+- NOT done from the brief: operation-table/setup-rail restyle and the
+  stronger structural dividers (deferred to the design-phase refactor),
+  server-side ViewPreferences persistence, bottom-sheet drawer on mobile
+  (the drawer overlays usably but is not a sheet).

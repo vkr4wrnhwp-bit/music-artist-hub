@@ -897,6 +897,7 @@ export default async function PartWorkspace(props: {
         simOps={simOps}
         recordSimulation={recordSimulation}
         simulationRecorded={pkg.simulationRun}
+        material={revision.intent.material.value ?? null}
       />
 
       {/* Publishes this page's own values to the shell drawer. Renders

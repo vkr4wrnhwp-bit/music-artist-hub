@@ -48,7 +48,13 @@ export interface Instrument {
 }
 
 /** What kind of geometry an instrument can actually reach. */
-export const MEASURES_INTERNAL = new Set([
+/**
+ * Round internal features only. A bore gauge, a pin gauge and a telescoping
+ * gauge physically require a round hole — recommending a dial bore gauge for
+ * a rectangular relief pocket is the kind of wrong that erodes trust in every
+ * other recommendation on the screen.
+ */
+export const MEASURES_INTERNAL_ROUND = new Set([
   "BORE_GAUGE",
   "INSIDE_MICROMETER",
   "TELESCOPING_GAUGE",
@@ -56,6 +62,17 @@ export const MEASURES_INTERNAL = new Set([
   "CMM",
   "MACHINE_PROBE",
   "DIGITAL_CALIPER",
+]);
+
+/** Flat internal features — pockets and slots. Widths, lengths and depths. */
+export const MEASURES_INTERNAL_FLAT = new Set([
+  "DIGITAL_CALIPER",
+  "DEPTH_MICROMETER",
+  "INSIDE_MICROMETER",
+  "CMM",
+  "MACHINE_PROBE",
+  "HEIGHT_GAUGE",
+  "OPTICAL_COMPARATOR",
 ]);
 
 export const MEASURES_EXTERNAL = new Set([
@@ -82,10 +99,15 @@ interface Upgrade {
 }
 
 const UPGRADE_PATH: Record<string, Upgrade[]> = {
-  INTERNAL: [
+  INTERNAL_ROUND: [
     { text: "Telescoping gauge read with a micrometer", deviceType: "TELESCOPING_GAUGE", achievable: 0.0003 },
     { text: "Dial or digital bore gauge set to a ring or micrometer standard", deviceType: "BORE_GAUGE", achievable: 0.0002 },
     { text: "Air gauge, or a CMM for production volumes", deviceType: "CMM", achievable: 0.00005 },
+  ],
+  INTERNAL_FLAT: [
+    { text: "Depth micrometer for the floor, inside micrometer for the walls", deviceType: "DEPTH_MICROMETER", achievable: 0.0002 },
+    { text: "Machine probe cycle against the work offset datum", deviceType: "MACHINE_PROBE", achievable: 0.0005 },
+    { text: "CMM for the full pocket form", deviceType: "CMM", achievable: 0.00005 },
   ],
   EXTERNAL: [
     { text: "Outside micrometer in the right size range", deviceType: "MICROMETER", achievable: 0.0002 },
@@ -119,7 +141,7 @@ function upgradesFor(
     .map((u) => u.text);
 }
 
-export type MeasurementGeometry = "INTERNAL" | "EXTERNAL" | "POSITION";
+export type MeasurementGeometry = "INTERNAL_ROUND" | "INTERNAL_FLAT" | "EXTERNAL" | "POSITION";
 
 /**
  * Which family of instrument a feature needs. A bore and a boss of the same
@@ -138,9 +160,12 @@ export function measurementGeometry(f: Feature): MeasurementGeometry {
     case "TAPPED_HOLE":
     case "BORE":
     case "CIRC_POCKET":
+      return f.functionalRole === "DOWEL_HOLE" || f.functionalRole === "MOUNTING_HOLE" ? "POSITION" : "INTERNAL_ROUND";
     case "RECT_POCKET":
     case "SLOT":
-      return f.functionalRole === "DOWEL_HOLE" || f.functionalRole === "MOUNTING_HOLE" ? "POSITION" : "INTERNAL";
+      // A pocket is measured for width, length and depth — a bore gauge has
+      // nothing round to register against.
+      return "INTERNAL_FLAT";
     default:
       return "EXTERNAL";
   }
@@ -179,7 +204,13 @@ export interface CapabilityResult {
 
 function canReachGeometry(device: Instrument, geometry: MeasurementGeometry): boolean {
   const set =
-    geometry === "INTERNAL" ? MEASURES_INTERNAL : geometry === "EXTERNAL" ? MEASURES_EXTERNAL : MEASURES_POSITION;
+    geometry === "INTERNAL_ROUND"
+      ? MEASURES_INTERNAL_ROUND
+      : geometry === "INTERNAL_FLAT"
+        ? MEASURES_INTERNAL_FLAT
+        : geometry === "EXTERNAL"
+          ? MEASURES_EXTERNAL
+          : MEASURES_POSITION;
   return set.has(device.deviceType);
 }
 

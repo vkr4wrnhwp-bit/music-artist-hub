@@ -14,7 +14,7 @@ const inst = (deviceType: string, uncertainty: number, over: Partial<Instrument>
 });
 
 const req = (band: number | null, over: Partial<CapabilityRequest> = {}): CapabilityRequest => ({
-  featureId: "f", featureLabel: "bore", geometry: "INTERNAL", nominal: 1.5,
+  featureId: "f", featureLabel: "bore", geometry: "INTERNAL_ROUND", nominal: 1.5,
   toleranceBand: band, critical: true, ...over,
 });
 
@@ -49,4 +49,12 @@ test("worstCapability reports the worst verdict, never an average", () => {
   const good = assessCapability(req(0.02), [inst("BORE_GAUGE", 0.0002)]);
   const bad = assessCapability(req(0.001), []);
   assert.equal(worstCapability([good, bad]), bad.verdict);
+});
+
+test("a rectangular pocket is flat-internal: bore gauge cannot reach it, calipers can", () => {
+  const flat = req(0.02, { geometry: "INTERNAL_FLAT", featureLabel: "relief pocket" });
+  const boreOnly = assessCapability(flat, [inst("BORE_GAUGE", 0.0002)]);
+  assert.equal(boreOnly.verdict, "NO_INSTRUMENT");
+  const calipers = assessCapability(flat, [inst("DIGITAL_CALIPER", 0.002)]);
+  assert.notEqual(calipers.verdict, "NO_INSTRUMENT");
 });
