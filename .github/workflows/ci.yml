@@ -1,0 +1,27 @@
+# CANVAS CI — runs on every push to the deploy branch.
+#
+# The engines gate executable machine motion; the 50-test suite is the thing
+# that must never regress silently. The build runs the same typecheck Render
+# runs, so a red build here is a red deploy caught early.
+name: canvas-ci
+
+on:
+  push:
+    branches: [canvas-app]
+  pull_request:
+    branches: [canvas-app]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./prisma/dev.db"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npm test
+      - run: npm run build
