@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
-import { generateSoftJaws, type SoftJawRequest } from "@/lib/engines/workholding";
+import { generateSoftJaws } from "@/lib/engines/workholding";
+import { assembleSoftJawRequest } from "@/lib/soft-jaw-request";
 import type { JawBlank } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
@@ -69,25 +70,17 @@ export default async function SoftJawsPage(props: {
     );
   }
 
-  const stock = pkg.revision.stock;
-  const contour = pkg.revision.features.find((f) => f.kind === "OUTSIDE_CONTOUR");
-  const partWidth = contour && "width" in contour ? contour.width : stock.x;
-  const partLength = contour && "length" in contour ? contour.length : stock.y;
-  const cornerRadius = contour && "cornerRadius" in contour ? contour.cornerRadius : 0.25;
-
-  const request: SoftJawRequest = {
-    device,
-    blank,
-    partWidth,
-    partLength,
-    partHeight: stock.z,
-    desiredGrip: Number(sp.grip ?? 0.15),
-    jawAllowance: Number(sp.allowance ?? 0.01),
-    clearance: Number(sp.clearance ?? 0.03),
-    includeStop: sp.stop !== "0",
-    clampingDirection: (sp.dir as "X" | "Y") ?? "X",
-    cornerRadius,
-  };
+  // One assembler, shared with the save action and the DXF export, so the
+  // drawing a machinist downloads cannot disagree with the page.
+  const assembled = assembleSoftJawRequest(pkg, blank, {
+    setupId: setup.id,
+    grip: sp.grip != null ? Number(sp.grip) : null,
+    allowance: sp.allowance != null ? Number(sp.allowance) : null,
+    clearance: sp.clearance != null ? Number(sp.clearance) : null,
+    includeStop: sp.stop != null ? sp.stop !== "0" : null,
+    dir: sp.dir ?? null,
+  })!; // the guard above already established setup, device, blank and stock
+  const request = assembled.request;
 
   const result = generateSoftJaws(request);
   const assessment = pkg.workholdingBySetup[setup.id];
@@ -106,20 +99,16 @@ export default async function SoftJawsPage(props: {
     const freshBlank = blankRow ? { ...blankRow, material: blankRow.material as JawBlank["material"] } : null;
     if (!freshSetup || !freshDevice || !freshBlank || !fresh.revision.stock) notFound();
 
-    const freshContour = fresh.revision.features.find((f) => f.kind === "OUTSIDE_CONTOUR");
-    const req: SoftJawRequest = {
-      device: freshDevice,
-      blank: freshBlank,
-      partWidth: freshContour && "width" in freshContour ? freshContour.width : fresh.revision.stock.x,
-      partLength: freshContour && "length" in freshContour ? freshContour.length : fresh.revision.stock.y,
-      partHeight: fresh.revision.stock.z,
-      desiredGrip: grip,
-      jawAllowance: Number(formData.get("allowance")),
+    const freshAssembled = assembleSoftJawRequest(fresh, freshBlank, {
+      setupId,
+      grip,
+      allowance: Number(formData.get("allowance")),
       clearance: Number(formData.get("clearance")),
       includeStop: formData.get("stop") === "on",
-      clampingDirection: (String(formData.get("dir")) as "X" | "Y") ?? "X",
-      cornerRadius: freshContour && "cornerRadius" in freshContour ? freshContour.cornerRadius : 0.25,
-    };
+      dir: String(formData.get("dir")),
+    });
+    if (!freshAssembled) notFound();
+    const req = freshAssembled.request;
 
     const generated = generateSoftJaws(req);
     if (!generated.ok || !generated.left || !generated.right) redirect(`/parts/${id}/soft-jaws?setup=${setupId}`);
@@ -269,6 +258,17 @@ export default async function SoftJawsPage(props: {
                         <DataRow label="Seat depth" value={`${j.seatDepth.toFixed(3)}″`} />
                         <DataRow label="Corner relief" value={`R${j.reliefRadius.toFixed(3)}`} />
                         <DataRow label="Stop" value={j.stopLocation !== null ? `${j.stopLocation.toFixed(3)}″` : "None"} />
+                        <a
+                          href={`/api/parts/${id}/soft-jaws/dxf?side=${j.side}&setup=${setup.id}&grip=${request.desiredGrip}&allowance=${request.jawAllowance}&clearance=${request.clearance}&stop=${request.includeStop ? "1" : "0"}&dir=${request.clampingDirection}`}
+                          download
+                          className="mt-3 block border border-precision/50 px-2.5 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-precision-dim hover:bg-precision/10"
+                        >
+                          Download DXF — {j.side.toLowerCase()} jaw
+                        </a>
+                        <p className="mt-1.5 text-[10.5px] leading-relaxed text-muted">
+                          Front and plan views, real arcs, inches. Development drawing — verify before machining; bolt
+                          holes use the blank&apos;s existing pattern.
+                        </p>
                       </div>
                     ))}
                   </div>
