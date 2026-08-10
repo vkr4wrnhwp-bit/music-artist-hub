@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Feature, Stock } from "@/lib/domain/features";
 import type { Move } from "@/lib/engines/cam/types";
-import type { ViewMode } from "@/components/viewport/scene";
+import type { ViewMode, FixtureInfo } from "@/components/viewport/scene";
 import { Copilot } from "./copilot";
 import { InteractionProvider, useInteraction, type Context } from "./interaction";
 import { ContextRail, sceneFlagsFor } from "./context-rail";
@@ -48,7 +48,7 @@ export interface WorkspaceProps {
   stock: Stock | null;
   features: Feature[];
   moves: Move[];
-  fixture: { jawWidth: number; jawHeight: number; gripDepth: number | null } | null;
+  fixture: FixtureInfo | null;
   copilotContext: Record<string, unknown>;
   panels: Record<string, React.ReactNode>;
   /** Per-feature capability, measurements and inspection line, precomputed server-side. */
@@ -181,6 +181,15 @@ function WorkspaceInner(props: WorkspaceProps) {
     setOverrides({});
   }, [state.activeContext]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // HOLD is about the setup, not the component, and the vise is wider and
+  // deeper than the part. Entering it without reframing leaves the jaws cut
+  // off at the edges of the canvas — the one thing the view exists to show.
+  useEffect(() => {
+    if (state.activeContext !== "HOLD") return;
+    const span = props.stock ? Math.max(props.stock.x, props.stock.y, props.stock.z) : 6;
+    setView([span * 1.5, span * 1.15, span * 1.85]);
+  }, [state.activeContext]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") escape();
@@ -272,6 +281,7 @@ function WorkspaceInner(props: WorkspaceProps) {
               onSelectFeature={selectFeature}
               onHoverFeature={hover}
               fixture={props.fixture}
+              showHoldCallouts={state.activeContext === "HOLD"}
             />
 
             {/* Compact controls, left edge. Nothing here is wider than the

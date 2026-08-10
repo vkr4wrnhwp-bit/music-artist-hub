@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas, useThree } from "@react-three/fiber";
-import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Lightformer, OrbitControls, Line } from "@react-three/drei";
+import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Html, Lightformer, OrbitControls, Line } from "@react-three/drei";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
@@ -24,6 +24,27 @@ import type { Move } from "@/lib/engines/cam/types";
 
 export type ViewMode = "SHADED" | "WIREFRAME" | "TRANSPARENT";
 
+/**
+ * What the viewport needs to draw the setup, and what the holding model
+ * concluded about it. Every field is either a recorded setup value or an
+ * output of `assessHoldingMargin` — nothing here is invented for the picture.
+ */
+export interface FixtureInfo {
+  jawWidth: number;
+  jawHeight: number;
+  gripDepth: number | null;
+  gripLength: number | null;
+  stockProjection: number | null;
+  /** Both jaw faces, in². */
+  contactArea: number | null;
+  /** lbf/in² on that area. */
+  contactPressure: number | null;
+  margin: number | null;
+  verdict: string | null;
+  governingMode: string | null;
+  jawSurface: string | null;
+}
+
 export interface ViewportProps {
   stock: Stock | null;
   features: Feature[];
@@ -40,7 +61,9 @@ export interface ViewportProps {
   onSelectFeature?: (id: string | null) => void;
   /** Fires as the cursor enters and leaves feature geometry. No click needed. */
   onHoverFeature?: (id: string | null, pointer: { x: number; y: number } | null) => void;
-  fixture?: { jawWidth: number; jawHeight: number; gripDepth: number | null } | null;
+  fixture?: FixtureInfo | null;
+  /** True in HOLD, where the setup itself is the subject. */
+  showHoldCallouts?: boolean;
 }
 
 /* WebGL cannot read CSS custom properties, so the work-window palette is
@@ -201,6 +224,7 @@ function SceneContent({
   onSelectFeature,
   onHoverFeature,
   fixture,
+  showHoldCallouts,
 }: ViewportProps) {
   if (!stock) return null;
 
@@ -225,7 +249,7 @@ function SceneContent({
 
       <DatumIndicator stock={stock} />
 
-      {showFixture && fixture && <Fixture stock={stock} fixture={fixture} />}
+      {showFixture && fixture && <Fixture stock={stock} fixture={fixture} callouts={Boolean(showHoldCallouts)} />}
       {showToolpath && moves && moves.length > 1 && <Toolpath moves={moves} playhead={playhead} zTop={stock.z / 2} />}
       {showTool && moves && moves.length > 1 && <ToolMarker moves={moves} playhead={playhead} zTop={stock.z / 2} />}
     </group>
@@ -547,29 +571,153 @@ function DatumIndicator({ stock }: { stock: Stock }) {
 /* Fixture                                                             */
 /* ------------------------------------------------------------------ */
 
-function Fixture({ stock, fixture }: { stock: Stock; fixture: NonNullable<ViewportProps["fixture"]> }) {
+/**
+ * HOLD — the setup as a physical thing.
+ *
+ * Workholding is spatial. A grip depth in a table is a number an operator
+ * scrolls past; the same number drawn on the face it applies to, with the
+ * contact patch lit and the material standing proud of the jaws visible above
+ * it, is the setup. That is the whole argument for this view.
+ *
+ * Every callout carries a value the holding model actually computed. Where the
+ * model has no value — clamping force not recorded, so no contact pressure —
+ * the callout says so rather than filling the gap.
+ */
+function Fixture({
+  stock,
+  fixture,
+  callouts,
+}: {
+  stock: Stock;
+  fixture: NonNullable<ViewportProps["fixture"]>;
+  callouts: boolean;
+}) {
   const grip = fixture.gripDepth ?? Math.min(0.25, stock.z * 0.3);
   const jawThickness = 1;
   const jawTopZ = grip;
+  const contactLength = Math.min(fixture.gripLength ?? stock.y, stock.y);
+  const proud = fixture.stockProjection;
 
   const jaw = (side: 1 | -1) => (
-    <mesh position={[side * (stock.x / 2 + jawThickness / 2), 0, jawTopZ - fixture.jawHeight / 2]}>
+    <mesh key={side} position={[side * (stock.x / 2 + jawThickness / 2), 0, jawTopZ - fixture.jawHeight / 2]}>
       <boxGeometry args={[jawThickness, Math.min(fixture.jawWidth, stock.y * 1.4), fixture.jawHeight]} />
       <meshStandardMaterial color="#6e7480" metalness={0.55} roughness={0.55} />
       <Edges threshold={20} color="#4a505b" />
     </mesh>
   );
 
+  // The band of the part the jaws actually hold: grip depth tall, grip length
+  // long, on both clamped faces. This is the area the margin is computed over.
+  const contact = (side: 1 | -1) => (
+    <mesh key={`c${side}`} position={[side * (stock.x / 2 + 0.004), 0, grip / 2]}>
+      <planeGeometry args={[contactLength, grip]} />
+      <meshBasicMaterial
+        color={BLUE}
+        transparent
+        opacity={0.34}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+
   return (
     <group>
-      {jaw(1)}
-      {jaw(-1)}
-      {/* Parallels the part sits on. */}
+      {[1, -1].map((s) => jaw(s as 1 | -1))}
+      {callouts && [1, -1].map((s) => (
+        <group key={`cg${s}`} rotation={[0, Math.PI / 2, 0]} position={[0, 0, 0]}>
+          {/* rotated so the plane faces outward from the clamped face */}
+        </group>
+      ))}
+      {callouts && [1, -1].map((s) => contact(s as 1 | -1))}
+
+      {/* Parallels the part seats on — the seating surface. */}
       <mesh position={[0, 0, jawTopZ - fixture.jawHeight - 0.25]}>
         <boxGeometry args={[stock.x * 0.9, 0.5, 0.5]} />
         <meshStandardMaterial color="#5c626d" metalness={0.6} roughness={0.45} />
       </mesh>
+
+      {callouts && (
+        <>
+          {/* Grip depth — measured on the face it applies to. */}
+          <Line
+            points={[[stock.x / 2 + 0.02, -stock.y / 2 - 0.15, 0], [stock.x / 2 + 0.02, -stock.y / 2 - 0.15, grip]]}
+            color={BLUE}
+            lineWidth={2}
+          />
+          {/* Each callout sits off a different edge so five of them can be on
+              screen at once without stacking on each other. */}
+          <Callout position={[stock.x / 2 + 0.45, -stock.y / 2 - 0.1, grip / 2]} label="Grip depth">
+            {grip.toFixed(3)}″
+          </Callout>
+
+          <Callout position={[stock.x / 2 + 0.45, stock.y / 2 - 0.2, grip * 0.5]} label="Jaw contact">
+            {fixture.contactArea != null ? `${fixture.contactArea.toFixed(3)} in² both faces` : "not calculable"}
+          </Callout>
+
+          <Callout position={[0, -stock.y / 2 - 0.55, jawTopZ - fixture.jawHeight - 0.25]} label="Seating surface">
+            Parallels
+          </Callout>
+
+          {proud != null && (
+            <Callout position={[-stock.x / 2 - 0.45, -stock.y / 2 - 0.1, grip + proud / 2]} label="Proud of jaws">
+              {proud.toFixed(3)}″
+            </Callout>
+          )}
+
+          {fixture.contactPressure != null && (
+            <Callout position={[-stock.x / 2 - 0.45, stock.y / 2 - 0.2, grip * 0.5]} label="Clamping pressure">
+              {fixture.contactPressure.toLocaleString()} psi
+            </Callout>
+          )}
+
+          {fixture.margin != null && (
+            <Callout
+              position={[0, 0, grip + (proud ?? stock.z) + 0.55]}
+              label={`Holding margin — ${(fixture.verdict ?? "").toLowerCase()}`}
+              tone={fixture.verdict === "ADEQUATE" ? "pass" : fixture.verdict === "MARGINAL" ? "review" : "risk"}
+            >
+              {fixture.margin.toFixed(2)}× · {fixture.governingMode === "TIPPING" ? "rolling out" : "sliding"}
+            </Callout>
+          )}
+        </>
+      )}
     </group>
+  );
+}
+
+/** A leader-less callout pinned to a point in the scene. */
+function Callout({
+  position,
+  label,
+  children,
+  tone = "neutral",
+}: {
+  position: [number, number, number];
+  label: string;
+  children: React.ReactNode;
+  tone?: "neutral" | "pass" | "review" | "risk";
+}) {
+  const border =
+    tone === "pass"
+      ? "border-l-pass"
+      : tone === "review"
+        ? "border-l-review"
+        : tone === "risk"
+          ? "border-l-risk"
+          : "border-l-precision";
+  return (
+    // No distanceFactor: an annotation is not part of the scene and should not
+    // grow when you zoom in. Fixed screen size keeps it readable at any camera
+    // distance and stops five of them filling the viewport.
+    <Html position={position} center zIndexRange={[20, 0]}>
+      <div
+        className={`pointer-events-none whitespace-nowrap border border-line-strong ${border} border-l-2 bg-card/95 px-1.5 py-[3px] shadow-[0_1px_6px_rgba(20,24,28,0.16)]`}
+      >
+        <p className="text-[7.5px] font-semibold uppercase leading-none tracking-[0.1em] text-muted">{label}</p>
+        <p className="mt-[2px] font-mono text-[10px] leading-none text-platinum">{children}</p>
+      </div>
+    </Html>
   );
 }
 

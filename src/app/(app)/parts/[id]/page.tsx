@@ -113,11 +113,26 @@ export default async function PartWorkspace(props: {
   const moves = pkg.toolpaths.flatMap((tp) => tp.moves);
 
   const primarySetup = pkg.setups[0];
+  // HOLD draws the setup, so it needs what the holding model concluded about
+  // it — not a second opinion computed here. Every field below is either a
+  // recorded setup value or an output of assessHoldingMargin, so the callouts
+  // in the viewport and the margin on /setups cannot disagree.
+  const primaryAssessment = primarySetup ? pkg.workholdingBySetup[primarySetup.id] ?? null : null;
+  const primaryMargin = primaryAssessment?.holdingMargin ?? null;
+
   const fixture = pkg.primaryWorkholding
     ? {
         jawWidth: pkg.primaryWorkholding.jawWidth,
         jawHeight: pkg.primaryWorkholding.jawHeight,
         gripDepth: primarySetup?.gripDepth ?? null,
+        gripLength: primarySetup?.gripLength ?? null,
+        stockProjection: primarySetup?.stockProjection ?? null,
+        contactArea: primaryMargin?.contactArea ?? null,
+        contactPressure: primaryMargin?.contactPressure ?? null,
+        margin: primaryMargin?.margin ?? null,
+        verdict: primaryMargin?.verdict ?? null,
+        governingMode: primaryMargin?.governingMode ?? null,
+        jawSurface: primarySetup?.jawSurface ?? null,
       }
     : null;
 
