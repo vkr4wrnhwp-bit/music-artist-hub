@@ -233,12 +233,44 @@ export default async function NcPage(props: {
                 title={`Program O${existing.programNumber}`}
                 meta={
                   <span className="flex gap-2">
+                    {existing.origin !== "GENERATED" && <StatusChip tone="review">{existing.origin}</StatusChip>}
                     <StatusChip tone="neutral">{existing.postId}</StatusChip>
                     <StatusChip tone="risk">Not certified</StatusChip>
                   </span>
                 }
                 dense
               >
+                {existing.optimizationAuditJson && (
+                  <div className="border-b border-line px-4 py-2.5">
+                    <p className="instrument-label mb-1">Optimization audit</p>
+                    {(() => {
+                      const a = JSON.parse(existing.optimizationAuditJson!) as {
+                        scope: string; preset: string; savedSeconds: number;
+                        originalMinutes: number; optimizedMinutes: number;
+                        applied: { lines: [number, number]; originalFeed: number; proposedFeed: number }[];
+                        originalDigest: string; optimizedDigest: string;
+                      };
+                      return (
+                        <>
+                          <p className="text-[12px] leading-relaxed text-platinum-dim">
+                            {a.scope}. {a.preset} preset · {a.originalMinutes.toFixed(2)} → {a.optimizedMinutes.toFixed(2)} min
+                            (~{a.savedSeconds}s estimated, no acceleration model).
+                          </p>
+                          <ul className="mt-1 font-mono text-[11px] text-muted tabular-nums">
+                            {a.applied.map((p, i) => (
+                              <li key={i}>
+                                L{p.lines[0]}–{p.lines[1]}: F{p.originalFeed} → F{p.proposedFeed}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-1 font-mono text-[10px] text-muted">
+                            src {a.originalDigest.slice(0, 12)}… → opt {a.optimizedDigest.slice(0, 12)}…
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
                 {/* The program body renders only while the gate currently
                     passes. A program generated under a passing gate does not
                     stay copy-pasteable after a tool change, a revoked

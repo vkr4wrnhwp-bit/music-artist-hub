@@ -432,3 +432,20 @@ comped regions, or anything lacking tool+material context. Applying
 proposals (4E emission, 4F gated export) does not exist and the screen
 says so. Self-check: CANVAS's own O1001 bands 486 TARGET / 4 LIGHT —
 the generator's feeds sit in the window they were derived from. 72 tests.
+
+## 2026-08-10 — NC optimizer 4E/4F BUILT: the arc is closed
+
+src/lib/nc/emit.ts: feed-word-only application with a masked geometry diff
+as the machine-checked invariant (exported and tested directly); modal
+ranges refused with reasons, never guessed. /api/parts/[id]/nc-optimize:
+accepted proposals are RE-DERIVED server-side and matched exactly — stale
+acceptances 409; emitted text must pass the diff, a round-trip parse with
+identical segment count, and verifyNc, or nothing is stored. Optimized
+programs are NCProgram rows (new columns: origin, sourceProgramId,
+optimizationAuditJson; migrations in both dialects) with per-proposal
+HUMAN audit rows plus a SYSTEM row for the diff. They render on the NC
+page with an OPTIMIZED chip and full audit, behind the same pre-flight,
+and export through the same mint — the gates decide, not the optimizer.
+Verified end to end on O1001: one proposal applied, geometry identical,
+lint clean, export panel armed. 76 tests. Phases 4A-4F all delivered;
+remaining per the audit: acceleration model, telemetry, 3D surfacing.

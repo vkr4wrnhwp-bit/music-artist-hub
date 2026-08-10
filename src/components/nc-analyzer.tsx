@@ -55,6 +55,39 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   const [state, setState] = useState<{ busy: boolean; error: string | null; report: Report | null }>({
     busy: false, error: null, report: null,
   });
+  const [accepted, setAccepted] = useState<Set<number>>(new Set());
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimized, setOptimized] = useState<{
+    programId: string; applied: number; savedSeconds: number;
+    originalMinutes: number; optimizedMinutes: number; lintErrors: number;
+    unapplied: { lines: [number, number]; reason: string }[];
+  } | null>(null);
+  const [optError, setOptError] = useState<string | null>(null);
+
+  async function generateOptimized() {
+    const file = fileRef.current?.files?.[0];
+    const r = state.report;
+    if (!file || !r || accepted.size === 0) return;
+    setOptimizing(true);
+    setOptError(null);
+    const body = new FormData();
+    body.append("file", file);
+    body.append("preset", preset);
+    body.append(
+      "accepted",
+      JSON.stringify(
+        [...accepted].map((i) => {
+          const p = r.load.proposals[i];
+          return { lines: p.lines, originalFeed: p.originalFeed, proposedFeed: p.proposedFeed };
+        }),
+      ),
+    );
+    const res = await fetch(`/api/parts/${partId}/nc-optimize`, { method: "POST", body });
+    const json = await res.json().catch(() => null);
+    setOptimizing(false);
+    if (!res.ok || !json?.programId) { setOptError(json?.error ?? "Optimization failed — nothing was stored."); return; }
+    setOptimized(json);
+  }
 
   async function run() {
     const file = fileRef.current?.files?.[0];
@@ -158,6 +191,20 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 {r.load.proposals.map((p, i) => (
                   <li key={i} className="border-b border-line/60 px-4 py-2 last:border-0">
                     <div className="flex flex-wrap items-baseline gap-x-3 font-mono text-[11.5px] tabular-nums">
+                      {/* Individual acceptance is the point — there is no
+                          accept-all, deliberately. */}
+                      <input
+                        type="checkbox"
+                        aria-label={`Accept proposal at line ${p.lines[0]}`}
+                        checked={accepted.has(i)}
+                        onChange={(e) => {
+                          const next = new Set(accepted);
+                          if (e.target.checked) next.add(i);
+                          else next.delete(i);
+                          setAccepted(next);
+                        }}
+                        className="mr-1 accent-[color:var(--c-blue)]"
+                      />
                       <span className="text-muted">L{p.lines[0]}{p.lines[1] !== p.lines[0] ? `–${p.lines[1]}` : ""}</span>
                       <span className="text-muted">T{p.toolNumber}</span>
                       <span className="text-platinum">F{p.originalFeed} → F{p.proposedFeed}</span>
@@ -172,10 +219,42 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 ))}
               </ul>
             )}
-            <p className="border-t border-line px-4 py-2 text-[11px] leading-relaxed text-muted">
-              Proposals are analysis. Applying them — an optimized program with an audit trail, simulated and exported
-              behind the same gates as any NC — is Phase 4E/4F and does not exist yet.
-            </p>
+            {r.load.proposals.length > 0 && (
+              <div className="space-y-2 border-t border-line px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button onClick={generateOptimized} disabled={accepted.size === 0 || optimizing} variant="primary">
+                    {optimizing ? "Applying…" : `Generate optimized program (${accepted.size} accepted)`}
+                  </Button>
+                  <span className="text-[11px] leading-relaxed text-muted">
+                    Each accepted proposal is re-derived and matched server-side; the emitted program passes a masked
+                    geometry diff and a round-trip parse or nothing is stored.
+                  </span>
+                </div>
+                {optError && <p className="text-[12px] text-risk">{optError}</p>}
+                {optimized && (
+                  <div className="border border-pass/40 bg-pass/5 px-3 py-2">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-pass">
+                      Optimized program stored — geometry verified identical
+                    </p>
+                    <p className="mt-1 font-mono text-[11.5px] text-platinum-dim tabular-nums">
+                      {optimized.applied} proposal{optimized.applied === 1 ? "" : "s"} applied ·{" "}
+                      {optimized.originalMinutes.toFixed(2)} → {optimized.optimizedMinutes.toFixed(2)} min · ~
+                      {optimized.savedSeconds}s estimated ·{" "}
+                      {optimized.lintErrors === 0 ? "lint clean" : `${optimized.lintErrors} lint errors`}
+                    </p>
+                    {optimized.unapplied.length > 0 && (
+                      <p className="mt-1 text-[11px] text-review">
+                        {optimized.unapplied.length} not applied: {optimized.unapplied.map((u) => `L${u.lines[0]} (${u.reason.split(" — ")[0]})`).join("; ")}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                      It is now the part&apos;s latest program on the NC output page, behind the same pre-flight and the
+                      same export authorization as any other — the gates decide whether it leaves, not this screen.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </Panel>
 
           <Panel title="Cycle time" dense>
