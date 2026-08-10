@@ -415,7 +415,45 @@ export function FeaturePanel({
 /* ------------------------------------------------------------------ */
 
 function FeatureIndex({ features, onSelect }: { features: Feature[]; onSelect: (id: string | null) => void }) {
-  const critical = features.filter((f) => f.critical || f.functionalRole !== "NONE");
+  /**
+   * The features nobody has said anything about.
+   *
+   * This line used to read "9 of 11 carry a role or a critical flag", which was
+   * wrong three times over.
+   *
+   * It counted the wrong end. Nine classified features are not the story; the
+   * two nobody classified are — the same reason part-status.tsx refuses to say
+   * "nine of eleven gates pass".
+   *
+   * It welded two axes with an OR. A functional role says what a feature is
+   * for; `critical` is a severity flag. Their union has no name a machinist
+   * would use, and it put the CLEARANCE relief pocket in the same bucket as the
+   * ±0.0005"/-0 bearing bore. Criticality is already reported per row by the
+   * Crit chip below, where it means something. What the list cannot show is a
+   * missing role — ROLE_LABEL maps NONE to "", so an unclassified feature is
+   * visually identical to a classified one. That gap is what the header is for.
+   *
+   * And it hid itself exactly when it mattered: wrapped in `critical.length > 0`,
+   * the line vanished on a part where nothing had been classified at all.
+   * Inverted, silence now means nothing is outstanding — which is what silence
+   * means everywhere else in this workspace.
+   *
+   * The predicate is role alone, not `!critical && role === "NONE"`, because
+   * the hazard keys on role alone: features.ts says CAM and the process advisor
+   * may relax geometry that carries no role, whatever its critical flag.
+   *
+   * NONE is an absence, not a decision. It is a schema default (schema.prisma
+   * and the zod schema both), the model is not required to supply the field,
+   * and no screen in the product writes it. When this model wants to say
+   * "nothing hangs on this" it has CLEARANCE and COSMETIC, and the demo part
+   * uses CLEARANCE. So the copy says only that no statement exists — not that
+   * the feature is unverified, unapproved or incomplete, none of which the data
+   * supports. There is deliberately no affirmative counterpart at zero: a role
+   * can arrive from an accepted AI proposal byte-identical to a human's, so
+   * "function stated on every feature" would be certifying something nothing
+   * here has established.
+   */
+  const unstated = features.filter((f) => f.functionalRole === "NONE");
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -438,9 +476,9 @@ function FeatureIndex({ features, onSelect }: { features: Feature[]; onSelect: (
         </div>
       ) : (
         <div className="p-3">
-          {critical.length > 0 && (
+          {unstated.length > 0 && (
             <p className="instrument-label mb-1.5">
-              {critical.length} of {features.length} carry a role or a critical flag
+              {unstated.length} {unstated.length === 1 ? "feature" : "features"} — function not stated
             </p>
           )}
           <ul className="space-y-px">
