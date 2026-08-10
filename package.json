@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "npm run prepare:db",
+    "test": "node --import tsx --test \"tests/engines/*.test.ts\"",
     "db:migrate": "npm run prepare:db && prisma migrate deploy",
     "db:seed": "npm run prepare:db && prisma db seed",
     "db:reset": "npm run prepare:db && prisma migrate reset --force",
