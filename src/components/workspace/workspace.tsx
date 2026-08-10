@@ -103,19 +103,19 @@ const PANEL_LABEL: Record<string, string> = {
  * the camera to where it started rather than pulling back from it.
  */
 const VIEWS: { label: string; title: string; position: [number, number, number] }[] = [
-  { label: "ISO", title: "Isometric", position: [5.4, 4.7, 7.15] },
-  { label: "TOP", title: "Top", position: [0, 11, 0.001] },
-  { label: "BOT", title: "Bottom", position: [0, -11, 0.001] },
-  { label: "FRT", title: "Front", position: [0, 0, 11] },
-  { label: "REA", title: "Rear", position: [0, 0, -11] },
-  { label: "LFT", title: "Left", position: [-11, 0, 0] },
-  { label: "RGT", title: "Right", position: [11, 0, 0] },
+  { label: "Iso", title: "Isometric view", position: [5.4, 4.7, 7.15] },
+  { label: "Top", title: "Top view", position: [0, 11, 0.001] },
+  { label: "Bottom", title: "Bottom view", position: [0, -11, 0.001] },
+  { label: "Front", title: "Front view", position: [0, 0, 11] },
+  { label: "Rear", title: "Rear view", position: [0, 0, -11] },
+  { label: "Left", title: "Left view", position: [-11, 0, 0] },
+  { label: "Right", title: "Right view", position: [11, 0, 0] },
 ];
 
 const MODES: { mode: ViewMode; label: string; title: string }[] = [
-  { mode: "SHADED", label: "SHD", title: "Shaded" },
-  { mode: "WIREFRAME", label: "WIR", title: "Wireframe" },
-  { mode: "TRANSPARENT", label: "GST", title: "Ghost" },
+  { mode: "SHADED", label: "Shaded", title: "Shaded" },
+  { mode: "WIREFRAME", label: "Wireframe", title: "Wireframe" },
+  { mode: "TRANSPARENT", label: "Ghost", title: "Ghost — see through the solid" },
 ];
 
 type SidePane = "feature" | "data" | "copilot";
@@ -278,14 +278,14 @@ function WorkspaceInner(props: WorkspaceProps) {
                 buttons it holds — the viewport keeps the rest. */}
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               <div className="no-scrollbar pointer-events-auto max-h-full overflow-y-auto">
-                <ControlGroup>
+                <ControlGroup heading="View">
                   {VIEWS.map((v) => (
                     <ControlButton key={v.label} title={v.title} onClick={() => setView(v.position)}>
                       {v.label}
                     </ControlButton>
                   ))}
                 </ControlGroup>
-                <ControlGroup>
+                <ControlGroup heading="Display">
                   {MODES.map((m) => (
                     <ControlButton
                       key={m.mode}
@@ -297,24 +297,24 @@ function WorkspaceInner(props: WorkspaceProps) {
                     </ControlButton>
                   ))}
                 </ControlGroup>
-                <ControlGroup>
+                <ControlGroup heading="Show">
                   {/* `showStock` gates the part solid itself, so this reads
                       PART. It used to say Stock, which hid the component. */}
-                  <ControlButton title="Part solid" on={showStock} onClick={() => setFlag("showStock")(!showStock)}>
-                    PRT
+                  <ControlButton title="Show the part solid" on={showStock} onClick={() => setFlag("showStock")(!showStock)}>
+                    Part
                   </ControlButton>
-                  <ControlButton title="Fixture" on={showFixture} onClick={() => setFlag("showFixture")(!showFixture)}>
-                    FIX
+                  <ControlButton title="Show the vise and jaws" on={showFixture} onClick={() => setFlag("showFixture")(!showFixture)}>
+                    Fixture
                   </ControlButton>
                   <ControlButton
-                    title="Toolpath"
+                    title="Show the toolpath"
                     on={showToolpath}
                     onClick={() => setFlag("showToolpath")(!showToolpath)}
                   >
-                    PTH
+                    Toolpath
                   </ControlButton>
-                  <ControlButton title="Tool" on={showTool} onClick={() => setFlag("showTool")(!showTool)}>
-                    TL
+                  <ControlButton title="Show the cutter" on={showTool} onClick={() => setFlag("showTool")(!showTool)}>
+                    Tool
                   </ControlButton>
                 </ControlGroup>
               </div>
@@ -476,9 +476,21 @@ function WorkspaceInner(props: WorkspaceProps) {
 /* Canvas controls                                                     */
 /* ------------------------------------------------------------------ */
 
-function ControlGroup({ children }: { children: React.ReactNode }) {
+/**
+ * A stack of viewport controls.
+ *
+ * These used to be three-letter abbreviations — ISO / BOT / FRT / REA / SHD /
+ * WIR / GST / PRT / FIX / PTH / TL — which are compact and unreadable. "REA"
+ * and "GST" are not words, and a machinist should not have to hover a control
+ * to find out what it does. Words cost about thirty pixels of a nine-hundred
+ * pixel canvas, which is the cheapest trade in the interface.
+ */
+function ControlGroup({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex w-[38px] flex-col border border-line-strong bg-card/92 backdrop-blur last:mb-0">
+    <div className="mb-2 flex w-[74px] flex-col border border-line-strong bg-card/92 backdrop-blur last:mb-0">
+      <p className="border-b border-line px-2 py-1 text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-muted">
+        {heading}
+      </p>
       {children}
     </div>
   );
@@ -502,8 +514,8 @@ function ControlButton({
       aria-label={title}
       aria-pressed={on}
       onClick={onClick}
-      className={`border-b border-line py-[5px] font-mono text-[9px] uppercase leading-none tracking-[0.06em] transition-colors last:border-b-0 ${
-        on ? "bg-precision/10 text-precision" : "text-muted hover:bg-panel hover:text-platinum"
+      className={`border-b border-line px-2 py-[5px] text-left text-[11px] font-medium leading-tight transition-colors last:border-b-0 ${
+        on ? "bg-precision/10 text-precision" : "text-platinum-dim hover:bg-panel hover:text-platinum"
       }`}
     >
       {children}
