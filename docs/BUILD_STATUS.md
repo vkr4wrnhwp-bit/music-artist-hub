@@ -595,3 +595,23 @@ recognizer proposes hole + pocket → accept → define stock → approve a
 machinist approach → operation plan with real toolpaths and cycle time.
 Also fixed the smoke suite's CI hang (orphaned server process group) and
 updated the STEP import copy to mention pocket/slot recognition.
+
+## 2026-08-11 — DARK CANVAS: the approved design direction lands
+
+The dark-canvas decision (user-approved mockup) is implemented as a
+token flip, which is what the design system existed for: shell, page
+ground, panels, cards and runway all move to three elevations of the
+near-black blue family (#06111c shell / #081522 page / #0a1826 panel /
+#0c1c2c card), type and status colours switch to the dark-ground
+variants that were already contrast-measured for the shell (blue #4d97ff
+at 6.3:1; muted/green/orange/red all clear 4.5:1 at small sizes). No
+component was edited — every utility resolves through the role tokens.
+
+The one deliberately light region is the 3D work window: machined
+metal, dimensional annotation and blue selection read best on a light
+ground, so it keeps its warm-white default and stays user-tunable
+through the view-environment presets (Dark Machine Bay exists for an
+all-dark screen). --canvas-work-window now belongs to the viewport
+alone; the page ground has its own token. The instrument is dark; the
+part is lit. Verified by pixel sampling both grounds and by both E2E
+suites. 91 tests.

@@ -7,14 +7,15 @@
 
    Two environments, one vocabulary.
 
-   THE SHELL is dark: icon rail, project drawer, job command bar. It is
-   machine chrome — always present, never the subject. Mission control.
-
-   THE WORK SURFACE is light: the work window (warm white), the feature
-   panel and operation runway (slightly darker gray), and white cards. A
-   light environment reads machined metal, dimensional annotation,
-   measurement lines and blue selection markedly better than a dark one,
-   and it is what a shop floor under fluorescent light actually wants.
+   THE SHELL AND THE WORK SURFACE are dark — the dark-canvas direction,
+   approved 2026-08-11. Panels, cards, runway and chrome all sit on the
+   same near-black blue-tinted family at three elevations, so the one
+   bright region on screen is the 3D WORK WINDOW itself: it defaults to
+   the warm-white Studio environment because machined metal, dimensional
+   annotation and blue selection read best on a light ground, and it
+   stays user-tunable through the view-environment presets (including
+   Dark Machine Bay for those who want the whole screen dark). The
+   instrument is dark; the part is lit.
 
    HOW THE TWO SHARE ONE VOCABULARY
    Every Tailwind colour utility in this app compiles to a raw custom
@@ -34,32 +35,35 @@
   --canvas-bg-shell: #06111c;
   --canvas-bg-shell-2: #071a2a;
   --canvas-bg-header: #06111c;
+  /* The one deliberately light region: the 3D work window's DEFAULT
+     environment. Owned by the view-environment presets, not the theme —
+     users retune it per material and per light. */
   --canvas-work-window: #fafaf8;
-  --canvas-panel-bg: #f1f3f5;
-  --canvas-footer-bg: #eef0f2;
-  --canvas-card-bg: #ffffff;
-  /* A card that is not the subject. Pure white cards over the footer grey made
-     the footer read as white-on-nearly-white — brighter, by sampled area, than
-     the centre canvas it sits under, which inverts the region hierarchy. This
-     sits between the two, so full white is reserved for the selected card. */
-  --canvas-card-quiet: #f6f7f8;
-  --canvas-border: #d6dade;
-  --canvas-border-strong: #c8cdd3;
-  --canvas-text: #101418;
-  --canvas-blue: #0b72ff;
+  /* Page ground for every route — one step above the shell, below the
+     panels, so nav / page / card read as three depths of one instrument. */
+  --canvas-page-bg: #081522;
+  /* Dark work surfaces — three elevations of the same blue-black family.
+     Panel < footer < card, card-quiet between footer and card, so the
+     region hierarchy survives the flip. */
+  --canvas-panel-bg: #0a1826;
+  --canvas-footer-bg: #081420;
+  --canvas-card-bg: #0c1c2c;
+  --canvas-card-quiet: #0a1a29;
+  --canvas-border: #15293a;
+  --canvas-border-strong: #22415a;
+  --canvas-text: #f2f6fa;
+  /* Precision blue lifted for the dark ground: #0B72FF measures 4.2:1 on
+     these surfaces, #4D97FF measures 6.3:1 in the same hue family. */
+  --canvas-blue: #4d97ff;
 
-  /* Status and muted on the LIGHT surfaces.
-     These are read at 8.5–11px on #EEF0F2 and #F1F3F5, so they are set from a
-     contrast measurement against the darkest light ground (the footer grey,
-     #EEF0F2) rather than picked as swatches. Measured there: muted 5.5:1,
-     green 5.0:1, orange 5.0:1, red 5.0:1 — every one clears 4.5:1 at 8.5px.
-     The values they replace were 4.1:1, 2.9:1, 3.1:1 and 4.2:1, which is not
-     readable type at that size under fluorescent light. The dark-shell
-     variants further down are untouched; they are already right on #06111C. */
-  --canvas-muted: #5a616b;
-  --canvas-green: #17754e;
-  --canvas-orange: #96570d;
-  --canvas-red: #c22a1e;
+  /* Status and muted on the DARK surfaces. Read at 8.5–11px on #0A1826 and
+     #081420. Measured against the lightest dark ground (#0C1C2C): muted
+     6.5:1, green 6.9:1, orange 7.6:1, red 4.9:1 — all clear 4.5:1 at small
+     sizes. Same family the dark shell always used. */
+  --canvas-muted: #8da0b2;
+  --canvas-green: #35be84;
+  --canvas-orange: #e2a33c;
+  --canvas-red: #f0554a;
 
   /* Type ON the dark shell. Deliberately high contrast — machine chrome
      that you cannot read is worse than no chrome. Against #06111C these
@@ -78,9 +82,9 @@
   --canvas-shell-red: #f0554a;
 
   /* Hairline used by the precision grid. Tokenised so it survives on both
-     grounds — it used to be a baked-in light-theme rgba. */
-  --canvas-grid-line: rgba(16, 20, 24, 0.05);
-  --canvas-grid-line-fine: rgba(16, 20, 24, 0.035);
+     grounds — light lines on the dark surfaces. */
+  --canvas-grid-line: rgba(210, 230, 255, 0.05);
+  --canvas-grid-line-fine: rgba(210, 230, 255, 0.035);
 
   /* ------------------------------------------------------------------
      WORK-SURFACE PALETTE  (the `--c-*` group)
@@ -91,8 +95,9 @@
      graphite. Do not invert on the strength of the name.
      ------------------------------------------------------------------ */
 
-  /* Ground and surfaces */
-  --c-void: var(--canvas-work-window);
+  /* Ground and surfaces. `--c-void` is the page ground — dark. The light
+     `--canvas-work-window` now belongs to the 3D viewport alone. */
+  --c-void: var(--canvas-page-bg);
   --c-surface: var(--canvas-card-bg);
   --c-raised: var(--canvas-panel-bg);
   --c-line: var(--canvas-border);
@@ -100,7 +105,7 @@
 
   /* Type */
   --c-platinum: var(--canvas-text);
-  --c-platinum-dim: #3a424c;
+  --c-platinum-dim: #b7c4d2;
   --c-muted: var(--canvas-muted);
   /* `--c-white` is the emphasis reading colour, one step above platinum.
      It is wired to `--color-white` below so the 20-odd `text-white` uses
@@ -110,7 +115,7 @@
   /* Precision blue — active state, selected geometry, datum, measurement,
      toolpath, coordinate origin. Used sparingly. */
   --c-blue: var(--canvas-blue);
-  --c-blue-dim: #0857c4;
+  --c-blue-dim: #0b72ff;
   --c-blue-wash: color-mix(in srgb, var(--canvas-blue) 8%, transparent);
 
   /* Status. Colour communicates state, never decoration:
@@ -184,7 +189,7 @@
   --color-shell: var(--canvas-bg-shell);
   --color-shell-2: var(--canvas-bg-shell-2);
   --color-header: var(--canvas-bg-header);
-  --color-work: var(--canvas-work-window);
+  --color-work: var(--canvas-page-bg);
   --color-panel: var(--canvas-panel-bg);
   --color-footer: var(--canvas-footer-bg);
   --color-card: var(--canvas-card-bg);
