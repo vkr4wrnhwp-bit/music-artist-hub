@@ -449,3 +449,30 @@ and export through the same mint — the gates decide, not the optimizer.
 Verified end to end on O1001: one proposal applied, geometry identical,
 lint clean, export panel armed. 76 tests. Phases 4A-4F all delivered;
 remaining per the audit: acceleration model, telemetry, 3D surfacing.
+
+## 2026-08-11 — ADAPTIVE_2D engine BUILT: no placeholders remain
+
+src/lib/engines/cam/engine.ts adaptiveToolpath(): constant-bounded
+engagement clearing — 15% radial engagement at full axial depth, chip-
+thinning feed compensation (formula stated in the emitted warning, capped
+by the machine), helical entry, Archimedean spiral for circular pockets,
+morphed boundary spiral for rectangular ones with loop spacing <= ae by
+construction. Refusals, not adaptations: wrong feature kind, wrong tool
+class, depth beyond flute length, undersized pocket, unfittable corner.
+PLACEHOLDER_OPERATIONS is now empty; every operation type has a real
+engine. 82 tests.
+
+## 2026-08-11 — STEP recognizer: pocket and slot floors
+
+src/lib/step/recognize.ts: interior horizontal planar faces (all bound
+vertices at one Z, strictly between top and bottom) are classified by
+exact boundary match — one circle = CIRC_POCKET, two equal end arcs =
+SLOT, rectangular hull with optional equal corner arcs = RECT_POCKET.
+Anything else is warned about by Z with vertex/arc counts and never
+force-fitted. Depth measured from the top face with the milled-from-top
+assumption stated in every rationale; all proposals still pass through
+human acceptance. Arc center points are excluded from boundary extents
+(construction geometry, not boundary). Also fixed: feature lens role
+labels drifted from the domain union (COSMETIC_SURFACE vs COSMETIC,
+missing FIXTURE_PAD) — both ROLE_LABEL maps now typed against
+FunctionalRole so drift fails the build. 86 tests.

@@ -81,6 +81,95 @@ test("a file with no data section reports itself instead of pretending", () => {
   assert.ok(r.warnings.length > 0);
 });
 
+/* ---- pocket / slot floors ---- */
+
+// Splice extra DATA entities into the synthetic plate before ENDSEC.
+const withData = (extra: string) => SYNTHETIC.replace("ENDSEC;\nEND-ISO", `${extra}\nENDSEC;\nEND-ISO`);
+
+const PLANE_FLOOR = (id: number, bounds: string) => `
+#${id} = CARTESIAN_POINT('',(0.,0.,6.35));
+#${id + 1} = DIRECTION('',(0.,0.,1.));
+#${id + 2} = AXIS2_PLACEMENT_3D('',#${id},#${id + 1},$);
+#${id + 3} = PLANE('',#${id + 2});
+#${id + 4} = ADVANCED_FACE('floor',(${bounds}),#${id + 3},.T.);`;
+
+test("a rectangular interior floor is proposed as a RECT_POCKET, depth from the top face", () => {
+  // Four corner vertices at z=6.35 mm on a 30×20 mm boundary.
+  const corners = [[20, 20], [50, 20], [50, 40], [20, 40]]
+    .map(([x, y], i) => `#${60 + i} = CARTESIAN_POINT('',(${x}.,${y}.,6.35));\n#${70 + i} = VERTEX_POINT('',#${60 + i});`)
+    .join("\n");
+  const r = recognizeStep(withData(`${corners}\n#80 = EDGE_LOOP('',(#70,#71,#72,#73));\n#81 = FACE_OUTER_BOUND('',#80,.T.);${PLANE_FLOOR(90, "#81")}`));
+  const p = r.suggestions.find((s) => s.kind === "RECT_POCKET");
+  assert.ok(p, "rect pocket not proposed");
+  assert.equal(p!.parameters.width, 1.1811); // 30 mm
+  assert.equal(p!.parameters.length, 0.7874); // 20 mm
+  assert.equal(p!.parameters.cornerRadius, 0);
+  assert.equal(p!.parameters.depth, 0.25); // 12.7 − 6.35 mm
+  // Center 35,30 mm recentered against the 101.6×76.2 plate.
+  assert.equal(p!.parameters.centerX, r4(35 / 25.4 - 2));
+  assert.equal(p!.parameters.centerY, r4(30 / 25.4 - 1.5));
+});
+
+test("a floor bounded by one circle is a CIRC_POCKET at the circle's center", () => {
+  const circ = `
+#60 = CARTESIAN_POINT('',(76.2,38.1,6.35));
+#61 = DIRECTION('',(0.,0.,1.));
+#62 = AXIS2_PLACEMENT_3D('',#60,#61,$);
+#63 = CIRCLE('',#62,8.);
+#64 = CARTESIAN_POINT('',(84.2,38.1,6.35));
+#65 = VERTEX_POINT('',#64);
+#66 = EDGE_CURVE('',#65,#65,#63,.T.);
+#67 = ORIENTED_EDGE('',*,*,#66,.T.);
+#68 = EDGE_LOOP('',(#67));
+#69 = FACE_OUTER_BOUND('',#68,.T.);`;
+  const r = recognizeStep(withData(`${circ}${PLANE_FLOOR(90, "#69")}`));
+  const p = r.suggestions.find((s) => s.kind === "CIRC_POCKET");
+  assert.ok(p, "circular pocket not proposed");
+  assert.equal(p!.parameters.diameter, r4(16 / 25.4));
+  assert.equal(p!.parameters.depth, 0.25);
+  assert.equal(p!.parameters.centerX, 1); // 76.2 mm = 3", plate half-width 2"
+  assert.equal(p!.parameters.centerY, 0);
+});
+
+test("two equal end arcs make a SLOT between the arc centers", () => {
+  const slot = `
+#55 = CARTESIAN_POINT('',(30.,20.,6.35));
+#56 = DIRECTION('',(0.,0.,1.));
+#57 = AXIS2_PLACEMENT_3D('',#55,#56,$);
+#58 = CIRCLE('',#57,5.);
+#60 = CARTESIAN_POINT('',(60.,20.,6.35));
+#61 = AXIS2_PLACEMENT_3D('',#60,#56,$);
+#62 = CIRCLE('',#61,5.);
+#63 = CARTESIAN_POINT('',(30.,15.,6.35));
+#64 = CARTESIAN_POINT('',(60.,25.,6.35));
+#65 = VERTEX_POINT('',#63);
+#66 = VERTEX_POINT('',#64);
+#67 = EDGE_CURVE('',#65,#66,#58,.T.);
+#68 = EDGE_CURVE('',#66,#65,#62,.T.);
+#69 = EDGE_LOOP('',(#67,#68));
+#70 = FACE_OUTER_BOUND('',#69,.T.);`;
+  const r = recognizeStep(withData(`${slot}${PLANE_FLOOR(90, "#70")}`));
+  const p = r.suggestions.find((s) => s.kind === "SLOT");
+  assert.ok(p, "slot not proposed");
+  assert.equal(p!.parameters.width, r4(10 / 25.4));
+  assert.equal(p!.parameters.depth, 0.25);
+  // Arc centers 30 mm apart along X.
+  const span = Math.abs((p!.parameters.endX as number) - (p!.parameters.startX as number));
+  assert.equal(span, r4(30 / 25.4));
+});
+
+test("a floor boundary that fits no profile is warned about, never force-fitted", () => {
+  // An L-shaped boundary: the notch vertex sits inside the bounding rect.
+  const lShape = [[20, 20], [50, 20], [50, 30], [35, 30], [35, 40], [20, 40]]
+    .map(([x, y], i) => `#${60 + i} = CARTESIAN_POINT('',(${x}.,${y}.,6.35));\n#${70 + i} = VERTEX_POINT('',#${60 + i});`)
+    .join("\n");
+  const r = recognizeStep(withData(`${lShape}\n#80 = EDGE_LOOP('',(#70,#71,#72,#73,#74,#75));\n#81 = FACE_OUTER_BOUND('',#80,.T.);${PLANE_FLOOR(90, "#81")}`));
+  assert.ok(!r.suggestions.some((s) => s.kind === "RECT_POCKET" || s.kind === "CIRC_POCKET" || s.kind === "SLOT"));
+  assert.ok(r.warnings.some((w) => /did not match a circular, slot or rectangular floor profile/.test(w)));
+});
+
+const r4 = (v: number) => Number(v.toFixed(4));
+
 test("unrecognized surfaces are counted by name, including complex records", () => {
   const withSpline = SYNTHETIC.replace(
     "#14 = CYLINDRICAL_SURFACE('',#13,5.);",

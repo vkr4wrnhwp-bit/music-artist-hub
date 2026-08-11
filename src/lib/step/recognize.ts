@@ -10,9 +10,14 @@ import { parseStep, asRef, asNum, asList, type StepEntity, type StepFile } from 
  * surface the recognizer does not understand is a fact about the recognizer,
  * stated as one, never silently dropped.
  *
- * What this deliberately is NOT, in Phase 1:
- * - Not a B-rep kernel. Pockets, slots, bosses, fillets and freeform surfaces
- *   are reported as unrecognized, not approximated.
+ * What this deliberately is NOT:
+ * - Not a B-rep kernel. Pocket and slot floors are recognized only when an
+ *   interior horizontal planar face matches a circular, slot or rectangular
+ *   boundary exactly; bosses, fillets, freeform surfaces and any floor
+ *   profile that does not match are reported as unrecognized, never
+ *   approximated. A floor is assumed milled from the top face — an island
+ *   top looks identical in 2.5D, which is one reason every proposal passes
+ *   through human acceptance.
  * - Not a thread detector. STEP geometry carries no thread; a hole is
  *   proposed as a plain hole even if the design intent is a tapped hole.
  * - Not an authority. Output goes through the proposals flow — a human
@@ -93,12 +98,28 @@ export function recognizeStep(text: string): StepRecognition {
   const unrecognizedCount = new Map<string, number>();
   interface Cyl { cx: number; cy: number; radius: number; zMin: number; zMax: number; offAxis: boolean }
   const cyls: Cyl[] = [];
+  interface Floor { z: number; pts: [number, number, number][]; circles: { cx: number; cy: number; r: number }[] }
+  const floors: Floor[] = [];
   let planeCount = 0;
 
   for (const face of faces) {
     const surf = face.args[2]?.kind === "REF" ? e.get((face.args[2] as { id: number }).id) : null;
     if (!surf) continue;
-    if (surf.type === "PLANE") { planeCount++; continue; }
+    if (surf.type === "PLANE") {
+      planeCount++;
+      // A horizontal plane strictly between the top and bottom of the part is
+      // a pocket-floor candidate. Horizontality is read off the bound
+      // vertices themselves — a wall face spans multiple Z and drops out.
+      const boundPts = collectPoints(e, face.args[1], scale);
+      if (boundPts.length >= 1) {
+        const zs = boundPts.map((p) => p[2]);
+        const z = zs[0];
+        if (zs.every((v) => Math.abs(v - z) < 1e-3) && z < topZ - 0.005 && z > min[2] + 0.005) {
+          floors.push({ z, pts: boundPts, circles: collectCircles(e, face.args[1], scale, z) });
+        }
+      }
+      continue;
+    }
     if (surf.type !== "CYLINDRICAL_SURFACE") {
       // Complex records carry their real surface type inside the raw text —
       // "BOUNDED_SURFACE(B_SPLINE_SURFACE…)" reports as what it is, not as
@@ -179,6 +200,103 @@ export function recognizeStep(text: string): StepRecognition {
     warnings.push(`${offAxisCount} cylindrical face group(s) are not aligned to Z and were not proposed — the 2.5D recognizer only handles top-down holes.`);
   }
 
+  /* ---- pocket / slot floors ---- */
+  // Classification is exact-match or nothing. The floor boundary must fully
+  // account for itself as one of three profiles; a boundary that does not is
+  // reported by Z, never force-fitted into the nearest rectangle.
+  const TOL = 2e-3;
+  let pocketIndex = 0;
+  for (const f of floors) {
+    const depth = r4(topZ - f.z);
+    const top = 0; // milled from the top face — stated in the rationale
+    // An arc's center point is construction geometry the point sweep also
+    // reaches — it is not part of the boundary and must not skew the extents.
+    const boundary = f.pts.filter(
+      (p) => !f.circles.some((c) => Math.abs(c.cx - p[0]) < 1e-3 && Math.abs(c.cy - p[1]) < 1e-3),
+    );
+    if (boundary.length === 0) continue;
+    const xs = boundary.map((p) => p[0]);
+    const ys = boundary.map((p) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs);
+    const l = Math.max(...ys) - Math.min(...ys);
+    const fcx = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const fcy = (Math.max(...ys) + Math.min(...ys)) / 2;
+    const radii = [...new Set(f.circles.map((c) => r4(c.r)))];
+
+    // One circle set, extents match its diameter: circular pocket.
+    if (radii.length === 1 && f.circles.length >= 1) {
+      const rc = f.circles[0].r; // unrounded — r4 only at output
+      const centers = dedupeXY(f.circles);
+      if (centers.length === 1 && (w < TOL || Math.abs(w - 2 * rc) < TOL) && (l < TOL || Math.abs(l - 2 * rc) < TOL)) {
+        pocketIndex++;
+        suggestions.push({
+          kind: "CIRC_POCKET",
+          label: `⌀${r4(2 * rc).toFixed(4)} pocket ${pocketIndex}`,
+          functionalRole: "NONE",
+          critical: false,
+          parameters: {
+            centerX: r4(centers[0].cx - cx0), centerY: r4(centers[0].cy - cy0),
+            diameter: r4(2 * rc), depth, through: false, top,
+          },
+          rationale:
+            `Interior horizontal planar face at Z ${r4(f.z)} bounded by a single ⌀${r4(2 * rc).toFixed(4)}" circle. ` +
+            `Depth ${depth.toFixed(4)}" measured from the top face, assuming the pocket is milled from the top — ` +
+            `verify orientation on acceptance.`,
+        });
+        continue;
+      }
+      // Two circle centers of equal radius spanning the extents: slot.
+      if (centers.length === 2 && Math.abs(Math.min(w, l) - 2 * rc) < TOL) {
+        pocketIndex++;
+        suggestions.push({
+          kind: "SLOT",
+          label: `${r4(2 * rc).toFixed(4)}" slot ${pocketIndex}`,
+          functionalRole: "NONE",
+          critical: false,
+          parameters: {
+            startX: r4(centers[0].cx - cx0), startY: r4(centers[0].cy - cy0),
+            endX: r4(centers[1].cx - cx0), endY: r4(centers[1].cy - cy0),
+            width: r4(2 * rc), depth, top,
+          },
+          rationale:
+            `Interior horizontal planar face at Z ${r4(f.z)} bounded by two ⌀${r4(2 * rc).toFixed(4)}" end arcs — ` +
+            `a full-radius slot. Depth ${depth.toFixed(4)}" from the top face; verify orientation on acceptance.`,
+        });
+        continue;
+      }
+    }
+
+    // Rectangular floor: every bound vertex sits on the axis-aligned
+    // perimeter; corner arcs, when present, share one radius.
+    const rc = radii.length === 1 ? f.circles[0].r : radii.length === 0 ? 0 : null;
+    const onPerimeter = (p: [number, number, number]) =>
+      Math.abs(Math.abs(p[0] - fcx) - w / 2) < TOL || Math.abs(Math.abs(p[1] - fcy) - l / 2) < TOL;
+    if (rc !== null && w > TOL && l > TOL && rc <= Math.min(w, l) / 2 + TOL && boundary.every(onPerimeter)) {
+      pocketIndex++;
+      suggestions.push({
+        kind: "RECT_POCKET",
+        label: `${r4(w).toFixed(3)} × ${r4(l).toFixed(3)} pocket ${pocketIndex}`,
+        functionalRole: "NONE",
+        critical: false,
+        parameters: {
+          centerX: r4(fcx - cx0), centerY: r4(fcy - cy0),
+          width: r4(w), length: r4(l), cornerRadius: r4(rc), depth, top,
+        },
+        rationale:
+          `Interior horizontal planar face at Z ${r4(f.z)} with a rectangular boundary ` +
+          `${r4(w).toFixed(4)} × ${r4(l).toFixed(4)}"` +
+          (rc > 0 ? ` and R${r4(rc).toFixed(4)}" corner arcs.` : ` with sharp corners as modelled.`) +
+          ` Depth ${depth.toFixed(4)}" from the top face, assuming the pocket is milled from the top — ` +
+          `verify orientation on acceptance.`,
+      });
+      continue;
+    }
+
+    warnings.push(
+      `An interior horizontal face at Z ${r4(f.z)} (${f.pts.length} boundary vertices, ${f.circles.length} arcs) did not match a circular, slot or rectangular floor profile and was not proposed. The recognizer does not approximate boundaries it cannot account for.`,
+    );
+  }
+
   const recognized = planeCount + (cyls.length - [...unrecognizedCount.values()].reduce((a, b) => a + b, 0) >= 0 ? cyls.filter((c) => !c.offAxis).length : 0);
   const unrecognized = [...unrecognizedCount.entries()].map(([type, count]) => ({ type, count }));
   if (faces.length === 0) warnings.push("No ADVANCED_FACE entities — file may be a mesh export rather than a B-rep model.");
@@ -225,6 +343,52 @@ function collectPoints(
     return out;
   }
   for (const a of ent.args) collectPoints(e, a, scale, visited, out, depth + 1);
+  return out;
+}
+
+/**
+ * Every CIRCLE reachable from a face's bound subtree whose center sits on the
+ * floor plane. Circles on other planes (a chamfered mouth, a wall feature)
+ * belong to other faces' stories, not this floor's.
+ */
+function collectCircles(
+  e: StepFile["entities"],
+  root: StepEntity["args"][number] | undefined,
+  scale: number,
+  floorZ: number,
+  visited: Set<number> = new Set(),
+  out: { cx: number; cy: number; r: number }[] = [],
+  depth = 0,
+): { cx: number; cy: number; r: number }[] {
+  if (!root || depth > 12) return out;
+  if (root.kind === "LIST") {
+    for (const item of root.items) collectCircles(e, item, scale, floorZ, visited, out, depth + 1);
+    return out;
+  }
+  if (root.kind !== "REF" || visited.has(root.id)) return out;
+  visited.add(root.id);
+  const ent = e.get(root.id);
+  if (!ent) return out;
+  if (ent.type === "CIRCLE") {
+    const placement = ent.args[1]?.kind === "REF" ? e.get((ent.args[1] as { id: number }).id) : null;
+    const loc = placement && placement.args[1]?.kind === "REF" ? e.get((placement.args[1] as { id: number }).id) : null;
+    const c = loc ? asList(loc.args[1]).map(asNum) : [];
+    const r = asNum(ent.args[2]);
+    if (c.length === 3 && c.every((v) => v !== null) && r !== null && Math.abs(c[2]! * scale - floorZ) < 1e-3) {
+      out.push({ cx: c[0]! * scale, cy: c[1]! * scale, r: r * scale });
+    }
+    return out;
+  }
+  for (const a of ent.args) collectCircles(e, a, scale, floorZ, visited, out, depth + 1);
+  return out;
+}
+
+/** Distinct circle centers in XY; STEP arcs often split one circle into halves. */
+function dedupeXY(circles: { cx: number; cy: number; r: number }[]): { cx: number; cy: number }[] {
+  const out: { cx: number; cy: number }[] = [];
+  for (const c of circles) {
+    if (!out.some((o) => Math.abs(o.cx - c.cx) < 1e-3 && Math.abs(o.cy - c.cy) < 1e-3)) out.push({ cx: c.cx, cy: c.cy });
+  }
   return out;
 }
 
