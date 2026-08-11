@@ -40,9 +40,16 @@ async function waitForServer(timeoutMs: number): Promise<void> {
 }
 
 async function main() {
-  const server = spawn("npx", ["next", "start", "-p", String(PORT)], { stdio: "pipe" });
+  // Detached, own process group: `npx` spawns `next` as a grandchild, and a
+  // plain SIGTERM to npx leaves the server orphaned — which keeps a CI step
+  // alive forever waiting on its open pipes. Killing the group gets both.
+  const server = spawn("npx", ["next", "start", "-p", String(PORT)], { stdio: "pipe", detached: true });
   const stopServer = () => {
-    if (!server.killed) server.kill("SIGTERM");
+    try {
+      if (server.pid) process.kill(-server.pid, "SIGTERM");
+    } catch {
+      /* already gone */
+    }
   };
   process.on("exit", stopServer);
 
@@ -113,6 +120,8 @@ async function main() {
   } finally {
     stopServer();
   }
+  // The server's stdio pipes would otherwise keep the event loop alive.
+  process.exit(0);
 }
 
 main().catch((e) => fail(String(e)));
