@@ -58,11 +58,17 @@ toggle remains individually reachable.
 
 ## Persistence
 
-`localStorage` per browser (`canvas.viewEnvironment.v1`, saved presets
-under `canvas.viewEnvironment.saved.v1`), and the drawer says so. When a
-server-side ViewPreferences model exists it adopts the `ViewEnvironment`
-shape in `src/lib/view-environment.ts` verbatim (plus userId /
-organizationId).
+Per-user server row (`ViewPreference`: userId unique, envJson +
+savedPresetsJson) storing the `ViewEnvironment` shape from
+`src/lib/view-environment.ts` verbatim as JSON — display tuning does not
+require a migration. The server copy is the source of truth and follows
+the user across devices; `localStorage` (`canvas.viewEnvironment.v1`,
+saved presets under `canvas.viewEnvironment.saved.v1`) is a fast cache so
+the viewport does not flash defaults while the fetch is in flight. Writes
+go to both, debounced to the server, fire-and-forget: display preferences
+are the one category of data where losing a write is acceptable. User and
+organisation come from the session, never from the request
+(`/api/view-preferences`).
 
 ## Export view
 

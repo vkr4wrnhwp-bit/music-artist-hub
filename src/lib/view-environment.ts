@@ -15,9 +15,10 @@
  *    them, and a custom background that drowns them triggers a visible
  *    warning (`semanticConflicts`) rather than a silent bad choice.
  *
- * 2. Persistence is local and says so. Settings live in localStorage per
- *    browser. There is no server-side ViewPreferences model yet; when one
- *    exists it adopts this exact shape. The UI labels the storage honestly.
+ * 2. Persistence is per user. The server-side ViewPreference row is the
+ *    source of truth and follows the user across devices; localStorage is a
+ *    fast local cache so the viewport does not flash defaults while the
+ *    fetch is in flight. On conflict the server copy wins.
  */
 
 export type LineMode = "OFF" | "LIGHT" | "MEDIUM" | "STRONG";
@@ -212,7 +213,7 @@ export function viewModeDefaults(mode: ViewMode): {
 }
 
 /* ------------------------------------------------------------------ */
-/* Persistence — local, labelled as local                              */
+/* Persistence — server per user, localStorage as cache                */
 /* ------------------------------------------------------------------ */
 
 const STORAGE_KEY = "canvas.viewEnvironment.v1";
@@ -276,6 +277,43 @@ export function deleteNamedPreset(name: string): SavedPreset[] {
 /* ------------------------------------------------------------------ */
 /* Render mappings                                                     */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Server copy of the user's preferences. `env: null` means the user has no
+ * server row yet — the caller keeps whatever it has rather than resetting.
+ */
+export async function fetchServerPreferences(): Promise<{ env: ViewEnvironment | null; saved: SavedPreset[] }> {
+  try {
+    const res = await fetch("/api/view-preferences");
+    if (!res.ok) return { env: null, saved: [] };
+    return (await res.json()) as { env: ViewEnvironment | null; saved: SavedPreset[] };
+  } catch {
+    return { env: null, saved: [] };
+  }
+}
+
+let pushTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingPush: { env?: ViewEnvironment; saved?: SavedPreset[] } = {};
+
+/**
+ * Fire-and-forget, debounced. Display preferences are the one category of
+ * data in CANVAS where losing a write is acceptable — the viewport still
+ * works, it just forgets — so a failed push is silent by design.
+ */
+export function pushServerPreferences(update: { env?: ViewEnvironment; saved?: SavedPreset[] }): void {
+  pendingPush = { ...pendingPush, ...update };
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    const body = JSON.stringify(pendingPush);
+    pendingPush = {};
+    pushTimer = null;
+    void fetch("/api/view-preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body,
+    }).catch(() => {});
+  }, 800);
+}
 
 export const LINE_MODE_OPACITY: Record<LineMode, number> = { OFF: 0, LIGHT: 0.35, MEDIUM: 0.7, STRONG: 1 };
 export const LINE_WEIGHT_PX: Record<LineWeight, number> = { THIN: 1, MEDIUM: 2, HEAVY: 3.5 };

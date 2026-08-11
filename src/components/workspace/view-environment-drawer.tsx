@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   VIEW_PRESETS,
   semanticConflicts,
@@ -8,6 +8,8 @@ import {
   loadSavedPresets,
   saveNamedPreset,
   deleteNamedPreset,
+  fetchServerPreferences,
+  pushServerPreferences,
   type ViewEnvironment,
   type LineMode,
   type LineWeight,
@@ -25,7 +27,8 @@ import {
  * customisable from here, on purpose: a shop that can repaint its own
  * blocking-red into invisibility has been handed a footgun, not a feature.
  *
- * Persistence is localStorage and the footer says so.
+ * Persistence is the per-user server row, with localStorage as the fast
+ * cache, and the footer says so.
  */
 
 const label = "text-[9px] font-semibold uppercase tracking-[0.14em] text-muted";
@@ -50,6 +53,23 @@ export function ViewEnvironmentDrawer({
 }) {
   const [saved, setSaved] = useState(loadSavedPresets);
   const [presetName, setPresetName] = useState("");
+  // The server list wins when it exists — presets follow the user, not the
+  // browser. An empty server list with local entries means this browser has
+  // presets the account does not; push them up rather than losing either.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchServerPreferences().then(({ saved: serverSaved }) => {
+      if (cancelled) return;
+      if (serverSaved.length > 0) setSaved(serverSaved);
+      else {
+        const local = loadSavedPresets();
+        if (local.length > 0) pushServerPreferences({ saved: local });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const conflicts = useMemo(() => semanticConflicts(env.background), [env.background]);
   const recommendation = useMemo(() => recommendPresetFor(material), [material]);
 
@@ -247,7 +267,9 @@ export function ViewEnvironmentDrawer({
               className={btn(false)}
               onClick={() => {
                 if (!presetName.trim()) return;
-                setSaved(saveNamedPreset(presetName.trim(), env));
+                const list = saveNamedPreset(presetName.trim(), env);
+                setSaved(list);
+                pushServerPreferences({ saved: list });
                 setPresetName("");
               }}
             >
@@ -261,14 +283,22 @@ export function ViewEnvironmentDrawer({
                   <button className="min-w-0 flex-1 truncate text-left text-[10.5px] text-platinum-dim hover:text-platinum" onClick={() => onChange(p.env)}>
                     {p.name}
                   </button>
-                  <button className="text-[10px] text-muted hover:text-risk" onClick={() => setSaved(deleteNamedPreset(p.name))} aria-label={`Delete ${p.name}`}>
+                  <button
+                    className="text-[10px] text-muted hover:text-risk"
+                    onClick={() => {
+                      const list = deleteNamedPreset(p.name);
+                      setSaved(list);
+                      pushServerPreferences({ saved: list });
+                    }}
+                    aria-label={`Delete ${p.name}`}
+                  >
                     ✕
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-1 text-[9.5px] leading-snug text-muted">Stored in this browser only — not on the server yet.</p>
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">Saved to your account — presets follow you across devices.</p>
         </section>
 
         {/* ---- Export view ---- */}

@@ -1305,3 +1305,21 @@ model Datum {
   @@unique([partRevisionId, system, letter])
   @@index([partRevisionId])
 }
+
+// Per-user viewport visibility settings. Display only — nothing here touches
+// a gate, a measurement or provenance. The env shape is owned by
+// src/lib/view-environment.ts and stored as JSON so display tuning does not
+// require a migration.
+model ViewPreference {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String @unique
+
+  envJson          String
+  savedPresetsJson String @default("[]")
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}

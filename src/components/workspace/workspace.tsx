@@ -18,7 +18,9 @@ import { CinematicDrawer } from "./cinematic-drawer";
 import type { CinematicInput } from "@/lib/cinematic";
 import {
   DEFAULT_ENVIRONMENT,
+  fetchServerPreferences,
   loadEnvironment,
+  pushServerPreferences,
   saveEnvironment,
   viewModeDefaults,
   type ViewEnvironment,
@@ -185,17 +187,32 @@ function WorkspaceInner(props: WorkspaceProps) {
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
 
-  // View environment — how the viewport is drawn. Loaded from this browser's
-  // storage after mount (SSR renders the default), saved on every change.
+  // View environment — how the viewport is drawn. The localStorage cache
+  // renders immediately after mount (SSR renders the default); the per-user
+  // server copy is fetched and wins when present, so preferences follow the
+  // user across devices. Changes save to both.
   const [viewEnv, setViewEnv] = useState<ViewEnvironment>(DEFAULT_ENVIRONMENT);
   // One right-side drawer at a time — env settings or the cinematic panel.
   const [drawer, setDrawer] = useState<"env" | "film" | null>(null);
   const envOpen = drawer === "env";
   const setEnvOpen = (v: boolean) => setDrawer(v ? "env" : null);
-  useEffect(() => setViewEnv(loadEnvironment()), []);
+  useEffect(() => {
+    setViewEnv(loadEnvironment());
+    let cancelled = false;
+    void fetchServerPreferences().then(({ env }) => {
+      if (!cancelled && env) {
+        setViewEnv(env);
+        saveEnvironment(env);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const updateEnv = (e: ViewEnvironment) => {
     setViewEnv(e);
     saveEnvironment(e);
+    pushServerPreferences({ env: e });
   };
   const applyViewMode = (m: EnvViewMode) => {
     const d = viewModeDefaults(m);

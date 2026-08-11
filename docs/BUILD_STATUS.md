@@ -494,3 +494,17 @@ play — a filter, not a ranking; other equipment's observations are not
 shown. Verified end to end in the browser: disagreement recorded on the
 readiness page, promoted at /knowledge with a 0.450" DOC threshold on
 the VF-2, surfaced on the machinist page. 86 tests.
+
+## 2026-08-11 — View preferences follow the user
+
+ViewPreference model (userId unique, envJson + savedPresetsJson; paired
+sqlite/postgres migrations): the per-user server row is now the source of
+truth for viewport settings and saved presets; localStorage stays as the
+fast cache so the viewport does not flash defaults while the fetch is in
+flight. Server copy wins on load; a browser with local presets and an
+empty account list pushes them up rather than losing either. Writes are
+debounced fire-and-forget — display preferences are the one category of
+data where losing a write is acceptable. User and organisation from the
+session, never the request. Drawer footer updated from "this browser
+only" to the truth. Verified in the browser: PUT/GET round trip, default
+merge, empty-body 400, unauthenticated redirect. 86 tests.
