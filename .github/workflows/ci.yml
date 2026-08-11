@@ -25,3 +25,10 @@ jobs:
       - run: npm ci --include=dev
       - run: npm test
       - run: npm run build
+      # E2E smoke: boots the built app against the seeded database and checks
+      # gate POSTURE in a real browser — the tablet never signs over a red
+      # gate, NC stays behind pre-flight, no readiness percentages anywhere.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run test:e2e

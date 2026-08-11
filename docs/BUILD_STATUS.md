@@ -565,3 +565,16 @@ is labelled DEVELOPMENT ANALYSIS on every output: jerk, per-axis limits
 and control look-ahead are not modelled. Verified live: the analyzer
 reports the model and the 15 in/s² source on the reference machine.
 91 tests.
+
+## 2026-08-11 — CI E2E smoke suite
+
+scripts/e2e-smoke.ts (npm run test:e2e): boots the built app against the
+seeded database in a real browser and checks POSTURE, not pixels —
+sign-in works, the part workspace renders with no readiness percentage
+anywhere, the readiness gates render, the tablet never offers a
+signature over a red gate (and explains the withheld one), NC output
+stays behind its pre-flight with the not-certified notice, the shop
+knowledge page keeps its scoping statement. CI now runs it after the
+unit suite and build: playwright install → migrate → seed → smoke. A
+failure here is a broken page or a broken gate posture that the 91 unit
+tests cannot see.
