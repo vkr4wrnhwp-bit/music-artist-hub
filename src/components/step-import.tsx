@@ -50,9 +50,9 @@ export function StepImport() {
       </div>
       {state.error && <p className="text-[12px] leading-relaxed text-risk">{state.error}</p>}
       <p className="text-[11px] leading-relaxed text-muted">
-        Single parts only, 2.5D recognition: top-down holes and the envelope. Everything else is reported as
-        unrecognized, not approximated. Recognized features are proposals — nothing becomes geometry until you accept
-        it.
+        Single parts only, 2.5D recognition: top-down holes, pocket and slot floors, and the envelope. Everything
+        else is reported as unrecognized, not approximated. Recognized features are proposals — nothing becomes
+        geometry until you accept it.
       </p>
     </div>
   );

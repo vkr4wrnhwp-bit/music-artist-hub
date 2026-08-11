@@ -578,3 +578,20 @@ knowledge page keeps its scoping statement. CI now runs it after the
 unit suite and build: playwright install → migrate → seed → smoke. A
 failure here is a broken page or a broken gate posture that the 91 unit
 tests cannot see.
+
+## 2026-08-11 — Stock definition + STEP-to-plan journey test
+
+Real gap found and closed: nothing let a human define stock after a STEP
+import, so every imported part dead-ended before the machinist — each
+stage worked alone and the chain still broke. The part page's stock
+panel now carries a define-stock form for revisions without stock: the
+finished envelope is shown as reference, stock smaller than it is
+refused (not shrunk), existing stock is never silently replaced, and the
+write audits as HUMAN. The allowance remains the machinist's decision —
+no default is offered.
+
+scripts/e2e-journey.ts (npm run test:e2e:journey, in CI): STEP upload →
+recognizer proposes hole + pocket → accept → define stock → approve a
+machinist approach → operation plan with real toolpaths and cycle time.
+Also fixed the smoke suite's CI hang (orphaned server process group) and
+updated the STEP import copy to mention pocket/slot recognition.

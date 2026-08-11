@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -171,6 +172,45 @@ export default async function PartWorkspace(props: {
       reason: "Stock-removal simulation watched to completion and recorded",
       newValue: `${payload.removedVolume.toFixed(3)} in³ removed, ${payload.collisions} collision(s), ${payload.totalTime.toFixed(2)} min`,
     });
+  }
+
+  async function defineStock(formData: FormData) {
+    "use server";
+    const currentUser = await requireUser();
+    const fresh = await buildPackage(currentUser.organizationId, id);
+    if (!fresh) notFound();
+    // Define, not redefine: stock that setups and toolpaths already plan from
+    // does not get silently replaced by a form post.
+    if (fresh.revision.stock) return;
+
+    const dims = (["x", "y", "z"] as const).map((k) => Number(String(formData.get(k) ?? "").trim()));
+    const material = String(formData.get("material") ?? "").trim();
+    const condition = String(formData.get("condition") ?? "").trim();
+    if (dims.some((v) => !Number.isFinite(v) || v <= 0) || !material) return;
+    const [x, y, z] = dims;
+
+    // Stock smaller than the finished envelope cannot make the part. Refused,
+    // not shrunk to fit.
+    const env = fresh.revision.intent.finishedEnvelope.value as { x: number; y: number; z: number } | null;
+    if (env && (x < env.x - 1e-6 || y < env.y - 1e-6 || z < env.z - 1e-6)) return;
+
+    const stock = { form: "RECTANGULAR" as const, x, y, z, material, ...(condition ? { condition } : {}) };
+    await db.partRevision.update({
+      where: { id: fresh.revision.revisionId },
+      data: { stockJson: JSON.stringify(stock) },
+    });
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "PartRevision",
+      entityId: fresh.revision.revisionId,
+      action: "UPDATE",
+      actorType: "HUMAN",
+      field: "stock",
+      newValue: `${x} × ${y} × ${z} in ${material}`,
+      reason: "Stock defined on the part page",
+    });
+    revalidatePath(`/parts/${id}`);
   }
 
   const primarySetup = pkg.setups[0];
@@ -497,7 +537,40 @@ export default async function PartWorkspace(props: {
             />
           </>
         ) : (
-          <p className="text-[12px] text-muted">Stock is not defined for this revision.</p>
+          <div className="space-y-2.5">
+            <p className="text-[12px] leading-relaxed text-muted">
+              Stock is not defined for this revision. Everything downstream — workholding, toolpaths, gates — plans
+              from what you enter here, so enter what will actually be in the vise.
+            </p>
+            {(() => {
+              const env = revision.intent.finishedEnvelope.value as { x: number; y: number; z: number } | null;
+              return env ? (
+                <p className="font-mono text-[11.5px] text-platinum-dim tabular-nums">
+                  Finished envelope: {env.x.toFixed(3)} × {env.y.toFixed(3)} × {env.z.toFixed(3)} in — stock must
+                  cover it; the allowance is your machining decision, not a default.
+                </p>
+              ) : null;
+            })()}
+            <form action={defineStock} className="grid grid-cols-3 gap-2">
+              {(["x", "y", "z"] as const).map((axis) => (
+                <label key={axis} className="block">
+                  <span className="tech-label mb-0.5 block">{axis.toUpperCase()} (in)</span>
+                  <input name={axis} inputMode="decimal" required className="w-full border border-line-strong bg-surface px-1.5 py-1 font-mono text-[12px] text-platinum" />
+                </label>
+              ))}
+              <label className="col-span-2 block">
+                <span className="tech-label mb-0.5 block">Material</span>
+                <input name="material" required placeholder="e.g. Aluminum 6061" className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
+              </label>
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Condition</span>
+                <input name="condition" placeholder="optional" className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
+              </label>
+              <button type="submit" className="col-span-3 border border-precision/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10">
+                Define stock
+              </button>
+            </form>
+          </div>
         )}
       </div>
     ),

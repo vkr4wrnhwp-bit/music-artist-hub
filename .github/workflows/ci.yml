@@ -32,3 +32,7 @@ jobs:
       - run: npm run db:migrate
       - run: npm run db:seed
       - run: npm run test:e2e
+      # Journey: STEP upload → accept proposals → define stock → approve a
+      # machinist approach → operation plan with real toolpaths. Exists
+      # because this chain once broke silently between working stages.
+      - run: npm run test:e2e:journey
