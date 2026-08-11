@@ -9,6 +9,7 @@ import { fmt, fmtTol } from "@/lib/domain/features";
 import type { Feature } from "@/lib/domain/features";
 import { isCriticalApplication, missingEngineeringInput } from "@/lib/domain/part-intent";
 import { money } from "@/lib/engines/cost";
+import { assessConformance } from "@/lib/engines/fair";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import {
   assessCapability,
@@ -23,6 +24,7 @@ import { Workspace } from "@/components/workspace/workspace";
 import type {
   DatumInfo,
   FeatureDetail,
+  VerifyInfo,
   NextActionInfo,
   RunwayData,
   RunwayOperation,
@@ -234,7 +236,26 @@ export default async function PartWorkspace(props: {
 
     const item = inspectionPlan?.items.find((i) => i.featureId === f.id) ?? null;
 
+    // Verification state: same selection rule and same conformance rule as
+    // the FAIR generator — the latest INSPECTION-session reading, assessed
+    // against the stored tolerance. RE-session readings never verify.
+    const latestInspection = measurementRows
+      .filter((m) => m.featureId === f.id && m.session.mode === "INSPECTION")
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    const conformance = assessConformance(
+      f,
+      latestInspection ? { value: latestInspection.measuredValue, uncertainty: latestInspection.uncertainty } : undefined,
+    );
+    const verify: VerifyInfo = !latestInspection
+      ? { state: "NOT_MEASURED", reason: "No inspection-session measurement recorded", departure: null }
+      : conformance.verdict === "CONFORMS"
+        ? { state: "CONFORMS", reason: null, departure: null }
+        : conformance.verdict === "NONCONFORMS"
+          ? { state: "NONCONFORMS", reason: null, departure: conformance.departure }
+          : { state: "CANNOT_DETERMINE", reason: conformance.reason, departure: null };
+
     featureDetails[f.id] = {
+      verify,
       capability: {
         verdict: capability.verdict,
         label: CAPABILITY_LABEL[capability.verdict as CapabilityVerdict],

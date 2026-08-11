@@ -527,3 +527,24 @@ the gate state is re-checked server-side at write time. 48px minimum
 touch targets, mono data with units, no percentages. Verified in the
 browser: checklist round trip with name and time, sign-off correctly
 withheld behind a failing inspection-capability gate. 86 tests.
+
+## 2026-08-11 — Visual datums + VERIFY state in the viewport
+
+The datum reference frame is now drawn on the model: a flag per datum,
+anchored to its linked feature (face datums walk the top edge), solid
+datum blue when accepted by a human, grey dashed PROPOSED when it is
+CANVAS's inference — the viewport draws an inference visibly differently
+from a decision. Visibility follows the environment's datum line mode.
+Seed now creates the demo frame honestly: A accepted on the top face
+(matching the setup note), B proposed off the bore centreline with its
+reasoning stored, never auto-accepted.
+
+INSPECTION view mode now colours every toleranced feature's ring by
+verification state — computed server-side by the same assessConformance
+rule the FAIR generator uses, on the latest INSPECTION-session reading
+(RE sessions never verify). Green in tolerance, red out, grey not
+measured / cannot determine, with a legend naming exactly those states.
+NOT_MEASURED and CANNOT_DETERMINE are distinct states, not absences.
+Provenance drilldown already existed in the feature panel (instrument,
+datum, session, operator, deviation against band) — noted, not rebuilt.
+Verified in the browser. 86 tests.

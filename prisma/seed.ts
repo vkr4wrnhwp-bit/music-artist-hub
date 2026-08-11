@@ -526,6 +526,39 @@ async function main() {
 
   /* ---------------- Inspection plan ---------------- */
 
+  /* ---------------- Datum reference frame ---------------- */
+  // Datum A matches the setup note ("Datum A = top face") and the drawing's
+  // "Datum A." note on the face feature — a human decision, so accepted.
+  // B is CANVAS's proposal off the bore centreline and stays PROPOSED:
+  // datums are never established by inference alone.
+  await db.datum.createMany({
+    data: [
+      {
+        partRevisionId: rev.id,
+        letter: "A",
+        system: "DESIGN",
+        featureId: byLabel("Face top").id,
+        description: "Top face — primary plane, seats on the parallels",
+        geometryType: "PLANE",
+        acceptedByUser: true,
+        acceptedAt: new Date(),
+        source: "USER",
+      },
+      {
+        partRevisionId: rev.id,
+        letter: "B",
+        system: "DESIGN",
+        featureId: byLabel("40 mm bearing bore").id,
+        description: "Bearing bore centreline — secondary axis",
+        geometryType: "AXIS",
+        proposedReason:
+          "The bore is the only critical toleranced feature that constrains X and Y; the mounting pattern is dimensioned from its centre.",
+        acceptedByUser: false,
+        source: "SYSTEM",
+      },
+    ],
+  });
+
   const plan = await db.inspectionPlan.create({
     data: { partRevisionId: rev.id, name: "First article — Rev A", samplingPlan: "FIRST_ARTICLE" },
   });

@@ -84,7 +84,36 @@ export interface ViewportProps {
    * means the Studio White defaults.
    */
   env?: import("@/lib/view-environment").ViewEnvironment;
+  /**
+   * Datum reference frame, anchored to the features that establish it. A
+   * proposed datum renders visibly different from an accepted one — the
+   * viewport never draws an inference the way it draws a decision.
+   */
+  datums?: SceneDatum[];
+  /**
+   * Per-feature verification state for the INSPECTION view mode, computed
+   * server-side by the same conformance rule the FAIR generator uses. Colour
+   * only — the state itself lives in the measurement records.
+   */
+  verify?: Record<string, VerifyState>;
 }
+
+export interface SceneDatum {
+  letter: string;
+  geometryType: string;
+  accepted: boolean;
+  featureId: string | null;
+}
+
+export type VerifyState = "CONFORMS" | "NONCONFORMS" | "NOT_MEASURED" | "CANNOT_DETERMINE";
+
+/** Locked semantic colours for verification state. Green/red/grey, no others. */
+const VERIFY_COLOR: Record<VerifyState, string> = {
+  CONFORMS: "#17754e",
+  NONCONFORMS: "#c22a1e",
+  NOT_MEASURED: "#7d838b",
+  CANNOT_DETERMINE: "#7d838b",
+};
 
 /* WebGL cannot read CSS custom properties, so the work-window palette is
    mirrored here as literals. These are the only place the 3D and the page can
@@ -276,6 +305,8 @@ function SceneContent({
   fixture,
   showHoldCallouts,
   simHandle,
+  datums,
+  verify,
 }: ViewportProps) {
   if (!stock) return null;
 
@@ -299,8 +330,11 @@ function SceneContent({
           hovered={hoveredFeatureId === f.id}
           onSelect={() => onSelectFeature?.(f.id)}
           onHover={onHoverFeature}
+          verifyState={verify?.[f.id]}
         />
       ))}
+
+      {!simHandle && datums && datums.length > 0 && <DatumFlags datums={datums} features={features} stock={stock} />}
 
       <DatumIndicator stock={stock} />
 
@@ -413,6 +447,7 @@ function FeatureMesh({
   hovered,
   onSelect,
   onHover,
+  verifyState,
 }: {
   feature: Feature;
   stock: Stock;
@@ -420,6 +455,7 @@ function FeatureMesh({
   hovered: boolean;
   onSelect: () => void;
   onHover?: (id: string | null, pointer: { x: number; y: number } | null) => void;
+  verifyState?: VerifyState;
 }) {
   // Now that the part is a real solid with the material genuinely removed,
   // these volumes are no longer how a feature is drawn — they are the pick
@@ -439,6 +475,13 @@ function FeatureMesh({
   // selected bore read as a saturated translucent puck standing proud of the
   // pocket floor; the blue Edges line was already doing the identification.
   const opacity = selected ? 0.14 : hovered ? 0.09 : 0;
+
+  // INSPECTION view mode: every toleranced feature wears its verification
+  // state as a persistent ring/edge in the locked semantic colours. This is
+  // the measurement record made visible — it is computed server-side by the
+  // same conformance rule the FAIR generator uses, never invented here.
+  const inspecting = useEnv().viewMode === "INSPECTION" && verifyState !== undefined;
+  const verifyColor = verifyState ? VERIFY_COLOR[verifyState] : null;
 
   const common = {
     onClick: (e: { stopPropagation: () => void }) => {
@@ -470,7 +513,11 @@ function FeatureMesh({
         <mesh position={[f.centerX, f.centerY, top - f.depth / 2]} {...common}>
           <boxGeometry args={[f.width, f.length, f.depth]} />
           {material}
-          <Edges threshold={20} color={active ? sel : "#c6cac7"} visible={active} />
+          <Edges
+            threshold={20}
+            color={inspecting && !active ? verifyColor! : active ? sel : "#c6cac7"}
+            visible={active || inspecting}
+          />
         </mesh>
       );
     }
@@ -504,10 +551,15 @@ function FeatureMesh({
           {/* The rim. This is what actually identifies the feature: a crisp
               annulus around the mouth, the way a machinist would ring a
               diameter on a print. */}
-          {active && (
+          {(active || inspecting) && (
             <mesh position={[f.centerX, f.centerY, top + 0.004]}>
               <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * (ringHigh ? 1.08 : 1.055), 96]} />
-              <meshBasicMaterial color={sel} transparent opacity={ringHigh ? 1 : selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
+              <meshBasicMaterial
+                color={inspecting && !active ? verifyColor! : sel}
+                transparent
+                opacity={ringHigh ? 1 : selected ? 0.95 : inspecting && !active ? 0.85 : 0.6}
+                side={THREE.DoubleSide}
+              />
             </mesh>
           )}
         </group>
@@ -533,10 +585,15 @@ function FeatureMesh({
               side={THREE.BackSide}
             />
           </mesh>
-          {active && (
+          {(active || inspecting) && (
             <mesh position={[f.centerX, f.centerY, top + 0.004]}>
               <ringGeometry args={[f.diameter / 2, (f.diameter / 2) * 1.16, 64]} />
-              <meshBasicMaterial color={BLUE} transparent opacity={selected ? 0.95 : 0.6} side={THREE.DoubleSide} />
+              <meshBasicMaterial
+                color={inspecting && !active ? verifyColor! : BLUE}
+                transparent
+                opacity={selected ? 0.95 : inspecting && !active ? 0.85 : 0.6}
+                side={THREE.DoubleSide}
+              />
             </mesh>
           )}
         </group>
@@ -617,6 +674,63 @@ function FeatureMesh({
  * to stay clear of whatever it sits on, with a short Z stem so the axis the
  * offset is set on is unambiguous.
  */
+/**
+ * Datum reference flags — the print's datum letters placed on the model.
+ *
+ * A datum linked to a feature anchors at that feature; an unlinked datum
+ * (a face-of-part datum) anchors at the edge of the top face, spread by
+ * letter so A/B/C never overlap. An accepted datum is drawn in the datum
+ * blue; a proposed one is grey and says PROPOSED — the viewport draws an
+ * inference visibly differently from a decision, always.
+ *
+ * Visibility follows the environment's datum line mode; OFF hides these
+ * along with the origin mark.
+ */
+function DatumFlags({ datums, features, stock }: { datums: SceneDatum[]; features: Feature[]; stock: Stock }) {
+  const env = useEnv();
+  const strength = LINE_MODE_OPACITY[env.datumLineMode];
+  if (strength === 0) return null;
+  const scale = ANNOTATION_SCALE[env.annotationSize];
+
+  let edgeIndex = 0;
+  return (
+    <group>
+      {datums.map((d) => {
+        const f = d.featureId ? features.find((x) => x.id === d.featureId) : undefined;
+        let x: number, y: number;
+        if (f && "centerX" in f && "centerY" in f) {
+          x = (f as { centerX: number }).centerX;
+          y = (f as { centerY: number }).centerY;
+        } else {
+          // Face datums walk along the front edge of the top face.
+          x = -stock.x / 2 + stock.x * 0.18 * (1 + edgeIndex);
+          y = -stock.y / 2;
+          edgeIndex += 1;
+        }
+        const zz = stock.z + 0.02;
+        const stem = 0.28 * scale;
+        const color = d.accepted ? BLUE : "#7d838b";
+        return (
+          <group key={`${d.letter}-${d.featureId ?? "face"}`}>
+            <Line points={[[x, y, zz], [x, y, zz + stem]]} color={color} lineWidth={1 + strength} dashed={!d.accepted} dashSize={0.03} gapSize={0.02} />
+            <Html position={[x, y, zz + stem]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+              <div
+                style={{ opacity: 0.35 + strength * 0.65, transform: `scale(${scale})` }}
+                className={`flex items-center gap-1 border bg-white/90 px-1.5 py-0.5 font-mono ${
+                  d.accepted ? "border-[#0b72ff] text-[#0b72ff]" : "border-dashed border-[#7d838b] text-[#5c626a]"
+                }`}
+              >
+                <span className="text-[13px] font-bold leading-none">{d.letter}</span>
+                {!d.accepted && <span className="text-[8px] uppercase tracking-[0.1em]">proposed</span>}
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 function DatumIndicator({ stock }: { stock: Stock }) {
   const env = useEnv();
   const span = Math.max(0.12, Math.min(stock.x, stock.y) * 0.09);

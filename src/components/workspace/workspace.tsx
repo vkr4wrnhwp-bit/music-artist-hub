@@ -399,7 +399,30 @@ function WorkspaceInner(props: WorkspaceProps) {
               showHoldCallouts={state.activeContext === "HOLD"}
               simHandle={simActive ? simHandle : null}
               env={viewEnv}
+              datums={props.datums}
+              verify={Object.fromEntries(
+                Object.entries(props.featureDetails).map(([id, d]) => [id, d.verify.state]),
+              )}
             />
+
+            {/* VERIFY legend — only while the INSPECTION view mode colours the
+                rings. The states come from measurement records; the legend
+                only names the colours. */}
+            {viewEnv.viewMode === "INSPECTION" && !simActive && (
+              <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-3 border border-line bg-surface/95 px-3 py-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Verify</span>
+                {[
+                  ["#17754e", "In tolerance"],
+                  ["#c22a1e", "Out of tolerance"],
+                  ["#7d838b", "Not measured / cannot determine"],
+                ].map(([c, l]) => (
+                  <span key={l} className="flex items-center gap-1.5 text-[10px] text-platinum-dim">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />
+                    {l}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Right-edge drawers, one at a time, over the viewport. */}
             {drawer === "env" && (

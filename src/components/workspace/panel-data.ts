@@ -81,11 +81,26 @@ export interface DatumInfo {
   featureId: string | null;
 }
 
+/**
+ * Verification state for the INSPECTION view mode, computed server-side by
+ * the same conformance rule the FAIR generator uses (`assessConformance`) on
+ * the latest INSPECTION-session measurement. NOT_MEASURED and
+ * CANNOT_DETERMINE are distinct states, not absences.
+ */
+export interface VerifyInfo {
+  state: "CONFORMS" | "NONCONFORMS" | "NOT_MEASURED" | "CANNOT_DETERMINE";
+  /** Why, when the state is not a clean pass/fail. */
+  reason: string | null;
+  /** Signed departure beyond the tolerance band, for NONCONFORMS. */
+  departure: number | null;
+}
+
 /** Everything the feature panel needs about one feature, precomputed server-side. */
 export interface FeatureDetail {
   capability: CapabilityInfo | null;
   measurements: MeasurementInfo[];
   inspectionItem: InspectionItemInfo | null;
+  verify: VerifyInfo;
 }
 
 /* ------------------------------------------------------------------ */
