@@ -1,5 +1,6 @@
 import { HeightField, type StockDims } from "@/lib/sim/stock-removal";
 import type { NCSegment, ParsedNC } from "./parse";
+import { timePath } from "./time";
 
 /**
  * NC ANALYSIS — Phase 4B: cycle-time breakdown and air-cut detection
@@ -58,13 +59,22 @@ export interface AnalysisContext {
   /** Tool diameters by T number, from the shop's tool table. */
   toolDiameters: Record<number, number>;
   rapidRate: number;
+  /**
+   * Axis acceleration in in/s², from the machine record. Null means not
+   * recorded: timing falls back to distance-over-feed and the assumptions
+   * say so — the value is never guessed.
+   */
+  axisAccel?: number | null;
 }
 
 const AIR_MIN_SECONDS = 0.5; // below this a finding is noise, not a saving
 
 export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
+  const accel = ctx.axisAccel ?? null;
   const assumptions = [
-    "No acceleration model: times are distance over feed and overstate savings on short segments.",
+    accel !== null
+      ? `Trapezoidal acceleration model at ${accel} in/s² (machine record) with cos-scaled junction velocities — DEVELOPMENT ANALYSIS, not validated against this machine's control. Jerk, per-axis limits and look-ahead are not modelled; dense 3D paths run slower than this estimate.`
+      : "No axis acceleration recorded for this machine: times are distance over feed and overstate savings on short segments. Record axisAccel on the machine to enable the trapezoidal model.",
     "Work-offset origin taken as program zero with Z0 at the stock top.",
   ];
   if (parsed.workOffsetsSeen.length > 1) assumptions.push("Multiple work offsets — spatial findings downgraded to REVIEW.");
@@ -75,15 +85,23 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
   let cutMin = 0, rapidMin = 0, dwellMin = 0;
   const ext = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
 
-  const segTime = (s: NCSegment): number => {
+  // With a recorded acceleration the whole path is timed as one motion
+  // profile; without one, each segment is distance over feed. Both paths
+  // produce a per-segment minutes array so the findings below can price a
+  // segment consistently with the totals.
+  const flatSegTime = (s: NCSegment): number => {
     if (s.kind === "DWELL") return (s.dwellSeconds ?? 0) / 60;
     const dist = Math.hypot(s.x1 - s.x0, s.y1 - s.y0, s.z1 - s.z0);
     if (dist === 0) return 0;
     return dist / Math.max(1, s.feed === null ? ctx.rapidRate : s.feed);
   };
+  const segMinutes: number[] =
+    accel !== null
+      ? timePath(parsed.segments, accel, ctx.rapidRate).seconds.map((s) => s / 60)
+      : parsed.segments.map(flatSegTime);
 
-  for (const s of parsed.segments) {
-    const t = segTime(s);
+  for (const [si, s] of parsed.segments.entries()) {
+    const t = segMinutes[si];
     const row = perTool.get(s.toolNumber) ?? { toolNumber: s.toolNumber, cutMinutes: 0, rapidMinutes: 0, dwellMinutes: 0, segments: 0 };
     row.segments++;
     if (s.kind === "DWELL") { dwellMin += t; row.dwellMinutes += t; }
@@ -110,8 +128,8 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     assumptions.push("No stock bound — air cutting cannot be proven, retract findings are heuristic.");
   }
 
-  for (const s of parsed.segments) {
-    const t = segTime(s) * 60; // seconds
+  for (const [si, s] of parsed.segments.entries()) {
+    const t = segMinutes[si] * 60; // seconds
     if (s.kind === "DWELL") continue;
 
     if (s.feed !== null && !s.tapping) {

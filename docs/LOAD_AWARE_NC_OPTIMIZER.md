@@ -77,11 +77,13 @@ operation-state geometry (the stock as it is *at that line*, which the
 replay gives for free and a static model cannot).
 
 **Honest gaps in the current data model:**
-- **No acceleration model.** `MachineProfile` has maxFeed and rapidRate,
-  nothing about accel/jerk. Distance-over-feed timing overstates savings on
-  short-segment toolpaths (exactly where optimizers love to claim wins).
-  V1 must state this on every savings figure; a per-machine accel field is
-  the fix and needs real machine data, not a guess.
+- **Acceleration model: BUILT (2026-08-11), gated on recorded data.**
+  `Machine.axisAccel` (in/s², nullable) drives a trapezoidal profile with
+  cos-scaled junction velocities and forward/backward feasibility passes
+  (`src/lib/nc/time.ts`). Null accel → timing stays distance-over-feed and
+  the assumptions say so; the value is never guessed. The model itself is
+  DEVELOPMENT ANALYSIS: jerk, per-axis limits and control look-ahead are
+  not modelled, and it says that on every analysis.
 - **No finished-part model for uploaded NC.** Geometry preservation is
   verified as "same motion, different feeds" (bitwise geometry-word
   identity), not against a part model — which is why V1 changes feeds only.
@@ -215,8 +217,10 @@ the program renders, the export does not.
    wrong for undercuts, 3D surfacing ball work, and anything the STEP spike
    also refuses. A surfacing program parses and backplots; its load map says
    INSUFFICIENT DATA rather than pretending.
-3. **Savings estimates overstate without an acceleration model.** Stated on
-   every figure until MachineProfile carries measured accel data.
+3. **Savings estimates overstate without recorded acceleration.** The
+   trapezoidal model exists and engages when `Machine.axisAccel` is
+   recorded; machines without it keep distance-over-feed timing with the
+   overstatement stated on every figure.
 4. **Cutter comp and macros gut confidence.** Real shop programs are full of
    both. V1 will refuse or REVIEW a large fraction of real-world files — the
    parse report says so plainly rather than optimizing the fraction it

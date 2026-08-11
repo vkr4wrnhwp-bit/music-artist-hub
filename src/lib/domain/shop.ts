@@ -62,6 +62,8 @@ export interface MachineProfile {
   maxSpindleTorque: number;
   maxFeed: number;
   maxRapid: number;
+  /** Axis acceleration, in/s². Null when not recorded — never defaulted. */
+  axisAccel: number | null;
   toolChangerCapacity: number;
   maxToolDiameter: number;
   maxToolLength: number;

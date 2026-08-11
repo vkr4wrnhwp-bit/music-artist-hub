@@ -143,6 +143,9 @@ model Machine {
   maxSpindleTorque Float
   maxFeed         Float
   maxRapid        Float
+  // Axis acceleration, in/s². Null when not recorded — time estimates then
+  // stay distance-over-feed and say so, rather than assuming a value.
+  axisAccel       Float?
 
   toolChangerCapacity Int
   maxToolDiameter     Float

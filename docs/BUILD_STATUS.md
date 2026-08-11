@@ -548,3 +548,20 @@ NOT_MEASURED and CANNOT_DETERMINE are distinct states, not absences.
 Provenance drilldown already existed in the feature panel (instrument,
 datum, session, operator, deviation against band) — noted, not rebuilt.
 Verified in the browser. 86 tests.
+
+## 2026-08-11 — NC timing acceleration model BUILT
+
+src/lib/nc/time.ts: trapezoidal velocity profiles at the machine's
+recorded axisAccel (new nullable Machine column, paired migrations),
+cos-scaled junction velocities, forward/backward feasibility passes.
+Closed-form behaviour pinned by tests: long segments pay one accel and
+one decel ramp, short segments go triangular and are counted as
+acceleration-limited, colinear moves blend at speed while a square
+corner stops, dwells break continuity. analyzeNC and the optimizer's
+before/after minutes use it when axisAccel is recorded; a machine
+without a recorded value keeps distance-over-feed timing and the
+assumptions say to record one — the value is never guessed. The model
+is labelled DEVELOPMENT ANALYSIS on every output: jerk, per-axis limits
+and control look-ahead are not modelled. Verified live: the analyzer
+reports the model and the 15 in/s² source on the reference machine.
+91 tests.

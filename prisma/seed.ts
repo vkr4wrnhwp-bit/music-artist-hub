@@ -106,6 +106,9 @@ async function main() {
       maxSpindleTorque: 90,
       maxFeed: 500,
       maxRapid: 1000,
+      // Representative value for the fictional reference profile, like every
+      // other number on this machine — not a datasheet figure.
+      axisAccel: 15,
       toolChangerCapacity: 20,
       maxToolDiameter: 3.5,
       maxToolLength: 12,

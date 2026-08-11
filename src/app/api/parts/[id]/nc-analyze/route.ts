@@ -51,6 +51,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     stock,
     toolDiameters,
     rapidRate: machines[0]?.maxRapid ?? 600,
+    axisAccel: machines[0]?.axisAccel ?? null,
   });
   const load = analyzeLoad(parsed, {
     stock,

@@ -45,6 +45,7 @@ export async function getMachines(organizationId: string): Promise<MachineProfil
     maxSpindleTorque: m.maxSpindleTorque,
     maxFeed: m.maxFeed,
     maxRapid: m.maxRapid,
+    axisAccel: m.axisAccel ?? null,
     toolChangerCapacity: m.toolChangerCapacity,
     maxToolDiameter: m.maxToolDiameter,
     maxToolLength: m.maxToolLength,

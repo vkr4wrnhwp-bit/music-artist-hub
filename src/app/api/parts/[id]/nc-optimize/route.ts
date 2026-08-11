@@ -86,8 +86,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (reparsed.refusals.length > 0 || reparsed.segments.length !== parsed.segments.length) {
     return NextResponse.json({ error: "Optimized text failed re-parsing — nothing was stored." }, { status: 500 });
   }
-  const before = analyzeNC(parsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600 });
-  const after = analyzeNC(reparsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600 });
+  const before = analyzeNC(parsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600, axisAccel: machine?.axisAccel ?? null });
+  const after = analyzeNC(reparsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600, axisAccel: machine?.axisAccel ?? null });
   const lint = machine ? verifyNc(emitted.text, machine) : [];
 
   const auditPayload = {
