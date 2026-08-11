@@ -317,6 +317,35 @@ export function EmptyState({
 }
 
 /** Marks a capability that is not what it might look like. Used liberally. */
+/**
+ * An inline ⓘ disclosure for a panel's limits copy — the refactor-spec home
+ * for honesty prose that crowded panels as always-open paragraphs.
+ *
+ * Two rules with teeth: the summary line names the limit in caps where the
+ * user would look for it (the disclosure hides the explanation, never the
+ * existence of the limit), and this is an expandable element in the page,
+ * not a tooltip — a limit that changes what an operator would do is never
+ * only in a tooltip.
+ */
+export function LimitsDisclosure({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="group min-w-0">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum">
+        <span
+          aria-hidden
+          className="flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border border-line-strong font-serif text-[9px] italic leading-none"
+        >
+          i
+        </span>
+        {label}
+        <span className="text-muted group-open:hidden">▸</span>
+        <span className="hidden text-muted group-open:inline">▾</span>
+      </summary>
+      <div className="mt-1.5 text-[11.5px] leading-relaxed text-muted">{children}</div>
+    </details>
+  );
+}
+
 export function DevLabel({ children = "Development" }: { children?: ReactNode }) {
   return (
     <span className="shrink-0 border border-review/40 px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.14em] text-review">

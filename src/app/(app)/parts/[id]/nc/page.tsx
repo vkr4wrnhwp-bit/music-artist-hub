@@ -9,7 +9,7 @@ import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { NcExportPanel } from "@/components/nc/export-panel";
-import { Button, DevLabel, Dot, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { Button, DevLabel, Dot, Field, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 
 /**
  * NC OUTPUT
@@ -212,11 +212,13 @@ export default async function NcPage(props: {
             <>
               {issues.length > 0 && (
                 <Panel title={`NC verification — ${issues.length} issues`} meta={<DevLabel>Linter, not a verifier</DevLabel>}>
-                  <p className="mb-3 text-[12px] leading-relaxed text-muted">
-                    This pass catches what is cheap to catch in text: travel envelope violations, speeds above the
-                    spindle maximum, motion below Z0 with the spindle off, missing units. It does not verify collisions
-                    or material removal.
-                  </p>
+                  <div className="mb-3">
+                    <LimitsDisclosure label="What this pass does and does not catch">
+                      This pass catches what is cheap to catch in text: travel envelope violations, speeds above the
+                      spindle maximum, motion below Z0 with the spindle off, missing units. It does not verify
+                      collisions or material removal.
+                    </LimitsDisclosure>
+                  </div>
                   <ul className="space-y-1">
                     {issues.map((iss, i) => (
                       <li key={i} className="flex gap-3 font-mono text-[11.5px]">

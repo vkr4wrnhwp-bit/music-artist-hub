@@ -671,3 +671,28 @@ than a place: NC output, ghost while blocked, primary when the gates
 that block export pass. Contextual CTAs inside content panels (e.g.
 "define workholding" beside the gap it fixes) are not navigation and
 stay. All suites pass. 91 tests.
+
+## 2026-08-11 — Design-phase polish: limits disclosures + permanent contrast audit
+
+LimitsDisclosure lands in ui.tsx: the refactor-spec home for limits
+prose that crowded panels as always-open paragraphs. The summary line
+names the limit in caps where the user would look; only the explanation
+folds. It is an expandable element in the page, never a tooltip — a
+limit that changes what an operator would do is never only in a
+tooltip. First applied to the NC verification panel (the "Linter, not a
+verifier" chip stays visible; the what-it-does-not-catch prose folds).
+Statements that ARE the operator's decision input — Not certified for
+production, the runway's execution-state caveat, DEV chips,
+NOT CONNECTED — stay always-visible by design.
+
+tests/engines/contrast.test.ts makes the contrast audit permanent: it
+reads the real tokens out of globals.css and pins primary/dim type at
+4.5:1 on every dark ground, muted + all four status colours at 4.5:1 on
+the lightest (card) ground, the viewport's locked semantic colours at
+the 2.5:1 indicator floor on the default work window, and the
+shell < page < panel < card elevation hierarchy. A palette edit that
+breaks readability now fails CI instead of shipping. 95 tests.
+
+Design phase complete: dark canvas, action banner, timeline table,
+dockable panel, measurement strip, nav consolidation, tablet mode,
+limits disclosures, contrast audit.
