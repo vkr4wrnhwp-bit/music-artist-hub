@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { Feature, Stock } from "@/lib/domain/features";
+import type { Feature, FunctionalRole, Stock } from "@/lib/domain/features";
 import { featureSummary, fmt, fmtTol } from "@/lib/domain/features";
 import { StatusChip, type Tone } from "@/components/ui";
 import { SectionSketch } from "./section-sketch";
@@ -42,7 +42,8 @@ import {
  *     state on Feature, Operation, Setup or Job.
  */
 
-const ROLE_LABEL: Record<string, string> = {
+// Typed against the domain union so role renames fail the build here too.
+const ROLE_LABEL: Record<FunctionalRole, string> = {
   NONE: "",
   BEARING_SEAT: "Bearing seat",
   SEAL_SURFACE: "Seal surface",

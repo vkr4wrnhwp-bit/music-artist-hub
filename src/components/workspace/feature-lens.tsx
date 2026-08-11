@@ -1,6 +1,6 @@
 "use client";
 
-import type { Feature } from "@/lib/domain/features";
+import type { Feature, FunctionalRole } from "@/lib/domain/features";
 import { fmtTol } from "@/lib/domain/features";
 
 /**
@@ -15,7 +15,9 @@ import { fmtTol } from "@/lib/domain/features";
  * front of them can be trusted. Everything else waits for a click.
  */
 
-const ROLE_LABEL: Record<string, string> = {
+// Typed against the domain union so a renamed or added role fails the build
+// instead of silently dropping the Function row from the lens.
+const ROLE_LABEL: Record<FunctionalRole, string> = {
   NONE: "",
   BEARING_SEAT: "Bearing seat",
   SEAL_SURFACE: "Seal surface",
@@ -29,8 +31,9 @@ const ROLE_LABEL: Record<string, string> = {
   DATUM_FACE: "Datum face",
   INSPECTION_SURFACE: "Inspection surface",
   FLUID_PASSAGE: "Fluid passage",
+  COSMETIC: "Cosmetic surface",
   STRUCTURAL_RIB: "Structural rib",
-  COSMETIC_SURFACE: "Cosmetic surface",
+  FIXTURE_PAD: "Fixture pad",
   CLEARANCE: "Clearance",
 };
 
