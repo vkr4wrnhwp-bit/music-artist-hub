@@ -858,6 +858,9 @@ export default async function PartWorkspace(props: {
           <LinkButton href={`/parts/${id}/tooling`} size="sm" variant="ghost" className="shrink-0">
             Tooling
           </LinkButton>
+          <LinkButton href={`/parts/${id}/tablet`} size="sm" variant="ghost" className="shrink-0">
+            Tablet
+          </LinkButton>
           <LinkButton href={`/parts/${id}/readiness`} size="sm" variant="ghost" className="shrink-0">
             Full readiness
           </LinkButton>

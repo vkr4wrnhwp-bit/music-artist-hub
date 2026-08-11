@@ -508,3 +508,22 @@ data where losing a write is acceptable. User and organisation from the
 session, never the request. Drawer footer updated from "this browser
 only" to the truth. Verified in the browser: PUT/GET round trip, default
 merge, empty-body 400, unauthenticated redirect. 86 tests.
+
+## 2026-08-11 — Machinist tablet view BUILT (spec §3)
+
+/parts/[id]/tablet: a projection of the same manufacturing package — it
+hides depth, it does not hold different truth. Five sections in setup
+order: SETUP (machine, workholding, jaws, grip/projection/parallels,
+clamp force with device-rating fallback labelled as such), TOOLS (T#,
+diameter, stickout, with the check-against-the-spindle instruction),
+PROBE (expectations derived from the stock record and setup geometry,
+and labelled as derived — no invented probing routine), RUN (per-op
+card: op#, tool, cycle from the toolpath, the first engine warning),
+SIGN-OFF. The checklist IS the audit trail: HUMAN-typed entries, latest
+per section wins, who/when shown. Sign-off is testimony recorded via an
+APPROVE audit row and only exists while every blocking gate passes —
+otherwise the signature line is replaced by the failing-gate list, and
+the gate state is re-checked server-side at write time. 48px minimum
+touch targets, mono data with units, no percentages. Verified in the
+browser: checklist round trip with name and time, sign-off correctly
+withheld behind a failing inspection-capability gate. 86 tests.
