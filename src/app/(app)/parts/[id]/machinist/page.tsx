@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { getMaterials } from "@/lib/data";
 import { reviewApproaches, comparePlans, type ScoredPlan } from "@/lib/machinist-review";
+import { relevantKnowledge } from "@/lib/disagreement";
 import { PLACEHOLDER_OPERATIONS, type OperationType } from "@/lib/engines/cam/types";
 import { THOUGHT_PATTERNS, PHILOSOPHIES, type ThoughtPattern } from "@/lib/engines/machinist";
 import { RISK_LABEL } from "@/lib/engines/workholding";
@@ -54,6 +55,17 @@ export default async function MachinistPage(props: {
           : pkg.revision.features.length === 0
             ? "This part has no features yet."
             : null;
+
+  // Shop knowledge scoped to this machine, these tools, this material. A
+  // filter, not a ranking — knowledge about other equipment is not shown.
+  const knowledge = blocked
+    ? []
+    : await relevantKnowledge({
+        organizationId: user.organizationId,
+        machineId: pkg.primaryMachine?.id ?? null,
+        toolIds: pkg.tools.map((t) => t.id),
+        materialId: material?.id ?? null,
+      });
 
   let scored: ScoredPlan[] = [];
   let comparison = { fastest: null, cheapest: null, safest: null, fewestSetups: null, fewestTools: null } as ReturnType<
@@ -226,6 +238,34 @@ export default async function MachinistPage(props: {
             />
           ) : (
             <>
+              {knowledge.length > 0 && (
+                <Panel title="What this shop knows about this setup" meta={<Link href="/knowledge" className="tech-label hover:text-platinum">Shop knowledge</Link>}>
+                  <p className="mb-2 text-[12px] leading-relaxed text-muted">
+                    Recorded on this shop&apos;s own equipment and scoped to the machine, tools and material in play
+                    here. This is experience, not published data — weigh it like you would a note from the last person
+                    who ran the job.
+                  </p>
+                  <ul className="space-y-2">
+                    {knowledge.map((k) => (
+                      <li key={k.id} className="border border-line px-3 py-2">
+                        <p className="text-[12.5px] leading-relaxed text-platinum">{k.observation}</p>
+                        <p className="tech-label mt-1">
+                          {[
+                            k.machine ? `${k.machine.manufacturer} ${k.machine.model}` : null,
+                            k.tool ? `T${k.tool.toolNumber} ${k.tool.description}` : null,
+                            k.material?.name ?? null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                          {" · "}
+                          {k.jobCount} {k.jobCount === 1 ? "job" : "jobs"} · confidence {k.confidence.toLowerCase()}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </Panel>
+              )}
+
               {/* ---------------- Comparison ---------------- */}
               <Panel title="How they compare" dense>
                 <div className="overflow-x-auto">

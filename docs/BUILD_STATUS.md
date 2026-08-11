@@ -476,3 +476,21 @@ human acceptance. Arc center points are excluded from boundary extents
 labels drifted from the domain union (COSMETIC_SURFACE vs COSMETIC,
 missing FIXTURE_PAD) — both ROLE_LABEL maps now typed against
 FunctionalRole so drift fails the build. 86 tests.
+
+## 2026-08-11 — Shop knowledge review queue BUILT: the promotion path is live
+
+/knowledge is now the review queue promised by its own footnote: an OPEN
+or EVIDENCE_REQUESTED disagreement can be promoted into scoped shop
+knowledge (category, machine/tool/material scope, optional threshold) or
+declined with a mandatory reason. Thresholds are all-or-nothing —
+parameter, value, unit and direction together or not at all; a number
+without its context is a stray value and is rejected. Promotion confidence
+follows the evidence: LOW with a comparable job, UNKNOWN without.
+Neither outcome touches a gate, and the page says so.
+
+relevantKnowledge() gained its first caller: the machinist approaches
+page surfaces knowledge scoped to the machine, tools and material in
+play — a filter, not a ranking; other equipment's observations are not
+shown. Verified end to end in the browser: disagreement recorded on the
+readiness page, promoted at /knowledge with a 0.450" DOC threshold on
+the VF-2, surfaced on the machinist page. 86 tests.
