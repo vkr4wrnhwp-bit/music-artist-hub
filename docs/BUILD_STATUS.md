@@ -658,3 +658,16 @@ vanishing. Grip depth no longer displays its drawing fallback as if it
 were a recorded number. The holding-margin row carries its verdict tone
 and the DEV chip on the row, not in a tooltip. Verified live: six
 balloons, six rows, honest gaps. All suites pass. 91 tests.
+
+## 2026-08-11 — Nav consolidation: one rail, one dock
+
+The part page's top strip duplicated five of the part dock's links
+(Run it past CANVAS, Machinist, Tooling, Tablet, Full readiness) — two
+lists of the same places, learned twice, drifting apart (the dock was
+missing Tablet, proving the point). The dock is now the one contextual
+navigation and gains Tablet; the top strip keeps only the readiness
+gate summary and the one control that is an ACTION with state rather
+than a place: NC output, ghost while blocked, primary when the gates
+that block export pass. Contextual CTAs inside content panels (e.g.
+"define workholding" beside the gap it fixes) are not navigation and
+stay. All suites pass. 91 tests.

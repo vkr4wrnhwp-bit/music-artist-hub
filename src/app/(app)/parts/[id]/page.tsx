@@ -938,32 +938,15 @@ export default async function PartWorkspace(props: {
           </div>
         </details>
 
-        {/* Wraps at phone width. This group is 564px wide and used to be
-            `shrink-0`, so on a 390px screen it ran 190px past the edge of a
-            shell that clips: "Full readiness" was cut in half and NC output —
-            the gated export route — was entirely unreachable. */}
+        {/* Nav consolidation: this row used to duplicate five of the part
+            dock's links (Machinist, Tooling, Tablet, Readiness, Review) —
+            two lists of the same places, learned twice, drifting apart. The
+            dock on the left is the one contextual navigation. What stays
+            here is the one thing that is an ACTION with state rather than a
+            place: NC output, neutral while the part cannot use it, promoted
+            to primary when the gates that block export pass — then the
+            colour is reporting state, not decoration. */}
         <div className="flex min-w-0 flex-wrap items-center gap-2 xl:shrink-0 xl:flex-nowrap">
-          <LinkButton href={`/parts/${id}/review`} size="sm" variant="ghost" className="shrink-0">
-            Run it past CANVAS
-          </LinkButton>
-          <LinkButton href={`/parts/${id}/machinist`} size="sm" variant="ghost" className="shrink-0">
-            Machinist
-          </LinkButton>
-          <LinkButton href={`/parts/${id}/tooling`} size="sm" variant="ghost" className="shrink-0">
-            Tooling
-          </LinkButton>
-          <LinkButton href={`/parts/${id}/tablet`} size="sm" variant="ghost" className="shrink-0">
-            Tablet
-          </LinkButton>
-          <LinkButton href={`/parts/${id}/readiness`} size="sm" variant="ghost" className="shrink-0">
-            Full readiness
-          </LinkButton>
-          {/* NC output is neutral while the part cannot use it. Blue in this
-              system means active state, and framing a gated, development-grade
-              export route as the primary action — beside a status module that
-              reads NOT READY with blocking gates — is blue as decoration.
-              When the gates that block export pass, it is promoted, and then
-              the colour is reporting state. */}
           <LinkButton
             href={`/parts/${id}/nc`}
             size="sm"

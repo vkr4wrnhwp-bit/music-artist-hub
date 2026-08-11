@@ -179,6 +179,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "/fair", label: "First article" },
   { suffix: "/readiness", label: "Readiness" },
   { suffix: "/machinist", label: "Machinist" },
+  { suffix: "/tablet", label: "Tablet" },
   { suffix: "/responsibility", label: "Responsibility" },
   { suffix: "/proposals", label: "Proposals" },
   { suffix: "/cost", label: "Cost" },
