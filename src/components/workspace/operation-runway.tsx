@@ -1,34 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { DevLabel, Dot, StatusChip, type Tone } from "@/components/ui";
 import type { NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
 
 /**
- * THE OPERATION RUNWAY
+ * THE OPERATION TIMELINE
  *
- * The process plan, read left to right, in the order the machine will see it.
+ * The process plan as table rows, in the order the machine will see it, with
+ * a per-setup risk rail on the left — the refactor-spec layout. Rows beat the
+ * old horizontal cards because nine operations read as nine, not as four plus
+ * a hidden scroll.
  *
- * WHAT THIS STRIP IS NOT
+ * WHAT THIS TABLE IS NOT
  * It is not a live job. `Operation` has no status column. `OperationState`
  * exists in the schema with zero write sites and zero readers. Nothing in
  * `src/` ever writes a `Job`, there is no machine connection, and the seeded
  * job is COMPLETE. So COMPLETE / ACTIVE / NEXT / PENDING cannot be shown here
- * without inventing the one fact a machinist would act on hardest.
+ * without inventing the one fact a machinist would act on hardest. The only
+ * state column is SELECTED — which is real UI state — and "PLAN STARTS",
+ * which is a property of the ordered sequence, not a claim about execution.
  *
- * The honest version, and the one implemented: the strip is labelled a PLAN,
- * and one card stands out — on arrival it is the operation the plan STARTS at,
- * marked "Plan starts here", which is a property of the ordered sequence and
- * not a claim about execution; after that it is whatever the user selected.
- * That selection is real state — it drives `activeOperation` in the interaction
- * model and selects the feature the operation cuts, so the 3D view and the
- * feature panel follow the operation you are reading.
- *
- * What each card does show is real: sequence, type, tool, feature, whether the
- * deterministic CAM engine produced a toolpath for it, and how long that
- * toolpath takes. An operation the engine cannot plan says so.
+ * Selecting a row drives `activeOperation` in the interaction model and
+ * selects the feature the operation cuts, so the 3D view and the feature
+ * panel follow the operation you are reading. Setup risk comes verbatim from
+ * `workholding.ts` RiskLevel — never restyled ad hoc.
  */
 
 const RISK_TONE: Record<string, Tone> = {
@@ -63,19 +61,45 @@ export function OperationRunway({
     operations: data.operations.filter((o) => o.setupId === s.id),
   }));
 
+  // Collapsed state survives reload per browser — pure layout preference,
+  // nothing engineering-grade about it.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem("canvas.timelineCollapsed") === "1");
+    } catch {
+      /* fine */
+    }
+  }, []);
+  const toggle = () => {
+    setCollapsed((c) => {
+      try {
+        window.localStorage.setItem("canvas.timelineCollapsed", c ? "0" : "1");
+      } catch {
+        /* fine */
+      }
+      return !c;
+    });
+  };
+
   return (
     <footer
       className="shrink-0 bg-footer"
       style={{ borderTop: "1px solid var(--canvas-border-strong)" }}
       aria-label="Operation plan"
     >
-      {/* Header — states what the strip is before anybody reads a card.
-          It wraps rather than scrolls: the caveat used to sit inside a
-          horizontal scroller with no scrollbar, so at phone width the operator
-          saw cycle times and never saw the sentence saying none of it is
-          live. A caveat you have to discover is not a caveat. */}
+      {/* Header — states what the table is before anybody reads a row.
+          It wraps rather than scrolls: a caveat you have to discover is not a
+          caveat. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-line px-3 py-[5px]">
-        <span className="instrument-label shrink-0 text-platinum-dim">Operation plan</span>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={!collapsed}
+          className="instrument-label shrink-0 text-platinum-dim transition-colors hover:text-platinum"
+        >
+          Operation plan {collapsed ? "▸" : "▾"}
+        </button>
         <span className="font-mono text-[10px] tracking-[0.06em] text-muted tabular-nums">
           {data.operations.length} operations · {data.setups.length} setups ·{" "}
           {data.cycleMinutes > 0 ? `${data.cycleMinutes.toFixed(2)} min cut time` : "no cycle time"}
@@ -89,8 +113,8 @@ export function OperationRunway({
         </span>
       </div>
 
-      <div className="flex flex-col items-stretch lg:flex-row">
-        <Sequence
+      <div className={`${collapsed ? "hidden" : "flex"} flex-col items-stretch lg:flex-row`}>
+        <Timeline
           partId={partId}
           bySetup={bySetup}
           total={data.operations.length}
@@ -163,17 +187,15 @@ export function OperationRunway({
 }
 
 /* ------------------------------------------------------------------ */
-/* The sequence                                                        */
+/* The timeline                                                        */
 /* ------------------------------------------------------------------ */
 
 /**
- * A plan that runs off the edge has to look like a plan that runs off the
- * edge. The scroller carries no scrollbar by design (it is chrome, not
- * content), which previously meant nine operations read as four — the strip
- * appeared to end after op 04. The fade and the arrow are the affordance, and
- * the arrow really scrolls.
+ * Table rows grouped by setup, with the setup's risk rail on the left. All
+ * rows are visible at once (the body scrolls vertically past ~5 rows) — the
+ * old horizontal scroller hid operations past the fold.
  */
-function Sequence({
+function Timeline({
   partId,
   bySetup,
   total,
@@ -190,209 +212,118 @@ function Sequence({
   selectedFeature: string | null;
   onSelectOperation: (op: RunwayOperation | null) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState({ left: false, right: false });
-
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setMore({ left: el.scrollLeft > 2, right: max - el.scrollLeft > 2 });
-  }, []);
-
-  useEffect(() => {
-    measure();
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure, total]);
-
-  const nudge = (direction: 1 | -1) => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollBy({ left: direction * Math.max(220, el.clientWidth * 0.7), behavior: "smooth" });
-  };
-
-  return (
-    <div className="relative min-w-0 flex-1">
-      <div
-        ref={ref}
-        onScroll={measure}
-        className="no-scrollbar flex min-w-0 items-stretch gap-1 overflow-x-auto px-3 py-2"
-      >
-        {total === 0 ? (
-          <div className="flex items-center border border-dashed border-line-strong px-4 py-3">
-            <p className="text-[11.5px] text-muted">
-              No operations are planned for this revision.{" "}
-              <Link href={`/parts/${partId}/setups`} className="text-precision-dim hover:underline">
-                Setup planning
-              </Link>
-            </p>
-          </div>
-        ) : (
-          bySetup.map(({ setup, operations }) => (
-            <div key={setup.id} className="flex shrink-0 items-stretch gap-1 pr-1.5">
-              {/* 120px, and the setup name wraps rather than truncating at
-                  "SETUP 1 — T…". A machinist cannot act on half a word. */}
-              <div className="flex w-[120px] shrink-0 flex-col justify-center border-l-2 border-l-line-strong pl-2">
-                <span className="instrument-label">Setup {String(setup.sequence).padStart(2, "0")}</span>
-                <span className="mt-0.5 text-[11px] leading-tight text-platinum-dim" title={setup.name}>
-                  {setup.name}
-                </span>
-                {setup.riskLabel && (
-                  <span className="mt-1">
-                    <StatusChip tone={RISK_TONE[setup.riskLevel ?? "UNKNOWN"] ?? "unknown"}>
-                      {setup.riskLabel}
-                    </StatusChip>
-                  </span>
-                )}
-              </div>
-
-              {operations.map((op, i) => (
-                <div key={op.id} className="flex shrink-0 items-stretch">
-                  {i > 0 && <span aria-hidden className="h-px w-2 self-center bg-line-strong" />}
-                  <OperationCard
-                    op={op}
-                    selected={activeOperation === op.id}
-                    chosenByUser={operationChosenByUser}
-                    cutsSelection={selectedFeature != null && op.featureId === selectedFeature}
-                    onSelect={() => onSelectOperation(activeOperation === op.id ? null : op)}
-                  />
-                </div>
-              ))}
-            </div>
-          ))
-        )}
+  if (total === 0) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center px-3 py-3">
+        <p className="text-[11.5px] text-muted">
+          No operations are planned for this revision.{" "}
+          <Link href={`/parts/${partId}/setups`} className="text-precision-dim hover:underline">
+            Setup planning
+          </Link>
+        </p>
       </div>
+    );
+  }
 
-      {more.left && <EdgeFade side="left" onClick={() => nudge(-1)} />}
-      {more.right && <EdgeFade side="right" onClick={() => nudge(1)} />}
-    </div>
-  );
-}
-
-function EdgeFade({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
-  const isRight = side === "right";
   return (
-    /* The gradient is inert so it cannot swallow a click on the card beneath
-       it; only the 22px chevron is a target, and it really scrolls. */
-    <div
-      aria-hidden
-      className={`pointer-events-none absolute inset-y-0 ${isRight ? "right-0" : "left-0"} flex w-10 items-center ${
-        isRight ? "justify-end pr-0.5" : "justify-start pl-0.5"
-      }`}
-      style={{
-        background: `linear-gradient(to ${isRight ? "right" : "left"}, transparent, var(--canvas-footer-bg) 70%)`,
-      }}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        aria-hidden={false}
-        aria-label={isRight ? "Later operations" : "Earlier operations"}
-        className="pointer-events-auto flex h-[22px] w-[22px] items-center justify-center border border-line-strong bg-card text-muted transition-colors hover:text-platinum"
-      >
-        <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
-          <path
-            d={isRight ? "M4 1.5 L8.5 6 L4 10.5" : "M8 1.5 L3.5 6 L8 10.5"}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-function OperationCard({
-  op,
-  selected,
-  chosenByUser,
-  cutsSelection,
-  onSelect,
-}: {
-  op: RunwayOperation;
-  selected: boolean;
-  chosenByUser: boolean;
-  cutsSelection: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      title={op.error ?? (op.warnings.length > 0 ? op.warnings.join(" · ") : undefined)}
-      className={`relative flex h-[94px] w-[130px] shrink-0 flex-col justify-between px-2 pb-1 pt-1.5 text-left transition-colors ${
-        selected
-          ? "bg-card shadow-[inset_0_0_0_1px_var(--c-blue),0_4px_14px_rgba(16,20,24,0.13)]"
-          : /* A quiet card rather than white: the footer is meant to read as
-               the region darker than the centre canvas, and near-white cards
-               over it inverted that by sampled area. It also widens the gap
-               between an unselected card and the selected one. */
-            "border border-line bg-card-quiet hover:border-line-strong hover:bg-card"
-      }`}
-    >
-      {selected && <span aria-hidden className="absolute inset-x-0 top-0 h-[2px] bg-precision" />}
-      {!selected && cutsSelection && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-precision/60" />}
-
-      <div className="min-w-0">
-        <div className="flex items-center justify-between gap-1">
-          <span
-            className={`font-mono text-[13px] leading-none tabular-nums ${selected ? "text-precision-dim" : "text-platinum-dim"}`}
-          >
-            {String(op.sequence).padStart(2, "0")}
-          </span>
-          {/* Selection is said by the blue rule, the blue sequence number and
-              the marker on the bottom row — never by replacing the operation's
-              own state, which is the part a machinist needs. */}
-          {op.isPlaceholder ? (
-            <DevLabel>No engine</DevLabel>
-          ) : op.error ? (
-            <span className="flex items-center gap-1">
-              <Dot tone="risk" />
-              <span className="text-[8.5px] font-semibold uppercase tracking-[0.1em] text-risk">No path</span>
-            </span>
-          ) : (
-            <span className="truncate text-[8.5px] font-semibold uppercase tracking-[0.1em] text-muted">
-              {op.type.replace(/_/g, " ").toLowerCase()}
-            </span>
+    <div className="max-h-[228px] min-w-0 flex-1 overflow-y-auto overflow-x-auto">
+      <table className="w-full min-w-[560px] border-collapse">
+        <thead className="sticky top-0 z-10 bg-footer">
+          <tr className="border-b border-line">
+            {["Setup", "Op", "Type", "Description", "Tool", "Cycle", "Moves", ""].map((h, i) => (
+              <th
+                key={i}
+                className={`instrument-label whitespace-nowrap px-2.5 py-1.5 text-left font-normal ${i === 3 ? "w-full" : ""}`}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bySetup.map(({ setup, operations }) =>
+            operations.map((op, i) => {
+              const selected = activeOperation === op.id;
+              const cutsSelection = selectedFeature != null && op.featureId === selectedFeature;
+              return (
+                <tr
+                  key={op.id}
+                  onClick={() => onSelectOperation(selected ? null : op)}
+                  aria-selected={selected}
+                  title={op.error ?? (op.warnings.length > 0 ? op.warnings.join(" · ") : undefined)}
+                  className={`cursor-pointer border-b border-line/60 transition-colors ${
+                    selected
+                      ? "bg-card shadow-[inset_2px_0_0_var(--c-blue)]"
+                      : cutsSelection
+                        ? "bg-card-quiet shadow-[inset_2px_0_0_color-mix(in_srgb,var(--c-blue)_55%,transparent)]"
+                        : "hover:bg-card-quiet"
+                  }`}
+                >
+                  {/* The setup rail: one cell spanning the setup's rows, risk
+                      verbatim from the workholding engine. */}
+                  {i === 0 ? (
+                    <td
+                      rowSpan={operations.length}
+                      className="w-[128px] min-w-[128px] border-r border-line-strong px-2.5 py-1.5 align-top"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="instrument-label block">Setup {String(setup.sequence).padStart(2, "0")}</span>
+                      <span className="mt-0.5 block text-[10.5px] leading-tight text-platinum-dim">{setup.name}</span>
+                      {setup.riskLabel && (
+                        <span className="mt-1 block">
+                          <StatusChip tone={RISK_TONE[setup.riskLevel ?? "UNKNOWN"] ?? "unknown"}>
+                            {setup.riskLabel}
+                          </StatusChip>
+                        </span>
+                      )}
+                    </td>
+                  ) : null}
+                  <td className={`whitespace-nowrap px-2.5 py-1.5 font-mono text-[12px] tabular-nums ${selected ? "text-precision-dim" : "text-platinum-dim"}`}>
+                    {String(op.sequence).padStart(2, "0")}
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5">
+                    {op.isPlaceholder ? (
+                      <DevLabel>No engine</DevLabel>
+                    ) : op.error ? (
+                      <span className="flex items-center gap-1">
+                        <Dot tone="risk" />
+                        <span className="text-[8.5px] font-semibold uppercase tracking-[0.1em] text-risk">No path</span>
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted">
+                        {op.type.replace(/_/g, " ").toLowerCase()}
+                      </span>
+                    )}
+                  </td>
+                  <td className="max-w-0 px-2.5 py-1.5">
+                    <span className={`block truncate text-[12px] ${selected ? "text-platinum" : "text-platinum-dim"}`}>
+                      {op.label}
+                    </span>
+                    <span className="block truncate text-[9.5px] text-muted">{op.featureLabel ?? "no feature"}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-muted tabular-nums">
+                    {op.toolNumber != null ? `T${op.toolNumber}` : "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-muted tabular-nums">
+                    {op.cycleMinutes != null ? `${op.cycleMinutes.toFixed(2)} min` : op.isPlaceholder ? "—" : "no path"}
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-muted tabular-nums">
+                    {op.moveCount ?? "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right">
+                    {selected && (
+                      <span className="text-[8.5px] font-semibold uppercase tracking-[0.12em] text-precision-dim">
+                        {operationChosenByUser ? "Selected" : "Plan starts"}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            }),
           )}
-        </div>
-        <p className={`mt-1 truncate text-[12px] leading-tight ${selected ? "text-platinum" : "text-platinum-dim"}`}>
-          {op.label}
-        </p>
-        {/* Tool number is a machine value and keeps the mono chip. The feature
-            label is a name and wraps — "1/4-20 MOUNTI…" is not readable, and a
-            tool/feature line truncated mid-token is worse than a shorter card. */}
-        <p className="mt-1 flex items-start gap-1">
-          <span className="shrink-0 border border-line px-1 font-mono text-[9px] leading-[13px] text-muted tabular-nums">
-            {op.toolNumber != null ? `T${op.toolNumber}` : "—"}
-          </span>
-          <span className="min-w-0 flex-1 break-words text-[9.5px] leading-[12px] text-muted line-clamp-2">
-            {op.featureLabel ?? "no feature"}
-          </span>
-        </p>
-      </div>
-
-      <div className="flex items-baseline justify-between gap-1">
-        <p className="truncate font-mono text-[9.5px] tabular-nums text-muted">
-          {op.cycleMinutes != null
-            ? `${op.cycleMinutes.toFixed(2)} min · ${op.moveCount ?? 0} moves`
-            : op.isPlaceholder
-              ? "interface only"
-              : "no toolpath"}
-        </p>
-        {selected && (
-          <span className="shrink-0 text-[8px] font-semibold uppercase tracking-[0.12em] text-precision-dim">
-            {chosenByUser ? "Selected" : "Plan starts"}
-          </span>
-        )}
-      </div>
-    </button>
+        </tbody>
+      </table>
+    </div>
   );
 }
 

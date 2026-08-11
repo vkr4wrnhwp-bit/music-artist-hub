@@ -346,8 +346,54 @@ function WorkspaceInner(props: WorkspaceProps) {
 
   const showTransport = showToolpath && props.moves.length > 1;
 
+  // Feature panel dock state — layout preference, persisted per browser.
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setPanelCollapsed(window.localStorage.getItem("canvas.panelCollapsed") === "1");
+    } catch {
+      /* fine */
+    }
+  }, []);
+  const togglePanel = () => {
+    setPanelCollapsed((c) => {
+      try {
+        window.localStorage.setItem("canvas.panelCollapsed", c ? "0" : "1");
+      } catch {
+        /* fine */
+      }
+      return !c;
+    });
+  };
+
+  const blocking = props.nextActions.filter((a) => a.severity === "BLOCKING");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-work">
+      {/* ================= ACTION BANNER =================
+          The worst blocking work, full width, before anything else — the
+          refactor-spec banner. "Fix Now" routes to the evidence screen that
+          could change the first gate; nothing here clears anything in place,
+          because a banner control that cleared a gate would be a click
+          standing in for evidence. Absent entirely when nothing blocks. */}
+      {blocking.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-risk/40 bg-risk/10 px-3 py-1.5">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-risk">
+            Critical actions required ({blocking.length} blocking)
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim">
+            {blocking.map((a) => a.action).join("  |  ")}
+          </span>
+          {blocking[0]?.href && (
+            <a
+              href={blocking[0].href}
+              className="shrink-0 border border-risk/50 px-2.5 py-[3px] text-[9.5px] font-semibold uppercase tracking-[0.12em] text-risk transition-colors hover:bg-risk/15"
+            >
+              Fix now →
+            </a>
+          )}
+        </div>
+      )}
       {/* ---------------- Mobile pane switcher ---------------- */}
       <div className="flex shrink-0 gap-px border-b border-line bg-line lg:hidden">
         {(
@@ -594,12 +640,38 @@ function WorkspaceInner(props: WorkspaceProps) {
           </div>
         </section>
 
-        {/* ================= RIGHT — the feature panel ================= */}
+        {/* ================= RIGHT — the feature panel =================
+            Dockable: collapsing it hands the full width to the viewport
+            (the spec's ≥75% target). The collapsed rail keeps a visible way
+            back — a panel that vanishes without a handle is a panel lost. */}
+        {panelCollapsed && (
+          <button
+            type="button"
+            onClick={togglePanel}
+            aria-label="Expand the feature panel"
+            className="hidden w-9 shrink-0 flex-col items-center gap-2 border-l border-line-strong bg-panel pt-3 text-muted transition-colors hover:text-platinum lg:flex"
+          >
+            <span aria-hidden>◂</span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.14em] [writing-mode:vertical-rl]">
+              Feature panel
+            </span>
+          </button>
+        )}
         <aside
-          className={`${mobilePane === "panel" ? "flex" : "hidden"} min-h-0 flex-1 flex-col bg-panel lg:flex lg:w-[356px] lg:flex-none`}
+          className={`${mobilePane === "panel" ? "flex" : "hidden"} min-h-0 flex-1 flex-col bg-panel ${
+            panelCollapsed ? "lg:hidden" : "lg:flex"
+          } lg:w-[356px] lg:flex-none`}
           style={{ borderLeft: "1px solid var(--canvas-border-strong)" }}
         >
-          <div className="flex shrink-0 gap-px border-b border-line bg-line">
+          <div className="flex shrink-0 items-stretch gap-px border-b border-line bg-line">
+            <button
+              type="button"
+              onClick={togglePanel}
+              aria-label="Collapse the feature panel"
+              className="hidden w-7 shrink-0 items-center justify-center bg-panel text-muted transition-colors hover:text-platinum lg:flex"
+            >
+              <span aria-hidden>▸</span>
+            </button>
             {(
               [
                 ["feature", "Feature"],

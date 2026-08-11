@@ -615,3 +615,29 @@ all-dark screen). --canvas-work-window now belongs to the viewport
 alone; the page ground has its own token. The instrument is dark; the
 part is lit. Verified by pixel sampling both grounds and by both E2E
 suites. 91 tests.
+
+## 2026-08-11 — Design refactor: banner, timeline table, dockable panel
+
+Three refactor-spec SHIP items land on the workspace:
+
+Action banner — the blocking queue promoted to full width under the
+header: CRITICAL ACTIONS REQUIRED (n BLOCKING), the actions named, and
+FIX NOW routing to the evidence screen for the first gate. Nothing in
+the banner clears anything in place; absent entirely when nothing
+blocks.
+
+Operation timeline — the horizontal card scroller becomes table rows
+grouped by setup with the per-setup risk rail (RiskLevel verbatim from
+the workholding engine): Op / Type / Description / Tool / Cycle / Moves.
+The only state column is SELECTED (real UI state) and PLAN STARTS (a
+property of the sequence) — execution state remains untracked and the
+caveat stays in the header, which now also collapses the table.
+
+Dockable feature panel — collapse hands the full width to the viewport
+(the ≥75% target); a labelled rail keeps the way back. Both collapse
+states persist per browser as pure layout preferences.
+
+Verified in the browser: banner renders with 3 blocking and routes,
+10 table rows with setup rail and SELECTED chip, panel collapse and
+expand, timeline collapse. Smoke + journey suites pass (a stale local
+dev server, not the refactor, caused one false failure). 91 tests.

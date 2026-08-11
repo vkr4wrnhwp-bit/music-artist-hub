@@ -76,7 +76,8 @@ async function main() {
     const href = await page.locator('a[href^="/parts/"]:not([href$="/new"])').first().getAttribute("href");
     if (!href) fail("no seeded part in the library");
     await page.goto(BASE + href);
-    await page.waitForSelector("canvas");
+    // First WebGL page after a cold server start can take a while.
+    await page.waitForSelector("canvas", { timeout: 60_000 });
     const body = (await page.textContent("body"))!;
     if (!/PART STATUS/i.test(body)) fail("part status module missing");
     if (/\d+\s?% (ready|complete)/i.test(body)) fail("a readiness percentage appeared — gates are not percentages");

@@ -124,7 +124,7 @@ async function main() {
     await page.goto(`${BASE}/parts/${partId}`);
     await page.waitForSelector("canvas");
     const fBody = (await page.textContent("body"))!;
-    const opMatch = fBody.match(/OPERATION PLAN\s*(\d+) operations/i);
+    const opMatch = fBody.match(/OPERATION PLAN\s*[▾▸]?\s*(\d+) operations/i);
     if (!opMatch || Number(opMatch[1]) < 1) fail("no operation plan after approval");
     if (!/min cut time/i.test(fBody)) fail("no cycle time — toolpaths missing");
     console.log(`ok: operation plan exists (${opMatch[1]} operations with cycle time)`);
