@@ -5,6 +5,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Feature, Stock } from "@/lib/domain/features";
 import type { Move } from "@/lib/engines/cam/types";
 import type { ViewMode, FixtureInfo } from "@/components/viewport/scene";
+import { holdMeasurements } from "@/components/viewport/hold-measurements";
+import { DevLabel } from "@/components/ui";
 import { Copilot } from "./copilot";
 import { InteractionProvider, useInteraction, type Context } from "./interaction";
 import { ContextRail, sceneFlagsFor } from "./context-rail";
@@ -451,10 +453,57 @@ function WorkspaceInner(props: WorkspaceProps) {
               )}
             />
 
+            {/* MEASUREMENT STRIP — HOLD's computed values, docked to the
+                viewport edge and numbered to the balloons in the scene. The
+                values used to float over the model; now they hold still where
+                an operator can read them, and a row whose value is missing
+                says "not recorded" instead of disappearing. */}
+            {state.activeContext === "HOLD" && showFixture && props.fixture && !simActive && (
+              <div className="absolute bottom-3 right-3 z-20 w-[300px] border border-line-strong bg-surface/95 backdrop-blur-sm">
+                <p className="instrument-label border-b border-line px-2.5 py-1.5">Workholding — measured on the setup</p>
+                <ul>
+                  {holdMeasurements(props.fixture, props.stock!).map((m) => (
+                    <li key={m.n} className="flex items-baseline gap-2 border-b border-line/60 px-2.5 py-1 last:border-0">
+                      <span
+                        className={`flex h-[15px] w-[15px] shrink-0 translate-y-[2px] items-center justify-center rounded-full border font-mono text-[8.5px] font-bold leading-none ${
+                          m.tone === "pass"
+                            ? "border-pass text-pass"
+                            : m.tone === "review"
+                              ? "border-review text-review"
+                              : m.tone === "risk"
+                                ? "border-risk text-risk"
+                                : "border-precision/70 text-precision-dim"
+                        }`}
+                      >
+                        {m.n}
+                      </span>
+                      <span className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                        {m.label}
+                        {m.dev && <DevLabel>Dev</DevLabel>}
+                      </span>
+                      <span
+                        className={`shrink-0 text-right font-mono text-[11px] tabular-nums ${
+                          m.tone === "pass"
+                            ? "text-pass"
+                            : m.tone === "review"
+                              ? "text-review"
+                              : m.tone === "risk"
+                                ? "text-risk"
+                                : "text-platinum"
+                        }`}
+                      >
+                        {m.value}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* VERIFY legend — only while the INSPECTION view mode colours the
                 rings. The states come from measurement records; the legend
                 only names the colours. */}
-            {viewEnv.viewMode === "INSPECTION" && !simActive && (
+            {viewEnv.viewMode === "INSPECTION" && !simActive && state.activeContext !== "HOLD" && (
               <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-3 border border-line bg-surface/95 px-3 py-1.5">
                 <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Verify</span>
                 {[

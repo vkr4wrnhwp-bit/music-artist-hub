@@ -10,6 +10,7 @@ import {
   type ViewEnvironment,
 } from "@/lib/view-environment";
 import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Html, Lightformer, OrbitControls, Line } from "@react-three/drei";
+import { holdMeasurements } from "./hold-measurements";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
@@ -861,80 +862,39 @@ function Fixture({
             color={BLUE}
             lineWidth={LINE_WEIGHT_PX[env.measurementLineWeight]}
           />
-          {/* Each callout sits off a different edge so five of them can be on
-              screen at once without stacking on each other. */}
-          <Callout position={[stock.x / 2 + 0.45, -stock.y / 2 - 0.1, grip / 2]} label="Grip depth">
-            {grip.toFixed(3)}″
-          </Callout>
-
-          <Callout position={[stock.x / 2 + 0.45, stock.y / 2 - 0.2, grip * 0.5]} label="Jaw contact">
-            {fixture.contactArea != null ? `${fixture.contactArea.toFixed(3)} in² both faces` : "not calculable"}
-          </Callout>
-
-          <Callout position={[0, -stock.y / 2 - 0.55, jawTopZ - fixture.jawHeight - 0.25]} label="Seating surface">
-            Parallels
-          </Callout>
-
-          {proud != null && (
-            <Callout position={[-stock.x / 2 - 0.45, -stock.y / 2 - 0.1, grip + proud / 2]} label="Proud of jaws">
-              {proud.toFixed(3)}″
-            </Callout>
-          )}
-
-          {fixture.contactPressure != null && (
-            <Callout position={[-stock.x / 2 - 0.45, stock.y / 2 - 0.2, grip * 0.5]} label="Clamping pressure">
-              {fixture.contactPressure.toLocaleString()} psi
-            </Callout>
-          )}
-
-          {fixture.margin != null && (
-            <Callout
-              position={[0, 0, grip + (proud ?? stock.z) + 0.55]}
-              label={`Holding margin — ${(fixture.verdict ?? "").toLowerCase()}`}
-              tone={fixture.verdict === "ADEQUATE" ? "pass" : fixture.verdict === "MARGINAL" ? "review" : "risk"}
-            >
-              {fixture.margin.toFixed(2)}× · {fixture.governingMode === "TIPPING" ? "rolling out" : "sliding"}
-            </Callout>
-          )}
+          {/* The values themselves live in the docked measurement strip; the
+              scene carries only the numbered balloons at the anchors, the
+              ballooned-drawing convention. One shared list keeps the numbers
+              and the rows in lockstep — see hold-measurements.ts. */}
+          {holdMeasurements(fixture, stock).map((m) => (
+            <Balloon key={m.n} n={m.n} position={m.anchor} tone={m.tone} />
+          ))}
         </>
       )}
     </group>
   );
 }
 
-/** A leader-less callout pinned to a point in the scene. */
-function Callout({
+/** A numbered balloon at a measurement anchor. The value lives in the strip. */
+function Balloon({
+  n,
   position,
-  label,
-  children,
-  tone = "neutral",
+  tone,
 }: {
+  n: number;
   position: [number, number, number];
-  label: string;
-  children: React.ReactNode;
-  tone?: "neutral" | "pass" | "review" | "risk";
+  tone: "neutral" | "pass" | "review" | "risk";
 }) {
-  const border =
-    tone === "pass"
-      ? "border-l-pass"
-      : tone === "review"
-        ? "border-l-review"
-        : tone === "risk"
-          ? "border-l-risk"
-          : "border-l-precision";
   const scale = ANNOTATION_SCALE[useEnv().annotationSize];
+  const ring =
+    tone === "pass" ? "#17754e" : tone === "review" ? "#96570d" : tone === "risk" ? "#c22a1e" : BLUE;
   return (
-    // No distanceFactor: an annotation is not part of the scene and should not
-    // grow when you zoom in. Fixed screen size keeps it readable at any camera
-    // distance and stops five of them filling the viewport. The environment's
-    // annotation size scales the whole card for shop-floor visibility.
-    <Html position={position} center zIndexRange={[20, 0]}>
+    <Html position={position} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
       <div
-        style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
-        className={`pointer-events-none whitespace-nowrap border border-line-strong ${border} border-l-2 bg-card/95 px-1.5 py-[3px] shadow-[0_1px_6px_rgba(20,24,28,0.16)]`}
+        style={{ borderColor: ring, color: ring, transform: scale !== 1 ? `scale(${scale})` : undefined }}
+        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-[1.5px] bg-white/92 font-mono text-[10px] font-bold leading-none"
       >
-        <p className="text-[7.5px] font-semibold uppercase leading-none tracking-[0.1em] text-muted">{label}</p>
-        <p className="mt-[2px] font-mono text-[10px] leading-none text-platinum">{children}</p>
+        {n}
       </div>
     </Html>
   );

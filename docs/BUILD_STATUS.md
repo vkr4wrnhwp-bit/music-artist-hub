@@ -641,3 +641,20 @@ Verified in the browser: banner renders with 3 blocking and routes,
 10 table rows with setup rail and SELECTED chip, panel collapse and
 expand, timeline collapse. Smoke + journey suites pass (a stale local
 dev server, not the refactor, caused one false failure). 91 tests.
+
+## 2026-08-11 — Measurement strip: HOLD values docked, ballooned
+
+The refactor-spec measurement strip replaces HOLD's floating value
+cards: numbered balloons at the anchors in the scene (the ballooned-
+drawing convention AS9102 inspectors already read) matched to a docked
+strip at the viewport edge listing the values. One shared ordered list
+(hold-measurements.ts) feeds both renderings, so the balloon numbers
+and the strip rows cannot disagree — the measurementGeometry lesson,
+applied again.
+
+Values never disappear: a row whose value is missing says "not
+recorded" / "not calculable — clamp force not recorded" instead of
+vanishing. Grip depth no longer displays its drawing fallback as if it
+were a recorded number. The holding-margin row carries its verdict tone
+and the DEV chip on the row, not in a tooltip. Verified live: six
+balloons, six rows, honest gaps. All suites pass. 91 tests.
