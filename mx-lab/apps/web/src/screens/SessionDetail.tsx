@@ -14,9 +14,14 @@ const MARKER_CATEGORIES: MarkerCategory[] = [
   'Harsh landing response', 'Missed shift', 'Clutch issue', 'Suspension issue', 'Other',
 ];
 
-export function SessionDetail({ sessionId }: { sessionId: string }) {
-  const { db, user, update, allowed } = useApp();
-  const [tab, setTab] = useState<'telemetry' | 'track' | 'markers' | 'feedback' | 'compare'>('telemetry');
+type SessionTab = 'summary' | 'telemetry' | 'track' | 'markers' | 'feedback' | 'compare';
+
+export function SessionDetail({ sessionId, initialTab }: { sessionId: string; initialTab?: string }) {
+  const { db, user } = useApp();
+  const valid: SessionTab[] = ['summary', 'telemetry', 'track', 'markers', 'feedback', 'compare'];
+  const [tab, setTab] = useState<SessionTab>(
+    valid.includes(initialTab as SessionTab) ? (initialTab as SessionTab) : 'summary',
+  );
   const session = db.sessions.find((s) => s.id === sessionId);
   if (!session || !user) return <p>Session not found.</p>;
 
@@ -31,25 +36,84 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
     <div>
       <div className="page-title">
         <h1>{session.objective}</h1>
-        <span className="sub mono">{bike.label} · {rider.name} · {track.name} · {new Date(session.startedAt).toLocaleString()}</span>
-        <Pill tone="sim">SIMULATED SESSION</Pill>
+        <span className="sub mono">{bike.label} · {rider.name} · {new Date(session.startedAt).toLocaleDateString()}</span>
+        <Pill tone="sim">SIMULATED</Pill>
       </div>
-      <p className="hint" style={{ marginTop: -8, marginBottom: 12 }}>
-        Map <a href={`#/maps/${rev?.id}`}>{map?.name}-{rev?.rev}</a> in slot {session.setupSnapshot.mapSlot} ·
-        trims {Object.entries(session.setupSnapshot.trims).map(([k, v]) => `${k}:${v}`).join(' ')} ·
-        {session.weather.ambientC}°C, {session.weather.humidityPct}% RH · {session.trackCondition.surfaceType}, {session.trackCondition.moisture}
+      <p className="hint" style={{ marginTop: -12, marginBottom: 16 }}>
+        {track.name} · map <a href={`#/maps/${rev?.id}`}>{map?.name}-{rev?.rev}</a> slot {session.setupSnapshot.mapSlot} ·
+        {' '}{session.weather.ambientC}°C · {session.trackCondition.surfaceType}, {session.trackCondition.moisture}
       </p>
-      <div className="btn-row no-print" style={{ marginBottom: 14 }}>
-        {([['telemetry', 'Telemetry'], ['track', 'Track view'], ['markers', `Markers (${markers.length})`], ['feedback', 'Rider feedback'], ['compare', 'A/B compare']] as const).map(([id, label]) => (
+      <div className="btn-row no-print" style={{ marginBottom: 18 }}>
+        {([['summary', 'Summary'], ['feedback', 'Rider feedback'], ['markers', `Markers (${markers.length})`], ['track', 'Track view'], ['telemetry', 'Data'], ['compare', 'A/B compare']] as const).map(([id, label]) => (
           <button key={id} className={`btn small ${tab === id ? 'primary' : ''}`} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
 
+      {tab === 'summary' && <SummaryTab session={session} goTo={setTab} />}
       {tab === 'telemetry' && <TelemetryTab session={session} />}
       {tab === 'track' && <TrackTab session={session} />}
       {tab === 'markers' && <MarkersTab session={session} />}
       {tab === 'feedback' && <FeedbackTab session={session} />}
       {tab === 'compare' && <CompareTab session={session} />}
+    </div>
+  );
+}
+
+/** Summary — what came back, what to do next. One primary action. */
+function SummaryTab({ session, goTo }: { session: Session; goTo: (t: SessionTab) => void }) {
+  const { db } = useApp();
+  const sim = simulateSession(db, session);
+  const markers = db.markers.filter((m) => m.sessionId === session.id);
+  const feedback = db.feedback.find((f) => f.sessionId === session.id);
+  const rec = db.recommendations.find((r) => r.sessionId === session.id);
+  const ab = db.abTests.find((t) => (t.sessionAId === session.id || t.sessionBId === session.id) && t.outcome);
+  const best = Math.min(...sim.laps.map((l) => l.timeS));
+  const anomalies = markers.filter((m) => m.category !== 'Unreviewed').length;
+
+  const next = !feedback
+    ? { label: 'Get Rider Feedback', go: () => goTo('feedback') }
+    : { label: 'Analyze', go: () => goTo('compare') };
+
+  return (
+    <div>
+      <section className="hero" style={{ padding: '24px 28px' }}>
+        <p className="eyebrow">Session received</p>
+        <div style={{ display: 'flex', gap: 44, flexWrap: 'wrap', margin: '10px 0 4px' }}>
+          <span className="pit-stat" style={{ fontSize: 34 }}>{sim.laps.length}<small>laps</small></span>
+          <span className="pit-stat" style={{ fontSize: 34 }}>{best.toFixed(2)}s<small>best lap</small></span>
+          <span className="pit-stat" style={{ fontSize: 34 }}>{markers.length}<small>rider markers</small></span>
+          <span className="pit-stat" style={{ fontSize: 34, color: anomalies ? 'var(--warning)' : 'var(--good)' }}>
+            {anomalies}<small>{anomalies === 1 ? 'anomaly' : 'anomalies'}</small>
+          </span>
+        </div>
+        <div className="btn-row" style={{ marginTop: 18 }}>
+          <button className="btn primary big" onClick={next.go}>{next.label}</button>
+          {feedback && <button className="btn ghost" onClick={() => goTo('track')}>Track view</button>}
+        </div>
+      </section>
+
+      {ab && (
+        <section className="focus">
+          <p className="eyebrow" style={{ color: 'var(--accent)' }}>Result</p>
+          <p className="focus-text" style={{ fontSize: 16.5 }}>{ab.conclusion}</p>
+        </section>
+      )}
+      {rec && (
+        <section className="insight">
+          <p className="eyebrow">TRACE found something</p>
+          <h4>{rec.observedEvent}</h4>
+          <p>{rec.likelyCause.category} — {rec.confidencePct}% confidence · {rec.status.replaceAll('_', ' ').toLowerCase()}</p>
+          <div className="btn-row" style={{ marginTop: 8 }}>
+            <button className="btn small primary" onClick={() => nav(`engineer/${rec.id}`)}>Review</button>
+          </div>
+        </section>
+      )}
+      {feedback && (
+        <p className="hint">
+          Rider verdict: {feedback.answers.betterOrWorse}
+          {feedback.preferredOverPrevious ? ' — preferred over previous setup' : ''} · full detail in Rider feedback.
+        </p>
+      )}
     </div>
   );
 }
@@ -301,7 +365,7 @@ function MarkerCard({ m, i, session }: { m: EventMarker; i: number; session: Ses
   const existingRec = db.recommendations.find((r) => r.markerId === m.id);
 
   return (
-    <div style={{ border: '1px solid var(--hairline)', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
+    <div style={{ background: 'var(--raised)', borderRadius: 10, padding: '12px 16px', marginBottom: 12 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <b>Marker {i + 1}</b>
         <span className="mono hint">lap {m.lap} · t={m.tS}s · {seg?.name ?? `${(m.trackFrac * 100).toFixed(0)}%`}</span>
@@ -417,45 +481,81 @@ function FeedbackTab({ session }: { session: Session }) {
 
   if (!canSubmit) return <Panel title="Rider feedback"><p className="hint">No feedback yet. The assigned rider ({rider.name}) submits it after the moto — sign in as a rider to try it.</p></Panel>;
 
+  // rider-mode: four big sliders first, everything else optional
+  const HERO_SLIDERS: Array<[keyof typeof sliders, string, string, string]> = [
+    ['initialHit', 'Power', 'Smooth', 'Aggressive'],
+    ['traction', 'Traction', 'Loose', 'Hooked up'],
+    ['engineBraking', 'Engine braking', 'Low', 'High'],
+    ['confidence', 'Confidence', 'Low', 'High'],
+  ];
+
   return (
-    <Panel title={`Quick debrief — ${rider.name}${isThisRider ? '' : ' (entering on rider’s behalf)'}`}>
+    <div style={{ maxWidth: 640 }}>
+      <h2 style={{ fontSize: 26, margin: '4px 0 20px', letterSpacing: '-0.01em' }}>How did it feel?</h2>
       <Help id="feedback">
-        Ten questions, ten sliders, under two minutes in gloves. The<b> fastest setup and the preferred
-        setup may differ</b> — both answers are preserved, neither overwrites the other.
+        Under two minutes, in gloves. The <b>fastest setup and the preferred setup may differ</b> —
+        both answers are preserved, neither overwrites the other.
       </Help>
-      <div className="grid2">
-        {([['whatHappened', 'What did the bike do?'], ['where', 'Where did it happen?'],
-          ['confidenceEffect', 'Did it affect confidence?'], ['fatigueEffect', 'Did it affect fatigue?'],
-          ['startsEffect', 'Did it affect starts?'], ['compensated', 'Did you compensate for it?'],
-          ['changedOverSession', 'Did it change as the session went on?']] as const).map(([k, label]) => (
-          <div className="field" key={k}><label>{label}</label>
-            <input value={answers[k]} onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />
-          </div>
-        ))}
-        <div className="field"><label>How often?</label>
-          <select value={answers.howOften} onChange={(e) => setAnswers({ ...answers, howOften: e.target.value })}>
-            {['Once', 'Occasional', 'Most laps', 'Every lap'].map((o) => <option key={o}>{o}</option>)}
-          </select>
+      {HERO_SLIDERS.map(([k, name, lo, hi]) => (
+        <div className="rider-slider" key={k}>
+          <div className="rs-name">{name}</div>
+          <input type="range" min={0} max={10} value={sliders[k]} aria-label={name}
+            onChange={(e) => setSliders({ ...sliders, [k]: parseInt(e.target.value, 10) })} />
+          <div className="rs-labels"><span>{lo}</span><span>{hi}</span></div>
         </div>
-        <div className="field"><label>Better or worse than previous setup?</label>
-          <select value={answers.betterOrWorse} onChange={(e) => setAnswers({ ...answers, betterOrWorse: e.target.value as never })}>
-            {['better', 'worse', 'same', 'n/a'].map((o) => <option key={o}>{o}</option>)}
-          </select>
-        </div>
+      ))}
+
+      <div className="field">
+        <label>Tell TRACE where the bike felt wrong or especially good</label>
+        <textarea rows={2} value={answers.whatHappened}
+          placeholder="e.g. hits too hard out of the Corner 6 rut"
+          onChange={(e) => setAnswers({ ...answers, whatHappened: e.target.value })} />
       </div>
-      <div className="grid2" style={{ marginTop: 6 }}>
-        {Object.entries(sliders).map(([k, v]) => (
-          <div className="field" key={k}>
-            <label>{SLIDER_LABELS[k] ?? k}: <b className="mono">{v}/10</b></label>
-            <input type="range" min={0} max={10} value={v} onChange={(e) => setSliders({ ...sliders, [k]: parseInt(e.target.value, 10) })} />
+      <div className="btn-row" style={{ marginBottom: 16 }}>
+        <button className="btn" onClick={() => {
+          const t = prompt('Voice capture arrives with MX Node hardware (Phase 2). For now, dictate with your device keyboard or type the note:');
+          if (t) setAnswers({ ...answers, whatHappened: answers.whatHappened ? `${answers.whatHappened} — ${t}` : t });
+        }}>🎙 Record Voice Note</button>
+        <span className="hint">Stored as text in Phase 1 — labeled honestly, never faked as audio.</span>
+      </div>
+
+      <details style={{ marginBottom: 16 }}>
+        <summary style={{ cursor: 'pointer', color: 'var(--ink-2)', fontWeight: 650, fontSize: 13.5 }}>
+          More detail (optional)
+        </summary>
+        <div className="grid2" style={{ marginTop: 12 }}>
+          {([['where', 'Where did it happen?'],
+            ['confidenceEffect', 'Did it affect confidence?'], ['fatigueEffect', 'Did it affect fatigue?'],
+            ['startsEffect', 'Did it affect starts?'], ['compensated', 'Did you compensate for it?'],
+            ['changedOverSession', 'Did it change as the session went on?']] as const).map(([k, label]) => (
+            <div className="field" key={k}><label>{label}</label>
+              <input value={answers[k]} onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />
+            </div>
+          ))}
+          <div className="field"><label>How often?</label>
+            <select value={answers.howOften} onChange={(e) => setAnswers({ ...answers, howOften: e.target.value })}>
+              {['Once', 'Occasional', 'Most laps', 'Every lap'].map((o) => <option key={o}>{o}</option>)}
+            </select>
           </div>
-        ))}
-      </div>
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, margin: '8px 0' }}>
+          <div className="field"><label>Better or worse than previous setup?</label>
+            <select value={answers.betterOrWorse} onChange={(e) => setAnswers({ ...answers, betterOrWorse: e.target.value as never })}>
+              {['better', 'worse', 'same', 'n/a'].map((o) => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          {Object.entries(sliders).filter(([k]) => !HERO_SLIDERS.some(([hk]) => hk === k)).map(([k, v]) => (
+            <div className="field" key={k}>
+              <label>{SLIDER_LABELS[k] ?? k}: <b className="mono">{v}/10</b></label>
+              <input type="range" min={0} max={10} value={v} onChange={(e) => setSliders({ ...sliders, [k]: parseInt(e.target.value, 10) })} />
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14.5, margin: '4px 0 16px' }}>
         <input type="checkbox" checked={preferred} onChange={(e) => setPreferred(e.target.checked)} />
         I preferred this setup over the previous one
       </label>
-      <button className="btn primary" onClick={() => {
+      <button className="btn primary big" style={{ width: '100%' }} onClick={() => {
         update((d) => {
           d.feedback.push({
             id: `fb-${Date.now()}`, sessionId: session.id, riderId: rider.id,
@@ -464,7 +564,8 @@ function FeedbackTab({ session }: { session: Session }) {
           appendAudit(d, user!.id, 'feedback.submit', 'Session', session.id, `Rider feedback submitted for ${session.objective}.`);
         });
       }}>Submit feedback</button>
-    </Panel>
+      {!isThisRider && <p className="hint" style={{ marginTop: 8 }}>Entering on the rider's behalf.</p>}
+    </div>
   );
 }
 

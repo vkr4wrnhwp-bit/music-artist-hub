@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { appendAudit, computeReadiness, type Session } from '@mxlab/domain';
+import { appendAudit, checkCompatibility, computeReadiness, type Session } from '@mxlab/domain';
 import { nav, useApp } from '../state';
 import { Help, Panel, Pill, readinessTone } from '../ui';
 
@@ -10,18 +10,21 @@ const OBJECTIVES = [
   'Investigate overheating', 'Investigate bog', 'Validate engine build',
 ];
 
-const STEPS = ['Bike', 'Rider', 'Track', 'Conditions', 'Setup', 'Hardware', 'Objective', 'Start'];
+const STEPS = ['Bike & rider', 'Focus', 'Track', 'Setup', 'Map', 'Hardware', 'Ready'];
 
 export function NewSession() {
   const { db, user, update, allowed } = useApp();
   const [step, setStep] = useState(0);
-  const [bikeId, setBikeId] = useState('');
-  const [riderId, setRiderId] = useState('');
+  const [bikeId, setBikeId] = useState(db.focus?.bikeId ?? '');
+  const [riderId, setRiderId] = useState(
+    db.bikes.find((b) => b.id === (db.focus?.bikeId ?? ''))?.assignedRiderId ?? '',
+  );
   const [trackId, setTrackId] = useState('');
-  const [objective, setObjective] = useState(OBJECTIVES[0]);
+  const [objective, setObjective] = useState(db.focus?.text ?? OBJECTIVES[0]);
   const [weather, setWeather] = useState({ ambientC: 27, humidityPct: 48, baroHpa: 1009, windKph: 8, trackTempC: 34 });
   const [cond, setCond] = useState({ surfaceType: 'Hard pack', preparation: 'Ripped and watered AM', moisture: 'Drying', ruts: 'Forming', bumps: 'Moderate' });
   const [setupConfirmed, setSetupConfirmed] = useState(false);
+  const [mapConfirmed, setMapConfirmed] = useState(false);
   const [hwConfirmed, setHwConfirmed] = useState(false);
 
   if (!user || !allowed('session.create')) {
@@ -34,10 +37,19 @@ export function NewSession() {
   const readiness = bike ? computeReadiness(db, bike) : null;
   const device = db.devices.find((d) => d.id === bike?.hardwareDeviceId);
   const rev = db.mapRevisions.find((r) => r.id === bike?.currentMapRevisionId);
+  const map = db.maps.find((m) => m.id === rev?.mapId);
   const build = db.engineBuilds.find((x) => x.id === bike?.engineBuildId);
+  const transfer = rev && bike ? db.transfers.find((t) => t.mapRevisionId === rev.id && t.bikeId === bike.id) : undefined;
+  const compat = rev && bike ? checkCompatibility(rev.compatibility, db, bike) : null;
 
   const canNext = [
-    !!bike, !!rider, !!track, true, setupConfirmed, hwConfirmed && !!device, !!objective, false,
+    !!bike && !!rider,
+    !!objective.trim(),
+    !!track,
+    setupConfirmed,
+    mapConfirmed && !!rev && !compat?.blocking,
+    hwConfirmed && !!device,
+    false,
   ];
 
   const start = () => {
@@ -63,6 +75,10 @@ export function NewSession() {
         createdByUserId: user.id, simulated: true,
       };
       d.sessions.push(s);
+      if (d.focus?.text !== objective || d.focus?.bikeId !== bike.id) {
+        d.focus = { bikeId: bike.id, text: objective, setByUserId: user.id };
+        appendAudit(d, user.id, 'focus.set', 'Bike', bike.id, `TRACE Focus: ${objective}`);
+      }
       const b = d.bikes.find((x) => x.id === bike.id)!;
       b.totalHours = +(b.totalHours + 0.35).toFixed(1);
       b.hoursSinceRebuild = +(b.hoursSinceRebuild + 0.35).toFixed(1);
@@ -78,89 +94,78 @@ export function NewSession() {
   };
 
   return (
-    <div>
-      <div className="page-title"><h1>New test session</h1><span className="sub">works fully offline — nothing here needs a connection</span></div>
+    <div style={{ maxWidth: 720 }}>
+      <div className="page-title"><h1>New session</h1><span className="sub">works fully offline</span></div>
       <div className="wiz-steps">
         {STEPS.map((s, i) => (
-          <span key={s} className={`ws ${i === step ? 'now' : i < step ? 'done' : ''}`}>{i + 1}. {s}</span>
+          <span key={s} className={`ws ${i === step ? 'now' : i < step ? 'done' : ''}`}>{i + 1} · {s}</span>
         ))}
       </div>
 
       {step === 0 && (
-        <Panel title="Step 1 — Select motorcycle">
-          <div className="field"><label>Bike</label>
-            <select value={bikeId} onChange={(e) => setBikeId(e.target.value)}>
-              <option value="">— select —</option>
-              {db.bikes.filter((b) => !b.retired).map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-            </select>
+        <Panel title="Bike & rider">
+          <div className="grid2">
+            <div className="field"><label>Bike</label>
+              <select value={bikeId} onChange={(e) => {
+                setBikeId(e.target.value);
+                setRiderId(db.bikes.find((b) => b.id === e.target.value)?.assignedRiderId ?? '');
+              }}>
+                <option value="">— select —</option>
+                {db.bikes.filter((b) => !b.retired).map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
+            </div>
+            <div className="field"><label>Rider</label>
+              <select value={riderId} onChange={(e) => setRiderId(e.target.value)}>
+                <option value="">— select —</option>
+                {db.riders.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
           </div>
           {bike && readiness && (
-            <>
-              <dl className="kv">
-                <dt>Model</dt><dd>{db.bikeModels.find((m) => m.id === bike.bikeModelId)?.modelYear} {db.bikeModels.find((m) => m.id === bike.bikeModelId)?.model}</dd>
-                <dt>ECU</dt><dd>{db.ecuDefinitions.find((x) => x.id === db.ecuInstances.find((e) => e.id === bike.ecuInstanceId)?.ecuDefinitionId)?.model}</dd>
-                <dt>Map / slot</dt><dd className="mono">{rev?.rev ?? 'none'} / {bike.currentMapSlot}</dd>
-                <dt>Trims</dt><dd className="mono">{Object.entries(bike.trims).map(([k, v]) => `${k}:${v}`).join(' ')}</dd>
-                <dt>Hours</dt><dd className="mono">{bike.totalHours.toFixed(1)} ({bike.hoursSinceRebuild.toFixed(1)} since rebuild)</dd>
-                <dt>Maintenance</dt><dd>{bike.maintenanceStatus}</dd>
-                <dt>Readiness</dt><dd><Pill tone={readinessTone(readiness.status)}>{readiness.status}</Pill></dd>
-              </dl>
-              {!readiness.readyForInstrumentedTest && (
-                <div style={{ marginTop: 8 }}>
-                  <p style={{ color: 'var(--critical-text)', fontWeight: 600, fontSize: 13 }}>
-                    This bike is not ready for an instrumented test. Failing gates:
-                  </p>
-                  <ul style={{ margin: '4px 0', paddingLeft: 18, fontSize: 13 }}>
-                    {readiness.gates.filter((g) => g.critical && !g.pass).map((g) => <li key={g.id}>{g.label}: {g.detail}</li>)}
-                  </ul>
-                  <a href={`#/bike/${bike.id}`}>Open bike profile to resolve →</a>
-                </div>
-              )}
-            </>
+            <p style={{ margin: '4px 0 0' }}>
+              <Pill tone={readinessTone(readiness.status)}>{readiness.status}</Pill>
+              {rider && <span className="hint" style={{ marginLeft: 10 }}>{rider.weightKg} kg · {rider.skillCategory} · prefers {rider.preferredDelivery.toLowerCase()}</span>}
+            </p>
+          )}
+          {readiness && !readiness.readyForInstrumentedTest && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ color: 'var(--critical)', fontWeight: 650, fontSize: 13, margin: 0 }}>Not ready — failing gates:</p>
+              <ul style={{ margin: '4px 0', paddingLeft: 18, fontSize: 13 }}>
+                {readiness.gates.filter((g) => g.critical && !g.pass).map((g) => <li key={g.id}>{g.label}: {g.detail}</li>)}
+              </ul>
+              <a href={`#/bike/${bike!.id}`}>Resolve in bike profile →</a>
+            </div>
           )}
         </Panel>
       )}
 
       {step === 1 && (
-        <Panel title="Step 2 — Select rider">
-          <div className="field"><label>Rider</label>
-            <select value={riderId} onChange={(e) => setRiderId(e.target.value)}>
-              <option value="">— select —</option>
-              {db.riders.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
+        <Panel title="TRACE Focus — what is this session for?">
+          <Help id="objective">
+            One session, one objective. TRACE biases setup and post-session analysis toward answering
+            it — changing several variables at once makes every conclusion unusable.
+          </Help>
+          <div className="field"><label>Focus</label>
+            <textarea rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
           </div>
-          {rider && (
-            <dl className="kv">
-              <dt>Weight</dt><dd className="mono">{rider.weightKg} kg</dd>
-              <dt>Skill</dt><dd>{rider.skillCategory}</dd>
-              <dt>Preferred delivery</dt><dd>{rider.preferredDelivery}</dd>
-              <dt>Limitations</dt><dd>{rider.limitationNotes ?? 'None recorded'}</dd>
-            </dl>
-          )}
+          <div className="btn-row">
+            {OBJECTIVES.slice(0, 6).map((o) => (
+              <button key={o} className="btn small ghost" onClick={() => setObjective(o)}>{o}</button>
+            ))}
+          </div>
+          {db.focus?.text && db.focus.text === objective && <p className="hint">Carried over from today's focus — one tap to keep.</p>}
         </Panel>
       )}
 
       {step === 2 && (
-        <Panel title="Step 3 — Select track">
+        <Panel title="Track & conditions">
           <div className="field"><label>Track</label>
             <select value={trackId} onChange={(e) => setTrackId(e.target.value)}>
               <option value="">— select —</option>
               {db.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          {track && (
-            <dl className="kv">
-              <dt>Type</dt><dd>{track.kind === 'motocross' ? 'Motocross' : 'Supercross test'} · {track.direction}</dd>
-              <dt>Surface</dt><dd>{track.surface}</dd>
-              <dt>Sections</dt><dd>{track.segments.map((s) => s.name).join(' · ')}</dd>
-              <dt>Elevation</dt><dd className="mono">{track.elevationM ?? '—'} m</dd>
-            </dl>
-          )}
-        </Panel>
-      )}
-
-      {step === 3 && (
-        <Panel title="Step 4 — Conditions">
+          {track && <p className="hint" style={{ marginBottom: 12 }}>{track.kind === 'motocross' ? 'Motocross' : 'SX test'} · {track.direction} · {track.surface} · {track.segments.length} sections</p>}
           <div className="grid3">
             {([['ambientC', 'Ambient °C'], ['humidityPct', 'Humidity %'], ['baroHpa', 'Baro hPa'], ['windKph', 'Wind kph'], ['trackTempC', 'Track °C']] as const).map(([k, l]) => (
               <div className="field" key={k}><label>{l}</label>
@@ -178,93 +183,91 @@ export function NewSession() {
         </Panel>
       )}
 
-      {step === 4 && bike && (
-        <Panel title="Step 5 — Confirm motorcycle setup">
-          <Help id="setup-confirm">
-            The session snapshots this exact setup. If anything on the bike differs from these values,
-            fix the record first — a session with a wrong snapshot poisons every comparison built on it.
-          </Help>
+      {step === 3 && bike && (
+        <Panel title="Confirm setup">
           <dl className="kv">
             <dt>Fuel</dt><dd>{db.fuels.find((f) => f.id === bike.setup.fuelId)?.name}</dd>
             <dt>Gearing</dt><dd className="mono">{bike.setup.gearing}</dd>
-            <dt>Tire</dt><dd>{bike.setup.tireModel} {bike.setup.tireSizeRear} · F {bike.setup.tirePressureFront} / R {bike.setup.tirePressureRear} bar</dd>
-            <dt>Suspension</dt><dd>{bike.setup.suspension} · fork {bike.setup.forkHeightMm} mm · sag {bike.setup.sagMm} mm</dd>
+            <dt>Tires</dt><dd>{bike.setup.tireModel} · F {bike.setup.tirePressureFront} / R {bike.setup.tirePressureRear} bar</dd>
+            <dt>Suspension</dt><dd>fork {bike.setup.forkHeightMm} mm · sag {bike.setup.sagMm} mm</dd>
             <dt>Clutch</dt><dd>{bike.setup.clutch}</dd>
             <dt>Engine</dt><dd className="mono">{build?.code}</dd>
-            <dt>Exhaust</dt><dd>{db.exhausts.find((e) => e.id === bike.setup.exhaustId)?.name}</dd>
-            <dt>Map / slot / trims</dt><dd className="mono">{rev?.rev} / {bike.currentMapSlot} / {Object.entries(bike.trims).map(([k, v]) => `${k}:${v}`).join(' ')}</dd>
           </dl>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, fontSize: 13.5 }}>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14, fontSize: 14 }}>
             <input type="checkbox" checked={setupConfirmed} onChange={(e) => setSetupConfirmed(e.target.checked)} />
-            I confirm the physical bike matches this record. <a href={`#/bike/${bike.id}`}>Edit setup</a>
+            The physical bike matches this record. <a href={`#/bike/${bike.id}`}>Edit</a>
           </label>
         </Panel>
       )}
 
+      {step === 4 && bike && (
+        <Panel title="Confirm map">
+          {rev ? (
+            <>
+              <dl className="kv">
+                <dt>Map</dt><dd className="mono">{map?.name}-{rev.rev} · Slot {bike.currentMapSlot}</dd>
+                <dt>State</dt><dd>{rev.state.replaceAll('_', ' ')}</dd>
+                <dt>Trims</dt><dd className="mono">{Object.entries(bike.trims).map(([k, v]) => `${k}:${v}`).join(' · ')}</dd>
+                <dt>Transfer</dt>
+                <dd>{transfer ? <Pill tone="good">Confirmed (SIM)</Pill> : <Pill tone="critical">Not confirmed</Pill>}</dd>
+                <dt>Compatibility</dt>
+                <dd>{compat && <Pill tone={compat.blocking ? 'critical' : 'good'}>{compat.verdict}</Pill>}</dd>
+              </dl>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14, fontSize: 14 }}>
+                <input type="checkbox" checked={mapConfirmed} onChange={(e) => setMapConfirmed(e.target.checked)} />
+                This is the map physically loaded on the ECU.
+              </label>
+            </>
+          ) : <p style={{ color: 'var(--critical)' }}>No map assigned — load one via the Tune area first.</p>}
+        </Panel>
+      )}
+
       {step === 5 && (
-        <Panel title="Step 6 — Confirm logging hardware">
+        <Panel title="Confirm logging hardware">
           {device ? (
             <>
               <dl className="kv">
-                <dt>MX Node</dt><dd className="mono">{device.id} <Pill tone="sim">SIMULATED HARDWARE</Pill></dd>
-                <dt>Firmware</dt><dd className="mono">{device.firmware}</dd>
-                <dt>Battery</dt><dd className="mono">{device.batteryPct}%</dd>
-                <dt>Storage</dt><dd className="mono">{device.storagePct}% used</dd>
-                <dt>Mode</dt><dd>{device.mode === 'test' ? 'Test mode (expanded sensors)' : 'Competition mode'}</dd>
+                <dt>MX Node</dt><dd className="mono">{device.id} <Pill tone="sim">SIMULATED</Pill></dd>
+                <dt>Battery / storage</dt><dd className="mono">{device.batteryPct}% · {device.storagePct}% used</dd>
+                <dt>Mode</dt><dd>{device.mode}</dd>
                 <dt>Channels</dt>
                 <dd>{Object.entries(device.channelHealth).map(([c, q]) => (
-                  <span key={c} style={{ marginRight: 8 }}>
-                    <Pill tone={q === 'Missing' || q === 'Out of range' ? 'critical' : q === 'Intermittent' || q === 'Uncalibrated' ? 'serious' : 'neutral'}>{c}: {q}</Pill>
+                  <span key={c} style={{ marginRight: 6 }}>
+                    <Pill tone={q === 'Missing' || q === 'Out of range' ? 'critical' : q === 'Intermittent' || q === 'Uncalibrated' ? 'serious' : 'neutral'}>{c}</Pill>
                   </span>
                 ))}
                 </dd>
               </dl>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, fontSize: 13.5 }}>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14, fontSize: 14 }}>
                 <input type="checkbox" checked={hwConfirmed} onChange={(e) => setHwConfirmed(e.target.checked)} />
                 Hardware checks reviewed.
               </label>
             </>
-          ) : <p style={{ color: 'var(--critical-text)' }}>No MX Node assigned to this bike — assign one in the Hardware module first.</p>}
+          ) : <p style={{ color: 'var(--critical)' }}>No MX Node assigned to this bike — assign one in the bike profile.</p>}
         </Panel>
       )}
 
       {step === 6 && (
-        <Panel title="Step 7 — Define the test objective">
-          <div className="field"><label>Objective</label>
-            <select value={objective} onChange={(e) => setObjective(e.target.value)}>
-              {OBJECTIVES.map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </div>
-          <Help id="objective">
-            One objective per session. Changing several variables at once makes every conclusion
-            unusable — the A/B engine will refuse to attribute differences.
-          </Help>
-        </Panel>
-      )}
-
-      {step === 7 && (
-        <Panel title="Step 8 — Start session">
-          <p style={{ fontSize: 14 }}>
-            <b>{bike?.label}</b> · {rider?.name} · {track?.name} — “{objective}”
-          </p>
+        <Panel title="Ready">
+          <p style={{ fontSize: 16, fontWeight: 650, margin: '0 0 4px' }}>{bike?.label} · {rider?.name} · {track?.name}</p>
+          <p className="focus-text" style={{ fontSize: 16, color: 'var(--ink-2)' }}>“{objective}”</p>
           {readiness && !readiness.readyForInstrumentedTest ? (
-            <p style={{ color: 'var(--critical-text)', fontWeight: 600 }}>Blocked: bike is {readiness.status}. Resolve the failing gates first.</p>
+            <p style={{ color: 'var(--critical)', fontWeight: 650 }}>Blocked: bike is {readiness.status}.</p>
           ) : (
             <>
-              <p className="hint">
-                Starting records a SIMULATED 12-minute MX Node run (deterministic seed, regenerated on
-                demand — no fake measured data is stored). The bike's current map revision is associated
-                with this session automatically.
+              <p className="hint" style={{ margin: '10px 0 16px' }}>
+                Starting records a SIMULATED 12-minute MX Node run — deterministic seed, regenerated on
+                demand, never stored as measured data.
               </p>
-              <button className="btn primary" onClick={start}>Start session (SIMULATED)</button>
+              <button className="btn primary big" onClick={start}>Start Session</button>
             </>
           )}
         </Panel>
       )}
 
-      <div className="btn-row" style={{ marginTop: 6 }}>
-        <button className="btn" disabled={step === 0} onClick={() => setStep(step - 1)}>← Back</button>
-        {step < 7 && <button className="btn primary" disabled={!canNext[step]} onClick={() => setStep(step + 1)}>Next →</button>}
+      <div className="btn-row" style={{ marginTop: 4 }}>
+        <button className="btn ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>← Back</button>
+        {step < 6 && <button className="btn primary" disabled={!canNext[step]} onClick={() => setStep(step + 1)}>Next →</button>}
       </div>
     </div>
   );

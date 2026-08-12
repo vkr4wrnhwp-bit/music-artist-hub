@@ -9,7 +9,7 @@ export function Garage() {
   return (
     <div>
       <div className="page-title">
-        <h1>Team Garage</h1>
+        <h1>Fleet</h1>
         <span className="sub">{db.org.name} · {db.bikes.filter((b) => !b.retired).length} bikes</span>
         {allowed('bike.create') && (
           <button className="btn small" style={{ marginLeft: 'auto' }} onClick={() => nav('bike/new')}>+ Register bike</button>

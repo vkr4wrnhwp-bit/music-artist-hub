@@ -5,7 +5,7 @@ import { Help, Panel, Pill, Prov, readinessTone } from '../ui';
 
 export function BikeProfile({ bikeId }: { bikeId: string }) {
   const { db, user, update, allowed } = useApp();
-  const [tab, setTab] = useState<'overview' | 'setup' | 'maintenance' | 'maps' | 'sessions' | 'audit'>('overview');
+  const [tab, setTab] = useState<'overview' | 'setup' | 'engine' | 'ecu' | 'maintenance' | 'history'>('overview');
   const bike = db.bikes.find((b) => b.id === bikeId);
   if (!bike || !user) return <p>Bike not found.</p>;
 
@@ -18,23 +18,30 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
   const map = db.maps.find((m) => m.id === rev?.mapId);
   const readiness = computeReadiness(db, bike);
   const device = db.devices.find((d) => d.id === bike.hardwareDeviceId);
+  const topIssue = readiness.gates.find((g) => g.critical && !g.pass);
 
   const tabs = [
-    ['overview', 'Overview & readiness'], ['setup', 'Setup'], ['maintenance', 'Maintenance'],
-    ['maps', 'Map history'], ['sessions', 'Sessions'], ['audit', 'Audit'],
+    ['overview', 'Overview'], ['setup', 'Setup'], ['engine', 'Engine'],
+    ['ecu', 'ECU'], ['maintenance', 'Service'], ['history', 'History'],
   ] as const;
 
   return (
     <div>
-      <div className="page-title">
-        <h1 className="mono">{bike.label}</h1>
-        <span className="sub">{model ? `${model.modelYear} ${model.manufacturer} ${model.model}` : ''} · {rider?.name ?? 'no rider'}</span>
-        <Pill tone={readinessTone(readiness.status)}>{readiness.status}</Pill>
-      </div>
+      <section className="hero" style={{ padding: '24px 28px 22px' }}>
+        <p className="eyebrow">{model ? `${model.modelYear} ${model.manufacturer} ${model.model}` : 'Bike'}</p>
+        <h1 className="mono" style={{ fontSize: 30 }}>{bike.label}</h1>
+        <div className="hero-row" style={{ marginTop: 14 }}>
+          <span className="hero-kv">Status<b><Pill tone={readinessTone(readiness.status)}>{readiness.status}</Pill></b></span>
+          <span className="hero-kv">Rider<b>{rider?.name ?? 'Unassigned'}</b></span>
+          <span className="hero-kv">Map<b className="mono">{rev ? `${map?.name}-${rev.rev} · Slot ${bike.currentMapSlot}` : 'None'}</b></span>
+          <span className="hero-kv">Engine<b className="mono">{bike.totalHours.toFixed(1)} h · {bike.hoursSinceRebuild.toFixed(1)} since rebuild</b></span>
+          {topIssue && <span className="hero-kv">Blocking<b style={{ color: 'var(--critical)' }}>{topIssue.label}</b></span>}
+        </div>
+      </section>
 
-      <div className="btn-row no-print" style={{ marginBottom: 14 }}>
+      <div className="btn-row no-print" style={{ marginBottom: 18 }}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`btn small ${tab === id ? 'primary' : ''}`} onClick={() => setTab(id)}>{label}</button>
+          <button key={id} className={`btn small ${tab === id ? 'primary' : 'ghost'}`} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
 
@@ -183,7 +190,65 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
         </div>
       )}
 
-      {tab === 'maps' && (
+      {tab === 'engine' && (
+        <div className="cols">
+          <Panel title="Engine build">
+            {build ? (
+              <dl className="kv">
+                <dt>Build</dt><dd className="mono">{build.code} <Prov p={build.provenance} /></dd>
+                <dt>Camshaft</dt><dd>{build.camshaft}</dd>
+                <dt>Compression</dt><dd>{build.compression}</dd>
+                <dt>Injector</dt><dd>{build.injector}</dd>
+                <dt>Throttle body</dt><dd>{build.throttleBody}</dd>
+                <dt>Rev limit</dt><dd className="mono">{build.revLimit.toLocaleString()} rpm</dd>
+                <dt>Built by</dt><dd>{db.users.find((u) => u.id === build.builtBy)?.name ?? build.builtBy}</dd>
+                <dt>Notes</dt><dd>{build.notes ?? '—'}</dd>
+              </dl>
+            ) : <p className="hint">No engine build assigned.</p>}
+          </Panel>
+          <Panel title="Hours & comparability">
+            <dl className="kv">
+              <dt>Total hours</dt><dd className="mono">{bike.totalHours.toFixed(1)}</dd>
+              <dt>Since rebuild</dt><dd className="mono">{bike.hoursSinceRebuild.toFixed(1)}</dd>
+            </dl>
+            <Help id="hours">
+              Sessions are only comparable when engine condition is comparable — A/B conclusions across
+              a rebuild boundary are flagged, not trusted.
+            </Help>
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'ecu' && (
+        <div className="cols">
+          <Panel title="ECU identity">
+            {ecuDef ? (
+              <>
+                <dl className="kv">
+                  <dt>Definition</dt><dd><a href={`#/ecu/${ecuDef.id}`}>{ecuDef.model}</a> <Pill tone="sim">SIMULATED</Pill></dd>
+                  <dt>Serial</dt><dd className="mono">{ecuInst?.serialNumber}</dd>
+                  <dt>Firmware</dt><dd className="mono">{ecuDef.firmware}</dd>
+                  <dt>Verification</dt><dd>{ecuDef.verification}</dd>
+                  <dt>Map slots</dt><dd className="mono">{ecuDef.mapSlotCount ?? 'unknown'}</dd>
+                  <dt>Trims</dt><dd className="mono">{ecuDef.globalTrims.join(' · ')}</dd>
+                </dl>
+                <div className="btn-row" style={{ marginTop: 12 }}>
+                  <button className="btn small" onClick={() => nav(`ecu/${ecuDef.id}`)}>Full ECU profile →</button>
+                </div>
+              </>
+            ) : <p className="hint">No ECU recorded — complete Phase 0 inventory.</p>}
+          </Panel>
+          <Panel title="Write access">
+            <div className="write-disabled">DIRECT ECU WRITE DISABLED — AUTHORIZED VORTEX INTEGRATION NOT YET VALIDATED</div>
+            <p className="hint" style={{ marginTop: 10 }}>
+              Map changes travel through the companion workflow in the Tune area and are confirmed by a
+              person.
+            </p>
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'history' && (
         <Panel title="Map history on this bike">
           <div className="tbl-scroll">
             <table className="data">
@@ -209,7 +274,7 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
         </Panel>
       )}
 
-      {tab === 'sessions' && (
+      {tab === 'history' && (
         <Panel title="Sessions">
           <div className="tbl-scroll">
             <table className="data">
@@ -234,7 +299,7 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
         </Panel>
       )}
 
-      {tab === 'audit' && (
+      {tab === 'history' && (
         <Panel title="Audit timeline (this bike)">
           <AuditList entityIds={[bike.id, bike.currentMapRevisionId ?? '']} />
         </Panel>

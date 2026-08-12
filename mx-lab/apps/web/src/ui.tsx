@@ -91,7 +91,7 @@ export function themeHeat() {
     mid: cs.getPropertyValue('--heat-mid').trim(),
     ink: cs.getPropertyValue('--ink').trim(),
     muted: cs.getPropertyValue('--muted').trim(),
-    hairline: cs.getPropertyValue('--hairline').trim(),
+    hairline: cs.getPropertyValue('--divider').trim(),
     accent: cs.getPropertyValue('--accent').trim(),
   };
 }
@@ -103,7 +103,90 @@ export function inkFor(rgb: string): string {
   const m = rgb.match(/(\d+),(\d+),(\d+)/);
   if (!m) return 'var(--ink)';
   const lum = 0.2126 * lin(+m[1]) + 0.7152 * lin(+m[2]) + 0.0722 * lin(+m[3]);
-  return lum > 0.35 ? '#14130f' : '#f4f3ee';
+  return lum > 0.35 ? '#14100c' : '#f4f5f6';
+}
+
+// ------------------------------------------------------------ TRACE brand
+// Reference 01 logo lock: track-line T icon with orange nodes + angular
+// wordmark. One-color white wordmark is a sanctioned brand application.
+
+export function TraceIcon({ size = 30 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-label="TRACE" role="img">
+      <path
+        d="M 30 24 L 72 17 M 30 24 Q 22 26 23 34 L 24 40 Q 25 46 33 45 L 44 44 L 40 68"
+        fill="none" stroke="#f4f5f6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"
+      />
+      <path d="M 44 44 L 42 56" fill="none" stroke="#ff6a00" strokeWidth="9" strokeLinecap="round" />
+      <circle cx="78" cy="16" r="8" fill="#ff6a00" />
+      <circle cx="78" cy="16" r="3.2" fill="#0b0d10" />
+      <circle cx="39" cy="75" r="8" fill="#ff6a00" />
+      <circle cx="39" cy="75" r="3.2" fill="#0b0d10" />
+    </svg>
+  );
+}
+
+export function TraceLogo({ tagline = false }: { tagline?: boolean }) {
+  return (
+    <span className="brandlock">
+      <TraceIcon />
+      <span>
+        <span className="wordmark">TRACE</span>
+        {tagline && (
+          <span style={{ display: 'block', fontSize: 8.5, letterSpacing: '0.3em', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 2 }}>
+            Telemetry &amp; Tuning
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+// ------------------------------------------------------------ shell pieces
+
+export function EmptyState({ title, children }: { title: string; children?: React.ReactNode }) {
+  return (
+    <div className="empty">
+      <h4>{title}</h4>
+      {children && <p>{children}</p>}
+    </div>
+  );
+}
+
+export function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <>
+      <div className="drawer-scrim" onClick={onClose} />
+      <div className="drawer" role="dialog" aria-label={title}>
+        <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {title}
+          <button className="btn small ghost" onClick={onClose} aria-label="Close">✕</button>
+        </h3>
+        {children}
+      </div>
+    </>
+  );
+}
+
+/** simple line icons for the tab bar — no clip-art */
+export function AreaIcon({ area }: { area: string }) {
+  const p: Record<string, React.ReactNode> = {
+    garage: <path d="M3 10.5 12 4l9 6.5M5.5 9.5V20h13V9.5M9.5 20v-6h5v6" />,
+    sessions: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2.5" /></>,
+    tune: <><path d="M4 8h10M18 8h2M4 16h4M12 16h8" /><circle cx="16" cy="8" r="2.2" /><circle cx="10" cy="16" r="2.2" /></>,
+    analyze: <path d="M4 19V5M4 19h16M7.5 15l3.5-4 3 2.5L18.5 8" />,
+    more: <><circle cx="6" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18" cy="12" r="1.6" /></>,
+  };
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {p[area]}
+    </svg>
+  );
 }
 
 // ------------------------------------------------------------ line chart
@@ -141,7 +224,8 @@ export function LineChart({ t, series, height = 170, markers }: {
     return { ...s, lo, hi, y: (v: number) => PT + (1 - (v - lo) / Math.max(1e-6, hi - lo)) * (height - PT - PB) };
   });
 
-  const colors = [th.accent, th.neg, th.muted, th.pos];
+  // TRACE chart convention: orange = current/selected, light gray = baseline
+  const colors = [th.accent, '#a8adb5', '#6ea8e8', '#4f8fd6'];
 
   const onMove = (e: React.PointerEvent) => {
     const rect = boxRef.current!.getBoundingClientRect();

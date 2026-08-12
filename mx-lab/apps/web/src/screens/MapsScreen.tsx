@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
   appendAudit, checkCompatibility, diffRevisions, diffTrims, exceedsEnvelope,
-  transitionRevision, type MapDefinition, type MapRevision,
+  transitionRevision, type MapRevision,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
-import { download, fmtSigned, heatColor, Help, inkFor, Panel, Pill, Prov, themeHeat, useThemeVersion } from '../ui';
+import { download, Drawer, fmtSigned, heatColor, Help, inkFor, Panel, Pill, Prov, themeHeat, useThemeVersion } from '../ui';
 import { AuditList } from './BikeProfile';
 
 const FLOW: MapRevision['state'][] = [
@@ -16,13 +16,32 @@ export function MapLibrary() {
   return (
     <div>
       <div className="page-title">
-        <h1>Map Library</h1>
-        <span className="sub">Team IP — access is role-gated and every view/export is audited</span>
+        <h1>Tune</h1>
+        <span className="sub">team IP — access is role-gated and every view/export is audited</span>
       </div>
       <Help id="maplib">
         A map revision is authored against an <b>exact compatibility key</b> (model year, ECU definition,
         firmware, engine build, fuel, exhaust). It is never automatically available to another bike.
       </Help>
+
+      {/* current maps first — the thing a tuner reaches for */}
+      <div className="cols" style={{ marginBottom: 4 }}>
+        {db.bikes.filter((b) => !b.retired && b.currentMapRevisionId).map((b) => {
+          const rev = db.mapRevisions.find((r) => r.id === b.currentMapRevisionId)!;
+          const m = db.maps.find((x) => x.id === rev.mapId);
+          return (
+            <button key={b.id} className="finding" style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => nav(`maps/${rev.id}`)}>
+              <div style={{ flex: 1 }}>
+                <p className="eyebrow" style={{ margin: 0 }}>Current on {b.label}</p>
+                <h4 className="mono" style={{ fontSize: 18 }}>{m?.name}-{rev.rev}</h4>
+                <p>Slot {b.currentMapSlot} · {rev.state.replaceAll('_', ' ')} · trims {Object.entries(b.trims).map(([k, v]) => `${k}:${v}`).join(' ')}</p>
+              </div>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+            </button>
+          );
+        })}
+      </div>
+
       {db.maps.map((m) => (
         <Panel key={m.id} title={`${m.name} — ${m.purpose}`}>
           <div className="tbl-scroll">
@@ -97,6 +116,7 @@ export function MapWorkspace({ revId }: { revId: string }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<[number, number] | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+  const [advOpen, setAdvOpen] = useState(false);
   const [checkBikeId, setCheckBikeId] = useState(db.bikes[0]?.id ?? '');
 
   if (!revision || !user) return <p>Revision not found.</p>;
@@ -112,6 +132,11 @@ export function MapWorkspace({ revId }: { revId: string }) {
   const diff = parent ? diffRevisions(parent, revision) : [];
   const trimDiff = parent ? diffTrims(parent, revision) : [];
   const envelope = parent ? exceedsEnvelope(db, parent, revision) : { exceeded: false, details: [] };
+  const relatedInsight = db.recommendations.find(
+    (r) => r.status === 'AWAITING_TUNER_REVIEW'
+      && db.sessions.find((s) => s.id === r.sessionId)?.setupSnapshot.mapRevisionId
+      && db.mapRevisions.find((x) => x.id === db.sessions.find((s) => s.id === r.sessionId)!.setupSnapshot.mapRevisionId)?.mapId === map.id,
+  );
 
   const key = (r: number, c: number) => `${r},${c}`;
   const clickCell = (r: number, c: number, shift: boolean) => {
@@ -153,10 +178,15 @@ export function MapWorkspace({ revId }: { revId: string }) {
   const compatBike = db.bikes.find((b) => b.id === checkBikeId);
   const compat = compatBike ? checkCompatibility(revision.compatibility, db, compatBike) : null;
 
-  const nextActions: Array<{ to: MapRevision['state']; label: string; enabled: boolean; title?: string }> = [];
+  const nextActions: Array<{ to: MapRevision['state']; label: string; enabled: boolean; title?: string; confirm?: string }> = [];
   if (revision.state === 'DRAFT') nextActions.push({ to: 'TUNER_REVIEW', label: 'Submit for tuner review', enabled: allowed('map.submitForReview') });
   if (revision.state === 'TUNER_REVIEW') {
-    nextActions.push({ to: 'APPROVED_FOR_TEST', label: 'Approve for test', enabled: allowed('map.approveForTest') && !envelope.exceeded, title: envelope.exceeded ? 'Blocked: exceeds validated envelope' : undefined });
+    nextActions.push({
+      to: 'APPROVED_FOR_TEST', label: 'Approve for test',
+      enabled: allowed('map.approveForTest') && !envelope.exceeded,
+      title: envelope.exceeded ? 'Blocked: exceeds validated envelope' : undefined,
+      confirm: `Approve ${map.name}-${revision.rev} for test? This is recorded in the audit log under your name.`,
+    });
     nextActions.push({ to: 'REJECTED', label: 'Reject', enabled: allowed('map.reject') });
   }
   if (revision.state === 'APPROVED_FOR_TEST') nextActions.push({ to: 'EXPORTED', label: 'Generate companion change sheet →', enabled: allowed('map.export') });
@@ -164,18 +194,18 @@ export function MapWorkspace({ revId }: { revId: string }) {
     nextActions.push({ to: 'ACCEPTED', label: 'Accept (post-test)', enabled: allowed('ai.decide') });
     nextActions.push({ to: 'REJECTED', label: 'Reject (post-test)', enabled: allowed('map.reject') });
   }
-  if (revision.state === 'ACCEPTED') nextActions.push({ to: 'TEAM_BASELINE', label: 'Promote to team baseline', enabled: allowed('map.promoteBaseline') });
+  if (revision.state === 'ACCEPTED') nextActions.push({ to: 'TEAM_BASELINE', label: 'Promote to team baseline', enabled: allowed('map.promoteBaseline'), confirm: `Promote ${revision.rev} to team baseline?` });
 
   return (
     <div>
       <div className="page-title">
         <h1 className="mono">{map.name}-{revision.rev}</h1>
-        <span className="sub">{map.purpose}</span>
+        <span className="sub">{tableDef.label}</span>
         <StatePill state={revision.state} />
         <Prov p={revision.provenance} />
       </div>
 
-      <div className="flow no-print" style={{ marginBottom: 14 }}>
+      <div className="flow no-print" style={{ marginBottom: 18 }}>
         {FLOW.map((s) => (
           <span key={s} className={`step ${s === revision.state ? 'now' : FLOW.indexOf(s) < FLOW.indexOf(revision.state) ? 'done' : ''}`}>
             {s.replaceAll('_', ' ')}
@@ -186,27 +216,27 @@ export function MapWorkspace({ revId }: { revId: string }) {
         )}
       </div>
 
-      <div className="cols">
+      {/* contextual controls: Compare · History · TRACE Insight · Advanced */}
+      <div className="btn-row no-print" style={{ marginBottom: 16 }}>
+        {parent && (
+          <button className={`btn small ${showDiff ? 'primary' : ''}`} onClick={() => setShowDiff(!showDiff)}>
+            Compare Δ vs {parent.rev}
+          </button>
+        )}
+        {parent && <button className="btn small ghost" onClick={() => nav(`maps/${parent.id}`)}>History: {parent.rev} ←</button>}
+        {relatedInsight && (
+          <button className="btn small ghost" onClick={() => nav(`engineer/${relatedInsight.id}`)}>TRACE Insight ({relatedInsight.confidencePct}%)</button>
+        )}
+        <button className="btn small ghost" onClick={() => setAdvOpen(true)}>Advanced…</button>
+      </div>
+
+      <p className="mobile-note">Map editing works here, but a tablet or desktop display is recommended for serious table work.</p>
+      <div className="cols wide-left">
         <div>
-          <Panel
-            title={`${tableDef.label} (${tableDef.unit}) — ${yAxis.label} × ${xAxis.label}`}
-            actions={(
-              <span className="btn-row">
-                {map.tableDefs.map((td) => (
-                  <button key={td.id} className={`btn small ${tableId === td.id ? 'primary' : ''}`} onClick={() => { setTableId(td.id); setSel(new Set()); }}>{td.label}</button>
-                ))}
-                {parent && (
-                  <button className={`btn small ${showDiff ? 'primary' : ''}`} onClick={() => setShowDiff(!showDiff)}>
-                    Δ vs {parent.rev}
-                  </button>
-                )}
-              </span>
-            )}
-          >
+          <Panel title={`${tableDef.label} (${tableDef.unit}) — ${yAxis.label} × ${xAxis.label}`}>
             <Help id="grid">
-              Grids are <b>data-driven</b> from the verified ECU definition: axes, breakpoints, allowed
-              ranges, and precision all come from the definition — nothing universal is assumed. Blue
-              adds ({tableDef.unit === '%' ? 'richer' : 'advance'}), red removes.
+              Grids are <b>data-driven</b> from the verified ECU definition — axes, ranges, and precision
+              are never assumed. Warm adds ({tableDef.unit === '%' ? 'richer' : 'advance'}), cool removes.
             </Help>
             <div className="tbl-scroll">
               <table className="mapgrid">
@@ -249,7 +279,7 @@ export function MapWorkspace({ revId }: { revId: string }) {
               <span className="lab mono">+{tableDef.allowedMax}{tableDef.unit}</span>
             </div>
             {editable ? (
-              <div className="btn-row" style={{ marginTop: 12 }}>
+              <div className="btn-row" style={{ marginTop: 14 }}>
                 {[-1, -0.5, 0.5, 1].map((d) => (
                   <button key={d} className="btn small mono" disabled={!sel.size} onClick={() => applyToSel((v) => v + d)}>{fmtSigned(d, 1)}</button>
                 ))}
@@ -264,22 +294,20 @@ export function MapWorkspace({ revId }: { revId: string }) {
                   if (Number.isFinite(n)) applyToSel((v) => v * (1 + n / 100));
                 }}>% change…</button>
                 <button className="btn small" disabled={!sel.size} onClick={() => applyToSel(() => 0)}>Zero</button>
-                <span className="hint">{sel.size ? `${sel.size} cells selected — click a cell, shift-click to extend` : 'Click a cell, shift-click to select a region'}</span>
+                <span className="hint">{sel.size ? `${sel.size} cells — shift-click extends the region` : 'Click a cell; shift-click to select a region'}</span>
               </div>
             ) : (
-              <p className="hint" style={{ marginTop: 10 }}>
-                {revision.state === 'DRAFT' ? 'Your role cannot edit drafts.' : `Read-only: cells are locked outside DRAFT (state: ${revision.state.replaceAll('_', ' ')}).`}
+              <p className="hint" style={{ marginTop: 12 }}>
+                {revision.state === 'DRAFT' ? 'Your role cannot edit drafts.' : `Read-only — cells are locked outside DRAFT (state: ${revision.state.replaceAll('_', ' ')}).`}
               </p>
             )}
           </Panel>
 
-          {parent && (
+          {parent && (showDiff || diff.length > 0) && (
             <Panel title={`Change summary vs ${parent.rev}`}>
-              <p className="hint">{diff.length} cell change{diff.length === 1 ? '' : 's'}; {trimDiff.length} trim change{trimDiff.length === 1 ? '' : 's'}.</p>
+              <p className="hint" style={{ marginTop: 0 }}>{diff.length} cell change{diff.length === 1 ? '' : 's'}; {trimDiff.length} trim change{trimDiff.length === 1 ? '' : 's'}.</p>
               {envelope.exceeded && (
-                <p style={{ color: 'var(--critical-text)', fontSize: 13, fontWeight: 600 }}>
-                  ⚠ Envelope: {envelope.details[0]}
-                </p>
+                <p style={{ color: 'var(--critical)', fontSize: 13, fontWeight: 650 }}>⚠ Envelope: {envelope.details[0]}</p>
               )}
               <div className="tbl-scroll" style={{ maxHeight: 220, overflowY: 'auto' }}>
                 <table className="data">
@@ -314,8 +342,7 @@ export function MapWorkspace({ revId }: { revId: string }) {
           <Panel title="Workflow">
             <dl className="kv">
               <dt>Author</dt><dd>{db.users.find((u) => u.id === revision.authorUserId)?.name}</dd>
-              <dt>Created</dt><dd>{new Date(revision.createdAt).toLocaleString()}</dd>
-              <dt>Approved by</dt><dd>{revision.approvedByUserId ? `${db.users.find((u) => u.id === revision.approvedByUserId)?.name} · ${new Date(revision.approvedAt!).toLocaleString()}` : '—'}</dd>
+              <dt>Approved by</dt><dd>{revision.approvedByUserId ? `${db.users.find((u) => u.id === revision.approvedByUserId)?.name}` : '—'}</dd>
               <dt>Parent</dt><dd className="mono">{parent ? <a href={`#/maps/${parent.id}`}>{parent.rev}</a> : '—'}</dd>
               <dt>Children</dt>
               <dd className="mono">
@@ -324,10 +351,11 @@ export function MapWorkspace({ revId }: { revId: string }) {
               </dd>
               <dt>Notes</dt><dd>{revision.notes}</dd>
             </dl>
-            <div className="btn-row" style={{ marginTop: 10 }}>
+            <div className="btn-row" style={{ marginTop: 14 }}>
               {nextActions.map((a) => (
                 <button key={a.to} className="btn small primary" disabled={!a.enabled} title={a.title}
                   onClick={() => {
+                    if (a.confirm && !confirm(a.confirm)) return;
                     const note = a.to === 'REJECTED' ? prompt('Rejection note (required):') ?? undefined : undefined;
                     if (a.to === 'REJECTED' && !note) return;
                     if (a.to === 'EXPORTED') { doTransition('EXPORTED'); nav(`transfer/${revision.id}`); return; }
@@ -343,7 +371,7 @@ export function MapWorkspace({ revId }: { revId: string }) {
                 <button className="btn small" onClick={() => nav(`transfer/${revision.id}`)}>Load onto a bike →</button>
               )}
               {allowed('map.createRevision') && (
-                <button className="btn small" onClick={() => {
+                <button className="btn small ghost" onClick={() => {
                   update((d) => {
                     const src = d.mapRevisions.find((x) => x.id === revId)!;
                     const n = d.mapRevisions.filter((r) => r.mapId === src.mapId).length;
@@ -367,59 +395,77 @@ export function MapWorkspace({ revId }: { revId: string }) {
             </div>
           </Panel>
 
-          <Panel title="Compatibility check">
-            <Help id="compat">
-              A blocking verdict prevents transfer confirmation. This is the gate that stops a 450 map
-              from ever reaching a 250 — or a map authored for a different fuel, firmware, or engine
-              build from being loaded silently.
-            </Help>
-            <div className="field">
-              <label>Evaluate against bike</label>
-              <select value={checkBikeId} onChange={(e) => setCheckBikeId(e.target.value)}>
-                {db.bikes.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-              </select>
-            </div>
-            {compat && (
-              <>
-                <Pill tone={compat.blocking ? 'critical' : compat.verdict === 'Compatible' ? 'good' : 'warning'}>{compat.verdict}</Pill>
-                <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13 }}>
-                  {compat.details.map((d, i) => <li key={i}>{d}</li>)}
-                </ul>
-              </>
-            )}
-            <dl className="kv" style={{ marginTop: 10 }}>
-              <dt>Authored for</dt>
-              <dd>{revision.compatibility.modelYear} {revision.compatibility.model} · {revision.compatibility.ecuFirmware} · build {revision.compatibility.engineBuildId}</dd>
-              <dt>Envelope</dt><dd className="mono">{revision.compatibility.envelopeVersion}</dd>
-            </dl>
-          </Panel>
-
-          <Panel title="Exports">
-            <div className="btn-row">
-              <button className="btn small" disabled={!allowed('map.export')} onClick={() => {
-                update((d) => appendAudit(d, user.id, 'map.export', 'MapRevision', revision.id, `CSV diff exported for ${revision.rev}.`));
-                const rows = ['table,rpm,throttle,parent,revision,delta'];
-                for (const d of diff) {
-                  const tdDef = map.tableDefs.find((x) => x.id === d.tableId)!;
-                  const ax = map.axes.find((a) => a.id === tdDef.xAxisId)!;
-                  const ay = map.axes.find((a) => a.id === tdDef.yAxisId)!;
-                  rows.push(`${d.tableId},${ay.breakpoints[d.y]},${ax.breakpoints[d.x]},${d.a},${d.b},${d.delta}`);
-                }
-                download(`${map.name}-${revision.rev}-diff.csv`, rows.join('\n'), 'text/csv');
-              }}>CSV diff</button>
-              <button className="btn small" disabled={!allowed('map.export')} onClick={() => {
-                update((d) => appendAudit(d, user.id, 'map.export', 'MapRevision', revision.id, `JSON archive exported for ${revision.rev}.`));
-                download(`${map.name}-${revision.rev}.json`, JSON.stringify({ banner: 'SIMULATED DEMONSTRATION DATA — NOT A VALID TUNE', map: map.name, revision }, null, 2), 'application/json');
-              }}>JSON archive</button>
-            </div>
-            <p className="hint">No proprietary Vortex file formats are produced — that requires verified documentation and authorization (Phase 4).</p>
-          </Panel>
-
           <Panel title="Audit">
             <AuditList entityIds={[revision.id]} />
           </Panel>
         </div>
       </div>
+
+      {advOpen && (
+        <Drawer title="Advanced" onClose={() => setAdvOpen(false)}>
+          <p className="eyebrow">Tables</p>
+          <div className="btn-row" style={{ marginBottom: 18 }}>
+            {map.tableDefs.map((td) => (
+              <button key={td.id} className={`btn small ${tableId === td.id ? 'primary' : ''}`}
+                onClick={() => { setTableId(td.id); setSel(new Set()); }}>
+                {td.label}
+              </button>
+            ))}
+          </div>
+
+          <p className="eyebrow">Global trims</p>
+          <p className="mono" style={{ marginTop: 0 }}>
+            {Object.entries(revision.globalTrims).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'none'}
+          </p>
+
+          <p className="eyebrow" style={{ marginTop: 18 }}>Compatibility</p>
+          <div className="field">
+            <label>Evaluate against bike</label>
+            <select value={checkBikeId} onChange={(e) => setCheckBikeId(e.target.value)}>
+              {db.bikes.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
+          </div>
+          {compat && (
+            <>
+              <Pill tone={compat.blocking ? 'critical' : compat.verdict === 'Compatible' ? 'good' : 'warning'}>{compat.verdict}</Pill>
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                {compat.details.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            </>
+          )}
+          <dl className="kv" style={{ marginTop: 12 }}>
+            <dt>Authored for</dt>
+            <dd>{revision.compatibility.modelYear} {revision.compatibility.model} · {revision.compatibility.ecuFirmware}</dd>
+            <dt>Engine build</dt><dd className="mono">{revision.compatibility.engineBuildId}</dd>
+            <dt>Envelope</dt><dd className="mono">{revision.compatibility.envelopeVersion}</dd>
+            <dt>Provenance</dt><dd><Prov p={revision.provenance} /> · created {new Date(revision.createdAt).toLocaleString()}</dd>
+          </dl>
+
+          <p className="eyebrow" style={{ marginTop: 18 }}>Exports</p>
+          <div className="btn-row">
+            <button className="btn small" disabled={!allowed('map.export')} onClick={() => {
+              update((d) => appendAudit(d, user.id, 'map.export', 'MapRevision', revision.id, `CSV diff exported for ${revision.rev}.`));
+              const rows = ['table,rpm,throttle,parent,revision,delta'];
+              for (const d of diff) {
+                const tdDef = map.tableDefs.find((x) => x.id === d.tableId)!;
+                const ax = map.axes.find((a) => a.id === tdDef.xAxisId)!;
+                const ay = map.axes.find((a) => a.id === tdDef.yAxisId)!;
+                rows.push(`${d.tableId},${ay.breakpoints[d.y]},${ax.breakpoints[d.x]},${d.a},${d.b},${d.delta}`);
+              }
+              download(`${map.name}-${revision.rev}-diff.csv`, rows.join('\n'), 'text/csv');
+            }}>CSV diff</button>
+            <button className="btn small" disabled={!allowed('map.export')} onClick={() => {
+              update((d) => appendAudit(d, user.id, 'map.export', 'MapRevision', revision.id, `JSON archive exported for ${revision.rev}.`));
+              download(`${map.name}-${revision.rev}.json`, JSON.stringify({ banner: 'SIMULATED DEMONSTRATION DATA — NOT A VALID TUNE', map: map.name, revision }, null, 2), 'application/json');
+            }}>JSON archive</button>
+          </div>
+          <p className="hint">
+            No proprietary Vortex file formats are produced — that requires verified documentation and
+            authorization (Phase 4). No 3D surface view yet: it ships only if it beats the table for
+            real tasks, never as decoration.
+          </p>
+        </Drawer>
+      )}
     </div>
   );
 }

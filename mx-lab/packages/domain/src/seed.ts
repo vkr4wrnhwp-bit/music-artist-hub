@@ -145,7 +145,8 @@ export function createSeededDb(): Db {
 
   const db: Db = {
     schemaVersion: SCHEMA_VERSION,
-    org: { id: orgId, name: 'MX LAB Demo Team (fictional)' },
+    org: { id: orgId, name: 'TRACE Demo Team (fictional)' },
+    focus: { bikeId: 'bike-250', text: 'Improve drive from Corner 6 without reducing midrange.', setByUserId: 'u-chief' },
     users,
     riders: [
       { id: 'rider-1', orgId, name: 'Blake Harmon', userId: 'u-rider1', weightKg: 72, skillCategory: 'Pro', preferredDelivery: 'Linear bottom, strong mid' },

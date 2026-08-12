@@ -15,24 +15,25 @@ export function Engineer({ initialId }: { initialId?: string }) {
   return (
     <div>
       <div className="page-title">
-        <h1>AI Race Engineer</h1>
-        <span className="sub">structured analysis — recommends, never controls</span>
+        <h1>TRACE Insights</h1>
+        <span className="sub">contextual race engineering — recommends, never controls</span>
       </div>
       <Help id="engineer">
         Every card follows the same pipeline: data-quality check → telemetry correlation → cause ranking
         → non-map checks → proposed controlled test → <b>tuner review</b>. The AI cannot approve a map,
         cannot flash anything, and its confidence is capped whenever data quality is degraded.
       </Help>
-      <div className="cols" style={{ gridTemplateColumns: '320px 1fr' }}>
-        <Panel title="Recommendations">
+      <div className="cols narrow-left">
+        <Panel title="Insights">
           {recs.map((r) => {
             const session = db.sessions.find((s) => s.id === r.sessionId);
             return (
               <div key={r.id}
                 onClick={() => setOpenId(r.id)}
                 style={{
-                  padding: '8px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
-                  border: `1px solid ${openId === r.id ? 'var(--accent)' : 'var(--hairline)'}`,
+                  padding: '10px 12px', borderRadius: 10, cursor: 'pointer', marginBottom: 8,
+                  background: 'var(--raised)',
+                  boxShadow: openId === r.id ? 'inset 0 0 0 1.5px var(--accent)' : 'none',
                 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'baseline' }}>
                   <b style={{ fontSize: 13 }}>{r.observedEvent.slice(0, 44)}…</b>
@@ -45,7 +46,7 @@ export function Engineer({ initialId }: { initialId?: string }) {
               </div>
             );
           })}
-          {recs.length === 0 && <p className="hint">No recommendations yet. Create one from a reviewed event marker in a session.</p>}
+          {recs.length === 0 && <p className="hint">No insights yet. Review an event marker in a session and ask TRACE to analyze it.</p>}
         </Panel>
         <div>
           {openId && <RecDetail recId={openId} />}
@@ -82,7 +83,7 @@ function RecDetail({ recId }: { recId: string }) {
 
   return (
     <Panel
-      title={`Recommendation — ${rec.id}`}
+      title={`TRACE found something — ${rec.id}`}
       actions={<span className="btn-row"><Prov p="AI INFERENCE" /><StatusPill status={rec.status} /></span>}
     >
       <Sect label="Rider statement">“{rec.riderStatement}” <Prov p="RIDER REPORTED" /></Sect>
@@ -147,14 +148,22 @@ function RecDetail({ recId }: { recId: string }) {
               decideRecommendation(d, user, r, 'ACCEPTED_FOR_TEST', note);
             });
           }}>Accept for test</button>
-          <button className="btn danger" onClick={() => {
-            const note = prompt('Rejection note (required):');
+          <button className="btn ghost" onClick={() => {
+            const note = prompt('Why is this not a map issue? (recorded in the audit log)');
+            if (!note) return;
+            update((d) => {
+              const r = d.recommendations.find((x) => x.id === recId)!;
+              decideRecommendation(d, user, r, 'REJECTED', `Not a map issue: ${note}`);
+            });
+          }}>Not a map issue</button>
+          <button className="btn ghost" onClick={() => {
+            const note = prompt('Dismiss note (required):');
             if (!note) return;
             update((d) => {
               const r = d.recommendations.find((x) => x.id === recId)!;
               decideRecommendation(d, user, r, 'REJECTED', note);
             });
-          }}>Reject</button>
+          }}>Dismiss</button>
         </div>
       )}
       {(rec.status === 'AWAITING_TUNER_REVIEW' || rec.status === 'ACCEPTED_FOR_TEST') && (
@@ -179,7 +188,7 @@ function RecDetail({ recId }: { recId: string }) {
                 appendAudit(d, user.id, 'map.create_draft', 'MapRevision', child.id, `${child.rev} drafted from ${src.rev} for ${rec.id}.`);
                 nav(`maps/${child.id}`);
               });
-            }}>Create draft revision →</button>
+            }}>Create Test Revision →</button>
           )}
         </div>
       )}

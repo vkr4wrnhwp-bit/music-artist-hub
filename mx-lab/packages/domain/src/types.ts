@@ -686,9 +686,18 @@ export interface FutureFlashJob {
 
 // ---------------------------------------------------------------- database shape
 
+/** TRACE Focus — the single explicit objective the team is testing right now. */
+export interface TraceFocus {
+  bikeId: string;
+  text: string;
+  setByUserId: string;
+}
+
 export interface Db {
   schemaVersion: number;
   org: Organization;
+  /** optional: absent in archives created before TRACE Focus shipped */
+  focus?: TraceFocus;
   users: User[];
   riders: Rider[];
   riderPrefs: RiderPreferenceProfile[];
