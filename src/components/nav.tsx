@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { DatumMark, Wordmark } from "./brand";
+import { useResizableWidth, RESIZE_HANDLE_CLASS } from "@/lib/use-resizable";
 
 /**
  * THE CANVAS SHELL
@@ -493,6 +494,8 @@ function Drawer({
   user: ShellUser;
 }) {
   const partId = partIdOf(pathname);
+  // Resizable drawer — hook precedes the collapsed early-return (hooks law).
+  const drawerResize = useResizableWidth({ storageKey: "canvas.drawerWidth", defaultWidth: 210, min: 180, max: 340, edge: "end" });
   const { info } = useContext(PartShellContext);
   // Only trust the published info while it belongs to the part in the URL —
   // during a navigation between two parts the previous page's values are still
@@ -549,7 +552,20 @@ function Drawer({
   }
 
   return (
-    <div className="flex h-full w-[210px] shrink-0 flex-col border-r border-line bg-shell-2">
+    <div
+      className="relative flex h-full w-[var(--drawer-w)] shrink-0 flex-col border-r border-line bg-shell-2"
+      style={{ ["--drawer-w" as string]: `${drawerResize.width}px` }}
+    >
+      {/* Resize handle on the drawer's canvas edge. Double-click resets. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the context drawer"
+        title="Drag to resize · double-click to reset"
+        onPointerDown={drawerResize.onPointerDown}
+        onDoubleClick={drawerResize.reset}
+        className={`${RESIZE_HANDLE_CLASS} right-[-3px] ${drawerResize.dragging ? "bg-precision/60" : ""}`}
+      />
       <div className="flex h-[64px] shrink-0 items-stretch border-b border-line">
         <Link
           href="/"

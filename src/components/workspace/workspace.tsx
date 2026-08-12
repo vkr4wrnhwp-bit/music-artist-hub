@@ -31,6 +31,7 @@ import {
 import { StockRemovalSimulator, type SimOperation } from "@/lib/sim/stock-removal";
 import type { SimHandle } from "@/components/viewport/sim-view";
 import type { DatumInfo, FeatureDetail, NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
+import { useResizableWidth, RESIZE_HANDLE_CLASS } from "@/lib/use-resizable";
 
 /**
  * THE PART WORKSPACE — THREE ZONES
@@ -354,6 +355,8 @@ function WorkspaceInner(props: WorkspaceProps) {
 
   // Feature panel dock state — layout preference, persisted per browser.
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  // Resizable feature panel — drag the left edge, double-click resets.
+  const panelResize = useResizableWidth({ storageKey: "canvas.panelWidth", defaultWidth: 356, min: 280, max: 560, edge: "start" });
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("canvas.panelCollapsed");
@@ -849,11 +852,21 @@ function WorkspaceInner(props: WorkspaceProps) {
           </button>
         )}
         <aside
-          className={`${mobilePane === "panel" ? "flex" : "hidden"} min-h-0 flex-1 flex-col bg-panel ${
+          className={`${mobilePane === "panel" ? "flex" : "hidden"} relative min-h-0 flex-1 flex-col bg-panel ${
             panelCollapsed ? "lg:hidden" : "lg:flex"
-          } lg:w-[356px] lg:flex-none`}
-          style={{ borderLeft: "1px solid var(--canvas-border-strong)" }}
+          } lg:w-[var(--panel-w)] lg:flex-none`}
+          style={{ borderLeft: "1px solid var(--canvas-border-strong)", ["--panel-w" as string]: `${panelResize.width}px` }}
         >
+          {/* Resize handle on the panel's canvas edge. Double-click resets. */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the feature panel"
+            title="Drag to resize · double-click to reset"
+            onPointerDown={panelResize.onPointerDown}
+            onDoubleClick={panelResize.reset}
+            className={`${RESIZE_HANDLE_CLASS} left-[-3px] ${panelResize.dragging ? "bg-precision/60" : ""}`}
+          />
           <div className="flex shrink-0 items-stretch gap-px border-b border-line bg-line">
             <button
               type="button"

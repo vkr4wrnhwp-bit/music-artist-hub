@@ -874,3 +874,13 @@ from DEVELOPMENT_FLOWS — it exists now. 3 new tests; 150 total.
 Browser-verified: first-run profile picker, truthful "Flow complete"
 on the finished Demo Shaft, and mid-flow "Pick the lathe" on the RE
 part that has geometry but no machine.
+
+## Resizable workspace panels
+
+use-resizable.ts hook (rAF-throttled pointer drag, localStorage
+persistence, double-click reset, clamped ranges) applied to the
+context drawer (180–340px) and the feature panel (280–560px) via
+canvas-edge handles that light precision blue while dragging. CSS
+variable widths keep the mobile layout untouched. Browser-verified
+with measured widths: panel 356→478 by drag, 478 after reload, 356
+after double-click reset; drawer 210→298.

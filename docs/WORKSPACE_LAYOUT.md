@@ -36,3 +36,13 @@ Esc clear selection. Never while typing in an input.
 localStorage per browser: context drawer, feature panel, timeline,
 view-control stack. View environment and saved presets persist
 per user on the server (ViewPreference). Focus is transient by design.
+
+
+## Resizable panels (added)
+
+The context drawer (180-340px, default 210) and the feature panel
+(280-560px, default 356) resize by dragging their canvas-edge handle;
+double-click resets. Widths persist per user in localStorage
+(canvas.drawerWidth / canvas.panelWidth), rAF-throttled during drag,
+clamped so neither panel can vanish or eat the work window. Mobile
+layout untouched (handles are lg-only; widths ride a CSS variable).
