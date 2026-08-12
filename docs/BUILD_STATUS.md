@@ -884,3 +884,12 @@ canvas-edge handles that light precision blue while dragging. CSS
 variable widths keep the mobile layout untouched. Browser-verified
 with measured widths: panel 356→478 by drag, 478 after reload, 356
 after double-click reset; drawer 210→298.
+
+## Coach mark auto-reveal
+
+A coach mark whose target is absent after ~500ms broadcasts
+canvas:reveal-guide-target; the context drawer expands, the workspace
+leaves focus mode and expands the feature panel (timeline restored).
+Browser-verified: focus mode collapses both surfaces, the reveal event
+and a real ?guide= miss both expand them. Remaining partial (recorded):
+targets behind inactive panel tabs reveal to panel level only.

@@ -420,6 +420,19 @@ function WorkspaceInner(props: WorkspaceProps) {
     });
   };
 
+  // A coach mark could not find its target: leave focus mode and expand the
+  // feature panel so the control it teaches is actually on screen.
+  useEffect(() => {
+    const onReveal = () => {
+      setFocus(false);
+      setPanelCollapsed(false);
+      window.dispatchEvent(new CustomEvent("canvas:focus", { detail: false }));
+      window.dispatchEvent(new CustomEvent("canvas:timeline-minimize", { detail: false }));
+    };
+    window.addEventListener("canvas:reveal-guide-target", onReveal);
+    return () => window.removeEventListener("canvas:reveal-guide-target", onReveal);
+  }, []);
+
   // Workspace shortcuts. Never while typing — a machinist entering "5" into
   // a dimension field is not asking for the cost view.
   useEffect(() => {

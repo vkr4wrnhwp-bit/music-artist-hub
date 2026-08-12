@@ -35,10 +35,23 @@ export function CoachMark() {
       setRect({ x: r.left - 6, y: r.top - 6, w: r.width + 12, h: r.height + 12 });
     };
     // The page may still be laying out (or the target may be inside a
-    // collapsed section) — retry briefly, then track scroll/resize.
+    // collapsed section) — retry briefly, then track scroll/resize. If the
+    // target is still absent after the layout settles, ask whatever is
+    // hiding it to open up: collapse owners (context drawer, feature panel,
+    // focus mode) listen for this and expand. Revealing UI is the whole
+    // point of a coach mark — a highlight on a hidden control teaches nothing.
     const start = Date.now();
+    let revealAsked = false;
     const tick = () => {
       find();
+      if (
+        !revealAsked &&
+        Date.now() - start > 500 &&
+        !document.querySelector(`[data-guide-target="${CSS.escape(target)}"]`)
+      ) {
+        revealAsked = true;
+        window.dispatchEvent(new CustomEvent("canvas:reveal-guide-target", { detail: target }));
+      }
       if (Date.now() - start < 4000) raf = requestAnimationFrame(tick);
     };
     tick();

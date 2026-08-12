@@ -522,7 +522,14 @@ function Drawer({
       setCollapsed(on);
     };
     window.addEventListener("canvas:focus", onFocusMode);
-    return () => window.removeEventListener("canvas:focus", onFocusMode);
+    // A coach mark could not find its target — if it is hiding in here,
+    // open up. Expanding a drawer is non-destructive; hiding a lesson is not.
+    const onReveal = () => setCollapsed(false);
+    window.addEventListener("canvas:reveal-guide-target", onReveal);
+    return () => {
+      window.removeEventListener("canvas:focus", onFocusMode);
+      window.removeEventListener("canvas:reveal-guide-target", onReveal);
+    };
   }, []);
   const toggleDrawer = () => {
     setCollapsed((c) => {

@@ -10,8 +10,13 @@ Action integration (ASSIST renders the real queue head; TEACH surfaces
 gates as blockers), Training Shop with server-side export refusal,
 8 engine safety tests.
 
-Partial: coach marks target visible controls; a target inside a
-collapsed panel is not auto-expanded yet. Geometry targeting uses
+Coach marks auto-reveal: when a mark's target is missing after layout
+settles (~500ms), it broadcasts canvas:reveal-guide-target once; the
+collapse owners — context drawer, feature panel, focus mode — listen
+and expand. A highlight on a hidden control teaches nothing, and
+revealing UI is non-destructive. Remaining partial: a target behind an
+inactive tab inside the panel is revealed to the panel level only —
+tab switching on reveal is not wired. Geometry targeting uses
 routes + the existing selection system rather than per-face 3D
 highlighting. ASSIST recommendations are the real nextActions() queue,
 not yet per-parameter structured proposals.
