@@ -47,12 +47,15 @@ function speedProfile(track: Track, frac: number): number {
 const cache = new Map<string, SimData>();
 
 export function simulateSession(db: Db, session: Session): SimData {
-  const hit = cache.get(session.id);
+  const markers = db.markers.filter((m) => m.sessionId === session.id);
+  // the marker set is part of the cache key: a marker exists because something
+  // happened on track, so the regenerated trace must contain its anomaly
+  const cacheKey = `${session.id}|${markers.map((m) => `${m.id}@${m.trackFrac}`).join(',')}`;
+  const hit = cache.get(cacheKey);
   if (hit) return hit;
 
   const track = db.tracks.find((t) => t.id === session.trackId)!;
   const rnd = mulberry32(session.simSeed);
-  const markers = db.markers.filter((m) => m.sessionId === session.id);
   const build = db.engineBuilds.find((b) => b.id === session.setupSnapshot.engineBuildId);
   const revLimit = build?.revLimit ?? 13500;
   const is450 = db.bikeModels.find(
@@ -153,7 +156,7 @@ export function simulateSession(db: Db, session: Session): SimData {
   }
 
   const data: SimData = { hz: SIM_HZ, t, channels: ch, laps };
-  cache.set(session.id, data);
+  cache.set(cacheKey, data);
   return data;
 }
 
