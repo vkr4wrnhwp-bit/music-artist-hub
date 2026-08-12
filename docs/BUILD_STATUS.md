@@ -735,3 +735,21 @@ coexisting with NOT READY, coach-mark deep link, training NC refusal.
 8 new engine tests. 103 tests. Honest gaps in docs/GUIDED_WORKFLOW.md:
 no sketching flow (no sketching exists), no turning flows, no analytics
 yet, coach marks do not auto-expand collapsed panels.
+
+## 2026-08-12 — TURNING: TURN_2_AXIS lands as a first-class process
+
+Multi-process spine (PROCESS_SUPPORT map as the single truth), four new
+tables (LatheMachine, LatheWorkholding, TurningTool, RotationalPart —
+paired migrations), rotational X/Z domain with validation, seven
+deterministic turning toolpath engines (thread feed = pitch never
+retimed; groove/thread/part-off refusals), CSS with G50 clamping, four
+hold analyses that refuse to invent inputs (the demo chuck ships with
+clamp force deliberately unrecorded → UNKNOWN until a human records
+it, audited), worst-gate turning readiness, a development lathe post
+that refuses unclamped G96, the 40mm nominal-reasoning demo with
+ACCEPT/KEEP/INVESTIGATE (accept = USER-CONFIRMED + audit), and the
+/lathe workspace with a real PROFILE X/Z view. CANVAS Demo Shaft
+seeded. 13 new engine tests; 116 total. One real bug found by browser
+verification: zero-length SHOULDER segments failed validation — fixed
+and pinned. Everything absent is labelled DEVELOPMENT or NOT BUILT in
+docs/TURNING_MASTER_SUMMARY.md, never mocked.

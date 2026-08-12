@@ -1354,3 +1354,164 @@ model GuideState {
 
   @@index([organizationId])
 }
+
+
+/* ================================================================== */
+/* Turning — TURN_2_AXIS                                              */
+/* ================================================================== */
+
+// Lathe machines are not mill rows with different numbers — swing, bar
+// capacity, turret stations and live-tooling capability have no mill
+// analogue. Capability flags for live tooling exist as architecture; the
+// process-support map (src/lib/manufacturing/process.ts) says what is real.
+model LatheMachine {
+  id             String @id @default(cuid())
+  organizationId String
+  manufacturer   String
+  model          String
+  controller     String
+  machineType    String @default("LATHE_2AXIS")
+  axisCount      Int    @default(2)
+
+  hasCaxis       Boolean @default(false)
+  hasYaxis       Boolean @default(false)
+  hasLiveTooling Boolean @default(false)
+  hasSubSpindle  Boolean @default(false)
+  hasTailstock   Boolean @default(true)
+  hasBarFeeder   Boolean @default(false)
+  hasPartsCatcher Boolean @default(false)
+
+  maxSwing           Float
+  maxTurningDiameter Float
+  maxTurningLength   Float
+  spindleBore        Float
+  barCapacity        Float?
+  chuckSize          Float?
+
+  maxRPM           Int
+  maxSpindlePower  Float
+  maxSpindleTorque Float?
+
+  xTravel Float
+  zTravel Float
+
+  turretStations Int
+
+  coolantTypes       String  @default("[]")
+  throughToolCoolant Boolean @default(false)
+  probe              Boolean @default(false)
+  toolSetter         Boolean @default(false)
+
+  supportedPostProcessor String  @default("lathe-fanuc-dev")
+  isReferenceProfile     Boolean @default(false)
+  notes                  String?
+  createdAt              DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model LatheWorkholding {
+  id             String @id @default(cuid())
+  organizationId String
+  // THREE_JAW_CHUCK | FOUR_JAW_CHUCK | COLLET | SOFT_JAWS | PIE_JAWS |
+  // EXPANDING_MANDREL | BETWEEN_CENTERS | LIVE_CENTER | DEAD_CENTER | CUSTOM_FIXTURE
+  type         String
+  manufacturer String?
+  model        String?
+  description  String
+
+  chuckDiameter Float?
+  maxRPM        Int?
+  // Actual rated clamp force where the record exists — never invented.
+  maxClampForceLbf Float?
+
+  jawType     String?
+  jawStroke   Float?
+  jawMaterial String?
+  serrated    Boolean?
+
+  minGripLength Float?
+  maxGripLength Float?
+
+  boreThroughDiameter Float?
+
+  colletType  String?
+  colletRange String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model TurningTool {
+  id             String @id @default(cuid())
+  organizationId String
+  // "0101" — turret station + offset, the way a lathe calls it.
+  station     String
+  toolClass   String
+  description String
+
+  insertShape String?
+  insertGrade String?
+  noseRadius  Float?
+  leadAngle   Float?
+  handedness  String? // LH | RH | NEUTRAL
+
+  barDiameter     Float?
+  minBoreDiameter Float?
+  maxDepthOfCut   Float?
+  grooveWidth     Float?
+
+  stickout      Float?
+  overallLength Float?
+
+  coolantThrough Boolean @default(false)
+
+  surfaceSpeedMin Float?
+  surfaceSpeedMax Float?
+  feedPerRevMin   Float?
+  feedPerRevMax   Float?
+
+  manufacturer String?
+  productCode  String?
+  condition    String  @default("UNKNOWN")
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, station])
+  @@index([organizationId])
+}
+
+// The rotational X/Z model for a part revision: profile segments, the
+// operation plan, and the setup state the analyses read. JSON-shaped where
+// the domain layer owns the vocabulary (same pattern as intentJson).
+model RotationalPart {
+  id             String @id @default(cuid())
+  partRevisionId String @unique
+  organizationId String
+
+  // RotationalProfile from src/lib/manufacturing/turn/geometry.ts
+  profileJson String
+  // TurnOperation[] from src/lib/manufacturing/turn/operations.ts
+  planJson    String @default("[]")
+
+  latheMachineId String?
+  workholdingId  String?
+
+  gripLength      Float?
+  stickout        Float?
+  clampForceLbf   Float?
+  tailstockActive Boolean @default(false)
+  maxRpmClamp     Int?
+
+  humanApproved Boolean @default(false)
+  approvedById  String?
+  approvedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}

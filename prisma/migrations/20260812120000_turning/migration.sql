@@ -1,0 +1,115 @@
+-- CreateTable
+CREATE TABLE "LatheMachine" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "manufacturer" TEXT NOT NULL,
+    "model" TEXT NOT NULL,
+    "controller" TEXT NOT NULL,
+    "machineType" TEXT NOT NULL DEFAULT 'LATHE_2AXIS',
+    "axisCount" INTEGER NOT NULL DEFAULT 2,
+    "hasCaxis" BOOLEAN NOT NULL DEFAULT false,
+    "hasYaxis" BOOLEAN NOT NULL DEFAULT false,
+    "hasLiveTooling" BOOLEAN NOT NULL DEFAULT false,
+    "hasSubSpindle" BOOLEAN NOT NULL DEFAULT false,
+    "hasTailstock" BOOLEAN NOT NULL DEFAULT true,
+    "hasBarFeeder" BOOLEAN NOT NULL DEFAULT false,
+    "hasPartsCatcher" BOOLEAN NOT NULL DEFAULT false,
+    "maxSwing" REAL NOT NULL,
+    "maxTurningDiameter" REAL NOT NULL,
+    "maxTurningLength" REAL NOT NULL,
+    "spindleBore" REAL NOT NULL,
+    "barCapacity" REAL,
+    "chuckSize" REAL,
+    "maxRPM" INTEGER NOT NULL,
+    "maxSpindlePower" REAL NOT NULL,
+    "maxSpindleTorque" REAL,
+    "xTravel" REAL NOT NULL,
+    "zTravel" REAL NOT NULL,
+    "turretStations" INTEGER NOT NULL,
+    "coolantTypes" TEXT NOT NULL DEFAULT '[]',
+    "throughToolCoolant" BOOLEAN NOT NULL DEFAULT false,
+    "probe" BOOLEAN NOT NULL DEFAULT false,
+    "toolSetter" BOOLEAN NOT NULL DEFAULT false,
+    "supportedPostProcessor" TEXT NOT NULL DEFAULT 'lathe-fanuc-dev',
+    "isReferenceProfile" BOOLEAN NOT NULL DEFAULT false,
+    "notes" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX "LatheMachine_organizationId_idx" ON "LatheMachine"("organizationId");
+
+CREATE TABLE "LatheWorkholding" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "manufacturer" TEXT,
+    "model" TEXT,
+    "description" TEXT NOT NULL,
+    "chuckDiameter" REAL,
+    "maxRPM" INTEGER,
+    "maxClampForceLbf" REAL,
+    "jawType" TEXT,
+    "jawStroke" REAL,
+    "jawMaterial" TEXT,
+    "serrated" BOOLEAN,
+    "minGripLength" REAL,
+    "maxGripLength" REAL,
+    "boreThroughDiameter" REAL,
+    "colletType" TEXT,
+    "colletRange" TEXT,
+    "notes" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX "LatheWorkholding_organizationId_idx" ON "LatheWorkholding"("organizationId");
+
+CREATE TABLE "TurningTool" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "station" TEXT NOT NULL,
+    "toolClass" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "insertShape" TEXT,
+    "insertGrade" TEXT,
+    "noseRadius" REAL,
+    "leadAngle" REAL,
+    "handedness" TEXT,
+    "barDiameter" REAL,
+    "minBoreDiameter" REAL,
+    "maxDepthOfCut" REAL,
+    "grooveWidth" REAL,
+    "stickout" REAL,
+    "overallLength" REAL,
+    "coolantThrough" BOOLEAN NOT NULL DEFAULT false,
+    "surfaceSpeedMin" REAL,
+    "surfaceSpeedMax" REAL,
+    "feedPerRevMin" REAL,
+    "feedPerRevMax" REAL,
+    "manufacturer" TEXT,
+    "productCode" TEXT,
+    "condition" TEXT NOT NULL DEFAULT 'UNKNOWN',
+    "notes" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX "TurningTool_organizationId_station_key" ON "TurningTool"("organizationId", "station");
+CREATE INDEX "TurningTool_organizationId_idx" ON "TurningTool"("organizationId");
+
+CREATE TABLE "RotationalPart" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "partRevisionId" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "profileJson" TEXT NOT NULL,
+    "planJson" TEXT NOT NULL DEFAULT '[]',
+    "latheMachineId" TEXT,
+    "workholdingId" TEXT,
+    "gripLength" REAL,
+    "stickout" REAL,
+    "clampForceLbf" REAL,
+    "tailstockActive" BOOLEAN NOT NULL DEFAULT false,
+    "maxRpmClamp" INTEGER,
+    "humanApproved" BOOLEAN NOT NULL DEFAULT false,
+    "approvedById" TEXT,
+    "approvedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+CREATE UNIQUE INDEX "RotationalPart_partRevisionId_key" ON "RotationalPart"("partRevisionId");
+CREATE INDEX "RotationalPart_organizationId_idx" ON "RotationalPart"("organizationId");

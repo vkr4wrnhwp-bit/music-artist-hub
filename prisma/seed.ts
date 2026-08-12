@@ -745,6 +745,150 @@ async function main() {
     });
   }
 
+  /* ================================================================ */
+  /* TURNING — demo lathe shop + CANVAS Demo Shaft                    */
+  /* ================================================================ */
+  const lathe = await db.latheMachine.create({
+    data: {
+      organizationId: org.id,
+      manufacturer: "Generic",
+      model: "2-Axis CNC Lathe (reference profile)",
+      controller: "FANUC_STYLE",
+      maxSwing: 16,
+      maxTurningDiameter: 10,
+      maxTurningLength: 20,
+      spindleBore: 2.3,
+      barCapacity: 2.0,
+      chuckSize: 8,
+      maxRPM: 4000,
+      maxSpindlePower: 20,
+      maxSpindleTorque: 120,
+      xTravel: 8,
+      zTravel: 22,
+      turretStations: 12,
+      hasTailstock: true,
+      hasPartsCatcher: false,
+      coolantTypes: json(["FLOOD"]),
+      isReferenceProfile: true,
+      notes: "Reference specifications for development. Confirm against your machine before running anything.",
+    },
+  });
+
+  const chuck = await db.latheWorkholding.create({
+    data: {
+      organizationId: org.id,
+      type: "THREE_JAW_CHUCK",
+      description: '8" 3-jaw hydraulic chuck',
+      chuckDiameter: 8,
+      maxRPM: 4200,
+      maxClampForceLbf: null, // deliberately unrecorded: the grip analysis must say so
+      jawType: "TWO_PIECE",
+      jawMaterial: "HARD",
+      serrated: true,
+      minGripLength: 0.25,
+      maxGripLength: 1.5,
+      boreThroughDiameter: 2.06,
+      notes: "Clamp force not recorded — measure the hydraulic setting; the grip gate stays honest until then.",
+    },
+  });
+  await db.latheWorkholding.create({
+    data: {
+      organizationId: org.id, type: "SOFT_JAWS", description: "Aluminum soft jaw set (blanks)",
+      jawMaterial: "SOFT_MACHINED", serrated: false, notes: "Bore to the grip diameter per setup.",
+    },
+  });
+  await db.latheWorkholding.create({
+    data: {
+      organizationId: org.id, type: "COLLET", description: "5C-style collet system", colletType: "5C",
+      colletRange: '1/16" – 1-1/16"', maxRPM: 5000, boreThroughDiameter: 1.06,
+    },
+  });
+
+  const turningTools = [
+    { station: "0101", toolClass: "OD_ROUGHING", description: "OD rough — CNMG 432", insertShape: "C", insertGrade: "P25", noseRadius: 0.031, handedness: "RH", surfaceSpeedMin: 400, surfaceSpeedMax: 900, feedPerRevMin: 0.008, feedPerRevMax: 0.02, maxDepthOfCut: 0.15 },
+    { station: "0202", toolClass: "OD_FINISHING", description: "OD finish — VNMG 331", insertShape: "V", insertGrade: "P10", noseRadius: 0.015, handedness: "RH", surfaceSpeedMin: 500, surfaceSpeedMax: 1100, feedPerRevMin: 0.003, feedPerRevMax: 0.008 },
+    { station: "0303", toolClass: "FACING", description: "Face tool — CNMG 432", insertShape: "C", noseRadius: 0.031, handedness: "RH", surfaceSpeedMin: 400, surfaceSpeedMax: 900, feedPerRevMin: 0.006, feedPerRevMax: 0.015 },
+    { station: "0404", toolClass: "BORING_BAR", description: '5/8" steel boring bar — CCMT', barDiameter: 0.625, minBoreDiameter: 0.8, stickout: 3.0, surfaceSpeedMin: 350, surfaceSpeedMax: 800, feedPerRevMin: 0.004, feedPerRevMax: 0.01 },
+    { station: "0505", toolClass: "GROOVING", description: '0.118" grooving insert', grooveWidth: 0.118, maxDepthOfCut: 0.25, surfaceSpeedMin: 300, surfaceSpeedMax: 600, feedPerRevMin: 0.002, feedPerRevMax: 0.005 },
+    { station: "0606", toolClass: "THREADING", description: "60° external threading insert", surfaceSpeedMin: 200, surfaceSpeedMax: 400 },
+    { station: "0707", toolClass: "PARTING", description: '0.125" cutoff blade', grooveWidth: 0.125, surfaceSpeedMin: 250, surfaceSpeedMax: 500, feedPerRevMin: 0.002, feedPerRevMax: 0.004 },
+    { station: "0808", toolClass: "CENTER_DRILL", description: "#3 center drill", feedPerRevMin: 0.002, feedPerRevMax: 0.005 },
+    { station: "0909", toolClass: "DRILL", description: '3/4" indexable drill', barDiameter: 0.75, feedPerRevMin: 0.004, feedPerRevMax: 0.01 },
+  ];
+  for (const t of turningTools) await db.turningTool.create({ data: { organizationId: org.id, ...t } });
+
+  const shaftPart = await db.part.create({
+    data: {
+      organizationId: org.id,
+      name: "CANVAS Demo Shaft",
+      partNumber: "CNV-T001",
+      description: "Turned demonstration shaft: bearing journal (metric nominal reasoning demo), shoulder, snap-ring groove, external thread, center drill, cutoff.",
+      sharing: "PRIVATE",
+      isDemo: true,
+    },
+  });
+  const shaftIntent = {
+    partName: p2("CANVAS Demo Shaft"), description: p2("Turned demo shaft"), units: p2("IN"),
+    material: p2("Steel 4140"), materialCondition: nullField("Condition not stated"),
+    stock: p2({ form: "ROUND", diameter: 2.0, length: 6.0 }),
+    finishedEnvelope: p("{}", "CALCULATED", "LOW", false), quantity: p2(5),
+    features: p2(["Front face", "Bearing journal", "Shoulder", "Snap-ring groove", "3/4-16 thread", "Center drill", "Cutoff"]),
+    criticalDimensions: p2([]), generalTolerance: p2(0.005), criticalTolerances: p2([]),
+    surfaceFinish: nullField(), application: p2("Demonstration shaft for the turning workspace"),
+    loadBearing: nullField("Not yet answered"), safetyCritical: nullField("Not yet answered"),
+    failureConsequence: nullField(), loadingType: nullField(), environment: nullField(),
+    temperatureRange: nullField(), regulatoryRequirements: nullField(),
+    inspectionRequirements: p2([]), productionIntent: p2("PROTOTYPE"), annualVolume: nullField(),
+    notes: p2("Journal measures 1.5744 in — the nominal-reasoning demo suggests 40 mm and never applies it silently."),
+    unknowns: [], confidence: 0.7,
+  };
+  const shaftRev = await db.partRevision.create({
+    data: { partId: shaftPart.id, revision: "A", status: "DRAFT", units: "IN", intentJson: json(shaftIntent), stockJson: null },
+  });
+  await db.partResponsibilityProfile.create({ data: { partRevisionId: shaftRev.id, productionIntent: "PROTOTYPE" } });
+
+  const shaftProfile = {
+    units: "IN",
+    zZeroReference: "Front face after facing",
+    stockDiameter: 2.0,
+    stockLength: 6.0,
+    barStock: true,
+    segments: [
+      { id: "s1", kind: "FACE", label: "Front face", zStart: 0, zEnd: 0.001, diameterStart: 2.0, diameterEnd: 0, internal: false, functionalRole: "DATUM_FACE", critical: false, source: "USER", confirmedByUser: true },
+      { id: "s2", kind: "CYLINDER", label: "Thread OD", zStart: 0, zEnd: 0.75, diameterStart: 0.75, diameterEnd: 0.75, internal: false, thread: "3/4-16 UNF-2A", functionalRole: "THREAD_EXTERNAL", critical: false, source: "MEASURED", confirmedByUser: false },
+      { id: "s2t", kind: "THREAD", label: "3/4-16 UNF thread", zStart: 0, zEnd: 0.65, diameterStart: 0.75, diameterEnd: 0.75, internal: false, thread: "3/4-16 UNF-2A", functionalRole: "THREAD_EXTERNAL", critical: false, source: "MEASURED", confirmedByUser: false },
+      { id: "s3", kind: "CYLINDER", label: "Bearing journal", zStart: 0.75, zEnd: 1.95, diameterStart: 1.5744, diameterEnd: 1.5744, internal: false, tolerancePlus: 0.0, toleranceMinus: 0.0005, surfaceFinish: 32, functionalRole: "BEARING_JOURNAL", critical: true, matingComponent: "6208-series bearing inner race", source: "MEASURED", confirmedByUser: false },
+      { id: "s4", kind: "GROOVE", label: "Snap-ring groove", zStart: 1.95, zEnd: 2.068, diameterStart: 1.5744, diameterEnd: 1.472, internal: false, functionalRole: "SNAP_RING_GROOVE", critical: false, source: "MEASURED", confirmedByUser: false },
+      { id: "s5", kind: "CYLINDER", label: "Body OD", zStart: 2.068, zEnd: 4.6, diameterStart: 1.85, diameterEnd: 1.85, internal: false, functionalRole: "STRUCTURAL_SHAFT_SECTION", critical: false, source: "MEASURED", confirmedByUser: false },
+      { id: "s6", kind: "SHOULDER", label: "Locating shoulder", zStart: 2.068, zEnd: 2.068, diameterStart: 1.5744, diameterEnd: 1.85, internal: false, functionalRole: "LOCATING_SHOULDER", critical: true, source: "MEASURED", confirmedByUser: false },
+      { id: "s7", kind: "CUTOFF", label: "Cutoff", zStart: 4.6, zEnd: 4.6, diameterStart: 1.85, diameterEnd: 0, internal: false, functionalRole: "PART_OFF_FACE", critical: false, source: "CALCULATED", confirmedByUser: false },
+    ],
+  };
+  const shaftPlan = [
+    { operationNumber: 10, type: "FACE", label: "Face front", toolStation: "0303", targetSegmentId: "s1", startZ: 0.05, endZ: 0, startDiameter: 2.0, endDiameter: 0, params: { feedPerRev: 0.008, surfaceSpeed: 600, rpm: 3000, cssEnabled: true, doc: 0.05, finishAllowance: 0, springPasses: 0, coolant: "FLOOD" } },
+    { operationNumber: 20, type: "OD_ROUGH", label: "OD rough to Ø1.87 envelope", toolStation: "0101", targetSegmentId: "s5", startZ: 0, endZ: 4.6, startDiameter: 2.0, endDiameter: 1.87, params: { feedPerRev: 0.012, surfaceSpeed: 550, rpm: 3000, cssEnabled: true, doc: 0.08, finishAllowance: 0.01, springPasses: 0, coolant: "FLOOD" } },
+    { operationNumber: 30, type: "OD_FINISH", label: "Finish bearing journal", toolStation: "0202", targetSegmentId: "s3", startZ: 0.75, endZ: 1.95, startDiameter: 1.6, endDiameter: 1.5744, params: { feedPerRev: 0.004, surfaceSpeed: 700, rpm: 3200, cssEnabled: true, doc: 0.01, finishAllowance: 0, springPasses: 1, coolant: "FLOOD" } },
+    { operationNumber: 40, type: "GROOVE_OD", label: "Snap-ring groove", toolStation: "0505", targetSegmentId: "s4", startZ: 1.95, endZ: 2.068, startDiameter: 1.5744, endDiameter: 1.472, params: { feedPerRev: 0.003, surfaceSpeed: null, rpm: 900, cssEnabled: false, doc: 0.05, finishAllowance: 0, springPasses: 0, coolant: "FLOOD" } },
+    { operationNumber: 50, type: "CENTER_DRILL", label: "Center drill tail end", toolStation: "0808", targetSegmentId: null, startZ: 4.6, endZ: 4.35, startDiameter: 0, endDiameter: 0, params: { feedPerRev: 0.003, surfaceSpeed: null, rpm: 1500, cssEnabled: false, doc: 0.1, finishAllowance: 0, springPasses: 0, coolant: "FLOOD" } },
+    { operationNumber: 60, type: "THREAD_OD", label: "Thread 3/4-16 UNF", toolStation: "0606", targetSegmentId: "s2t", startZ: 0, endZ: 0.65, startDiameter: 0.75, endDiameter: 0.75, params: { feedPerRev: 0.0625, surfaceSpeed: null, rpm: 800, cssEnabled: false, doc: 0.012, finishAllowance: 0, springPasses: 0, coolant: "FLOOD" } },
+    { operationNumber: 70, type: "PART_OFF", label: "Part off at Z4.600", toolStation: "0707", targetSegmentId: "s7", startZ: 4.6, endZ: 4.6, startDiameter: 1.85, endDiameter: 0, params: { feedPerRev: 0.003, surfaceSpeed: null, rpm: 700, cssEnabled: false, doc: 0.05, finishAllowance: 0, springPasses: 0, coolant: "FLOOD" } },
+  ];
+  await db.rotationalPart.create({
+    data: {
+      partRevisionId: shaftRev.id,
+      organizationId: org.id,
+      profileJson: json(shaftProfile),
+      planJson: json(shaftPlan),
+      latheMachineId: lathe.id,
+      workholdingId: chuck.id,
+      gripLength: 1.0,
+      stickout: 4.7,
+      clampForceLbf: null,
+      tailstockActive: false,
+      maxRpmClamp: 3000,
+    },
+  });
+
   console.log(`Seeded organisation ${org.name}`);
   console.log("  Sign in: demo@canvas.local / canvas-demo");
   console.log(`  Part: ${part.name} (${part.partNumber}) Rev A — ${features.length} features, 2 setups`);
@@ -774,6 +918,9 @@ async function teardownOrganization(slug: string) {
 }
 
 /* Provenance helpers, mirrored from src/lib/provenance.ts. */
+function p2(value: unknown) {
+  return p(value, "USER", "VERIFIED", true);
+}
 function p(value: unknown, source: string, confidence: string, confirmedByUser: boolean) {
   return { value, source, confidence, confirmedByUser };
 }

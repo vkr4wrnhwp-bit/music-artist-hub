@@ -79,10 +79,11 @@ const SECTIONS: Section[] = [
     title: "Parts",
     href: "/parts",
     icon: "part",
-    match: ["/parts", "/reverse-engineer"],
+    match: ["/parts", "/lathe", "/reverse-engineer"],
     items: [
       { href: "/parts", label: "Part library" },
       { href: "/parts/new", label: "New part" },
+      { href: "/lathe", label: "Turning" },
       { href: "/reverse-engineer", label: "Reverse engineer" },
     ],
   },
