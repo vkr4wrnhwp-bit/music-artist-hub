@@ -76,6 +76,17 @@ export interface GuideContext {
   /** Head of the real nextActions() queue, when one exists. */
   nextAction: { action: string; href: string | null } | null;
   training: boolean;
+  /** Reverse-engineering session snapshot — present only on RE pages. */
+  re?: {
+    sessionId: string;
+    photosOnFile: number;
+    missingViews: number;
+    datumsEstablished: number;
+    datumsRequired: number;
+    measurementsComplete: number;
+    measurementsRequired: number;
+    inferredAwaitingReview: number;
+  };
 }
 
 export type StepStatus = "NOT_STARTED" | "ACTIVE" | "COMPLETED" | "SKIPPED" | "DEFERRED" | "BLOCKED";

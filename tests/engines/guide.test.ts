@@ -193,3 +193,54 @@ test("TURN_A_SHAFT deliver step does not apply to training parts", () => {
   const deliver = TURN_A_SHAFT.steps.find((x) => x.id === "deliver")!;
   assert.equal(deliver.applies?.(training), false);
 });
+
+/* ------------------------------------------------------------------ */
+/* REVERSE_A_PART flow                                                 */
+/* ------------------------------------------------------------------ */
+
+import { REVERSE_A_PART } from "@/lib/guide/flows";
+
+const reCtx = (re: Partial<NonNullable<GuideContext["re"]>> = {}, over: Partial<GuideContext> = {}): GuideContext =>
+  ctx({
+    ...over,
+    re: {
+      sessionId: "s1",
+      photosOnFile: 0,
+      missingViews: 6,
+      datumsEstablished: 0,
+      datumsRequired: 3,
+      measurementsComplete: 0,
+      measurementsRequired: 5,
+      inferredAwaitingReview: 0,
+      ...re,
+    },
+  });
+
+test("REVERSE_A_PART applies only on RE sessions and completes from plan state alone", () => {
+  const plain = ctx();
+  assert.ok(REVERSE_A_PART.steps.every((s) => s.applies?.(plain) === false));
+  const done = reCtx(
+    { missingViews: 0, datumsEstablished: 3, measurementsComplete: 5, inferredAwaitingReview: 0 },
+    { featureCount: 6 },
+  );
+  const s = startSession(REVERSE_A_PART, done, "2026-08-12T00:00:00Z");
+  const p = flowProgress(REVERSE_A_PART, s, done);
+  assert.equal(p.completed, p.total);
+});
+
+test("REVERSE_A_PART blocks measuring until the datum frame is established", () => {
+  const noDatums = reCtx({ missingViews: 0, datumsEstablished: 1 });
+  const measure = REVERSE_A_PART.steps.find((x) => x.id === "measure")!;
+  const b = measure.blockedBy?.(noDatums);
+  assert.ok(b);
+  assert.ok(b!.detail.includes("1 of 3"));
+  const withDatums = reCtx({ missingViews: 0, datumsEstablished: 3 });
+  assert.equal(measure.blockedBy?.(withDatums), null);
+});
+
+test("REVERSE_A_PART handoff waits for ruled nominals and real features", () => {
+  const handoff = REVERSE_A_PART.steps.find((x) => x.id === "handoff")!;
+  assert.equal(handoff.done(reCtx({ inferredAwaitingReview: 2 }, { featureCount: 6 })), false);
+  assert.equal(handoff.done(reCtx({ inferredAwaitingReview: 0 }, { featureCount: 0 })), false);
+  assert.equal(handoff.done(reCtx({ inferredAwaitingReview: 0 }, { featureCount: 6 })), true);
+});

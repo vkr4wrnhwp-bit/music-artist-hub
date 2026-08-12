@@ -238,14 +238,82 @@ export const TURN_A_SHAFT: GuideFlowDef = {
   ],
 };
 
+/**
+ * REVERSE_A_PART — the mill RE measurement session, guided. Steps complete
+ * from the reconstruction plan the session page already builds (photos on
+ * file, datums established, tasks measured, inferred nominals ruled on) —
+ * the guide reads ctx.re, keeps no copy of the truth, and satisfies
+ * nothing: a measurement exists when the instrument said so, not when a
+ * card advanced.
+ */
+export const REVERSE_A_PART: GuideFlowDef = {
+  id: "REVERSE_A_PART",
+  title: "Reverse engineer a part",
+  steps: [
+    {
+      id: "photos",
+      title: "Photograph all six views",
+      body: "Top, bottom, front, back, left, right — before anything is measured. The photo set is the record of what the part looked like when it arrived, wear and all.",
+      why: "A dimension without its context photo is a number arguing with memory. When a reading looks wrong next week, the photograph is what settles it.",
+      href: (ctx) => `/reverse-engineer/${ctx.re?.sessionId ?? ""}`,
+      done: (ctx) => (ctx.re ? ctx.re.missingViews === 0 : false),
+      applies: (ctx) => Boolean(ctx.re),
+    },
+    {
+      id: "datums",
+      title: "Establish the datum frame",
+      body: "CANVAS proposes A/B/C with reasons across design, manufacturing and inspection systems. Accepting a datum is a human act — you know which face actually seats in service; the feature list does not.",
+      why: "Every measurement after this is referenced to these. Re-measure a datum later and everything downstream needs re-checking — pick them first, deliberately.",
+      href: (ctx) => `/reverse-engineer/${ctx.re?.sessionId ?? ""}`,
+      done: (ctx) => (ctx.re ? ctx.re.datumsEstablished >= ctx.re.datumsRequired : false),
+      applies: (ctx) => Boolean(ctx.re),
+    },
+    {
+      id: "measure",
+      title: "Measure in the order that constrains fastest",
+      body: "The plan asks for dimensions datums-first, each naming the instrument to use and what the reading unlocks. Record what the instrument says — worn is worn.",
+      why: "Measurement order is not cosmetic: a reading taken from an unestablished reference is a guess wearing a decimal point.",
+      href: (ctx) => `/reverse-engineer/${ctx.re?.sessionId ?? ""}`,
+      done: (ctx) => (ctx.re ? ctx.re.measurementsRequired > 0 && ctx.re.measurementsComplete >= ctx.re.measurementsRequired : false),
+      applies: (ctx) => Boolean(ctx.re),
+      blockedBy: (ctx) =>
+        ctx.re && ctx.re.datumsEstablished < ctx.re.datumsRequired
+          ? {
+              label: "Datums not established",
+              detail: `${ctx.re.datumsEstablished} of ${ctx.re.datumsRequired} datums accepted — measurements taken now have no home.`,
+              href: `/reverse-engineer/${ctx.re.sessionId}`,
+            }
+          : null,
+    },
+    {
+      id: "nominals",
+      title: "Rule on the suggested nominals",
+      body: "Readings that match a published standard wait for your decision: accept the nominal or keep the measurement. CANVAS never changes a dimension for you.",
+      why: "1.5744\" on a worn seat probably means 40 mm — but 'probably' is a human's call to make, recorded with a name on it.",
+      href: (ctx) => `/reverse-engineer/${ctx.re?.sessionId ?? ""}`,
+      done: (ctx) => (ctx.re ? ctx.re.inferredAwaitingReview === 0 && ctx.re.measurementsComplete > 0 : false),
+      applies: (ctx) => Boolean(ctx.re),
+    },
+    {
+      id: "handoff",
+      title: "Open the part workspace",
+      body: "The reconstructed model now lives where every other part lives — features, workholding, toolpaths, gates. Reverse engineering ends where manufacturing begins.",
+      why: "The measurement session is scaffolding. The part workspace is where the reconstruction gets held, cut and verified like anything else.",
+      href: (ctx) => `/parts/${ctx.partId}`,
+      done: (ctx) => ctx.featureCount > 0 && (ctx.re ? ctx.re.inferredAwaitingReview === 0 : false),
+      applies: (ctx) => Boolean(ctx.re),
+    },
+  ],
+};
+
 export const GUIDE_FLOWS: Record<string, GuideFlowDef> = {
   MAKE_A_PART,
   TURN_A_SHAFT,
+  REVERSE_A_PART,
 };
 
 /** Flows that exist as concepts but whose functionality does not: named so
  * the UI can say DEVELOPMENT instead of pretending. */
 export const DEVELOPMENT_FLOWS = [
   { id: "DRAW_FROM_SCRATCH", reason: "CANVAS has no sketching tools yet." },
-  { id: "REVERSE_ENGINEER_GUIDE", reason: "The turning bench flow guides itself; the mill RE measurement session's guided flow is not authored yet." },
 ];

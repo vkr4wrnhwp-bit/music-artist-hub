@@ -14,6 +14,8 @@ import { ReconstructionPlanPanel } from "@/components/reverse/reconstruction-pla
 import { GuidedMeasurement } from "@/components/reverse/guided-measurement";
 import { PhotoSetUploader } from "@/components/reverse/photo-set";
 import { LinkButton, Notice, Panel, SectionHeading, StatusChip } from "@/components/ui";
+import { GuideCard } from "@/components/guide/guide-card";
+import type { GuideContext } from "@/lib/guide/engine";
 
 export default async function SessionPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -114,6 +116,36 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
 
   const pending = session.measurements.filter((m) => m.resolution === "PENDING" && m.suggestedNominal);
 
+  // Guide snapshot — the same reconstruction plan the page renders, so the
+  // REVERSE_A_PART steps complete from the truth, never a checklist copy.
+  const guideCtx: GuideContext = {
+    partId: session.partRevision.partId,
+    hasStock: false,
+    hasMachine: true,
+    hasMaterial: true,
+    featureCount: revision?.features.length ?? 0,
+    pendingProposals: 0,
+    setupCount: 0,
+    workholdingAssessed: false,
+    toolpathCount: 0,
+    simulationRecorded: false,
+    approvalExists: false,
+    ncProgramExists: false,
+    blockingGates: [],
+    nextAction: null,
+    training: false,
+    re: {
+      sessionId: session.id,
+      photosOnFile: plan.photosOnFile,
+      missingViews: plan.missingViews.length,
+      datumsEstablished: plan.datumsEstablished,
+      datumsRequired: plan.datumsRequired,
+      measurementsComplete: plan.measurementsComplete,
+      measurementsRequired: plan.measurementsRequired,
+      inferredAwaitingReview: plan.inferredAwaitingReview,
+    },
+  };
+
   return (
     <>
       <TopBar>
@@ -203,6 +235,7 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
           </Notice>
         </div>
       </main>
+      <GuideCard ctx={guideCtx} flowId="REVERSE_A_PART" />
     </>
   );
 }

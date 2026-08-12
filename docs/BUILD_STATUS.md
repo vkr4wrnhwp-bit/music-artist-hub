@@ -921,3 +921,14 @@ panel: steps most backed out of or skipped, with start/completion
 counts — telemetry about the guide, never a gate input. Browser-
 verified: a live SKIP on TURN_A_SHAFT appears in the panel; the
 finished Demo Shaft records a completion.
+
+## REVERSE_A_PART guide flow
+
+GuideContext gains an optional re snapshot (photos, datums,
+measurement counts, pending nominals) assembled on the RE session page
+from the same reconstruction plan it renders. Five steps: six-view
+photo set, datum frame (human act), measure in constraint order
+(blockedBy names the missing datums with counts), rule on nominals,
+hand off to the part workspace. DEVELOPMENT_FLOWS is now down to
+DRAW_FROM_SCRATCH only — every flow the guide names exists. 3 new
+tests; 153 total. Browser-verified on a freshly created RE session.
