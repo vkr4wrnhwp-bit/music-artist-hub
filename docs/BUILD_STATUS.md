@@ -1088,3 +1088,30 @@ selection, lens fields for the bearing journal (⌀1.5744, +0.0000 /
 −0.0005, 32 Ra, Z 0.750–1.950, T0202), BOTH mode split with 3D
 canvas live, mode persisted across reload, table behind VIEW TABLE
 with 7 rows.
+
+## Phase 5 — NC Analyzer workspace modes + synchronized load graph
+
+The analyzer is now a mode-based instrument, not a stacked document.
+After analysis, one workspace shows at a time: BACKPLOT / PROGRAM /
+LOAD / TIME / FINDINGS / COMPARE / VERIFY, with live counts on the
+tabs (proposals, findings, accepted changes) and the AUDIT/OPT stage
+chips always visible beside them. SHOW ME from any mode — a finding,
+a proposal, a protected region, an operation — lands in the BACKPLOT
+scene with the selection framed.
+
+New synchronized load graph under the backplot: one bar per motion
+segment in program order, height and color from the engagement band
+(rapids as thin gray ticks), the target band as a quiet reference
+stripe, tool-change boundaries with T labels, and top strips marking
+protected finish regions (green), proposed raises (blue) and proposed
+reductions (amber). The same selection state drives the graph, the
+backplot and the code viewer: click a bar and the code scrolls to the
+block; click the plot and the graph lights the span. The DEVELOPMENT
+LOAD ESTIMATE label stays on the graph — chipload model, not
+telemetry.
+
+COMPARE with nothing accepted says so instead of showing an empty
+panel. Browser-verified on the demo program: 7 tabs, 63 graph bars,
+bar click → "Framing L…", Show me from FINDINGS returns to BACKPLOT,
+accept-then-COMPARE shows the −/+ diff, TIME shows ROI, VERIFY shows
+the 11 gates.

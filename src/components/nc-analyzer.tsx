@@ -75,6 +75,13 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   // highlights and the code viewer scrolls to — one selection, two scenes.
   const [sel, setSel] = useState<[number, number] | null>(null);
   const [plotMode, setPlotMode] = useState<"ORIGINAL" | "PROPOSED">("ORIGINAL");
+  // One workspace mode at a time — the analyzer is an instrument, not a
+  // document. SHOW ME from any mode lands in the BACKPLOT scene.
+  const [mode, setMode] = useState<"BACKPLOT" | "PROGRAM" | "LOAD" | "TIME" | "FINDINGS" | "COMPARE" | "VERIFY">("BACKPLOT");
+  const showMe = (lines: [number, number]) => {
+    setSel(lines);
+    setMode("BACKPLOT");
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSel(null); };
     window.addEventListener("keydown", onKey);
@@ -205,6 +212,46 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             )}
           </Panel>
 
+          {/* ---------- Workspace modes — one scene at a time ---------- */}
+          <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2">
+            {(
+              [
+                ["BACKPLOT", null],
+                ["PROGRAM", null],
+                ["LOAD", r.load.proposals.length || null],
+                ["TIME", null],
+                ["FINDINGS", r.analysis.findings.length || null],
+                ["COMPARE", accepted.size || null],
+                ["VERIFY", null],
+              ] as const
+            ).map(([m, count]) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                aria-pressed={mode === m}
+                className={`border px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.14em] ${
+                  mode === m ? "border-precision/60 bg-precision/10 text-precision" : "border-line-strong text-muted hover:text-platinum"
+                }`}
+              >
+                {m}
+                {count ? <span className="ml-1.5 font-mono text-[9px] text-platinum-dim">{count}</span> : null}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2">
+              {(
+                [
+                  ["AUDIT", r.gates.stages.audit],
+                  ["OPT", r.gates.stages.optimization],
+                ] as const
+              ).map(([label, st]) => (
+                <StatusChip key={label} tone={st === "PASS" ? "pass" : st === "REVIEW" ? "review" : st === "FAIL" ? "risk" : "unknown"}>
+                  {label}: {st.replace(/_/g, " ")}
+                </StatusChip>
+              ))}
+            </span>
+          </div>
+
+          {mode === "VERIFY" && (
           <Panel
             title="Audit gates"
             meta={
@@ -241,7 +288,10 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               Each stage is its worst required gate — never a percentage. Original stored immutably as sha256 {r.digest.slice(0, 16)}…; the optimize step derives from that stored copy, not from re-sent bytes.
             </p>
           </Panel>
+          )}
 
+          {mode === "PROGRAM" && (
+          <>
           <Panel title={`Operations — ${r.operations.length} group(s)`} meta={<StatusChip tone="neutral">Deterministic motion evidence only</StatusChip>} dense>
             <ul>
               {r.operations.map((op, i) => (
@@ -251,7 +301,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                     <span className="block font-mono text-[11px] text-muted">
                       T{op.toolNumber} · L{op.lines[0]}–{op.lines[1]} · {op.cutSegments} cutting segment(s)
                       <button
-                        onClick={() => setSel(op.lines)}
+                        onClick={() => showMe(op.lines)}
                         className="ml-2 border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
                       >
                         Show me
@@ -263,7 +313,13 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               ))}
             </ul>
           </Panel>
+          <Panel title="Program" dense>
+            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} />
+          </Panel>
+          </>
+          )}
 
+          {mode === "BACKPLOT" && (
           <Panel title="Backplot — load map, top view" meta={<StatusChip tone="review">Development analysis</StatusChip>} dense>
             <div className="flex items-center gap-2 border-b border-line px-4 py-1.5">
               {(["ORIGINAL", "PROPOSED"] as const).map((mode) => (
@@ -298,8 +354,20 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               proposedRanges={plotMode === "PROPOSED" ? [...accepted].map((i) => r.load.proposals[i]?.lines).filter(Boolean) : []}
             />
             <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} />
+            <LoadGraph
+              segments={r.backplot}
+              bands={r.load.bands}
+              sel={sel}
+              onSelect={(line) => setSel([line, line])}
+              proposals={r.load.proposals.map((p) => ({ lines: p.lines, kind: p.kind }))}
+              protectedRanges={r.load.protectedHits.map((h) => h.lines)}
+              toolChanges={r.parse.toolChanges}
+            />
           </Panel>
+          )}
 
+          {mode === "LOAD" && (
+          <>
           <Panel
             title={`Feed proposals — ${r.load.proposals.length}`}
             meta={
@@ -353,7 +421,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                       )}
                       <StatusChip tone={p.risk === "LOW" ? "pass" : "review"}>{p.risk}</StatusChip>
                       <button
-                        onClick={() => setSel(p.lines)}
+                        onClick={() => showMe(p.lines)}
                         className="border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
                       >
                         Show me
@@ -415,7 +483,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                       <span className="block font-mono text-[11.5px] text-platinum">
                         {h.label} · L{h.lines[0]}–{h.lines[1]} · {h.segments} segment(s)
                         <button
-                          onClick={() => setSel(h.lines)}
+                          onClick={() => showMe(h.lines)}
                           className="ml-2 border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
                         >
                           Show me
@@ -428,8 +496,14 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               </ul>
             </Panel>
           )}
+          </>
+          )}
 
-          {accepted.size > 0 && (
+          {mode === "COMPARE" && (accepted.size === 0 ? (
+            <p className="px-1 py-2 text-[12px] text-muted">
+              Nothing to compare yet — accept one or more feed proposals under LOAD and the source-level diff appears here.
+            </p>
+          ) : (
             <Panel title={`Original vs proposed — ${accepted.size} accepted change(s)`} meta={<StatusChip tone="neutral">Feed words only · geometry identical by masked diff</StatusChip>} dense>
               <ul>
                 {[...accepted].map((i) => {
@@ -452,8 +526,10 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 This preview is derived client-side from the same rule the emitter enforces (F-word replacement on the proposal's own lines). The authoritative diff happens server-side at generation: masked geometry comparison, byte-clean or nothing is stored.
               </p>
             </Panel>
-          )}
+          ))}
 
+          {mode === "TIME" && (
+          <>
           <RoiPanel
             currentMinutes={r.analysis.totalMinutes}
             proposedSeconds={[...accepted].reduce((t, i) => t + (r.load.proposals[i]?.kind === "RAISE" ? r.load.proposals[i].estimatedSecondsSaved : 0), 0)}
@@ -493,7 +569,10 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               {r.analysis.assumptions.join(" ")}
             </p>
           </Panel>
+          </>
+          )}
 
+          {mode === "FINDINGS" && (
           <Panel
             title={`Findings — ${r.analysis.findings.length}`}
             meta={<StatusChip tone="neutral">Analysis only — no proposals yet</StatusChip>}
@@ -516,7 +595,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                       </StatusChip>
                       {f.seconds > 0 && <span className="font-mono text-[11.5px] text-review tabular-nums">~{f.seconds}s</span>}
                       <button
-                        onClick={() => setSel([f.line, f.line])}
+                        onClick={() => showMe([f.line, f.line])}
                         className="border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
                       >
                         Show me
@@ -531,6 +610,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               </ul>
             )}
           </Panel>
+          )}
         </>
       )}
     </div>
@@ -658,6 +738,105 @@ function NcCodeViewer({ code, sel, onSelect }: { code: string; sel: [number, num
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Engagement band → graph level. Order is severity, not value.
+const BAND_LEVEL: Record<string, number> = { AIR: 0.5, LIGHT: 1, TARGET: 2, HIGH: 3, REVIEW: 4 };
+
+/**
+ * SYNCHRONIZED LOAD GRAPH — the program as an engagement timeline.
+ *
+ * One bar per motion segment in program order, height and color from the
+ * engagement band; rapids draw as thin gray ticks. Overlays: tool-change
+ * boundaries, proposal markers (RAISE blue / REDUCE amber), protected
+ * finish regions. The same selection state drives the backplot, the code
+ * viewer and this graph — click a bar to select its source block, and any
+ * SHOW ME lights up the matching span here.
+ *
+ * Chipload-model estimate, not telemetry — the DEVELOPMENT label stays.
+ */
+function LoadGraph({
+  segments,
+  bands,
+  sel,
+  onSelect,
+  proposals,
+  protectedRanges,
+  toolChanges,
+}: {
+  segments: [number, number, number, number, number, number][];
+  bands: string[];
+  sel: [number, number] | null;
+  onSelect: (line: number) => void;
+  proposals: { lines: [number, number]; kind: "RAISE" | "REDUCE" }[];
+  protectedRanges: [number, number][];
+  toolChanges: { line: number; toolNumber: number }[];
+}) {
+  const w = 920, h = 120, padL = 8, padB = 16, padT = 14;
+  const n = segments.length;
+  if (n === 0) return null;
+  const bw = (w - padL * 2) / n;
+  const yFor = (lvl: number) => h - padB - (lvl / 4) * (h - padB - padT);
+  const inRange = (line: number, ranges: [number, number][]) => ranges.some(([a, b]) => line >= a && line <= b);
+  // Tool-change boundaries: first segment index at or past the change line.
+  const boundaries = toolChanges
+    .map((tc) => ({ tc, idx: segments.findIndex(([, line]) => line >= tc.line) }))
+    .filter((b) => b.idx > 0);
+  return (
+    <div className="border-t border-line px-4 py-2.5">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="instrument-label">Load along the program — engagement band per segment</span>
+        <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-review">Development load estimate</span>
+      </div>
+      <div className="overflow-x-auto">
+        <svg width={w} height={h} style={{ background: "#fafaf8" }} className="border border-line">
+          {/* Target band reference */}
+          <rect x={padL} y={yFor(2.5)} width={w - padL * 2} height={yFor(1.5) - yFor(2.5)} fill="#17754e" opacity={0.06} />
+          {segments.map(([cut, line], i) => {
+            const selHit = sel !== null && line >= sel[0] && line <= sel[1];
+            const lvl = cut ? (BAND_LEVEL[bands[i]] ?? 1) : 0.25;
+            const color = cut ? (BAND_COLOR[bands[i]] ?? "#0b72ff") : "#c6ccd2";
+            return (
+              <rect
+                key={i}
+                x={padL + i * bw}
+                y={yFor(lvl)}
+                width={Math.max(0.8, bw - 0.4)}
+                height={h - padB - yFor(lvl)}
+                fill={selHit ? "#b86a0a" : color}
+                opacity={sel && !selHit ? 0.3 : cut ? 0.9 : 0.5}
+                style={{ cursor: "pointer" }}
+                onClick={() => onSelect(line)}
+              />
+            );
+          })}
+          {/* Protected finish regions — hatched span above the bars */}
+          {segments.map(([, line], i) =>
+            inRange(line, protectedRanges) ? (
+              <rect key={`p${i}`} x={padL + i * bw} y={padT - 8} width={Math.max(0.8, bw)} height={4} fill="#17754e" opacity={0.85} />
+            ) : null,
+          )}
+          {/* Proposal markers */}
+          {segments.map(([, line], i) => {
+            const hit = proposals.find((p) => line >= p.lines[0] && line <= p.lines[1]);
+            return hit ? (
+              <rect key={`m${i}`} x={padL + i * bw} y={padT - 3} width={Math.max(0.8, bw)} height={4} fill={hit.kind === "RAISE" ? "#0b72ff" : "#b86a0a"} opacity={0.9} />
+            ) : null;
+          })}
+          {/* Tool-change boundaries */}
+          {boundaries.map(({ tc, idx }) => (
+            <g key={`t${tc.line}`}>
+              <line x1={padL + idx * bw} y1={padT - 10} x2={padL + idx * bw} y2={h - padB} stroke="#5a616b" strokeWidth={0.8} strokeDasharray="3 3" />
+              <text x={padL + idx * bw + 3} y={h - 5} fontSize={8.5} fill="#5a616b" fontFamily="monospace">T{tc.toolNumber}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <p className="mt-1 text-[10px] leading-relaxed text-muted">
+        Top strips: green = protected finish region (no proposal either direction) · blue = proposed feed raise · amber = proposed reduction. Click a bar to jump to its source block; the backplot and code follow the same selection.
+      </p>
     </div>
   );
 }
