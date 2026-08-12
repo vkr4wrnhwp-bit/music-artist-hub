@@ -62,14 +62,19 @@ export function OperationRunway({
   }));
 
   // Collapsed state survives reload per browser — pure layout preference,
-  // nothing engineering-grade about it.
+  // nothing engineering-grade about it. Focus Workspace minimizes it too.
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     try {
-      setCollapsed(window.localStorage.getItem("canvas.timelineCollapsed") === "1");
+      const stored = window.localStorage.getItem("canvas.timelineCollapsed");
+      // Laptop widths start minimized unless the user has chosen otherwise.
+      setCollapsed(stored === null ? window.innerWidth < 1440 : stored === "1");
     } catch {
       /* fine */
     }
+    const onFocus = (e: Event) => setCollapsed(Boolean((e as CustomEvent).detail));
+    window.addEventListener("canvas:timeline-minimize", onFocus);
+    return () => window.removeEventListener("canvas:timeline-minimize", onFocus);
   }, []);
   const toggle = () => {
     setCollapsed((c) => {
@@ -111,6 +116,21 @@ export function OperationRunway({
         >
           Planned sequence — CANVAS does not track execution state.
         </span>
+        {/* Minimized summary: the selected operation stays readable while
+            the table is away. A selection, not an execution state. */}
+        {collapsed && activeOperation && (() => {
+          const op = data.operations.find((o) => o.id === activeOperation);
+          if (!op) return null;
+          const next = data.operations.find((o) => o.setupId === op.setupId && o.sequence === op.sequence + 1);
+          return (
+            <span className="font-mono text-[10.5px] tracking-[0.04em] text-platinum-dim tabular-nums">
+              Selected: op {String(op.sequence).padStart(2, "0")} · {op.label}
+              {op.toolNumber != null && ` · T${op.toolNumber}`}
+              {op.cycleMinutes != null && ` · ${op.cycleMinutes.toFixed(2)} min`}
+              {next && ` · then op ${String(next.sequence).padStart(2, "0")}`}
+            </span>
+          );
+        })()}
       </div>
 
       <div className={`${collapsed ? "hidden" : "flex"} flex-col items-stretch lg:flex-row`}>

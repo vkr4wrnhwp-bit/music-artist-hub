@@ -89,7 +89,10 @@ async function main() {
     /* ---- define stock ---- */
     await page.goto(`${BASE}/parts/${partId}`);
     await page.waitForSelector("canvas");
-    // The stock panel lives in the right-hand DATA pane.
+    // The stock panel lives in the right-hand DATA pane. The panel docks
+    // away by default now — expand it first if the handle is showing.
+    const expand = page.locator('button[aria-label="Expand the feature panel"]');
+    if (await expand.count()) await expand.click();
     await page.locator("button", { hasText: /^DATA$/i }).first().click();
     await page.locator("button", { hasText: /^Stock$/i }).first().click();
     const xInput = page.locator('input[name="x"]');

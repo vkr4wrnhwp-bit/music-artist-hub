@@ -76,3 +76,14 @@ Screenshot (PNG of the WebGL canvas) is real. Annotated image, setup
 sheet, inspection view and customer-safe view are listed as DEVELOPMENT
 and do nothing yet — listed so the architecture is visible, labelled so
 nobody mistakes them for capability.
+
+## Consolidation pass status (2026-08-11)
+
+All eight presets (Studio White, Graphite, Inspection Gray, Blueprint
+Blue, Warm Shop Floor, Dark Machine Bay, High Contrast, Custom) apply
+to the real rendered scene — background, floor, grid, reflection,
+shadow, edge/datum/measurement/toolpath weights, annotation size —
+via the EnvCtx the scene consumes. Custom colors are contrast-checked
+against the locked semantic colors (semanticConflicts, 2.5:1 floor)
+and warn visibly instead of silently drowning a blocking red. The
+drawer opens from the floating VIEW button or the V key.

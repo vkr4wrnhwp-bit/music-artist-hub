@@ -696,3 +696,22 @@ breaks readability now fails CI instead of shipping. 95 tests.
 Design phase complete: dark canvas, action banner, timeline table,
 dockable panel, measurement strip, nav consolidation, tablet mode,
 limits disclosures, contrast audit.
+
+## 2026-08-11 — Workspace consolidation: the part is the primary interface
+
+Structural pass per the consolidation brief. Context drawer: part
+routes grouped under PART/HOLD/CUT/VERIFY/DELIVER (collapsible groups,
+current group open; a 15-item flat list became five headings), whole
+drawer collapses to a 24px edge tab. View-control stack floats behind
+one VIEW button. FOCUS workspace (F): drawer + panel + controls +
+drawers + timeline collapse in one keystroke, with a critical-status
+chip (blocking count + next action) that never leaves the screen.
+Blocking banner compacted: count + worst blocker + FIX, expandable to
+per-blocker pills routing to evidence. Timeline minimized state keeps
+a one-line selected-operation summary. Shortcuts: F/V/1–5/Esc, never
+while typing. Responsive defaults: drawer + timeline collapsed below
+1440px, feature panel collapsed everywhere until a feature is
+selected. Measured matrix in docs/RESPONSIVE_WORKSPACE.md — 1366×768
+default 60% canvas (was 18%), no horizontal scroll anywhere, readiness
+and next action visible at every size. No route deleted
+(docs/ROUTE_MAPPING.md). All suites pass. 95 tests.

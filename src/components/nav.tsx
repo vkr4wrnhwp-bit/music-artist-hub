@@ -188,6 +188,21 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "/nc-analyzer", label: "NC analyzer", dev: true },
 ];
 
+/**
+ * The same routes, grouped by the manufacturing mode they serve — the
+ * consolidation brief's rule that nobody should stare at a fifteen-item
+ * flat list while working on a part. Groups reference PART_ROUTES by
+ * suffix so a route exists in exactly one place; every route stays
+ * reachable, only its surfacing changes.
+ */
+const PART_MODE_GROUPS: { mode: string; suffixes: string[] }[] = [
+  { mode: "Part", suffixes: ["", "/proposals", "/responsibility", "/cost"] },
+  { mode: "Hold", suffixes: ["/setups", "/soft-jaws"] },
+  { mode: "Cut", suffixes: ["/tooling", "/machinist", "/nc-analyzer"] },
+  { mode: "Verify", suffixes: ["/inspection", "/fair", "/readiness"] },
+  { mode: "Deliver", suffixes: ["/nc", "/review", "/tablet"] },
+];
+
 /** `/parts/<id>/…` — but `/parts/new` is a form, not a part. */
 function partIdOf(pathname: string): string | null {
   const m = /^\/parts\/([^/]+)(?:\/|$)/.exec(pathname);
@@ -485,17 +500,74 @@ function Drawer({
 
   const isOn = (href: string) => pathname === href;
 
+  // The context drawer collapses to an edge tab — the workspace brief's rule
+  // that the part, not the menu, owns the screen. Persisted per browser, and
+  // Focus Workspace (the F key in the part workspace) collapses it too.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("canvas.contextDrawer");
+      // No stored preference: laptop widths start collapsed — the part, not
+      // the menu, owns a 1366px screen. An explicit choice always wins.
+      setCollapsed(stored === null ? window.innerWidth < 1440 : stored === "collapsed");
+    } catch {
+      /* fine */
+    }
+    const onFocusMode = (e: Event) => {
+      const on = Boolean((e as CustomEvent).detail);
+      setCollapsed(on);
+    };
+    window.addEventListener("canvas:focus", onFocusMode);
+    return () => window.removeEventListener("canvas:focus", onFocusMode);
+  }, []);
+  const toggleDrawer = () => {
+    setCollapsed((c) => {
+      try {
+        window.localStorage.setItem("canvas.contextDrawer", c ? "open" : "collapsed");
+      } catch {
+        /* fine */
+      }
+      return !c;
+    });
+  };
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={toggleDrawer}
+        aria-label="Expand the context drawer"
+        className="flex h-full w-6 shrink-0 flex-col items-center gap-2 border-r border-line bg-shell-2 pt-4 text-shell-muted transition-colors hover:text-platinum"
+      >
+        <span aria-hidden>▸</span>
+        <span className="shell-label [writing-mode:vertical-rl]" style={{ fontSize: 9 }}>
+          {part ? part.name.slice(0, 24) : active.title}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div className="flex h-full w-[210px] shrink-0 flex-col border-r border-line bg-shell-2">
-      <Link
-        href="/"
-        className="flex h-[64px] shrink-0 flex-col justify-center gap-1 border-b border-line px-4 text-platinum-dim transition-colors hover:text-platinum"
-      >
-        <Wordmark size={15} />
-        <span className="shell-label" style={{ fontSize: 8, letterSpacing: "0.2em" }}>
-          From concept to cut.
-        </span>
-      </Link>
+      <div className="flex h-[64px] shrink-0 items-stretch border-b border-line">
+        <Link
+          href="/"
+          className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-4 text-platinum-dim transition-colors hover:text-platinum"
+        >
+          <Wordmark size={15} />
+          <span className="shell-label" style={{ fontSize: 8, letterSpacing: "0.2em" }}>
+            From concept to cut.
+          </span>
+        </Link>
+        <button
+          type="button"
+          onClick={toggleDrawer}
+          aria-label="Collapse the context drawer"
+          className="flex w-7 shrink-0 items-center justify-center text-shell-muted transition-colors hover:text-platinum"
+        >
+          <span aria-hidden>◂</span>
+        </button>
+      </div>
 
       <div className="flex-1 overflow-y-auto py-4">
         {partId ? (
@@ -518,22 +590,40 @@ function Drawer({
                 <p className="mt-1.5 text-[12px] leading-snug text-shell-muted">Part revision</p>
               )}
             </div>
-            {PART_ROUTES.map((r) => {
-              const href = `/parts/${partId}${r.suffix}`;
-              const on = isOn(href);
+            {/* Routes grouped by manufacturing mode; only the group holding
+                the current route opens by default. Fifteen flat rows became
+                five groups — nothing was deleted, only surfaced differently. */}
+            {PART_MODE_GROUPS.map((g) => {
+              const routes = g.suffixes
+                .map((s) => PART_ROUTES.find((r) => r.suffix === s)!)
+                .filter(Boolean);
+              const containsCurrent = routes.some((r) => isOn(`/parts/${partId}${r.suffix}`));
               return (
-                <Link
-                  key={r.suffix || "overview"}
-                  href={href}
-                  aria-current={on ? "page" : undefined}
-                  className={`group relative flex items-center justify-between gap-2 py-[7px] pl-4 pr-3 text-[12.5px] transition-colors ${
-                    on ? "bg-shell text-platinum" : "text-platinum-dim hover:text-platinum"
-                  }`}
-                >
-                  {on && <span aria-hidden className="absolute left-0 top-0 h-full w-[2px] bg-precision" />}
-                  <span className="truncate">{r.label}</span>
-                  {r.dev && <ShellTag>dev</ShellTag>}
-                </Link>
+                <details key={g.mode} open={containsCurrent} className="group/mode">
+                  <summary className="shell-label flex cursor-pointer list-none items-center justify-between px-4 py-[6px] hover:text-platinum">
+                    {g.mode}
+                    <span aria-hidden className="text-shell-muted group-open/mode:hidden">▸</span>
+                    <span aria-hidden className="hidden text-shell-muted group-open/mode:inline">▾</span>
+                  </summary>
+                  {routes.map((r) => {
+                    const href = `/parts/${partId}${r.suffix}`;
+                    const on = isOn(href);
+                    return (
+                      <Link
+                        key={r.suffix || "overview"}
+                        href={href}
+                        aria-current={on ? "page" : undefined}
+                        className={`group relative flex items-center justify-between gap-2 py-[6px] pl-6 pr-3 text-[12.5px] transition-colors ${
+                          on ? "bg-shell text-platinum" : "text-platinum-dim hover:text-platinum"
+                        }`}
+                      >
+                        {on && <span aria-hidden className="absolute left-0 top-0 h-full w-[2px] bg-precision" />}
+                        <span className="truncate">{r.label}</span>
+                        {r.dev && <ShellTag>dev</ShellTag>}
+                      </Link>
+                    );
+                  })}
+                </details>
               );
             })}
             {/* The one instruction, at the foot of the map. Same value the

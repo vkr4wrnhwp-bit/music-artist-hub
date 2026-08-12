@@ -167,7 +167,7 @@ export function Workspace(props: WorkspaceProps) {
 }
 
 function WorkspaceInner(props: WorkspaceProps) {
-  const { state, hover, select, setDisplayMode, setOperation, escape } = useInteraction();
+  const { state, hover, select, setDisplayMode, setOperation, setContext, escape } = useInteraction();
   const [panel, setPanel] = useState<string>("part");
   const [side, setSide] = useState<SidePane>("feature");
   const [mobilePane, setMobilePane] = useState<MobilePane>("model");
@@ -329,6 +329,10 @@ function WorkspaceInner(props: WorkspaceProps) {
     if (id) {
       setSide("feature");
       setMobilePane("model");
+      // Selecting a feature is the request for its detail — the docked
+      // panel opens to answer it (transient; the stored preference is
+      // untouched, and Focus keeps everything closed).
+      setPanelCollapsed(false);
     }
   };
 
@@ -352,7 +356,10 @@ function WorkspaceInner(props: WorkspaceProps) {
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   useEffect(() => {
     try {
-      setPanelCollapsed(window.localStorage.getItem("canvas.panelCollapsed") === "1");
+      const stored = window.localStorage.getItem("canvas.panelCollapsed");
+      // The panel starts docked away at every width; selecting a feature is
+      // what earns it the width. An explicit choice always wins.
+      setPanelCollapsed(stored === null ? true : stored === "1");
     } catch {
       /* fine */
     }
@@ -370,6 +377,67 @@ function WorkspaceInner(props: WorkspaceProps) {
 
   const blocking = props.nextActions.filter((a) => a.severity === "BLOCKING");
 
+  // The view-control stack floats behind one VIEW button by default — the
+  // viewport owns the left edge unless the controls are asked for.
+  const [controlsOpen, setControlsOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setControlsOpen(window.localStorage.getItem("canvas.viewControls") === "open");
+    } catch {
+      /* fine */
+    }
+  }, []);
+  const toggleControls = () => {
+    setControlsOpen((c) => {
+      try {
+        window.localStorage.setItem("canvas.viewControls", c ? "closed" : "open");
+      } catch {
+        /* fine */
+      }
+      return !c;
+    });
+  };
+
+  // FOCUS WORKSPACE — one keystroke hands the screen to the part: the
+  // context drawer, feature panel, control stack, drawers and the plan body
+  // all collapse. It simplifies the interface; it never conceals risk — a
+  // compact critical-status chip stays over the viewport while focused.
+  const [focus, setFocus] = useState(false);
+  const toggleFocus = () => {
+    setFocus((f) => {
+      const on = !f;
+      setPanelCollapsed(on);
+      if (on) {
+        setDrawer(null);
+        setControlsOpen(false);
+      }
+      window.dispatchEvent(new CustomEvent("canvas:focus", { detail: on }));
+      window.dispatchEvent(new CustomEvent("canvas:timeline-minimize", { detail: on }));
+      return on;
+    });
+  };
+
+  // Workspace shortcuts. Never while typing — a machinist entering "5" into
+  // a dimension field is not asking for the cost view.
+  useEffect(() => {
+    const typing = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return Boolean(
+        el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable),
+      );
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const contexts: Record<string, Context> = { "1": "PART", "2": "HOLD", "3": "CUT", "4": "VERIFY", "5": "COST" };
+      if (e.key === "f" || e.key === "F") toggleFocus();
+      else if (e.key === "v" || e.key === "V") setDrawer((d) => (d === "env" ? null : "env"));
+      else if (contexts[e.key]) setContext(contexts[e.key]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-work">
       {/* ================= ACTION BANNER =================
@@ -378,23 +446,42 @@ function WorkspaceInner(props: WorkspaceProps) {
           could change the first gate; nothing here clears anything in place,
           because a banner control that cleared a gate would be a click
           standing in for evidence. Absent entirely when nothing blocks. */}
-      {blocking.length > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-risk/40 bg-risk/10 px-3 py-1.5">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-risk">
-            Critical actions required ({blocking.length} blocking)
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim">
-            {blocking.map((a) => a.action).join("  |  ")}
-          </span>
-          {blocking[0]?.href && (
-            <a
-              href={blocking[0].href}
-              className="shrink-0 border border-risk/50 px-2.5 py-[3px] text-[9.5px] font-semibold uppercase tracking-[0.12em] text-risk transition-colors hover:bg-risk/15"
-            >
-              Fix now →
-            </a>
-          )}
-        </div>
+      {blocking.length > 0 && !focus && (
+        <details className="group/banner shrink-0 border-b border-risk/40 bg-risk/10">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-risk">
+              {blocking.length} blocking — action required
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim">{blocking[0].action}</span>
+            {blocking[0]?.href && (
+              <a
+                href={blocking[0].href}
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 border border-risk/50 px-2.5 py-[3px] text-[9.5px] font-semibold uppercase tracking-[0.12em] text-risk transition-colors hover:bg-risk/15"
+              >
+                Fix →
+              </a>
+            )}
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
+              <span className="group-open/banner:hidden">All {blocking.length} ▸</span>
+              <span className="hidden group-open/banner:inline">Hide ▾</span>
+            </span>
+          </summary>
+          {/* Each blocker is a pill routing to its evidence screen. Nothing
+              here clears a gate in place. */}
+          <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+            {blocking.map((a, i) => (
+              <a
+                key={i}
+                href={a.href ?? "#"}
+                title={a.reason}
+                className="border border-risk/40 px-2 py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em] text-platinum-dim transition-colors hover:bg-risk/15 hover:text-platinum"
+              >
+                {a.action}
+              </a>
+            ))}
+          </div>
+        </details>
       )}
       {/* ---------------- Mobile pane switcher ---------------- */}
       <div className="flex shrink-0 gap-px border-b border-line bg-line lg:hidden">
@@ -541,9 +628,64 @@ function WorkspaceInner(props: WorkspaceProps) {
               </div>
             )}
 
-            {/* Compact controls, left edge. Nothing here is wider than the
-                buttons it holds — the viewport keeps the rest. */}
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            {/* FOCUS-mode critical status: the interface simplifies, the risk
+                stays stated. Click-through to the evidence. */}
+            {focus && (
+              <div className="absolute right-3 top-3 z-30 flex items-center gap-3 border border-line-strong bg-surface/95 px-3 py-1.5 backdrop-blur-sm">
+                {blocking.length > 0 ? (
+                  <a
+                    href={blocking[0]?.href ?? "#"}
+                    className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-risk hover:underline"
+                  >
+                    Not ready · {blocking.length} blocking
+                  </a>
+                ) : (
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-pass">No blocking gates</span>
+                )}
+                {props.nextActions[0] && (
+                  <span className="max-w-[280px] truncate text-[10.5px] text-platinum-dim">
+                    Next: {props.nextActions[0].action}
+                  </span>
+                )}
+                <button onClick={toggleFocus} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">
+                  Exit focus
+                </button>
+              </div>
+            )}
+
+            {/* Floating VIEW toggle + FOCUS — the control stack costs viewport
+                width only while it is asked for. */}
+            <div className="pointer-events-none absolute left-3 top-3 z-20 flex gap-1.5">
+              <button
+                type="button"
+                onClick={toggleControls}
+                aria-expanded={controlsOpen}
+                title="View, display, show and scene controls"
+                className={`pointer-events-auto border px-2.5 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                  controlsOpen
+                    ? "border-precision/60 bg-card/92 text-precision-dim"
+                    : "border-line-strong bg-card/92 text-muted hover:text-platinum"
+                }`}
+              >
+                View {controlsOpen ? "▾" : "▸"}
+              </button>
+              <button
+                type="button"
+                onClick={toggleFocus}
+                aria-pressed={focus}
+                title="Focus workspace — collapse everything but the part (F)"
+                className={`pointer-events-auto border px-2.5 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                  focus
+                    ? "border-precision/60 bg-card/92 text-precision-dim"
+                    : "border-line-strong bg-card/92 text-muted hover:text-platinum"
+                }`}
+              >
+                Focus
+              </button>
+            </div>
+
+            {/* Compact controls, left edge, behind the VIEW toggle. */}
+            <div className={`pointer-events-none absolute inset-y-0 left-0 ${controlsOpen ? "flex" : "hidden"} items-center pl-3 pt-10`}>
               <div className="no-scrollbar pointer-events-auto max-h-full overflow-y-auto">
                 <ControlGroup heading="View">
                   {VIEWS.map((v) => (
