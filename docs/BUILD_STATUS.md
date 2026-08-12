@@ -795,3 +795,17 @@ cross-section on light paper and audited HUMAN record-bore action
 (server refuses shrinking records). boredDiameter/boredDepth columns +
 paired migrations; chuck jawStroke seeded. 5 new tests; 131 total.
 Browser-verified: blank→recipe→record→DIRECT round trip live.
+
+## Turning reverse engineering
+
+turn/reverse.ts + /lathe/[id]/reverse: guided bench measurement of a
+shaft — datum face first, steps front to back with the instrument named
+per reading (audited HUMAN, uncertainty from the device record). The
+profile assembles with MEASURED provenance; nominal candidates (wear
+window open) show deviation + confidence and are ACCEPTED as a USER
+ruling or KEPT MEASURED, both audited. Threads recorded as gauged
+designations, never mic readings. Stock is a labelled SUGGESTION with
+stated basis. reReadingsJson column + paired migrations; empty RE parts
+redirect from the workspace to the bench flow. 5 new tests; 136 total.
+Browser-verified: create → measure → accept 40 mm nominal → profile →
+workspace round trip live.

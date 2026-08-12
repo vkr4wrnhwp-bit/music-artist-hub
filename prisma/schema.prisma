@@ -1501,6 +1501,9 @@ model RotationalPart {
   profileJson String
   // TurnOperation[] from src/lib/manufacturing/turn/operations.ts
   planJson    String @default("[]")
+  // TurnReading[] from src/lib/manufacturing/turn/reverse.ts — the bench
+  // measurements a reverse-engineered profile was assembled from.
+  reReadingsJson String @default("[]")
 
   latheMachineId String?
   workholdingId  String?

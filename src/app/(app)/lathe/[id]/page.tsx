@@ -51,6 +51,9 @@ export default async function LathePartPage(props: {
   ]);
 
   const profile = JSON.parse(rot.profileJson) as RotationalProfile;
+  // A reverse-engineering part with no readings yet has no geometry to show —
+  // the bench flow is the workspace until the first step is recorded.
+  if (profile.segments.length === 0) redirect(`/lathe/${id}/reverse`);
   const plan = JSON.parse(rot.planJson) as TurnOperation[];
 
   /* ---------------- Toolpaths, deterministic ---------------- */

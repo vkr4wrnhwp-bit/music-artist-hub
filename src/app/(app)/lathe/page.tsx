@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
-import { DevLabel, EmptyState, Panel, SectionHeading, StatusChip } from "@/components/ui";
+import { Button, DevLabel, EmptyState, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 import { PROCESS_SUPPORT } from "@/lib/manufacturing/process";
 
 /** TURNING — the lathe library: rotational parts, machines, workholding, tools. */
@@ -18,6 +20,47 @@ export default async function LathePage() {
     where: { id: { in: rotational.map((r) => r.partRevisionId) } },
     include: { part: true },
   });
+
+  async function startReverse(formData: FormData) {
+    "use server";
+    const u = await requireUser();
+    const name = String(formData.get("name") ?? "").trim();
+    if (!name) redirect("/lathe");
+    const part = await db.part.create({
+      data: {
+        organizationId: u.organizationId,
+        name,
+        description: "Reverse engineered from bench measurement",
+        revisions: {
+          create: {
+            revision: "A",
+            status: "DRAFT",
+            units: "IN",
+            intentJson: JSON.stringify({
+              partName: { value: name, source: "USER", confidence: "VERIFIED", confirmedByUser: true },
+              unknowns: ["Reconstructed from measurement — every dimension requires confirmation"],
+              confidence: 0.1,
+            }),
+            responsibility: { create: {} },
+          },
+        },
+      },
+      include: { revisions: true },
+    });
+    const rot = await db.rotationalPart.create({
+      data: {
+        partRevisionId: part.revisions[0].id,
+        organizationId: u.organizationId,
+        profileJson: JSON.stringify({ units: "IN", zZeroReference: "measured datum face", stockDiameter: 0, stockLength: 0, barStock: true, segments: [] }),
+      },
+    });
+    await audit({
+      organizationId: u.organizationId, userId: u.id, entityType: "RotationalPart", entityId: rot.id,
+      action: "CREATE", actorType: "HUMAN", field: "reverse engineering",
+      newValue: name, reason: "Rotational part started from bench measurement.",
+    });
+    redirect(`/lathe/${part.id}/reverse`);
+  }
 
   return (
     <>
@@ -49,6 +92,19 @@ export default async function LathePage() {
                 })}
               </ul>
             )}
+          </Panel>
+
+          <Panel title="Reverse engineer a shaft" meta={<span className="font-mono text-[10.5px] text-muted">GUIDED</span>}>
+            <p className="mb-2 text-[11.5px] leading-relaxed text-muted">
+              Measure a turned part on the bench, front to back, with the instrument named per reading. CANVAS assembles the profile with MEASURED provenance and suggests standard nominals; it never rounds a reading for you.
+            </p>
+            <form action={startReverse} className="flex items-end gap-3">
+              <label className="block">
+                <span className="tech-label mb-1 block">Part name</span>
+                <input name="name" placeholder="e.g. Idler shaft (worn)" className={`${inputClass} w-64`} />
+              </label>
+              <Button type="submit">Start measuring</Button>
+            </form>
           </Panel>
 
           <div className="grid gap-4 lg:grid-cols-3">

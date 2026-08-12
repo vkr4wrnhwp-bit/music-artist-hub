@@ -388,3 +388,67 @@ test("drawer search: a shallow step is a re-bore, a huge growth is a new blank",
   const tiny = m.find((x) => x.jawSet.id === "g")!;
   assert.equal(tiny.kind, "UNUSABLE"); // 0.8" growth > 0.5 max
 });
+
+/* ------------------------------------------------------------------ */
+/* Turning reverse engineering                                         */
+/* ------------------------------------------------------------------ */
+
+import { assembleMeasuredProfile, nextTurnTask, type TurnReading } from "@/lib/manufacturing/turn/reverse";
+
+test("RE readings assemble front to back with MEASURED provenance and a suggested stock", () => {
+  const readings: TurnReading[] = [
+    { diameter: 0.7495, length: 0.75, uncertainty: 0.0001, instrument: "mic" },
+    { diameter: 1.5744, length: 1.2, uncertainty: 0.0001, instrument: "mic" },
+    { diameter: 1.85, length: 2.5, uncertainty: 0.001, instrument: "caliper" },
+  ];
+  const a = assembleMeasuredProfile(readings);
+  assert.ok(a.profile);
+  const p = a.profile!;
+  assert.equal(p.segments.length, 3);
+  assert.equal(p.segments[1].zStart, 0.75);
+  assert.equal(p.segments[2].zEnd, 4.45);
+  assert.ok(p.segments.every((s) => s.source === "MEASURED" && !s.confirmedByUser));
+  // Max ⌀1.85 + 1/16 cleanup → next standard bar is 2.0.
+  assert.equal(p.stockDiameter, 2.0);
+  assert.ok(a.stockNote!.includes("SUGGESTION"));
+});
+
+test("RE never rounds a reading: accepting a nominal is a ruling, recorded as USER", () => {
+  const measured: TurnReading[] = [{ diameter: 1.5744, length: 1.0, uncertainty: 0.0001, instrument: "mic" }];
+  const before = assembleMeasuredProfile(measured).profile!;
+  assert.equal(before.segments[0].diameterStart, 1.5744); // untouched
+  const ruled: TurnReading[] = [{ ...measured[0], resolution: "NOMINAL", resolvedDiameter: 1.5748 }];
+  const after = assembleMeasuredProfile(ruled).profile!;
+  assert.equal(after.segments[0].diameterStart, 1.5748);
+  assert.equal(after.segments[0].source, "USER");
+  assert.equal(after.segments[0].confirmedByUser, true);
+  // Keeping the measurement is also a ruling — confirmed, still MEASURED.
+  const kept = assembleMeasuredProfile([{ ...measured[0], resolution: "MEASURED" }]).profile!;
+  assert.equal(kept.segments[0].source, "MEASURED");
+  assert.equal(kept.segments[0].confirmedByUser, true);
+});
+
+test("RE thread readings carry the gauged designation verbatim; unrecorded instruments are flagged", () => {
+  const a = assembleMeasuredProfile([
+    { diameter: 0.75, length: 0.65, uncertainty: null, instrument: null, thread: "3/4-16 UNF-2A" },
+  ]);
+  assert.equal(a.profile!.segments[0].kind, "THREAD");
+  assert.equal(a.profile!.segments[0].thread, "3/4-16 UNF-2A");
+  assert.ok(a.issues.some((x) => x.includes("uncertainty is unknown")));
+});
+
+test("RE guidance starts at the datum face and runs front to back", () => {
+  const first = nextTurnTask([]);
+  assert.equal(first.step, 1);
+  assert.ok(/datum face/i.test(first.instruction));
+  const later = nextTurnTask([{ diameter: 1, length: 2, uncertainty: 0.001, instrument: "mic" }]);
+  assert.equal(later.step, 2);
+  assert.ok(later.instruction.includes("Z2.000"));
+  assert.ok(/thread gauge/i.test(later.instruction));
+});
+
+test("RE with no readings yields no profile, not a fake one", () => {
+  const a = assembleMeasuredProfile([]);
+  assert.equal(a.profile, null);
+  assert.ok(a.issues[0].includes("datum face"));
+});
