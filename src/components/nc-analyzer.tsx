@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Notice, Panel, StatusChip } from "@/components/ui";
 
 /**
@@ -34,7 +34,8 @@ interface Report {
     workOffsetsSeen: string[];
     toolChanges: { line: number; toolNumber: number }[];
   };
-  backplot: [number, number, number, number, number][];
+  backplot: [number, number, number, number, number, number][];
+  code: string;
   load: {
     bands: string[];
     proposals: {
@@ -69,6 +70,15 @@ export function NcAnalyzer({ partId }: { partId: string }) {
     busy: false, error: null, report: null,
   });
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
+  // SHOW ME selection: a source-line range that the backplot frames and
+  // highlights and the code viewer scrolls to — one selection, two scenes.
+  const [sel, setSel] = useState<[number, number] | null>(null);
+  const [plotMode, setPlotMode] = useState<"ORIGINAL" | "PROPOSED">("ORIGINAL");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSel(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [optimizing, setOptimizing] = useState(false);
   const [optimized, setOptimized] = useState<{
     programId: string; applied: number; savedSeconds: number;
@@ -212,7 +222,39 @@ export function NcAnalyzer({ partId }: { partId: string }) {
           </Panel>
 
           <Panel title="Backplot — load map, top view" meta={<StatusChip tone="review">Development analysis</StatusChip>} dense>
-            <Backplot segments={r.backplot} bands={r.load.bands} extents={r.analysis.extents} />
+            <div className="flex items-center gap-2 border-b border-line px-4 py-1.5">
+              {(["ORIGINAL", "PROPOSED"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setPlotMode(mode)}
+                  aria-pressed={plotMode === mode}
+                  className={`border px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] ${plotMode === mode ? "border-precision/60 text-precision-dim" : "border-line-strong text-muted hover:text-platinum"}`}
+                >
+                  {mode}
+                </button>
+              ))}
+              <span className="text-[10px] text-muted">
+                {plotMode === "PROPOSED"
+                  ? `Accepted feed regions highlighted — geometry identical by construction (masked diff).`
+                  : sel
+                    ? `Framing L${sel[0]}${sel[1] !== sel[0] ? `–${sel[1]}` : ""} — click the plot or the code to move; Esc clears.`
+                    : "Click a path segment to jump to its source block."}
+              </span>
+              {sel && (
+                <button onClick={() => setSel(null)} className="ml-auto text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum">
+                  Clear
+                </button>
+              )}
+            </div>
+            <Backplot
+              segments={r.backplot}
+              bands={r.load.bands}
+              extents={r.analysis.extents}
+              sel={sel}
+              onSelect={(line) => setSel([line, line])}
+              proposedRanges={plotMode === "PROPOSED" ? [...accepted].map((i) => r.load.proposals[i]?.lines).filter(Boolean) : []}
+            />
+            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} />
           </Panel>
 
           <Panel
@@ -267,6 +309,12 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                         <span className="text-muted">costs a little time; buys the tool and the part</span>
                       )}
                       <StatusChip tone={p.risk === "LOW" ? "pass" : "review"}>{p.risk}</StatusChip>
+                      <button
+                        onClick={() => setSel(p.lines)}
+                        className="border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
+                      >
+                        Show me
+                      </button>
                     </div>
                     <p className="mt-0.5 text-[12px] leading-relaxed text-platinum-dim">{p.reason}</p>
                     <p className="text-[10.5px] leading-relaxed text-muted">
@@ -321,12 +369,45 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                   <li key={h.label} className="flex items-start gap-3 border-b border-line/60 px-4 py-2 last:border-0">
                     <StatusChip tone="pass">PROTECTED</StatusChip>
                     <span className="min-w-0 flex-1">
-                      <span className="block font-mono text-[11.5px] text-platinum">{h.label} · L{h.lines[0]}–{h.lines[1]} · {h.segments} segment(s)</span>
+                      <span className="block font-mono text-[11.5px] text-platinum">
+                        {h.label} · L{h.lines[0]}–{h.lines[1]} · {h.segments} segment(s)
+                        <button
+                          onClick={() => setSel(h.lines)}
+                          className="ml-2 border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
+                        >
+                          Show me
+                        </button>
+                      </span>
                       <span className="block text-[11.5px] leading-relaxed text-platinum-dim">{h.reason}. Cutting inside this feature receives no automatic proposal in either direction — protection is absolute in V1; overriding it is not built.</span>
                     </span>
                   </li>
                 ))}
               </ul>
+            </Panel>
+          )}
+
+          {accepted.size > 0 && (
+            <Panel title={`Original vs proposed — ${accepted.size} accepted change(s)`} meta={<StatusChip tone="neutral">Feed words only · geometry identical by masked diff</StatusChip>} dense>
+              <ul>
+                {[...accepted].map((i) => {
+                  const p = r.load.proposals[i];
+                  if (!p) return null;
+                  return (
+                    <DiffRow
+                      key={i}
+                      codeLines={r.code.split(/\r?\n/)}
+                      lines={p.lines}
+                      originalFeed={p.originalFeed}
+                      proposedFeed={p.proposedFeed}
+                      reason={p.reason}
+                      saved={p.estimatedSecondsSaved}
+                    />
+                  );
+                })}
+              </ul>
+              <p className="border-t border-line/60 px-4 py-2 text-[10.5px] leading-relaxed text-muted">
+                This preview is derived client-side from the same rule the emitter enforces (F-word replacement on the proposal's own lines). The authoritative diff happens server-side at generation: masked geometry comparison, byte-clean or nothing is stored.
+              </p>
             </Panel>
           )}
 
@@ -391,6 +472,12 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                         {f.verdict.replace("_", " ")}
                       </StatusChip>
                       {f.seconds > 0 && <span className="font-mono text-[11.5px] text-review tabular-nums">~{f.seconds}s</span>}
+                      <button
+                        onClick={() => setSel([f.line, f.line])}
+                        className="border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
+                      >
+                        Show me
+                      </button>
                     </div>
                     <p className="mt-0.5 text-[12px] leading-relaxed text-platinum-dim">{f.detail}</p>
                     {f.assumptions.length > 0 && (
@@ -407,42 +494,82 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   );
 }
 
+// Drawn for the light work-window ground — fixed inks, not theme tokens.
 const BAND_COLOR: Record<string, string> = {
-  AIR: "var(--c-muted)",
-  LIGHT: "#4d97ff",
-  TARGET: "var(--c-pass, #17754e)",
-  HIGH: "var(--c-review, #96570d)",
-  REVIEW: "var(--c-risk, #c22a1e)",
+  AIR: "#a8aeb6",
+  LIGHT: "#0b72ff",
+  TARGET: "#17754e",
+  HIGH: "#b86a0a",
+  REVIEW: "#c22a1e",
 };
 
 function Backplot({
   segments,
   bands,
   extents,
+  sel,
+  onSelect,
+  proposedRanges,
 }: {
-  segments: [number, number, number, number, number][];
+  segments: [number, number, number, number, number, number][];
   bands: string[];
   extents: { minX: number; maxX: number; minY: number; maxY: number };
+  sel: [number, number] | null;
+  onSelect: (line: number) => void;
+  proposedRanges: [number, number][];
 }) {
   const w = 640, h = 400, pad = 20;
-  const spanX = Math.max(0.001, extents.maxX - extents.minX);
-  const spanY = Math.max(0.001, extents.maxY - extents.minY);
+  // Frame the selection when there is one — SHOW ME changes the scene, it
+  // does not just tint a line. Otherwise frame the whole program.
+  let fx0 = extents.minX, fx1 = extents.maxX, fy0 = extents.minY, fy1 = extents.maxY;
+  if (sel) {
+    const hits = segments.filter(([, line]) => line >= sel[0] && line <= sel[1]);
+    if (hits.length > 0) {
+      fx0 = Math.min(...hits.flatMap(([, , x0, , x1]) => [x0, x1]));
+      fx1 = Math.max(...hits.flatMap(([, , x0, , x1]) => [x0, x1]));
+      fy0 = Math.min(...hits.flatMap(([, , , y0, , y1]) => [y0, y1]));
+      fy1 = Math.max(...hits.flatMap(([, , , y0, , y1]) => [y0, y1]));
+      // Context margin: a quarter of the span each side, floor 0.4".
+      const mx = Math.max(0.4, (fx1 - fx0) * 0.35);
+      const my = Math.max(0.4, (fy1 - fy0) * 0.35);
+      fx0 -= mx; fx1 += mx; fy0 -= my; fy1 += my;
+    }
+  }
+  const spanX = Math.max(0.001, fx1 - fx0);
+  const spanY = Math.max(0.001, fy1 - fy0);
   const k = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
-  const X = (v: number) => pad + (v - extents.minX) * k;
-  const Y = (v: number) => h - pad - (v - extents.minY) * k;
+  const X = (v: number) => pad + (v - fx0) * k;
+  const Y = (v: number) => h - pad - (v - fy0) * k;
+  const inSel = (line: number) => sel !== null && line >= sel[0] && line <= sel[1];
+  const inProposed = (line: number) => proposedRanges.some(([a, b]) => line >= a && line <= b);
+
   return (
     <div className="overflow-x-auto px-4 py-3">
-      <svg width={w} height={h} className="border border-line bg-work">
-        {segments.map(([cut, x0, y0, x1, y1], i) => (
-          <line
-            key={i}
-            x1={X(x0)} y1={Y(y0)} x2={X(x1)} y2={Y(y1)}
-            stroke={cut ? (BAND_COLOR[bands[i]] ?? "var(--c-blue)") : "var(--c-muted)"}
-            strokeWidth={cut ? 1.6 : 0.8}
-            strokeDasharray={cut ? undefined : "3 3"}
-            opacity={cut ? 0.95 : 0.4}
-          />
-        ))}
+      <svg width={w} height={h} style={{ background: "#fafaf8" }} className="border border-line">
+        {segments.map(([cut, line, x0, y0, x1, y1], i) => {
+          const selected = inSel(line);
+          const proposed = inProposed(line);
+          return (
+            <line
+              key={i}
+              x1={X(x0)} y1={Y(y0)} x2={X(x1)} y2={Y(y1)}
+              stroke={
+                selected
+                  ? "#b86a0a"
+                  : proposed
+                    ? "#0b72ff"
+                    : cut
+                      ? (BAND_COLOR[bands[i]] ?? "#0b72ff")
+                      : "#a8aeb6"
+              }
+              strokeWidth={selected ? 3 : proposed ? 2.4 : cut ? 1.6 : 0.8}
+              strokeDasharray={cut ? undefined : "3 3"}
+              opacity={sel && !selected ? 0.25 : cut ? 0.95 : 0.4}
+              style={{ cursor: "pointer" }}
+              onClick={() => onSelect(line)}
+            />
+          );
+        })}
       </svg>
       <p className="mt-1.5 text-[10.5px] text-muted">
         Load bands from chipload + replay: gray/dashed rapid · blue light (rubbing) · green target · orange high ·
@@ -452,6 +579,79 @@ function Backplot({
   );
 }
 
+/**
+ * BLOCK-SYNCED NC VIEWER — the immutable original, read-only. Selecting a
+ * line here highlights its motion; selecting motion scrolls here. Line
+ * numbers are 1-indexed and match every finding and proposal.
+ */
+function NcCodeViewer({ code, sel, onSelect }: { code: string; sel: [number, number] | null; onSelect: (line: number) => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const lines = useMemo(() => code.split(/\r?\n/), [code]);
+  useEffect(() => {
+    if (!sel || !boxRef.current) return;
+    const el = boxRef.current.querySelector<HTMLElement>(`[data-nc-line="${sel[0]}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [sel]);
+  return (
+    <div className="border-t border-line">
+      <div className="flex items-center justify-between px-4 py-1.5">
+        <span className="instrument-label">Original program — immutable, read-only</span>
+        <span className="font-mono text-[10px] text-muted tabular-nums">{lines.length} lines</span>
+      </div>
+      <div ref={boxRef} className="max-h-[260px] overflow-y-auto bg-void font-mono text-[11.5px] leading-[1.5]">
+        {lines.map((text, i) => {
+          const n = i + 1;
+          const hit = sel !== null && n >= sel[0] && n <= sel[1];
+          return (
+            <div
+              key={n}
+              data-nc-line={n}
+              onClick={() => onSelect(n)}
+              className={`flex cursor-pointer gap-3 px-3 ${hit ? "bg-precision/15 text-platinum" : "text-platinum-dim hover:bg-panel"}`}
+            >
+              <span className={`w-10 shrink-0 select-none text-right tabular-nums ${hit ? "text-precision-dim" : "text-muted"}`}>{n}</span>
+              <span className="whitespace-pre">{text || " "}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One accepted proposal as a source-level diff row — original vs proposed text. */
+function DiffRow({ codeLines, lines, originalFeed, proposedFeed, reason, saved }: {
+  codeLines: string[];
+  lines: [number, number];
+  originalFeed: number;
+  proposedFeed: number;
+  reason: string;
+  saved: number;
+}) {
+  // Find the block in range that carries the matching F-word; show it both ways.
+  const feedRe = new RegExp(`F\\s*0*${originalFeed}(?:\\.\\d*)?(?![\\d.])`);
+  let shown: { n: number; before: string; after: string } | null = null;
+  for (let n = lines[0]; n <= lines[1] && n <= codeLines.length; n++) {
+    const text = codeLines[n - 1] ?? "";
+    if (feedRe.test(text)) {
+      shown = { n, before: text, after: text.replace(feedRe, `F${proposedFeed}.`) };
+      break;
+    }
+  }
+  return (
+    <li className="border-b border-line/60 px-4 py-2 last:border-0">
+      <p className="font-mono text-[10.5px] text-muted">L{lines[0]}{lines[1] !== lines[0] ? `–${lines[1]}` : ""} · {reason}{saved > 0 ? ` · ~${saved}s` : ""}</p>
+      {shown ? (
+        <div className="mt-1 font-mono text-[11.5px]">
+          <p className="text-risk/90"><span className="select-none">− </span>{shown.before}</p>
+          <p className="text-pass"><span className="select-none">+ </span>{shown.after}</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-[11px] text-review">Feed is modal here (set on an earlier line) — the emitter will report this proposal unapplied rather than inserting words.</p>
+      )}
+    </li>
+  );
+}
 
 /** ROI / capacity — deterministic arithmetic over ESTIMATED inputs, assumptions shown. */
 function RoiPanel({ currentMinutes, proposedSeconds, machineRate }: { currentMinutes: number; proposedSeconds: number; machineRate: number | null }) {

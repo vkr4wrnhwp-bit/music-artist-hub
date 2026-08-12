@@ -976,3 +976,17 @@ the only status that exists). All three on /machines. 3 new tests;
 172 total. Browser-verified: insufficient-data chip, a recorded cycle
 showing +44s variance, a marked reference cut, five NOT CONNECTED
 chips.
+
+## Phase 5 — Show Me + NC block sync + original-vs-proposed
+
+Backplot segments now carry source lines; the immutable original
+renders as a read-only block-synced viewer (click plot → scroll code,
+click code → frame plot). SHOW ME on every finding/proposal/protected
+region frames the scene — bounding box + margin, amber highlight,
+context dimmed — never a text modal. Accepted proposals open a source
+diff (−/+ per changed block, modal feeds honestly shown as
+will-be-unapplied) and a PROPOSED plot mode highlighting accepted feed
+regions ("geometry identical by construction"). Fixed a dark-flip
+defect: the backplot ground returned to the light work window with
+fixed inks. Browser-verified: framing, two-way sync, diff rows,
+PROPOSED mode. 172 tests still green.

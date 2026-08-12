@@ -122,10 +122,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       workOffsetsSeen: parsed.workOffsetsSeen,
       toolChanges: parsed.toolChanges,
     },
-    // Backplot polylines, decimated for transport: [kind, x0,y0, x1,y1].
+    // Backplot polylines with source lines: [kind, line, x0,y0, x1,y1] —
+    // the line number is what synchronizes scene and code in both directions.
     backplot: parsed.segments
       .filter((s) => s.kind !== "DWELL")
-      .map((s) => [s.feed === null ? 0 : 1, r(s.x0), r(s.y0), r(s.x1), r(s.y1)]),
+      .map((s) => [s.feed === null ? 0 : 1, s.line, r(s.x0), r(s.y0), r(s.x1), r(s.y1)]),
+    // The immutable original's text, for the read-only block-synced viewer.
+    code: originalText,
     analysis,
     load: {
       bands: load.segments.map((s) => s.band),
