@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { CoachMark } from "@/components/guide/coach-mark";
 import { requireUser } from "@/lib/auth";
 import { PartShellProvider, Sidebar, ShellUserProvider } from "@/components/nav";
 
@@ -29,6 +31,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           user={{ name: user.name, organizationName: user.organizationName, role: user.role }}
         >
           <div className="flex min-w-0 flex-1 flex-col bg-work">{children}</div>
+          <Suspense fallback={null}>
+            <CoachMark />
+          </Suspense>
         </ShellUserProvider>
       </div>
     </PartShellProvider>

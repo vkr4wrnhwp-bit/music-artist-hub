@@ -30,6 +30,9 @@ export default async function NcPage(props: {
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
 
+  const partRow = await db.part.findFirst({ where: { id, organizationId: user.organizationId }, select: { training: true } });
+  const isTraining = partRow?.training ?? false;
+
   const machine = pkg.primaryMachine;
   const selectedPost = postParam
     ? getPost(postParam)
@@ -143,6 +146,13 @@ export default async function NcPage(props: {
           <SectionHeading sub="An LLM never produces machine motion in CANVAS. This program came from the deterministic toolpath engine through a modular post processor. It is a development post, it is not certified for production, and it says so in its own header.">
             NC output
           </SectionHeading>
+
+          {isTraining && (
+            <Notice tone="review" title="Training project — no production NC export">
+              This part exists to practise on. Everything works — planning, simulation, gates, program preview —
+              except walking away with the program: the export mint refuses training projects server-side.
+            </Notice>
+          )}
 
           <Notice tone="risk" title="Not certified for production">
             Verify every line before running. Dry run above the part. Confirm work offsets and tool length offsets at
@@ -293,7 +303,7 @@ export default async function NcPage(props: {
                 )}
               </Panel>
 
-              {canExport && <NcExportPanel partId={id} />}
+              {canExport && !isTraining && <NcExportPanel partId={id} />}
             </>
           )}
 

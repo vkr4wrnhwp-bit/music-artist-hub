@@ -434,7 +434,7 @@ export default async function MachinistPage(props: {
                     </p>
                     <form action={approvePlan} className="flex flex-wrap items-center gap-3">
                       <input type="hidden" name="pattern" value={selected.plan.pattern} />
-                      <Button type="submit" variant="primary" disabled={!canApprove(user) || selected.errors.length > 0}>
+                      <Button type="submit" variant="primary" data-guide-target="approve-approach" disabled={!canApprove(user) || selected.errors.length > 0}>
                         Approve {selected.plan.philosophy.name}
                       </Button>
                       <Link href={`/parts/${id}/readiness`} className="tech-label hover:text-platinum">

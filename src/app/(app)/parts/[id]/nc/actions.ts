@@ -51,6 +51,17 @@ export async function mintExport(partId: string): Promise<MintGrant | MintRefusa
   const pkg = await buildPackage(user.organizationId, partId);
   if (!pkg) return { ok: false, refused: [{ id: "part", label: "Part", detail: "Not found in this organisation" }] };
 
+  // Training projects never export production NC — that is the isolation
+  // that makes the Training Shop safe to practise in. Checked here at the
+  // mint, not only in the UI, because a server action is a POST endpoint.
+  const partRow = await db.part.findFirst({ where: { id: partId, organizationId: user.organizationId }, select: { training: true } });
+  if (partRow?.training) {
+    return {
+      ok: false,
+      refused: [{ id: "training", label: "Training project", detail: "Training projects cannot export production NC. Practise everything else freely." }],
+    };
+  }
+
   const program = await db.nCProgram.findFirst({
     where: { partRevisionId: pkg.revision.revisionId },
     orderBy: { createdAt: "desc" },

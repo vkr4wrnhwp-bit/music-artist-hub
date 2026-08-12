@@ -22,6 +22,8 @@ import { TopBar, BarMeta, PartShellInfoBridge } from "@/components/nav";
 import { PartStatusSummary } from "@/components/part-status";
 import { nextActions } from "@/lib/engines/next-action";
 import { Workspace } from "@/components/workspace/workspace";
+import { GuideCard } from "@/components/guide/guide-card";
+import type { GuideContext } from "@/lib/guide/engine";
 import type {
   DatumInfo,
   FeatureDetail,
@@ -454,6 +456,33 @@ export default async function PartWorkspace(props: {
     severity: a.severity,
   }));
 
+  // Snapshot of real project state for the Guide. Assembled here, from the
+  // same package the page renders — the Guide keeps no copy of the truth.
+  const partRow = await db.part.findFirst({ where: { id, organizationId: user.organizationId }, select: { training: true } });
+  const guideCtx: GuideContext = {
+    partId: id,
+    hasStock: Boolean(revision.stock),
+    hasMachine: Boolean(pkg.primaryMachine),
+    hasMaterial: Boolean(revision.intent.material.value),
+    featureCount: revision.features.length,
+    pendingProposals: proposals.length,
+    setupCount: pkg.setups.length,
+    workholdingAssessed: Object.values(pkg.workholdingBySetup).some(
+      (a) => a.level === "SAFE" || a.level === "LIKELY_SAFE",
+    ),
+    toolpathCount: pkg.toolpaths.filter((t) => !t.isPlaceholder).length,
+    simulationRecorded: pkg.simulationRun,
+    approvalExists: pkg.approved,
+    ncProgramExists: pkg.ncGenerated,
+    blockingGates: pkg.readiness.gates
+      .filter((g) => g.blocking && g.status !== "PASS" && g.status !== "REVIEW")
+      .map((g) => ({ id: g.id, label: g.label, detail: g.detail })),
+    nextAction: actions[0] ? { action: actions[0].action, href: actions[0].href } : null,
+    training: partRow?.training ?? false,
+  };
+
+
+
   // Blue means active state. The NC route is promoted to the primary treatment
   // only when the gate list that governs export has nothing blocking —
   // `blockingCount` is the readiness engine's own figure, not a second copy of
@@ -566,7 +595,7 @@ export default async function PartWorkspace(props: {
                 <span className="tech-label mb-0.5 block">Condition</span>
                 <input name="condition" placeholder="optional" className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
               </label>
-              <button type="submit" className="col-span-3 border border-precision/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10">
+              <button type="submit" data-guide-target="define-stock" className="col-span-3 border border-precision/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10">
                 Define stock
               </button>
             </form>
@@ -980,6 +1009,10 @@ export default async function PartWorkspace(props: {
         material={revision.intent.material.value ?? null}
       />
 
+      {/* CANVAS GUIDE — reads the same real state this page renders. It can
+          navigate and explain; it writes GuideState and nothing else. */}
+      <GuideCard ctx={guideCtx} />
+
       {/* Publishes this page's own values to the shell drawer. Renders
           nothing. Both values are already on this screen. */}
       <PartShellInfoBridge
@@ -1000,6 +1033,9 @@ export default async function PartWorkspace(props: {
       />
     </>
   );
+
+
+
 }
 
 const riskRank = (level: string) => ({ SAFE: 0, LIKELY_SAFE: 1, REVIEW: 2, HIGH_RISK: 3, UNKNOWN: 4 })[level] ?? 0;

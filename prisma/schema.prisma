@@ -383,6 +383,9 @@ model Part {
   name           String
   partNumber     String?
   description    String?
+  // Training projects are isolated from production: NC export is refused
+  // for them regardless of gate state, and the UI labels them.
+  training       Boolean @default(false)
   // PRIVATE unless a human changes it. Never defaulted upward.
   sharing        String @default("PRIVATE")
   isDemo         Boolean @default(false)
@@ -1320,6 +1323,31 @@ model ViewPreference {
 
   envJson          String
   savedPresetsJson String @default("[]")
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+
+// Per-user CANVAS Guide state: mode, experience profile and flow sessions
+// (including the visited-step history BACK ONE STEP walks). Deliberately
+// separate from manufacturing data — deleting a row resets tutoring and
+// nothing else.
+model GuideState {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String @unique
+
+  // OFF | ASSIST | TEACH
+  mode    String @default("ASSIST")
+  // NEW_TO_CNC | MACHINIST_NEW_TO_CAM | CAM_USER_NEW_TO_CANVAS |
+  // FUSION_USER | MASTERCAM_USER | EXPERIENCED — null until first-run asks.
+  profile String?
+
+  // { [flowKey: string]: GuideSession } — engine-owned shape.
+  sessionsJson String @default("{}")
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

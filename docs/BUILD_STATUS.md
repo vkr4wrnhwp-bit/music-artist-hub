@@ -715,3 +715,23 @@ selected. Measured matrix in docs/RESPONSIVE_WORKSPACE.md — 1366×768
 default 60% canvas (was 18%), no horizontal scroll anywhere, readiness
 and next action visible at every size. No route deleted
 (docs/ROUTE_MAPPING.md). All suites pass. 95 tests.
+
+## 2026-08-12 — CANVAS GUIDE: tutor mode, honestly scoped
+
+Guide engine (pure — no write path to manufacturing state, pinned by
+test), GuideSession with actual visited-step history, BACK ONE STEP as
+a history pop that follows branches as travelled and is disabled at the
+first step. Modes OFF/ASSIST/TEACH persisted per user (GuideState,
+paired migrations); first-run experience profile mapping to a default
+mode only. Floating Guide Card (datum mark, precision blue, machinist
+voice, collapsible to a tab; G / Shift+G / Alt+← / Esc, guarded while
+typing), coach marks on stable data-guide-target ids, MAKE_A_PART flow
+spanning the familiar CAM backbone with state-based completion,
+branching, and blockers that take priority over lessons. Training Shop:
+Part.training + seeded Basic Plate; the NC export mint refuses training
+parts server-side. Verified live: first-run → TEACH, step-of-N with
+already-done detection, back disabled at first step, guide progress
+coexisting with NOT READY, coach-mark deep link, training NC refusal.
+8 new engine tests. 103 tests. Honest gaps in docs/GUIDED_WORKFLOW.md:
+no sketching flow (no sketching exists), no turning flows, no analytics
+yet, coach marks do not auto-expand collapsed panels.

@@ -665,6 +665,86 @@ async function main() {
     },
   });
 
+  /* ================================================================ */
+  /* TRAINING SHOP — Basic Plate                                      */
+  /* ================================================================ */
+  // A practice part, isolated from production: `training: true` makes the
+  // NC export mint refuse it server-side. It arrives with geometry and no
+  // stock, no setups, no plan — the point is to walk the whole sequence.
+  const trainingPart = await db.part.create({
+    data: {
+      organizationId: org.id,
+      name: "Training — Basic Plate",
+      partNumber: "TRAIN-001",
+      description:
+        "Training project. Practise stock, setup, workholding, toolpaths, simulation and gates. No production NC export.",
+      sharing: "PRIVATE",
+      isDemo: true,
+      training: true,
+    },
+  });
+  const trainingIntent = {
+    partName: p("Training — Basic Plate", "USER", "VERIFIED", true),
+    description: p("Practice plate: face, pocket, two holes, chamfer.", "USER", "VERIFIED", true),
+    units: p("IN", "USER", "VERIFIED", true),
+    material: p("Aluminum 6061", "USER", "VERIFIED", true),
+    materialCondition: nullField("Choose during the lesson"),
+    stock: nullField("Defining stock is the first lesson"),
+    finishedEnvelope: p({ x: 4, y: 3, z: 0.5 }, "CALCULATED", "MEDIUM", false),
+    quantity: p(1, "USER", "VERIFIED", true),
+    features: p(["Face top", "Practice pocket", "2 × corner holes", "Break edges"], "USER", "VERIFIED", true),
+    criticalDimensions: p([], "USER", "HIGH", true),
+    generalTolerance: p(0.005, "USER", "VERIFIED", true),
+    criticalTolerances: p([], "USER", "HIGH", true),
+    surfaceFinish: nullField(),
+    application: p("Training project — nothing rides on it, which is the point", "USER", "VERIFIED", true),
+    loadBearing: p(false, "USER", "VERIFIED", true),
+    safetyCritical: p(false, "USER", "VERIFIED", true),
+    failureConsequence: p("NONE", "USER", "VERIFIED", true),
+    loadingType: nullField(),
+    environment: nullField(),
+    temperatureRange: nullField(),
+    regulatoryRequirements: nullField(),
+    inspectionRequirements: p([], "USER", "VERIFIED", true),
+    productionIntent: p("PROTOTYPE", "USER", "VERIFIED", true),
+    annualVolume: p(1, "USER", "VERIFIED", true),
+    notes: p("Training project. NC export is refused server-side.", "USER", "VERIFIED", true),
+    unknowns: [],
+    confidence: 0.9,
+  };
+  const trainRev = await db.partRevision.create({
+    data: {
+      partId: trainingPart.id,
+      revision: "A",
+      status: "DRAFT",
+      units: "IN",
+      intentJson: json(trainingIntent),
+      stockJson: null,
+      notes: "Training revision — define stock and plan it yourself; the Guide will walk you through it.",
+    },
+  });
+  await db.partResponsibilityProfile.create({ data: { partRevisionId: trainRev.id, productionIntent: "PROTOTYPE" } });
+  const trainingFeatures = [
+    { kind: "FACE", label: "Face top", functionalRole: "DATUM_FACE", critical: false, parameters: { depth: 0.05 }, orderIndex: 0 },
+    { kind: "RECT_POCKET", label: "Practice pocket", functionalRole: "CLEARANCE", critical: false, parameters: { centerX: 0, centerY: 0, width: 2, length: 1.5, depth: 0.25, cornerRadius: 0.25, bottomRadius: 0, top: 0 }, orderIndex: 1 },
+    { kind: "DRILLED_HOLE", label: "Corner hole 1", functionalRole: "MOUNTING_HOLE", critical: false, parameters: { centerX: -1.5, centerY: -1, diameter: 0.257, depth: 0.5, through: true, top: 0 }, orderIndex: 2 },
+    { kind: "DRILLED_HOLE", label: "Corner hole 2", functionalRole: "MOUNTING_HOLE", critical: false, parameters: { centerX: 1.5, centerY: 1, diameter: 0.257, depth: 0.5, through: true, top: 0 }, orderIndex: 3 },
+    { kind: "CHAMFER", label: "Break edges", functionalRole: "NONE", critical: false, parameters: { width: 0.02, angle: 45, applyTo: "OUTSIDE_TOP" }, orderIndex: 4 },
+  ];
+  for (const f of trainingFeatures) {
+    await db.feature.create({
+      data: {
+        partRevisionId: trainRev.id,
+        kind: f.kind,
+        label: f.label,
+        functionalRole: f.functionalRole,
+        critical: f.critical,
+        parametersJson: json(f.parameters),
+        orderIndex: f.orderIndex,
+      },
+    });
+  }
+
   console.log(`Seeded organisation ${org.name}`);
   console.log("  Sign in: demo@canvas.local / canvas-demo");
   console.log(`  Part: ${part.name} (${part.partNumber}) Rev A — ${features.length} features, 2 setups`);

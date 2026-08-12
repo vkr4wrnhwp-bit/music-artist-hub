@@ -45,6 +45,7 @@ export function ContextRail({ className = "", compact = false }: { className?: s
             key={c}
             role="tab"
             aria-selected={active}
+            data-guide-target={`context-${c.toLowerCase()}`}
             title={CONTEXT_QUESTION[c]}
             onClick={() => setContext(c)}
             className={`group relative flex-1 bg-surface text-left transition-colors ${
