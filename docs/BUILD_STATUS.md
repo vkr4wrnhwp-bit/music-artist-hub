@@ -781,3 +781,17 @@ when that limit is not recorded. Thread passes never touched; no
 coordinate word ever proposed. Surfaced as an Optimizer proposals panel
 with preset selector on /lathe/[id]/nc-review, DEVELOPMENT ANALYSIS
 labelled. 5 new tests; 126 total. Browser-verified live.
+
+## Lathe soft jaw generator
+
+turn/soft-jaws.ts: bore-in-place recipe (grip ⌀ exactly, under preload
+on a ring sized from the chuck's recorded jaw stroke — not sized when
+the stroke is unrecorded, missing input named; RPM/feed only from the
+boring bar's recorded windows; refuses without grip ⌀/length or when
+the bar cannot enter). Drawer search with lathe rules: a bored chuck
+jaw only ever grows — DIRECT / REBORE (≤0.5" growth or step deepening)
+/ BLANK / UNUSABLE-cannot-shrink. /lathe/[id]/soft-jaws page with jaw
+cross-section on light paper and audited HUMAN record-bore action
+(server refuses shrinking records). boredDiameter/boredDepth columns +
+paired migrations; chuck jawStroke seeded. 5 new tests; 131 total.
+Browser-verified: blank→recipe→record→DIRECT round trip live.

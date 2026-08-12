@@ -784,6 +784,7 @@ async function main() {
       maxClampForceLbf: null, // deliberately unrecorded: the grip analysis must say so
       jawType: "TWO_PIECE",
       jawMaterial: "HARD",
+      jawStroke: 0.24, // recorded from the chuck manual — sizes the soft-jaw preload ring
       serrated: true,
       minGripLength: 0.25,
       maxGripLength: 1.5,

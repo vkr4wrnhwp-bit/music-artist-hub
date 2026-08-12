@@ -315,3 +315,76 @@ test("SELF-TEST: the optimizer leaves the engine's own program alone where feeds
   // 0.012"/rev is inside the 0.008–0.02 window: no FEED proposal against our own post.
   assert.ok(!opt.proposals.some((p) => p.kind === "FEED"));
 });
+
+/* ------------------------------------------------------------------ */
+/* Lathe soft jaws                                                     */
+/* ------------------------------------------------------------------ */
+
+import { planSoftJawBore, findReusableLatheJaws } from "@/lib/manufacturing/turn/soft-jaws";
+
+const jawChuck = { description: "8in chuck", jawStroke: 0.24, chuckDiameter: 8, maxRPM: 4200 };
+const jawBar = { station: "0404", description: "boring bar", barDiameter: 0.625, minBoreDiameter: 0.8, surfaceSpeedMin: 350, surfaceSpeedMax: 800, feedPerRevMin: 0.004, feedPerRevMax: 0.01 };
+
+test("soft jaw recipe bores at the grip diameter under a stroke-sized preload ring", () => {
+  const plan = planSoftJawBore({ gripDiameter: 2.0, gripLength: 1.0, chuck: jawChuck, boringTool: jawBar });
+  assert.ok(plan.ok);
+  if (!plan.ok) return;
+  assert.equal(plan.boreDiameter, 2.0);
+  assert.equal(plan.boreDepth, 1.05);
+  assert.equal(plan.preloadRingDiameter, 2.12); // grip + stroke/2
+  // RPM from the bar's 800 SFM ceiling at ⌀2.0, under the chuck cap.
+  assert.equal(plan.boringRpm, Math.round((800 * 12) / (Math.PI * 2)));
+  assert.equal(plan.developmentAnalysis, true);
+  assert.ok(plan.steps.some((s) => /UNDER PRELOAD|under load/i.test(s.text)));
+  assert.ok(plan.steps.some((s) => /measurement, not a promise/.test(s.text)));
+});
+
+test("soft jaw recipe refuses without a grip, and never invents a preload ring without a stroke", () => {
+  const refused = planSoftJawBore({ gripDiameter: null, gripLength: null, chuck: jawChuck, boringTool: jawBar });
+  assert.ok(!refused.ok);
+  if (refused.ok) return;
+  assert.equal(refused.refusals.length, 2);
+
+  const noStroke = planSoftJawBore({ gripDiameter: 2.0, gripLength: 1.0, chuck: { ...jawChuck, jawStroke: null }, boringTool: jawBar });
+  assert.ok(noStroke.ok);
+  if (!noStroke.ok) return;
+  assert.equal(noStroke.preloadRingDiameter, null);
+  assert.ok(noStroke.missingInputs.some((m) => m.includes("jaw stroke")));
+});
+
+test("soft jaw recipe refuses a bore the boring bar cannot enter", () => {
+  const r = planSoftJawBore({ gripDiameter: 0.5, gripLength: 0.4, chuck: jawChuck, boringTool: jawBar });
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.ok(r.refusals.some((x) => x.includes("cannot enter")));
+});
+
+test("drawer search: a bored chuck jaw only ever grows", () => {
+  const inv = [
+    { id: "a", description: "Set A", boredDiameter: 2.0, boredDepth: 1.1 },
+    { id: "b", description: "Set B", boredDiameter: 1.75, boredDepth: 1.1 },
+    { id: "c", description: "Set C", boredDiameter: 2.5, boredDepth: 1.1 },
+    { id: "d", description: "Set D", boredDiameter: null, boredDepth: null },
+  ];
+  const m = findReusableLatheJaws(2.0, 1.0, inv);
+  assert.equal(m[0].kind, "DIRECT");
+  assert.equal(m[0].jawSet.id, "a");
+  assert.equal(m[1].kind, "REBORE"); // 1.75 grows 0.25 to 2.0
+  assert.equal(m[1].jawSet.id, "b");
+  assert.equal(m[2].kind, "BLANK");
+  const c = m.find((x) => x.jawSet.id === "c")!;
+  assert.equal(c.kind, "UNUSABLE"); // 2.5 cannot shrink
+  assert.ok(c.reason.includes("cannot shrink"));
+});
+
+test("drawer search: a shallow step is a re-bore, a huge growth is a new blank", () => {
+  const m = findReusableLatheJaws(2.0, 1.0, [
+    { id: "s", description: "Shallow", boredDiameter: 2.0, boredDepth: 0.5 },
+    { id: "g", description: "Tiny", boredDiameter: 1.2, boredDepth: 1.1 },
+  ]);
+  const shallow = m.find((x) => x.jawSet.id === "s")!;
+  assert.equal(shallow.kind, "REBORE");
+  assert.ok(shallow.reason.includes("deepen"));
+  const tiny = m.find((x) => x.jawSet.id === "g")!;
+  assert.equal(tiny.kind, "UNUSABLE"); // 0.8" growth > 0.5 max
+});

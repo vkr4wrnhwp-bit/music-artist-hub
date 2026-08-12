@@ -2,7 +2,7 @@
 
 1. ~~Lathe NC parser + backplot~~ DONE — see docs/LATHE_NC_PARSER.md
 2. ~~Turning cycle analysis + optimizer~~ DONE — see docs/TURNING_OPTIMIZER.md
-3. Lathe soft jaw generator
+3. ~~Lathe soft jaw generator~~ DONE — see docs/LATHE_SOFT_JAWS.md
 4. Turning reverse-engineering guided flow + measurements
 5. Turning cost engine + make-vs-buy
 6. 3D lathe view + playback + stock states

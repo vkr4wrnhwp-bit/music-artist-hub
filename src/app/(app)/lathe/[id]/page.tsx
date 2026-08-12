@@ -357,6 +357,11 @@ export default async function LathePartPage(props: {
                   <Button type="submit">Record</Button>
                 </form>
               )}
+              <p className="mt-2 border-t border-line/60 pt-2">
+                <Link href={`/lathe/${id}/soft-jaws`} className="font-mono text-[11px] text-precision-dim hover:text-precision">
+                  Soft jaws — drawer search + bore recipe →
+                </Link>
+              </p>
             </Panel>
             <Panel title="Hold — stickout" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(stickout.verdict)}>{stickout.verdict}</StatusChip></span>}>
               <p className="font-mono text-[15px] text-platinum tabular-nums">L/D {("ldRatio" in stickout ? stickout.ldRatio : 0).toFixed(1)}:1</p>

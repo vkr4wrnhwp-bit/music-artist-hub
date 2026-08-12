@@ -1430,6 +1430,11 @@ model LatheWorkholding {
   jawMaterial String?
   serrated    Boolean?
 
+  // Soft jaws only: the diameter/depth they were last bored at, recorded when
+  // the boring is done. Null = still blank. A bored jaw only ever grows.
+  boredDiameter Float?
+  boredDepth    Float?
+
   minGripLength Float?
   maxGripLength Float?
 
