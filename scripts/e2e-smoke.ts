@@ -73,7 +73,17 @@ async function main() {
 
     /* ---- part workspace ---- */
     await page.goto(`${BASE}/parts`);
-    const href = await page.locator('a[href^="/parts/"]:not([href$="/new"])').first().getAttribute("href");
+    // The demo Bearing Support specifically: the training part has no
+    // setups by design and would make the tablet checks meaningless.
+    const partLinks = page.locator('a[href^="/parts/"]:not([href$="/new"])');
+    let href: string | null = null;
+    for (let i = 0; i < (await partLinks.count()); i++) {
+      if (/Bearing Support/.test((await partLinks.nth(i).textContent()) ?? "")) {
+        href = await partLinks.nth(i).getAttribute("href");
+        break;
+      }
+    }
+    href = href ?? (await partLinks.first().getAttribute("href"));
     if (!href) fail("no seeded part in the library");
     await page.goto(BASE + href);
     // First WebGL page after a cold server start can take a while.
