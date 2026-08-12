@@ -6,6 +6,7 @@ import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
+import { buildProtectedRegions } from "@/lib/nc/protection";
 import { evaluateAuditGates } from "@/lib/nc/audit-gates";
 
 /**
@@ -31,10 +32,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach an .nc / .txt program." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "File exceeds the 5 MB limit." }, { status: 400 });
 
-  const [tools, machines, materials] = await Promise.all([
+  const [tools, machines, materials, shop] = await Promise.all([
     getTools(user.organizationId),
     getMachines(user.organizationId),
     getMaterials(user.organizationId),
+    db.shop.findFirst({ where: { organizationId: user.organizationId } }),
   ]);
   const toolDiameters: Record<number, number> = {};
   const loadTools: LoadContext["tools"] = {};
@@ -88,6 +90,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     specificEnergy: material?.specificEnergy ?? null,
     machineMaxFeed: machines[0]?.maxFeed ?? 300,
     preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
+    protectedRegions: buildProtectedRegions(revision.features),
   });
 
   const toolsInProgram = [...new Set(parsed.segments.map((s) => s.toolNumber).filter((t) => t > 0))];
@@ -128,6 +131,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       bands: load.segments.map((s) => s.band),
       proposals: load.proposals,
       totalProposedSecondsSaved: load.totalProposedSecondsSaved,
+      protectedHits: load.protectedHits,
       gaps: load.gaps,
       developmentAnalysis: load.developmentAnalysis,
     },
@@ -136,6 +140,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       toolsKnown: Object.keys(toolDiameters).length,
       rapidRate: machines[0]?.maxRapid ?? 600,
       machine: machines[0] ? `${machines[0].manufacturer} ${machines[0].model}` : null,
+      machineRatePerHour: shop?.machineRate ?? null,
     },
   });
 }

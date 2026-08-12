@@ -75,3 +75,79 @@ test("air segments band AIR from the replay, not from feed words", () => {
   const airBands = a.segments.filter((s) => s.band === "AIR");
   assert.ok(airBands.length >= 2, JSON.stringify(a.segments));
 });
+
+/* ------------------------------------------------------------------ */
+/* Phase 5: finish protection + corner-spike control                   */
+/* ------------------------------------------------------------------ */
+
+test("a protected region blocks proposals inside it and reports FINISH PASS PROTECTED", () => {
+  // The LIGHT program cuts along Y0 from X-2.5 to X2.5 at Z-0.1. Protect a
+  // bore at the middle of that path.
+  const a = analyzeLoad(parseNC(LIGHT), ctx({
+    protectedRegions: [{ label: "Bearing Bore A", reason: "Tolerance band 0.0010\"", centerX: 0, centerY: 0, radius: 3.0, zTop: 0, zBottom: -0.5 }],
+  }));
+  assert.equal(a.proposals.length, 0, "no proposal may touch a protected cut");
+  assert.equal(a.protectedHits.length, 1);
+  assert.equal(a.protectedHits[0].label, "Bearing Bore A");
+  assert.ok(a.protectedHits[0].segments > 0);
+  // Without the region the same program DOES propose — protection is the difference.
+  assert.ok(analyzeLoad(parseNC(LIGHT), ctx()).proposals.length > 0);
+});
+
+test("protection outside the cut's Z span does not fire — regions are spatial, not global", () => {
+  const a = analyzeLoad(parseNC(LIGHT), ctx({
+    protectedRegions: [{ label: "Deep bore", reason: "critical", centerX: 0, centerY: 0, radius: 3.0, zTop: -0.5, zBottom: -0.9 }],
+  }));
+  assert.equal(a.protectedHits.length, 0);
+  assert.ok(a.proposals.length > 0);
+});
+
+// An engagement spike: a full-width plunge into fresh stock mid-run. The run
+// cuts thin passes at the stock edge (low removal), then drives straight
+// through center (high removal), then back out. Same tool, same feed.
+// Edge skims barely engage the 0.5" tool (center outside the stock edge);
+// the center pass is a full-width slot through virgin stock — the spike.
+// Rapids between passes are transparent to run grouping.
+const SPIKE = [
+  "G20 G90", "S5000 M3",
+  "G0 X-3.5 Y-2.05 Z0.2",
+  "G1 Z-0.35 F60",
+  "G1 X3.5 F60",     // skim: ~0.2 engagement
+  "G0 Z0.2", "G0 X-3.5 Y2.05", "G1 Z-0.35 F60",
+  "G1 X3.5 F60",     // skim: ~0.2 engagement
+  "G0 Z0.2", "G0 X-3.5 Y0.0", "G1 Z-0.35 F60",
+  "G1 X3.5 F60",     // full-width slot — the spike
+].join("\n");
+
+test("an engagement spike inside a same-feed run draws a REDUCE proposal, floored at minimum chipload", () => {
+  const a = analyzeLoad(parseNC(SPIKE), ctx());
+  const reduce = a.proposals.find((p) => p.kind === "REDUCE");
+  assert.ok(reduce, "expected a REDUCE proposal for the spike");
+  assert.ok(reduce!.proposedFeed < reduce!.originalFeed * 0.88, "hysteresis: at least a 12% cut");
+  // Floor: proposed feed never thins the chip below the insert minimum.
+  const floorFeed = tool.chiploadMin * 5000 * tool.flutes;
+  assert.ok(reduce!.proposedFeed >= Math.floor(floorFeed), "never below minimum-chipload feed");
+  assert.equal(reduce!.risk, "REVIEW");
+  assert.equal(reduce!.estimatedSecondsSaved, 0, "control is not sold as savings");
+  assert.ok(reduce!.assumptions.some((x) => x.includes("DEVELOPMENT")));
+});
+
+test("REDUCE proposals never fire without stock replay data — no spike is guessed", () => {
+  const a = analyzeLoad(parseNC(SPIKE), ctx({ stock: null }));
+  assert.ok(!a.proposals.some((p) => p.kind === "REDUCE"));
+});
+
+test("savings total counts RAISE only — reductions are load control, not time", () => {
+  const a = analyzeLoad(parseNC(SPIKE), ctx());
+  const raiseSum = a.proposals.filter((p) => p.kind === "RAISE").reduce((t, p) => t + p.estimatedSecondsSaved, 0);
+  assert.equal(a.totalProposedSecondsSaved, Number(raiseSum.toFixed(1)));
+});
+
+test("a pass crossing straight THROUGH a protected bore is protected — endpoints alone are not the test", () => {
+  // Cut from X-2.5 to X2.5 at Y0.5: both endpoints are far from the bore at
+  // (0,0) r0.94, but the segment passes within 0.5" of center.
+  const a = analyzeLoad(parseNC(LIGHT), ctx({
+    protectedRegions: [{ label: "40 mm bearing bore", reason: "Tolerance band 0.0005\"", centerX: 0, centerY: 0, radius: 0.94, zTop: 0, zBottom: -0.625 }],
+  }));
+  assert.ok(a.protectedHits.some((h) => h.label === "40 mm bearing bore"));
+});

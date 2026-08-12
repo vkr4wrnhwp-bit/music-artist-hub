@@ -947,3 +947,18 @@ the analyzer, with stock alignment REVIEW by construction. 7 new
 tests; 160 total. Browser-verified: AUDIT PASS / OPTIMIZATION REVIEW
 on a clean program, digest shown, re-analysis dedupes to one row.
 Status vs the full brief recorded in docs/RUN_IT_PAST_CANVAS.md.
+
+## Phase 5 — optimizer completion, part 1
+
+Finish-pass protection (protection.ts: rule-based regions from the
+part's own critical features; segment-to-center distance — a pass
+crossing THROUGH a bore is protected, a live-found hole now pinned;
+absolute in V1, shared by analyze + optimize routes), corner-spike
+REDUCE proposals (2× run-median MRR spikes, chipload floor, 0.08"
+minimum stretch, 12% hysteresis, zero claimed savings — control is not
+sold as time), and the ROI/capacity panel (RAISE-only savings, no
+dollar figure without a configured shop rate). FeedProposal gains
+kind RAISE|REDUCE; savings totals count RAISE only. 9 new tests; 169
+total. Browser-verified: the demo program yields 3 RAISE, a suppressed
+REDUCE (its spike crosses the protected bearing bore), 1 PROTECTED
+region and a live ROI panel — the honest mixed-result story.

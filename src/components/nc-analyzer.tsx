@@ -38,11 +38,13 @@ interface Report {
   load: {
     bands: string[];
     proposals: {
+      kind: "RAISE" | "REDUCE";
       lines: [number, number]; toolNumber: number; originalFeed: number; proposedFeed: number;
       estimatedSecondsSaved: number; reason: string; risk: string; assumptions: string[];
       requiredEvidence: string; geometryChanges: false;
     }[];
     totalProposedSecondsSaved: number;
+    protectedHits: { label: string; reason: string; lines: [number, number]; segments: number }[];
     gaps: string[];
     developmentAnalysis: true;
   };
@@ -57,7 +59,7 @@ interface Report {
     assumptions: string[];
     extents: { minX: number; maxX: number; minY: number; maxY: number };
   };
-  context: { stockBound: boolean; toolsKnown: number; rapidRate: number; machine: string | null };
+  context: { stockBound: boolean; toolsKnown: number; rapidRate: number; machine: string | null; machineRatePerHour: number | null };
 }
 
 export function NcAnalyzer({ partId }: { partId: string }) {
@@ -257,8 +259,13 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                       />
                       <span className="text-muted">L{p.lines[0]}{p.lines[1] !== p.lines[0] ? `–${p.lines[1]}` : ""}</span>
                       <span className="text-muted">T{p.toolNumber}</span>
+                      <StatusChip tone={p.kind === "REDUCE" ? "review" : "precision"}>{p.kind === "REDUCE" ? "REDUCE — load control" : "RAISE"}</StatusChip>
                       <span className="text-platinum">F{p.originalFeed} → F{p.proposedFeed}</span>
-                      <span className="text-review">~{p.estimatedSecondsSaved}s</span>
+                      {p.kind === "RAISE" ? (
+                        <span className="text-review">~{p.estimatedSecondsSaved}s</span>
+                      ) : (
+                        <span className="text-muted">costs a little time; buys the tool and the part</span>
+                      )}
                       <StatusChip tone={p.risk === "LOW" ? "pass" : "review"}>{p.risk}</StatusChip>
                     </div>
                     <p className="mt-0.5 text-[12px] leading-relaxed text-platinum-dim">{p.reason}</p>
@@ -306,6 +313,28 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               </div>
             )}
           </Panel>
+
+          {r.load.protectedHits.length > 0 && (
+            <Panel title={`Finish passes protected — ${r.load.protectedHits.length} region(s)`} dense>
+              <ul>
+                {r.load.protectedHits.map((h) => (
+                  <li key={h.label} className="flex items-start gap-3 border-b border-line/60 px-4 py-2 last:border-0">
+                    <StatusChip tone="pass">PROTECTED</StatusChip>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono text-[11.5px] text-platinum">{h.label} · L{h.lines[0]}–{h.lines[1]} · {h.segments} segment(s)</span>
+                      <span className="block text-[11.5px] leading-relaxed text-platinum-dim">{h.reason}. Cutting inside this feature receives no automatic proposal in either direction — protection is absolute in V1; overriding it is not built.</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+
+          <RoiPanel
+            currentMinutes={r.analysis.totalMinutes}
+            proposedSeconds={[...accepted].reduce((t, i) => t + (r.load.proposals[i]?.kind === "RAISE" ? r.load.proposals[i].estimatedSecondsSaved : 0), 0)}
+            machineRate={r.context.machineRatePerHour}
+          />
 
           <Panel title="Cycle time" dense>
             <div className="flex flex-wrap gap-x-6 gap-y-1 px-4 py-2.5 font-mono text-[12px] text-platinum tabular-nums">
@@ -420,5 +449,46 @@ function Backplot({
         red review. Estimates, not measurements — no spindle telemetry exists.
       </p>
     </div>
+  );
+}
+
+
+/** ROI / capacity — deterministic arithmetic over ESTIMATED inputs, assumptions shown. */
+function RoiPanel({ currentMinutes, proposedSeconds, machineRate }: { currentMinutes: number; proposedSeconds: number; machineRate: number | null }) {
+  const [batch, setBatch] = useState(100);
+  const [annual, setAnnual] = useState(1000);
+  const proposedMinutes = Math.max(0, currentMinutes - proposedSeconds / 60);
+  const savedMin = currentMinutes - proposedMinutes;
+  const batchHours = (savedMin * batch) / 60;
+  const annualHours = (savedMin * annual) / 60;
+  return (
+    <Panel title="ROI / capacity" meta={<StatusChip tone="review">ESTIMATED</StatusChip>} dense>
+      <div className="flex flex-wrap items-end gap-4 border-b border-line px-4 py-2.5">
+        <label className="block">
+          <span className="tech-label mb-1 block">Batch qty</span>
+          <input value={batch} onChange={(e) => setBatch(Math.max(1, Number(e.target.value) || 1))} inputMode="numeric" className="w-20 border border-line-strong bg-void px-2 py-1 font-mono text-[12px] text-platinum" />
+        </label>
+        <label className="block">
+          <span className="tech-label mb-1 block">Annual qty</span>
+          <input value={annual} onChange={(e) => setAnnual(Math.max(0, Number(e.target.value) || 0))} inputMode="numeric" className="w-24 border border-line-strong bg-void px-2 py-1 font-mono text-[12px] text-platinum" />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-px bg-line px-0 sm:grid-cols-4">
+        {[
+          ["Save / part", `${(savedMin * 60).toFixed(1)} s`],
+          ["Batch", `${batchHours.toFixed(1)} hr`],
+          ["Annual capacity", `${annualHours.toFixed(1)} hr`],
+          ["Capacity value", machineRate !== null ? `$${(annualHours * machineRate).toFixed(0)}` : "no rate set"],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-surface px-4 py-2.5">
+            <p className="tech-label">{label}</p>
+            <p className="mt-0.5 font-mono text-[16px] text-white tabular-nums">{value}</p>
+          </div>
+        ))}
+      </div>
+      <p className="px-4 py-2 text-[10.5px] leading-relaxed text-muted">
+        From the ACCEPTED raise proposals only — reductions cost a little time and are not counted as savings. Recovered hours are capacity, not revenue; they are worth money only if the spindle time is refilled.{machineRate !== null ? ` Valued at the shop's configured $${machineRate}/hr machine rate.` : " No shop machine rate configured — no dollar figure is shown rather than assuming one."}
+      </p>
+    </Panel>
   );
 }

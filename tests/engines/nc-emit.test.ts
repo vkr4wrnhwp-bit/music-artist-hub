@@ -9,7 +9,7 @@ import type { FeedProposal } from "@/lib/nc/load";
  */
 
 const proposal = (l0: number, l1: number, from: number, to: number): FeedProposal => ({
-  lines: [l0, l1], toolNumber: 2, originalFeed: from, proposedFeed: to,
+  kind: "RAISE" as const, lines: [l0, l1], toolNumber: 2, originalFeed: from, proposedFeed: to,
   estimatedSecondsSaved: 5, reason: "test", risk: "LOW", assumptions: [],
   requiredEvidence: "", geometryChanges: false,
 });

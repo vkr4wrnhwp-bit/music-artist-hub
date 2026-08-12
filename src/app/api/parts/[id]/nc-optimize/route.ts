@@ -7,6 +7,7 @@ import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
+import { buildProtectedRegions } from "@/lib/nc/protection";
 import { emitOptimized } from "@/lib/nc/emit";
 import { verifyNc } from "@/lib/engines/cam/post";
 
@@ -76,6 +77,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     stock, tools: loadTools, specificEnergy: material?.specificEnergy ?? null,
     machineMaxFeed: machine?.maxFeed ?? 300,
     preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
+    protectedRegions: buildProtectedRegions(revision.features),
   });
   const matched = derived.proposals.filter((p) =>
     accepted.some((a) => a.lines[0] === p.lines[0] && a.lines[1] === p.lines[1] && a.originalFeed === p.originalFeed && a.proposedFeed === p.proposedFeed),
