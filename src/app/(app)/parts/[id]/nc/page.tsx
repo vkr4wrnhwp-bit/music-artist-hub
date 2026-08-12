@@ -143,9 +143,72 @@ export default async function NcPage(props: {
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto max-w-5xl space-y-6">
-          <SectionHeading sub="An LLM never produces machine motion in CANVAS. This program came from the deterministic toolpath engine through a modular post processor. It is a development post, it is not certified for production, and it says so in its own header.">
-            NC output
-          </SectionHeading>
+          {/* COMMAND CENTER HEADER — one dominant status, the rail below it.
+              The gate itself is unchanged; buildPreflight rules as before. */}
+          <section className="border border-line bg-surface">
+            <div className="flex flex-wrap items-stretch gap-px bg-line">
+              <div className="min-w-[160px] flex-1 bg-surface px-5 py-4">
+                <p className="tech-label">Program</p>
+                <p className="mt-1 font-mono text-[24px] font-light text-white">O{existing?.programNumber ?? "—"}</p>
+              </div>
+              <div className="min-w-[160px] flex-1 bg-surface px-5 py-4">
+                <p className="tech-label">Status</p>
+                <p className={`mt-1 font-mono text-[24px] font-light ${canExport ? "text-pass" : "text-risk"}`}>
+                  {canExport ? "READY" : "NOT READY"}
+                </p>
+              </div>
+              <div className="min-w-[160px] flex-1 bg-surface px-5 py-4">
+                <p className="tech-label">Controller</p>
+                <p className="mt-1 font-mono text-[15px] text-platinum">{machine?.controller.replace(/_/g, " ") ?? "—"}</p>
+                <p className="tech-label mt-1">{machine ? `${machine.manufacturer} ${machine.model}` : "no machine"}</p>
+              </div>
+              <div className="min-w-[200px] flex-1 bg-surface px-5 py-4">
+                <p className="tech-label">Post</p>
+                <p className="mt-1 font-mono text-[13px] text-platinum">{selectedPost?.name ?? "—"}</p>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-review">
+                  Development — not certified for production
+                </p>
+              </div>
+            </div>
+            {/* Pre-flight rail: every item one chip; the first unresolved one
+                becomes the dominant card below the rail. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line px-5 py-2.5">
+              {preflight.map((p) => (
+                <span key={p.id} className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.08em]">
+                  <Dot tone={p.status === "PASS" ? "pass" : p.status === "PENDING" ? "unknown" : "risk"} />
+                  <span className={p.status === "PASS" ? "text-muted" : "text-platinum"}>{p.label}</span>
+                  <span className={p.status === "PASS" ? "text-pass" : p.status === "PENDING" ? "text-unknown" : "text-risk"} aria-hidden>
+                    {p.status === "PASS" ? "✓" : p.status === "PENDING" ? "—" : "✕"}
+                  </span>
+                </span>
+              ))}
+            </div>
+            {(() => {
+              const first = preflight.find((p) => p.status !== "PASS");
+              if (!first) return null;
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-risk/40 bg-risk/5 px-5 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-risk">First unresolved — {first.label}</p>
+                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-platinum-dim">{first.detail}</p>
+                  </div>
+                  <Link
+                    href={`/parts/${id}/readiness`}
+                    className="shrink-0 border border-precision/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+                  >
+                    Show blocker
+                  </Link>
+                </div>
+              );
+            })()}
+            <div className="border-t border-line px-5 py-2">
+              <LimitsDisclosure label="Why this post is not certified">
+                Verify every line before running. Dry run above the part. Confirm work offsets and tool length offsets
+                at the machine. CANVAS has not verified stock removal, holder clearance or fixture collisions — the
+                program header carries the same warning.
+              </LimitsDisclosure>
+            </div>
+          </section>
 
           {isTraining && (
             <Notice tone="review" title="Training project — no production NC export">
@@ -153,32 +216,6 @@ export default async function NcPage(props: {
               except walking away with the program: the export mint refuses training projects server-side.
             </Notice>
           )}
-
-          <Notice tone="risk" title="Not certified for production">
-            Verify every line before running. Dry run above the part. Confirm work offsets and tool length offsets at
-            the machine. CANVAS has not verified stock removal, holder clearance or fixture collisions.
-          </Notice>
-
-          <Panel title="Pre-flight check" dense>
-            <ul>
-              {preflight.map((p) => (
-                <li key={p.id} className="flex items-start justify-between gap-4 border-b border-line/60 px-4 py-2.5 last:border-0">
-                  <span className="flex items-start gap-2.5">
-                    <span className="mt-1.5">
-                      <Dot tone={p.status === "PASS" ? "pass" : p.status === "PENDING" ? "unknown" : "risk"} />
-                    </span>
-                    <span>
-                      <span className="block font-mono text-[12px] text-platinum">{p.label}</span>
-                      <span className="block text-[12px] text-muted">{p.detail}</span>
-                    </span>
-                  </span>
-                  <StatusChip tone={p.status === "PASS" ? "pass" : p.status === "PENDING" ? "unknown" : "risk"}>
-                    {p.status}
-                  </StatusChip>
-                </li>
-              ))}
-            </ul>
-          </Panel>
 
           <Panel title="Generate">
             <form action={generate} className="flex flex-wrap items-end gap-4">

@@ -266,73 +266,121 @@ export default async function MachinistPage(props: {
                 </Panel>
               )}
 
-              {/* ---------------- Comparison ---------------- */}
-              <Panel title="How they compare" dense>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="border-b border-line">
-                        {["Approach", "Setups", "Tools", "Ops", "Cycle", "Risk", "Unit cost"].map((h) => (
-                          <th key={h} className="tech-label whitespace-nowrap px-3 py-2 font-normal">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="font-mono text-[12px]">
-                      {scored.map((s) => {
-                        const active = selected?.plan.pattern === s.plan.pattern;
+              {/* ---------------- Comparison: strategy cards ---------------- */}
+              {(() => {
+                const maxCycle = Math.max(...scored.map((x) => x.cycleMinutes), 0.001);
+                const maxCost = Math.max(...scored.map((x) => x.unitCost), 0.001);
+                return (
+                  <section>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {scored.map((sc) => {
+                        const active = selected?.plan.pattern === sc.plan.pattern;
                         return (
-                          <tr key={s.plan.pattern} className={active ? "bg-raised" : "hover:bg-raised"}>
-                            <td className="border-b border-line/50 px-3 py-2">
-                              <Link
-                                href={`/parts/${id}/machinist?approach=${s.plan.pattern}`}
-                                className={active ? "text-precision" : "text-platinum hover:text-white"}
-                              >
-                                {s.plan.philosophy.name}
-                              </Link>
-                            </td>
-                            <td className="border-b border-line/50 px-3 py-2">{s.setupCount}</td>
-                            <td className="border-b border-line/50 px-3 py-2">{s.toolChanges}</td>
-                            <td className="border-b border-line/50 px-3 py-2">{s.operationCount}</td>
-                            <td className="border-b border-line/50 px-3 py-2">
-                              {s.cycleMinutes > 0 ? `${s.cycleMinutes.toFixed(1)} min` : "—"}
-                            </td>
-                            <td className="border-b border-line/50 px-3 py-2">
-                              <span className="flex items-center gap-1.5">
-                                <Dot tone={RISK_TONE[s.risk]} />
-                                <span className="text-muted">{RISK_LABEL[s.risk]}</span>
-                              </span>
-                            </td>
-                            <td className="border-b border-line/50 px-3 py-2">{money(s.unitCost)}</td>
-                          </tr>
+                          <Link
+                            key={sc.plan.pattern}
+                            href={`/parts/${id}/machinist?approach=${sc.plan.pattern}`}
+                            className={`group block border bg-surface transition-colors ${
+                              active ? "border-precision/70" : "border-line hover:border-line-strong"
+                            }`}
+                          >
+                            <div className="border-b border-line px-4 py-3">
+                              <p className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${active ? "text-precision" : "text-muted"}`}>
+                                {sc.plan.philosophy.name}
+                              </p>
+                              <p className="mt-1.5 font-mono text-[26px] font-light text-white tabular-nums">
+                                {sc.cycleMinutes > 0 ? `${sc.cycleMinutes.toFixed(1)} min` : "—"}
+                              </p>
+                              <p className="tech-label mt-0.5">
+                                {sc.setupCount} setup{sc.setupCount === 1 ? "" : "s"} · {sc.toolChanges} tools · {sc.operationCount} ops
+                              </p>
+                            </div>
+                            <div className="space-y-2 px-4 py-3">
+                              {/* Relative bars — comparison, not judgement. */}
+                              <div>
+                                <div className="flex items-baseline justify-between">
+                                  <span className="tech-label">Cycle</span>
+                                  <span className="font-mono text-[10.5px] text-muted tabular-nums">{sc.cycleMinutes.toFixed(1)}m</span>
+                                </div>
+                                <div className="mt-0.5 h-1 bg-line">
+                                  <div className="h-1 bg-precision/70" style={{ width: `${(sc.cycleMinutes / maxCycle) * 100}%` }} />
+                                </div>
+                              </div>
+                              <div>
+                                <div className="flex items-baseline justify-between">
+                                  <span className="tech-label">Unit cost</span>
+                                  <span className="font-mono text-[10.5px] text-muted tabular-nums">{money(sc.unitCost)}</span>
+                                </div>
+                                <div className="mt-0.5 h-1 bg-line">
+                                  <div className="h-1 bg-platinum/50" style={{ width: `${(sc.unitCost / maxCost) * 100}%` }} />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="flex items-center gap-1.5">
+                                  <Dot tone={RISK_TONE[sc.risk]} />
+                                  <span className="text-[11px] text-muted">{RISK_LABEL[sc.risk]}</span>
+                                </span>
+                                <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${active ? "text-precision" : "text-precision-dim group-hover:text-precision"}`}>
+                                  {active ? "Selected" : "View approach"}
+                                </span>
+                              </div>
+                              <p className="border-t border-line/60 pt-2 text-[11px] leading-relaxed text-muted">
+                                {sc.plan.philosophy.tradeoff}
+                              </p>
+                            </div>
+                          </Link>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-line px-4 py-3">
-                  {[
-                    ["Fastest", comparison.fastest],
-                    ["Cheapest", comparison.cheapest],
-                    ["Safest", comparison.safest],
-                    ["Fewest setups", comparison.fewestSetups],
-                    ["Fewest tools", comparison.fewestTools],
-                  ].map(([label, winner]) => (
-                    <span key={label as string} className="text-[11.5px]">
-                      <span className="tech-label">{label}</span>{" "}
-                      <span className="text-platinum">{winner ?? "—"}</span>
-                    </span>
-                  ))}
-                </div>
-
-                <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-muted">
-                  CANVAS does not declare an overall winner. Which of those columns matters is a decision about this
-                  job — quantity, material cost, whether it runs unattended — and that belongs to you, not to the
-                  software.
-                </p>
-              </Panel>
+                    </div>
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                      CANVAS does not declare an overall winner. Which card matters is a decision about this job —
+                      quantity, material cost, whether it runs unattended — and that belongs to you, not to the software.
+                    </p>
+                    <details className="mt-2 border border-line bg-surface">
+                      <summary className="cursor-pointer px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
+                        View table
+                      </summary>
+                      <div className="overflow-x-auto border-t border-line">
+                        <table className="w-full border-collapse text-left">
+                          <thead>
+                            <tr className="border-b border-line">
+                              {["Approach", "Setups", "Tools", "Ops", "Cycle", "Risk", "Unit cost"].map((h) => (
+                                <th key={h} className="tech-label whitespace-nowrap px-3 py-2 font-normal">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="font-mono text-[12px]">
+                            {scored.map((sc) => (
+                              <tr key={sc.plan.pattern} className="hover:bg-raised">
+                                <td className="border-b border-line/50 px-3 py-2 text-platinum">{sc.plan.philosophy.name}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{sc.setupCount}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{sc.toolChanges}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{sc.operationCount}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{sc.cycleMinutes > 0 ? `${sc.cycleMinutes.toFixed(1)} min` : "—"}</td>
+                                <td className="border-b border-line/50 px-3 py-2 text-muted">{RISK_LABEL[sc.risk]}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{money(sc.unitCost)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-line px-4 py-3">
+                          {[
+                            ["Fastest", comparison.fastest],
+                            ["Cheapest", comparison.cheapest],
+                            ["Safest", comparison.safest],
+                            ["Fewest setups", comparison.fewestSetups],
+                            ["Fewest tools", comparison.fewestTools],
+                          ].map(([label, winner]) => (
+                            <span key={label as string} className="text-[11.5px]">
+                              <span className="tech-label">{label}</span>{" "}
+                              <span className="text-platinum">{winner ?? "—"}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+                  </section>
+                );
+              })()}
 
               {/* ---------------- Selected approach ---------------- */}
               {selected && (

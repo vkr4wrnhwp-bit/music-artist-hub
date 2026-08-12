@@ -1019,3 +1019,21 @@ behind "N GATES PASSED — VIEW ALL". The gate engine is untouched:
 presentation order only, pinned by the untouched 176-test suite.
 Browser-verified: hero, 4 resolve routes, collapse/expand, the flow
 card live.
+
+## Phase 5 — NC Output command center + Machinist strategy cards
+
+NC Output redesigned as a program command center: a four-cell status
+header (PROGRAM / STATUS / CONTROLLER / POST with DEVELOPMENT — NOT
+CERTIFIED beside the post, not buried in prose), a one-line pre-flight
+rail with ✓/✕ per item, the FIRST UNRESOLVED item as the dominant card
+with SHOW BLOCKER routing to readiness, and the certification
+explanation behind WHY. The gate logic (buildPreflight, shared with
+generate and the mint) is untouched.
+
+Machinist approaches redesigned around strategy cards: five cards with
+the cycle dominant, setups/tools/ops, relative cycle and unit-cost
+bars (comparison, not judgement), risk chip, the philosophy's tradeoff
+line, and SELECTED state. No overall winner declared — stated in
+place. The full comparison table survives behind VIEW TABLE for power
+users. Browser-verified: both screens live, screenshots match the
+brief's examples.
