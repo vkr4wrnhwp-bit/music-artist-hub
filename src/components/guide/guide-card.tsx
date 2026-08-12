@@ -170,7 +170,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- first-run profile ---- */
   if (firstRun) {
     return (
-      <Card>
+      <Card onCollapse={() => setOpen(false)}>
         <Header title="How familiar are you with CNC and CAM?" />
         <p className="px-3 pt-2 text-[11.5px] leading-relaxed text-muted">
           This sets how much CANVAS explains — it never restricts what you can do, and you can change it any time.
@@ -202,7 +202,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- OFF: nothing unsolicited; the tab stays reachable ---- */
   if (mode === "OFF") {
     return (
-      <Card>
+      <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <p className="px-3 py-3 text-[11.5px] leading-relaxed text-muted">
           Guide is off. Readiness gates and the next required action stay active — OFF disables tutoring, not
@@ -218,7 +218,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- ASSIST: compact — next action + why, no forced sequence ---- */
   if (mode === "ASSIST") {
     return (
-      <Card>
+      <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         {ctx.nextAction ? (
           <div className="px-3 py-2.5">
@@ -248,7 +248,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- TEACH ---- */
   if (!session) {
     return (
-      <Card>
+      <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <div className="px-3 py-2.5">
           <p className="text-[12.5px] leading-snug text-platinum">{flow.title}</p>
@@ -269,7 +269,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
 
   if (!view || progress?.finished) {
     return (
-      <Card>
+      <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <div className="px-3 py-2.5">
           <p className="text-[12.5px] text-platinum">
@@ -293,7 +293,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   const { step, index, ofTotal, status, blocked } = view;
 
   return (
-    <Card>
+    <Card onCollapse={() => setOpen(false)}>
       <Header
         title="CANVAS Guide"
         right={
@@ -407,12 +407,22 @@ function withGuideTarget(href: string, target?: string): string {
   return `${href}${href.includes("?") ? "&" : "?"}guide=${encodeURIComponent(target)}`;
 }
 
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children, onCollapse }: { children: React.ReactNode; onCollapse?: () => void }) {
   return (
     <aside
       aria-label="CANVAS Guide"
-      className="fixed bottom-24 right-3 z-40 w-[344px] max-w-[calc(100vw-24px)] border border-line-strong bg-surface/97 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+      className="fixed z-40 border-line-strong bg-surface/97 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-sm max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[70dvh] max-lg:overflow-y-auto max-lg:border-t lg:bottom-24 lg:right-3 lg:w-[344px] lg:max-w-[calc(100vw-24px)] lg:border"
     >
+      {/* Bottom-sheet grab bar — phones and small tablets only. Tapping it
+          collapses the sheet back to the Guide tab; the card floats at lg+. */}
+      <button
+        type="button"
+        onClick={onCollapse}
+        aria-label="Collapse the guide sheet"
+        className="flex w-full items-center justify-center py-1.5 lg:hidden"
+      >
+        <span aria-hidden className="h-1 w-10 rounded-full bg-line-strong" />
+      </button>
       {children}
     </aside>
   );

@@ -31,5 +31,9 @@ sessions per flow without clobbering other flows' progress.
 
 Not implemented, not faked: DRAW_FROM_SCRATCH (no sketching exists),
 the mill guided reverse-engineering flow (the turning bench flow
-guides itself), guide analytics events, tablet/mobile sheets for the
-card (it is responsive but not a bottom sheet).
+guides itself), and guide analytics events.
+
+The card is a true bottom sheet below lg: full width, docked to the
+bottom edge, max 70dvh with internal scroll, a grab bar that collapses
+it back to the Guide tab. At lg+ it stays the 344px floating card,
+grab bar hidden.

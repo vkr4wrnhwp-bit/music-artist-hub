@@ -902,3 +902,11 @@ tightens only the shared primitives through density hook classes
 (panel chrome, data rows, table cells) — density is spacing, not a
 different design. Browser-verified with measured heights: header
 36→24px, row 31→27px, persistent across navigation, clean restore.
+
+## Guide card bottom sheet
+
+Below lg the guide card docks as a bottom sheet: full width, bottom
+edge, max 70dvh with internal scroll, and a grab bar that collapses it
+to the Guide tab. At lg+ nothing changes — 344px floating card, grab
+bar hidden. Browser-verified at 414×896 (full width, docked, collapse
+works) and 1600×900 (344px, right-docked, no grab bar).
