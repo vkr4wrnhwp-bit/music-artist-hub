@@ -306,10 +306,61 @@ export const REVERSE_A_PART: GuideFlowDef = {
   ],
 };
 
+/**
+ * RUN_IT_PAST — the NC audit + optimizer, guided. Steps complete from
+ * database facts (stored uploads, stored optimized revisions) and the
+ * part's own context — the guide clears nothing: the audit gates and the
+ * export mint hold their own lines regardless of what this card shows.
+ */
+export const RUN_IT_PAST: GuideFlowDef = {
+  id: "RUN_IT_PAST",
+  title: "Run a program past CANVAS",
+  steps: [
+    {
+      id: "upload",
+      title: "Upload the program",
+      body: "Any Fanuc/Haas-style 3-axis program from your CAM system. CANVAS stores the original immutably — hash, filename, bytes — and every later derivation references that stored copy, never re-sent bytes.",
+      why: "An audit without a fixed subject proves nothing. The stored hash is what makes 'nothing else changed' checkable instead of promised.",
+      camHint: "Try the Load demo button first — it is deliberately imperfect: savings, a protected bore, and a review-only region.",
+      href: (ctx) => `/parts/${ctx.partId}/nc-analyzer`,
+      done: (ctx) => (ctx.nca?.uploads ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.nca),
+    },
+    {
+      id: "context",
+      title: "Read the audit gates, add context",
+      body: "The gate panel says what this analysis can honestly claim. No stock bound: air cutting cannot be proven. Unmapped tools: no load verdicts. Each gate names the evidence that moves it.",
+      why: "Deeper context unlocks deeper claims — and the stages are each their worst gate, never a percentage. Stock alignment stays REVIEW by construction: CANVAS cannot see the vise.",
+      href: (ctx) => `/parts/${ctx.partId}/nc-analyzer`,
+      done: (ctx) => ctx.hasStock && ctx.hasMachine,
+      applies: (ctx) => Boolean(ctx.nca),
+    },
+    {
+      id: "findings",
+      title: "Work the findings with Show Me",
+      body: "Air cutting, retracts, rubbing feeds, engagement spikes, protected finish passes. Show Me frames the scene and the source block together — accept or reject each proposal individually; there is no accept-all.",
+      why: "A finding is a place to look, not a change to make. Reductions are load control and claim zero savings; protected regions are never proposed in either direction.",
+      href: (ctx) => `/parts/${ctx.partId}/nc-analyzer`,
+      done: (ctx) => (ctx.nca?.optimized ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.nca),
+    },
+    {
+      id: "derived",
+      title: "Generate and review the derived program",
+      body: "Accepted proposals are re-derived server-side and applied as feed words only; the masked geometry diff must be byte-clean and the round-trip parse identical, or nothing is stored. The derived revision keeps its lineage to the stored original.",
+      why: "The diff is the invariant — 'geometry never changes' is a mechanical check, not a promise. The derived program then faces the same pre-flight and mint as any other.",
+      href: (ctx) => `/parts/${ctx.partId}/nc`,
+      done: (ctx) => (ctx.nca?.optimized ?? 0) > 0 && ctx.blockingGates.length === 0,
+      applies: (ctx) => Boolean(ctx.nca) && !ctx.training,
+    },
+  ],
+};
+
 export const GUIDE_FLOWS: Record<string, GuideFlowDef> = {
   MAKE_A_PART,
   TURN_A_SHAFT,
   REVERSE_A_PART,
+  RUN_IT_PAST,
 };
 
 /** Flows that exist as concepts but whose functionality does not: named so

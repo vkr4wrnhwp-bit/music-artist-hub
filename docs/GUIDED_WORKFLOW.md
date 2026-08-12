@@ -45,3 +45,11 @@ The card is a true bottom sheet below lg: full width, docked to the
 bottom edge, max 70dvh with internal scroll, a grab bar that collapses
 it back to the Guide tab. At lg+ it stays the 344px floating card,
 grab bar hidden.
+
+
+RUN_IT_PAST (added with Phase 5): the NC audit + optimizer guided in
+four steps — upload (immutable storage explained), read the audit
+gates and add context, work the findings with Show Me, generate and
+review the derived program. Steps complete from database facts (stored
+uploads, stored optimized revisions); the card clears nothing — the
+audit gates and the export mint hold their own lines.

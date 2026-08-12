@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { loadRevision } from "@/lib/data";
+import { GuideCard } from "@/components/guide/guide-card";
+import type { GuideContext } from "@/lib/guide/engine";
 import { TopBar } from "@/components/nav";
 import { DevLabel, Notice, SectionHeading } from "@/components/ui";
 import { NcAnalyzer } from "@/components/nc-analyzer";
@@ -20,6 +23,32 @@ export default async function NcAnalyzerPage(props: { params: Promise<{ id: stri
   const user = await requireUser();
   const revision = await loadRevision(user.organizationId, id);
   if (!revision) notFound();
+
+  // Guide snapshot: database facts only — stored uploads and stored
+  // optimized revisions. The card clears nothing; the gates hold their own.
+  const [uploads, optimized, machines] = await Promise.all([
+    db.nCProgram.count({ where: { partRevisionId: revision.revisionId, origin: "UPLOADED" } }),
+    db.nCProgram.count({ where: { partRevisionId: revision.revisionId, origin: "OPTIMIZED" } }),
+    db.machine.count({ where: { organizationId: user.organizationId } }),
+  ]);
+  const guideCtx: GuideContext = {
+    partId: id,
+    hasStock: Boolean(revision.stock),
+    hasMachine: machines > 0,
+    hasMaterial: Boolean(revision.intent.material.value),
+    featureCount: revision.features.length,
+    pendingProposals: 0,
+    setupCount: 0,
+    workholdingAssessed: false,
+    toolpathCount: 0,
+    simulationRecorded: false,
+    approvalExists: false,
+    ncProgramExists: optimized > 0,
+    blockingGates: [],
+    nextAction: null,
+    training: false,
+    nca: { uploads, optimized },
+  };
 
   return (
     <>
@@ -46,6 +75,7 @@ export default async function NcAnalyzerPage(props: { params: Promise<{ id: stri
           <NcAnalyzer partId={id} />
         </div>
       </main>
+      <GuideCard ctx={guideCtx} flowId="RUN_IT_PAST" />
     </>
   );
 }

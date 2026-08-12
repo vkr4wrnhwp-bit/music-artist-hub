@@ -120,49 +120,132 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
             </Notice>
           )}
 
-          <Panel title="Gates" dense>
-            <ul>
-              {readiness.gates.map((g) => (
-                <li key={g.id} className="border-b border-line/60 px-4 py-3 last:border-0">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-start gap-2.5">
-                      <span className="mt-1.5">
-                        <Dot tone={STATUS_TONE[g.status]} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-2 font-mono text-[12px] text-platinum">
-                          {g.label}
-                          {g.blocking && <span className="tech-label text-precision">blocking</span>}
-                        </p>
-                        <p className="mt-0.5 text-[12px] leading-relaxed text-muted">{g.detail}</p>
-                        {g.actions.length > 0 && (
-                          <ul className="mt-1.5 space-y-0.5">
-                            {g.actions.map((a) => (
-                              <li key={a} className="text-[11.5px] text-platinum-dim">
-                                — {a}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+          {/* BLOCKER-FIRST: the worst gate is the page's one dominant object.
+              The engine is untouched — this is presentation order only. */}
+          {(() => {
+            const blockers = readiness.gates.filter((g) => g.blocking && g.status !== "PASS" && g.status !== "REVIEW");
+            const reviews = readiness.gates.filter((g) => g.status === "REVIEW");
+            const passed = readiness.gates.filter((g) => g.status === "PASS");
+            const others = readiness.gates.filter((g) => !blockers.includes(g) && !reviews.includes(g) && !passed.includes(g));
+            const GATE_HREF: Record<string, string> = {
+              inspection: `/parts/${id}/inspection`,
+              metrology: `/parts/${id}/inspection`,
+              workholding: `/parts/${id}/setups`,
+              tooling: `/parts/${id}/tooling`,
+              stock: `/parts/${id}`,
+              simulation: `/parts/${id}`,
+              approval: `/parts/${id}/readiness`,
+            };
+            const hrefFor = (gid: string, label: string) => {
+              const key = Object.keys(GATE_HREF).find((k) => gid.toLowerCase().includes(k) || label.toLowerCase().includes(k));
+              return key ? GATE_HREF[key] : `/parts/${id}`;
+            };
+            const GateBody = ({ g }: { g: (typeof readiness.gates)[number] }) => (
+              <li className="border-b border-line/60 px-4 py-3 last:border-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span className="mt-1.5"><Dot tone={STATUS_TONE[g.status]} /></span>
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 font-mono text-[12px] text-platinum">
+                        {g.label}
+                        {g.blocking && <span className="tech-label text-precision">blocking</span>}
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-relaxed text-muted">{g.detail}</p>
+                      {g.actions.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {g.actions.map((a) => (
+                            <li key={a} className="text-[11.5px] text-platinum-dim">— {a}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    <StatusChip tone={STATUS_TONE[g.status]}>{g.status.replace(/_/g, " ")}</StatusChip>
                   </div>
-                  {g.status !== "PASS" && g.status !== "NOT_ATTEMPTED" && (
-                    <div className="mt-2.5 pl-6">
-                      <Disagree
-                        action={disagree}
-                        subjectType="READINESS_GATE"
-                        subjectId={g.id}
-                        partRevisionId={pkg.revision.revisionId}
-                        canvasPosition={`${g.label} — ${g.status.replace(/_/g, " ")}. ${g.detail}`}
-                      />
+                  <StatusChip tone={STATUS_TONE[g.status]}>{g.status.replace(/_/g, " ")}</StatusChip>
+                </div>
+                {g.status !== "PASS" && g.status !== "NOT_ATTEMPTED" && (
+                  <div className="mt-2.5 pl-6">
+                    <Disagree
+                      action={disagree}
+                      subjectType="READINESS_GATE"
+                      subjectId={g.id}
+                      partRevisionId={pkg.revision.revisionId}
+                      canvasPosition={`${g.label} — ${g.status.replace(/_/g, " ")}. ${g.detail}`}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+            return (
+              <>
+                {blockers.length > 0 ? (
+                  <section className="border-2 border-risk/50 bg-surface">
+                    <header className="flex items-center justify-between gap-4 border-b border-risk/40 px-5 py-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-risk">
+                          Not ready — {blockers.length} blocking
+                        </p>
+                        <h2 className="mt-1 text-[19px] font-light tracking-[0.02em] text-white">{blockers[0].label}</h2>
+                      </div>
+                      <Link
+                        href={hrefFor(blockers[0].id, blockers[0].label)}
+                        className="border border-precision/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+                      >
+                        Resolve
+                      </Link>
+                    </header>
+                    <div className="px-5 py-3">
+                      <p className="text-[13px] leading-relaxed text-platinum-dim">{blockers[0].detail}</p>
+                      {blockers[0].actions.length > 0 && (
+                        <ul className="mt-2 space-y-0.5">
+                          {blockers[0].actions.map((a) => (
+                            <li key={a} className="text-[12px] text-platinum-dim">— {a}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Panel>
+                    {blockers.length > 1 && (
+                      <ul className="border-t border-line/60">
+                        {blockers.slice(1).map((g) => (
+                          <li key={g.id} className="flex items-center gap-3 border-b border-line/40 px-5 py-2 last:border-0">
+                            <Dot tone={STATUS_TONE[g.status]} />
+                            <span className="min-w-0 flex-1 font-mono text-[12px] text-platinum">{g.label}</span>
+                            <Link href={hrefFor(g.id, g.label)} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">
+                              Resolve
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                ) : (
+                  <Notice tone={reviews.length > 0 ? "review" : "pass"} title={reviews.length > 0 ? "No blocking gates — review items remain" : "Every required gate passes"}>
+                    {reviews.length > 0
+                      ? "Nothing blocks cycle start outright; the review items below deserve eyes before you trust the package."
+                      : "Worst-gate aggregation has nothing to hold against this package."}
+                  </Notice>
+                )}
+
+                {reviews.length > 0 && (
+                  <Panel title={`Review — ${reviews.length}`} dense>
+                    <ul>{reviews.map((g) => <GateBody key={g.id} g={g} />)}</ul>
+                  </Panel>
+                )}
+
+                {others.length > 0 && (
+                  <Panel title={`Unresolved — ${others.length}`} dense>
+                    <ul>{others.map((g) => <GateBody key={g.id} g={g} />)}</ul>
+                  </Panel>
+                )}
+
+                <details className="border border-line bg-surface">
+                  <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
+                    {passed.length} gate{passed.length === 1 ? "" : "s"} passed — view all
+                  </summary>
+                  <ul className="border-t border-line">{passed.map((g) => <GateBody key={g.id} g={g} />)}</ul>
+                </details>
+              </>
+            );
+          })()}
 
           {!pkg.approved && (
             <Panel title="Operator approval">

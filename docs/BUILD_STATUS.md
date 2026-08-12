@@ -1006,3 +1006,16 @@ engine proved itself by suppressing the demo's REDUCE when the slot
 passed 0.125" from a tapped hole — the fixture moved, not the rule.
 4 new tests; 176 total. Browser-verified: 6 RAISE + 1 REDUCE + 1
 PROTECTED + comped review live.
+
+## Phase 5 — RUN_IT_PAST guide flow + blocker-first Readiness
+
+Mission B closes: RUN_IT_PAST flow (4 steps over db-backed facts —
+uploads and optimized revisions; the guide clears nothing) mounted on
+the analyzer. Mission A begins: the Readiness page is blocker-first —
+the worst gate is the page's one dominant object ("NOT READY — N
+BLOCKING" hero with full evidence text and RESOLVE routing), remaining
+blockers as compact rows, REVIEW compact, passed gates collapsed
+behind "N GATES PASSED — VIEW ALL". The gate engine is untouched:
+presentation order only, pinned by the untouched 176-test suite.
+Browser-verified: hero, 4 resolve routes, collapse/expand, the flow
+card live.

@@ -76,6 +76,11 @@ export interface GuideContext {
   /** Head of the real nextActions() queue, when one exists. */
   nextAction: { action: string; href: string | null } | null;
   training: boolean;
+  /** NC analyzer snapshot — present only on Run It Past CANVAS pages. */
+  nca?: {
+    uploads: number;
+    optimized: number;
+  };
   /** Reverse-engineering session snapshot — present only on RE pages. */
   re?: {
     sessionId: string;
