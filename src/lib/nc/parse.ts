@@ -44,6 +44,8 @@ export interface ParsedNC {
   refusals: { line: number; reason: string }[];
   warnings: string[];
   units: "IN" | "MM";
+  /** False when no G20/G21 appeared and inches were assumed. */
+  unitsExplicit: boolean;
   workOffsetsSeen: string[];
   lineCount: number;
 }
@@ -218,6 +220,7 @@ export function parseNC(text: string): ParsedNC {
     refusals,
     warnings: [...warnings],
     units,
+    unitsExplicit,
     workOffsetsSeen: [...offsets],
     lineCount: lines.length,
   };

@@ -932,3 +932,18 @@ photo set, datum frame (human act), measure in constraint order
 hand off to the part workspace. DEVELOPMENT_FLOWS is now down to
 DRAW_FROM_SCRATCH only — every flow the guide names exists. 3 new
 tests; 153 total. Browser-verified on a freshly created RE session.
+
+## Run It Past CANVAS — immutable originals + audit gates
+
+The codebase audit found Phases 4A–4F already real (parser, modal
+state, acceleration timing, height-field engagement, banded proposals,
+masked-diff emission, gated OPTIMIZED rows). Closed the two structural
+gaps: (1) uploads now persist as immutable UPLOADED NCProgram rows
+(filename, bytes, server sha256, digest-deduped) and the optimizer
+derives from the STORED original with digest verification — client
+bytes are never trusted twice — with sourceProgramId lineage; (2) a
+worst-gate audit gate group (11 gates, 3 stage summaries) renders atop
+the analyzer, with stock alignment REVIEW by construction. 7 new
+tests; 160 total. Browser-verified: AUDIT PASS / OPTIMIZATION REVIEW
+on a clean program, digest shown, re-analysis dedupes to one row.
+Status vs the full brief recorded in docs/RUN_IT_PAST_CANVAS.md.

@@ -13,11 +13,13 @@ import { verifyNc } from "@/lib/engines/cam/post";
 /**
  * OPTIMIZED NC — Phases 4E/4F endpoint
  *
- * The client sends the original file, the strategy preset, and which
- * proposals the operator accepted — identified by line range and feeds, not
- * by trusted content. The server RE-DERIVES the proposals from scratch and
- * applies only the accepted ones that still match exactly; a stale or
- * tampered acceptance is refused, not honoured.
+ * The client sends the STORED original's id and digest, the strategy
+ * preset, and which proposals the operator accepted — identified by line
+ * range and feeds, not by trusted content. The original text is read from
+ * the immutable UPLOADED row in the database, never from bytes the client
+ * re-sends, and the digest must match — a swapped or stale subject is
+ * refused. The server then RE-DERIVES the proposals from scratch and
+ * applies only the accepted ones that still match exactly.
  *
  * The optimized text must round-trip: it is re-parsed (zero refusals),
  * re-analyzed for the before/after comparison, linted by verifyNc, and the
@@ -34,11 +36,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!revision) return NextResponse.json({ error: "Part not found" }, { status: 404 });
 
   const form = await request.formData().catch(() => null);
-  const file = form?.get("file");
+  const uploadedProgramId = String(form?.get("uploadedProgramId") ?? "");
+  const claimedDigest = String(form?.get("digest") ?? "");
   const acceptedRaw = form?.get("accepted");
   const preset = String(form?.get("preset") ?? "BALANCED") as LoadContext["preset"];
-  if (!(file instanceof File) || typeof acceptedRaw !== "string") {
-    return NextResponse.json({ error: "Program file and accepted proposals are required." }, { status: 400 });
+  if (!uploadedProgramId || typeof acceptedRaw !== "string") {
+    return NextResponse.json({ error: "Stored program id and accepted proposals are required. Analyze first." }, { status: 400 });
   }
   const accepted = JSON.parse(acceptedRaw) as { lines: [number, number]; originalFeed: number; proposedFeed: number }[];
   if (accepted.length === 0) return NextResponse.json({ error: "No proposals accepted." }, { status: 400 });
@@ -53,7 +56,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
   const machine = machines[0] ?? null;
 
-  const originalText = await file.text();
+  // The immutable original, from the database — reachable only through the
+  // session's own revision. The digest check refuses a swapped subject.
+  const original = await db.nCProgram.findFirst({
+    where: { id: uploadedProgramId, partRevisionId: revision.revisionId, origin: "UPLOADED" },
+  });
+  if (!original) return NextResponse.json({ error: "Stored original not found for this revision. Analyze first." }, { status: 404 });
+  if (claimedDigest && original.sourceDigest !== claimedDigest) {
+    return NextResponse.json({ error: "Digest mismatch — the stored original is not the program you analyzed. Re-analyze." }, { status: 409 });
+  }
+  const originalText = original.code;
   const parsed = parseNC(originalText);
   if (parsed.refusals.length > 0) {
     return NextResponse.json({ error: `Program refused at line ${parsed.refusals[0].line}: ${parsed.refusals[0].reason}` }, { status: 422 });
@@ -113,6 +125,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       code: emitted.text,
       certified: false,
       origin: "OPTIMIZED",
+      sourceProgramId: original.id,
       optimizationAuditJson: JSON.stringify(auditPayload),
       verificationIssuesJson: JSON.stringify(lint),
       generatedBy: user.id,

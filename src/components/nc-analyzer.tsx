@@ -12,8 +12,19 @@ import { Button, Notice, Panel, StatusChip } from "@/components/ui";
  * a heuristic, INSUFFICIENT_DATA names what is missing.
  */
 
+interface AuditGate {
+  id: string;
+  label: string;
+  status: "PASS" | "REVIEW" | "FAIL" | "INSUFFICIENT_DATA";
+  detail: string;
+  stage: "AUDIT" | "OPTIMIZATION" | "EXPORT";
+}
+
 interface Report {
   fileName: string;
+  uploadedProgramId: string;
+  digest: string;
+  gates: { gates: AuditGate[]; stages: { audit: string; optimization: string; exportPrereqs: string } };
   parse: {
     lineCount: number;
     segments: number;
@@ -65,13 +76,15 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   const [optError, setOptError] = useState<string | null>(null);
 
   async function generateOptimized() {
-    const file = fileRef.current?.files?.[0];
     const r = state.report;
-    if (!file || !r || accepted.size === 0) return;
+    if (!r || accepted.size === 0) return;
     setOptimizing(true);
     setOptError(null);
     const body = new FormData();
-    body.append("file", file);
+    // The server derives from the STORED original — the id and digest name
+    // the immutable subject; the file itself is never re-sent.
+    body.append("uploadedProgramId", r.uploadedProgramId);
+    body.append("digest", r.digest);
     body.append("preset", preset);
     body.append(
       "accepted",
@@ -157,6 +170,43 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 ))}
               </ul>
             )}
+          </Panel>
+
+          <Panel
+            title="Audit gates"
+            meta={
+              <span className="flex items-center gap-2">
+                {(
+                  [
+                    ["AUDIT", r.gates.stages.audit],
+                    ["OPTIMIZATION", r.gates.stages.optimization],
+                    ["EXPORT PREREQS", r.gates.stages.exportPrereqs],
+                  ] as const
+                ).map(([label, st]) => (
+                  <StatusChip key={label} tone={st === "PASS" ? "pass" : st === "REVIEW" ? "review" : st === "FAIL" ? "risk" : "unknown"}>
+                    {label}: {st.replace(/_/g, " ")}
+                  </StatusChip>
+                ))}
+              </span>
+            }
+            dense
+          >
+            <ul>
+              {r.gates.gates.map((gate) => (
+                <li key={gate.id} className="flex items-start gap-3 border-b border-line/60 px-4 py-1.5 last:border-0">
+                  <StatusChip tone={gate.status === "PASS" ? "pass" : gate.status === "REVIEW" ? "review" : gate.status === "FAIL" ? "risk" : "unknown"}>
+                    {gate.status.replace(/_/g, " ")}
+                  </StatusChip>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11.5px] font-semibold text-platinum">{gate.label}</span>
+                    <span className="block text-[11.5px] leading-relaxed text-platinum-dim">{gate.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="border-t border-line/60 px-4 py-2 text-[10.5px] leading-relaxed text-muted">
+              Each stage is its worst required gate — never a percentage. Original stored immutably as sha256 {r.digest.slice(0, 16)}…; the optimize step derives from that stored copy, not from re-sent bytes.
+            </p>
           </Panel>
 
           <Panel title="Backplot — load map, top view" meta={<StatusChip tone="review">Development analysis</StatusChip>} dense>

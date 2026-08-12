@@ -738,7 +738,12 @@ model NCProgram {
   // Always false in Phase 1. Present so certification state is explicit.
   certified      Boolean @default(false)
   // GENERATED | UPLOADED | OPTIMIZED — where the program text came from.
+  // UPLOADED rows are the immutable originals: no code path updates them.
   origin         String  @default("GENERATED")
+  // Upload provenance for UPLOADED rows — the receipt for the original file.
+  sourceFilename String?
+  byteLength     Int?
+  sourceDigest   String?
   // For OPTIMIZED rows: the program this one was derived from.
   sourceProgramId String?
   // For OPTIMIZED rows: applied proposals, digests and the geometry diff.

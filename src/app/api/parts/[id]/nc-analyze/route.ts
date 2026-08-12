@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
+import { evaluateAuditGates } from "@/lib/nc/audit-gates";
 
 /**
  * NC ANALYSIS — Phase 4A/4B endpoint
@@ -46,7 +49,33 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const preset = (new URL(request.url).searchParams.get("preset") ?? "BALANCED") as LoadContext["preset"];
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
 
-  const parsed = parseNC(await file.text());
+  const originalText = await file.text();
+  const digest = createHash("sha256").update(originalText, "utf8").digest("hex");
+
+  // Immutable original: one row per distinct program text per revision.
+  // No code path updates an UPLOADED row — re-uploading the same bytes
+  // reuses the row; different bytes are a different original.
+  let uploaded = await db.nCProgram.findFirst({
+    where: { partRevisionId: revision.revisionId, origin: "UPLOADED", sourceDigest: digest },
+  });
+  if (!uploaded) {
+    uploaded = await db.nCProgram.create({
+      data: {
+        partRevisionId: revision.revisionId,
+        postId: "upload",
+        programNumber: /O(\d+)/.exec(originalText)?.[1] ?? "0000",
+        code: originalText,
+        certified: false,
+        origin: "UPLOADED",
+        sourceFilename: file.name.slice(0, 200),
+        byteLength: file.size,
+        sourceDigest: digest,
+        generatedBy: user.id,
+      },
+    });
+  }
+
+  const parsed = parseNC(originalText);
   const analysis = analyzeNC(parsed, {
     stock,
     toolDiameters,
@@ -61,8 +90,26 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
   });
 
+  const toolsInProgram = [...new Set(parsed.segments.map((s) => s.toolNumber).filter((t) => t > 0))];
+  const gates = evaluateAuditGates({
+    parsed,
+    originalStored: true,
+    digest,
+    toolsInProgram,
+    toolsMapped: toolsInProgram.filter((t) => toolDiameters[t] !== undefined),
+    machineKnown: Boolean(machines[0]),
+    axisAccelKnown: machines[0]?.axisAccel != null,
+    stockBound: Boolean(revision.stock),
+    materialMatched: Boolean(material),
+    compedSegments: parsed.segments.filter((s) => s.comped).length,
+    tappingSegments: parsed.segments.filter((s) => s.tapping).length,
+  });
+
   return NextResponse.json({
     fileName: file.name,
+    uploadedProgramId: uploaded.id,
+    digest,
+    gates,
     parse: {
       lineCount: parsed.lineCount,
       segments: parsed.segments.length,
