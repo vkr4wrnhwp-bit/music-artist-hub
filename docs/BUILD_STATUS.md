@@ -753,3 +753,18 @@ seeded. 13 new engine tests; 116 total. One real bug found by browser
 verification: zero-length SHOULDER segments failed validation — fixed
 and pinned. Everything absent is labelled DEVELOPMENT or NOT BUILT in
 docs/TURNING_MASTER_SUMMARY.md, never mocked.
+
+## Lathe NC parser + backplot (Run It Past CANVAS — lathe)
+
+Refusal-first 2-axis parser (`turn/nc-parse.ts`): modal G0/G1/G32,
+G96/G97/G50, G20/G21, G98/G99, X-as-diameter; G7x/G8x cycles, TNR comp,
+macros and subprograms refused by line with UNSUPPORTED_CONTEXT — never
+silently assumed safe. analyzeLatheNc gives an ESTIMATED cycle with
+stated assumptions (800 IPM rapids, CSS at mean diameter capped by G50
+and the recorded chuck limit), untimed segments counted not guessed,
+findings MISSING_MAX_RPM_CLAMP / RPM_LIMIT_REVIEW / CSS_NOT_USED /
+UNKNOWN_SPINDLE_CONTEXT. /lathe/[id]/nc-review page with X/Z backplot
+on light paper (blue CSS cut, black fixed-RPM cut, dashed rapids),
+linked from the workspace NC panel. SELF-TEST: the parser reads the
+development post's own output with zero refusals and the two cycle
+estimates agree. 5 new tests; 121 total. Browser-verified live.

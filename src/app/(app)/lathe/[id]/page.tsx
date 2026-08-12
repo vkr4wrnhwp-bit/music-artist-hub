@@ -400,7 +400,14 @@ export default async function LathePartPage(props: {
           {/* ---------------- NC preview ---------------- */}
           <Panel
             title="NC preview — development lathe post"
-            meta={<span className="flex gap-2"><DevLabel>NOT FOR PRODUCTION USE</DevLabel></span>}
+            meta={
+              <span className="flex items-center gap-3">
+                <Link href={`/lathe/${id}/nc-review`} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">
+                  Run NC past CANVAS →
+                </Link>
+                <DevLabel>NOT FOR PRODUCTION USE</DevLabel>
+              </span>
+            }
           >
             <div className="mb-2">
               <LimitsDisclosure label="What this post is and is not">

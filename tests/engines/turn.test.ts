@@ -181,3 +181,64 @@ test("the development post refuses CSS without a G50 clamp, and says DEVELOPMENT
   assert.match(ok.code, /G96 S700 M3/);
   assert.match(ok.code, /G18 G20/);
 });
+
+/* ---- lathe NC parser ---- */
+
+import { parseLatheNc, analyzeLatheNc } from "@/lib/manufacturing/turn/nc-parse";
+
+test("SELF-TEST: the parser reads the development post's own output with zero refusals", () => {
+  const tp = odFinishToolpath(op({ type: "OD_FINISH" }));
+  assert.ok(tp.ok);
+  if (!tp.ok) return;
+  const emitted = emitLatheProgram(
+    [{ toolpath: tp.toolpath, station: "0202", description: "finish journal", cssEnabled: true, surfaceSpeed: 700, rpm: 3200, coolant: true }],
+    { programNumber: "2001", partName: "self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12" },
+  );
+  const parsed = parseLatheNc(emitted.code);
+  assert.equal(parsed.refusals.length, 0, "the post and the parser must agree on the dialect");
+  assert.equal(parsed.cssRegions, 1);
+  assert.equal(parsed.sawG50, true);
+  const a = analyzeLatheNc(parsed, 4200);
+  assert.ok(a.totalMinutes > 0);
+  // Two engines, opposite directions: the parser's estimate for the finish
+  // pass sits near the engine's own (single pass, same feed and CSS math).
+  assert.ok(Math.abs(a.cutMinutes - tp.toolpath.estimatedMinutes) < tp.toolpath.estimatedMinutes * 0.5 + 0.05);
+  assert.ok(!a.findings.some((f) => f.kind === "MISSING_MAX_RPM_CLAMP"));
+});
+
+test("unclamped G96 is a CONFIDENT finding; G50 above the chuck limit is flagged", () => {
+  const prog = "%\nO1\nG18 G20 G99\nG96 S600 M3\nG1 X1.5 Z-2.0 F0.01\nM30\n%";
+  const a = analyzeLatheNc(parseLatheNc(prog), null);
+  assert.ok(a.findings.some((f) => f.kind === "MISSING_MAX_RPM_CLAMP" && f.verdict === "CONFIDENT"));
+
+  const prog2 = "%\nO1\nG18 G20 G99\nG50 S5000\nG96 S600 M3\nG1 X1.5 Z-2.0 F0.01\nM30\n%";
+  const a2 = analyzeLatheNc(parseLatheNc(prog2), 4200);
+  assert.ok(a2.findings.some((f) => f.kind === "RPM_LIMIT_REVIEW"));
+});
+
+test("canned cycles, macros and TNR comp are refused by line, never assumed safe", () => {
+  const prog = "%\nO1\nG18 G20\nG71 U0.08 R0.02\nG41 G1 X1.0 Z0 F0.01\n#100=1\nM98 P100\nM30\n%";
+  const parsed = parseLatheNc(prog);
+  const codes = parsed.refusals.map((r) => r.code);
+  assert.ok(codes.includes("CANNED_CYCLE"));
+  assert.ok(codes.includes("TNR_COMP"));
+  assert.ok(codes.includes("MACRO"));
+  assert.ok(codes.includes("SUBPROGRAM"));
+  const a = analyzeLatheNc(parsed, null);
+  assert.ok(a.findings.filter((f) => f.kind === "UNSUPPORTED_CONTEXT").length >= 4);
+});
+
+test("a cutting move with no spindle context is untimed, not guessed", () => {
+  const prog = "%\nO1\nG18 G20 G99\nG1 X1.5 Z-2.0 F0.01\nM30\n%"; // no S, no M3
+  const a = analyzeLatheNc(parseLatheNc(prog), null);
+  assert.equal(a.unknownSegments, 1);
+  assert.ok(a.findings.some((f) => f.kind === "UNKNOWN_SPINDLE_CONTEXT" && f.verdict === "INSUFFICIENT_DATA"));
+});
+
+test("fixed RPM across a wide diameter range raises CSS_NOT_USED as REVIEW", () => {
+  const prog = ["%", "O1", "G18 G20 G99", "G97 S1200 M3",
+    "G1 X3.0 Z-0.5 F0.01", "G1 X2.0 Z-1.0", "G1 X1.0 Z-1.5", "G1 X0.5 Z-2.0", "G1 X0.4 Z-2.5",
+    "M30", "%"].join("\n");
+  const a = analyzeLatheNc(parseLatheNc(prog), null);
+  assert.ok(a.findings.some((f) => f.kind === "CSS_NOT_USED" && f.verdict === "REVIEW"));
+});
