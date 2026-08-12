@@ -7,5 +7,5 @@
 5. ~~Turning cost engine + make-vs-buy~~ DONE — see docs/TURNING_COST.md
 6. ~~3D lathe view + playback + stock states~~ DONE — see docs/TURNING_3D.md
 7. ~~Cinematic turning mappings~~ DONE — see docs/CINEMATIC_TOOLPATH.md
-8. Export mint for turning (same authorization pattern as mill)
+8. ~~Export mint for turning~~ DONE — see docs/TURNING_EXPORT.md
 9. Live tooling (after C-axis machines exist in anger)

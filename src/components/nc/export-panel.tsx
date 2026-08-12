@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { mintExport, recordExport, type MintGrant } from "@/app/(app)/parts/[id]/nc/actions";
+import { mintExport, recordExport, type MintGrant, type MintRefusal, type ExportOutcome, type RecordResult } from "@/app/(app)/parts/[id]/nc/actions";
 import { Button, StatusChip } from "@/components/ui";
 
 /**
@@ -55,7 +55,16 @@ type Phase =
   | { kind: "NOT_WRITTEN"; grant: MintGrant; secondsLeft: number; reason: string }
   | { kind: "DOWNLOADED"; grant: MintGrant };
 
-export function NcExportPanel({ partId }: { partId: string }) {
+export function NcExportPanel({
+  partId,
+  mint = mintExport,
+  record = recordExport,
+}: {
+  partId: string;
+  /** Process-specific mint/record server actions. Defaults to the mill's. */
+  mint?: (partId: string) => Promise<MintGrant | MintRefusal>;
+  record?: (input: { token: string; outcome: ExportOutcome; destinationName?: string; writtenFilename?: string; clientDigest?: string; failureDetail?: string }) => Promise<RecordResult>;
+}) {
   const [phase, setPhase] = useState<Phase>({ kind: "IDLE" });
   const [canPick, setCanPick] = useState<boolean | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -84,7 +93,7 @@ export function NcExportPanel({ partId }: { partId: string }) {
 
   async function prepare() {
     setPhase({ kind: "PREPARING" });
-    const result = await mintExport(partId);
+    const result = await mint(partId);
     if (!result.ok) {
       setPhase({ kind: "REFUSED", items: result.refused });
       return;
@@ -136,7 +145,7 @@ export function NcExportPanel({ partId }: { partId: string }) {
       const digestMatches = hash === grant.digest;
       const sizeMatches = file.size === grant.byteLength;
 
-      const record = await recordExport({
+      const rec = await record({
         token: grant.token,
         outcome: digestMatches && sizeMatches ? "WRITTEN_VERIFIED" : "WRITTEN_MISMATCH",
         destinationName: handle.name,
@@ -150,7 +159,7 @@ export function NcExportPanel({ partId }: { partId: string }) {
         digestMatches,
         sizeMatches,
         writtenAt: new Date().toISOString().replace("T", " ").slice(0, 19),
-        gateLapsed: Boolean(record.gateLapsed),
+        gateLapsed: Boolean(rec.gateLapsed),
       });
     } catch (e) {
       const name = e instanceof DOMException ? e.name : "";
@@ -160,7 +169,7 @@ export function NcExportPanel({ partId }: { partId: string }) {
           : name === "QuotaExceededError"
             ? "Not enough free space at the destination. The write needs room for a temporary second copy of the file."
             : `The write failed: ${String(e)}`;
-      await recordExport({ token: grant.token, outcome: "WRITE_FAILED", failureDetail: reason }).catch(() => {});
+      await record({ token: grant.token, outcome: "WRITE_FAILED", failureDetail: reason }).catch(() => {});
       setPhase({ kind: "NOT_WRITTEN", grant, secondsLeft: secondsLeft(grant), reason });
     }
   }
@@ -172,7 +181,7 @@ export function NcExportPanel({ partId }: { partId: string }) {
     a.download = grant.filename;
     a.click();
     URL.revokeObjectURL(url);
-    await recordExport({ token: grant.token, outcome: "DOWNLOAD_OFFERED" }).catch(() => {});
+    await record({ token: grant.token, outcome: "DOWNLOAD_OFFERED" }).catch(() => {});
     setPhase({ kind: "DOWNLOADED", grant });
   }
 

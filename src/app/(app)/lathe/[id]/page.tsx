@@ -8,6 +8,8 @@ import { TopBar } from "@/components/nav";
 import { TurnProfileView } from "@/components/turn/profile-view";
 import { LatheSimView } from "@/components/turn/lathe-3d";
 import { CinematicTurnButton } from "@/components/turn/cinematic-turn";
+import { NcExportPanel } from "@/components/nc/export-panel";
+import { mintTurnExport, recordTurnExport } from "./nc/actions";
 import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
@@ -456,9 +458,10 @@ export default async function LathePartPage(props: {
               <LimitsDisclosure label="What this post is and is not">
                 Generic Fanuc-style 2-axis: G18/G20/G99, T-station calls, G96/G97 with a mandatory G50 clamp when CSS
                 is used, thread passes as G32-style moves. No canned cycles, no threading cycles, no nose-radius
-                compensation. There is no production export path for turning yet — the preview below is withheld while
-                blocking gates fail, and export machinery arrives with verification, human approval and the same mint
-                pattern the mill uses.
+                compensation. The preview below is withheld while blocking gates fail, and export uses the same
+                single-use authorization mint as the mill — re-running the turning readiness gate server-side at both
+                mint and record time. The exported file keeps this NOT FOR PRODUCTION USE header: an authorization is
+                permission to take bytes out of CANVAS, not a certification of the post processor.
               </LimitsDisclosure>
             </div>
             {program.refusals.length > 0 ? (
@@ -472,7 +475,12 @@ export default async function LathePartPage(props: {
                 until they pass. The failing items are listed above.
               </p>
             ) : (
-              <pre className="max-h-[400px] overflow-auto bg-void px-4 py-3 font-mono text-[11.5px] leading-relaxed text-platinum-dim">{program.code}</pre>
+              <>
+                <pre className="max-h-[400px] overflow-auto bg-void px-4 py-3 font-mono text-[11.5px] leading-relaxed text-platinum-dim">{program.code}</pre>
+                <div className="mt-3 border-t border-line/60 pt-3">
+                  <NcExportPanel partId={id} mint={mintTurnExport} record={recordTurnExport} />
+                </div>
+              </>
             )}
           </Panel>
         </div>

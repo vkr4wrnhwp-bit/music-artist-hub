@@ -845,3 +845,16 @@ spoken as ⌀ × length, customer-safe turning nouns. Mill wording pinned
 untouched. CINEMATIC button on the turning workspace reuses the shared
 drawer with the standing disclaimer. 3 new tests; 147 total.
 Browser-verified live.
+
+## Turning NC export mint
+
+mintTurnExport/recordTurnExport: the mill's authorization law applied
+to turning — single-use 5-minute tokens, server-side SHA-256, atomic
+consume, HUMAN + SYSTEM audit rows, gate re-checked at mint AND record
+via the new buildTurnPackage (same assembly the workspace uses).
+Refuses training parts, blocking gates, and post refusals; REVIEW
+gates do not block (human approval is its own gate). Exported files
+keep the NOT FOR PRODUCTION USE header — authorization is not
+certification. Shared NcExportPanel parameterized over mint/record.
+Browser-verified both ways: withheld while gates fail, PREPARED grant
+with digest + TTL once the gates pass.
