@@ -46,3 +46,16 @@ contract: shots with start/end, operation, visual, camera, overlays. An
 external video API or an internal renderer consumes that object; the
 privacy notice becomes a real consent step at that point, and customer-safe
 becomes enforceable server-side.
+
+## Turning mappings (added)
+
+`CinematicInput.process: "TURN"` + `barStock {diameter, length}` switch
+the shots to the lathe voice: the bar spins, the tool holds. Op-type
+mappings for FACE (facing insert, edge to center), OD_ROUGH/OD_FINISH,
+GROOVE_OD, THREAD_OD (deepens visibly each pass — never one plunge),
+PART_OFF (part caught cleanly), CENTER_DRILL/ID_DRILL/ID_BORE.
+Customer-safe nouns: Rough/Finish turning, Grooving, Thread turning,
+Parting off. Turning cameras: fixed cross-slide angle — the rotation is
+the motion. Mill wording untouched (pinned by test). Entry point:
+CINEMATIC button on the turning workspace operation plan; same shared
+drawer, same NOT-NC-VERIFICATION disclaimer on every output.

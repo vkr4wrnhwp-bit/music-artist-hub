@@ -567,3 +567,70 @@ test("turn sim: the tool point follows the clock and reports rapid vs cut", () =
   const endTool = toolAt(sim, sim.totalMinutes + 5)!;
   assert.ok(endTool, "clamps past the end instead of vanishing");
 });
+
+/* ------------------------------------------------------------------ */
+/* Cinematic turning mappings                                          */
+/* ------------------------------------------------------------------ */
+
+import { generateCinematic, type CinematicInput, type CinematicSettings } from "@/lib/cinematic";
+
+const cinInput: CinematicInput = {
+  partName: "Demo Shaft",
+  partNumber: "CNV-T001",
+  material: "Steel 4140",
+  process: "TURN",
+  stock: null,
+  barStock: { diameter: 2.0, length: 6.0 },
+  setupName: "Chuck setup",
+  workholding: '8" 3-jaw hydraulic chuck',
+  hasSoftJaws: false,
+  readiness: "NOT_READY",
+  operations: [
+    { id: "10", label: "Face front", type: "FACE", toolDescription: "CNMG 432", cycleMinutes: 0.06 },
+    { id: "30", label: "Finish bearing journal", type: "OD_FINISH", toolDescription: "VNMG 331", cycleMinutes: 0.4 },
+    { id: "60", label: "Thread 3/4-16 UNF", type: "THREAD_OD", toolDescription: "60° threading insert", cycleMinutes: 0.3 },
+    { id: "70", label: "Part off", type: "PART_OFF", toolDescription: "cutoff blade", cycleMinutes: 0.2 },
+  ],
+};
+const cinSettings: CinematicSettings = {
+  durationSeconds: 15,
+  style: "TECHNICAL_MINIMAL",
+  include: { softJaws: true, stock: true, toolAndHolder: true, toolpathTrace: true, materialRemoval: true, datumLabels: false, measurementOverlays: true, operationLabels: true, coolantChips: false, finalReveal: true },
+  customerSafe: false,
+};
+
+test("cinematic turning speaks the lathe voice: the bar spins, the tool holds", () => {
+  const r = generateCinematic(cinInput, cinSettings);
+  assert.ok(r.prompt.includes("⌀2 × 6 in"), "bar stock spoken as diameter × length");
+  assert.ok(r.prompt.includes("gripped in the chuck"));
+  // FACE maps to the turning verb, not the mill's face-mill sweep.
+  assert.ok(r.prompt.includes("Facing insert"));
+  assert.ok(!r.prompt.includes("Face mill"));
+  assert.ok(r.prompt.includes("spinning journal"));
+  assert.ok(r.prompt.includes("deepens visibly each pass"), "threading is passes, never one plunge");
+  assert.ok(r.prompt.includes("separates and is caught"));
+  assert.ok(r.prompt.toLowerCase().includes("the bar spins, the camera holds"));
+  assert.equal(r.disclaimer, "Cinematic preview only. Not NC verification.");
+});
+
+test("cinematic customer-safe strips turning identity but keeps process nouns", () => {
+  const r = generateCinematic(cinInput, { ...cinSettings, customerSafe: true });
+  assert.ok(!r.prompt.includes("CNV-T001"));
+  assert.ok(!r.prompt.includes("VNMG"));
+  assert.ok(!r.prompt.includes("⌀2 × 6"));
+  assert.ok(r.prompt.includes("beginning to spin"));
+  assert.ok(r.storyboard.selectedOperations.includes("Finish turning"));
+  assert.ok(r.storyboard.selectedOperations.includes("Thread turning"));
+  assert.ok(r.storyboard.selectedOperations.includes("Parting off"));
+  // Material reduced to family.
+  assert.ok(!r.prompt.includes("4140"));
+});
+
+test("cinematic mill wording is untouched by the turning additions", () => {
+  const mill = generateCinematic(
+    { ...cinInput, process: "MILL", barStock: null, stock: { x: 6, y: 4, z: 0.75 }, operations: [{ id: "1", label: "Face top", type: "FACE", toolDescription: "2in face mill", cycleMinutes: 1 }] },
+    cinSettings,
+  );
+  assert.ok(mill.prompt.includes("Face mill"));
+  assert.ok(mill.prompt.includes("6 × 4 × 0.75 in"));
+});

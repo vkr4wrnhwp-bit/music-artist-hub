@@ -29,7 +29,11 @@ export interface CinematicInput {
   partName: string;
   partNumber: string | null;
   material: string | null;
+  /** Which process family the shots should speak. Defaults to MILL. */
+  process?: "MILL" | "TURN";
   stock: { x: number; y: number; z: number } | null;
+  /** Turning stock — a bar, spoken as ⌀ × length. Used when process is TURN. */
+  barStock?: { diameter: number; length: number } | null;
   setupName: string | null;
   workholding: string | null;
   hasSoftJaws: boolean;
@@ -116,13 +120,15 @@ const STYLE_DIRECTION: Record<CinematicSettings["style"], string> = {
 };
 
 /** §6 — operation type → what the camera sees. Generic verbs, real nouns. */
-function shotVisual(op: CinematicOp, include: CinematicSettings["include"], safe: boolean): string {
+function shotVisual(op: CinematicOp, include: CinematicSettings["include"], safe: boolean, process: "MILL" | "TURN" = "MILL"): string {
   const tool = !safe && op.toolDescription ? ` (${op.toolDescription})` : "";
   const trace = include.toolpathTrace ? " following a precision-blue toolpath trace" : "";
   const removal = include.materialRemoval ? ", material peeling away pass by pass" : "";
   switch (op.type) {
     case "FACE":
-      return `Face mill${tool} sweeps across the top face${trace}; a fresh machined surface appears behind it${removal}.`;
+      return process === "TURN"
+        ? `Facing insert${tool} sweeps from the spinning bar's edge to center${trace}; a clean true face appears in one pass${removal}.`
+        : `Face mill${tool} sweeps across the top face${trace}; a fresh machined surface appears behind it${removal}.`;
     case "POCKET_2D":
     case "ADAPTIVE_2D":
       return `End mill${tool} spirals through the pocket${trace}${removal}; walls and floor emerge crisp.`;
@@ -139,6 +145,24 @@ function shotVisual(op: CinematicOp, include: CinematicSettings["include"], safe
       return `Chamfer tool${tool} breaks the edges; a bright, even chamfer line follows it around the part.`;
     case "ENGRAVE":
       return `Engraver${tool} inscribes the marking; fine chips lift from the surface.`;
+    /* ---- turning: the bar spins, the tool is still ---- */
+    case "OD_ROUGH":
+      return `Roughing insert${tool} strips the spinning bar down pass by pass${trace}; a ribbon of chip clears the cut${removal}.`;
+    case "OD_FINISH":
+      return `Finishing insert${tool} takes one continuous light pass along the spinning journal${trace}; the surface comes up to a mirror-fine turn${include.measurementOverlays ? ", diameter callout fading in" : ""}.`;
+    case "GROOVE_OD":
+      return `Grooving insert${tool} plunges square into the spinning diameter; the groove walls appear in one decisive motion.`;
+    case "THREAD_OD":
+      return `Threading insert${tool} traces the helix in repeated synchronised passes${trace}; the thread form deepens visibly each pass, never in one.`;
+    case "PART_OFF":
+      return `Parting blade${tool} feeds steadily toward center; the finished part separates and is caught cleanly.`;
+    case "CENTER_DRILL":
+      return `Center drill${tool} kisses the spinning face on the axis of rotation; a precise conical seat appears.`;
+    case "ID_DRILL":
+      return `Drill${tool} advances along the spindle centerline into the spinning bar; chips evacuate up the flutes.`;
+    case "ID_BORE_ROUGH":
+    case "ID_BORE_FINISH":
+      return `Boring bar${tool} reaches inside the spinning bore${trace}; the internal wall comes to size${include.measurementOverlays ? " with a bore callout" : ""}.`;
     default:
       return `${op.label}: the tool${tool} performs the operation${trace}.`;
   }
@@ -163,6 +187,14 @@ const safeNoun = (op: CinematicOp): string => {
     case "CONTOUR_2D": return "Profile finishing";
     case "CHAMFER": return "Edge chamfering";
     case "ENGRAVE": return "Marking";
+    case "OD_ROUGH": return "Rough turning";
+    case "OD_FINISH": return "Finish turning";
+    case "GROOVE_OD": return "Grooving";
+    case "THREAD_OD": return "Thread turning";
+    case "PART_OFF": return "Parting off";
+    case "CENTER_DRILL": return "Center drilling";
+    case "ID_DRILL": return "Drilling";
+    case "ID_BORE_ROUGH": case "ID_BORE_FINISH": return "Precision boring";
     default: return "Machining operation";
   }
 };
@@ -172,6 +204,7 @@ const materialFamily = (m: string | null): string | null => (m ? m.split(/[\s·]
 
 export function generateCinematic(input: CinematicInput, settings: CinematicSettings): CinematicResult {
   const safe = settings.customerSafe;
+  const process = input.process ?? "MILL";
   const ops = input.operations;
   const D = settings.durationSeconds;
 
@@ -188,11 +221,15 @@ export function generateCinematic(input: CinematicInput, settings: CinematicSett
 
   const shots: Shot[] = [];
   const introBits = [
-    settings.include.stock && input.stock
+    settings.include.stock && process === "TURN" && input.barStock
       ? safe
-        ? "raw stock clamped and ready"
-        : `raw ${material ?? "metal"} stock, ${input.stock.x} × ${input.stock.y} × ${input.stock.z} in`
-      : "the setup, ready to cut",
+        ? "a raw bar gripped in the chuck, beginning to spin"
+        : `raw ${material ?? "metal"} bar, ⌀${input.barStock.diameter} × ${input.barStock.length} in, gripped in the chuck and coming up to speed`
+      : settings.include.stock && input.stock
+        ? safe
+          ? "raw stock clamped and ready"
+          : `raw ${material ?? "metal"} stock, ${input.stock.x} × ${input.stock.y} × ${input.stock.z} in`
+        : "the setup, ready to cut",
     settings.include.softJaws && input.hasSoftJaws ? "machined soft jaws seating the part, contact faces highlighted" : null,
     input.workholding && !safe ? `held in the ${input.workholding}` : null,
   ].filter(Boolean);
@@ -216,11 +253,15 @@ export function generateCinematic(input: CinematicInput, settings: CinematicSett
       start: t,
       end,
       operation: opName(o),
-      visual: shotVisual(o, settings.include, safe),
+      visual: shotVisual(o, settings.include, safe, process),
       camera:
-        o.type === "DRILL" || o.type === "PECK_DRILL" || o.type === "TAP" || o.type === "BORE"
-          ? "Low orbit locked to the spindle axis."
-          : "Tracking shot following the cutter, long lens.",
+        process === "TURN"
+          ? o.type === "PART_OFF" || o.type === "CENTER_DRILL" || o.type === "ID_DRILL"
+            ? "Locked on the spindle axis, the rotation is the motion."
+            : "Fixed cross-slide angle, long lens — the bar spins, the camera holds."
+          : o.type === "DRILL" || o.type === "PECK_DRILL" || o.type === "TAP" || o.type === "BORE"
+            ? "Low orbit locked to the spindle axis."
+            : "Tracking shot following the cutter, long lens.",
       overlays: [
         ...(settings.include.operationLabels ? [opName(o)] : []),
         ...(settings.include.measurementOverlays && !safe ? ["dimension callout"] : []),

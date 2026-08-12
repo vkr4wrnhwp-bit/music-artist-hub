@@ -835,3 +835,13 @@ buttons. Labelled DEVELOPMENT with its limits printed: not a collision
 check, tool drawn as its programmed point, internal ops advance the
 clock but never carve the OD (stated, not faked). 4 new tests; 144
 total. Browser-verified: playback, scrub, and all 7 stock states live.
+
+## Cinematic turning mappings
+
+cinematic.ts gains process:"TURN" + barStock: lathe-voice shot mappings
+for all turning op types (bar spins, tool holds; threads deepen pass by
+pass; part-off caught cleanly), turning camera language, bar intro
+spoken as ⌀ × length, customer-safe turning nouns. Mill wording pinned
+untouched. CINEMATIC button on the turning workspace reuses the shared
+drawer with the standing disclaimer. 3 new tests; 147 total.
+Browser-verified live.

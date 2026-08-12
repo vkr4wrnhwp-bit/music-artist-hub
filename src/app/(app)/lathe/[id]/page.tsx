@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
 import { TurnProfileView } from "@/components/turn/profile-view";
 import { LatheSimView } from "@/components/turn/lathe-3d";
+import { CinematicTurnButton } from "@/components/turn/cinematic-turn";
 import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
@@ -254,6 +255,31 @@ export default async function LathePartPage(props: {
 
   const tone = (v: string): Tone => (v === "PASS" ? "pass" : v === "REVIEW" ? "review" : v === "UNKNOWN" ? "unknown" : "risk");
 
+  // Cinematic input: real operations, real cycle proportions, turning voice.
+  const intentDoc = JSON.parse(revision.intentJson ?? "{}") as { material?: { value?: string } };
+  const cinematicInput = {
+    partName: part.name,
+    partNumber: part.partNumber,
+    material: intentDoc.material?.value ?? null,
+    process: "TURN" as const,
+    stock: null,
+    barStock: { diameter: profile.stockDiameter, length: profile.stockLength },
+    setupName: "Chuck setup",
+    workholding: holding?.description ?? null,
+    hasSoftJaws: holding?.type === "SOFT_JAWS",
+    readiness: readiness.overall,
+    operations: plan.map((o) => ({
+      id: String(o.operationNumber),
+      label: o.label,
+      type: o.type,
+      toolDescription: tools.find((t) => t.station === o.toolStation)?.description ?? null,
+      cycleMinutes: (() => {
+        const r = results.find((x) => x.op.operationNumber === o.operationNumber);
+        return r?.result.ok ? r.result.toolpath.estimatedMinutes : null;
+      })(),
+    })),
+  };
+
   return (
     <>
       <TopBar>
@@ -324,7 +350,7 @@ export default async function LathePartPage(props: {
           )}
 
           {/* ---------------- Operation plan ---------------- */}
-          <Panel title="Operation plan" meta={<span className="flex items-center gap-3"><span className="font-mono text-[10.5px] text-muted tabular-nums">{plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)</span><Link href={`/lathe/${id}/cost`} className="font-mono text-[10.5px] text-precision-dim hover:text-precision">Cost →</Link></span>} dense>
+          <Panel title="Operation plan" meta={<span className="flex items-center gap-3"><span className="font-mono text-[10.5px] text-muted tabular-nums">{plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)</span><Link href={`/lathe/${id}/cost`} className="font-mono text-[10.5px] text-precision-dim hover:text-precision">Cost →</Link><CinematicTurnButton input={cinematicInput} /></span>} dense>
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-line">
