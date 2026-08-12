@@ -1063,3 +1063,28 @@ line and APPROVED / REVIEW REQUIRED.
 Browser-verified: 4 mill thumbs, 3 turn thumbs, 6 next actions, table
 choice persisted across reload, 3 lathe tiles with 2 REVIEW REQUIRED.
 Screenshots confirm real geometry rendering on both screens.
+
+## Phase 5 — Turning workspace: view modes, operation runway, feature lens
+
+The turning workspace now leads with the part. PROFILE / 3D / BOTH
+view modes (new turn-views.tsx, choice persisted per device): BOTH is
+a synchronized split where the one ?op= selection drives the profile
+highlight, the toolpath overlay and the 3D playback scope at once.
+
+The operation table is no longer the default interaction. A compact
+operation runway ("10 FACE · 20 OD ROUGH · 30 OD FINISH…") selects
+ops: the selected op strong blue, refused ops amber, the rest quiet.
+The full technical table survives one click away behind VIEW TABLE.
+
+Selecting an op whose target is a profile segment opens a Feature
+Lens: the diameter dominant, function / tolerance / surface / datum /
+operation / tool in a compact grid, CRITICAL and CONFIRMED-or-REVIEW
+chips, mating component when known, and honest actions (Measure,
+Verify NC, Cost — only routes that exist). Unstated tolerance and
+finish say "not stated"; nothing is invented.
+
+Browser-verified on the demo shaft: 3 view-mode buttons, runway
+selection, lens fields for the bearing journal (⌀1.5744, +0.0000 /
+−0.0005, 32 Ra, Z 0.750–1.950, T0202), BOTH mode split with 3D
+canvas live, mode persisted across reload, table behind VIEW TABLE
+with 7 rows.

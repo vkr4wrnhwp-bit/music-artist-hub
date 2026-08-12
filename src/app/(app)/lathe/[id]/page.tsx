@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
 import { TurnProfileView } from "@/components/turn/profile-view";
 import { LatheSimView } from "@/components/turn/lathe-3d";
+import { TurnViews } from "@/components/turn/turn-views";
 import { CinematicTurnButton } from "@/components/turn/cinematic-turn";
 import { NcExportPanel } from "@/components/nc/export-panel";
 import { mintTurnExport, recordTurnExport } from "./nc/actions";
@@ -72,6 +73,9 @@ export default async function LathePartPage(props: {
   const totalMinutes = results.reduce((t, r) => t + (r.result.ok ? r.result.toolpath.estimatedMinutes : 0), 0);
   const selectedOpNum = opParam ? Number(opParam) : plan[0]?.operationNumber ?? null;
   const selected = results.find((r) => r.op.operationNumber === selectedOpNum) ?? null;
+  const selSeg = selected?.op.targetSegmentId
+    ? profile.segments.find((s) => s.id === selected.op.targetSegmentId) ?? null
+    : null;
 
   /* ---------------- Analyses ---------------- */
   const gripDiameter = profile.stockDiameter;
@@ -327,30 +331,99 @@ export default async function LathePartPage(props: {
             </div>
           )}
 
-          {/* ---------------- PROFILE view ---------------- */}
+          {/* ---------------- The part — PROFILE / 3D / BOTH ---------------- */}
           <Panel
-            title="Profile — X/Z"
-            meta={<StatusChip tone="neutral">PROFILE</StatusChip>}
+            title="The part"
+            meta={<DevLabel>3D is a kinematic replay, not a collision check</DevLabel>}
           >
-            <TurnProfileView
-              profile={profile}
-              selectedSegmentId={selected?.op.targetSegmentId ?? null}
-              moves={selected?.result.ok ? selected.result.toolpath.moves : null}
+            <TurnViews
+              profile={
+                <>
+                  <TurnProfileView
+                    profile={profile}
+                    selectedSegmentId={selected?.op.targetSegmentId ?? null}
+                    moves={selected?.result.ok ? selected.result.toolpath.moves : null}
+                  />
+                  {selected && !selected.result.ok && (
+                    <p className="mt-2 text-[12px] text-risk">
+                      Op {selected.op.operationNumber}: {selected.result.reason}
+                    </p>
+                  )}
+                </>
+              }
+              sim={
+                <LatheSimView
+                  profile={profile}
+                  ops={results.filter((r) => r.result.ok).map((r) => ({ op: r.op, moves: r.result.ok ? r.result.toolpath.moves : [] }))}
+                />
+              }
             />
-            {selected && !selected.result.ok && (
-              <p className="mt-2 text-[12px] text-risk">
-                Op {selected.op.operationNumber}: {selected.result.reason}
-              </p>
-            )}
           </Panel>
 
-          {/* ---------------- 3D playback ---------------- */}
-          <Panel title="3D — stock removal playback" meta={<DevLabel>DEVELOPMENT — kinematic replay, not a collision check</DevLabel>}>
-            <LatheSimView
-              profile={profile}
-              ops={results.filter((r) => r.result.ok).map((r) => ({ op: r.op, moves: r.result.ok ? r.result.toolpath.moves : [] }))}
-            />
-          </Panel>
+          {/* ---------------- Operation runway ---------------- */}
+          {/* Compact strip is the default interaction: selecting an op updates
+              the profile highlight, the toolpath overlay and the lens below.
+              The full technical table survives behind VIEW TABLE. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {results.map(({ op, result }) => {
+              const isSel = selectedOpNum === op.operationNumber;
+              const refused = !result.ok;
+              return (
+                <Link
+                  key={op.operationNumber}
+                  href={`/lathe/${id}?op=${op.operationNumber}`}
+                  aria-current={isSel ? "true" : undefined}
+                  className={`border px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.08em] transition-colors ${
+                    isSel
+                      ? "border-precision bg-precision/10 text-precision"
+                      : refused
+                        ? "border-review/60 text-review hover:border-review"
+                        : "border-line-strong text-muted hover:border-line-strong hover:text-platinum"
+                  }`}
+                >
+                  <span className="font-semibold">{op.operationNumber}</span> {op.type.replace(/_/g, " ")}
+                </Link>
+              );
+            })}
+            <span className="ml-auto flex items-center gap-3">
+              <span className="font-mono text-[10.5px] text-muted tabular-nums">est {totalMinutes.toFixed(2)} min · ESTIMATED</span>
+              <Link href={`/lathe/${id}/cost`} className="font-mono text-[10.5px] text-precision-dim hover:text-precision">Cost →</Link>
+              <CinematicTurnButton input={cinematicInput} />
+            </span>
+          </div>
+
+          {/* ---------------- Feature lens ---------------- */}
+          {selSeg && (
+            <Panel
+              title={selSeg.label}
+              meta={
+                <span className="flex items-center gap-2">
+                  {selSeg.critical && <StatusChip tone="precision">CRITICAL</StatusChip>}
+                  <StatusChip tone={selSeg.confirmedByUser ? "pass" : "review"}>
+                    {selSeg.confirmedByUser ? "CONFIRMED" : "REVIEW"}
+                  </StatusChip>
+                </span>
+              }
+            >
+              <p className="font-mono text-[22px] text-platinum tabular-nums">⌀{selSeg.diameterEnd.toFixed(4)}″</p>
+              <div className="mt-2 grid gap-x-8 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
+                <p className="text-[11px] text-muted"><span className="tech-label block">Function</span>{selSeg.functionalRole.replace(/_/g, " ").toLowerCase()}</p>
+                <p className="text-[11px] text-muted"><span className="tech-label block">Tolerance</span>{selSeg.tolerancePlus != null ? `+${selSeg.tolerancePlus.toFixed(4)} / −${(selSeg.toleranceMinus ?? 0).toFixed(4)}` : "not stated"}</p>
+                <p className="text-[11px] text-muted"><span className="tech-label block">Surface</span>{selSeg.surfaceFinish != null ? `${selSeg.surfaceFinish} Ra` : "not stated"}</p>
+                <p className="text-[11px] text-muted"><span className="tech-label block">Datum</span>Z {selSeg.zStart.toFixed(3)}–{selSeg.zEnd.toFixed(3)} from {profile.zZeroReference}</p>
+                <p className="text-[11px] text-muted"><span className="tech-label block">Operation</span>{selected!.op.operationNumber} {selected!.op.label}</p>
+                <p className="text-[11px] text-muted"><span className="tech-label block">Tool</span>T{selected!.op.toolStation}{(() => { const t = tools.find((x) => x.station === selected!.op.toolStation); return t ? ` — ${t.description}` : ""; })()}</p>
+              </div>
+              {selSeg.matingComponent && (
+                <p className="mt-2 text-[11.5px] text-platinum-dim">Mates with: {selSeg.matingComponent}</p>
+              )}
+              <div className="mt-3 flex gap-4 border-t border-line/60 pt-2.5">
+                <Link href={`/lathe/${id}/reverse`} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">Measure</Link>
+                <Link href={`/lathe/${id}/nc-review`} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">Verify NC</Link>
+                <Link href={`/lathe/${id}/cost`} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">Cost</Link>
+              </div>
+            </Panel>
+          )}
 
           {/* ---------------- Nominal reasoning ---------------- */}
           {nominal && journal && (
@@ -373,8 +446,11 @@ export default async function LathePartPage(props: {
             </Panel>
           )}
 
-          {/* ---------------- Operation plan ---------------- */}
-          <Panel title="Operation plan" meta={<span className="flex items-center gap-3"><span className="font-mono text-[10.5px] text-muted tabular-nums">{plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)</span><Link href={`/lathe/${id}/cost`} className="font-mono text-[10.5px] text-precision-dim hover:text-precision">Cost →</Link><CinematicTurnButton input={cinematicInput} /></span>} dense>
+          {/* ---------------- Full technical table, on demand ---------------- */}
+          <details className="border border-line bg-surface">
+            <summary className="cursor-pointer px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
+              View table — {plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)
+            </summary>
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-line">
@@ -397,7 +473,7 @@ export default async function LathePartPage(props: {
                 ))}
               </tbody>
             </table>
-          </Panel>
+          </details>
 
           {/* ---------------- Hold intelligence ---------------- */}
           <div className="grid gap-4 lg:grid-cols-2">
