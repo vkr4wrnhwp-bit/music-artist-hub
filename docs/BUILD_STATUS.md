@@ -962,3 +962,17 @@ kind RAISE|REDUCE; savings totals count RAISE only. 9 new tests; 169
 total. Browser-verified: the demo program yields 3 RAISE, a suppressed
 REDUCE (its spike crosses the protected bearing bore), 1 PROTECTED
 region and a live ROI panel — the honest mixed-result story.
+
+## Phase 5 — optimizer completion, part 2
+
+Reference cuts (audited HUMAN records of proven cutting regions with
+full machine/tool/material/DOC/WOC/feed/RPM context; SHOP_KNOWLEDGE,
+scoped, never a gate input), machine calibration (actual-vs-estimated
+cycle records; MEDIAN-ratio factor claimed only from 5+ samples —
+outliers cannot poison it, pinned by test; display-only, "never
+silently applied"), and telemetry architecture (typed interfaces for
+MTConnect/OPC UA/logs/CSV with every source rendered NOT CONNECTED —
+the only status that exists). All three on /machines. 3 new tests;
+172 total. Browser-verified: insufficient-data chip, a recorded cycle
+showing +44s variance, a marked reference cut, five NOT CONNECTED
+chips.

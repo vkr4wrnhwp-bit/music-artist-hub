@@ -1343,6 +1343,49 @@ model ViewPreference {
 // One row per guide interaction — where users start, advance, go back,
 // skip and abandon. This is product telemetry for the SHOP (which steps
 // cause friction), never a gate input and never engineering data.
+// A cutting region a machinist has personally proven on this machine, tool
+// and material. Shop evidence, scoped — never generalized beyond comparable
+// context without qualification, and never a gate input.
+model ReferenceCut {
+  id             String @id @default(cuid())
+  organizationId String
+  machineId      String?
+  toolId         String?
+  materialName   String
+  operation      String
+  docInches      Float
+  wocInches      Float
+  feedIpm        Float
+  rpm            Int
+  coolant        String  @default("FLOOD")
+  // RUNS_CLEAN | ACCEPTABLE | MARGINAL
+  result    String
+  notes     String?
+  createdById String
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// One observed machine cycle against the CANVAS estimate. Shop-specific
+// calibration evidence: display-only until enough records exist for the
+// methodology to be defensible, and never another shop's truth.
+model MachineCalibrationRecord {
+  id             String @id @default(cuid())
+  organizationId String
+  machineId      String
+  programLabel   String
+  estimatedMinutes Float
+  actualMinutes    Float
+  toolChangeSeconds Float?
+  spindleRampSeconds Float?
+  notes     String?
+  createdById String
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, machineId])
+}
+
 model GuideEvent {
   id             String @id @default(cuid())
   organizationId String
