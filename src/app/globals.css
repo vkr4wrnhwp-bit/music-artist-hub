@@ -385,3 +385,26 @@ a:focus-visible {
   outline: 1px solid var(--c-blue);
   outline-offset: 1px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Density modes                                                        */
+/*                                                                      */
+/* COMFORTABLE is the default and IS the classes on the components.     */
+/* COMPACT overrides only the shared primitives' density hooks — panel  */
+/* chrome, data rows, table cells — so information density rises        */
+/* without touching type hierarchy, color, or page structure. Scoped    */
+/* to a root attribute so one setting governs the whole instrument.     */
+/* ------------------------------------------------------------------ */
+[data-density="compact"] .d-panel-header {
+  padding: 4px 12px;
+}
+[data-density="compact"] .d-panel-body {
+  padding: 10px 12px;
+}
+[data-density="compact"] .d-row {
+  padding-block: 4px;
+}
+[data-density="compact"] .d-td {
+  padding: 4px 10px;
+  font-size: 11px;
+}

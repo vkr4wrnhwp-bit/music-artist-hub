@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CoachMark } from "@/components/guide/coach-mark";
+import { DensityApplier } from "@/components/density";
 import { requireUser } from "@/lib/auth";
 import { PartShellProvider, Sidebar, ShellUserProvider } from "@/components/nav";
 
@@ -34,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Suspense fallback={null}>
             <CoachMark />
           </Suspense>
+          <DensityApplier />
         </ShellUserProvider>
       </div>
     </PartShellProvider>

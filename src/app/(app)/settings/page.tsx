@@ -6,6 +6,7 @@ import { getShopSettings } from "@/lib/data";
 import { getAiProvider } from "@/lib/ai/provider";
 import { TopBar } from "@/components/nav";
 import { Button, DataRow, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { DensityToggle } from "@/components/density";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -68,6 +69,13 @@ export default async function SettingsPage() {
           <SectionHeading sub="Rates here drive every cost estimate and quote in the system. They are stored with each estimate, so changing them does not silently rewrite quotes you have already sent.">
             Settings
           </SectionHeading>
+          <Panel title="Display density">
+            <p className="mb-2 text-[11.5px] leading-relaxed text-muted">
+              COMPACT tightens panel chrome, data rows and table cells for smaller screens and denser review work. Type hierarchy and color are untouched — density is spacing, not a different design. Stored on this device.
+            </p>
+            <DensityToggle />
+          </Panel>
+
 
           <Panel title="Organisation">
             <DataRow label="Name" value={org?.name ?? "—"} />

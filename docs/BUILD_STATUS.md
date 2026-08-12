@@ -893,3 +893,12 @@ leaves focus mode and expands the feature panel (timeline restored).
 Browser-verified: focus mode collapses both surfaces, the reveal event
 and a real ?guide= miss both expand them. Remaining partial (recorded):
 targets behind inactive panel tabs reveal to panel level only.
+
+## Density modes
+
+COMFORTABLE/COMPACT via a Settings toggle + root data attribute
+(DensityApplier in the app layout, localStorage-backed). COMPACT
+tightens only the shared primitives through density hook classes
+(panel chrome, data rows, table cells) — density is spacing, not a
+different design. Browser-verified with measured heights: header
+36→24px, row 31→27px, persistent across navigation, clean restore.

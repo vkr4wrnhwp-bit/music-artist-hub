@@ -29,7 +29,7 @@ export function Panel({
   return (
     <section className={`border border-line bg-surface ${className}`}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-4 border-b border-line px-4 py-2.5">
+        <header className="d-panel-header flex items-center justify-between gap-4 border-b border-line px-4 py-2.5">
           <div className="flex items-baseline gap-3">
             {title && <h2 className="tech-label text-platinum-dim">{title}</h2>}
             {meta}
@@ -37,7 +37,7 @@ export function Panel({
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={dense ? "" : "p-4"}>{children}</div>
+      <div className={dense ? "" : "d-panel-body p-4"}>{children}</div>
     </section>
   );
 }
@@ -153,7 +153,7 @@ export function ValueRow({
           : String(field.value);
 
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-line/60 py-2 last:border-0">
+    <div className="d-row flex items-baseline justify-between gap-4 border-b border-line/60 py-2 last:border-0">
       <span className="tech-label shrink-0">{label}</span>
       <span className="flex min-w-0 items-baseline gap-2">
         {shown === null ? (
@@ -176,7 +176,7 @@ export function ValueRow({
 
 export function DataRow({ label, value, tone }: { label: string; value: ReactNode; tone?: Tone }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-line/60 py-1.5 last:border-0">
+    <div className="d-row flex items-baseline justify-between gap-4 border-b border-line/60 py-1.5 last:border-0">
       <span className="tech-label">{label}</span>
       <span className={`font-mono text-[12px] ${tone === "risk" ? "text-risk" : tone === "review" ? "text-review" : "text-platinum"}`}>
         {value}
@@ -192,7 +192,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
         <thead>
           <tr className="border-b border-line">
             {head.map((h) => (
-              <th key={h} className="tech-label px-3 py-2 font-normal whitespace-nowrap">
+              <th key={h} className="d-td tech-label px-3 py-2 font-normal whitespace-nowrap">
                 {h}
               </th>
             ))}
@@ -205,7 +205,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
 }
 
 export function Td({ children, className = "", muted }: { children: ReactNode; className?: string; muted?: boolean }) {
-  return <td className={`border-b border-line/50 px-3 py-2 ${muted ? "text-muted" : ""} ${className}`}>{children}</td>;
+  return <td className={`d-td border-b border-line/50 px-3 py-2 ${muted ? "text-muted" : ""} ${className}`}>{children}</td>;
 }
 
 /* ------------------------------------------------------------------ */

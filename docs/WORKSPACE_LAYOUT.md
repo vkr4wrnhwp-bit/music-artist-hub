@@ -46,3 +46,14 @@ double-click resets. Widths persist per user in localStorage
 (canvas.drawerWidth / canvas.panelWidth), rAF-throttled during drag,
 clamped so neither panel can vanish or eat the work window. Mobile
 layout untouched (handles are lg-only; widths ride a CSS variable).
+
+
+## Density modes (added)
+
+COMFORTABLE (default) and COMPACT, toggled on Settings, stored per
+device (canvas.density) and applied as a root data attribute by a
+layout-mounted applier. COMPACT overrides only the shared primitives'
+density hooks (d-panel-header, d-panel-body, d-row, d-td) in
+globals.css — panel chrome, data rows and table cells tighten; type
+hierarchy, color and page structure are untouched. Measured: panel
+header 36→24px, data row 31→27px.
