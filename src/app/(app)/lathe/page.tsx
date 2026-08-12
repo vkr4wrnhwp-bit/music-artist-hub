@@ -6,6 +6,9 @@ import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
 import { Button, DevLabel, EmptyState, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 import { PROCESS_SUPPORT } from "@/lib/manufacturing/process";
+import { TurnPartThumb } from "@/components/part-thumb";
+import { LibraryView } from "@/components/library-view";
+import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 
 /** TURNING — the lathe library: rotational parts, machines, workholding, tools. */
 export default async function LathePage() {
@@ -74,25 +77,74 @@ export default async function LathePage() {
             Turning
           </SectionHeading>
 
-          <Panel title="Rotational parts" dense>
-            {rotational.length === 0 ? (
-              <EmptyState title="No turned parts" body="The demo shaft appears here after seeding." />
-            ) : (
-              <ul>
-                {rotational.map((r) => {
-                  const rev = revisions.find((x) => x.id === r.partRevisionId);
-                  return (
-                    <li key={r.id} className="border-b border-line/60 last:border-0">
-                      <Link href={`/lathe/${rev?.part.id}`} className="flex items-center justify-between px-4 py-2.5 hover:bg-raised">
-                        <span className="text-[13px] text-platinum">{rev?.part.name ?? "Part"}</span>
-                        <span className="font-mono text-[11px] text-muted">{rev?.part.partNumber ?? ""}</span>
+          {rotational.length === 0 ? (
+            <EmptyState title="No turned parts" body="The demo shaft appears here after seeding." />
+          ) : (
+            <LibraryView
+              storageKey="canvas.latheView"
+              grid={
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {rotational.map((r) => {
+                    const rev = revisions.find((x) => x.id === r.partRevisionId);
+                    let profile: RotationalProfile | null = null;
+                    try {
+                      profile = JSON.parse(r.profileJson) as RotationalProfile;
+                    } catch {
+                      profile = null;
+                    }
+                    const next =
+                      !profile || profile.segments.length === 0
+                        ? "Measure the profile"
+                        : r.clampForceLbf === null
+                          ? "Record clamp force"
+                          : r.humanApproved
+                            ? "Open workspace"
+                            : "Review and approve";
+                    return (
+                      <Link
+                        key={r.id}
+                        href={`/lathe/${rev?.part.id}`}
+                        className="group block border border-line bg-surface transition-colors hover:border-line-strong"
+                      >
+                        <div className="h-[120px] border-b border-line">
+                          {profile ? (
+                            <TurnPartThumb profile={profile} />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-[0.14em] text-muted">no profile yet</div>
+                          )}
+                        </div>
+                        <div className="px-3.5 py-2.5">
+                          <p className="truncate text-[13px] text-platinum group-hover:text-white">{rev?.part.name ?? "Part"}</p>
+                          <p className="tech-label mt-0.5">{rev?.part.partNumber ?? "—"}{profile ? ` · ⌀${profile.stockDiameter.toFixed(2)} × ${profile.stockLength.toFixed(1)}″ bar` : ""}</p>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <StatusChip tone={r.humanApproved ? "pass" : "review"}>{r.humanApproved ? "APPROVED" : "REVIEW REQUIRED"}</StatusChip>
+                            <span className="tech-label truncate text-right">{next}</span>
+                          </div>
+                        </div>
                       </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Panel>
+                    );
+                  })}
+                </div>
+              }
+              table={
+                <Panel title="Rotational parts" dense>
+                  <ul>
+                    {rotational.map((r) => {
+                      const rev = revisions.find((x) => x.id === r.partRevisionId);
+                      return (
+                        <li key={r.id} className="border-b border-line/60 last:border-0">
+                          <Link href={`/lathe/${rev?.part.id}`} className="flex items-center justify-between px-4 py-2.5 hover:bg-raised">
+                            <span className="text-[13px] text-platinum">{rev?.part.name ?? "Part"}</span>
+                            <span className="font-mono text-[11px] text-muted">{rev?.part.partNumber ?? ""}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Panel>
+              }
+            />
+          )}
 
           <Panel title="Reverse engineer a shaft" meta={<span className="font-mono text-[10.5px] text-muted">GUIDED</span>}>
             <p className="mb-2 text-[11.5px] leading-relaxed text-muted">

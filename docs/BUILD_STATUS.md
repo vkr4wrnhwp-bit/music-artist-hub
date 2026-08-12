@@ -1037,3 +1037,29 @@ line, and SELECTED state. No overall winner declared — stated in
 place. The full comparison table survives behind VIEW TABLE for power
 users. Browser-verified: both screens live, screenshots match the
 brief's examples.
+
+## Phase 5 — Part Library + Turning landing visual tiles
+
+The part library shows parts, not rows. New `part-thumb.tsx` renders
+real geometry server-side on the light work-window ground: mill parts
+as a top-view drawing from their own features (stock outline, bores —
+blue when critical — holes with crosshairs, pockets, slots), turned
+parts as their actual revolved-profile silhouette with the blue chain
+centerline. Never a blank placeholder icon; a part with no profile
+says "no profile yet".
+
+Tiles carry name, part number · rev · material, TRAINING/status and
+TURNED chips, and a concise next action derived from real state (Add
+geometry / Define stock / Pick an approach / Measure the profile /
+Record clamp force / Review and approve / Open workspace). Turned
+parts link straight to the turning workspace.
+
+New `library-view.tsx`: GRID default, TABLE one toggle away for power
+users, preference persisted per device (canvas.partsView /
+canvas.latheView). Both views are server-rendered; the toggle only
+chooses. The Turning landing uses the same tiles with ⌀×length bar
+line and APPROVED / REVIEW REQUIRED.
+
+Browser-verified: 4 mill thumbs, 3 turn thumbs, 6 next actions, table
+choice persisted across reload, 3 lathe tiles with 2 REVIEW REQUIRED.
+Screenshots confirm real geometry rendering on both screens.
