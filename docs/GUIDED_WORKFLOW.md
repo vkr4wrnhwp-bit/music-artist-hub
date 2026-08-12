@@ -31,7 +31,15 @@ sessions per flow without clobbering other flows' progress.
 
 Not implemented, not faked: DRAW_FROM_SCRATCH (no sketching exists),
 the mill guided reverse-engineering flow (the turning bench flow
-guides itself), and guide analytics events.
+guides itself), (and see below for analytics).
+
+Guide analytics: append-only GuideEvent rows (START / ADVANCE / BACK /
+SKIP / RESET / MODE_CHANGE / FLOW_COMPLETE), written fire-and-forget
+from the card through /api/guide/events — user and organisation from
+the session, payload capped, actions whitelisted. The knowledge page
+shows GUIDE FRICTION: the steps people back out of or skip most, with
+flow start/completion counts. Telemetry about the guide, never about
+parts — it feeds no gate and carries no engineering data.
 
 The card is a true bottom sheet below lg: full width, docked to the
 bottom edge, max 70dvh with internal scroll, a grab bar that collapses

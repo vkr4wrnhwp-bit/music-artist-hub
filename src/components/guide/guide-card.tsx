@@ -57,6 +57,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   const allSessions = useRef<Record<string, GuideSession>>({});
   const flow = GUIDE_FLOWS[flowId] ?? GUIDE_FLOWS.MAKE_A_PART;
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completeEmitted = useRef(false);
 
   /* ---- load ---- */
   useEffect(() => {
@@ -87,6 +88,18 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fire-and-forget telemetry: friction data for the shop, never a gate.
+  const emitEvent = useCallback(
+    (action: string, stepId?: string | null, detail?: string | null) => {
+      void fetch("/api/guide/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flowId: flow.id, action, stepId: stepId ?? null, detail: detail ?? null }),
+      }).catch(() => {});
+    },
+    [flow.id],
+  );
+
   const persist = useCallback(
     (update: { mode?: GuideMode; profile?: string | null; sessions?: Record<string, GuideSession> }) => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
@@ -115,8 +128,9 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
     (m: GuideMode) => {
       setMode(m);
       persist({ mode: m });
+      emitEvent("MODE_CHANGE", null, m);
     },
-    [persist],
+    [persist, emitEvent],
   );
 
   /* ---- shortcuts: G toggle, Shift+G cycle mode, Alt+← back, Esc close ---- */
@@ -257,7 +271,10 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
             decision at a time. Steps you have already done count as done.
           </p>
           <button
-            onClick={() => setSessionAndPersist(startSession(flow, ctx, new Date().toISOString()))}
+            onClick={() => {
+              emitEvent("START");
+              setSessionAndPersist(startSession(flow, ctx, new Date().toISOString()));
+            }}
             className="mt-2 border border-precision/50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
           >
             Start
@@ -268,6 +285,10 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   }
 
   if (!view || progress?.finished) {
+    if (progress?.finished && session && !completeEmitted.current) {
+      completeEmitted.current = true;
+      emitEvent("FLOW_COMPLETE");
+    }
     return (
       <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
@@ -280,7 +301,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
             yet&rdquo;, and they read evidence, not lessons.
           </p>
           <button
-            onClick={() => setSessionAndPersist(null)}
+            onClick={() => { emitEvent("RESET"); setSessionAndPersist(null); }}
             className="mt-2 border border-line-strong px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum"
           >
             Reset guide progress
@@ -346,7 +367,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           <GBtn
             disabled={!canGoBack(session)}
-            onClick={() => setSessionAndPersist(back(session))}
+            onClick={() => { emitEvent("BACK", view.step.id); setSessionAndPersist(back(session)); }}
             title="Back one step (Alt+←) — follows your actual path; never undoes a change"
           >
             ← Back
@@ -361,15 +382,15 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
           )}
           <GBtn onClick={() => setShowWhy((w) => !w)}>{showWhy ? "Hide why" : "Explain why"}</GBtn>
           {!blocked && status === "COMPLETED" && (
-            <GBtn onClick={() => setSessionAndPersist(advance(flow, session, ctx))}>Next step</GBtn>
+            <GBtn onClick={() => { emitEvent("ADVANCE", view.step.id); setSessionAndPersist(advance(flow, session, ctx)); }}>Next step</GBtn>
           )}
           {!blocked && status !== "COMPLETED" && (
-            <GBtn onClick={() => setSessionAndPersist(skip(flow, session, ctx))} title="Defers the lesson. Satisfies nothing.">
+            <GBtn onClick={() => { emitEvent("SKIP", view.step.id); setSessionAndPersist(skip(flow, session, ctx)); }} title="Defers the lesson. Satisfies nothing.">
               Skip for now
             </GBtn>
           )}
           {blocked && blocked.href && (
-            <GBtn onClick={() => setSessionAndPersist(skip(flow, session, ctx))} title="The gate stays unresolved.">
+            <GBtn onClick={() => { emitEvent("SKIP", view.step.id, "blocked"); setSessionAndPersist(skip(flow, session, ctx)); }} title="The gate stays unresolved.">
               Leave unresolved
             </GBtn>
           )}

@@ -1335,6 +1335,23 @@ model ViewPreference {
 // (including the visited-step history BACK ONE STEP walks). Deliberately
 // separate from manufacturing data — deleting a row resets tutoring and
 // nothing else.
+// One row per guide interaction — where users start, advance, go back,
+// skip and abandon. This is product telemetry for the SHOP (which steps
+// cause friction), never a gate input and never engineering data.
+model GuideEvent {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  flowId         String
+  stepId         String?
+  // START | ADVANCE | BACK | SKIP | RESET | MODE_CHANGE | FLOW_COMPLETE
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, flowId])
+}
+
 model GuideState {
   id             String @id @default(cuid())
   organizationId String

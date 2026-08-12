@@ -44,6 +44,30 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
   const { error } = await props.searchParams;
   const user = await requireUser();
 
+  // Guide friction: where the shop's people go back or skip. Product
+  // telemetry about the guide, shown here because "where we struggle" is
+  // shop knowledge too — it never feeds a gate and carries no part data.
+  const guideEvents = await db.guideEvent.findMany({
+    where: { organizationId: user.organizationId, action: { in: ["BACK", "SKIP", "FLOW_COMPLETE", "START"] } },
+    orderBy: { createdAt: "desc" },
+    take: 2000,
+  });
+  const friction = new Map<string, { flowId: string; stepId: string; backs: number; skips: number }>();
+  let starts = 0;
+  let completes = 0;
+  for (const e of guideEvents) {
+    if (e.action === "START") starts++;
+    if (e.action === "FLOW_COMPLETE") completes++;
+    if ((e.action === "BACK" || e.action === "SKIP") && e.stepId) {
+      const key = `${e.flowId}:${e.stepId}`;
+      const row = friction.get(key) ?? { flowId: e.flowId, stepId: e.stepId, backs: 0, skips: 0 };
+      if (e.action === "BACK") row.backs++;
+      else row.skips++;
+      friction.set(key, row);
+    }
+  }
+  const frictionRows = [...friction.values()].sort((a, b) => b.backs + b.skips - (a.backs + a.skips)).slice(0, 8);
+
   const [knowledge, disagreements, machines, tools, materials] = await Promise.all([
     db.shopKnowledge.findMany({
       where: { organizationId: user.organizationId, active: true },
@@ -165,6 +189,24 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
             is also never promoted into an engineering fact — an observation across seventeen jobs is strong evidence
             about this shop and still not a published material property.
           </Notice>
+
+          {frictionRows.length > 0 && (
+            <Panel title="Guide friction" meta={<span className="tech-label">{starts} flow starts · {completes} completions</span>}>
+              <p className="mb-2 text-[11.5px] leading-relaxed text-muted">
+                Steps the shop&apos;s people back out of or skip most. Telemetry about the guide, not about parts — it feeds no gate. A step everyone skips is a lesson worth rewriting, or a control worth moving.
+              </p>
+              <ul>
+                {frictionRows.map((r) => (
+                  <li key={`${r.flowId}:${r.stepId}`} className="flex items-center gap-3 border-b border-line/60 py-1.5 last:border-0">
+                    <span className="font-mono text-[11px] text-muted">{r.flowId}</span>
+                    <span className="min-w-0 flex-1 font-mono text-[12px] text-platinum">{r.stepId}</span>
+                    {r.backs > 0 && <span className="font-mono text-[11px] text-review tabular-nums">{r.backs} back</span>}
+                    {r.skips > 0 && <span className="font-mono text-[11px] text-muted tabular-nums">{r.skips} skipped</span>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
 
           <Panel title="Recorded observations" meta={<span className="tech-label">{knowledge.length}</span>}>
             {knowledge.length === 0 ? (

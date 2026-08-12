@@ -910,3 +910,14 @@ edge, max 70dvh with internal scroll, and a grab bar that collapses it
 to the Guide tab. At lg+ nothing changes — 344px floating card, grab
 bar hidden. Browser-verified at 414×896 (full width, docked, collapse
 works) and 1600×900 (344px, right-docked, no grab bar).
+
+## Guide analytics events
+
+GuideEvent table (paired migrations) + /api/guide/events (session-
+scoped, whitelisted actions, capped payloads) + fire-and-forget
+emissions from the card on start/advance/back/skip/reset/mode-change
+and a once-guarded FLOW_COMPLETE. /knowledge gains a GUIDE FRICTION
+panel: steps most backed out of or skipped, with start/completion
+counts — telemetry about the guide, never a gate input. Browser-
+verified: a live SKIP on TURN_A_SHAFT appears in the panel; the
+finished Demo Shaft records a completion.
