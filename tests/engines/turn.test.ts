@@ -501,3 +501,69 @@ test("turning assumptions fall back to the visible shop default when bar math is
   assert.equal(d.assumptions.materialUtilization, 0.85); // DEFAULT_ASSUMPTIONS, named in basis
   assert.ok(d.basis.some((b) => b.includes("falls back")));
 });
+
+/* ------------------------------------------------------------------ */
+/* Turning stock simulation                                            */
+/* ------------------------------------------------------------------ */
+
+import { buildTurnSim, stateAt, toolAt } from "@/lib/manufacturing/turn/sim";
+
+function simOps() {
+  const rough = odRoughToolpath(op({}), profile);
+  assert.ok(rough.ok);
+  if (!rough.ok) throw new Error("unreachable");
+  return [{ op: op({}), moves: rough.toolpath.moves }];
+}
+
+test("turn sim: raw stock at t=0, target envelope at the end, radius never grows", () => {
+  const sim = buildTurnSim(profile, simOps());
+  assert.equal(sim.developmentAnalysis, true);
+  assert.ok(sim.totalMinutes > 0);
+  const start = stateAt(sim, 0);
+  assert.ok([...start].every((r) => Math.abs(r - 1.0) < 1e-9), "starts as raw ⌀2.0 stock");
+  const end = stateAt(sim, sim.totalMinutes);
+  // Rough to ⌀1.6 + 0.01 allowance per side → radius 0.81 over the cut span.
+  const cutCells = [...end].filter((r) => r < 1.0 - 1e-6);
+  assert.ok(cutCells.length > 0);
+  assert.ok(Math.min(...cutCells) >= 0.81 - 1e-6);
+  // Monotonic: at every op boundary the envelope only ever shrinks.
+  let prev = stateAt(sim, 0);
+  for (const o of sim.opEnds) {
+    const now = stateAt(sim, o.tEnd);
+    for (let i = 0; i < now.length; i++) assert.ok(now[i] <= prev[i] + 1e-9);
+    prev = now;
+  }
+});
+
+test("turn sim: mid-cut state carves only the swept portion", () => {
+  const sim = buildTurnSim(profile, simOps());
+  const firstCut = sim.moves.find((m) => m.kind === "CUT" && Math.abs(m.z - m.z0) > 0.5)!;
+  const mid = stateAt(sim, (firstCut.t0 + firstCut.t1) / 2);
+  const cut = [...mid].filter((r) => r < 1.0 - 1e-6).length;
+  const full = [...stateAt(sim, firstCut.t1)].filter((r) => r < 1.0 - 1e-6).length;
+  assert.ok(cut > 0 && cut < full, "half the pass carves roughly half the span");
+});
+
+test("turn sim: internal ops advance the clock but never carve the OD, and the note says so", () => {
+  const center = op({ type: "CENTER_DRILL", startZ: 4.6, endZ: 4.35, startDiameter: 0, endDiameter: 0 });
+  const moves = [
+    { kind: "RAPID" as const, x: 0, z: 4.7, feedPerRev: null },
+    { kind: "CUT" as const, x: 0, z: 4.35, feedPerRev: 0.003 },
+  ];
+  const sim = buildTurnSim(profile, [{ op: center, moves }]);
+  assert.ok(sim.totalMinutes > 0, "clock advances");
+  const end = stateAt(sim, sim.totalMinutes);
+  assert.ok([...end].every((r) => Math.abs(r - 1.0) < 1e-9), "OD untouched");
+  assert.ok(sim.notes.some((n) => n.includes("not modelled")));
+});
+
+test("turn sim: the tool point follows the clock and reports rapid vs cut", () => {
+  const sim = buildTurnSim(profile, simOps());
+  const t0 = toolAt(sim, 0)!;
+  assert.ok(t0);
+  const cutMove = sim.moves.find((m) => m.kind === "CUT")!;
+  const mid = toolAt(sim, (cutMove.t0 + cutMove.t1) / 2)!;
+  assert.equal(mid.kind, "CUT");
+  const endTool = toolAt(sim, sim.totalMinutes + 5)!;
+  assert.ok(endTool, "clamps past the end instead of vanishing");
+});

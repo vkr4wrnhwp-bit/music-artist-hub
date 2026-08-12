@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
 import { TurnProfileView } from "@/components/turn/profile-view";
+import { LatheSimView } from "@/components/turn/lathe-3d";
 import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
@@ -279,7 +280,7 @@ export default async function LathePartPage(props: {
           {/* ---------------- PROFILE view ---------------- */}
           <Panel
             title="Profile — X/Z"
-            meta={<span className="flex gap-2"><StatusChip tone="neutral">PROFILE</StatusChip><DevLabel>3D lathe view: development</DevLabel></span>}
+            meta={<StatusChip tone="neutral">PROFILE</StatusChip>}
           >
             <TurnProfileView
               profile={profile}
@@ -291,6 +292,14 @@ export default async function LathePartPage(props: {
                 Op {selected.op.operationNumber}: {selected.result.reason}
               </p>
             )}
+          </Panel>
+
+          {/* ---------------- 3D playback ---------------- */}
+          <Panel title="3D — stock removal playback" meta={<DevLabel>DEVELOPMENT — kinematic replay, not a collision check</DevLabel>}>
+            <LatheSimView
+              profile={profile}
+              ops={results.filter((r) => r.result.ok).map((r) => ({ op: r.op, moves: r.result.ok ? r.result.toolpath.moves : [] }))}
+            />
           </Panel>
 
           {/* ---------------- Nominal reasoning ---------------- */}

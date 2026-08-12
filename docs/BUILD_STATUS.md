@@ -822,3 +822,16 @@ boring. Cycle from generated toolpaths; generic cost engine does the
 arithmetic with per-line basis; BUY unevaluated without a real quote.
 4 new tests; 140 total. Browser-verified: 23 parts/bar, 97.8% computed
 utilization, $46.77 unit cost at qty 5 live.
+
+## 3D lathe view + playback + stock states
+
+turn/sim.ts + components/turn/lathe-3d.tsx in the workspace: the stock
+state of a turned part is one curve (radius vs Z, 400 cells); the sim
+replays the deterministic toolpaths against it with the same per-rev
+timing as the cycle estimates (rapids at a stated 800 IPM). Live
+revolved mesh with raw vs machined colouring, tool point riding the
+clock, play/scrub/speed transport, and per-operation STOCK STATE jump
+buttons. Labelled DEVELOPMENT with its limits printed: not a collision
+check, tool drawn as its programmed point, internal ops advance the
+clock but never carve the OD (stated, not faked). 4 new tests; 144
+total. Browser-verified: playback, scrub, and all 7 stock states live.
