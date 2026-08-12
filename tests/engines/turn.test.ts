@@ -242,3 +242,76 @@ test("fixed RPM across a wide diameter range raises CSS_NOT_USED as REVIEW", () 
   const a = analyzeLatheNc(parseLatheNc(prog), null);
   assert.ok(a.findings.some((f) => f.kind === "CSS_NOT_USED" && f.verdict === "REVIEW"));
 });
+
+/* ------------------------------------------------------------------ */
+/* Turning cycle optimizer                                             */
+/* ------------------------------------------------------------------ */
+
+import { optimizeTurnCycle, type TurnOptContext } from "@/lib/manufacturing/turn/optimize";
+
+const optTools: TurnOptContext["tools"] = {
+  "0101": { station: "0101", description: "OD rough", surfaceSpeedMin: 400, surfaceSpeedMax: 900, feedPerRevMin: 0.008, feedPerRevMax: 0.02 },
+  "0606": { station: "0606", description: "Threading", surfaceSpeedMin: 200, surfaceSpeedMax: 400, feedPerRevMin: null, feedPerRevMax: null },
+};
+
+test("optimizer proposes a feed raise for a rubbing cut, capped by preset", () => {
+  // 0.002"/rev on an insert whose window starts at 0.008 — classic rubbing.
+  const prog = ["%", "O1", "G18 G20 G99", "T0101", "G97 S1200 M3",
+    "G1 X2.0 Z-6.0 F0.002", "G1 Z-12.0", "M30", "%"].join("\n");
+  const parsed = parseLatheNc(prog);
+  const opt = optimizeTurnCycle(parsed, { tools: optTools, chuckMaxRpm: 4200, preset: "CONSERVATIVE" });
+  const feed = opt.proposals.find((p) => p.kind === "FEED");
+  assert.ok(feed, "expected a FEED proposal");
+  // CONSERVATIVE caps at 1.15× — well below the window midpoint of 0.014.
+  assert.equal(feed!.proposed, "F0.0023");
+  assert.ok(feed!.assumptions.some((a) => a.includes("Capped at 1.15×")));
+  assert.ok(feed!.estimatedSecondsSaved > 0);
+  assert.equal(opt.developmentAnalysis, true);
+});
+
+test("optimizer never touches a thread pass — the feed is the pitch", () => {
+  const prog = ["%", "O1", "G18 G20 G99", "T0606", "G97 S800 M3",
+    "G32 X0.74 Z-0.65 F0.0625", "G32 Z-0.65 F0.0625", "M30", "%"].join("\n");
+  const opt = optimizeTurnCycle(parseLatheNc(prog), { tools: optTools, chuckMaxRpm: 4200, preset: "AGGRESSIVE" });
+  assert.equal(opt.proposals.length, 0);
+  assert.ok(opt.segments.every((s) => s.note?.includes("pitch")));
+});
+
+test("CSS conversion proposed only with a recorded chuck limit; refused without one", () => {
+  const prog = ["%", "O1", "G18 G20 G99", "T0101", "G97 S800 M3",
+    "G1 X3.0 Z-0.5 F0.012", "G1 X1.0 Z-3.0", "G1 X0.6 Z-5.0", "M30", "%"].join("\n");
+  const parsed = parseLatheNc(prog);
+  const withChuck = optimizeTurnCycle(parsed, { tools: optTools, chuckMaxRpm: 4200, preset: "BALANCED" });
+  const css = withChuck.proposals.find((p) => p.kind === "CSS_CONVERSION");
+  assert.ok(css, "expected a CSS_CONVERSION proposal");
+  assert.equal(css!.risk, "REVIEW");
+  assert.ok(css!.proposed.includes("G50 S4200"));
+  assert.ok(css!.estimatedSecondsSaved > 0);
+
+  const noChuck = optimizeTurnCycle(parsed, { tools: optTools, chuckMaxRpm: null, preset: "BALANCED" });
+  assert.ok(!noChuck.proposals.some((p) => p.kind === "CSS_CONVERSION"));
+  assert.ok(noChuck.gaps.some((g) => g.includes("max RPM is not recorded")));
+});
+
+test("cuts on an unrecorded tool get no verdict and no proposals", () => {
+  const prog = ["%", "O1", "G18 G20 G99", "T0505", "G97 S900 M3",
+    "G1 X2.0 Z-6.0 F0.001", "M30", "%"].join("\n");
+  const opt = optimizeTurnCycle(parseLatheNc(prog), { tools: optTools, chuckMaxRpm: 4200, preset: "AGGRESSIVE" });
+  assert.equal(opt.proposals.length, 0);
+  assert.ok(opt.segments.every((s) => s.band === "UNKNOWN"));
+  assert.ok(opt.gaps.some((g) => g.includes("T0505")));
+});
+
+test("SELF-TEST: the optimizer leaves the engine's own program alone where feeds sit in the window", () => {
+  const tp = odRoughToolpath(op({ type: "OD_ROUGH", toolStation: "0101", startDiameter: 2.0, endDiameter: 1.87, startZ: 0, endZ: 4.6, params: { ...op({}).params, feedPerRev: 0.012, surfaceSpeed: 550, cssEnabled: true } }), profile);
+  assert.ok(tp.ok);
+  if (!tp.ok) return;
+  const { code, refusals } = emitLatheProgram(
+    [{ toolpath: tp.toolpath, station: "0101", description: "rough", cssEnabled: true, surfaceSpeed: 550, rpm: 3000, coolant: true }],
+    { programNumber: "2002", partName: "opt self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12" },
+  );
+  assert.equal(refusals.length, 0);
+  const opt = optimizeTurnCycle(parseLatheNc(code), { tools: optTools, chuckMaxRpm: 4200, preset: "BALANCED" });
+  // 0.012"/rev is inside the 0.008–0.02 window: no FEED proposal against our own post.
+  assert.ok(!opt.proposals.some((p) => p.kind === "FEED"));
+});

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseLatheNc, analyzeLatheNc } from "@/lib/manufacturing/turn/nc-parse";
+import { optimizeTurnCycle, type TurnPreset } from "@/lib/manufacturing/turn/optimize";
+
+const PRESETS: TurnPreset[] = ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"];
 
 /**
  * RUN IT PAST CANVAS — lathe. Parses an uploaded 2-axis program with the
@@ -17,7 +20,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const part = await db.part.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!part) return NextResponse.json({ error: "Part not found in this organisation" }, { status: 404 });
 
-  const body = (await req.json().catch(() => null)) as { text?: string } | null;
+  const body = (await req.json().catch(() => null)) as { text?: string; preset?: string } | null;
+  const preset: TurnPreset = PRESETS.includes(body?.preset as TurnPreset) ? (body!.preset as TurnPreset) : "BALANCED";
   const text = body?.text ?? "";
   if (!text.trim()) return NextResponse.json({ error: "Paste or upload a program first." }, { status: 400 });
   if (text.length > 2 * 1024 * 1024) return NextResponse.json({ error: "Program exceeds the 2 MB analysis limit." }, { status: 400 });
@@ -33,7 +37,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const parsed = parseLatheNc(text);
   const analysis = analyzeLatheNc(parsed, holding?.maxRPM ?? null);
 
+  // Optimizer context from the shop's own turning tool records.
+  const toolRows = await db.turningTool.findMany({ where: { organizationId: user.organizationId } });
+  const tools = Object.fromEntries(
+    toolRows.map((t) => [
+      t.station.padStart(4, "0"),
+      {
+        station: t.station.padStart(4, "0"),
+        description: t.description,
+        surfaceSpeedMin: t.surfaceSpeedMin,
+        surfaceSpeedMax: t.surfaceSpeedMax,
+        feedPerRevMin: t.feedPerRevMin,
+        feedPerRevMax: t.feedPerRevMax,
+      },
+    ]),
+  );
+  const optimization = optimizeTurnCycle(parsed, { tools, chuckMaxRpm: holding?.maxRPM ?? null, preset });
+
   return NextResponse.json({
+    optimization,
+    preset,
     parse: {
       lineCount: parsed.lineCount,
       segments: parsed.segments,

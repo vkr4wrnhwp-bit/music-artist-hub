@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DevLabel, Notice, Panel, StatusChip, type Tone } from "@/components/ui";
 import type { LatheNCSegment, LatheParseRefusal, LatheNCFinding } from "@/lib/manufacturing/turn/nc-parse";
+import type { TurnOptimization, TurnPreset } from "@/lib/manufacturing/turn/optimize";
 
 /**
  * LATHE NC REVIEW — upload/paste a 2-axis program, get the honest report:
@@ -32,7 +33,11 @@ interface Report {
     perTool: { station: string; cutMinutes: number; segments: number }[];
   };
   chuckMaxRpm: number | null;
+  optimization: TurnOptimization;
+  preset: TurnPreset;
 }
+
+const PRESETS: TurnPreset[] = ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"];
 
 const VERDICT_TONE: Record<string, Tone> = { CONFIDENT: "risk", REVIEW: "review", INSUFFICIENT_DATA: "unknown" };
 
@@ -41,15 +46,16 @@ export function LatheNcReview({ partId }: { partId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [preset, setPreset] = useState<TurnPreset>("BALANCED");
 
-  async function analyze() {
+  async function analyze(p: TurnPreset = preset) {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/lathe/${partId}/nc-analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, preset: p }),
       });
       const json = await res.json();
       if (!res.ok) setError(json.error ?? "Analysis failed.");
@@ -73,7 +79,7 @@ export function LatheNcReview({ partId }: { partId: string }) {
         />
         <div className="mt-2 flex items-center gap-3">
           <button
-            onClick={analyze}
+            onClick={() => analyze()}
             disabled={busy || !text.trim()}
             className="border border-precision/50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10 disabled:opacity-40"
           >
@@ -153,6 +159,66 @@ export function LatheNcReview({ partId }: { partId: string }) {
                   ))}
                 </tbody>
               </table>
+            )}
+          </Panel>
+
+          <Panel
+            title="Optimizer proposals"
+            meta={
+              <span className="flex items-center gap-2">
+                <DevLabel>DEVELOPMENT ANALYSIS</DevLabel>
+                <select
+                  value={preset}
+                  onChange={(e) => {
+                    const p = e.target.value as TurnPreset;
+                    setPreset(p);
+                    void analyze(p);
+                  }}
+                  className="border border-line-strong bg-void px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-platinum-dim"
+                >
+                  {PRESETS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </span>
+            }
+          >
+            {report.optimization.proposals.length === 0 ? (
+              <p className="text-[12px] text-muted">No proposals within what the program, the tool records and the workholding data honestly support.</p>
+            ) : (
+              <div className="space-y-3">
+                <p className="font-mono text-[12px] text-platinum tabular-nums">
+                  {report.optimization.totalProposedSecondsSaved.toFixed(1)} s proposed savings · feed and speed words only — no coordinate is ever touched
+                </p>
+                {report.optimization.proposals.map((p, i) => (
+                  <div key={i} className="border border-line/70 p-3">
+                    <div className="flex items-center gap-3">
+                      <StatusChip tone={p.risk === "LOW" ? "pass" : "review"}>{p.risk}</StatusChip>
+                      <span className="font-mono text-[11px] text-muted">
+                        {p.kind.replace(/_/g, " ")} · T{p.station} · lines {p.lines[0]}–{p.lines[1]}
+                      </span>
+                      <span className="ml-auto font-mono text-[11px] text-precision-dim tabular-nums">−{p.estimatedSecondsSaved.toFixed(1)} s</span>
+                    </div>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-platinum-dim">{p.detail}</p>
+                    <p className="mt-1 font-mono text-[11.5px] text-platinum">
+                      {p.original} <span className="text-muted">→</span> <span className="text-precision-dim">{p.proposed}</span>
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {p.assumptions.map((a, k) => (
+                        <li key={k} className="text-[10.5px] leading-relaxed text-muted">{a}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 text-[10.5px] text-review">{p.requiredEvidence}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {report.optimization.gaps.length > 0 && (
+              <ul className="mt-3 space-y-0.5 border-t border-line/60 pt-2">
+                {report.optimization.gaps.map((g, i) => (
+                  <li key={i} className="text-[11px] leading-relaxed text-muted">{g}</li>
+                ))}
+              </ul>
             )}
           </Panel>
 

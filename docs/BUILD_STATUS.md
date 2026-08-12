@@ -768,3 +768,16 @@ on light paper (blue CSS cut, black fixed-RPM cut, dashed rapids),
 linked from the workspace NC panel. SELF-TEST: the parser reads the
 development post's own output with zero refusals and the two cycle
 estimates agree. 5 new tests; 121 total. Browser-verified live.
+
+## Turning cycle optimizer
+
+optimizeTurnCycle (turn/optimize.ts): per-segment load bands
+(LIGHT/TARGET/HIGH/REVIEW/UNKNOWN) from the program's own F/S words
+against the shop's recorded insert windows; FEED proposals for rubbing
+cuts capped by preset; CSS_CONVERSION proposals for wide-range G97
+regions at the SFM the program already accepts at its largest diameter,
+clamped by the chuck's recorded RPM limit — refused with a named gap
+when that limit is not recorded. Thread passes never touched; no
+coordinate word ever proposed. Surfaced as an Optimizer proposals panel
+with preset selector on /lathe/[id]/nc-review, DEVELOPMENT ANALYSIS
+labelled. 5 new tests; 126 total. Browser-verified live.

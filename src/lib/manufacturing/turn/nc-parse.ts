@@ -34,6 +34,8 @@ export interface LatheNCSegment {
   maxRpmClamp: number | null; // last G50 S
   station: string | null; // "0101"
   spindleOn: boolean;
+  /** G32 single-point threading — the feed IS the pitch. Never retimed, never optimized. */
+  thread: boolean;
 }
 
 export interface LatheParseRefusal {
@@ -147,7 +149,7 @@ export function parseLatheNc(text: string): ParsedLatheNC {
       const nz = zw ? (absolute ? Number(zw[1]) : z + Number(zw[1])) : z;
       const kind = g32 ? "CUT" : motionModal === "G0" ? "RAPID" : motionModal === "G2" || motionModal === "G3" ? "ARC" : "CUT";
       if (kind === "ARC") warnings.push(`Line ${line}: arc flattened to a chord for timing — length underestimated.`);
-      segments.push({ line, kind, x0: x, z0: z, x1: nx, z1: nz, feed, feedMode, css, sWord, maxRpmClamp: clamp, station, spindleOn });
+      segments.push({ line, kind, x0: x, z0: z, x1: nx, z1: nz, feed, feedMode, css, sWord, maxRpmClamp: clamp, station, spindleOn, thread: g32 });
       x = nx;
       z = nz;
     }
