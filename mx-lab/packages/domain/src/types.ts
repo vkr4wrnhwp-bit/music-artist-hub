@@ -293,6 +293,8 @@ export interface MapRevision {
   provenance: Provenance;
 }
 
+export type MapPrivacy = 'private' | 'team' | 'authorized_tuner' | 'marketplace_eligible';
+
 export interface MapDefinition {
   id: string;
   orgId: string;
@@ -302,6 +304,9 @@ export interface MapDefinition {
   tableDefs: MapTableDef[];
   axes: MapAxisDef[];
   headRevisionId?: string;
+  /** private map library metadata */
+  tags: string[];
+  privacy: MapPrivacy;
 }
 
 export interface MapSlotAssignment {
@@ -726,4 +731,13 @@ export interface Db {
   faults: FaultRecord[];
   audit: AuditEvent[];
   telemetryChannels: TelemetryChannelDef[];
+  // ---- expansion (schema v2) ----
+  testPlans: import('./expansion').TestPlan[];
+  decisions: import('./expansion').DecisionRecord[];
+  events: import('./expansion').RaceEvent[];
+  crewTasks: import('./expansion').CrewTask[];
+  twin: import('./expansion').DigitalTwinComponent[];
+  debriefs: import('./expansion').Debrief[];
+  grants: import('./expansion').RemoteAccessGrant[];
+  listings: import('./expansion').MarketplaceListing[];
 }

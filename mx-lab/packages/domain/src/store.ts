@@ -11,7 +11,7 @@ export interface StoragePort {
   save(db: Db): void;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2; // v2: TRACE expansion (test plans, twin, knowledge, race ops)
 const LS_KEY = 'mx-lab-db-v1';
 
 export class LocalStoragePort implements StoragePort {

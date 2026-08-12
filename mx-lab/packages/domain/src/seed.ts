@@ -267,6 +267,14 @@ export function createSeededDb(): Db {
     ],
     audit: [],
     telemetryChannels: targetChannels(),
+    testPlans: [],
+    decisions: [],
+    events: [],
+    crewTasks: [],
+    twin: [],
+    debriefs: [],
+    grants: [],
+    listings: [],
   };
 
   // ---- bikes -------------------------------------------------------------
@@ -312,8 +320,8 @@ export function createSeededDb(): Db {
     { id: 'ignition', label: 'Ignition offset', unit: '°', xAxisId: 'ax-tps', yAxisId: 'ax-rpm', cellType: 'number' as const, allowedMin: -6, allowedMax: 6, precision: 1, correctionType: 'offset' as const, source: 'Simulated demo definition', verification: 'Physically Inspected' as const },
   ];
   db.maps.push(
-    { id: 'map-250-hardpack', orgId, name: 'CMX250-HARDPACK', purpose: 'Hard-pack race map (fictional)', ecuDefinitionId: 'ecu-sim-250', tableDefs, axes },
-    { id: 'map-450-base', orgId, name: 'CMX450-BASE', purpose: 'Baseline race map (fictional)', ecuDefinitionId: 'ecu-sim-450', tableDefs, axes },
+    { id: 'map-250-hardpack', orgId, name: 'CMX250-HARDPACK', purpose: 'Hard-pack race map (fictional)', ecuDefinitionId: 'ecu-sim-250', tableDefs, axes, tags: ['hard pack', 'YZ250F', '2026', 'race'], privacy: 'team' },
+    { id: 'map-450-base', orgId, name: 'CMX450-BASE', purpose: 'Baseline race map (fictional)', ecuDefinitionId: 'ecu-sim-450', tableDefs, axes, tags: ['baseline', 'YZ450F', '2025'], privacy: 'team' },
   );
 
   const compat250 = {
@@ -526,6 +534,144 @@ export function createSeededDb(): Db {
     outcome: 'B', riderPreferred: 'B', telemetrySupportsPreference: true,
     conclusion: 'R07 reduced peak slip and improved lap consistency; rider preference agreed with telemetry. Promoted to team baseline.',
     decidedByUserId: 'u-tuner',
+  });
+
+  // ---- expansion seed: gearing/pressure variation sessions -------------------
+  const s7 = mkSession('sess-7', 'bike-250', 'rider-1', 'track-sxtest', 'Start comparison — 13/49 gearing', '2026-08-07T14:00:00Z', 707,
+    { ...snap250(r07.id, 4), setup: { ...bike250.setup, gearing: '13/49' } }, 'node-01');
+  const s8 = mkSession('sess-8', 'bike-250', 'rider-1', 'track-sxtest', 'Start comparison — 13/50 gearing', '2026-08-07T16:00:00Z', 708,
+    { ...snap250(r07.id, 4), setup: { ...bike250.setup, gearing: '13/50' } }, 'node-01');
+  const s9 = mkSession('sess-9', 'bike-450', 'rider-2', 'track-pinegrove', 'Rear pressure test on drying hard pack', '2026-08-09T15:00:00Z', 909,
+    { mapRevisionId: r450.id, mapSlot: 2, trims: { Low: 4, Mid: 5, High: 5 }, setup: { ...bike450.setup, tirePressureRear: 0.92 }, engineBuildId: 'build-450-b03', hoursAtSession: 20.4 }, 'node-02');
+  db.sessions.push(s7, s8, s9);
+  r07.testedInSessionIds.push(s7.id, s8.id);
+
+  // ---- digital twin components -------------------------------------------------
+  const twin = (bikeId: string, id: string, system: Db['twin'][number]['system'], label: string, hours: number, typicalServiceH?: number, note?: string): Db['twin'][number] => ({
+    id, bikeId, system, label, rev: 'A', hours, installedAt: '2026-07-20T10:00:00Z',
+    typicalServiceH, serviceHistory: [{ at: '2026-08-02T14:00:00Z', note: 'Inspected at oil change', hoursAt: Math.max(0, hours - 2) }],
+    setupNote: note, notes: undefined, provenance: 'MECHANIC ENTERED',
+  });
+  db.twin.push(
+    twin('bike-250', 'E07', 'Engine', 'Engine CMX250-B07', 3.4, 25),
+    twin('bike-250', 'ECU-250', 'ECU', 'Vortex SIM-DEMO-250', 18.6),
+    twin('bike-250', 'EX02', 'Exhaust', 'Exhaust config 02', 12.1, 60),
+    twin('bike-250', 'F07', 'Fork', 'Fork set F07', 16.2, 20, 'A-kit, 2026 valving'),
+    twin('bike-250', 'S04', 'Shock', 'Shock S04', 11.3, 20, 'Current setup S11'),
+    twin('bike-250', 'WF1', 'Front wheel', 'Front wheel WF1', 18.6, 40),
+    twin('bike-250', 'WR2', 'Rear wheel', 'Rear wheel WR2', 9.4, 40),
+    twin('bike-250', 'T-R', 'Tires', 'Rear race tire', 0.8, 1.2, 'Falls off ≈45 min on hard pack'),
+    twin('bike-250', 'BRK1', 'Brakes', 'Brake set B1', 18.6, 30),
+    twin('bike-250', 'GRC1', 'Gearing', 'Sprockets 13/50 + chain C3', 6.1, 15),
+    twin('bike-250', 'CL2', 'Clutch', 'Clutch pack CL2', 7.2, 8.5, 'Rider is moderate on clutches'),
+    twin('bike-250', 'CTRL1', 'Controls', 'Controls set 1', 18.6),
+    twin('bike-250', 'NODE01', 'MX Node', 'MX Node node-01 (SIMULATED)', 14.0),
+    twin('bike-450', 'E03', 'Engine', 'Engine CMX450-B03', 3.4, 25),
+    twin('bike-450', 'F45', 'Fork', 'Fork set F45', 21.2, 20),
+    twin('bike-450', 'S45', 'Shock', 'Shock S45', 21.2, 20),
+    twin('bike-450', 'CL45', 'Clutch', 'Clutch pack CL45', 9.1, 8.5),
+    twin('bike-450', 'T-R45', 'Tires', 'Rear race tire', 1.1, 1.2),
+    twin('bike-450', 'NODE02', 'MX Node', 'MX Node node-02 (SIMULATED)', 16.5),
+  );
+
+  // ---- test plans ---------------------------------------------------------------
+  db.testPlans.push(
+    {
+      id: 'plan-corner6', orgId, objective: 'Improve drive from Corner 6 without reducing midrange',
+      kind: 'ab', bikeId: 'bike-250', riderId: 'rider-1', trackId: 'track-pinegrove', sectionId: 'seg-c6',
+      variants: [
+        { id: 'A', label: 'A — R06', mapRevisionId: r06.id, gearing: '13/50', tirePressureRear: 0.85, sessionId: 'sess-4' },
+        { id: 'B', label: 'B — R07', mapRevisionId: r07.id, gearing: '13/50', tirePressureRear: 0.85, sessionId: 'sess-5' },
+      ],
+      holdConstant: ['gearing', 'pressureR', 'tire', 'suspension', 'sag', 'clutch', 'fuel'],
+      status: 'complete', createdByUserId: 'u-tuner', createdAt: '2026-08-05T12:00:00Z',
+      conclusion: 'R07 reduced peak slip and improved lap consistency at Corner 6; promoted to team baseline.',
+      decisionId: 'dec-r07',
+    },
+    {
+      id: 'plan-gearing', orgId, objective: 'Improve start consistency without hurting second-phase drive',
+      kind: 'start', bikeId: 'bike-250', riderId: 'rider-1', trackId: 'track-sxtest',
+      variants: [
+        { id: 'A', label: 'A — 13/49', mapRevisionId: r07.id, gearing: '13/49', tirePressureRear: 0.85, sessionId: 'sess-7' },
+        { id: 'B', label: 'B — 13/50', mapRevisionId: r07.id, gearing: '13/50', tirePressureRear: 0.85, sessionId: 'sess-8' },
+      ],
+      holdConstant: ['map', 'pressureR', 'tire', 'suspension', 'clutch', 'fuel'],
+      status: 'complete', createdByUserId: 'u-tuner', createdAt: '2026-08-07T12:00:00Z',
+      conclusion: '13/49 hurt start consistency; 13/50 retained. No map change indicated.',
+    },
+    {
+      id: 'plan-next', orgId, objective: 'Confirm R07 late-moto stability at race distance',
+      kind: 'durability', bikeId: 'bike-250', riderId: 'rider-1', trackId: 'track-pinegrove',
+      variants: [
+        { id: 'A', label: 'A — R07 20-min moto', mapRevisionId: r07.id, gearing: '13/50', tirePressureRear: 0.85 },
+      ],
+      holdConstant: ['map', 'gearing', 'pressureR', 'suspension'],
+      status: 'planned', createdByUserId: 'u-chief', createdAt: '2026-08-11T18:00:00Z',
+    },
+  );
+
+  // ---- decisions ------------------------------------------------------------------
+  db.decisions.push(
+    {
+      id: 'dec-r07', orgId, at: '2026-08-05T19:30:00Z', authorUserId: 'u-tuner',
+      bikeId: 'bike-250', riderId: 'rider-1', sessionIds: ['sess-4', 'sess-5'],
+      decision: 'Promote R07 to team baseline for hard pack.',
+      rationale: 'Rider preferred R07 and telemetry agreed: lower peak slip at Corner 6 and better lap consistency, with midrange unchanged.',
+      outcome: 'R07 is the hard-pack baseline.', followUp: 'Retest R07 at full race distance before the next event.',
+    },
+    {
+      id: 'dec-gearing', orgId, at: '2026-08-07T18:00:00Z', authorUserId: 'u-chief',
+      bikeId: 'bike-250', riderId: 'rider-1', sessionIds: ['sess-7', 'sess-8'],
+      decision: 'Stay on 13/50 gearing.',
+      rationale: '13/49 hurt start consistency in the SX start comparison; second-phase gains did not materialize.',
+      outcome: '13/50 retained.',
+    },
+  );
+
+  // ---- race weekend -----------------------------------------------------------------
+  db.events.push({
+    id: 'event-pinegrove', orgId, name: 'Pine Grove National (fictional)', trackId: 'track-pinegrove',
+    days: [
+      { date: '2026-08-14', label: 'Friday — Press / Test', slots: [{ label: 'Test session' }] },
+      { date: '2026-08-15', label: 'Saturday — Qualifying', slots: [{ label: 'Practice', sessionId: 'sess-4' }, { label: 'Timed qualifying', sessionId: 'sess-5' }] },
+      { date: '2026-08-16', label: 'Sunday — Motos', slots: [{ label: 'Warm-up' }, { label: 'Moto 1' }, { label: 'Moto 2' }] },
+    ],
+    notes: 'SIMULATED demonstration event.',
+  });
+
+  // ---- crew tasks --------------------------------------------------------------------
+  db.crewTasks.push(
+    { id: 'task-1', orgId, assigneeUserId: 'u-mech', title: 'Rear wheel change + pressure set 0.85 bar', bikeId: 'bike-250', status: 'in_progress', createdAt: '2026-08-12T08:10:00Z' },
+    { id: 'task-2', orgId, assigneeUserId: 'u-susp', title: 'Shock S45: +2 rebound per rider note', bikeId: 'bike-450', status: 'assigned', createdAt: '2026-08-12T08:12:00Z' },
+    { id: 'task-3', orgId, assigneeUserId: 'u-tuner', title: 'Prepare R08 draft for race-distance test', bikeId: 'bike-250', status: 'assigned', createdAt: '2026-08-12T08:15:00Z' },
+    { id: 'task-4', orgId, assigneeUserId: 'u-data', title: 'Review Corner 6 exit consistency vs baseline', status: 'verified', createdAt: '2026-08-11T17:00:00Z' },
+  );
+
+  // ---- stored debrief ------------------------------------------------------------------
+  db.debriefs.push({
+    id: 'debrief-0805', orgId, date: '2026-08-05',
+    learned: [
+      'R07 improved hard-pack corner-exit drive; rider preference and telemetry agreed.',
+      'Rider 1 preferred the smoother reopening even before seeing lap times.',
+    ],
+    tomorrow: ['Run the 13/49 vs 13/50 start comparison.', 'Watch rear tire condition after 45 minutes.'],
+    approvedByUserId: 'u-chief',
+  });
+
+  // ---- remote access + marketplace shell ---------------------------------------------------
+  db.grants.push({
+    id: 'grant-1', orgId, tunerName: 'External Tuner X (fictional)', bikeIds: ['bike-450'],
+    readTelemetry: true, readMaps: true, commentAccess: true, exportAllowed: false, mapEditAllowed: false,
+    createdByUserId: 'u-manager', createdAt: '2026-08-11T09:00:00Z', expiresAt: '2026-08-13T09:00:00Z',
+    state: 'SIMULATED',
+  });
+  db.listings.push({
+    id: 'listing-shell-1', title: 'Hard-pack baseline pack — YZ250F (example)', author: 'TRACE (example)',
+    version: '0.0', validationLevel: 'Unvalidated',
+    compatibility: '2026 YZ250F · simulated ECU definition only',
+    requiredHardware: ['Vortex ECU (verified definition)', 'TRACE MX Node'], requiredFuel: 'Team Fuel 01',
+    disclaimer: 'SHELL — marketplace is future architecture. Nothing here is a valid or safe tune.',
+    state: 'SHELL',
   });
 
   // ---- audit seed ------------------------------------------------------------

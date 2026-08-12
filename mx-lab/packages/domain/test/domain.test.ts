@@ -300,7 +300,7 @@ describe('seeded demo data (section 25)', () => {
     expect(db.tracks).toHaveLength(2);
     expect(db.engineBuilds).toHaveLength(3);
     expect(db.mapRevisions.length).toBeGreaterThanOrEqual(4);
-    expect(db.sessions).toHaveLength(6);
+    expect(db.sessions.length).toBeGreaterThanOrEqual(6); // expansion seed adds gearing/pressure sessions
     expect(db.startAttempts).toHaveLength(12);
     expect(db.recommendations.length).toBeGreaterThanOrEqual(3);
     expect(db.recommendations.some((r) => r.status === 'REJECTED')).toBe(true);
