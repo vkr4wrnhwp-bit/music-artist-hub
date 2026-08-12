@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
   appendAudit, buildRecommendation, compareSessions, pathPoint, simulateSession,
-  telemetrySupportsPreference, transitionRevision, type EventMarker, type MarkerCategory,
-  type RiderFeedback, type Session,
+  telemetrySupportsPreference, transitionRevision, whatChanged, type EventMarker,
+  type MarkerCategory, type RiderFeedback, type Session,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
 import { fmtSigned, Help, LineChart, Panel, Pill, Prov, themeHeat, useThemeVersion } from '../ui';
@@ -114,7 +114,49 @@ function SummaryTab({ session, goTo }: { session: Session; goTo: (t: SessionTab)
           {feedback.preferredOverPrevious ? ' — preferred over previous setup' : ''} · full detail in Rider feedback.
         </p>
       )}
+
+      <WhatChangedPanel session={session} />
     </div>
+  );
+}
+
+/** WHAT CHANGED? — automatic diff vs the previous session on this bike. */
+function WhatChangedPanel({ session }: { session: Session }) {
+  const { db } = useApp();
+  const res = whatChanged(db, session);
+  if (!res.baseline) return null;
+  const changed = res.vars.filter((v) => v.changed);
+  return (
+    <Panel title={`What changed? — vs ${new Date(res.baseline.startedAt).toLocaleDateString()} (${res.baseline.objective.slice(0, 40)})`}>
+      {res.warnings.map((w, i) => (
+        <p key={i} style={{ color: 'var(--warning)', fontWeight: 650, fontSize: 13, marginTop: 0 }}>⚠ {w}</p>
+      ))}
+      {changed.length === 0 ? (
+        <p className="hint" style={{ margin: 0 }}>No configuration changes vs the previous session — a clean back-to-back.</p>
+      ) : (
+        <div className="tbl-scroll">
+          <table className="data">
+            <tbody>
+              {changed.map((v) => (
+                <tr key={v.field}>
+                  <td style={{ width: 170, color: 'var(--muted)', fontSize: 11, fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{v.label}</td>
+                  <td className="mono">{v.a} → <b>{v.b}</b></td>
+                  <td>
+                    {v.intended && <Pill tone="good">Intended</Pill>}
+                    {v.shouldHoldConstant && <Pill tone="critical">Should have held constant</Pill>}
+                    {!v.intended && !v.shouldHoldConstant && (['weather', 'trackCond', 'hours'].includes(v.field)
+                      ? <Pill tone="neutral">Environment</Pill> : <Pill tone="warning">Unconfirmed</Pill>)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="btn-row" style={{ marginTop: 10 }}>
+        <button className="btn small" onClick={() => nav(`compare/${res.baseline!.id}/${session.id}`)}>Open in TRACE Compare</button>
+      </div>
+    </Panel>
   );
 }
 

@@ -9,11 +9,15 @@ export function MoreScreen() {
   if (!user) return null;
 
   const items: Array<{ title: string; desc: string; to: string; badge?: React.ReactNode }> = [
+    { title: 'TRACE Knowledge & Ask TRACE', desc: 'Team memory with citations — search everything, ask structured questions', to: 'knowledge', badge: <Pill tone="warning">DEVELOPMENT</Pill> },
+    { title: 'Live Pit Board', desc: 'Large-format team display for the transporter or pit wall', to: 'pitboard' },
+    { title: 'Crew assignments', desc: 'Race-day tasks: assigned → in progress → verified', to: 'crew' },
+    { title: 'Morning Brief', desc: 'Generated from live readiness, component life, and test plans', to: 'brief' },
+    { title: 'Remote tuner access & marketplace', desc: 'Scoped, expiring, audited grants · marketplace architecture', to: 'access', badge: <Pill tone="warning">SIMULATED / SHELL</Pill> },
     { title: 'Hardware & devices', desc: 'MX Nodes, channel health, calibration, competition mode', to: 'hardware', badge: <Pill tone="sim">SIMULATED</Pill> },
     { title: 'CNC program', desc: 'Enclosures, mounts, dock, fixtures — part registry and briefs', to: 'cnc' },
     { title: 'Reports & team archive', desc: 'Printable reports, JSON/CSV exports, offline backup', to: 'reports' },
     { title: 'Audit history', desc: 'Append-only record of every decision and transfer', to: 'audit' },
-    { title: 'Pit Mode', desc: 'Tablet-first race-day screen', to: 'pit' },
     { title: 'Register a bike', desc: 'Phase 0 inventory for a new machine', to: 'bike/new' },
   ];
 

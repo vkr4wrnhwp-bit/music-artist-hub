@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { computeReadiness, simulateSession } from '@mxlab/domain';
+import { buildChecklist, computeReadiness, simulateSession } from '@mxlab/domain';
 import { nav, useApp } from '../state';
 import { Pill } from '../ui';
 
@@ -27,15 +27,8 @@ export function PitMode() {
     ? Object.values(device.channelHealth).filter((q) => q === 'Missing' || q === 'Intermittent' || q === 'Out of range').length
     : 1;
 
-  const gate = (id: string) => readiness.gates.find((g) => g.id === id);
-  const checks: Array<[string, boolean, string]> = [
-    [`Map ${rev?.rev ?? '—'}`, !!gate('transfer')?.pass && !!gate('mapApproved')?.pass, 'map'],
-    ['Fuel', !!gate('fuel')?.pass, 'fuel'],
-    ['Maintenance', !!gate('maintenance')?.pass, 'mnt'],
-    ['Logger', !!gate('hardware')?.pass, 'log'],
-    ['Sensors', sensorIssues === 0, 'sns'],
-  ];
-  const allOk = readiness.readyForInstrumentedTest;
+  const checklist = buildChecklist(db, bike);
+  const allOk = checklist.ready && readiness.readyForInstrumentedTest;
 
   // one hour = "fresh" — the bike just came back and feedback is pending
   const sessionFresh = lastSession
@@ -68,19 +61,27 @@ export function PitMode() {
         </>
       ) : (
         <>
-          <p className="eyebrow" style={{ marginTop: 36 }}>{allOk ? 'Bike ready' : 'Not ready'}</p>
+          <p className="eyebrow" style={{ marginTop: 36 }}>{allOk ? 'Ready to race' : 'Not ready'}</p>
           <h1 className="mono">{bike.label}</h1>
           <p className="pit-sub">
             {rev ? `Map ${rev.rev} · Slot ${bike.currentMapSlot}` : 'No map loaded'} · <Pill tone="sim">SIMULATED</Pill>
           </p>
           <div className="pit-checks">
-            {checks.map(([label, ok, key]) => (
-              <div key={key} className={`pit-check ${ok ? 'ok' : 'bad'}`}>
-                <span>{label}</span>
-                <span className="st" aria-label={ok ? 'ready' : 'blocked'}>{ok ? '✓' : '✕'}</span>
+            {checklist.items.filter((i) => i.status !== 'manual').map((i) => (
+              <div key={i.id} className={`pit-check ${i.status === 'pass' ? 'ok' : 'bad'}`}>
+                <span>{i.label}</span>
+                <span className="st" aria-label={i.status === 'pass' ? 'ready' : 'blocked'}>{i.status === 'pass' ? '✓' : '✕'}</span>
               </div>
             ))}
+            {checklist.items.filter((i) => i.status === 'manual').map((i) => (
+              <ManualCheck key={i.id} id={`${bike.id}-${i.id}`} label={i.label} detail={i.detail} />
+            ))}
           </div>
+          {checklist.blockers.length > 0 && (
+            <p style={{ color: 'var(--critical)', fontWeight: 650, fontSize: 15 }}>
+              {checklist.blockers[0]}
+            </p>
+          )}
           {allOk ? (
             <button className="btn primary big" onClick={() => nav('session/new')}>Start Session</button>
           ) : (
@@ -90,5 +91,25 @@ export function PitMode() {
       )}
       <p className="hint" style={{ marginTop: 28 }}>Pit Mode works fully offline — everything is on this device.</p>
     </div>
+  );
+}
+
+/** Glove-friendly manual checklist item — physical checks stay human. */
+function ManualCheck({ id, label, detail }: { id: string; label: string; detail: string }) {
+  const [done, setDone] = useState(() => sessionStorage.getItem(`pitcheck-${id}`) === '1');
+  return (
+    <button
+      className={`pit-check ${done ? 'ok' : ''}`}
+      style={{ width: '100%', textAlign: 'left', cursor: 'pointer', opacity: done ? 1 : 0.85 }}
+      title={detail}
+      onClick={() => {
+        const next = !done;
+        setDone(next);
+        sessionStorage.setItem(`pitcheck-${id}`, next ? '1' : '0');
+      }}
+    >
+      <span>{label}</span>
+      <span className="st" style={{ color: done ? 'var(--good)' : 'var(--muted)' }}>{done ? '✓' : '○'}</span>
+    </button>
   );
 }

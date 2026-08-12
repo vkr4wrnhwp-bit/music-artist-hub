@@ -19,6 +19,14 @@ import { RegisterBike } from './screens/RegisterBike';
 import { AnalyzeHub } from './screens/Analyze';
 import { MoreScreen } from './screens/More';
 import { PitMode } from './screens/PitMode';
+import { CompareWorkspace } from './screens/Compare';
+import { Planner } from './screens/Planner';
+import { KnowledgeScreen } from './screens/Knowledge';
+import { IntelligenceScreen } from './screens/Intelligence';
+import { RidersScreen } from './screens/Riders';
+import {
+  AccessScreen, BriefScreen, CrewScreen, DebriefScreen, PitBoard, WeekendScreen,
+} from './screens/RaceOps';
 
 const AREAS = [
   { id: 'garage', label: 'Garage', path: 'garage' },
@@ -31,18 +39,20 @@ const AREAS = [
 /** which area owns each route head */
 const AREA_OF: Record<string, string> = {
   garage: 'garage', fleet: 'garage', bike: 'garage', ecu: 'garage',
-  sessions: 'sessions', session: 'sessions', starts: 'sessions',
+  sessions: 'sessions', session: 'sessions', starts: 'sessions', planner: 'sessions',
+  weekend: 'sessions', debrief: 'sessions',
   tune: 'tune', maps: 'tune', transfer: 'tune',
-  analyze: 'analyze', engineer: 'analyze',
+  analyze: 'analyze', engineer: 'analyze', compare: 'analyze', intelligence: 'analyze', riders: 'analyze',
   more: 'more', hardware: 'more', cnc: 'more', reports: 'more', audit: 'more', pit: 'more',
+  knowledge: 'more', pitboard: 'more', crew: 'more', brief: 'more', access: 'more',
 };
 
 const SUBNAV: Record<string, Array<[string, string]>> = {
   garage: [['garage', 'Today'], ['fleet', 'Fleet']],
-  sessions: [['sessions', 'Overview'], ['session/new', 'New session'], ['starts', 'Start Lab'], ['pit', 'Pit Mode']],
+  sessions: [['sessions', 'Overview'], ['session/new', 'New session'], ['planner', 'Test Planner'], ['weekend', 'Race Weekend'], ['starts', 'Start Lab'], ['debrief', 'Debrief'], ['pit', 'Pit Mode']],
   tune: [['tune', 'Map library']],
-  analyze: [['analyze', 'Findings'], ['engineer', 'TRACE Insights'], ['reports', 'Reports']],
-  more: [['more', 'Overview'], ['hardware', 'Hardware'], ['cnc', 'CNC'], ['reports', 'Reports'], ['audit', 'Audit']],
+  analyze: [['analyze', 'Findings'], ['compare', 'Compare'], ['intelligence', 'Intelligence'], ['riders', 'Riders'], ['engineer', 'TRACE Insights'], ['reports', 'Reports']],
+  more: [['more', 'Overview'], ['knowledge', 'Knowledge'], ['pitboard', 'Pit Board'], ['crew', 'Crew'], ['brief', 'Brief'], ['audit', 'Audit']],
 };
 
 function SignIn() {
@@ -101,6 +111,17 @@ function Shell() {
   else if (head === 'transfer' && arg) screen = <TransferSheet revId={arg} />;
   else if (head === 'analyze') screen = <AnalyzeHub />;
   else if (head === 'engineer') screen = <Engineer initialId={arg} />;
+  else if (head === 'compare') screen = <CompareWorkspace aId={arg} bId={arg2} />;
+  else if (head === 'planner') screen = <Planner />;
+  else if (head === 'knowledge') screen = <KnowledgeScreen />;
+  else if (head === 'intelligence') screen = <IntelligenceScreen />;
+  else if (head === 'riders') screen = <RidersScreen />;
+  else if (head === 'weekend') screen = <WeekendScreen />;
+  else if (head === 'pitboard') screen = <PitBoard />;
+  else if (head === 'crew') screen = <CrewScreen />;
+  else if (head === 'brief') screen = <BriefScreen />;
+  else if (head === 'debrief') screen = <DebriefScreen />;
+  else if (head === 'access') screen = <AccessScreen />;
   else if (head === 'more') screen = <MoreScreen />;
   else if (head === 'hardware') screen = <Hardware />;
   else if (head === 'cnc') screen = <CncModule />;

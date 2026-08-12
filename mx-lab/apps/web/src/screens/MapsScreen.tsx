@@ -43,7 +43,13 @@ export function MapLibrary() {
       </div>
 
       {db.maps.map((m) => (
-        <Panel key={m.id} title={`${m.name} — ${m.purpose}`}>
+        <Panel key={m.id} title={`${m.name} — ${m.purpose}`}
+          actions={(
+            <span className="btn-row">
+              <Pill tone="neutral">{m.privacy.replaceAll('_', ' ')}</Pill>
+              {m.tags.slice(0, 4).map((t) => <Pill key={t} tone="neutral">{t}</Pill>)}
+            </span>
+          )}>
           <div className="tbl-scroll">
             <table className="data">
               <thead><tr><th>Rev</th><th>State</th><th>Author</th><th>Created</th><th>Parent</th><th>Notes</th><th>Tested in</th></tr></thead>

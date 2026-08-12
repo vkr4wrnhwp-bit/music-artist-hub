@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { appendAudit, auditFor, computeReadiness } from '@mxlab/domain';
 import { nav, useApp } from '../state';
 import { Help, Panel, Pill, Prov, readinessTone } from '../ui';
+import { TwinTab } from './TwinTab';
 
 export function BikeProfile({ bikeId }: { bikeId: string }) {
   const { db, user, update, allowed } = useApp();
-  const [tab, setTab] = useState<'overview' | 'setup' | 'engine' | 'ecu' | 'maintenance' | 'history'>('overview');
+  const [tab, setTab] = useState<'overview' | 'twin' | 'setup' | 'engine' | 'ecu' | 'maintenance' | 'history'>('overview');
   const bike = db.bikes.find((b) => b.id === bikeId);
   if (!bike || !user) return <p>Bike not found.</p>;
 
@@ -21,7 +22,7 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
   const topIssue = readiness.gates.find((g) => g.critical && !g.pass);
 
   const tabs = [
-    ['overview', 'Overview'], ['setup', 'Setup'], ['engine', 'Engine'],
+    ['overview', 'Overview'], ['twin', 'Digital Twin'], ['setup', 'Setup'], ['engine', 'Engine'],
     ['ecu', 'ECU'], ['maintenance', 'Service'], ['history', 'History'],
   ] as const;
 
@@ -144,6 +145,8 @@ export function BikeProfile({ bikeId }: { bikeId: string }) {
           </Panel>
         </div>
       )}
+
+      {tab === 'twin' && <TwinTab bikeId={bike.id} />}
 
       {tab === 'setup' && <SetupTab bikeId={bike.id} />}
 

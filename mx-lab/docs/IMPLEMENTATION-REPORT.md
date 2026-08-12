@@ -120,3 +120,48 @@ hardware integration.
 - The AI cause-ranking is a transparent heuristic pipeline — appropriate for
   Phase 1; it should be re-validated against real telemetry in Phase 2 before
   any confidence figure is trusted.
+
+---
+
+# Expansion addendum — Race Intelligence & Team Operations
+
+## COMPLETED (real logic, tested)
+- Unified confidence model; TRACE Compare (WHAT CHANGED / WHAT HAPPENED /
+  WHAT PROBABLY CAUSED IT with intended/uncontrolled marking); WHAT CHANGED
+  auto-diff on every session vs its baseline with hold-constant violations;
+  Test Planner (A/B/C, blind, start, section, durability) with
+  controlled-variable detection and plan→session linking; Team Decision Log;
+  race-day Timeline derived from the audit log; dynamic Between-Moto
+  Checklists (real gates + component life + manual physical checks); Crew
+  assignments; Live Pit Board; Morning Brief and Debrief composed from live
+  records with human edit/approval; universal search; private map library
+  tags + privacy levels; Digital Twin component registry with service
+  history; reliability factors where a failed critical gate overrides the
+  score. 25 new domain tests (59 total).
+
+## SIMULATED
+- All session data, telemetry-derived metrics, and hardware remain
+  simulated and labeled. Remote tuner access grants (scoped, expiring,
+  revocable, audited) are functional in-app but enforcement is local-demo
+  until the backend ships.
+
+## DEVELOPMENT-LABELED
+- Setup Intelligence rankings and TRACE Predict (starting point only,
+  requires human confirmation, citations + sample size always shown);
+  Rider DNA (measured/preference/inference separated); Rider Coaching;
+  Fatigue estimate (mandatory NOT-MEDICAL disclaimer); component life
+  estimates; Ask TRACE / Knowledge answers (structured-record retrieval,
+  keyword intents — composes only from real records, admits gaps).
+
+## SHELL / FUTURE
+- Marketplace: listing schema + screen with validation levels and
+  disclaimers; nothing publishable or buyable.
+
+## DISABLED
+- Direct ECU write: unchanged, verbatim label everywhere.
+
+## Known limitation
+- Seeded narrative text (e.g. the historical A/B conclusion) is authored
+  demo fiction, while Compare recomputes metrics live from the simulated
+  traces — the two can disagree in places. Real data removes this class of
+  mismatch; everything on screen is banner-labeled SIMULATED.
