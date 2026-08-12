@@ -150,3 +150,46 @@ test("the deliver step does not apply to training projects", () => {
   const pTotal = flowProgress(MAKE_A_PART, startSession(MAKE_A_PART, prod, "t"), prod).total;
   assert.equal(t, pTotal - 1);
 });
+
+/* ------------------------------------------------------------------ */
+/* TURN_A_SHAFT flow                                                   */
+/* ------------------------------------------------------------------ */
+
+import { TURN_A_SHAFT } from "@/lib/guide/flows";
+
+test("TURN_A_SHAFT completes from turning state alone — a done shaft has nothing left to guide", () => {
+  const done = ctx({
+    hasStock: true, hasMachine: true, featureCount: 8, setupCount: 1,
+    workholdingAssessed: true, toolpathCount: 7, ncProgramExists: true, blockingGates: [],
+  });
+  const s = startSession(TURN_A_SHAFT, done, "2026-08-12T00:00:00Z");
+  const p = flowProgress(TURN_A_SHAFT, s, done);
+  assert.equal(p.completed, p.total);
+});
+
+test("TURN_A_SHAFT hold step surfaces the grip gate as a blocker, and deliver stays gated", () => {
+  const gated = ctx({
+    hasStock: true, featureCount: 8, setupCount: 1, workholdingAssessed: false, toolpathCount: 7,
+    ncProgramExists: true,
+    blockingGates: [{ id: "grip", label: "Chuck grip", detail: "Clamp force not recorded — the chuck's actual hydraulic setting." }],
+  });
+  let s = startSession(TURN_A_SHAFT, gated, "2026-08-12T00:00:00Z");
+  // advance to the hold step
+  for (let i = 0; i < 6; i++) {
+    const v = currentStep(TURN_A_SHAFT, s, gated);
+    if (v?.step.id === "hold") break;
+    s = advance(TURN_A_SHAFT, s, gated);
+  }
+  const hold = currentStep(TURN_A_SHAFT, s, gated);
+  assert.equal(hold?.step.id, "hold");
+  assert.equal(hold?.blocked?.label, "Chuck grip");
+  // deliver never reads done while a blocking gate stands
+  const deliver = TURN_A_SHAFT.steps.find((x) => x.id === "deliver")!;
+  assert.equal(deliver.done(gated), false);
+});
+
+test("TURN_A_SHAFT deliver step does not apply to training parts", () => {
+  const training = ctx({ training: true });
+  const deliver = TURN_A_SHAFT.steps.find((x) => x.id === "deliver")!;
+  assert.equal(deliver.applies?.(training), false);
+});

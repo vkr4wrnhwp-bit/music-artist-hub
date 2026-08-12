@@ -44,7 +44,7 @@ const MODE_HELP: Record<GuideMode, string> = {
   TEACH: "One guided decision at a time, with the real control highlighted.",
 };
 
-export function GuideCard({ ctx }: { ctx: GuideContext }) {
+export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; flowId?: keyof typeof GUIDE_FLOWS }) {
   const [mode, setMode] = useState<GuideMode | null>(null); // null = not loaded
   const [profile, setProfile] = useState<string | null>(null);
   const [firstRun, setFirstRun] = useState(false);
@@ -52,7 +52,10 @@ export function GuideCard({ ctx }: { ctx: GuideContext }) {
   const [showWhy, setShowWhy] = useState(false);
   const [camHints, setCamHints] = useState(false);
   const [session, setSession] = useState<GuideSession | null>(null);
-  const flow = GUIDE_FLOWS.MAKE_A_PART;
+  // All flows' sessions as loaded — persisted whole so saving one flow's
+  // progress never clobbers another's.
+  const allSessions = useRef<Record<string, GuideSession>>({});
+  const flow = GUIDE_FLOWS[flowId] ?? GUIDE_FLOWS.MAKE_A_PART;
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---- load ---- */
@@ -68,6 +71,7 @@ export function GuideCard({ ctx }: { ctx: GuideContext }) {
         } else {
           setMode(s.mode);
           setProfile(s.profile);
+          allSessions.current = s.sessions ?? {};
           if (s.sessions[flow.id]) setSession(s.sessions[flow.id]);
         }
         try {
@@ -100,7 +104,9 @@ export function GuideCard({ ctx }: { ctx: GuideContext }) {
   const setSessionAndPersist = useCallback(
     (s: GuideSession | null) => {
       setSession(s);
-      persist({ sessions: s ? { [flow.id]: s } : {} });
+      if (s) allSessions.current = { ...allSessions.current, [flow.id]: s };
+      else delete allSessions.current[flow.id];
+      persist({ sessions: { ...allSessions.current } });
     },
     [persist, flow.id],
   );

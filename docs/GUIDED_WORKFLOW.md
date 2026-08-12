@@ -16,7 +16,15 @@ routes + the existing selection system rather than per-face 3D
 highlighting. ASSIST recommendations are the real nextActions() queue,
 not yet per-parameter structured proposals.
 
+TURN_A_SHAFT (added once turning landed): the same backbone in the
+lathe's voice — profile, bar stock, lathe, hold-with-evidence (the
+clamp-force step surfaces the grip gate as its blocker), turning
+toolpaths, 3D playback as a teaching step, instrument capability,
+worst-gate clearing, delivery through the turning export mint. Mounted
+on the turning workspace; GuideCard now takes a flowId and persists
+sessions per flow without clobbering other flows' progress.
+
 Not implemented, not faked: DRAW_FROM_SCRATCH (no sketching exists),
-turning flows (no turning), the guided reverse-engineering flow,
-guide analytics events, tablet/mobile sheets for the card (it is
-responsive but not a bottom sheet).
+the mill guided reverse-engineering flow (the turning bench flow
+guides itself), guide analytics events, tablet/mobile sheets for the
+card (it is responsive but not a bottom sheet).

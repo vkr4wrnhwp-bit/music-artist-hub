@@ -10,6 +10,8 @@ import { LatheSimView } from "@/components/turn/lathe-3d";
 import { CinematicTurnButton } from "@/components/turn/cinematic-turn";
 import { NcExportPanel } from "@/components/nc/export-panel";
 import { mintTurnExport, recordTurnExport } from "./nc/actions";
+import { GuideCard } from "@/components/guide/guide-card";
+import type { GuideContext } from "@/lib/guide/engine";
 import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
@@ -282,6 +284,26 @@ export default async function LathePartPage(props: {
     })),
   };
 
+  // Guide snapshot — real turning state mapped into the shared context, so
+  // TURN_A_SHAFT steps complete from the truth, never a checklist copy.
+  const guideCtx: GuideContext = {
+    partId: id,
+    hasStock: profile.stockDiameter > 0 && profile.stockLength > 0,
+    hasMachine: Boolean(lathe),
+    hasMaterial: Boolean(intentDoc.material?.value),
+    featureCount: profile.segments.length,
+    pendingProposals: 0,
+    setupCount: holding ? 1 : 0,
+    workholdingAssessed: grip.verdict === "PASS" || grip.verdict === "REVIEW",
+    toolpathCount: results.filter((r) => r.result.ok).length,
+    simulationRecorded: false,
+    approvalExists: rot.humanApproved,
+    ncProgramExists: program.refusals.length === 0 && program.code.trim().length > 0,
+    blockingGates: blocking.map((g) => ({ id: g.id, label: g.label, detail: g.detail })),
+    nextAction: null,
+    training: false,
+  };
+
   return (
     <>
       <TopBar>
@@ -485,6 +507,7 @@ export default async function LathePartPage(props: {
           </Panel>
         </div>
       </main>
+      <GuideCard ctx={guideCtx} flowId="TURN_A_SHAFT" />
     </>
   );
 }

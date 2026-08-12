@@ -858,3 +858,19 @@ keep the NOT FOR PRODUCTION USE header — authorization is not
 certification. Shared NcExportPanel parameterized over mint/record.
 Browser-verified both ways: withheld while gates fail, PREPARED grant
 with digest + TTL once the gates pass.
+
+## TURN_A_SHAFT guide flow
+
+flows.ts gains TURN_A_SHAFT: nine steps in the lathe's voice over the
+shared GuideContext — profile, bar stock, lathe, hold-with-evidence
+(blockedBy surfaces the chuck-grip gate), turning toolpaths, 3D
+playback as a teaching step (labelled: watching leaves no record),
+instrument capability, worst-gate clearing, delivery via the turning
+export mint. GuideCard parameterized by flowId; session persistence
+now merges per-flow instead of replacing the whole map (latent
+clobber fixed). Turning context assembled on the lathe workspace from
+the same computed state the page renders. CREATE_TURN_SETUP removed
+from DEVELOPMENT_FLOWS — it exists now. 3 new tests; 150 total.
+Browser-verified: first-run profile picker, truthful "Flow complete"
+on the finished Demo Shaft, and mid-flow "Pick the lathe" on the RE
+part that has geometry but no machine.

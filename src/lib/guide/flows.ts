@@ -138,14 +138,114 @@ export const MAKE_A_PART: GuideFlowDef = {
   ],
 };
 
+/**
+ * TURN_A_SHAFT — the same backbone spoken in the lathe's language, over the
+ * turning workspace. Steps complete from the turning package state (the same
+ * assembly the export mint gates on), mapped into GuideContext by the lathe
+ * page: featureCount = profile segments, setupCount = workholding selected,
+ * workholdingAssessed = grip evidence recorded, toolpathCount = engine-ok
+ * toolpaths, blockingGates = the turning worst-gate readiness.
+ */
+export const TURN_A_SHAFT: GuideFlowDef = {
+  id: "TURN_A_SHAFT",
+  title: "Turn a shaft",
+  steps: [
+    {
+      id: "profile",
+      title: "Define the rotational profile",
+      body: "A turned part is a profile revolved about the centerline: diameters and Z positions, front to back. Import it, plan it, or measure it on the bench with the reverse-engineering flow.",
+      why: "X0 is the centerline and Z0 the datum face — every toolpath, hold analysis and inspection reads this one model. Diameters are diameters, never radii.",
+      camHint: "This is the 2D profile you would sketch in a lathe CAM system — CANVAS keeps it as the single source of geometry.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.featureCount > 0,
+    },
+    {
+      id: "stock",
+      title: "Confirm bar stock",
+      body: "Stock is a bar: diameter and length, including facing and part-off allowance. A reverse-engineered part carries a SUGGESTED bar until you confirm what is actually on the rack.",
+      why: "Bar economics (parts per bar, remnant, utilization) and every roughing pass start from this number. Stock that cannot make the part is refused, not shrunk.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.hasStock,
+    },
+    {
+      id: "lathe",
+      title: "Pick the lathe",
+      body: "Swing, between-centers length, spindle range and turret stations come from a real machine record.",
+      why: "The CSS clamp, the RPM checks and the post all validate against this record — a generic lathe validates nothing.",
+      href: () => `/lathe`,
+      done: (ctx) => ctx.hasMachine,
+    },
+    {
+      id: "hold",
+      title: "Hold it — chuck, grip, evidence",
+      body: "Pick the workholding and record the real numbers: grip length, stickout, the chuck's clamp force from the hydraulic setting. Soft jaws have their own drawer search and bore-in-place recipe.",
+      why: "The grip analysis refuses to invent a clamp force. UNKNOWN is a verdict — the gate moves when the measurement is recorded, not when a warning is clicked away.",
+      camHint: "Chuck setup — but the clamp force field is evidence, not a default.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.setupCount > 0 && ctx.workholdingAssessed,
+      blockedBy: (ctx) => {
+        const g = ctx.blockingGates.find((x) => /grip|chuck|hold|workholding/i.test(x.label));
+        return g ? { label: g.label, detail: g.detail, href: `/lathe/${ctx.partId}` } : null;
+      },
+    },
+    {
+      id: "toolpaths",
+      title: "Generate the turning toolpaths",
+      body: "Facing, roughing, finishing, grooving, threading, part-off — all from the deterministic turn engines. CSS is clamped by G50; a thread's feed IS its pitch and is never retimed.",
+      why: "An LLM never emits machine motion. An operation the engine cannot plan (a groove narrower than the insert, a missing pitch) refuses by name instead of guessing.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.toolpathCount > 0,
+      applies: (ctx) => ctx.featureCount > 0,
+    },
+    {
+      id: "watch",
+      title: "Watch the stock come off",
+      body: "The 3D playback replays the toolpaths against the radius envelope — scrub it, step the stock states operation by operation. It is a kinematic replay, labelled DEVELOPMENT: not a collision check.",
+      why: "Seeing the remnant, the part-off moment and each operation's stock state catches planning mistakes the tables hide. Knowing what the view is NOT is part of reading it.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.toolpathCount > 0, // watching leaves no record — the step teaches, the next gates
+      applies: (ctx) => ctx.toolpathCount > 0,
+    },
+    {
+      id: "verify",
+      title: "Verify — can your instruments prove it?",
+      body: "A ±0.0005\" journal needs an instrument whose uncertainty covers it 4:1. The seeded ±0.0002\" micrometer honestly fails that test — the gate moves when the instrument does.",
+      why: "Inspection capability is a property of the instruments the shop owns. It cannot be cleared by confirmation, on a lathe or anywhere else.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => !ctx.blockingGates.some((g) => /inspection|metrology/i.test(g.label)),
+    },
+    {
+      id: "gates",
+      title: "Clear the turning gates",
+      body: "Turning readiness is the worst unresolved required gate — chuck grip, stickout, part-off, RPM limits, tooling, inspection. Each failing gate names the evidence that moves it.",
+      why: "A shaft with nine passing gates and an unrecorded clamp force is not 90% ready; it is not ready.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.blockingGates.length === 0,
+      blockedBy: (ctx) =>
+        ctx.blockingGates.length > 0
+          ? { label: ctx.blockingGates[0].label, detail: ctx.blockingGates[0].detail, href: `/lathe/${ctx.partId}` }
+          : null,
+    },
+    {
+      id: "deliver",
+      title: "Deliver — post, approve, export",
+      body: "The development post emits the program (refusing an unclamped G96 outright), approval is a named human act, and the export mint re-runs every turning gate server-side. The file keeps its NOT FOR PRODUCTION USE header.",
+      why: "An export authorization is permission to take bytes out of CANVAS, not a certification of the post. The gate check at the mint is what makes the button honest.",
+      href: (ctx) => `/lathe/${ctx.partId}`,
+      done: (ctx) => ctx.ncProgramExists && ctx.blockingGates.length === 0,
+      applies: (ctx) => !ctx.training,
+    },
+  ],
+};
+
 export const GUIDE_FLOWS: Record<string, GuideFlowDef> = {
   MAKE_A_PART,
+  TURN_A_SHAFT,
 };
 
 /** Flows that exist as concepts but whose functionality does not: named so
  * the UI can say DEVELOPMENT instead of pretending. */
 export const DEVELOPMENT_FLOWS = [
   { id: "DRAW_FROM_SCRATCH", reason: "CANVAS has no sketching tools yet." },
-  { id: "CREATE_TURN_SETUP", reason: "Turning is not implemented." },
-  { id: "REVERSE_ENGINEER_GUIDE", reason: "The RE measurement session exists; its guided flow is not authored yet." },
+  { id: "REVERSE_ENGINEER_GUIDE", reason: "The turning bench flow guides itself; the mill RE measurement session's guided flow is not authored yet." },
 ];
