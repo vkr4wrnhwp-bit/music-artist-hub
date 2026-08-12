@@ -990,3 +990,19 @@ regions ("geometry identical by construction"). Fixed a dark-flip
 defect: the backplot ground returned to the light work window with
 fixed inks. Browser-verified: framing, two-way sync, diff rows,
 PROPOSED mode. 172 tests still green.
+
+## Phase 5 — operation classification + seeded optimizer demo
+
+classify.ts: deterministic-only operation groups (DRILL/TAP/FACE/
+POCKET/LINKING/UNKNOWN) with narrow rules and honest UNKNOWNs,
+rendered with Show Me per group. Seeded demo program
+(public/demo/O2507-DEMO.nc + one-click Load demo): deliberate mixed
+results — air cutting, excessive retract, rubbing RAISEs, an
+engagement-spike REDUCE (F60→30), the protected bearing bore, a
+review-only G41 region, G81 drilling classified DRILL. Two engine
+refinements from fixture authoring: plunges excluded from spike
+analysis (vertical entries are not XY corners), and the protection
+engine proved itself by suppressing the demo's REDUCE when the slot
+passed 0.125" from a tapped hole — the fixture moved, not the rule.
+4 new tests; 176 total. Browser-verified: 6 RAISE + 1 REDUCE + 1
+PROTECTED + comped review live.

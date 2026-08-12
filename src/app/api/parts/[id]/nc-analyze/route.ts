@@ -8,6 +8,7 @@ import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
 import { buildProtectedRegions } from "@/lib/nc/protection";
 import { evaluateAuditGates } from "@/lib/nc/audit-gates";
+import { classifyOperations } from "@/lib/nc/classify";
 
 /**
  * NC ANALYSIS — Phase 4A/4B endpoint
@@ -129,6 +130,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       .map((s) => [s.feed === null ? 0 : 1, s.line, r(s.x0), r(s.y0), r(s.x1), r(s.y1)]),
     // The immutable original's text, for the read-only block-synced viewer.
     code: originalText,
+    operations: classifyOperations(parsed),
     analysis,
     load: {
       bands: load.segments.map((s) => s.band),

@@ -72,3 +72,26 @@ Tests: parser/time/load suites plus 7 audit-gate tests
 (tests/engines/audit-gates.test.ts). The worst-gate law, the stored-
 original requirement, unmapped-tool refusal, assumed-units downgrade,
 and scope exclusions are all pinned.
+
+
+## Added since the status above
+
+- **Operation classification** (`classify.ts`): deterministic motion
+  evidence only — DRILL (≥70% vertical across 2+ positions), TAP
+  (drill + tapping flag), FACE (one Z, broad XY), POCKET (descending Z
+  levels), LINKING, UNKNOWN ("unlabeled is honest; mislabeled teaches
+  the wrong thing"). Every group is method DETERMINISTIC; AI labels,
+  when added, arrive separately as AI_INFERRED.
+- **Seeded demo program** (`public/demo/O2507-DEMO.nc` + Load demo
+  button): deliberate mixed results against the Bearing Support —
+  facing with an air pass and a Z2.0 retract, rubbing passes (RAISE),
+  an engagement-spike slot (REDUCE F60→30), a rubbing pass over the
+  bearing bore (PROTECTED), a G41 region (review-only, never
+  optimized), four G81 holes (classified DRILL). During fixture
+  authoring the protection engine caught the spike slot passing within
+  0.125" of a tapped mounting hole and correctly suppressed the REDUCE
+  — the fixture was moved rather than the rule weakened.
+- **Plunge exclusion in spike analysis**: vertical entries legitimately
+  remove material fast and are not XY engagement spikes; they are now
+  excluded from both the median and the spike set, so wall-cut corners
+  are compared against wall cuts.

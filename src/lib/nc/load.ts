@@ -297,7 +297,14 @@ export function analyzeLoad(parsed: ParsedNC, ctx: LoadContext): LoadAnalysis {
       const first = cuts[idxs[0]];
       const tool = ctx.tools[first.toolNumber];
       if (!tool || first.feed === null) continue;
-      const mrrs = idxs.map((k) => segments[k].mrr).filter((v): v is number => v !== null && v > 1e-6);
+      // Plunges are excluded from spike analysis on both sides: a vertical
+      // entry legitimately removes material fast and is not an XY engagement
+      // spike — comparing wall cuts against plunges would hide real corners.
+      const lateral = idxs.filter((k) => {
+        const sg = cuts[k];
+        return Math.abs(sg.z1 - sg.z0) < Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0) * 3;
+      });
+      const mrrs = lateral.map((k) => segments[k].mrr).filter((v): v is number => v !== null && v > 1e-6);
       if (mrrs.length < 3) continue; // no replay data — never guess a spike
       const median = [...mrrs].sort((a, b) => a - b)[Math.floor(mrrs.length / 2)];
       if (median <= 1e-6) continue;
@@ -336,9 +343,10 @@ export function analyzeLoad(parsed: ParsedNC, ctx: LoadContext): LoadAnalysis {
           geometryChanges: false,
         });
       };
+      const lateralSet = new Set(lateral);
       for (const k of idxs) {
         const v = segments[k].mrr;
-        if (v !== null && v > median * SPIKE_RATIO) spike.push(k);
+        if (lateralSet.has(k) && v !== null && v > median * SPIKE_RATIO) spike.push(k);
         else flushStretch();
       }
       flushStretch();

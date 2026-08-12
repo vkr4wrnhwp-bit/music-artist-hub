@@ -36,6 +36,7 @@ interface Report {
   };
   backplot: [number, number, number, number, number, number][];
   code: string;
+  operations: { toolNumber: number; lines: [number, number]; kind: string; method: string; detail: string; cutSegments: number }[];
   load: {
     bands: string[];
     proposals: {
@@ -114,16 +115,32 @@ export function NcAnalyzer({ partId }: { partId: string }) {
     setOptimized(json);
   }
 
-  async function run() {
-    const file = fileRef.current?.files?.[0];
-    if (!file) { setState((s) => ({ ...s, error: "Choose an .nc / .txt program first." })); return; }
+  async function analyzeFile(file: File) {
     setState({ busy: true, error: null, report: null });
+    setAccepted(new Set());
+    setSel(null);
     const body = new FormData();
     body.append("file", file);
     const res = await fetch(`/api/parts/${partId}/nc-analyze?preset=${preset}`, { method: "POST", body });
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.analysis) { setState({ busy: false, error: json?.error ?? "Analysis failed.", report: null }); return; }
     setState({ busy: false, error: null, report: json as Report });
+  }
+
+  async function run() {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { setState((s) => ({ ...s, error: "Choose an .nc / .txt program first." })); return; }
+    await analyzeFile(file);
+  }
+
+  // The seeded demo: deliberate mixed results — air cutting, an excessive
+  // retract, rubbing passes, an engagement spike, a protected bore pass, a
+  // comped region that is review-only. Not artificially perfect.
+  async function loadDemo() {
+    const res = await fetch("/demo/O2507-DEMO.nc");
+    if (!res.ok) { setState((s) => ({ ...s, error: "Demo program not found." })); return; }
+    const text = await res.text();
+    await analyzeFile(new File([text], "O2507-DEMO.nc", { type: "text/plain" }));
   }
 
   const r = state.report;
@@ -152,6 +169,10 @@ export function NcAnalyzer({ partId }: { partId: string }) {
         <Button onClick={run} disabled={state.busy} variant="primary">
           {state.busy ? "Analyzing…" : "Analyze program"}
         </Button>
+        <Button onClick={loadDemo} disabled={state.busy}>
+          Load demo program
+        </Button>
+        <span className="text-[10.5px] text-muted">Demo: deliberate mixed results — savings, a protected bore, a review-only comped region.</span>
       </div>
       {state.error && <p className="text-[12px] text-risk">{state.error}</p>}
 
@@ -219,6 +240,28 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             <p className="border-t border-line/60 px-4 py-2 text-[10.5px] leading-relaxed text-muted">
               Each stage is its worst required gate — never a percentage. Original stored immutably as sha256 {r.digest.slice(0, 16)}…; the optimize step derives from that stored copy, not from re-sent bytes.
             </p>
+          </Panel>
+
+          <Panel title={`Operations — ${r.operations.length} group(s)`} meta={<StatusChip tone="neutral">Deterministic motion evidence only</StatusChip>} dense>
+            <ul>
+              {r.operations.map((op, i) => (
+                <li key={i} className="flex items-start gap-3 border-b border-line/60 px-4 py-1.5 last:border-0">
+                  <StatusChip tone={op.kind === "UNKNOWN" ? "unknown" : op.kind === "LINKING" ? "neutral" : "precision"}>{op.kind}</StatusChip>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-mono text-[11px] text-muted">
+                      T{op.toolNumber} · L{op.lines[0]}–{op.lines[1]} · {op.cutSegments} cutting segment(s)
+                      <button
+                        onClick={() => setSel(op.lines)}
+                        className="ml-2 border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10"
+                      >
+                        Show me
+                      </button>
+                    </span>
+                    <span className="block text-[11.5px] leading-relaxed text-platinum-dim">{op.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
           </Panel>
 
           <Panel title="Backplot — load map, top view" meta={<StatusChip tone="review">Development analysis</StatusChip>} dense>
