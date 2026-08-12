@@ -809,3 +809,16 @@ stated basis. reReadingsJson column + paired migrations; empty RE parts
 redirect from the workspace to the bench flow. 5 new tests; 136 total.
 Browser-verified: create → measure → accept 40 mm nominal → profile →
 workspace round trip live.
+
+## Turning cost + make-vs-buy
+
+turn/cost.ts + /lathe/[id]/cost: bar economics derived from the
+rotational model — kerf from the recorded parting tool (refused when
+unrecorded), remnant from the recorded grip + a stated 1.0" margin,
+parts-per-12ft-bar and utilization computed (remnant/drop amortization
+only; no kerf double-count), setup hours built from named adders incl.
++0.6 hr when the soft jaw drawer search says the jaws still need
+boring. Cycle from generated toolpaths; generic cost engine does the
+arithmetic with per-line basis; BUY unevaluated without a real quote.
+4 new tests; 140 total. Browser-verified: 23 parts/bar, 97.8% computed
+utilization, $46.77 unit cost at qty 5 live.

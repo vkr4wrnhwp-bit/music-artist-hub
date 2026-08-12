@@ -452,3 +452,52 @@ test("RE with no readings yields no profile, not a fake one", () => {
   assert.equal(a.profile, null);
   assert.ok(a.issues[0].includes("datum face"));
 });
+
+/* ------------------------------------------------------------------ */
+/* Turning cost — bar economics                                        */
+/* ------------------------------------------------------------------ */
+
+import { computeBarEconomics, deriveTurnCostAssumptions } from "@/lib/manufacturing/turn/cost";
+
+const costProfile: RotationalProfile = { ...profile, stockDiameter: 2.0, stockLength: 6.0 };
+const costBase = {
+  profile: costProfile, cycleMinutes: 8.5, partOffKerf: 0.125,
+  gripLength: 1.0, softJawsNeedBoring: false, tailstock: false,
+};
+
+test("bar economics: parts per bar and utilization are computed, not assumed", () => {
+  const bar = computeBarEconomics(costBase);
+  // Remnant = 1.0 grip + 1.0 margin; (144 - 2) / 6.125 → 23 parts.
+  assert.equal(bar.remnant, 2.0);
+  assert.equal(bar.partsPerBar, 23);
+  // Utilization amortises remnant + drop only: 23 × 6.125 / 144.
+  assert.equal(bar.utilization, Number(((23 * 6.125) / 144).toFixed(3)));
+  assert.equal(bar.missingInputs.length, 0);
+});
+
+test("bar economics refuse to compute without a recorded kerf or grip", () => {
+  const noKerf = computeBarEconomics({ ...costBase, partOffKerf: null });
+  assert.equal(noKerf.partsPerBar, null);
+  assert.equal(noKerf.utilization, null);
+  assert.ok(noKerf.missingInputs.some((m) => m.includes("parting tool")));
+  const noGrip = computeBarEconomics({ ...costBase, gripLength: null });
+  assert.equal(noGrip.partsPerBar, null);
+  assert.ok(noGrip.missingInputs.some((m) => m.includes("Grip length")));
+});
+
+test("turning assumptions: setup adders are named, cycle passes through from toolpaths", () => {
+  const plain = deriveTurnCostAssumptions(costBase);
+  assert.equal(plain.assumptions.setupHours, 0.75);
+  assert.equal(plain.assumptions.cycleMinutes, 8.5);
+  assert.equal(plain.assumptions.materialUtilization, plain.bar.utilization);
+  const jaws = deriveTurnCostAssumptions({ ...costBase, softJawsNeedBoring: true, tailstock: true });
+  assert.equal(jaws.assumptions.setupHours, 1.5); // 0.75 + 0.6 + 0.15
+  assert.ok(jaws.basis.some((b) => b.includes("boring jaws")));
+  assert.ok(jaws.basis.some((b) => b.includes("tailstock") || b.includes("tailstock".toUpperCase()) || b.includes("Tailstock")));
+});
+
+test("turning assumptions fall back to the visible shop default when bar math is refused", () => {
+  const d = deriveTurnCostAssumptions({ ...costBase, partOffKerf: null });
+  assert.equal(d.assumptions.materialUtilization, 0.85); // DEFAULT_ASSUMPTIONS, named in basis
+  assert.ok(d.basis.some((b) => b.includes("falls back")));
+});

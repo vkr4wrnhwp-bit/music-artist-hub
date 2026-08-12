@@ -315,7 +315,7 @@ export default async function LathePartPage(props: {
           )}
 
           {/* ---------------- Operation plan ---------------- */}
-          <Panel title="Operation plan" meta={<span className="font-mono text-[10.5px] text-muted tabular-nums">{plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)</span>} dense>
+          <Panel title="Operation plan" meta={<span className="flex items-center gap-3"><span className="font-mono text-[10.5px] text-muted tabular-nums">{plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)</span><Link href={`/lathe/${id}/cost`} className="font-mono text-[10.5px] text-precision-dim hover:text-precision">Cost →</Link></span>} dense>
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-line">
