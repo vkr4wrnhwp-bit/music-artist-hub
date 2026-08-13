@@ -314,7 +314,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             </ul>
           </Panel>
           <Panel title="Program" dense>
-            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} />
+            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} toolChanges={r.parse.toolChanges} refusals={r.parse.refusals} />
           </Panel>
           </>
           )}
@@ -353,7 +353,7 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               onSelect={(line) => setSel([line, line])}
               proposedRanges={plotMode === "PROPOSED" ? [...accepted].map((i) => r.load.proposals[i]?.lines).filter(Boolean) : []}
             />
-            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} />
+            <NcCodeViewer code={r.code} sel={sel} onSelect={(line) => setSel([line, line])} toolChanges={r.parse.toolChanges} refusals={r.parse.refusals} />
             <LoadGraph
               segments={r.backplot}
               bands={r.load.bands}
@@ -790,10 +790,64 @@ function Backplot({
  * BLOCK-SYNCED NC VIEWER — the immutable original, read-only. Selecting a
  * line here highlights its motion; selecting motion scrolls here. Line
  * numbers are 1-indexed and match every finding and proposal.
+ *
+ * Power features, all read-only: text search with prev/next, go-to-block
+ * (type N420 for the block word, 420 alone for the line number), and
+ * gutter markers — T<n> at tool changes, a red edge where interpretation
+ * refused. Search never edits and never filters: the program always shows
+ * whole, matches are jumped to, not extracted.
  */
-function NcCodeViewer({ code, sel, onSelect }: { code: string; sel: [number, number] | null; onSelect: (line: number) => void }) {
+function NcCodeViewer({
+  code,
+  sel,
+  onSelect,
+  toolChanges = [],
+  refusals = [],
+}: {
+  code: string;
+  sel: [number, number] | null;
+  onSelect: (line: number) => void;
+  toolChanges?: { line: number; toolNumber: number }[];
+  refusals?: { line: number; reason: string }[];
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
   const lines = useMemo(() => code.split(/\r?\n/), [code]);
+  const [query, setQuery] = useState("");
+  const matches = useMemo(() => {
+    const q = query.trim();
+    if (!q || /^N?\d+$/i.test(q)) return [];
+    const ql = q.toLowerCase();
+    const out: number[] = [];
+    lines.forEach((t, i) => { if (t.toLowerCase().includes(ql)) out.push(i + 1); });
+    return out;
+  }, [query, lines]);
+  const toolAt = useMemo(() => new Map(toolChanges.map((t) => [t.line, t.toolNumber])), [toolChanges]);
+  const refusalAt = useMemo(() => new Set(refusals.map((r) => r.line)), [refusals]);
+
+  const jump = (dir: 1 | -1) => {
+    const q = query.trim();
+    // Go-to: N420 finds the block carrying that N-word; a bare number is a line number.
+    const m = /^N?(\d+)$/i.exec(q);
+    if (m) {
+      if (/^n/i.test(q)) {
+        const re = new RegExp(`^\\s*N0*${m[1]}(?![\\d])`, "i");
+        const idx = lines.findIndex((t) => re.test(t));
+        if (idx >= 0) onSelect(idx + 1);
+      } else {
+        const n = Number(m[1]);
+        if (n >= 1 && n <= lines.length) onSelect(n);
+      }
+      return;
+    }
+    if (matches.length === 0) return;
+    const cur = sel?.[0] ?? 0;
+    const next =
+      dir === 1
+        ? matches.find((n) => n > cur) ?? matches[0]
+        : [...matches].reverse().find((n) => n < cur) ?? matches[matches.length - 1];
+    onSelect(next);
+  };
+
   useEffect(() => {
     if (!sel || !boxRef.current) return;
     const el = boxRef.current.querySelector<HTMLElement>(`[data-nc-line="${sel[0]}"]`);
@@ -801,22 +855,46 @@ function NcCodeViewer({ code, sel, onSelect }: { code: string; sel: [number, num
   }, [sel]);
   return (
     <div className="border-t border-line">
-      <div className="flex items-center justify-between px-4 py-1.5">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-1.5">
         <span className="instrument-label">Original program — immutable, read-only</span>
-        <span className="font-mono text-[10px] text-muted tabular-nums">{lines.length} lines</span>
+        <span className="flex items-center gap-1">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") jump(e.shiftKey ? -1 : 1); }}
+            placeholder="search · N420 · line #"
+            aria-label="Search program or go to block"
+            className="w-40 border border-line-strong bg-void px-2 py-0.5 font-mono text-[10.5px] text-platinum placeholder:text-muted"
+          />
+          <button onClick={() => jump(-1)} aria-label="Previous match" className="border border-line-strong px-1.5 py-0.5 text-[10px] text-muted hover:text-platinum">↑</button>
+          <button onClick={() => jump(1)} aria-label="Next match" className="border border-line-strong px-1.5 py-0.5 text-[10px] text-muted hover:text-platinum">↓</button>
+          {query.trim() && !/^N?\d+$/i.test(query.trim()) && (
+            <span className="font-mono text-[10px] text-muted tabular-nums">{matches.length} match{matches.length === 1 ? "" : "es"}</span>
+          )}
+        </span>
+        <span className="ml-auto font-mono text-[10px] text-muted tabular-nums">{lines.length} lines</span>
       </div>
       <div ref={boxRef} className="max-h-[260px] overflow-y-auto bg-void font-mono text-[11.5px] leading-[1.5]">
         {lines.map((text, i) => {
           const n = i + 1;
           const hit = sel !== null && n >= sel[0] && n <= sel[1];
+          const isMatch = matches.length > 0 && text.toLowerCase().includes(query.trim().toLowerCase());
+          const tool = toolAt.get(n);
+          const refused = refusalAt.has(n);
           return (
             <div
               key={n}
               data-nc-line={n}
               onClick={() => onSelect(n)}
-              className={`flex cursor-pointer gap-3 px-3 ${hit ? "bg-precision/15 text-platinum" : "text-platinum-dim hover:bg-panel"}`}
+              className={`flex cursor-pointer gap-3 px-3 ${refused ? "shadow-[inset_2px_0_0_var(--c-red,#c22a1e)]" : ""} ${
+                hit ? "bg-precision/15 text-platinum" : isMatch ? "bg-review/10 text-platinum-dim" : "text-platinum-dim hover:bg-panel"
+              }`}
             >
               <span className={`w-10 shrink-0 select-none text-right tabular-nums ${hit ? "text-precision-dim" : "text-muted"}`}>{n}</span>
+              <span className="w-7 shrink-0 select-none text-[9.5px] leading-[1.8]">
+                {tool !== undefined && <span className="text-precision-dim">T{tool}</span>}
+                {refused && <span className="text-risk">✕</span>}
+              </span>
               <span className="whitespace-pre">{text || " "}</span>
             </div>
           );

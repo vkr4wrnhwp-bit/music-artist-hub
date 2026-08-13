@@ -1307,3 +1307,19 @@ Browser-verified: both force vectors render on Bearing Support's two
 setups (sliding on setup 1, tipping on setup 2); an uploaded program
 calling T99 produced the gap with the ADD THE TOOL link routed to
 /tools?guide=tool-crib.
+
+## Post-Phase 5 — NC viewer power features (§14)
+
+The block-synced viewer gained search and go-to, still strictly
+read-only: one field handles all three — text searches the program
+(match count shown, Enter/Shift+Enter walk matches through the same
+selection the backplot and load graph follow), a bare number goes to
+that line, N420 finds the block carrying that N-word. Matches are
+jumped to, never filtered — the program always shows whole. Gutter
+markers: T<n> at tool-change lines, a red edge + ✕ where
+interpretation refused. Both viewer instances (BACKPLOT and PROGRAM
+modes) carry the features.
+
+Browser-verified: 3 tool markers on the demo, "G81" → 1 match with
+Enter framing the backplot, line-10 goto, and N140 resolving to
+source line 7 on an N-worded program.
