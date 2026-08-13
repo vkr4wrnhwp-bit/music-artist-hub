@@ -378,7 +378,32 @@ export function fmtSigned(v: number, digits = 1): string {
   return v > 0 ? `+${s}` : s;
 }
 
+interface DownloadsBridge {
+  save(req: { filename: string; data: string }): Promise<{ status: 'saved' }>;
+}
+
+/**
+ * Offer a generated file to the user. In the hosted artifact viewer this goes
+ * through window.claude.downloads (viewer confirms; may decline — that's
+ * final). Outside the viewer it falls back to a plain anchor download.
+ */
 export function download(name: string, text: string, type: string): void {
+  const bridge = (window as unknown as { claude?: { downloads?: DownloadsBridge } }).claude?.downloads;
+  if (bridge) {
+    void (async () => {
+      try {
+        await bridge.save({ filename: name, data: text });
+      } catch (e) {
+        const code = (e as { code?: string })?.code;
+        if (code === 'extension_not_enabled') {
+          // e.g. .csv outside the enabled set — re-offer as plain text
+          try { await bridge.save({ filename: `${name}.txt`, data: text }); } catch { /* viewer declined or unavailable */ }
+        }
+        // 'declined' / 'rate_limited' are the viewer's call — never auto-retry
+      }
+    })();
+    return;
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name;
