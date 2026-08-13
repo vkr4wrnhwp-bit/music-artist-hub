@@ -170,6 +170,18 @@ export default async function NcPage(props: {
                 </p>
               </div>
             </div>
+            {/* Beta loop: after a real run, report what actually happened —
+                program, machine and the predicted cycle travel with the link. */}
+            {existing && (
+              <div className="border-t border-line px-5 py-2">
+                <Link
+                  href={`/knowledge?report=1&program=O${existing.programNumber}&machine=${encodeURIComponent(machine ? `${machine.manufacturer} ${machine.model}` : "")}&predicted=${pkg.cycleMinutes.toFixed(2)}&material=${encodeURIComponent(pkg.revision.intent.material.value ?? "")}`}
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-precision-dim hover:text-precision"
+                >
+                  Ran this program? Report the run — was CANVAS right? →
+                </Link>
+              </div>
+            )}
             {/* Pre-flight rail: every item one chip; the first unresolved one
                 becomes the dominant card below the rail. */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line px-5 py-2.5">

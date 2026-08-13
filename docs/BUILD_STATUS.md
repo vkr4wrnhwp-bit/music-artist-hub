@@ -1323,3 +1323,16 @@ modes) carry the features.
 Browser-verified: 3 tool markers on the demo, "G81" → 1 match with
 Enter framing the backplot, line-10 goto, and N140 resolving to
 source line 7 on an N-worded program.
+
+## Controlled beta — loop closed and dress-rehearsed
+
+"Report this run" now links from NC output into WAS CANVAS RIGHT?
+with program, machine, material and predicted cycle pre-filled
+(query-param prefill on /knowledge; the verdict and actuals remain
+the machinist's to type). With that, the full beta loop was
+dress-rehearsed end to end in the browser — analyze → audit →
+findings → accept → derived program stored → export correctly
+withheld (NOT READY) → run reported with prefill → calibration cycle
+recorded → reference cut recorded → turning workspace sanity — all
+ten steps passing with measured values recorded in
+docs/BETA_RUNBOOK.md, which is the week-one script for a real shop.

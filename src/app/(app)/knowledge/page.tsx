@@ -40,8 +40,10 @@ const STATUS_TONE: Record<string, Tone> = {
   SUPERSEDED: "neutral",
 };
 
-export default async function KnowledgePage(props: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await props.searchParams;
+export default async function KnowledgePage(props: {
+  searchParams: Promise<{ error?: string; report?: string; program?: string; machine?: string; predicted?: string; material?: string }>;
+}) {
+  const { error, report, program, machine: machinePrefill, predicted, material: materialPrefill } = await props.searchParams;
   const user = await requireUser();
 
   // Guide friction: where the shop's people go back or skip. Product
@@ -317,11 +319,11 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block">
                   <span className="tech-label mb-0.5 block">Machine</span>
-                  <input name="machineLabel" placeholder="VF-2 #2" className={inputClass} />
+                  <input name="machineLabel" placeholder="VF-2 #2" defaultValue={machinePrefill ?? ""} className={inputClass} />
                 </label>
                 <label className="block">
                   <span className="tech-label mb-0.5 block">Material</span>
-                  <input name="materialName" placeholder="6061-T6" className={inputClass} />
+                  <input name="materialName" placeholder="6061-T6" defaultValue={materialPrefill ?? ""} className={inputClass} />
                 </label>
                 <label className="block">
                   <span className="tech-label mb-0.5 block">Tool / holder</span>
@@ -329,7 +331,7 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
                 </label>
                 <label className="block">
                   <span className="tech-label mb-0.5 block">Predicted cycle (min)</span>
-                  <input name="predictedCycle" inputMode="decimal" className={inputClass} />
+                  <input name="predictedCycle" inputMode="decimal" defaultValue={predicted ?? ""} className={inputClass} />
                 </label>
                 <label className="block">
                   <span className="tech-label mb-0.5 block">Actual cycle (min)</span>
@@ -359,7 +361,7 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
                   </label>
                   <label className="block">
                     <span className="tech-label mb-0.5 block">CANVAS recommendation under test</span>
-                    <input name="canvasRecommendation" placeholder="raise F32→F41 on L120–160" className={inputClass} />
+                    <input name="canvasRecommendation" placeholder="raise F32→F41 on L120–160" defaultValue={program ? `Program ${program}` : ""} className={inputClass} />
                   </label>
                   <label className="block">
                     <span className="tech-label mb-0.5 block">Measured part results</span>
