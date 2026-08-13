@@ -9,6 +9,7 @@ export function MoreScreen() {
   if (!user) return null;
 
   const items: Array<{ title: string; desc: string; to: string; badge?: React.ReactNode }> = [
+    { title: 'Team Sync', desc: 'Self-hosted persistence server — durable shared database, conflict review, telemetry archive', to: 'sync' },
     { title: 'TRACE Knowledge & Ask TRACE', desc: 'Team memory with citations — search everything, ask structured questions', to: 'knowledge', badge: <Pill tone="warning">DEVELOPMENT</Pill> },
     { title: 'Live Pit Board', desc: 'Large-format team display for the transporter or pit wall', to: 'pitboard' },
     { title: 'Crew assignments', desc: 'Race-day tasks: assigned → in progress → verified', to: 'crew' },

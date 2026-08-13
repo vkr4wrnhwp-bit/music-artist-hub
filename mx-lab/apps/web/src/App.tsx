@@ -27,6 +27,8 @@ import { RidersScreen } from './screens/Riders';
 import {
   AccessScreen, BriefScreen, CrewScreen, DebriefScreen, PitBoard, WeekendScreen,
 } from './screens/RaceOps';
+import { SyncScreen } from './screens/SyncScreen';
+import { loadSyncConfig } from './syncClient';
 
 const AREAS = [
   { id: 'garage', label: 'Garage', path: 'garage' },
@@ -44,7 +46,7 @@ const AREA_OF: Record<string, string> = {
   tune: 'tune', maps: 'tune', transfer: 'tune',
   analyze: 'analyze', engineer: 'analyze', compare: 'analyze', intelligence: 'analyze', riders: 'analyze',
   more: 'more', hardware: 'more', cnc: 'more', reports: 'more', audit: 'more', pit: 'more',
-  knowledge: 'more', pitboard: 'more', crew: 'more', brief: 'more', access: 'more',
+  knowledge: 'more', pitboard: 'more', crew: 'more', brief: 'more', access: 'more', sync: 'more',
 };
 
 const SUBNAV: Record<string, Array<[string, string]>> = {
@@ -134,6 +136,7 @@ function Shell() {
   else if (head === 'brief') screen = <BriefScreen />;
   else if (head === 'debrief') screen = <DebriefScreen />;
   else if (head === 'access') screen = <AccessScreen />;
+  else if (head === 'sync') screen = <SyncScreen />;
   else if (head === 'more') screen = <MoreScreen />;
   else if (head === 'hardware') screen = <Hardware />;
   else if (head === 'cnc') screen = <CncModule />;
@@ -212,7 +215,11 @@ function Shell() {
       {paletteOpen && <CommandPalette search={(q) => searchAll(db, q)} onClose={() => setPaletteOpen(false)} />}
 
       <footer className="app no-print">
-        <span>TRACE Phase 1 — offline-first; all data stays on this device.</span>
+        <span>
+          {loadSyncConfig()?.token
+            ? `TRACE — local-first · synced to team server (rev ${loadSyncConfig()?.lastRev ?? 0})`
+            : 'TRACE — offline-first; all data stays on this device until synced.'}
+        </span>
         <span>No ECU write paths exist in this build.</span>
         <button className="btn small ghost" onClick={() => { if (confirm('Reset all demo data to the seeded state?')) { resetDemo(); nav('garage'); } }}>
           Reset demo data

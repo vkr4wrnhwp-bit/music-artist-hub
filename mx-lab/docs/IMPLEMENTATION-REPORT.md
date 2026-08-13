@@ -165,3 +165,52 @@ hardware integration.
   demo fiction, while Compare recomputes metrics live from the simulated
   traces — the two can disagree in places. Real data removes this class of
   mismatch; everything on screen is banner-labeled SIMULATED.
+
+---
+
+# Backend addendum — Production persistence (self-hosted sync server)
+
+## COMPLETED (real, working software)
+- **Sync engine** (`packages/domain/src/syncEngine.ts`): `fullMerge` unions
+  every append-only collection by id (nothing is ever lost in a merge);
+  protected records — map revisions, decision records, debriefs, TRACE
+  Focus — are never overwritten silently. Divergent copies are preserved on
+  both sides and surfaced as conflicts for a human to resolve.
+  `redactDbForGrant` scopes a database to a remote-tuner grant: bikes in
+  scope only, sessions only with `readTelemetry`, revisions only with
+  `readMaps`; decisions, debriefs, plans, crew, audit, users, and focus are
+  stripped entirely.
+- **Sync server** (`apps/server`): dependency-free `node:http` service.
+  Revisioned org snapshots + binary telemetry chunk files on disk behind a
+  swappable `ServerStore` interface. HMAC-SHA256 bearer tokens with expiry
+  (timing-safe compare). Optimistic concurrency: `PUT` with a stale
+  `If-Match` returns **409 plus the server copy** — the *client* merges and
+  retries; the server never merges silently. Grant tokens are minted only
+  for grants that are active *in the stored database* (revocation kills
+  tokens immediately) and are enforced server-side: reads are redacted,
+  writes are 403, telemetry export requires `exportAllowed` plus bike scope.
+- **Web client** (`apps/web/src/syncClient.ts` + More → Team Sync): sign in,
+  pull → `fullMerge` → push with one 409 retry, conflict queue with
+  Keep-local / Take-remote resolution (audited), optional debounced
+  auto-sync after every change, telemetry archive upload, footer sync state,
+  graceful offline degradation. The app never requires the server.
+- **Tests**: 6 sync-engine tests + 9 server integration tests over real
+  HTTP (76 total). Browser E2E: two isolated browser profiles synced
+  through a live server — divergent TRACE Focus surfaced and resolved,
+  union merge kept all sessions, telemetry chunk archived, offline grace.
+
+## DEMO-LABELED (real code, placeholder trust)
+- Identity issuance: `POST /auth/login` signs a token for any known org
+  user with **no password** — labeled DEMO in the UI. Production swaps this
+  one endpoint for a real IdP (OIDC); everything behind it (token format,
+  role claims, grant enforcement) is already real.
+
+## FUTURE (documented swap points, not built)
+- Hosted storage adapters (document DB for snapshots, object store for
+  telemetry chunks) behind `ServerStore`; TLS/reverse-proxy deployment
+  guide; per-collection delta sync if snapshot sizes ever warrant it.
+
+## Known limitations
+- Snapshot-level sync: the whole org database travels on each sync
+  (fine at this scale; measured well under a megabyte).
+- Tokens are bearer tokens over HTTP in local demo use — deploy behind TLS.

@@ -11,9 +11,11 @@
     "dev": "npm run dev -w @mxlab/web",
     "build": "npm run build -w @mxlab/web",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/domain && tsc -p apps/web --noEmit"
+    "typecheck": "tsc -p packages/domain && tsc -p apps/web --noEmit && tsc -p apps/server",
+    "server": "npm run server -w @mxlab/server"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.9"
   }

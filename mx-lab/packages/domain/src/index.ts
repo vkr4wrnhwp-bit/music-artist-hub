@@ -18,3 +18,4 @@ export * from './riders';
 export * from './intelligence';
 export * from './knowledge';
 export * from './raceOps';
+export * from './syncEngine';
