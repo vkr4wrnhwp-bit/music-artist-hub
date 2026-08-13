@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  askTrace, bikeReliability, buildChecklist, compareSetups, componentLife,
-  computeRiderDNA, confidenceFrom, createSeededDb, dayTimeline, detectUncontrolled,
-  draftDebrief, fatigueEstimate, grantAllows, grantIsActive, morningBrief,
-  predictSetup, rankContributors, searchAll, setupPerformance, twinFor, whatChanged,
+  askTrace, bikeReliability, buildChecklist, compareSessions, compareSetups,
+  componentLife, computeRiderDNA, confidenceFrom, createSeededDb, dayTimeline,
+  detectUncontrolled, draftDebrief, fatigueEstimate, grantAllows, grantIsActive,
+  lapTrace, morningBrief, predictSetup, rankContributors, searchAll,
+  setupPerformance, telemetrySupportsPreference, twinFor, whatChanged,
 } from '../src';
 import type { Db, RemoteAccessGrant } from '../src';
 
@@ -56,6 +57,31 @@ describe('TRACE Compare / What Changed', () => {
     const vars = compareSetups(db, a, b);
     const ranked = rankContributors(db, a, b, vars);
     expect(ranked[0].label).toMatch(/Map R06 → R07/);
+  });
+});
+
+describe('lap vs lap', () => {
+  it('returns a per-lap trace slice with stats', () => {
+    const s = db.sessions.find((x) => x.id === 'sess-5')!;
+    const lap = lapTrace(db, s, 3);
+    expect(lap).not.toBeNull();
+    expect(lap!.t.length).toBeGreaterThan(100);
+    expect(lap!.channels.speed.length).toBe(lap!.t.length);
+    expect(lap!.stats.maxSpeed).toBeGreaterThan(lap!.stats.minSpeed);
+    expect(lapTrace(db, s, 99)).toBeNull();
+  });
+});
+
+describe('seed honesty', () => {
+  it('the seeded A/B agreement flag and narrative are computed, not asserted', () => {
+    const ab = db.abTests.find((t) => t.id === 'ab-corner6')!;
+    const a = db.sessions.find((s) => s.id === ab.sessionAId)!;
+    const b = db.sessions.find((s) => s.id === ab.sessionBId)!;
+    const computed = telemetrySupportsPreference(compareSessions(db, a, b), 'B');
+    expect(ab.telemetrySupportsPreference).toBe(computed);
+    if (!computed) expect(ab.conclusion).toMatch(/rider preference/i);
+    // plan + decision narratives never contradict the computed flag
+    expect(db.testPlans.find((p) => p.id === 'plan-corner6')!.conclusion).toBe(ab.conclusion);
   });
 });
 

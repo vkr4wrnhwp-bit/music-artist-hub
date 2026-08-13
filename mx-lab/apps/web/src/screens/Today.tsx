@@ -8,6 +8,34 @@ import { Help, Pill, readinessTone, TraceIcon } from '../ui';
  * which bike, what are we doing, is anything blocking us, what's next.
  * One dominant primary action. Everything else is one layer deeper.
  */
+/** The one dominant action, adapted to who is standing at the bike. */
+function PrimaryTodayAction({ bikeId, ready }: { bikeId: string; ready: boolean }) {
+  const { db, user, allowed } = useApp();
+  if (!user) return null;
+
+  // rider: pending feedback on their latest session beats everything
+  if (user.role === 'rider') {
+    const rider = db.riders.find((r) => r.userId === user.id);
+    const pending = [...db.sessions]
+      .filter((s) => s.riderId === rider?.id && s.status === 'complete' && !db.feedback.some((f) => f.sessionId === s.id))
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (pending) {
+      return <button className="btn primary big" onClick={() => nav(`session/${pending.id}/feedback`)}>Give Rider Feedback</button>;
+    }
+  }
+  // mechanic: readiness work comes first
+  if (user.role === 'mechanic' && !ready) {
+    return <button className="btn primary big" onClick={() => nav('pit')}>Open Checklist</button>;
+  }
+  if (ready && allowed('session.create')) {
+    return <button className="btn primary big" onClick={() => nav('session/new')}>Start Session</button>;
+  }
+  if (ready) {
+    return <button className="btn primary big" onClick={() => nav('pit')}>Open Pit Mode</button>;
+  }
+  return <button className="btn big" onClick={() => nav(`bike/${bikeId}`)}>Resolve readiness →</button>;
+}
+
 export function Today() {
   const { db, user, update, allowed } = useApp();
   if (!user) return null;
@@ -67,13 +95,10 @@ export function Today() {
           {device && <span className="hero-kv">Logger<b>{sensorIssues.length ? `${sensorIssues.length} sensor fault` : 'Healthy'} · SIM</b></span>}
         </div>
         <div className="btn-row" style={{ marginTop: 24 }}>
-          {readiness.readyForInstrumentedTest ? (
-            <button className="btn primary big" onClick={() => nav('session/new')}>Start Session</button>
-          ) : (
-            <button className="btn big" onClick={() => nav(`bike/${bike.id}`)}>Resolve readiness →</button>
-          )}
+          <PrimaryTodayAction bikeId={bike.id} ready={readiness.readyForInstrumentedTest} />
           <button className="btn ghost" onClick={() => nav(`bike/${bike.id}`)}>Bike profile</button>
           <button className="btn ghost" onClick={() => nav('fleet')}>All bikes</button>
+          <button className="btn ghost" onClick={() => nav('brief')}>Morning Brief</button>
         </div>
       </section>
 

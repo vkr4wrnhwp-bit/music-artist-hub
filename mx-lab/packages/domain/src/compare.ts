@@ -1,4 +1,5 @@
 import { compareSessions } from './aiEngineer';
+import { simulateSession } from './simulator';
 import type { Db, Session } from './types';
 import type { ComparisonVariable, Confidence, ConfidenceInput, RankedContributor } from './expansion';
 
@@ -100,6 +101,42 @@ export function detectUncontrolled(plan: Parameters<typeof planIntendedFields>[0
   if (intended.length <= 1) return [];
   const names: Record<string, string> = { map: 'map', gearing: 'gearing', pressureR: 'tire pressure', trims: 'trims' };
   return [`WARNING — ${intended.map((f) => names[f] ?? f).join(' and ')} changed between variants. Result attribution will be weaker.`];
+}
+
+// ------------------------------------------------------------- lap vs lap
+
+export interface LapTrace {
+  lapN: number;
+  timeS: number;
+  /** seconds into the lap */
+  t: number[];
+  channels: Record<'speed' | 'rpm' | 'tps' | 'slip', number[]>;
+  stats: { maxSpeed: number; minSpeed: number; meanTps: number; peakSlip: number };
+}
+
+/** Per-lap trace slice for lap-vs-lap overlay comparison. */
+export function lapTrace(db: Db, session: Session, lapN: number): LapTrace | null {
+  const sim = simulateSession(db, session);
+  const lap = sim.laps.find((l) => l.n === lapN);
+  if (!lap) return null;
+  const i0 = Math.floor(lap.startS * sim.hz);
+  const i1 = Math.floor(lap.endS * sim.hz);
+  const slice = (ch: string) => sim.channels[ch].slice(i0, Math.max(i0 + 1, i1));
+  const speed = slice('speed');
+  const tps = slice('tps');
+  const slip = slice('slip');
+  return {
+    lapN,
+    timeS: lap.timeS,
+    t: speed.map((_, i) => +(i / sim.hz).toFixed(2)),
+    channels: { speed, rpm: slice('rpm'), tps, slip },
+    stats: {
+      maxSpeed: +Math.max(...speed).toFixed(1),
+      minSpeed: +Math.min(...speed).toFixed(1),
+      meanTps: +(tps.reduce((a, b) => a + b, 0) / Math.max(1, tps.length)).toFixed(1),
+      peakSlip: +Math.max(...slip).toFixed(1),
+    },
+  };
 }
 
 /** WHAT PROBABLY CAUSED IT — rank changed variables against observed deltas. */

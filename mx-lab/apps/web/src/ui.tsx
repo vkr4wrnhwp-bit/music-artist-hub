@@ -173,6 +173,75 @@ export function Drawer({ title, onClose, children }: { title: string; onClose: (
   );
 }
 
+// ------------------------------------------------------------ command palette
+
+export function CommandPalette({ search, onClose }: {
+  search: (q: string) => Array<{ kind: string; id: string; title: string; detail: string; href: string }>;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hits = q.trim().length >= 2 ? search(q) : [];
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { setActive(0); }, [q]);
+
+  const go = (href: string) => { onClose(); window.location.hash = href.slice(1); };
+
+  return (
+    <>
+      <div className="drawer-scrim" onClick={onClose} />
+      <div role="dialog" aria-label="Search TRACE" style={{
+        position: 'fixed', top: '12vh', left: '50%', transform: 'translateX(-50%)',
+        width: 'min(620px, 94vw)', zIndex: 80, background: 'var(--raised)',
+        borderRadius: 14, boxShadow: 'var(--shadow)', padding: 14, maxHeight: '68vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search bikes, riders, sessions, maps, components, decisions…"
+          aria-label="Search"
+          style={{ background: 'var(--overlay)', border: 0, borderRadius: 9, padding: '12px 14px', fontSize: 15, width: '100%' }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onClose();
+            else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(active + 1, hits.length - 1)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(active - 1, 0)); }
+            else if (e.key === 'Enter' && hits[active]) go(hits[active].href);
+          }}
+        />
+        <div style={{ overflowY: 'auto', marginTop: 8 }}>
+          {hits.map((h, i) => (
+            <button key={`${h.kind}-${h.id}`}
+              onClick={() => go(h.href)}
+              onMouseEnter={() => setActive(i)}
+              style={{
+                display: 'flex', gap: 12, alignItems: 'baseline', width: '100%', textAlign: 'left',
+                padding: '9px 12px', borderRadius: 8, fontSize: 13.5,
+                background: i === active ? 'var(--overlay)' : 'transparent',
+              }}>
+              <span style={{
+                flex: '0 0 86px', fontSize: 10, fontWeight: 800, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: i === active ? 'var(--accent)' : 'var(--muted)',
+              }}>{h.kind}</span>
+              <span style={{ fontWeight: 650, minWidth: 0 }}>{h.title}</span>
+              <span style={{ color: 'var(--muted)', fontSize: 12.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.detail}</span>
+            </button>
+          ))}
+          {q.trim().length >= 2 && hits.length === 0 && (
+            <p className="hint" style={{ padding: '10px 12px' }}>No records match “{q}”.</p>
+          )}
+          {q.trim().length < 2 && (
+            <p className="hint" style={{ padding: '10px 12px' }}>Type to search everything — ↑↓ to move, Enter to open, Esc to close.</p>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** simple line icons for the tab bar — no clip-art */
 export function AreaIcon({ area }: { area: string }) {
   const p: Record<string, React.ReactNode> = {

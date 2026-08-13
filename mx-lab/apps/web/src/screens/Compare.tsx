@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
-  compareSessions, compareSetups, confidenceFrom, rankContributors,
+  compareSessions, compareSetups, confidenceFrom, lapTrace, rankContributors,
+  simulateSession, type Session,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
-import { EmptyState, Help, Panel, Pill } from '../ui';
+import { EmptyState, Help, LineChart, Panel, Pill } from '../ui';
 
 /**
  * TRACE Compare — flagship workspace.
@@ -133,6 +134,8 @@ export function CompareWorkspace({ aId, bId }: { aId?: string; bId?: string }) {
             </p>
           </Panel>
 
+          <LapVsLap a={a} b={b} />
+
           <div className="btn-row">
             <button className="btn" onClick={() => nav(`session/${b.id}/compare`)}>Open raw evidence (session B)</button>
             <button className="btn ghost" onClick={() => nav(`session/${a.id}`)}>Session A</button>
@@ -141,5 +144,70 @@ export function CompareWorkspace({ aId, bId }: { aId?: string; bId?: string }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Lap-vs-lap drill-down: overlay a single lap from each session.
+ *  TRACE chart convention — orange = candidate (B), gray = baseline (A). */
+function LapVsLap({ a, b }: { a: Session; b: Session }) {
+  const { db } = useApp();
+  const simA = simulateSession(db, a);
+  const simB = simulateSession(db, b);
+  const bestOf = (laps: { n: number; timeS: number }[]) => laps.reduce((x, y) => (x.timeS < y.timeS ? x : y)).n;
+  const [lapA, setLapA] = useState(() => bestOf(simA.laps));
+  const [lapB, setLapB] = useState(() => bestOf(simB.laps));
+  const [channel, setChannel] = useState<'speed' | 'rpm' | 'tps' | 'slip'>('speed');
+  const ta = useMemo(() => lapTrace(db, a, lapA), [db, a, lapA]);
+  const tb = useMemo(() => lapTrace(db, b, lapB), [db, b, lapB]);
+  if (!ta || !tb) return null;
+  const n = Math.min(ta.t.length, tb.t.length);
+  const units: Record<string, string> = { speed: 'kph', rpm: 'rpm', tps: '%', slip: '%' };
+
+  return (
+    <>
+      <p className="eyebrow">Lap vs lap</p>
+      <Panel>
+        <div className="btn-row" style={{ marginBottom: 10 }}>
+          <select value={lapA} onChange={(e) => setLapA(parseInt(e.target.value, 10))}>
+            {simA.laps.map((l) => <option key={l.n} value={l.n}>A · lap {l.n} ({l.timeS.toFixed(2)}s)</option>)}
+          </select>
+          <select value={lapB} onChange={(e) => setLapB(parseInt(e.target.value, 10))}>
+            {simB.laps.map((l) => <option key={l.n} value={l.n}>B · lap {l.n} ({l.timeS.toFixed(2)}s)</option>)}
+          </select>
+          {(['speed', 'rpm', 'tps', 'slip'] as const).map((c) => (
+            <button key={c} className={`btn small ${channel === c ? 'primary' : 'ghost'}`} onClick={() => setChannel(c)}>{c.toUpperCase()}</button>
+          ))}
+        </div>
+        <LineChart
+          t={tb.t.slice(0, n)}
+          series={[
+            { id: 'b', label: `B lap ${tb.lapN}`, unit: units[channel], values: tb.channels[channel].slice(0, n), emphasis: true },
+            { id: 'a', label: `A lap ${ta.lapN}`, unit: units[channel], values: ta.channels[channel].slice(0, n) },
+          ]}
+          height={190}
+        />
+        <div className="tbl-scroll" style={{ marginTop: 8 }}>
+          <table className="data">
+            <thead><tr><th>Lap</th><th>Time</th><th>Max speed</th><th>Min speed</th><th>Mean TPS</th><th>Peak slip</th></tr></thead>
+            <tbody>
+              {[['A', ta], ['B', tb]].map(([label, t]) => {
+                const lt = t as NonNullable<ReturnType<typeof lapTrace>>;
+                return (
+                  <tr key={label as string} style={label === 'B' ? { color: 'var(--accent)' } : undefined}>
+                    <td style={{ fontWeight: 700 }}>{label as string} · lap {lt.lapN}</td>
+                    <td className="num">{lt.timeS.toFixed(2)}s</td>
+                    <td className="num">{lt.stats.maxSpeed} kph</td>
+                    <td className="num">{lt.stats.minSpeed} kph</td>
+                    <td className="num">{lt.stats.meanTps}%</td>
+                    <td className="num">{lt.stats.peakSlip}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="hint">Aligned by seconds-into-lap; orange = candidate B, gray = baseline A. Hover for values.</p>
+      </Panel>
+    </>
   );
 }

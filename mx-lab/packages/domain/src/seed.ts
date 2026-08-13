@@ -1,4 +1,4 @@
-import { buildRecommendation, decideRecommendation } from './aiEngineer';
+import { buildRecommendation, compareSessions, decideRecommendation, telemetrySupportsPreference } from './aiEngineer';
 import { appendAudit } from './audit';
 import { SCHEMA_VERSION } from './store';
 import type {
@@ -526,16 +526,22 @@ export function createSeededDb(): Db {
   recOpen.id = 'rec-open';
   db.recommendations.push(recOpen);
 
+  // Honest demo data: the telemetry-agreement flag and conclusion are COMPUTED
+  // from the simulated traces, never asserted — so the stored narrative can
+  // never contradict what Compare recomputes live.
+  const abRows = compareSessions(db, s4, s5);
+  const abSupports = telemetrySupportsPreference(abRows, 'B');
   db.abTests.push({
     id: 'ab-corner6', orgId, name: 'Corner 6 exit delivery — R06 vs R07',
     recommendationId: recAccepted.id, revisionAId: r06.id, revisionBId: r07.id,
     sessionAId: s4.id, sessionBId: s5.id,
     holdConstant: ['gearing', 'tire', 'suspension', 'clutch', 'trims'],
-    outcome: 'B', riderPreferred: 'B', telemetrySupportsPreference: true,
-    conclusion: 'R07 reduced peak slip and improved lap consistency; rider preference agreed with telemetry. Promoted to team baseline.',
+    outcome: 'B', riderPreferred: 'B', telemetrySupportsPreference: abSupports,
+    conclusion: abSupports
+      ? 'R07 promoted to team baseline: rider preference and telemetry agreed at Corner 6.'
+      : 'R07 promoted to team baseline on rider preference: R07 was substantially easier to ride at Corner 6 late in the moto, even though headline lap metrics favored R06. Both readings are preserved.',
     decidedByUserId: 'u-tuner',
   });
-
   // ---- expansion seed: gearing/pressure variation sessions -------------------
   const s7 = mkSession('sess-7', 'bike-250', 'rider-1', 'track-sxtest', 'Start comparison — 13/49 gearing', '2026-08-07T14:00:00Z', 707,
     { ...snap250(r07.id, 4), setup: { ...bike250.setup, gearing: '13/49' } }, 'node-01');
@@ -673,6 +679,16 @@ export function createSeededDb(): Db {
     disclaimer: 'SHELL — marketplace is future architecture. Nothing here is a valid or safe tune.',
     state: 'SHELL',
   });
+
+  // align the decision + plan narrative with the computed A/B agreement
+  const decR07 = db.decisions.find((d) => d.id === 'dec-r07');
+  if (decR07) {
+    decR07.rationale = abSupports
+      ? 'Rider preferred R07 and telemetry agreed: smoother Corner 6 reopening with midrange unchanged.'
+      : 'Rider preferred R07 for control and confidence at Corner 6; headline lap metrics favored R06. Decision prioritized late-moto rideability — both readings recorded.';
+  }
+  const planC6 = db.testPlans.find((p) => p.id === 'plan-corner6');
+  if (planC6) planC6.conclusion = db.abTests[0].conclusion;
 
   // ---- audit seed ------------------------------------------------------------
   appendAudit(db, 'u-admin', 'org.seeded', 'Organization', orgId, 'Simulated demonstration dataset created.');

@@ -1,7 +1,7 @@
-import React from 'react';
-import { DEMO_BANNER } from '@mxlab/domain';
+import React, { useEffect, useState } from 'react';
+import { DEMO_BANNER, searchAll } from '@mxlab/domain';
 import { AppProvider, nav, useApp, useRoute } from './state';
-import { AreaIcon, Panel, Pill, TraceIcon, TraceLogo } from './ui';
+import { AreaIcon, CommandPalette, Panel, Pill, TraceIcon, TraceLogo } from './ui';
 import { Today } from './screens/Today';
 import { Garage } from './screens/Garage';
 import { BikeProfile } from './screens/BikeProfile';
@@ -89,6 +89,18 @@ function SignIn() {
 function Shell() {
   const { db, user, signOut, tutor, setTutor, resetDemo } = useApp();
   const route = useRoute();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!user) return <><div className="sim-banner">{DEMO_BANNER}</div><SignIn /></>;
 
@@ -165,6 +177,9 @@ function Shell() {
             ))}
           </nav>
           <div className="userbox">
+            <button className="btn small ghost" onClick={() => setPaletteOpen(true)} aria-label="Search (Ctrl+K)" title="Search everything (Ctrl+K)">
+              ⌕ <span className="rolechip" style={{ color: 'var(--muted)', fontSize: 11 }}>⌘K</span>
+            </button>
             <label style={{ display: 'flex', gap: 5, alignItems: 'center', cursor: 'pointer' }}>
               <input type="checkbox" checked={tutor} onChange={(e) => setTutor(e.target.checked)} style={{ width: 14, height: 14 }} /> Tutor
             </label>
@@ -193,6 +208,8 @@ function Shell() {
           </a>
         ))}
       </nav>
+
+      {paletteOpen && <CommandPalette search={(q) => searchAll(db, q)} onClose={() => setPaletteOpen(false)} />}
 
       <footer className="app no-print">
         <span>TRACE Phase 1 — offline-first; all data stays on this device.</span>
