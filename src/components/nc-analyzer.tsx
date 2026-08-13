@@ -503,8 +503,54 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             <p className="px-1 py-2 text-[12px] text-muted">
               Nothing to compare yet — accept one or more feed proposals under LOAD and the source-level diff appears here.
             </p>
-          ) : (
-            <Panel title={`Original vs proposed — ${accepted.size} accepted change(s)`} meta={<StatusChip tone="neutral">Feed words only · geometry identical by masked diff</StatusChip>} dense>
+          ) : (() => {
+            const acceptedList = [...accepted].map((i) => r.load.proposals[i]).filter(Boolean);
+            const savedS = acceptedList.reduce((t, p) => t + (p.kind === "RAISE" ? p.estimatedSecondsSaved : 0), 0);
+            const reduceCount = acceptedList.filter((p) => p.kind === "REDUCE").length;
+            const proposedMin = Math.max(0, r.analysis.totalMinutes - savedS / 60);
+            const mmss = (min: number) => `${Math.floor(min)}:${String(Math.round((min % 1) * 60)).padStart(2, "0")}`;
+            return (
+            <>
+            {/* ---------- The comparison, numbers first ---------- */}
+            <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-5">
+              {(
+                [
+                  ["Original", mmss(r.analysis.totalMinutes), null],
+                  ["Proposed", mmss(proposedMin), "ESTIMATED"],
+                  ["Savings / part", `${savedS.toFixed(0)} s`, reduceCount > 0 ? `${reduceCount} reduction(s) add a little back — not estimated` : null],
+                  ["Geometry changed", "NO", "masked diff enforced at generation"],
+                  ["Finish passes changed", "NO", "protection is absolute in V1"],
+                ] as const
+              ).map(([label, value, note]) => (
+                <div key={label} className="bg-surface px-4 py-2.5">
+                  <p className="tech-label">{label}</p>
+                  <p className="mt-0.5 font-mono text-[18px] text-white tabular-nums">{value}</p>
+                  {note && <p className="text-[9.5px] leading-snug text-muted">{note}</p>}
+                </div>
+              ))}
+            </div>
+
+            {/* ---------- Overlay — one scene, changes carried by color ---------- */}
+            <Panel title="Overlay — where the program changes" meta={<StatusChip tone="neutral">Same geometry by construction — color shows the feed change</StatusChip>} dense>
+              <Backplot
+                segments={r.backplot}
+                bands={r.load.bands}
+                extents={r.analysis.extents}
+                sel={sel}
+                onSelect={(line) => setSel([line, line])}
+                proposedRanges={[]}
+                overlay={{
+                  raise: acceptedList.filter((p) => p.kind === "RAISE").map((p) => p.lines),
+                  reduce: acceptedList.filter((p) => p.kind === "REDUCE").map((p) => p.lines),
+                  protected: r.load.protectedHits.map((h) => h.lines),
+                }}
+              />
+              <p className="border-t border-line/60 px-4 py-2 text-[10.5px] leading-relaxed text-muted">
+                Ink = unchanged cutting · blue = accepted feed raise · amber = accepted reduction · green = protected finish region (never modified) · dashed gray = rapid. The toolpath is identical in both programs — only feed words differ, which this overlay carries as color instead of drawing the same lines twice.
+              </p>
+            </Panel>
+
+            <Panel title={`Source diff — ${accepted.size} accepted change(s)`} meta={<StatusChip tone="neutral">Feed words only · geometry identical by masked diff</StatusChip>} dense>
               <ul>
                 {[...accepted].map((i) => {
                   const p = r.load.proposals[i];
@@ -526,7 +572,9 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 This preview is derived client-side from the same rule the emitter enforces (F-word replacement on the proposal's own lines). The authoritative diff happens server-side at generation: masked geometry comparison, byte-clean or nothing is stored.
               </p>
             </Panel>
-          ))}
+            </>
+            );
+          })())}
 
           {mode === "TIME" && (
           <>
@@ -633,6 +681,7 @@ function Backplot({
   sel,
   onSelect,
   proposedRanges,
+  overlay,
 }: {
   segments: [number, number, number, number, number, number][];
   bands: string[];
@@ -640,6 +689,9 @@ function Backplot({
   sel: [number, number] | null;
   onSelect: (line: number) => void;
   proposedRanges: [number, number][];
+  /** COMPARE overlay: change kind by line range. When set, unchanged
+      cutting draws in neutral ink so the changes carry the color. */
+  overlay?: { raise: [number, number][]; reduce: [number, number][]; protected: [number, number][] };
 }) {
   const w = 640, h = 400, pad = 20;
   // Frame the selection when there is one — SHOW ME changes the scene, it
@@ -665,6 +717,7 @@ function Backplot({
   const Y = (v: number) => h - pad - (v - fy0) * k;
   const inSel = (line: number) => sel !== null && line >= sel[0] && line <= sel[1];
   const inProposed = (line: number) => proposedRanges.some(([a, b]) => line >= a && line <= b);
+  const inRanges = (line: number, ranges: [number, number][]) => ranges.some(([a, b]) => line >= a && line <= b);
 
   return (
     <div className="overflow-x-auto px-4 py-3">
@@ -672,20 +725,33 @@ function Backplot({
         {segments.map(([cut, line, x0, y0, x1, y1], i) => {
           const selected = inSel(line);
           const proposed = inProposed(line);
+          let stroke: string;
+          let width: number;
+          if (selected) {
+            stroke = "#b86a0a"; width = 3;
+          } else if (overlay && cut) {
+            // Change kind carries the color; unchanged cutting is neutral ink.
+            stroke = inRanges(line, overlay.raise)
+              ? "#0b72ff"
+              : inRanges(line, overlay.reduce)
+                ? "#b86a0a"
+                : inRanges(line, overlay.protected)
+                  ? "#17754e"
+                  : "#7a828c";
+            width = stroke === "#7a828c" ? 1.2 : 2.4;
+          } else if (proposed) {
+            stroke = "#0b72ff"; width = 2.4;
+          } else if (cut) {
+            stroke = BAND_COLOR[bands[i]] ?? "#0b72ff"; width = 1.6;
+          } else {
+            stroke = "#a8aeb6"; width = 0.8;
+          }
           return (
             <line
               key={i}
               x1={X(x0)} y1={Y(y0)} x2={X(x1)} y2={Y(y1)}
-              stroke={
-                selected
-                  ? "#b86a0a"
-                  : proposed
-                    ? "#0b72ff"
-                    : cut
-                      ? (BAND_COLOR[bands[i]] ?? "#0b72ff")
-                      : "#a8aeb6"
-              }
-              strokeWidth={selected ? 3 : proposed ? 2.4 : cut ? 1.6 : 0.8}
+              stroke={stroke}
+              strokeWidth={width}
               strokeDasharray={cut ? undefined : "3 3"}
               opacity={sel && !selected ? 0.25 : cut ? 0.95 : 0.4}
               style={{ cursor: "pointer" }}
@@ -694,10 +760,12 @@ function Backplot({
           );
         })}
       </svg>
-      <p className="mt-1.5 text-[10.5px] text-muted">
-        Load bands from chipload + replay: gray/dashed rapid · blue light (rubbing) · green target · orange high ·
-        red review. Estimates, not measurements — no spindle telemetry exists.
-      </p>
+      {!overlay && (
+        <p className="mt-1.5 text-[10.5px] text-muted">
+          Load bands from chipload + replay: gray/dashed rapid · blue light (rubbing) · green target · orange high ·
+          red review. Estimates, not measurements — no spindle telemetry exists.
+        </p>
+      )}
     </div>
   );
 }

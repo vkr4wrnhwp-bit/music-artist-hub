@@ -1265,3 +1265,23 @@ travel and Z 20″; calibration line reads "One sample is an anecdote,
 not a calibration"; recorded-cycles disclosure opens with the est
 17.42 / actual 18.16 / +44s row and the form; zero horizontal
 overflow.
+
+## Post-Phase 5 — COMPARE becomes the §15 comparison scene
+
+COMPARE now leads with the numbers: ORIGINAL / PROPOSED (ESTIMATED) /
+SAVINGS PER PART / GEOMETRY CHANGED: NO (masked diff enforced at
+generation) / FINISH PASSES CHANGED: NO (protection absolute), in
+mm:ss. Reductions state that they add a little time back and are not
+estimated as savings.
+
+Below it, the OVERLAY backplot: since feed-only changes produce
+identical toolpaths by construction, drawing two copies of the same
+lines would be theater — instead one scene carries the change as
+color: accepted raises blue, accepted reductions amber, protected
+finish regions green, unchanged cutting neutral ink, rapids dashed.
+The Backplot component gained an `overlay` prop; the BACKPLOT mode's
+band view is unchanged. The source-level −/+ diff remains below.
+
+Browser-verified on the demo: stat strip reads 2:13 → 2:09, 4 s,
+both NOs with their reasons; overlay strokes counted 2 raise-blue,
+1 protected-green, 16 neutral.
