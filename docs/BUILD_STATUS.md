@@ -1336,3 +1336,16 @@ withheld (NOT READY) → run reported with prefill → calibration cycle
 recorded → reference cut recorded → turning workspace sanity — all
 ten steps passing with measured values recorded in
 docs/BETA_RUNBOOK.md, which is the week-one script for a real shop.
+
+## Mobile audit at phone width (390px)
+
+Full pass across 12 screens at 390×844: zero horizontal overflow on
+every route, grids collapse to one column, the Guide docks as a
+bottom sheet, SVG scenes stay legible. A four-agent visual review of
+the screenshots found no broken screens; two cramped items were fixed
+— the hold-scene force annotation now anchors inside the drawing
+frame (was clipping mid-word at phone width) and the workspace
+blocking banner hides its truncating message below sm, leaving
+"N blocking — action required" + FIX. Known accepted nits: the
+top-bar trail is horizontally scrollable (chips can sit cut at rest),
+and page titles appear in both the bar and the heading.

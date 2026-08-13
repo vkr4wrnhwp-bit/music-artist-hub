@@ -468,7 +468,7 @@ function WorkspaceInner(props: WorkspaceProps) {
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-risk">
               {blocking.length} blocking — action required
             </span>
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim">{blocking[0].action}</span>
+            <span className="hidden min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim sm:inline">{blocking[0].action}</span>
             {blocking[0]?.href && (
               <a
                 href={blocking[0].href}

@@ -88,7 +88,7 @@ export function HoldScene({
       {peakForceLbf !== null && governingMode === "SLIDING" && (
         <g>
           <line x1={x0 - 26} y1={yTop + 5} x2={x0 - 6} y2={yTop + 5} stroke={BLUE} strokeWidth={1.6} markerEnd="url(#holdArrowBlue)" />
-          <text x={x0 + 2} y={yTop - 8} fontSize={9} fill={BLUE} fontFamily="monospace">
+          <text x={8} y={14} fontSize={8.5} fill={BLUE} fontFamily="monospace">
             {peakForceLbf.toFixed(0)} lbf peak — tries to slide the part in the jaws
           </text>
         </g>
@@ -104,7 +104,7 @@ export function HoldScene({
             markerEnd="url(#holdArrowBlue)"
             opacity={0.7}
           />
-          <text x={x0 + 36} y={yTop - 8} fontSize={9} fill={BLUE} fontFamily="monospace">
+          <text x={8} y={14} fontSize={8.5} fill={BLUE} fontFamily="monospace">
             {peakForceLbf.toFixed(0)} lbf peak — tries to roll the part out of the jaws
           </text>
         </g>
