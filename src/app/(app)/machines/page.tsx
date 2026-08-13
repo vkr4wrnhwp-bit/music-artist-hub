@@ -6,6 +6,7 @@ import { getMachines } from "@/lib/data";
 import { summarizeCalibration } from "@/lib/engines/calibration";
 import { TELEMETRY_SOURCES } from "@/lib/telemetry";
 import { TopBar } from "@/components/nav";
+import { MachineEnvelope } from "@/components/machine-envelope";
 import { Button, EmptyState, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 import { revalidatePath } from "next/cache";
 
@@ -86,7 +87,10 @@ export default async function MachinesPage() {
           />
         ) : (
           <div className="space-y-6">
-            {machines.map((m) => (
+            {machines.map((m) => {
+              const recs = calRecords.filter((r) => r.machineId === m.id);
+              const summary = summarizeCalibration(recs);
+              return (
               <Panel
                 key={m.id}
                 title={`${m.manufacturer} ${m.model}`}
@@ -99,7 +103,42 @@ export default async function MachinesPage() {
                 }
                 dense
               >
-                <div className="grid gap-px bg-line md:grid-cols-3">
+                {/* The machine is the object: its working volume drawn from
+                    the profile values, the timing truth beside it. */}
+                <div className="grid gap-4 p-4 lg:grid-cols-[300px_1fr]">
+                  <div className="h-[190px]">
+                    <MachineEnvelope
+                      travelsX={m.travelsX}
+                      travelsY={m.travelsY}
+                      travelsZ={m.travelsZ}
+                      tableX={m.tableX}
+                      tableY={m.tableY}
+                    />
+                  </div>
+                  <div>
+                    <p className="font-mono text-[22px] text-white tabular-nums">
+                      {m.maxSpindleRPM.toLocaleString()} <span className="text-[12px] text-muted">RPM</span>
+                      <span className="ml-4">{m.maxSpindlePower} <span className="text-[12px] text-muted">hp</span></span>
+                      <span className="ml-4">{m.maxRapid} <span className="text-[12px] text-muted">ipm rapid</span></span>
+                    </p>
+                    <p className="mt-2 text-[12px] leading-relaxed text-platinum-dim">{summary.statement}</p>
+                    {summary.medianVariancePct !== null ? (
+                      <p className="mt-1 font-mono text-[13px] text-platinum tabular-nums">
+                        cycle estimates run {summary.medianVariancePct >= 0 ? "+" : ""}{summary.medianVariancePct}% vs this machine · spread {summary.spreadPct}% · shown beside estimates, never silently applied
+                      </p>
+                    ) : (
+                      <p className="mt-1">
+                        <StatusChip tone="unknown">INSUFFICIENT CALIBRATION DATA</StatusChip>
+                      </p>
+                    )}
+                    {summary.status === "CALIBRATED" && (
+                      <p className="mt-1">
+                        <StatusChip tone="pass">CALIBRATED FROM {summary.samples} CYCLES</StatusChip>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="grid gap-px border-t border-line bg-line md:grid-cols-3">
                   <Spec
                     label="Travels"
                     rows={[
@@ -135,66 +174,52 @@ export default async function MachinesPage() {
                 {m.notes && (
                   <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-muted">{m.notes}</p>
                 )}
+
+                {/* Timing truth — recorded cycles and the record form,
+                    on the machine they belong to. */}
+                <details className="border-t border-line">
+                  <summary className="cursor-pointer px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
+                    Recorded cycles — {recs.length} · record another
+                  </summary>
+                  <div className="px-4 pb-3">
+                    {recs.length > 0 && (
+                      <ul className="pt-1">
+                        {recs.slice(0, 5).map((r) => (
+                          <li key={r.id} className="flex gap-4 py-1 font-mono text-[11px] text-muted tabular-nums">
+                            <span className="min-w-0 flex-1 truncate text-platinum-dim">{r.programLabel}</span>
+                            <span>est {r.estimatedMinutes.toFixed(2)}</span>
+                            <span>actual {r.actualMinutes.toFixed(2)}</span>
+                            <span className={r.actualMinutes > r.estimatedMinutes ? "text-review" : "text-pass"}>
+                              {r.actualMinutes >= r.estimatedMinutes ? "+" : ""}{((r.actualMinutes - r.estimatedMinutes) * 60).toFixed(0)}s
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <form action={recordCycle} className="mt-2 flex flex-wrap items-end gap-3 border-t border-line/60 pt-3">
+                      <input type="hidden" name="machineId" value={m.id} />
+                      <label className="block">
+                        <span className="tech-label mb-1 block">Program</span>
+                        <input name="programLabel" placeholder="O2507" className={`${inputClass} w-28 font-mono`} />
+                      </label>
+                      <label className="block">
+                        <span className="tech-label mb-1 block">Estimated (min)</span>
+                        <input name="estimated" inputMode="decimal" className={`${inputClass} w-24 font-mono`} />
+                      </label>
+                      <label className="block">
+                        <span className="tech-label mb-1 block">Actual (min)</span>
+                        <input name="actual" inputMode="decimal" className={`${inputClass} w-24 font-mono`} />
+                      </label>
+                      <Button type="submit">Record cycle</Button>
+                    </form>
+                  </div>
+                </details>
               </Panel>
-            ))}
+            );})}
           </div>
         )}
 
         <div className="mt-6 space-y-6">
-          {/* ---------------- Machine calibration ---------------- */}
-          {machines.map((m) => {
-            const recs = calRecords.filter((r) => r.machineId === m.id);
-            const summary = summarizeCalibration(recs);
-            return (
-              <Panel
-                key={`cal-${m.id}`}
-                title={`Calibration — ${m.manufacturer} ${m.model}`}
-                meta={
-                  <StatusChip tone={summary.status === "CALIBRATED" ? "pass" : "unknown"}>
-                    {summary.status === "CALIBRATED" ? `CALIBRATED FROM ${summary.samples} CYCLES` : "INSUFFICIENT CALIBRATION DATA"}
-                  </StatusChip>
-                }
-              >
-                <p className="text-[12px] leading-relaxed text-platinum-dim">{summary.statement}</p>
-                {summary.medianVariancePct !== null && (
-                  <p className="mt-1 font-mono text-[13px] text-platinum tabular-nums">
-                    median variance {summary.medianVariancePct >= 0 ? "+" : ""}{summary.medianVariancePct}% · spread {summary.spreadPct}% · shown beside estimates, never silently applied
-                  </p>
-                )}
-                {recs.length > 0 && (
-                  <ul className="mt-2 border-t border-line/60 pt-2">
-                    {recs.slice(0, 5).map((r) => (
-                      <li key={r.id} className="flex gap-4 py-1 font-mono text-[11px] text-muted tabular-nums">
-                        <span className="min-w-0 flex-1 truncate text-platinum-dim">{r.programLabel}</span>
-                        <span>est {r.estimatedMinutes.toFixed(2)}</span>
-                        <span>actual {r.actualMinutes.toFixed(2)}</span>
-                        <span className={r.actualMinutes > r.estimatedMinutes ? "text-review" : "text-pass"}>
-                          {r.actualMinutes >= r.estimatedMinutes ? "+" : ""}{((r.actualMinutes - r.estimatedMinutes) * 60).toFixed(0)}s
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <form action={recordCycle} className="mt-3 flex flex-wrap items-end gap-3 border-t border-line/60 pt-3">
-                  <input type="hidden" name="machineId" value={m.id} />
-                  <label className="block">
-                    <span className="tech-label mb-1 block">Program</span>
-                    <input name="programLabel" placeholder="O2507" className={`${inputClass} w-28 font-mono`} />
-                  </label>
-                  <label className="block">
-                    <span className="tech-label mb-1 block">Estimated (min)</span>
-                    <input name="estimated" inputMode="decimal" className={`${inputClass} w-24 font-mono`} />
-                  </label>
-                  <label className="block">
-                    <span className="tech-label mb-1 block">Actual (min)</span>
-                    <input name="actual" inputMode="decimal" className={`${inputClass} w-24 font-mono`} />
-                  </label>
-                  <Button type="submit">Record cycle</Button>
-                </form>
-              </Panel>
-            );
-          })}
-
           {/* ---------------- Reference cuts ---------------- */}
           <Panel title={`Reference cuts — ${referenceCuts.length}`} meta={<span className="font-mono text-[10.5px] text-muted">SHOP_KNOWLEDGE · scoped, never universal</span>}>
             <p className="mb-2 text-[11.5px] leading-relaxed text-muted">

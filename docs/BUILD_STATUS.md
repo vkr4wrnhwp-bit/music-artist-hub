@@ -1245,3 +1245,23 @@ SHOW CALCULATION exactly as before; no engine changed.
 Browser-verified on Bearing Support: 2 hold scenes, 2 margin
 headlines (7.70× sliding / 8.56× tipping), 4 dimension callouts,
 2 peak-force arrows (221 lbf).
+
+## Post-Phase 5 — Machines page object-first (truth-audit follow-up)
+
+The last screen the truth audit flagged. Each machine card now leads
+with its working volume: a new machine-envelope.tsx top view — the
+table in ink, the XY travel envelope dashed precision blue, both
+dimensioned from the profile values, Z stated as text (no fake
+isometric). Beside it, the spindle headline (RPM · hp · rapid) and
+the machine's timing truth: the calibration statement with median
+variance when calibrated, or INSUFFICIENT CALIBRATION DATA — the
+separate calibration panels were merged into the machine card they
+describe, with recorded cycles and the record form one disclosure
+away. Spec grid, reference cuts and NOT CONNECTED telemetry panels
+unchanged.
+
+Browser-verified: envelope renders with table 36″×14″, X 30″ / Y 16″
+travel and Z 20″; calibration line reads "One sample is an anecdote,
+not a calibration"; recorded-cycles disclosure opens with the est
+17.42 / actual 18.16 / +44s row and the form; zero horizontal
+overflow.
