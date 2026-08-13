@@ -1134,3 +1134,22 @@ precision-blue outline, reveal event for collapsed owners) — nothing
 new invented. Browser-verified: Show Me on the Bearing Support
 inspection gate navigates to /inspection?guide=inspection-plan and
 the plan panel renders with the coach-mark outline.
+
+## Phase 5 — Guide consistency: ASSIST references the dominant blocker
+
+When a workspace has blocking gates, the Guide's ASSIST card now
+references the page's dominant blocker instead of a generic next
+action: "READINESS BLOCKED — N GATES / <gate> is the first failing
+gate" with SHOW ME (physical scene + coach mark, via the shared
+show-me.ts map the readiness page also uses — one map, no drift),
+RESOLVE (the readiness page for mill parts; the on-page gates for
+turned parts via the new readinessHref context field) and WHY?
+(the gate's own detail, disclosed in place). With no blockers the
+card falls back to the next required action as before. The Guide
+still never duplicates the page and its buttons still write guide
+state only — no path from the card to a gate.
+
+Browser-verified: on a part with failing gates the ASSIST card shows
+"READINESS BLOCKED — 9 GATES / Geometry is the first failing gate"
+with all three actions, WHY? expanding to "No features are defined
+on this part."

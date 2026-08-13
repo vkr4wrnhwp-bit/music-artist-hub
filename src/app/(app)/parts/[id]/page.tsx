@@ -24,6 +24,7 @@ import { nextActions } from "@/lib/engines/next-action";
 import { Workspace } from "@/components/workspace/workspace";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
+import { showMeHrefFor } from "@/lib/guide/show-me";
 import type {
   DatumInfo,
   FeatureDetail,
@@ -476,7 +477,7 @@ export default async function PartWorkspace(props: {
     ncProgramExists: pkg.ncGenerated,
     blockingGates: pkg.readiness.gates
       .filter((g) => g.blocking && g.status !== "PASS" && g.status !== "REVIEW")
-      .map((g) => ({ id: g.id, label: g.label, detail: g.detail })),
+      .map((g) => ({ id: g.id, label: g.label, detail: g.detail, showMeHref: showMeHrefFor(id, g.id, g.label) })),
     nextAction: actions[0] ? { action: actions[0].action, href: actions[0].href } : null,
     training: partRow?.training ?? false,
   };

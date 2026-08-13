@@ -229,12 +229,43 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   const view = session ? currentStep(flow, session, ctx) : null;
   const progress = session ? flowProgress(flow, session, ctx) : null;
 
-  /* ---- ASSIST: compact — next action + why, no forced sequence ---- */
+  /* ---- ASSIST: compact — dominant blocker or next action, never the
+          whole page again ---- */
   if (mode === "ASSIST") {
+    const blocker = ctx.blockingGates[0] ?? null;
     return (
       <Card onCollapse={() => setOpen(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
-        {ctx.nextAction ? (
+        {blocker ? (
+          <div className="px-3 py-2.5">
+            <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-risk">
+              Readiness blocked{ctx.blockingGates.length > 1 ? ` — ${ctx.blockingGates.length} gates` : ""}
+            </p>
+            <p className="mt-1 text-[12.5px] font-medium leading-snug text-platinum">
+              {blocker.label}
+              {ctx.blockingGates.length === 1 ? " is the only failing gate." : " is the first failing gate."}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {blocker.showMeHref && (
+                <a href={blocker.showMeHref} className="border border-precision/50 px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10">
+                  Show me
+                </a>
+              )}
+              <a
+                href={ctx.readinessHref ?? `/parts/${ctx.partId}/readiness`}
+                className="border border-line-strong px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-platinum-dim hover:text-platinum"
+              >
+                Resolve
+              </a>
+              <details className="inline-block">
+                <summary className="cursor-pointer list-none border border-line-strong px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum">
+                  Why?
+                </summary>
+                <p className="mt-1.5 max-w-[280px] text-[11px] leading-relaxed text-muted">{blocker.detail}</p>
+              </details>
+            </div>
+          </div>
+        ) : ctx.nextAction ? (
           <div className="px-3 py-2.5">
             <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted">Next required action</p>
             <p className="mt-1 text-[12.5px] font-medium leading-snug text-platinum">{ctx.nextAction.action}</p>

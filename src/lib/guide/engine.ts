@@ -72,7 +72,9 @@ export interface GuideContext {
   approvalExists: boolean;
   ncProgramExists: boolean;
   /** Blocking readiness gates, verbatim from the readiness engine. */
-  blockingGates: { id: string; label: string; detail: string }[];
+  blockingGates: { id: string; label: string; detail: string; showMeHref?: string | null }[];
+  /** Where "Resolve" leads — defaults to the part's readiness page. */
+  readinessHref?: string;
   /** Head of the real nextActions() queue, when one exists. */
   nextAction: { action: string; href: string | null } | null;
   training: boolean;

@@ -304,6 +304,7 @@ export default async function LathePartPage(props: {
     approvalExists: rot.humanApproved,
     ncProgramExists: program.refusals.length === 0 && program.code.trim().length > 0,
     blockingGates: blocking.map((g) => ({ id: g.id, label: g.label, detail: g.detail })),
+    readinessHref: `/lathe/${id}`,
     nextAction: null,
     training: false,
   };
