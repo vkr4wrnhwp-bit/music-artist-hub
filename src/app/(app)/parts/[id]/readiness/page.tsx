@@ -140,6 +140,30 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
               const key = Object.keys(GATE_HREF).find((k) => gid.toLowerCase().includes(k) || label.toLowerCase().includes(k));
               return key ? GATE_HREF[key] : `/parts/${id}`;
             };
+            // SHOW ME — land in the physical scene with a coach mark on the
+            // element behind the gate, not a generic list. Only gates whose
+            // blocker can actually be shown carry a link; the rest omit it
+            // rather than pointing somewhere vague.
+            const SHOW_ME: Record<string, string> = {
+              geometry: `/parts/${id}?guide=context-part`,
+              stock: `/parts/${id}?guide=define-stock`,
+              machine: `/parts/${id}?guide=define-stock`,
+              material: `/parts/${id}?guide=context-part`,
+              workholding: `/parts/${id}?guide=context-hold`,
+              tools: `/parts/${id}/tooling?guide=tool-assignment`,
+              reach: `/parts/${id}/tooling?guide=tool-assignment`,
+              corners: `/parts/${id}/tooling?guide=tool-assignment`,
+              tolerance: `/parts/${id}/inspection?guide=inspection-plan`,
+              "inspection-capability": `/parts/${id}/inspection?guide=inspection-plan`,
+              inspection: `/parts/${id}/inspection?guide=inspection-plan`,
+              responsibility: `/parts/${id}/responsibility`,
+            };
+            const showMeFor = (gid: string, label: string): string | null => {
+              const g = gid.toLowerCase();
+              const l = label.toLowerCase();
+              const key = Object.keys(SHOW_ME).find((k) => g.includes(k) || l.includes(k));
+              return key ? SHOW_ME[key] : null;
+            };
             const GateBody = ({ g }: { g: (typeof readiness.gates)[number] }) => (
               <li className="border-b border-line/60 px-4 py-3 last:border-0">
                 <div className="flex items-start justify-between gap-4">
@@ -160,7 +184,14 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                       )}
                     </div>
                   </div>
-                  <StatusChip tone={STATUS_TONE[g.status]}>{g.status.replace(/_/g, " ")}</StatusChip>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {g.status !== "PASS" && showMeFor(g.id, g.label) && (
+                      <Link href={showMeFor(g.id, g.label)!} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum">
+                        Show me
+                      </Link>
+                    )}
+                    <StatusChip tone={STATUS_TONE[g.status]}>{g.status.replace(/_/g, " ")}</StatusChip>
+                  </span>
                 </div>
                 {g.status !== "PASS" && g.status !== "NOT_ATTEMPTED" && (
                   <div className="mt-2.5 pl-6">
@@ -186,12 +217,22 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                         </p>
                         <h2 className="mt-1 text-[19px] font-light tracking-[0.02em] text-white">{blockers[0].label}</h2>
                       </div>
-                      <Link
-                        href={hrefFor(blockers[0].id, blockers[0].label)}
-                        className="border border-precision/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
-                      >
-                        Resolve
-                      </Link>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {showMeFor(blockers[0].id, blockers[0].label) && (
+                          <Link
+                            href={showMeFor(blockers[0].id, blockers[0].label)!}
+                            className="border border-line-strong px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-platinum-dim hover:border-precision/60 hover:text-precision"
+                          >
+                            Show me
+                          </Link>
+                        )}
+                        <Link
+                          href={hrefFor(blockers[0].id, blockers[0].label)}
+                          className="border border-precision/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-precision hover:bg-precision/10"
+                        >
+                          Resolve
+                        </Link>
+                      </span>
                     </header>
                     <div className="px-5 py-3">
                       <p className="text-[13px] leading-relaxed text-platinum-dim">{blockers[0].detail}</p>
@@ -209,6 +250,11 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                           <li key={g.id} className="flex items-center gap-3 border-b border-line/40 px-5 py-2 last:border-0">
                             <Dot tone={STATUS_TONE[g.status]} />
                             <span className="min-w-0 flex-1 font-mono text-[12px] text-platinum">{g.label}</span>
+                            {showMeFor(g.id, g.label) && (
+                              <Link href={showMeFor(g.id, g.label)!} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-platinum">
+                                Show me
+                              </Link>
+                            )}
                             <Link href={hrefFor(g.id, g.label)} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision">
                               Resolve
                             </Link>

@@ -1115,3 +1115,22 @@ panel. Browser-verified on the demo program: 7 tabs, 63 graph bars,
 bar click → "Framing L…", Show me from FINDINGS returns to BACKPLOT,
 accept-then-COMPARE shows the −/+ diff, TIME shows ROI, VERIFY shows
 the 11 gates.
+
+## Phase 5 — Readiness SHOW ME
+
+Readiness blockers now carry SHOW ME beside RESOLVE — landing in the
+physical scene with a coach mark drawn around the element behind the
+gate, not a generic list. Inspection gates land on the inspection
+plan (new inspection-plan coach anchor); tool availability, reach and
+corner gates land on the tooling assignment panel (new
+tool-assignment anchor); stock and machine-envelope gates land on the
+workspace's define-stock control; workholding lands on the HOLD
+context tab; geometry and material land on the PART context. Gates
+whose blocker has no physical scene to show simply omit the link
+rather than pointing somewhere vague.
+
+Uses the existing ?guide= coach-mark system (scroll into view,
+precision-blue outline, reveal event for collapsed owners) — nothing
+new invented. Browser-verified: Show Me on the Bearing Support
+inspection gate navigates to /inspection?guide=inspection-plan and
+the plan panel renders with the coach-mark outline.

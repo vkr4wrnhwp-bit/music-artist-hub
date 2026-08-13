@@ -109,6 +109,8 @@ export default async function ToolingPage(props: { params: Promise<{ id: string 
           </SectionHeading>
 
           {/* ---------------- Tool substitution ---------------- */}
+          {/* Coach-mark anchor: readiness SHOW ME for tool gates lands here. */}
+          <div data-guide-target="tool-assignment">
           <Panel title="Holes, against the crib you actually own">
             {holePlans.length === 0 ? (
               <p className="text-[12.5px] text-muted">This part has no holes or bores.</p>
@@ -169,6 +171,7 @@ export default async function ToolingPage(props: { params: Promise<{ id: string 
               </div>
             )}
           </Panel>
+          </div>
 
           {/* ---------------- Jaw drawer ---------------- */}
           <Panel title="The jaw drawer" meta={<span className="tech-label">{inventory.length} sets on hand</span>}>

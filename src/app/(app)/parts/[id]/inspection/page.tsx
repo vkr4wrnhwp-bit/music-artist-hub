@@ -121,6 +121,9 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
             )}
           </Panel>
 
+          {/* Coach-mark anchor: readiness SHOW ME lands here — the plan is
+              the physical evidence behind the inspection gates. */}
+          <div data-guide-target="inspection-plan" className="space-y-6">
           {plans.length === 0 ? (
             <EmptyState
               title="No inspection plan"
@@ -152,6 +155,7 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
               </Panel>
             ))
           )}
+          </div>
         </div>
       </main>
     </>
