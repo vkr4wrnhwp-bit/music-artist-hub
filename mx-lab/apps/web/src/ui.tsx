@@ -119,25 +119,30 @@ const INK = '#f4f5f6';
 const ORANGE = '#ff6a00';
 
 export function TraceIcon({ size = 30 }: { size?: number }) {
+  // The mark is a thin outlined racetrack circuit forming a leaning T:
+  //  - top straight out to a left hairpin and back (the T bar, two lines)
+  //  - the return straight drops through a diagonal to a bottom-left hairpin
+  //  - from the top-right ring an S-curve descends carrying the orange
+  //    sector (with a thin orange kerb echo), hooking down to the finish
+  //  - both routes converge at the bottom ring
+  const track = (d: string, w: number, color: string) => (
+    <path d={d} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" />
+  );
+  const casing = 'rgba(4,5,8,0.9)';
+  const routeA = 'M 82.5 11.5 L 21 14 Q 10 14.5 10.5 20 Q 11 25.5 21 25.5 L 40 24.8 Q 47 24.5 44.5 30.5 L 32 52 Q 28.5 58 31.5 62 L 38 68.5 Q 42.5 72.5 48.5 72';
+  const routeB = 'M 87 19.5 Q 84 27 76.5 30.5 Q 66 35 60 41.5 L 57.5 44.5';
+  const routeC = 'M 50 53.5 Q 47 57.5 48.5 61.5 Q 50.5 66 54.5 68.7';
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-label="TRACE" role="img">
-      {/* top bar (tilted up to the right) + rounded left corner into the join diagonal */}
-      <path
-        d="M 76 18.5 L 20 27.5 Q 11 29.5 14.5 37 L 18 41.5"
-        fill="none" stroke={INK} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
-      />
-      {/* orange apex dash breaks the join diagonal */}
-      <path d="M 22.5 46.5 L 26.5 51" fill="none" stroke={ORANGE} strokeWidth="11" strokeLinecap="round" />
-      {/* rest of the join + rounded knee + long italic stem falling down-left to the node */}
-      <path
-        d="M 30.5 55.5 L 33 58.5 Q 36.5 62.5 35.5 67 L 32.5 80.5"
-        fill="none" stroke={INK} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
-      />
-      {/* track nodes: orange rings, dark centres */}
-      <circle cx="83.5" cy="17" r="8.5" fill={ORANGE} />
-      <circle cx="83.5" cy="17" r="3.6" fill="#0b0d10" />
-      <circle cx="30.5" cy="88.5" r="8.5" fill={ORANGE} />
-      <circle cx="30.5" cy="88.5" r="3.6" fill="#0b0d10" />
+    <svg width={size} height={size * 0.8} viewBox="0 0 100 80" aria-label="TRACE" role="img">
+      {/* casing first, then the white road on top */}
+      {track(routeA, 4.8, casing)}{track(routeB, 4.8, casing)}{track(routeC, 4.8, casing)}
+      {track(routeA, 3.1, INK)}{track(routeB, 3.1, INK)}{track(routeC, 3.1, INK)}
+      {/* orange sector on the descent + thin kerb echo inside the hook */}
+      {track('M 56 46.5 L 52 52', 4.6, ORANGE)}
+      {track('M 53 56.5 Q 51.5 59.5 52.5 62.5', 1.4, ORANGE)}
+      {/* track rings: orange annuli, open centres */}
+      <circle cx="89" cy="13" r="5" fill="none" stroke={ORANGE} strokeWidth="4.6" />
+      <circle cx="58" cy="71" r="5" fill="none" stroke={ORANGE} strokeWidth="4.6" />
     </svg>
   );
 }
@@ -149,26 +154,26 @@ export function TraceIcon({ size = 30 }: { size?: number }) {
  * part of the letter.
  */
 export function TraceWordmark({ height = 15, color = INK }: { height?: number; color?: string }) {
-  const W = 560;
+  // Speed-cut italic letterforms from the lockup: hard lean, slim bars,
+  // chevron A with no crossbar, E as three floating bars (orange on top).
+  const W = 600;
   return (
     <svg height={height} width={height * (W / 100)} viewBox={`0 0 ${W} 100`} aria-label="TRACE" role="img">
-      <g transform="translate(26 0) skewX(-14)">
-        {/* T — wide bar, centred stem */}
-        <path fill={color} d="M0 0 H90 V22 H57 V100 H33 V22 H0 Z" />
-        {/* R — angular bowl with counter, leg kicking to the baseline */}
-        <path fill={color} fillRule="evenodd" d="M108 0 H172 L188 14 V40 L172 54 H108 Z M132 20 V34 H164 V20 Z" />
-        <path fill={color} d="M108 54 H132 V100 H108 Z" />
-        <path fill={color} d="M146 54 H168 L192 100 H164 Z" />
-        {/* A — near-pointed apex, low crossbar */}
-        <path
-          fill={color} fillRule="evenodd"
-          d="M246 0 H272 L306 100 H281 L275 81 H241 L235 100 H212 Z M258 22 L245 62 H271 L259 22 Z"
-        />
-        {/* C — open right, chamfered outer corners */}
-        <path fill={color} d="M326 16 L342 0 H404 V22 H352 V78 H404 V100 H342 L326 84 Z" />
-        {/* E — spine + mid + bottom in ink; the top arm is the orange speed bar */}
-        <path fill={color} d="M424 26 H448 V40 H494 V60 H448 V78 H502 V100 H424 Z" />
-        <path fill={ORANGE} d="M440 0 H520 V19 H440 Z" />
+      <g transform="translate(40 0) skewX(-22)">
+        {/* T — wide bar, stem sweeping from its centre */}
+        <path fill={color} d="M0 0 H92 V19 H56 V100 H34 V19 H0 Z" />
+        {/* R — slim stem, open angular bowl, leg to the baseline */}
+        <path fill={color} fillRule="evenodd" d="M112 0 H176 L190 13 V38 L176 51 H112 Z M133 18 V33 H168 V18 Z" />
+        <path fill={color} d="M112 51 H133 V100 H112 Z" />
+        <path fill={color} d="M148 51 H169 L194 100 H167 Z" />
+        {/* A — pure chevron, no crossbar */}
+        <path fill={color} d="M254 0 H278 L316 100 H292 L266 22 L240 100 H216 Z" />
+        {/* C — angular, open right, speed-cut terminals */}
+        <path fill={color} d="M340 17 L357 0 H420 V19 H362 V81 H420 V100 H357 L340 83 Z" />
+        {/* E — three floating speed bars, the long top one orange */}
+        <path fill={ORANGE} d="M452 0 H548 V18 H452 Z" />
+        <path fill={color} d="M446 41 H528 V59 H446 Z" />
+        <path fill={color} d="M440 82 H532 V100 H440 Z" />
       </g>
     </svg>
   );
