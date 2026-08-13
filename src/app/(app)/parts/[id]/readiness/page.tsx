@@ -10,6 +10,7 @@ import { PartStatusChip } from "@/components/part-status";
 import { Disagree } from "@/components/disagree";
 import { recordDisagreement } from "@/lib/disagreement";
 import { revalidatePath } from "next/cache";
+import { showMeHrefFor } from "@/lib/guide/show-me";
 import { Button, Dot, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -140,30 +141,9 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
               const key = Object.keys(GATE_HREF).find((k) => gid.toLowerCase().includes(k) || label.toLowerCase().includes(k));
               return key ? GATE_HREF[key] : `/parts/${id}`;
             };
-            // SHOW ME — land in the physical scene with a coach mark on the
-            // element behind the gate, not a generic list. Only gates whose
-            // blocker can actually be shown carry a link; the rest omit it
-            // rather than pointing somewhere vague.
-            const SHOW_ME: Record<string, string> = {
-              geometry: `/parts/${id}?guide=context-part`,
-              stock: `/parts/${id}?guide=define-stock`,
-              machine: `/parts/${id}?guide=define-stock`,
-              material: `/parts/${id}?guide=context-part`,
-              workholding: `/parts/${id}?guide=context-hold`,
-              tools: `/parts/${id}/tooling?guide=tool-assignment`,
-              reach: `/parts/${id}/tooling?guide=tool-assignment`,
-              corners: `/parts/${id}/tooling?guide=tool-assignment`,
-              tolerance: `/parts/${id}/inspection?guide=inspection-plan`,
-              "inspection-capability": `/parts/${id}/inspection?guide=inspection-plan`,
-              inspection: `/parts/${id}/inspection?guide=inspection-plan`,
-              responsibility: `/parts/${id}/responsibility`,
-            };
-            const showMeFor = (gid: string, label: string): string | null => {
-              const g = gid.toLowerCase();
-              const l = label.toLowerCase();
-              const key = Object.keys(SHOW_ME).find((k) => g.includes(k) || l.includes(k));
-              return key ? SHOW_ME[key] : null;
-            };
+            // SHOW ME — the shared gate→scene map (lib/guide/show-me.ts),
+            // also used by the Guide card, so the two never disagree.
+            const showMeFor = (gid: string, label: string): string | null => showMeHrefFor(id, gid, label);
             const GateBody = ({ g }: { g: (typeof readiness.gates)[number] }) => (
               <li className="border-b border-line/60 px-4 py-3 last:border-0">
                 <div className="flex items-start justify-between gap-4">
