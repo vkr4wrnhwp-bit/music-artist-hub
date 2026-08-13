@@ -188,6 +188,35 @@ export async function uploadTelemetry(cfg: SyncConfig, orgId: string, sessionId:
   return `${(bytes / 1024).toFixed(1)} KB archived`;
 }
 
+// ---- live polling: displays pull when the server revision moves ----
+
+export async function fetchServerRev(cfg: SyncConfig, orgId: string): Promise<number> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/orgs/${orgId}/rev`, {
+    headers: { Authorization: `Bearer ${cfg.token}` },
+  });
+  if (!res.ok) throw new Error(`rev probe failed (${res.status})`);
+  return ((await res.json()) as { rev: number }).rev;
+}
+
+/**
+ * One poll tick: probe the server revision and run a full sync cycle only if
+ * it moved. Returns true when new data landed (caller re-renders). Protected
+ * records still conflict instead of changing silently — live mode never
+ * bypasses the merge policy.
+ */
+export async function pollForChanges(db: Db): Promise<boolean> {
+  const cfg = loadSyncConfig();
+  if (!cfg?.token) return false;
+  try {
+    const rev = await fetchServerRev(cfg, db.org.id);
+    if (rev === cfg.lastRev) return false;
+    const outcome = await syncNow(db, cfg);
+    return outcome.status === 'synced' || outcome.status === 'conflicts';
+  } catch {
+    return false; // unreachable server never disturbs the display
+  }
+}
+
 // debounced auto-sync hook, registered by the app shell
 let timer: ReturnType<typeof setTimeout> | null = null;
 export function maybeAutoSync(db: Db, onDone?: (o: SyncOutcome) => void): void {

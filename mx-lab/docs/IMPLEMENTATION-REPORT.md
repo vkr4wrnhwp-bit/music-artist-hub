@@ -240,6 +240,14 @@ hardware integration.
   (only the granted bike; no decisions or audit anywhere), server-side
   export denial, and instant revocation.
 
+## Live displays
+- `GET /orgs/:id/rev` is a lightweight revision probe; the Live Pit Board
+  polls it every 5 seconds while on screen and runs a full sync cycle only
+  when the number moves — a transporter display updates itself, hands-free,
+  seconds after anyone on the team syncs. Live mode never bypasses the
+  merge policy: protected records still conflict instead of changing
+  silently, and an unreachable server never disturbs the display.
+
 ## Bootstrap caveat — CLOSED by invite provisioning
 - First-sign-in-sets-password trust-on-first-use now applies **only while
   the org has no database on the server** (someone must be first; do the

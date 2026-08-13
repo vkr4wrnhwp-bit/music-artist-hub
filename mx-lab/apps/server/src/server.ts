@@ -268,6 +268,13 @@ export function createTraceServer(store: ServerStore, secret: string): Server {
         return g && grantIsActive(g) ? g : null;
       };
 
+      // GET /orgs/:id/rev — lightweight revision probe for live polling;
+      // displays poll this and only pull the db when the number moves
+      if (req.method === 'GET' && parts[2] === 'rev' && parts.length === 3) {
+        send(res, 200, { rev: stored?.rev ?? 0 });
+        return;
+      }
+
       // GET /orgs/:id/db — full db for users; redacted + scoped for grants
       if (req.method === 'GET' && parts[2] === 'db' && parts.length === 3) {
         if (!stored) { send(res, 404, { error: 'organization has no data yet' }); return; }

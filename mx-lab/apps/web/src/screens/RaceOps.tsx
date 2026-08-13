@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   appendAudit, buildChecklist, computeReadiness, dayTimeline, draftDebrief,
   grantIsActive, morningBrief,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
-import { loadSyncConfig, mintGrantToken } from '../syncClient';
+import { loadSyncConfig, mintGrantToken, pollForChanges } from '../syncClient';
 import { EmptyState, Help, Panel, Pill, readinessTone } from '../ui';
 
 // ------------------------------------------------------------- race weekend
@@ -107,10 +107,31 @@ export function Timeline({ dateISO, bikeId }: { dateISO: string; bikeId?: string
 // ------------------------------------------------------------- pit board
 
 export function PitBoard() {
-  const { db } = useApp();
+  const { db, update } = useApp();
+  const live = !!loadSyncConfig()?.token;
+
+  // while this display is up, probe the server revision and pull when the
+  // team pushes — a transporter screen updates itself, hands-free
+  useEffect(() => {
+    if (!live) return;
+    let busy = false;
+    const t = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        if (await pollForChanges(db)) update(() => {});
+      } finally { busy = false; }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [live, db, update]);
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div className="page-title"><h1>Live Pit Board</h1><Pill tone="sim">SIMULATED</Pill></div>
+      <div className="page-title">
+        <h1>Live Pit Board</h1>
+        <Pill tone="sim">SIMULATED</Pill>
+        {live && <Pill tone="good">LIVE — updates with team sync</Pill>}
+      </div>
       <div className="fleet" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(420px, 100%), 1fr))' }}>
         {db.bikes.filter((b) => !b.retired).map((bike) => {
           const readiness = computeReadiness(db, bike);

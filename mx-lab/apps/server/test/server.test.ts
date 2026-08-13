@@ -114,6 +114,13 @@ describe('sync with optimistic concurrency', () => {
     expect(retry.status).toBe(200);
     expect(retry.body.rev).toBe(3);
   });
+  it('lightweight rev probe for live polling', async () => {
+    const res = await api(`/orgs/${ORG}/rev`);
+    expect(res.status).toBe(200);
+    expect(res.body.rev).toBe(3);
+    const anon = await api(`/orgs/${ORG}/rev`, {}, '');
+    expect(anon.status).toBe(401);
+  });
 });
 
 describe('telemetry chunks (outside the metadata store)', () => {
