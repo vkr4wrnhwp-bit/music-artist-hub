@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DEMO_BANNER, searchAll } from '@mxlab/domain';
 import { AppProvider, nav, useApp, useRoute } from './state';
-import { AreaIcon, CommandPalette, Panel, Pill, TraceIcon, TraceLogo } from './ui';
+import { AreaIcon, BrandValues, CommandPalette, Panel, Pill, TraceIcon, TraceLogo, TraceWordmark } from './ui';
 import { Today } from './screens/Today';
 import { Garage } from './screens/Garage';
 import { BikeProfile } from './screens/BikeProfile';
@@ -64,9 +64,9 @@ function SignIn() {
   return (
     <div className="wrap" style={{ maxWidth: 480, margin: '0 auto', padding: '0 20px' }}>
       <div style={{ textAlign: 'center', margin: '64px 0 10px' }}>
-        <TraceIcon size={64} />
-        <div className="wordmark" style={{ fontSize: 30, display: 'block', marginTop: 10 }}>TRACE</div>
-        <p style={{ color: 'var(--muted)', fontSize: 11.5, letterSpacing: '0.28em', textTransform: 'uppercase', margin: '8px 0 0' }}>
+        <TraceIcon size={72} />
+        <div style={{ marginTop: 12 }}><TraceWordmark height={26} /></div>
+        <p style={{ color: 'var(--muted)', fontSize: 11.5, letterSpacing: '0.28em', textTransform: 'uppercase', margin: '10px 0 0' }}>
           Telemetry &amp; Tuning Platform
         </p>
         <p className="hint" style={{ marginTop: 18 }}>Phase 1 · simulation · pick a demo role to sign in</p>
@@ -89,6 +89,7 @@ function SignIn() {
       <p className="hint" style={{ textAlign: 'center' }}>
         External tuner with an access token? <a href="#/grantview">Open the read-only grant view</a>
       </p>
+      <BrandValues />
     </div>
   );
 }
