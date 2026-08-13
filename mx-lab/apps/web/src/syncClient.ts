@@ -33,14 +33,53 @@ export function saveConflicts(cs: SyncConflict[]): void {
   localStorage.setItem(CONFLICTS_KEY, JSON.stringify(cs));
 }
 
-export async function serverLogin(serverUrl: string, orgId: string, userId: string, role: string): Promise<string> {
+export async function serverLogin(
+  serverUrl: string, orgId: string, userId: string, role: string, password: string,
+): Promise<{ token: string; firstLogin: boolean }> {
   const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orgId, userId, role }),
+    body: JSON.stringify({ orgId, userId, role, password }),
   });
-  if (!res.ok) throw new Error(`login failed (${res.status})`);
-  return (await res.json()).token as string;
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `login failed (${res.status})`);
+  return { token: out.token as string, firstLogin: !!out.firstLogin };
+}
+
+// ---- remote-tuner grant flow: mint on the team side, consume read-only ----
+
+export interface GrantScope { bikeIds: string[]; readMaps: boolean; exportAllowed: boolean }
+
+export async function mintGrantToken(cfg: SyncConfig, orgId: string, grantId: string): Promise<{ token: string; scope: GrantScope }> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/auth/grant-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify({ orgId, grantId }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `mint failed (${res.status})`);
+  return out as { token: string; scope: GrantScope };
+}
+
+/** The server redacts to the grant's scope before anything leaves it. */
+export async function fetchGrantView(serverUrl: string, orgId: string, token: string): Promise<{ rev: number; db: Db }> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/orgs/${orgId}/db`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `fetch failed (${res.status})`);
+  return out as { rev: number; db: Db };
+}
+
+export async function downloadGrantTelemetry(serverUrl: string, orgId: string, token: string, sessionId: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/orgs/${orgId}/telemetry/${sessionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const out = await res.json().catch(() => ({}));
+    throw new Error((out as { error?: string }).error ?? `download failed (${res.status})`);
+  }
+  return res.arrayBuffer();
 }
 
 export interface SyncOutcome {

@@ -14,7 +14,7 @@ export function MoreScreen() {
     { title: 'Live Pit Board', desc: 'Large-format team display for the transporter or pit wall', to: 'pitboard' },
     { title: 'Crew assignments', desc: 'Race-day tasks: assigned → in progress → verified', to: 'crew' },
     { title: 'Morning Brief', desc: 'Generated from live readiness, component life, and test plans', to: 'brief' },
-    { title: 'Remote tuner access & marketplace', desc: 'Scoped, expiring, audited grants · marketplace architecture', to: 'access', badge: <Pill tone="warning">SIMULATED / SHELL</Pill> },
+    { title: 'Remote tuner access & marketplace', desc: 'Server-enforced scoped grants, minted access tokens · marketplace architecture', to: 'access', badge: <Pill tone="warning">MARKETPLACE SHELL</Pill> },
     { title: 'Hardware & devices', desc: 'MX Nodes, channel health, calibration, competition mode', to: 'hardware', badge: <Pill tone="sim">SIMULATED</Pill> },
     { title: 'CNC program', desc: 'Enclosures, mounts, dock, fixtures — part registry and briefs', to: 'cnc' },
     { title: 'Reports & team archive', desc: 'Printable reports, JSON/CSV exports, offline backup', to: 'reports' },

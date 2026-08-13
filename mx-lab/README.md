@@ -35,10 +35,16 @@ server never merges silently — divergent approvals, decisions, debriefs, and
 TRACE Focus land in an on-screen conflict queue for a person to resolve.
 Remote-tuner grant tokens are enforced server-side: the server redacts the
 database down to the grant's bike scope and permissions before it ever
-leaves the machine. Identity issuance is **DEMO** (no passwords — the swap
-point for a real IdP is `POST /auth/login`), and storage sits behind a
-swappable `ServerStore` interface (file-backed today; a hosted document/blob
-store drops in without touching routes).
+leaves the machine. Managers mint access tokens from the Remote Tuner
+Access screen; external tuners consume them at `#/grantview` — a read-only
+view with no team account, where export needs the grant's permission and
+revocation kills tokens instantly. Identity issuance is real password auth
+(scrypt, timing-safe compare) with a **first-sign-in-sets-password**
+bootstrap; once the org database is on the server, roles come from it,
+never from the client. Deploy behind TLS; an IdP for SSO swaps in at
+`POST /auth/login`. Storage sits behind a swappable `ServerStore` interface
+(file-backed today; a hosted document/blob store drops in without touching
+routes).
 
 ## Layout
 

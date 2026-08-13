@@ -23,32 +23,60 @@ const api = async (path: string, init: RequestInit = {}, token = userToken) => {
   return { status: res.status, body: ct.includes('json') ? await res.json() : Buffer.from(await res.arrayBuffer()) };
 };
 
+const PASSWORD = 'pit-lane-secret-9';
+
 beforeAll(async () => {
   srv = await startTraceServer(mkdtempSync(join(tmpdir(), 'trace-srv-')), 0);
   base = `http://localhost:${srv.port}`;
-  const login = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-tuner', role: 'tuner' }) }, '');
+  // first sign-in sets the password (org db not pushed yet → role claim bootstraps)
+  const login = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-tuner', role: 'tuner', password: PASSWORD }) }, '');
   userToken = login.body.token;
 });
 afterAll(async () => { await srv.close(); });
 
-describe('auth', () => {
-  it('issues demo tokens and rejects bad ones', async () => {
+describe('auth (scrypt password, first-sign-in bootstrap)', () => {
+  it('first sign-in set the password and issued a token; bad tokens rejected', async () => {
     expect(userToken.length).toBeGreaterThan(20);
     const bad = await api(`/orgs/${ORG}/db`, {}, 'not.a.token');
     expect(bad.status).toBe(401);
     const noToken = await api(`/orgs/${ORG}/db`, {}, '');
     expect(noToken.status).toBe(401);
   });
+  it('rejects a short password on first sign-in', async () => {
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-chief', role: 'crew_chief', password: 'short' }) }, '');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/8 characters/);
+  });
+  it('rejects the wrong password once one is set', async () => {
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-tuner', role: 'tuner', password: 'not-the-password' }) }, '');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/wrong password/);
+  });
+  it('accepts the right password on a repeat sign-in', async () => {
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-tuner', role: 'tuner', password: PASSWORD }) }, '');
+    expect(res.status).toBe(200);
+    expect(res.body.firstLogin).toBe(false);
+  });
   it('a token for another org is rejected', async () => {
-    const other = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: 'org-other', userId: 'x', role: 'tuner' }) }, '');
+    const other = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: 'org-other', userId: 'x', role: 'tuner', password: PASSWORD }) }, '');
     const res = await api(`/orgs/${ORG}/db`, {}, other.body.token);
     expect(res.status).toBe(403);
+  });
+  it('once the org db is pushed, unknown users cannot sign in', async () => {
+    const db = createSeededDb();
+    await api(`/orgs/org-role/db`, { method: 'PUT', body: JSON.stringify({ baseRev: 0, db }) },
+      (await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: 'org-role', userId: 'u-tuner', role: 'tuner', password: PASSWORD }) }, '')).body.token);
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: 'org-role', userId: 'u-intruder', role: 'org_admin', password: PASSWORD }) }, '');
+    expect(res.status).toBe(401);
   });
 });
 
 describe('sync with optimistic concurrency', () => {
   it('initial push, pull, stale push → 409 → client merge → retry', async () => {
     const db = createSeededDb();
+    // the seed's grant is date-pinned demo fiction; pin it into the future so
+    // grant tests below stay independent of wall-clock time
+    db.grants[0].expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
     const push1 = await api(`/orgs/${ORG}/db`, { method: 'PUT', body: JSON.stringify({ baseRev: 0, db }) });
     expect(push1.status).toBe(200);
     expect(push1.body.rev).toBe(1);
@@ -102,8 +130,15 @@ describe('telemetry chunks (outside the metadata store)', () => {
 
 describe('remote-access grant enforcement (server-side)', () => {
   let grantToken = '';
+  it('refuses to mint without a manage-capable user token', async () => {
+    const anon = await api('/auth/grant-token', { method: 'POST', body: JSON.stringify({ orgId: ORG, grantId: 'grant-1' }) }, '');
+    expect(anon.status).toBe(403);
+    const rider = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: 'org-other', userId: 'x', role: 'rider', password: PASSWORD }) }, '');
+    const asRider = await api('/auth/grant-token', { method: 'POST', body: JSON.stringify({ orgId: 'org-other', grantId: 'grant-1' }) }, rider.body.token);
+    expect(asRider.status).toBe(403);
+  });
   it('mints a scoped token for an active grant', async () => {
-    const res = await api('/auth/grant-token', { method: 'POST', body: JSON.stringify({ orgId: ORG, grantId: 'grant-1' }) }, '');
+    const res = await api('/auth/grant-token', { method: 'POST', body: JSON.stringify({ orgId: ORG, grantId: 'grant-1' }) });
     expect(res.status).toBe(200);
     grantToken = res.body.token;
     expect(res.body.scope.bikeIds).toEqual(['bike-450']);

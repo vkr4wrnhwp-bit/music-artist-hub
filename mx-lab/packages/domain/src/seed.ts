@@ -668,7 +668,7 @@ export function createSeededDb(): Db {
   db.grants.push({
     id: 'grant-1', orgId, tunerName: 'External Tuner X (fictional)', bikeIds: ['bike-450'],
     readTelemetry: true, readMaps: true, commentAccess: true, exportAllowed: false, mapEditAllowed: false,
-    createdByUserId: 'u-manager', createdAt: '2026-08-11T09:00:00Z', expiresAt: '2026-08-13T09:00:00Z',
+    createdByUserId: 'u-manager', createdAt: '2026-08-11T09:00:00Z', expiresAt: '2026-09-30T09:00:00Z',
     state: 'SIMULATED',
   });
   db.listings.push({
