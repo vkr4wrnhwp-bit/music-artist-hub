@@ -34,16 +34,40 @@ export function saveConflicts(cs: SyncConflict[]): void {
 }
 
 export async function serverLogin(
-  serverUrl: string, orgId: string, userId: string, role: string, password: string,
+  serverUrl: string, orgId: string, userId: string, role: string, password: string, inviteCode?: string,
 ): Promise<{ token: string; firstLogin: boolean }> {
   const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orgId, userId, role, password }),
+    body: JSON.stringify({ orgId, userId, role, password, inviteCode }),
   });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(out.error ?? `login failed (${res.status})`);
   return { token: out.token as string, firstLogin: !!out.firstLogin };
+}
+
+export async function changePassword(
+  serverUrl: string, orgId: string, userId: string, oldPassword: string, newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, userId, oldPassword, newPassword }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((out as { error?: string }).error ?? `change failed (${res.status})`);
+}
+
+/** Admin-minted one-time sign-in code; the server stores only its hash. */
+export async function mintInvite(cfg: SyncConfig, orgId: string, userId: string): Promise<string> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/orgs/${orgId}/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify({ userId }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((out as { error?: string }).error ?? `invite failed (${res.status})`);
+  return (out as { code: string }).code;
 }
 
 // ---- remote-tuner grant flow: mint on the team side, consume read-only ----

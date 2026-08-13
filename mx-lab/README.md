@@ -39,9 +39,12 @@ leaves the machine. Managers mint access tokens from the Remote Tuner
 Access screen; external tuners consume them at `#/grantview` — a read-only
 view with no team account, where export needs the grant's permission and
 revocation kills tokens instantly. Identity issuance is real password auth
-(scrypt, timing-safe compare) with a **first-sign-in-sets-password**
-bootstrap; once the org database is on the server, roles come from it,
-never from the client. Deploy behind TLS; an IdP for SSO swaps in at
+(scrypt, timing-safe compare): the very first account bootstraps the org,
+and from the first sync onward new accounts need a **one-time invite code**
+minted by an admin (More → Team & roles), roles come from the synced
+database (never from the client), and passwords are changed self-service.
+Deploy behind TLS — see `docs/architecture/deployment.md` for the reverse
+proxy, systemd, and backup guide. An IdP for SSO swaps in at
 `POST /auth/login`. Storage sits behind a swappable `ServerStore` interface
 (file-backed today; a hosted document/blob store drops in without touching
 routes).

@@ -8,6 +8,7 @@ import { startTraceServer, type TraceServer } from '../src/server';
 let srv: TraceServer;
 let base: string;
 let userToken = '';
+let managerToken = '';
 const ORG = 'org-demo';
 
 const api = async (path: string, init: RequestInit = {}, token = userToken) => {
@@ -28,9 +29,11 @@ const PASSWORD = 'pit-lane-secret-9';
 beforeAll(async () => {
   srv = await startTraceServer(mkdtempSync(join(tmpdir(), 'trace-srv-')), 0);
   base = `http://localhost:${srv.port}`;
-  // first sign-in sets the password (org db not pushed yet → role claim bootstraps)
+  // first sign-ins set passwords (org db not pushed yet → role claims bootstrap)
   const login = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-tuner', role: 'tuner', password: PASSWORD }) }, '');
   userToken = login.body.token;
+  const mgr = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-manager', role: 'team_manager', password: PASSWORD }) }, '');
+  managerToken = mgr.body.token;
 });
 afterAll(async () => { await srv.close(); });
 
@@ -125,6 +128,50 @@ describe('telemetry chunks (outside the metadata store)', () => {
     const down = await api(`/orgs/${ORG}/telemetry/sess-9`);
     expect(down.status).toBe(200);
     expect(Buffer.compare(down.body as Buffer, payload)).toBe(0);
+  });
+});
+
+describe('invite-based provisioning (after the org db is on the server)', () => {
+  it('a known user with no password cannot sign in without an invite', async () => {
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: PASSWORD }) }, '');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/invite/);
+  });
+  it('minting invites requires user.manage', async () => {
+    const res = await api(`/orgs/${ORG}/invites`, { method: 'POST', body: JSON.stringify({ userId: 'u-mech' }) }); // tuner token
+    expect(res.status).toBe(403);
+  });
+  it('manager mints an invite; wrong codes refused; it admits once then dies', async () => {
+    const mint = await api(`/orgs/${ORG}/invites`, { method: 'POST', body: JSON.stringify({ userId: 'u-mech' }) }, managerToken);
+    expect(mint.status).toBe(200);
+    const code = mint.body.code as string;
+    expect(code.length).toBeGreaterThan(8);
+    const bad = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: PASSWORD, inviteCode: 'wrong-code' }) }, '');
+    expect(bad.status).toBe(403);
+    const first = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: PASSWORD, inviteCode: code }) }, '');
+    expect(first.status).toBe(200);
+    expect(first.body.firstLogin).toBe(true);
+    // invite consumed; from now on only the password matters
+    const again = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: PASSWORD }) }, '');
+    expect(again.status).toBe(200);
+    expect(again.body.firstLogin).toBe(false);
+  });
+  it('invites cannot target users outside the team database', async () => {
+    const res = await api(`/orgs/${ORG}/invites`, { method: 'POST', body: JSON.stringify({ userId: 'u-ghost' }) }, managerToken);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('self-service password change', () => {
+  it('wrong old password refused; the new password takes effect immediately', async () => {
+    const wrong = await api('/auth/change-password', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', oldPassword: 'nope-nope-1', newPassword: 'fresh-brakes-22' }) }, '');
+    expect(wrong.status).toBe(401);
+    const ok = await api('/auth/change-password', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', oldPassword: PASSWORD, newPassword: 'fresh-brakes-22' }) }, '');
+    expect(ok.status).toBe(200);
+    const oldPw = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: PASSWORD }) }, '');
+    expect(oldPw.status).toBe(401);
+    const newPw = await api('/auth/login', { method: 'POST', body: JSON.stringify({ orgId: ORG, userId: 'u-mech', password: 'fresh-brakes-22' }) }, '');
+    expect(newPw.status).toBe(200);
   });
 });
 

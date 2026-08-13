@@ -34,6 +34,8 @@ export interface ServerStore {
   loadChunk(orgId: string, sessionId: string): Buffer | null;
   loadAuth(orgId: string): Record<string, PasswordRecord> | null;
   saveAuth(orgId: string, records: Record<string, PasswordRecord>): void;
+  loadInvites(orgId: string): Record<string, PasswordRecord> | null;
+  saveInvites(orgId: string, records: Record<string, PasswordRecord>): void;
 }
 
 export class FileStore implements ServerStore {
@@ -67,6 +69,26 @@ export class FileStore implements ServerStore {
   saveAuth(orgId: string, records: Record<string, PasswordRecord>) {
     writeFileSync(this.authPath(orgId), JSON.stringify(records));
   }
+  private invitePath(orgId: string) { return join(this.dir, `invites-${orgId}.json`); }
+  loadInvites(orgId: string) {
+    const p = this.invitePath(orgId);
+    if (!existsSync(p)) return null;
+    return JSON.parse(readFileSync(p, 'utf8')) as Record<string, PasswordRecord>;
+  }
+  saveInvites(orgId: string, records: Record<string, PasswordRecord>) {
+    writeFileSync(this.invitePath(orgId), JSON.stringify(records));
+  }
+}
+
+// scrypt helpers shared by passwords and invite codes
+function hashSecret(value: string): PasswordRecord {
+  const salt = randomBytes(16).toString('hex');
+  return { salt, hash: scryptSync(value, salt, 64).toString('hex') };
+}
+function verifySecret(value: string, rec: PasswordRecord): boolean {
+  const got = scryptSync(value, rec.salt, 64);
+  const expect = Buffer.from(rec.hash, 'hex');
+  return got.length === expect.length && timingSafeEqual(got, expect);
 }
 
 // ------------------------------------------------------------------ tokens
@@ -167,18 +189,43 @@ export function createTraceServer(store: ServerStore, secret: string): Server {
           if (password.length < 8) {
             send(res, 400, { error: 'first sign-in sets your password — use at least 8 characters' }); return;
           }
-          const salt = randomBytes(16).toString('hex');
-          records[userId] = { salt, hash: scryptSync(password, salt, 64).toString('hex') };
-          store.saveAuth(orgId, records);
-        } else {
-          const got = scryptSync(password, rec.salt, 64);
-          const expect = Buffer.from(rec.hash, 'hex');
-          if (got.length !== expect.length || !timingSafeEqual(got, expect)) {
-            send(res, 401, { error: 'wrong password' }); return;
+          // Bootstrap trust ends the moment the org database is on the server:
+          // from then on, a new account's first sign-in needs a one-time invite
+          // code minted by a team admin.
+          if (orgData) {
+            const invites = store.loadInvites(orgId) ?? {};
+            const invite = invites[userId];
+            const code = typeof body.inviteCode === 'string' ? body.inviteCode.trim() : '';
+            if (!invite || !code || !verifySecret(code, invite)) {
+              send(res, 403, { error: 'first sign-in for this account needs a one-time invite code from a team admin' }); return;
+            }
+            delete invites[userId];
+            store.saveInvites(orgId, invites);
           }
+          records[userId] = hashSecret(password);
+          store.saveAuth(orgId, records);
+        } else if (!verifySecret(password, rec)) {
+          send(res, 401, { error: 'wrong password' }); return;
         }
         const token = signToken(secret, { kind: 'user', orgId, userId, role, exp: Date.now() + 12 * 3600 * 1000 });
         send(res, 200, { token, firstLogin: !rec });
+        return;
+      }
+
+      // ---- auth: self-service password change (authenticated by the old password) ----
+      if (req.method === 'POST' && url.pathname === '/auth/change-password') {
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        const { orgId, userId, oldPassword, newPassword } = body;
+        if (!orgId || !userId || typeof oldPassword !== 'string' || typeof newPassword !== 'string') {
+          send(res, 400, { error: 'orgId, userId, oldPassword, newPassword required' }); return;
+        }
+        if (newPassword.length < 8) { send(res, 400, { error: 'new password needs at least 8 characters' }); return; }
+        const records = store.loadAuth(orgId) ?? {};
+        const rec = records[userId];
+        if (!rec || !verifySecret(oldPassword, rec)) { send(res, 401, { error: 'wrong password' }); return; }
+        records[userId] = hashSecret(newPassword);
+        store.saveAuth(orgId, records);
+        send(res, 200, { ok: true });
         return;
       }
 
@@ -250,6 +297,23 @@ export function createTraceServer(store: ServerStore, secret: string): Server {
         const nextRev = currentRev + 1;
         store.saveOrg(orgId, nextRev, body.db as Db);
         send(res, 200, { rev: nextRev });
+        return;
+      }
+
+      // POST /orgs/:id/invites — one-time sign-in codes, admin-minted.
+      // The code crosses the wire exactly once, here; only its hash is stored.
+      if (req.method === 'POST' && parts[2] === 'invites' && parts.length === 3) {
+        if (who.kind !== 'user' || !can(who.role as Role, 'user.manage')) {
+          send(res, 403, { error: 'minting invites requires a team admin or manager' }); return;
+        }
+        const body = JSON.parse((await readBody(req)).toString() || '{}');
+        const target = stored?.db.users.find((u) => u.id === body.userId);
+        if (!target) { send(res, 404, { error: 'no such user in the team database — sync first' }); return; }
+        const code = randomBytes(9).toString('base64url');
+        const invites = store.loadInvites(orgId) ?? {};
+        invites[target.id] = hashSecret(code);
+        store.saveInvites(orgId, invites);
+        send(res, 200, { userId: target.id, code });
         return;
       }
 

@@ -240,8 +240,12 @@ hardware integration.
   (only the granted bike; no decisions or audit anywhere), server-side
   export denial, and instant revocation.
 
-## Bootstrap caveat (labeled in the UI)
-- First-sign-in-sets-password is trust-on-first-use: whoever signs in as a
-  user first claims that account. Fine for a self-hosted pit-lane server a
-  team stands up for itself; provisioning flows or an IdP remove the caveat
-  and are the documented next step.
+## Bootstrap caveat — CLOSED by invite provisioning
+- First-sign-in-sets-password trust-on-first-use now applies **only while
+  the org has no database on the server** (someone must be first; do the
+  bootstrap and first sync together). From the first push onward, a new
+  account's first sign-in requires a one-time invite code minted by an
+  admin (More → Team & roles → Invite): codes are stored as scrypt hashes,
+  shown exactly once, and consumed on use. Self-service password change
+  ships alongside (authenticated by the old password). Deployment guide:
+  docs/architecture/deployment.md (TLS, systemd, backups, lifecycle).
