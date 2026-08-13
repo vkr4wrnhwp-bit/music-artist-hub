@@ -1170,3 +1170,60 @@ on the panel. See docs/REAL_SHOP_BETA.md.
 Browser-verified: recorded a PARTLY run (est 17.7 → ran 18.4 min,
 cycle estimate category), tally and category chips updated, and NO
 without a category was rejected with the named error.
+
+## PHASE 5 — FINAL TRUTH AUDIT (brief §50)
+
+1. One product? Largely yes now. Mill workspace, turning workspace,
+   turning landing, part library, readiness, NC output, machinist and
+   the analyzer share the same object-first pattern, chips, runways,
+   disclosures and light work-window grounds.
+2. Most like internal engineering software still: the setups page and
+   the machines page — dense panels, no dominant object. Honest next
+   candidates, not claimed done.
+3. NC Analyzer shows what matters: one scene at a time, counts on the
+   tabs, worst-stage chips always visible. Yes.
+4. SHOW ME physically locates: yes for line-range scenes (backplot
+   frames + code + load graph) and for readiness gates (coach mark on
+   the real element). NOT built: the §13 special scenes for
+   workholding load direction and holder-envelope findings.
+5. Block sync works both directions (plot→code, code→plot, graph→both)
+   — browser-verified. Viewer lacks §14 search/go-to-block/syntax
+   highlighting.
+6. Original vs optimized: source diff + PROPOSED plot mode. A true
+   OVERLAY/side-by-side backplot (§15) is NOT built.
+7. Protected finish op accidentally optimized? No — protection is
+   absolute in V1, no override path exists, pinned by tests including
+   the through-bore regression.
+8. Corner reduction deterministic: yes — run-median MRR, spike ratio,
+   chipload floor, plunge exclusion; all tested.
+9. Reference cuts carry machine/tool/material/DOC/WOC/feed/RPM/
+   coolant/result context. Yes.
+10. Calibration from real recorded cycles only, median of ≥5,
+    display-only. Yes.
+11. Telemetry says NOT CONNECTED everywhere it appears, typed as a
+    literal. Yes.
+12. ROI is labelled ESTIMATED, RAISE-only, capacity-not-revenue, no
+    dollar figure without a configured rate. Yes.
+13. Readiness is worst-gate; redesign touched presentation order only.
+14. No UX path clears a gate — SHOW ME/RESOLVE/lens/runway are
+    navigation and display; disagreement records evidence only.
+15. NC Output cannot export while blocked: preview withheld, export
+    behind the server-side mint that re-runs the gates.
+16. Turning kept every limitation label (development post, kinematic
+    replay not collision check, DEVELOPMENT analyses).
+17. Part library scans by geometry now — yes, substantially.
+18. Approach tradeoffs readable from cards without the table — yes;
+    table one click away.
+19. Should still not be shown to a real shop: NC export headers say it
+    already (NOT FOR PRODUCTION USE); the load model's absolute
+    numbers (bands are estimates, no telemetry); the 3D lathe replay
+    as anything but a preview.
+20. Ready for controlled beta: the analyzer loop (upload → audit →
+    findings → proposals → derived program), readiness/approval flow,
+    turning planning, WAS CANVAS RIGHT? capture, reference cuts and
+    calibration records.
+
+Evidence: 176/176 engine tests, production build clean, zero
+horizontal overflow at 1280×800 and 1440×900 across the ten
+redesigned routes, and per-feature live browser checks recorded
+above.
