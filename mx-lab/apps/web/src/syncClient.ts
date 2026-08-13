@@ -33,14 +33,77 @@ export function saveConflicts(cs: SyncConflict[]): void {
   localStorage.setItem(CONFLICTS_KEY, JSON.stringify(cs));
 }
 
-export async function serverLogin(serverUrl: string, orgId: string, userId: string, role: string): Promise<string> {
+export async function serverLogin(
+  serverUrl: string, orgId: string, userId: string, role: string, password: string, inviteCode?: string,
+): Promise<{ token: string; firstLogin: boolean }> {
   const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orgId, userId, role }),
+    body: JSON.stringify({ orgId, userId, role, password, inviteCode }),
   });
-  if (!res.ok) throw new Error(`login failed (${res.status})`);
-  return (await res.json()).token as string;
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `login failed (${res.status})`);
+  return { token: out.token as string, firstLogin: !!out.firstLogin };
+}
+
+export async function changePassword(
+  serverUrl: string, orgId: string, userId: string, oldPassword: string, newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, userId, oldPassword, newPassword }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((out as { error?: string }).error ?? `change failed (${res.status})`);
+}
+
+/** Admin-minted one-time sign-in code; the server stores only its hash. */
+export async function mintInvite(cfg: SyncConfig, orgId: string, userId: string): Promise<string> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/orgs/${orgId}/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify({ userId }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((out as { error?: string }).error ?? `invite failed (${res.status})`);
+  return (out as { code: string }).code;
+}
+
+// ---- remote-tuner grant flow: mint on the team side, consume read-only ----
+
+export interface GrantScope { bikeIds: string[]; readMaps: boolean; exportAllowed: boolean }
+
+export async function mintGrantToken(cfg: SyncConfig, orgId: string, grantId: string): Promise<{ token: string; scope: GrantScope }> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/auth/grant-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify({ orgId, grantId }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `mint failed (${res.status})`);
+  return out as { token: string; scope: GrantScope };
+}
+
+/** The server redacts to the grant's scope before anything leaves it. */
+export async function fetchGrantView(serverUrl: string, orgId: string, token: string): Promise<{ rev: number; db: Db }> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/orgs/${orgId}/db`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `fetch failed (${res.status})`);
+  return out as { rev: number; db: Db };
+}
+
+export async function downloadGrantTelemetry(serverUrl: string, orgId: string, token: string, sessionId: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${serverUrl.replace(/\/$/, '')}/orgs/${orgId}/telemetry/${sessionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const out = await res.json().catch(() => ({}));
+    throw new Error((out as { error?: string }).error ?? `download failed (${res.status})`);
+  }
+  return res.arrayBuffer();
 }
 
 export interface SyncOutcome {
@@ -123,6 +186,35 @@ export async function uploadTelemetry(cfg: SyncConfig, orgId: string, sessionId:
   if (!res.ok) throw new Error(`upload failed (${res.status})`);
   const { bytes } = await res.json();
   return `${(bytes / 1024).toFixed(1)} KB archived`;
+}
+
+// ---- live polling: displays pull when the server revision moves ----
+
+export async function fetchServerRev(cfg: SyncConfig, orgId: string): Promise<number> {
+  const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/orgs/${orgId}/rev`, {
+    headers: { Authorization: `Bearer ${cfg.token}` },
+  });
+  if (!res.ok) throw new Error(`rev probe failed (${res.status})`);
+  return ((await res.json()) as { rev: number }).rev;
+}
+
+/**
+ * One poll tick: probe the server revision and run a full sync cycle only if
+ * it moved. Returns true when new data landed (caller re-renders). Protected
+ * records still conflict instead of changing silently — live mode never
+ * bypasses the merge policy.
+ */
+export async function pollForChanges(db: Db): Promise<boolean> {
+  const cfg = loadSyncConfig();
+  if (!cfg?.token) return false;
+  try {
+    const rev = await fetchServerRev(cfg, db.org.id);
+    if (rev === cfg.lastRev) return false;
+    const outcome = await syncNow(db, cfg);
+    return outcome.status === 'synced' || outcome.status === 'conflicts';
+  } catch {
+    return false; // unreachable server never disturbs the display
+  }
 }
 
 // debounced auto-sync hook, registered by the app shell

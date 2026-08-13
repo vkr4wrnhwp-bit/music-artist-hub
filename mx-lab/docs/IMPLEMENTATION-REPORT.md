@@ -199,12 +199,6 @@ hardware integration.
   through a live server — divergent TRACE Focus surfaced and resolved,
   union merge kept all sessions, telemetry chunk archived, offline grace.
 
-## DEMO-LABELED (real code, placeholder trust)
-- Identity issuance: `POST /auth/login` signs a token for any known org
-  user with **no password** — labeled DEMO in the UI. Production swaps this
-  one endpoint for a real IdP (OIDC); everything behind it (token format,
-  role claims, grant enforcement) is already real.
-
 ## FUTURE (documented swap points, not built)
 - Hosted storage adapters (document DB for snapshots, object store for
   telemetry chunks) behind `ServerStore`; TLS/reverse-proxy deployment
@@ -214,3 +208,52 @@ hardware integration.
 - Snapshot-level sync: the whole org database travels on each sync
   (fine at this scale; measured well under a megabyte).
 - Tokens are bearer tokens over HTTP in local demo use — deploy behind TLS.
+
+---
+
+# Hardening addendum — real auth & the remote-tuner flow end-to-end
+
+## COMPLETED (real, working software)
+- **Password authentication** replaced the DEMO issuance: scrypt-hashed
+  passwords with per-user random salts and timing-safe comparison. The
+  first sign-in sets the password (minimum 8 characters); every later
+  sign-in verifies it. Once the org database has been pushed, the server
+  takes each user's existence and role from it — a client can no longer
+  claim a role, and unknown users cannot sign in at all. An IdP for SSO
+  remains a one-handler swap at `POST /auth/login`.
+- **Grant-token minting requires authority**: `POST /auth/grant-token` now
+  demands a signed-in user whose role could manage the test program (the
+  same trio that resolves sync conflicts); anonymous or rider-role minting
+  is refused.
+- **Remote-tuner flow end-to-end in the app**: managers mint a
+  server-signed access token from the Remote Tuner Access screen (audited);
+  the external tuner opens `#/grantview` — reachable with no team account —
+  pastes server URL, org id, and token, and gets the redacted, read-only
+  view the server built for that grant: bikes in scope, map revisions if
+  granted, sessions if granted, telemetry CSV export only if the grant
+  allows it. Revoking the grant on the team side kills the token on the
+  tuner's next request.
+- **Tests**: 81 total (5 new server tests: short/wrong/right password,
+  unknown-user rejection after push, mint-authority denial). Browser E2E
+  grew to 17 checks across four browser profiles: team sync + conflict
+  resolution, wrong-password refusal, in-app minting, grant view scoping
+  (only the granted bike; no decisions or audit anywhere), server-side
+  export denial, and instant revocation.
+
+## Live displays
+- `GET /orgs/:id/rev` is a lightweight revision probe; the Live Pit Board
+  polls it every 5 seconds while on screen and runs a full sync cycle only
+  when the number moves — a transporter display updates itself, hands-free,
+  seconds after anyone on the team syncs. Live mode never bypasses the
+  merge policy: protected records still conflict instead of changing
+  silently, and an unreachable server never disturbs the display.
+
+## Bootstrap caveat — CLOSED by invite provisioning
+- First-sign-in-sets-password trust-on-first-use now applies **only while
+  the org has no database on the server** (someone must be first; do the
+  bootstrap and first sync together). From the first push onward, a new
+  account's first sign-in requires a one-time invite code minted by an
+  admin (More → Team & roles → Invite): codes are stored as scrypt hashes,
+  shown exactly once, and consumed on use. Self-service password change
+  ships alongside (authenticated by the old password). Deployment guide:
+  docs/architecture/deployment.md (TLS, systemd, backups, lifecycle).

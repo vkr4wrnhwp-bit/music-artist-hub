@@ -3,7 +3,7 @@ import { appendAudit, simulateSession, type SyncConflict } from '@mxlab/domain';
 import { useApp } from '../state';
 import { Help, Panel, Pill } from '../ui';
 import {
-  loadConflicts, loadSyncConfig, saveConflicts, saveSyncConfig, serverLogin,
+  changePassword, loadConflicts, loadSyncConfig, saveConflicts, saveSyncConfig, serverLogin,
   syncNow, uploadTelemetry, type SyncConfig,
 } from '../syncClient';
 
@@ -16,6 +16,11 @@ export function SyncScreen() {
   const { db, user, update, allowed } = useApp();
   const [cfg, setCfg] = useState<SyncConfig | null>(() => loadSyncConfig());
   const [serverUrl, setServerUrl] = useState(cfg?.serverUrl ?? 'http://localhost:8787');
+  const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [pwOld, setPwOld] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>(cfg?.lastSyncedAt ? `Last synced ${new Date(cfg.lastSyncedAt).toLocaleString()} (rev ${cfg.lastRev})` : 'Not connected yet.');
   const [conflicts, setConflicts] = useState<SyncConflict[]>(() => loadConflicts());
@@ -27,14 +32,18 @@ export function SyncScreen() {
   const connect = async () => {
     setBusy(true);
     try {
-      const token = await serverLogin(serverUrl, db.org.id, user.id, user.role);
+      const { token, firstLogin } = await serverLogin(serverUrl, db.org.id, user.id, user.role, password, inviteCode.trim() || undefined);
       const next: SyncConfig = {
         serverUrl, token, userLabel: `${user.name} (${user.role})`,
         lastRev: cfg?.lastRev ?? 0, auto: cfg?.auto ?? false,
       };
       saveSyncConfig(next);
       setCfg(next);
-      setStatus('Signed in to the sync server. Run Sync now to push the team database.');
+      setPassword('');
+      setInviteCode('');
+      setStatus(firstLogin
+        ? 'Password set and signed in. Run Sync now to push the team database.'
+        : 'Signed in to the sync server. Run Sync now to push the team database.');
     } catch (e) {
       setStatus(`Could not sign in: ${(e as Error).message}`);
     } finally { setBusy(false); }
@@ -95,10 +104,17 @@ export function SyncScreen() {
           <div className="field"><label>Sync server URL</label>
             <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="http://localhost:8787" />
           </div>
+          <div className="field"><label>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="min 8 characters" />
+          </div>
+          <div className="field"><label>Invite code (first sign-in on an established team)</label>
+            <input className="mono" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder="one-time code from your team admin" />
+          </div>
           <p className="hint" style={{ marginBottom: 12 }}>
-            Run it with <code className="mono">npm run server</code> in mx-lab. Identity issuance is
-            <b> DEMO</b> (no password) — production swaps in a real IdP at /auth/login; storage sits
-            behind a swappable ServerStore (file-backed today, Firestore/S3 adapters drop in).
+            Run it with <code className="mono">npm run server</code> in mx-lab. Your <b>first sign-in
+            sets your password</b> (scrypt-hashed on the server). Once the team database is on the
+            server, new accounts need a one-time invite code from an admin, and the server takes roles
+            from the database, never from this device. An IdP for SSO swaps in at /auth/login.
           </p>
           <div className="btn-row">
             <button className="btn primary" disabled={busy} onClick={connect}>
@@ -118,6 +134,27 @@ export function SyncScreen() {
             <Pill tone={cfg?.token ? 'good' : 'neutral'}>{cfg?.token ? `Connected as ${cfg.userLabel}` : 'Offline / local only'}</Pill>
           </p>
           <p className="hint">{status}</p>
+
+          <details style={{ marginTop: 14 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13.5, color: 'var(--ink-2)' }}>Change password</summary>
+            <div className="field" style={{ marginTop: 10 }}><label>Current password</label>
+              <input type="password" value={pwOld} onChange={(e) => setPwOld(e.target.value)} />
+            </div>
+            <div className="field"><label>New password (min 8 characters)</label>
+              <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} />
+            </div>
+            <div className="btn-row">
+              <button className="btn small" disabled={busy || !pwOld || !pwNew} onClick={async () => {
+                setBusy(true);
+                try {
+                  await changePassword(serverUrl, db.org.id, user.id, pwOld, pwNew);
+                  setPwOld(''); setPwNew('');
+                  setPwMsg('Password changed. Existing sign-ins stay valid until their tokens expire.');
+                } catch (e) { setPwMsg((e as Error).message); } finally { setBusy(false); }
+              }}>Change password</button>
+              {pwMsg && <span className="hint">{pwMsg}</span>}
+            </div>
+          </details>
         </Panel>
 
         <Panel title={`Sync conflicts (${conflicts.length})`}>

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   appendAudit, buildChecklist, computeReadiness, dayTimeline, draftDebrief,
   grantIsActive, morningBrief,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
+import { loadSyncConfig, mintGrantToken, pollForChanges } from '../syncClient';
 import { EmptyState, Help, Panel, Pill, readinessTone } from '../ui';
 
 // ------------------------------------------------------------- race weekend
@@ -106,10 +107,31 @@ export function Timeline({ dateISO, bikeId }: { dateISO: string; bikeId?: string
 // ------------------------------------------------------------- pit board
 
 export function PitBoard() {
-  const { db } = useApp();
+  const { db, update } = useApp();
+  const live = !!loadSyncConfig()?.token;
+
+  // while this display is up, probe the server revision and pull when the
+  // team pushes — a transporter screen updates itself, hands-free
+  useEffect(() => {
+    if (!live) return;
+    let busy = false;
+    const t = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        if (await pollForChanges(db)) update(() => {});
+      } finally { busy = false; }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [live, db, update]);
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div className="page-title"><h1>Live Pit Board</h1><Pill tone="sim">SIMULATED</Pill></div>
+      <div className="page-title">
+        <h1>Live Pit Board</h1>
+        <Pill tone="sim">SIMULATED</Pill>
+        {live && <Pill tone="good">LIVE — updates with team sync</Pill>}
+      </div>
       <div className="fleet" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(420px, 100%), 1fr))' }}>
         {db.bikes.filter((b) => !b.retired).map((bike) => {
           const readiness = computeReadiness(db, bike);
@@ -286,15 +308,22 @@ export function DebriefScreen() {
 export function AccessScreen() {
   const { db, user, update, allowed } = useApp();
   const canManage = allowed('user.manage');
+  const canMint = allowed('user.manage') || allowed('map.approveForTest') || allowed('abtest.conclude');
+  const syncCfg = loadSyncConfig();
+  const [mint, setMint] = useState<{ grantId: string; token: string } | null>(null);
+  const [mintErr, setMintErr] = useState('');
   return (
     <div>
       <div className="page-title">
         <h1>Remote tuner access</h1>
-        <Pill tone="sim">SIMULATED — enforcement ships with the backend</Pill>
+        <Pill tone="good">SERVER-ENFORCED — redacted &amp; read-only at the sync server</Pill>
       </div>
       <Help id="access">
         Grants are scoped (bikes, permissions), time-limited, revocable, and audited. Nothing is shared
-        by default; map-edit access is off unless explicitly enabled.
+        by default; map-edit access is off unless explicitly enabled. Enforcement happens on the team
+        sync server: a minted token only ever sees data redacted to its grant, writes are refused, and
+        revoking the grant kills its tokens immediately. Without a sync server connection, grants here
+        are inert records.
       </Help>
       {canManage && (
         <div className="btn-row" style={{ marginBottom: 16 }}>
@@ -331,20 +360,54 @@ export function AccessScreen() {
                   <td className="mono">{new Date(g.expiresAt).toLocaleString()}</td>
                   <td><Pill tone={grantIsActive(g) ? 'good' : 'critical'}>{g.revokedAt ? 'Revoked' : grantIsActive(g) ? 'Active' : 'Expired'}</Pill></td>
                   <td>
-                    {grantIsActive(g) && canManage && (
-                      <button className="btn small danger" onClick={() => update((d) => {
-                        const x = d.grants.find((y) => y.id === g.id)!;
-                        x.revokedAt = new Date().toISOString();
-                        appendAudit(d, user!.id, 'grant.revoke', 'RemoteAccessGrant', x.id, `Access revoked for ${x.tunerName}.`);
-                      })}>Revoke now</button>
-                    )}
+                    <div className="btn-row">
+                      {grantIsActive(g) && canMint && syncCfg?.token && (
+                        <button className="btn small" onClick={async () => {
+                          setMintErr('');
+                          try {
+                            const { token } = await mintGrantToken(syncCfg, db.org.id, g.id);
+                            setMint({ grantId: g.id, token });
+                            update((d) => appendAudit(d, user!.id, 'grant.mintToken', 'RemoteAccessGrant', g.id, `Access token minted for ${g.tunerName}.`));
+                          } catch (e) { setMint(null); setMintErr(`${g.tunerName}: ${(e as Error).message}`); }
+                        }}>Mint access token</button>
+                      )}
+                      {grantIsActive(g) && canManage && (
+                        <button className="btn small danger" onClick={() => update((d) => {
+                          const x = d.grants.find((y) => y.id === g.id)!;
+                          x.revokedAt = new Date().toISOString();
+                          appendAudit(d, user!.id, 'grant.revoke', 'RemoteAccessGrant', x.id, `Access revoked for ${x.tunerName}.`);
+                        })}>Revoke now</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {!syncCfg?.token && (
+          <p className="hint">Connect to the team sync server (More → Team Sync) to mint access tokens.</p>
+        )}
+        {mintErr && <p className="hint" style={{ color: 'var(--warning)' }}>{mintErr}</p>}
       </Panel>
+
+      {mint && (
+        <Panel title="Remote access token — send these three to the external tuner">
+          <div className="field"><label>Server URL</label>
+            <input id="mint-url" readOnly value={syncCfg?.serverUrl ?? ''} onFocus={(e) => e.currentTarget.select()} />
+          </div>
+          <div className="field"><label>Organization id</label>
+            <input id="mint-org" readOnly value={db.org.id} onFocus={(e) => e.currentTarget.select()} />
+          </div>
+          <div className="field"><label>Access token</label>
+            <input id="mint-token" readOnly className="mono" value={mint.token} onFocus={(e) => e.currentTarget.select()} />
+          </div>
+          <p className="hint">
+            They open <b>#/grantview</b> (linked from the sign-in screen) and paste these — no team
+            account needed. The token expires with the grant and dies instantly if the grant is revoked.
+          </p>
+        </Panel>
+      )}
 
       <Panel title="Marketplace" actions={<Pill tone="warning">SHELL / FUTURE</Pill>}>
         <p className="hint" style={{ marginTop: 0 }}>

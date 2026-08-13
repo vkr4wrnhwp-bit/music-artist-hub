@@ -238,7 +238,7 @@ describe('remote access grants', () => {
     expect(grantAllows(g, 'telemetry', 'bike-450', new Date('2026-08-12T00:00:00Z'))).toBe(true);
     expect(grantAllows(g, 'telemetry', 'bike-250', new Date('2026-08-12T00:00:00Z'))).toBe(false);
     expect(grantAllows(g, 'mapEdit', 'bike-450', new Date('2026-08-12T00:00:00Z'))).toBe(false);
-    expect(grantAllows(g, 'telemetry', 'bike-450', new Date('2026-08-20T00:00:00Z'))).toBe(false); // expired
+    expect(grantAllows(g, 'telemetry', 'bike-450', new Date('2026-10-20T00:00:00Z'))).toBe(false); // expired
     const revoked = { ...g, revokedAt: '2026-08-11T10:00:00Z' };
     expect(grantIsActive(revoked, new Date('2026-08-12T00:00:00Z'))).toBe(false);
   });

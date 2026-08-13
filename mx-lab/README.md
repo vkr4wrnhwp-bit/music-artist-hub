@@ -33,12 +33,23 @@ disk, behind HMAC-signed bearer tokens. Devices connect from **More → Team
 Sync**; sync is pull → merge → push with optimistic concurrency, and the
 server never merges silently — divergent approvals, decisions, debriefs, and
 TRACE Focus land in an on-screen conflict queue for a person to resolve.
+The Live Pit Board goes genuinely live when connected: it polls a
+lightweight revision probe and pulls within seconds of any teammate's sync.
 Remote-tuner grant tokens are enforced server-side: the server redacts the
 database down to the grant's bike scope and permissions before it ever
-leaves the machine. Identity issuance is **DEMO** (no passwords — the swap
-point for a real IdP is `POST /auth/login`), and storage sits behind a
-swappable `ServerStore` interface (file-backed today; a hosted document/blob
-store drops in without touching routes).
+leaves the machine. Managers mint access tokens from the Remote Tuner
+Access screen; external tuners consume them at `#/grantview` — a read-only
+view with no team account, where export needs the grant's permission and
+revocation kills tokens instantly. Identity issuance is real password auth
+(scrypt, timing-safe compare): the very first account bootstraps the org,
+and from the first sync onward new accounts need a **one-time invite code**
+minted by an admin (More → Team & roles), roles come from the synced
+database (never from the client), and passwords are changed self-service.
+Deploy behind TLS — see `docs/architecture/deployment.md` for the reverse
+proxy, systemd, and backup guide. An IdP for SSO swaps in at
+`POST /auth/login`. Storage sits behind a swappable `ServerStore` interface
+(file-backed today; a hosted document/blob store drops in without touching
+routes).
 
 ## Layout
 

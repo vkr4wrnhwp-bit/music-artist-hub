@@ -28,6 +28,7 @@ import {
   AccessScreen, BriefScreen, CrewScreen, DebriefScreen, PitBoard, WeekendScreen,
 } from './screens/RaceOps';
 import { SyncScreen } from './screens/SyncScreen';
+import { GrantView } from './screens/GrantView';
 import { loadSyncConfig } from './syncClient';
 
 const AREAS = [
@@ -47,6 +48,7 @@ const AREA_OF: Record<string, string> = {
   analyze: 'analyze', engineer: 'analyze', compare: 'analyze', intelligence: 'analyze', riders: 'analyze',
   more: 'more', hardware: 'more', cnc: 'more', reports: 'more', audit: 'more', pit: 'more',
   knowledge: 'more', pitboard: 'more', crew: 'more', brief: 'more', access: 'more', sync: 'more',
+  grantview: 'more',
 };
 
 const SUBNAV: Record<string, Array<[string, string]>> = {
@@ -84,6 +86,9 @@ function SignIn() {
       <p className="hint" style={{ textAlign: 'center' }}>
         Production uses real authentication behind this same permission matrix.
       </p>
+      <p className="hint" style={{ textAlign: 'center' }}>
+        External tuner with an access token? <a href="#/grantview">Open the read-only grant view</a>
+      </p>
     </div>
   );
 }
@@ -104,9 +109,19 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const [head, arg, arg2] = route.length ? route : ['garage'];
+
+  // remote tuners connect with a grant token — no team account, minimal chrome
+  if (!user && head === 'grantview') {
+    return (
+      <>
+        <div className="sim-banner">{DEMO_BANNER}</div>
+        <main className="wrap" style={{ paddingTop: 0 }}><GrantView /></main>
+      </>
+    );
+  }
   if (!user) return <><div className="sim-banner">{DEMO_BANNER}</div><SignIn /></>;
 
-  const [head, arg, arg2] = route.length ? route : ['garage'];
   const area = AREA_OF[head] ?? 'garage';
 
   let screen: React.ReactNode;
@@ -137,6 +152,7 @@ function Shell() {
   else if (head === 'debrief') screen = <DebriefScreen />;
   else if (head === 'access') screen = <AccessScreen />;
   else if (head === 'sync') screen = <SyncScreen />;
+  else if (head === 'grantview') screen = <GrantView />;
   else if (head === 'more') screen = <MoreScreen />;
   else if (head === 'hardware') screen = <Hardware />;
   else if (head === 'cnc') screen = <CncModule />;
