@@ -1153,3 +1153,20 @@ Browser-verified: on a part with failing gates the ASSIST card shows
 "READINESS BLOCKED — 9 GATES / Geometry is the first failing gate"
 with all three actions, WHY? expanding to "No features are defined
 on this part."
+
+## Phase 5 — Real shop beta: WAS CANVAS RIGHT?
+
+BetaRunRecord table (paired migrations) + a recording workflow on
+/knowledge: verdict YES/PARTLY/NO typed by the machinist, categories
+required when not YES (cycle estimate, tool load, workholding, feed
+recommendation, tool selection, inspection, geometry, other), the
+full capture list behind a FULL RECORD disclosure (predicted/actual
+cycle and load, recommendation under test, measured results, wear,
+chatter, scrap, corrective action). Panel shows the verdict tally
+and per-category wrong counts; each record is audited (HUMAN).
+No engine reads the table — shop-scoped beta evidence only, stated
+on the panel. See docs/REAL_SHOP_BETA.md.
+
+Browser-verified: recorded a PARTLY run (est 17.7 → ran 18.4 min,
+cycle estimate category), tally and category chips updated, and NO
+without a category was rejected with the named error.

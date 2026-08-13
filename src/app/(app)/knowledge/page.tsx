@@ -68,6 +68,22 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
   }
   const frictionRows = [...friction.values()].sort((a, b) => b.backs + b.skips - (a.backs + a.skips)).slice(0, 8);
 
+  const betaRuns = await db.betaRunRecord.findMany({
+    where: { organizationId: user.organizationId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+  const verdictTally = { YES: 0, PARTLY: 0, NO: 0 } as Record<string, number>;
+  const wrongTally = new Map<string, number>();
+  for (const b of betaRuns) {
+    verdictTally[b.verdict] = (verdictTally[b.verdict] ?? 0) + 1;
+    try {
+      for (const c of JSON.parse(b.wrongCategoriesJson) as string[]) wrongTally.set(c, (wrongTally.get(c) ?? 0) + 1);
+    } catch {
+      /* unreadable categories stay uncounted */
+    }
+  }
+
   const [knowledge, disagreements, machines, tools, materials] = await Promise.all([
     db.shopKnowledge.findMany({
       where: { organizationId: user.organizationId, active: true },
@@ -158,6 +174,59 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
     redirect("/knowledge");
   }
 
+  /** WAS CANVAS RIGHT? — beta run evidence. Stored, audited, read by no engine. */
+  async function recordBetaRun(formData: FormData) {
+    "use server";
+    const currentUser = await requireUser();
+    const verdict = String(formData.get("verdict") ?? "");
+    if (!["YES", "PARTLY", "NO"].includes(verdict)) redirect("/knowledge?error=verdict");
+    const wrong = formData.getAll("wrong").map(String).filter(Boolean);
+    if (verdict !== "YES" && wrong.length === 0) redirect("/knowledge?error=categories");
+    const num = (name: string) => {
+      const v = String(formData.get(name) ?? "").trim();
+      if (v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const txt = (name: string) => String(formData.get(name) ?? "").trim() || null;
+    const row = await db.betaRunRecord.create({
+      data: {
+        organizationId: currentUser.organizationId,
+        createdById: currentUser.id,
+        machineLabel: txt("machineLabel"),
+        materialName: txt("materialName"),
+        toolNotes: txt("toolNotes"),
+        holderNotes: txt("holderNotes"),
+        workholdingNotes: txt("workholdingNotes"),
+        predictedCycleMinutes: num("predictedCycle"),
+        actualCycleMinutes: num("actualCycle"),
+        predictedLoadNote: txt("predictedLoadNote"),
+        actualLoadNote: txt("actualLoadNote"),
+        canvasRecommendation: txt("canvasRecommendation"),
+        verdict,
+        wrongCategoriesJson: JSON.stringify(wrong),
+        whatWasWrong: verdict === "YES" ? null : txt("whatWasWrong"),
+        measuredResultsNote: txt("measuredResultsNote"),
+        toolWearNote: txt("toolWearNote"),
+        chatter: formData.get("chatter") === "on" ? true : null,
+        scrapOrFailure: formData.get("scrap") === "on",
+        correctiveAction: txt("correctiveAction"),
+      },
+    });
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "BetaRunRecord",
+      entityId: row.id,
+      action: "CREATE",
+      actorType: "HUMAN",
+      field: "verdict",
+      newValue: verdict + (wrong.length ? ` — ${wrong.join(", ")}` : ""),
+      reason: "Beta run evidence recorded — was CANVAS right?",
+    });
+    redirect("/knowledge");
+  }
+
   const reviewable = new Set(["OPEN", "EVIDENCE_REQUESTED"]);
 
   return (
@@ -180,6 +249,8 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
               {error === "threshold" && "A threshold needs all four of parameter, value, unit and direction, or none of them. A number without its context is a stray value."}
               {error === "reason" && "Declining a disagreement requires a reason. The person who recorded it deserves to know why."}
               {error === "notfound" && "That disagreement was not found in this organisation."}
+              {error === "verdict" && "Pick YES, PARTLY or NO — the verdict is the machinist's call and cannot default."}
+              {error === "categories" && "PARTLY or NO needs at least one category — evidence that something was wrong without saying what teaches nothing."}
             </Notice>
           )}
 
@@ -189,6 +260,161 @@ export default async function KnowledgePage(props: { searchParams: Promise<{ err
             is also never promoted into an engineering fact — an observation across seventeen jobs is strong evidence
             about this shop and still not a published material property.
           </Notice>
+
+          {/* ---------------- WAS CANVAS RIGHT? — beta evidence -------- */}
+          <Panel
+            title="Was CANVAS right?"
+            meta={
+              <span className="flex items-center gap-2">
+                <span className="font-mono text-[10.5px] text-muted tabular-nums">
+                  {betaRuns.length === 0
+                    ? "no runs reported"
+                    : `${verdictTally.YES} yes · ${verdictTally.PARTLY} partly · ${verdictTally.NO} no`}
+                </span>
+                <StatusChip tone="review">BETA EVIDENCE</StatusChip>
+              </span>
+            }
+          >
+            <p className="mb-3 text-[11.5px] leading-relaxed text-muted">
+              One record per real run: what CANVAS predicted, what the machine actually did, and your call. This is
+              shop-scoped evidence for development — no engine reads it to change a calculation, and it never becomes
+              universal model truth.
+            </p>
+
+            {wrongTally.size > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {[...wrongTally.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => (
+                  <span key={c} className="border border-review/40 px-2 py-0.5 font-mono text-[10.5px] text-review tabular-nums">
+                    {c.replace(/_/g, " ").toLowerCase()} × {n}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <form action={recordBetaRun} className="space-y-3">
+              <fieldset>
+                <legend className="tech-label mb-1.5">The machinist&apos;s call — never inferred</legend>
+                <div className="flex gap-2">
+                  {(["YES", "PARTLY", "NO"] as const).map((v) => (
+                    <label key={v} className="flex cursor-pointer items-center gap-1.5 border border-line-strong px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-platinum-dim has-[:checked]:border-precision/60 has-[:checked]:text-precision">
+                      <input type="radio" name="verdict" value={v} required className="accent-[color:var(--c-blue)]" />
+                      {v}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend className="tech-label mb-1.5">If partly or no — what was wrong?</legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {["CYCLE_ESTIMATE", "TOOL_LOAD", "WORKHOLDING", "FEED_RECOMMENDATION", "TOOL_SELECTION", "INSPECTION", "GEOMETRY", "OTHER"].map((c) => (
+                    <label key={c} className="flex cursor-pointer items-center gap-1.5 border border-line px-2 py-1 text-[10px] uppercase tracking-[0.1em] text-muted has-[:checked]:border-review/60 has-[:checked]:text-review">
+                      <input type="checkbox" name="wrong" value={c} className="accent-[color:var(--c-amber,#b86a0a)]" />
+                      {c.replace(/_/g, " ").toLowerCase()}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Machine</span>
+                  <input name="machineLabel" placeholder="VF-2 #2" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Material</span>
+                  <input name="materialName" placeholder="6061-T6" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Tool / holder</span>
+                  <input name="toolNotes" placeholder="T3 1/2″ 3F carbide" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Predicted cycle (min)</span>
+                  <input name="predictedCycle" inputMode="decimal" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Actual cycle (min)</span>
+                  <input name="actualCycle" inputMode="decimal" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Workholding</span>
+                  <input name="workholdingNotes" placeholder="6″ vise, 0.6 grip" className={inputClass} />
+                </label>
+              </div>
+              <label className="block">
+                <span className="tech-label mb-0.5 block">What was wrong / what happened</span>
+                <textarea name="whatWasWrong" rows={2} className={`${inputClass} w-full`} placeholder="Cycle came in 40s over the estimate; corner at op 3 chattered until feed dropped to F28…" />
+              </label>
+              <details>
+                <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
+                  Full record — load, results, wear, corrective action
+                </summary>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">CANVAS predicted load</span>
+                    <input name="predictedLoadNote" placeholder="TARGET band, brief HIGH at corner" className={inputClass} />
+                  </label>
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">Actual spindle load (if observed)</span>
+                    <input name="actualLoadNote" placeholder="peaked 62% at the corner" className={inputClass} />
+                  </label>
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">CANVAS recommendation under test</span>
+                    <input name="canvasRecommendation" placeholder="raise F32→F41 on L120–160" className={inputClass} />
+                  </label>
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">Measured part results</span>
+                    <input name="measuredResultsNote" placeholder="bore +0.0002, all in tolerance" className={inputClass} />
+                  </label>
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">Tool wear notes</span>
+                    <input name="toolWearNote" className={inputClass} />
+                  </label>
+                  <label className="block">
+                    <span className="tech-label mb-0.5 block">Corrective action taken</span>
+                    <input name="correctiveAction" className={inputClass} />
+                  </label>
+                </div>
+                <div className="mt-2 flex gap-4">
+                  <label className="flex items-center gap-1.5 text-[11.5px] text-platinum-dim">
+                    <input type="checkbox" name="chatter" className="accent-[color:var(--c-blue)]" /> Chatter observed
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11.5px] text-platinum-dim">
+                    <input type="checkbox" name="scrap" className="accent-[color:var(--c-blue)]" /> Scrap / failure
+                  </label>
+                </div>
+              </details>
+              <Button type="submit" variant="primary">Record run evidence</Button>
+            </form>
+
+            {betaRuns.length > 0 && (
+              <ul className="mt-4 border-t border-line pt-1">
+                {betaRuns.slice(0, 10).map((b) => {
+                  let cats: string[] = [];
+                  try { cats = JSON.parse(b.wrongCategoriesJson) as string[]; } catch { /* shown without categories */ }
+                  return (
+                    <li key={b.id} className="border-b border-line/60 py-2 last:border-0">
+                      <div className="flex flex-wrap items-baseline gap-x-3">
+                        <StatusChip tone={b.verdict === "YES" ? "pass" : b.verdict === "PARTLY" ? "review" : "risk"}>{b.verdict}</StatusChip>
+                        <span className="font-mono text-[11px] text-muted">{b.createdAt.toISOString().slice(0, 10)}</span>
+                        {b.machineLabel && <span className="font-mono text-[11px] text-platinum-dim">{b.machineLabel}</span>}
+                        {b.materialName && <span className="font-mono text-[11px] text-muted">{b.materialName}</span>}
+                        {b.predictedCycleMinutes !== null && b.actualCycleMinutes !== null && (
+                          <span className="font-mono text-[11px] text-platinum-dim tabular-nums">
+                            est {b.predictedCycleMinutes.toFixed(1)} → ran {b.actualCycleMinutes.toFixed(1)} min
+                          </span>
+                        )}
+                        {b.scrapOrFailure && <StatusChip tone="risk">SCRAP</StatusChip>}
+                        {cats.map((c) => (
+                          <span key={c} className="text-[10px] uppercase tracking-[0.1em] text-review">{c.replace(/_/g, " ").toLowerCase()}</span>
+                        ))}
+                      </div>
+                      {b.whatWasWrong && <p className="mt-0.5 text-[12px] leading-relaxed text-platinum-dim">{b.whatWasWrong}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
 
           {frictionRows.length > 0 && (
             <Panel title="Guide friction" meta={<span className="tech-label">{starts} flow starts · {completes} completions</span>}>

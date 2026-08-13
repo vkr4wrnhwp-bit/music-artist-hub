@@ -1588,3 +1588,50 @@ model RotationalPart {
 
   @@index([organizationId])
 }
+
+// BETA RUN EVIDENCE — did reality agree with CANVAS?
+//
+// One record per real run a machinist chose to report: what CANVAS
+// predicted/recommended, what the machine and the part actually did, and
+// the machinist's verdict. Shop-scoped evidence only: no engine reads
+// this table to change a calculation, and it never becomes universal
+// model truth — it exists so patterns of "CANVAS was wrong about X" are
+// visible to the shop and to development.
+model BetaRunRecord {
+  id             String @id @default(cuid())
+  organizationId String
+  partRevisionId String?
+  ncProgramId    String?
+
+  machineLabel     String?
+  materialName     String?
+  toolNotes        String?
+  holderNotes      String?
+  workholdingNotes String?
+
+  predictedCycleMinutes Float?
+  actualCycleMinutes    Float?
+  predictedLoadNote     String?
+  actualLoadNote        String?
+  canvasRecommendation  String?
+
+  // YES | PARTLY | NO — the machinist's call, never inferred.
+  verdict String
+  // JSON string[] of category codes when verdict is PARTLY/NO:
+  // CYCLE_ESTIMATE TOOL_LOAD WORKHOLDING FEED_RECOMMENDATION
+  // TOOL_SELECTION INSPECTION GEOMETRY OTHER
+  wrongCategoriesJson String  @default("[]")
+  whatWasWrong        String?
+
+  measuredResultsNote String?
+  toolWearNote        String?
+  chatter             Boolean?
+  scrapOrFailure      Boolean @default(false)
+  correctiveAction    String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([partRevisionId])
+}
