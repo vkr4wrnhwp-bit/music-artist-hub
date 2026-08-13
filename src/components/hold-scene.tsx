@@ -19,11 +19,15 @@ export function HoldScene({
   gripDepth,
   stockProjection,
   peakForceLbf,
+  governingMode = null,
 }: {
   stockX: number | null;
   gripDepth: number | null;
   stockProjection: number | null;
   peakForceLbf: number | null;
+  /** How the hold would fail, from the force balance — draws the load
+      vector the way it actually acts. Null falls back to a plain arrow. */
+  governingMode?: "SLIDING" | "TIPPING" | null;
 }) {
   const W = 280, H = 190;
   if (stockX === null || gripDepth === null || stockProjection === null) {
@@ -78,8 +82,34 @@ export function HoldScene({
       {/* Clamp force arrows into the jaws */}
       <line x1={x0 - jawW - 4} y1={(yJawTop + yBottom) / 2} x2={x0 - 4} y2={(yJawTop + yBottom) / 2} stroke={JAW} strokeWidth={1.4} markerEnd="url(#holdArrow)" />
       <line x1={x0 + sw + jawW + 4} y1={(yJawTop + yBottom) / 2} x2={x0 + sw + 4} y2={(yJawTop + yBottom) / 2} stroke={JAW} strokeWidth={1.4} markerEnd="url(#holdArrow)" />
-      {/* Peak cutting force where it acts — only when a real estimate exists */}
-      {peakForceLbf !== null && (
+      {/* Peak cutting force drawn the way the balance says it acts —
+          lateral shove for a sliding-governed hold, a corner pry for a
+          tipping-governed one, plain vertical when the mode is unknown. */}
+      {peakForceLbf !== null && governingMode === "SLIDING" && (
+        <g>
+          <line x1={x0 - 26} y1={yTop + 5} x2={x0 - 6} y2={yTop + 5} stroke={BLUE} strokeWidth={1.6} markerEnd="url(#holdArrowBlue)" />
+          <text x={x0 + 2} y={yTop - 8} fontSize={9} fill={BLUE} fontFamily="monospace">
+            {peakForceLbf.toFixed(0)} lbf peak — tries to slide the part in the jaws
+          </text>
+        </g>
+      )}
+      {peakForceLbf !== null && governingMode === "TIPPING" && (
+        <g>
+          <line x1={x0 - 22} y1={yTop - 14} x2={x0 - 4} y2={yTop + 2} stroke={BLUE} strokeWidth={1.6} markerEnd="url(#holdArrowBlue)" />
+          <path
+            d={`M ${x0 + 14} ${yTop - 10} A 16 16 0 0 1 ${x0 + 30} ${yTop + 2}`}
+            fill="none"
+            stroke={BLUE}
+            strokeWidth={0.9}
+            markerEnd="url(#holdArrowBlue)"
+            opacity={0.7}
+          />
+          <text x={x0 + 36} y={yTop - 8} fontSize={9} fill={BLUE} fontFamily="monospace">
+            {peakForceLbf.toFixed(0)} lbf peak — tries to roll the part out of the jaws
+          </text>
+        </g>
+      )}
+      {peakForceLbf !== null && governingMode === null && (
         <g>
           <line x1={x0 + sw * 0.5} y1={yTop - 22} x2={x0 + sw * 0.5} y2={yTop - 4} stroke={BLUE} strokeWidth={1.6} markerEnd="url(#holdArrowBlue)" />
           <text x={x0 + sw * 0.5 + 6} y={yTop - 12} fontSize={9} fill={BLUE} fontFamily="monospace">

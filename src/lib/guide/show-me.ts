@@ -12,7 +12,7 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
     stock: `/parts/${partId}?guide=define-stock`,
     machine: `/parts/${partId}?guide=define-stock`,
     material: `/parts/${partId}?guide=context-part`,
-    workholding: `/parts/${partId}?guide=context-hold`,
+    workholding: `/parts/${partId}/setups?guide=hold-scene`,
     tools: `/parts/${partId}/tooling?guide=tool-assignment`,
     reach: `/parts/${partId}/tooling?guide=tool-assignment`,
     corners: `/parts/${partId}/tooling?guide=tool-assignment`,

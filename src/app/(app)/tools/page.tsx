@@ -25,6 +25,7 @@ export default async function ToolCribPage() {
             action={{ label: "Add tool", href: "/tools/new" }}
           />
         ) : (
+          <div data-guide-target="tool-crib">
           <Panel title={`${tools.length} tools`} dense>
             <Table head={["T#", "Class", "Description", "⌀", "Flutes", "Reach", "Chipload", "SFM", "Holder", "Life"]}>
               {tools.map((t) => (
@@ -51,6 +52,7 @@ export default async function ToolCribPage() {
               ))}
             </Table>
           </Panel>
+          </div>
         )}
       </main>
     </>

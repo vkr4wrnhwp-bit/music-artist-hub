@@ -1285,3 +1285,25 @@ band view is unchanged. The source-level −/+ diff remains below.
 Browser-verified on the demo: stat strip reads 2:13 → 2:09, 4 s,
 both NOs with their reasons; overlay strokes counted 2 raise-blue,
 1 protected-green, 16 neutral.
+
+## Post-Phase 5 — §13 special SHOW ME scenes
+
+Workholding load direction: the hold scene now draws the peak cutting
+force the way the force balance says the hold would fail — a lateral
+arrow "tries to slide the part in the jaws" when sliding governs, a
+corner pry with a rotation arc "tries to roll the part out of the
+jaws" when tipping governs, a plain arrow when the mode is unknown.
+The readiness workholding SHOW ME now lands on the setups hold scene
+(new hold-scene coach anchor) instead of the abstract HOLD tab.
+
+Missing tool/holder data: analyzer LOAD gaps now carry a named fix —
+"No tool record for T99" gets an ADD THE TOOL link to the tool crib
+(new tool-crib coach anchor on /tools); a missing-stock gap gets
+DEFINE STOCK to the workspace control. The gap text itself still
+names exactly what is absent; the link only takes you to where it is
+entered.
+
+Browser-verified: both force vectors render on Bearing Support's two
+setups (sliding on setup 1, tipping on setup 2); an uploaded program
+calling T99 produced the gap with the ADD THE TOOL link routed to
+/tools?guide=tool-crib.

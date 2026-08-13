@@ -382,9 +382,25 @@ export function NcAnalyzer({ partId }: { partId: string }) {
           >
             {r.load.gaps.length > 0 && (
               <ul className="border-b border-line px-4 py-2">
-                {r.load.gaps.map((g) => (
-                  <li key={g} className="text-[11.5px] leading-relaxed text-review">— {g}</li>
-                ))}
+                {/* Each gap names exactly what is missing — and where to
+                    enter it, with a coach mark waiting on arrival. */}
+                {r.load.gaps.map((g) => {
+                  const fix = /T\d+/.test(g)
+                    ? { href: "/tools?guide=tool-crib", label: "Add the tool" }
+                    : /stock/i.test(g)
+                      ? { href: `/parts/${partId}?guide=define-stock`, label: "Define stock" }
+                      : null;
+                  return (
+                    <li key={g} className="flex items-baseline gap-2 text-[11.5px] leading-relaxed text-review">
+                      <span className="min-w-0 flex-1">— {g}</span>
+                      {fix && (
+                        <a href={fix.href} className="shrink-0 border border-precision/50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:bg-precision/10">
+                          {fix.label}
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {r.load.proposals.length === 0 ? (

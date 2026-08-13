@@ -39,6 +39,7 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
             Setup planning
           </SectionHeading>
 
+          <div data-guide-target="hold-scene" className="space-y-6">
           {pkg.setups.length === 0 ? (
             <EmptyState title="No setups" body="A part needs at least one setup before operations can be planned against a machine and workholding." />
           ) : (
@@ -66,6 +67,7 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
                         gripDepth={s.gripDepth}
                         stockProjection={s.stockProjection}
                         peakForceLbf={a?.forceEstimate.ok ? a.forceEstimate.peakTangential : null}
+                        governingMode={a?.holdingMargin?.governingMode ?? null}
                       />
                     </div>
                     <div>
@@ -211,6 +213,7 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
               );
             })
           )}
+          </div>
 
           <div className="flex gap-2">
             <LinkButton href={`/parts/${id}/soft-jaws`} size="sm" variant="primary">
