@@ -121,23 +121,23 @@ const ORANGE = '#ff6a00';
 export function TraceIcon({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-label="TRACE" role="img">
-      {/* top bar (tilted up to the right) + rounded left corner + start of the 45° diagonal */}
+      {/* top bar (tilted up to the right) + rounded left corner into the join diagonal */}
       <path
-        d="M 74 16 L 20 26 Q 9 28 13 35.5 L 20 42.5"
+        d="M 76 18.5 L 20 27.5 Q 11 29.5 14.5 37 L 18 41.5"
         fill="none" stroke={INK} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
       />
-      {/* orange apex dash sits in the break, high on the diagonal */}
-      <path d="M 25.5 48 L 30 52.5" fill="none" stroke={ORANGE} strokeWidth="11" strokeLinecap="round" />
-      {/* long diagonal sweeping down-right + hairpin turning back to the bottom node */}
+      {/* orange apex dash breaks the join diagonal */}
+      <path d="M 22.5 46.5 L 26.5 51" fill="none" stroke={ORANGE} strokeWidth="11" strokeLinecap="round" />
+      {/* rest of the join + rounded knee + long italic stem falling down-left to the node */}
       <path
-        d="M 35.5 58 L 45.5 68 Q 53.5 76 45 84"
+        d="M 30.5 55.5 L 33 58.5 Q 36.5 62.5 35.5 67 L 32.5 80.5"
         fill="none" stroke={INK} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
       />
       {/* track nodes: orange rings, dark centres */}
-      <circle cx="82" cy="14.5" r="8.5" fill={ORANGE} />
-      <circle cx="82" cy="14.5" r="3.6" fill="#0b0d10" />
-      <circle cx="36" cy="90" r="8.5" fill={ORANGE} />
-      <circle cx="36" cy="90" r="3.6" fill="#0b0d10" />
+      <circle cx="83.5" cy="17" r="8.5" fill={ORANGE} />
+      <circle cx="83.5" cy="17" r="3.6" fill="#0b0d10" />
+      <circle cx="30.5" cy="88.5" r="8.5" fill={ORANGE} />
+      <circle cx="30.5" cy="88.5" r="3.6" fill="#0b0d10" />
     </svg>
   );
 }
@@ -148,27 +148,27 @@ export function TraceIcon({ size = 30 }: { size?: number }) {
  * stays parallel. The E has no white top arm: the orange bar above it is
  * part of the letter.
  */
-export function TraceWordmark({ height = 16, color = INK }: { height?: number; color?: string }) {
-  const W = 505;
+export function TraceWordmark({ height = 15, color = INK }: { height?: number; color?: string }) {
+  const W = 560;
   return (
     <svg height={height} width={height * (W / 100)} viewBox={`0 0 ${W} 100`} aria-label="TRACE" role="img">
       <g transform="translate(26 0) skewX(-14)">
-        {/* T */}
-        <path fill={color} d="M0 0 H76 V22 H50 V100 H26 V22 H0 Z" />
-        {/* R — angular bowl with counter, leg to the baseline */}
-        <path fill={color} fillRule="evenodd" d="M90 0 H152 L166 13 V41 L152 54 H90 Z M114 20 V34 H142 V20 Z" />
-        <path fill={color} d="M90 54 H114 V100 H90 Z" />
-        <path fill={color} d="M126 54 H146 L168 100 H142 Z" />
-        {/* A — flattened apex, low crossbar */}
+        {/* T — wide bar, centred stem */}
+        <path fill={color} d="M0 0 H90 V22 H57 V100 H33 V22 H0 Z" />
+        {/* R — angular bowl with counter, leg kicking to the baseline */}
+        <path fill={color} fillRule="evenodd" d="M108 0 H172 L188 14 V40 L172 54 H108 Z M132 20 V34 H164 V20 Z" />
+        <path fill={color} d="M108 54 H132 V100 H108 Z" />
+        <path fill={color} d="M146 54 H168 L192 100 H164 Z" />
+        {/* A — near-pointed apex, low crossbar */}
         <path
           fill={color} fillRule="evenodd"
-          d="M208 0 H236 L268 100 H244 L238 81 H206 L200 100 H176 Z M217 24 L207 61 H237 L227 24 Z"
+          d="M246 0 H272 L306 100 H281 L275 81 H241 L235 100 H212 Z M258 22 L245 62 H271 L259 22 Z"
         />
-        {/* C — squared, open right */}
-        <path fill={color} d="M282 14 L296 0 H358 V22 H306 V78 H358 V100 H296 L282 86 Z" />
-        {/* E — spine + mid + bottom in ink; the top arm is the orange bar */}
-        <path fill={color} d="M372 26 H396 V40 H438 V60 H396 V78 H446 V100 H372 Z" />
-        <path fill={ORANGE} d="M386 0 H462 V19 H386 Z" />
+        {/* C — open right, chamfered outer corners */}
+        <path fill={color} d="M326 16 L342 0 H404 V22 H352 V78 H404 V100 H342 L326 84 Z" />
+        {/* E — spine + mid + bottom in ink; the top arm is the orange speed bar */}
+        <path fill={color} d="M424 26 H448 V40 H494 V60 H448 V78 H502 V100 H424 Z" />
+        <path fill={ORANGE} d="M440 0 H520 V19 H440 Z" />
       </g>
     </svg>
   );
