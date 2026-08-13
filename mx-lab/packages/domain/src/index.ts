@@ -19,3 +19,4 @@ export * from './intelligence';
 export * from './knowledge';
 export * from './raceOps';
 export * from './syncEngine';
+export * from './telemetryImport';

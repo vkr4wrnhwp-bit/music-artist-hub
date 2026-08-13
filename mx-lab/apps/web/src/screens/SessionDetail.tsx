@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  appendAudit, buildRecommendation, compareSessions, pathPoint, simulateSession,
+  appendAudit, buildImportedTrace, buildRecommendation, compareSessions,
+  parseTelemetryCsv, pathPoint, simulateSession,
   telemetrySupportsPreference, transitionRevision, whatChanged, type EventMarker,
   type MarkerCategory, type RiderFeedback, type Session,
 } from '@mxlab/domain';
@@ -163,8 +164,11 @@ function WhatChangedPanel({ session }: { session: Session }) {
 // ------------------------------------------------------------- telemetry
 
 function TelemetryTab({ session }: { session: Session }) {
-  const { db } = useApp();
+  const { db, user, update, allowed } = useApp();
   useThemeVersion();
+  const [importMsg, setImportMsg] = useState('');
+  const imported = db.importedTraces?.[session.id];
+  const canImport = allowed('telemetry.configure');
   const sim = simulateSession(db, session);
   const markers = db.markers.filter((m) => m.sessionId === session.id);
   const [chans, setChans] = useState<string[]>(['rpm', 'tps', 'slip']);
@@ -178,6 +182,71 @@ function TelemetryTab({ session }: { session: Session }) {
 
   return (
     <div>
+      <Panel
+        title="Data source"
+        actions={imported
+          ? <Pill tone="good">IMPORTED — MEASURED DATA</Pill>
+          : <Pill tone="sim">SIMULATION</Pill>}
+      >
+        {imported ? (
+          <>
+            <p style={{ margin: 0, fontSize: 13.5 }}>
+              <span className="mono">{imported.sourceName}</span> · {imported.samples.toLocaleString()} samples
+              at {imported.hz} Hz · channels: {imported.channelNames.join(', ')} · {imported.laps.length} lap
+              {imported.laps.length === 1 ? ' span' : 's'}
+            </p>
+            <p className="hint" style={{ margin: '4px 0 8px' }}>
+              Imported {new Date(imported.importedAt).toLocaleString()} by{' '}
+              {db.users.find((u) => u.id === imported.byUserId)?.name ?? imported.byUserId}. Channels the
+              file did not carry stay flat at zero — nothing is invented. All analysis on this session
+              runs on the measured trace.
+            </p>
+            {canImport && (
+              <button className="btn small danger" onClick={() => update((d) => {
+                delete d.importedTraces[session.id];
+                appendAudit(d, user!.id, 'telemetry.importRemove', 'Session', session.id,
+                  'Imported telemetry removed — session reverts to the labeled simulation.');
+              })}>Remove imported data (revert to simulation)</button>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="hint" style={{ marginTop: 0 }}>
+              This session's trace is the labeled simulation. Import a logger CSV to replace it with
+              measured data — accepted columns include time, rpm, throttle/tps, speed (kph or mph),
+              gear, coolant, iat, voltage, clutch, and an optional lap column.
+            </p>
+            {canImport ? (
+              <label className="btn small" style={{ display: 'inline-block', cursor: 'pointer' }}>
+                Import telemetry CSV
+                <input
+                  type="file" accept=".csv,text/csv" style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    try {
+                      const parsed = parseTelemetryCsv(await file.text());
+                      update((d) => {
+                        d.importedTraces[session.id] = buildImportedTrace(
+                          parsed, file.name, user!.id, new Date().toISOString(),
+                        );
+                        appendAudit(d, user!.id, 'telemetry.import', 'Session', session.id,
+                          `Measured telemetry imported from ${file.name}: ${parsed.samples} samples, `
+                          + `channels ${parsed.channelNames.join('/')}.`);
+                      });
+                      setImportMsg(parsed.warnings.length ? `Imported. ${parsed.warnings.join(' ')}` : 'Imported.');
+                    } catch (err) {
+                      setImportMsg(`Import failed: ${(err as Error).message}`);
+                    }
+                  }}
+                />
+              </label>
+            ) : <p className="hint">A data engineer or org admin imports measured telemetry.</p>}
+            {importMsg && <p className="hint" style={{ marginTop: 8 }}>{importMsg}</p>}
+          </>
+        )}
+      </Panel>
       <Panel title="Channels">
         <div className="btn-row">
           {all.map(([id, label]) => {
@@ -197,7 +266,7 @@ function TelemetryTab({ session }: { session: Session }) {
           <b> caps AI confidence</b> — bad telemetry never silently shapes a conclusion.
         </Help>
       </Panel>
-      <Panel title={`Trace — ${session.durationS}s at ${sim.hz} Hz (downsampled for display; full resolution retained for analysis)`}>
+      <Panel title={`Trace — ${Math.round(sim.t[sim.t.length - 1] ?? session.durationS)}s at ${sim.hz} Hz · ${imported ? 'measured (imported)' : 'simulated'} — downsampled for display`}>
         <LineChart
           t={sim.t}
           series={chans.map((c) => {

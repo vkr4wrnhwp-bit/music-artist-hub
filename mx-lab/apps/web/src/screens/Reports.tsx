@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { appendAudit, compareSessions, exportDb, importDb, simulateSession } from '@mxlab/domain';
 import { useApp } from '../state';
-import { download, Help, Panel, Pill, Prov } from '../ui';
+import { download, Help, Panel, Pill, Prov, TraceWordmark } from '../ui';
 import { AuditList } from './BikeProfile';
 
 export function Reports() {
@@ -13,6 +13,10 @@ export function Reports() {
 
   return (
     <div>
+      {/* one-color black wordmark is a sanctioned print application */}
+      <div className="print-only" style={{ marginBottom: 10 }}>
+        <TraceWordmark height={18} color="#000" />
+      </div>
       <div className="page-title">
         <h1>Reports</h1>
         <span className="sub">printable, exportable, and always labeled with provenance</span>
