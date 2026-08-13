@@ -13,15 +13,32 @@ Banner shown on every screen: `SIMULATED DEMONSTRATION DATA — NOT A VALID TUNE
 cd mx-lab
 npm install
 npm run dev        # dev server
-npm test           # 34 domain unit tests (vitest)
-npm run typecheck  # strict TS across both packages
+npm test           # 76 tests: domain units + sync engine + server integration
+npm run typecheck  # strict TS across all three packages
 npm run build      # single-file offline build → apps/web/dist/index.html
+npm run server     # optional self-hosted team sync server (default :8787)
 ```
 
 The production build is **one self-contained HTML file** — open it from disk,
 no server or connection needed. All data persists in the browser
 (localStorage); use Reports → “Export full archive” to move a team database
 between machines.
+
+## Team sync server (optional, self-hosted)
+
+The app is local-first and never requires a connection. `npm run server`
+starts the persistence backend: a dependency-free Node server that stores
+each org's database as a revisioned snapshot plus binary telemetry chunks on
+disk, behind HMAC-signed bearer tokens. Devices connect from **More → Team
+Sync**; sync is pull → merge → push with optimistic concurrency, and the
+server never merges silently — divergent approvals, decisions, debriefs, and
+TRACE Focus land in an on-screen conflict queue for a person to resolve.
+Remote-tuner grant tokens are enforced server-side: the server redacts the
+database down to the grant's bike scope and permissions before it ever
+leaves the machine. Identity issuance is **DEMO** (no passwords — the swap
+point for a real IdP is `POST /auth/login`), and storage sits behind a
+swappable `ServerStore` interface (file-backed today; a hosted document/blob
+store drops in without touching routes).
 
 ## Layout
 
@@ -30,6 +47,8 @@ packages/domain    typed models + pure engines (permissions, readiness,
                    compatibility, map workflow, audit, provenance, simulator,
                    AI race engineer, Start Lab, sync policy, hardware adapters)
 apps/web           React PWA (Vite) — all modules, offline-first
+apps/server        self-hosted sync server (auth, snapshots, telemetry chunks,
+                   grant-scoped redaction) — zero runtime dependencies
 docs/architecture  system + data-flow + storage + sync strategy
 docs/safety        safety boundary (passive-only, AI-never list)
 docs/vortex        integration boundary + Phase 4 direct-integration plan

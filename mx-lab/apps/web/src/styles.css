@@ -82,6 +82,10 @@ nav.main a {
 nav.main a:hover { color: var(--ink); background: var(--raised); text-decoration: none; }
 nav.main a.active { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); border-radius: 8px 8px 0 0; }
 .userbox { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
+@media (max-width: 1080px) {
+  .app-inner { gap: 14px; }
+  .userbox .rolechip { display: none; }
+}
 
 /* mobile bottom tab bar */
 nav.tabbar { display: none; }

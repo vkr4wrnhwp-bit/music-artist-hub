@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 import {
   createSeededDb, LocalStoragePort, type Action, type Db, type User, can,
 } from '@mxlab/domain';
+import { maybeAutoSync } from './syncClient';
 
 interface AppState {
   db: Db;
@@ -32,6 +33,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     fn(db);
     port.save(db);
     setVersion((v) => v + 1);
+    // opportunistic background sync when the team server is configured
+    maybeAutoSync(db, () => { port.save(db); setVersion((v) => v + 1); });
   }, [db]);
 
   const signIn = useCallback((id: string) => {
