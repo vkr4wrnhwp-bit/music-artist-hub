@@ -1227,3 +1227,21 @@ Evidence: 176/176 engine tests, production build clean, zero
 horizontal overflow at 1280×800 and 1440×900 across the ten
 redesigned routes, and per-feature live browser checks recorded
 above.
+
+## Post-Phase 5 — Setups page object-first (truth-audit follow-up)
+
+The truth audit named the setups page the screen most like internal
+engineering software. It now leads with the hold itself: a new
+hold-scene.tsx side elevation on the light ground — jaws gripping the
+stock, grip depth and stock projection dimensioned from their real
+recorded values, clamp arrows, and the peak cutting force drawn where
+it acts (only when the estimate exists; a missing input renders
+"cannot draw the hold — <input> not recorded" instead of a fake
+drawing). The holding margin is the dominant number beside it, with
+its governing failure mode and the DEVELOPMENT ANALYSIS label. The
+full force-balance and cutting-force calculations remain openable via
+SHOW CALCULATION exactly as before; no engine changed.
+
+Browser-verified on Bearing Support: 2 hold scenes, 2 margin
+headlines (7.70× sliding / 8.56× tipping), 4 dimension callouts,
+2 peak-force arrows (221 lbf).

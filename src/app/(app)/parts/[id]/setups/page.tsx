@@ -6,6 +6,7 @@ import { RISK_LABEL } from "@/lib/engines/workholding";
 import { ShowCalculation, MissingInputs } from "@/components/show-calculation";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
+import { HoldScene } from "@/components/hold-scene";
 import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 /**
@@ -56,15 +57,37 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
                   title={s.name}
                   meta={<StatusChip tone={tone}>{a ? RISK_LABEL[a.level] : "Not assessed"}</StatusChip>}
                 >
-                  <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
-                    <DataRow label="Orientation" value={s.orientation} />
-                    <DataRow label="Work offset" value={s.workOffset} />
-                    <DataRow label="Machine" value={s.machine ? `${s.machine.manufacturer} ${s.machine.model}` : "Not assigned"} />
-                    <DataRow label="Workholding" value={s.workholding?.description ?? "Not defined"} />
-                    <DataRow label="Grip depth" value={s.gripDepth != null ? `${s.gripDepth.toFixed(3)}″` : "—"} tone={tone === "risk" ? "risk" : undefined} />
-                    <DataRow label="Stock projection" value={s.stockProjection != null ? `${s.stockProjection.toFixed(3)}″` : "—"} />
-                    <DataRow label="Tool changes" value={String(toolChanges)} />
-                    <DataRow label="Estimated cycle" value={`${minutes.toFixed(2)} min`} />
+                  {/* The hold is the object: the drawing carries grip,
+                      projection and the peak force where it acts. */}
+                  <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+                    <div className="h-[190px]">
+                      <HoldScene
+                        stockX={pkg.revision.stock ? pkg.revision.stock.x : null}
+                        gripDepth={s.gripDepth}
+                        stockProjection={s.stockProjection}
+                        peakForceLbf={a?.forceEstimate.ok ? a.forceEstimate.peakTangential : null}
+                      />
+                    </div>
+                    <div>
+                      {a?.holdingMargin?.margin != null ? (
+                        <p className="mb-2">
+                          <span className="font-mono text-[26px] text-white tabular-nums">{a.holdingMargin.margin.toFixed(2)}×</span>
+                          <span className="ml-2 text-[11.5px] text-muted">holding margin against a 2.00× target · {a.holdingMargin.governingMode === "TIPPING" ? "governed by rolling out of the jaws" : "governed by sliding in the jaws"} · DEVELOPMENT ANALYSIS</span>
+                        </p>
+                      ) : (
+                        <p className="mb-2 text-[12.5px] text-review">
+                          Holding margin not calculable — {a?.missingInputs.join("; ") ?? "workholding not assessed"}
+                        </p>
+                      )}
+                      <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                        <DataRow label="Orientation" value={s.orientation} />
+                        <DataRow label="Work offset" value={s.workOffset} />
+                        <DataRow label="Machine" value={s.machine ? `${s.machine.manufacturer} ${s.machine.model}` : "Not assigned"} />
+                        <DataRow label="Workholding" value={s.workholding?.description ?? "Not defined"} />
+                        <DataRow label="Tool changes" value={String(toolChanges)} />
+                        <DataRow label="Estimated cycle" value={`${minutes.toFixed(2)} min`} />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Holding margin — the force balance, not the rule of thumb */}
