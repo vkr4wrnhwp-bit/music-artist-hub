@@ -491,17 +491,36 @@ def team(me):
         target = request.form.get("user_id")
         if action == "add":
             name = (request.form.get("name") or "").strip()
+            email = (request.form.get("email") or "").strip().lower()
+            role = request.form.get("role") or "member"
             if name:
-                desk_store.add_user(request.form.get("email"), name,
-                                    request.form.get("role") or "member")
-                desk_store.log_activity(me, "user_added", "user", None,
-                                        {"name": name})
+                # Adding an email that is already on the roster updates
+                # that row instead of crashing into the UNIQUE constraint:
+                # the owner's intent - "this address, this role" - is the
+                # same either way.
+                existing = (desk_store.get_user_by_email(email)
+                            if email else None)
+                if existing:
+                    desk_store.set_user_role(existing["id"], role)
+                    desk_store.set_user_status(existing["id"], "active")
+                    desk_store.log_activity(me, "user_role_changed", "user",
+                                            existing["id"], {"role": role})
+                else:
+                    desk_store.add_user(email, name, role)
+                    desk_store.log_activity(me, "user_added", "user", None,
+                                            {"name": name})
         elif action == "role" and target and target != me["id"]:
             desk_store.set_user_role(target, request.form.get("role") or "")
             desk_store.log_activity(me, "user_role_changed", "user", target,
                                     {"role": request.form.get("role")})
-        elif action == "email" and target:
-            desk_store.set_user_email(target, request.form.get("email"))
+        elif action == "email" and target and target != me["id"]:
+            email = (request.form.get("email") or "").strip().lower()
+            # Refuse to move an email that belongs to a different row.
+            holder = desk_store.get_user_by_email(email) if email else None
+            if holder is None or holder["id"] == target:
+                desk_store.set_user_email(target, email)
+                desk_store.log_activity(me, "user_email_set", "user", target,
+                                        {"email": email})
         elif action == "status" and target and target != me["id"]:
             desk_store.set_user_status(target,
                                        request.form.get("status") or "")
@@ -509,8 +528,16 @@ def team(me):
             desk_store.remove_user(target)
             desk_store.log_activity(me, "user_removed", "user", target, {})
         return redirect(url_for("desk.team"))
+    users = desk_store.list_users()
+    # Authorization is only half the door: the person also needs a
+    # Street Banker login with that exact address. Saying which half is
+    # missing is the difference between a fix and a mystery.
+    linked = {}
+    for row in users:
+        linked[row["id"]] = (bool(store.get_user_by_email(row["email"]))
+                             if row["email"] else False)
     return render_template("desk/team.html",
-                           **_ctx(me, users=desk_store.list_users()))
+                           **_ctx(me, users=users, linked=linked))
 
 
 @bp.route("/activity")

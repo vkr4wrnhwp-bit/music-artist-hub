@@ -237,6 +237,61 @@ def test_owner_export_is_csv_with_the_leads_in_it(owner):
     assert "(sample)" in response.get_data(as_text=True)
 
 
+def test_adding_the_same_email_twice_updates_instead_of_crashing(owner):
+    """The bug as reported: 'the admin emails i add to desk dont allow
+    them access'. One real failure behind it - re-adding an email hit
+    the UNIQUE constraint and answered 500."""
+    email = "twice-%s@example.net" % uuid.uuid4().hex[:8]
+    assert owner.post(DESK + "/team", data={
+        "action": "add", "name": "Twice Added", "email": email,
+        "role": "admin"}).status_code == 302
+    assert desk_store.get_user_by_email(email)["role"] == "admin"
+    # The second add is an update, not a crash.
+    assert owner.post(DESK + "/team", data={
+        "action": "add", "name": "Twice Added", "email": email,
+        "role": "viewer"}).status_code == 302
+    assert desk_store.get_user_by_email(email)["role"] == "viewer"
+
+
+def test_team_page_says_whether_the_sign_in_account_exists(flask_app, owner):
+    """Authorizing an email is half the door; the app login is the other
+    half. The roster now says which half is missing."""
+    email = "unlinked-%s@example.net" % uuid.uuid4().hex[:8]
+    owner.post(DESK + "/team", data={"action": "add", "name": "Un Linked",
+                                     "email": email, "role": "admin"})
+    body = owner.get(DESK + "/team").get_data(as_text=True)
+    assert "no account yet" in body
+    # The moment they sign up with that address, the page says so.
+    _signed_client(flask_app, email, "Un Linked")
+    body = owner.get(DESK + "/team").get_data(as_text=True)
+    row = body[body.find(email):body.find(email) + 1200]
+    assert "account linked" in row
+
+
+def test_owner_attaches_a_sign_in_email_to_a_seeded_name(owner):
+    lj = [u for u in desk_store.list_users() if u["name"] == "LJ"][0]
+    email = "lj-%s@example.net" % uuid.uuid4().hex[:8]
+    owner.post(DESK + "/team", data={"action": "email", "user_id": lj["id"],
+                                     "email": email})
+    assert desk_store.get_user_by_email(email)["id"] == lj["id"]
+    # An email held by another row cannot be moved onto this one.
+    warren = [u for u in desk_store.list_users() if u["name"] == "Warren"][0]
+    owner.post(DESK + "/team", data={"action": "email",
+                                     "user_id": warren["id"], "email": email})
+    assert desk_store.get_user_by_email(email)["id"] == lj["id"]
+
+
+def test_added_admin_can_actually_get_in_after_signing_up(flask_app, owner):
+    """The whole reported flow, end to end: owner adds the email, the
+    person creates their Street Banker account with it afterwards, and
+    the Desk opens."""
+    email = "late-signup-%s@example.net" % uuid.uuid4().hex[:8]
+    owner.post(DESK + "/team", data={"action": "add", "name": "Late Signup",
+                                     "email": email, "role": "admin"})
+    late = _signed_client(flask_app, email, "Late Signup")
+    assert late.get(DESK).status_code == 200
+
+
 def test_team_page_adds_people_and_protects_the_owner_from_themselves(
         owner, owner_email):
     name = "Added %s" % uuid.uuid4().hex[:6]
