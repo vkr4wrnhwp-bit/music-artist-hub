@@ -79,9 +79,8 @@ def get_landing_config():
                 "tall": "/static/img/hero-band-tall",
                 "wide_widths": [900, 1100, 1342],
                 "tall_widths": [640, 900],
-                "alt": ("Four-piece band in the dark backline of a venue: "
-                        "the frontman in a denim jacket up front, flanked "
-                        "by two masked members and a hooded bandmate."),
+                "alt": ("Band rehearsing while release artwork is "
+                        "developed inside a working music studio."),
             },
         },
 
