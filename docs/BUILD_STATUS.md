@@ -1363,3 +1363,24 @@ no stock), dashed outline, on the same paper ground.
 Browser-verified at 390px: no-geometry tile renders with its label,
 fade mask computed on the trail, readiness page showing the dominant
 blocker with SHOW ME/RESOLVE cleanly at phone width.
+
+## Bug fixes — responsibility profile completion + view background
+
+Engineering-input gate could never be satisfied from the UI: for a
+critical part it requires material condition, surface finish and
+inspection requirements, but no form wrote those intent fields, and
+recorded unknowns counted as outstanding inputs with no way to
+resolve them. The responsibility profile now carries all three fields
+(written USER-confirmed only when provided — blank stays blank) and
+lists open unknowns with explicit per-item resolution checkboxes, all
+audited. Verified live: filling the profile on Bearing Support took
+Engineering input to PASS, and answering HIGH consequence correctly
+escalated the part to CRITICAL APPLICATION with its review gate —
+the gate got satisfied by real inputs, not weakened.
+
+View environment background never applied: the scene background was
+attached once at canvas construction (<color attach>), so preset and
+custom background changes silently did nothing. Replaced with an
+imperative SceneBackground that follows the value every change.
+Verified live: Dark Machine Bay preset and custom hexes now repaint
+the scene immediately.

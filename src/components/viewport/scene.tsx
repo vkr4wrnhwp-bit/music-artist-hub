@@ -135,6 +135,16 @@ const BLUE = "#0b72ff";
 const EnvCtx = createContext<ViewEnvironment>(DEFAULT_ENVIRONMENT);
 const useEnv = () => useContext(EnvCtx);
 
+
+/** Applies the environment background to the live scene whenever it changes. */
+function SceneBackground({ color }: { color: string }) {
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    scene.background = new THREE.Color(color);
+  }, [scene, color]);
+  return null;
+}
+
 /** Mix a line colour toward the background so "intensity" reads as strength. */
 function withOpacityToward(color: string, background: string, strength: number): string {
   const c = new THREE.Color(background).lerp(new THREE.Color(color), Math.min(1, Math.max(0, strength)));
@@ -175,7 +185,10 @@ export function Viewport(props: ViewportProps) {
       {/* A soft studio rather than a void. Product photography wants a bright
           environment with a clear key, a fill that keeps the shadow side
           readable, and a rim that separates the part from the ground. */}
-      <color attach="background" args={[props.env?.background ?? WORK_WINDOW]} />
+      {/* Imperative, not <color attach> — attach runs at construction, so a
+          changed background hex from the View environment drawer was never
+          re-applied to the live scene. This follows the prop every render. */}
+      <SceneBackground color={props.env?.background ?? WORK_WINDOW} />
       <hemisphereLight args={["#ffffff", "#d2d5d1", 1.0]} />
       <ambientLight intensity={0.25} />
       {/* Key, fill, rim. Metal needs something to reflect or it reads as clay,

@@ -115,9 +115,28 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     if (data.temperatureMin !== null && data.temperatureMax !== null) {
       intent.temperatureRange = userValue({ min: data.temperatureMin, max: data.temperatureMax });
     }
+    // The critical-part intake fields the Engineering-input gate checks.
+    // These were previously unreachable from any form, so "Complete the
+    // Part Responsibility Profile" could never actually complete.
+    const materialCondition = String(formData.get("materialCondition") ?? "").trim();
+    if (materialCondition) intent.materialCondition = userValue(materialCondition);
+    const surfaceFinish = String(formData.get("surfaceFinish") ?? "").trim();
+    if (surfaceFinish) intent.surfaceFinish = userValue(surfaceFinish);
+    const inspectionReqs = String(formData.get("inspectionRequirements") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (inspectionReqs.length) intent.inspectionRequirements = userValue(inspectionReqs);
+
     intent.unknowns = intent.unknowns.filter(
       (u) => !u.toLowerCase().includes("responsibility") && !u.toLowerCase().includes("functional"),
     );
+    // Explicitly resolved unknowns — a named human checking "resolved" is a
+    // USER statement, and each one is audited below. Nothing auto-clears.
+    const resolved = formData.getAll("resolveUnknown").map(String);
+    if (resolved.length) {
+      intent.unknowns = intent.unknowns.filter((u) => !resolved.includes(u));
+    }
 
     await db.partRevision.update({
       where: { id: rev.revisionId },
@@ -134,7 +153,13 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
         reason: "Responsibility interview answered",
       },
       (before ?? {}) as Record<string, unknown>,
-      data as Record<string, unknown>,
+      {
+        ...data,
+        ...(materialCondition ? { intentMaterialCondition: materialCondition } : {}),
+        ...(surfaceFinish ? { intentSurfaceFinish: surfaceFinish } : {}),
+        ...(inspectionReqs.length ? { intentInspectionRequirements: inspectionReqs.join(", ") } : {}),
+        ...(resolved.length ? { unknownsResolved: resolved.join(" | ") } : {}),
+      } as Record<string, unknown>,
     );
 
     redirect(`/parts/${id}`);
@@ -223,6 +248,47 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
                 </Field>
               </div>
             </Panel>
+
+            <Panel title="Required engineering inputs">
+              <p className="mb-3 text-[11.5px] leading-relaxed text-muted">
+                For a critical part, the Engineering-input gate also requires these. They are stated facts from you,
+                recorded USER-confirmed — leaving one blank leaves the gate open, it does not fill in an average.
+              </p>
+              <div className="space-y-4">
+                <Field label="Material condition / temper" hint="e.g. T6511, annealed, 4140 HT 28-32 HRC.">
+                  <input name="materialCondition" className={inputClass} defaultValue={revision.intent.materialCondition.value ?? ""} />
+                </Field>
+                <Field label="Surface finish requirement" hint="e.g. 32 Ra general, 16 Ra on the bearing bore.">
+                  <input name="surfaceFinish" className={inputClass} defaultValue={revision.intent.surfaceFinish.value ?? ""} />
+                </Field>
+                <Field label="Inspection requirements" hint="Comma separated. e.g. FAIR to AS9102, 100% on criticals, CMM report.">
+                  <input
+                    name="inspectionRequirements"
+                    className={inputClass}
+                    defaultValue={(revision.intent.inspectionRequirements.value ?? []).join(", ")}
+                  />
+                </Field>
+              </div>
+            </Panel>
+
+            {revision.intent.unknowns.length > 0 && (
+              <Panel title={`Open unknowns — ${revision.intent.unknowns.length}`}>
+                <p className="mb-2 text-[11.5px] leading-relaxed text-muted">
+                  Each unknown counts as an outstanding engineering input until a named human resolves it. Checking one
+                  states that you have the answer or have decided it does not apply — the resolution is audited.
+                </p>
+                <ul className="space-y-1.5">
+                  {revision.intent.unknowns.map((u) => (
+                    <li key={u}>
+                      <label className="flex cursor-pointer items-start gap-2.5 border border-line px-3 py-2 text-[12px] leading-relaxed text-platinum-dim hover:border-line-strong">
+                        <input type="checkbox" name="resolveUnknown" value={u} className="mt-0.5 accent-[color:var(--c-blue)]" />
+                        {u}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
 
             <Panel title="Production">
               <div className="space-y-4">
