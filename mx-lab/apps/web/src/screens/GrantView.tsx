@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Db } from '@mxlab/domain';
 import { download, Panel, Pill, TraceLogo } from '../ui';
-import { downloadGrantTelemetry, fetchGrantView } from '../syncClient';
+import { defaultServerUrl, downloadGrantTelemetry, fetchGrantView } from '../syncClient';
 
 /**
  * Remote tuner view — consumes a scoped grant token, no team account needed.
@@ -9,7 +9,7 @@ import { downloadGrantTelemetry, fetchGrantView } from '../syncClient';
  * left the machine; this screen never writes and never touches local team data.
  */
 export function GrantView() {
-  const [serverUrl, setServerUrl] = useState('http://localhost:8787');
+  const [serverUrl, setServerUrl] = useState(defaultServerUrl());
   const [orgId, setOrgId] = useState('');
   const [token, setToken] = useState('');
   const [view, setView] = useState<{ rev: number; db: Db } | null>(null);
