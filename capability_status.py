@@ -143,6 +143,12 @@ CAPABILITIES = {
     "motion_assets": {"status": COMING_SOON, "name": "Motion and video assets"},
     "print_separations": {"status": COMING_SOON, "name": "Print-ready separations"},
     "release_signal": {"status": COMING_SOON, "name": "Release Signal"},
+    "remix_lab": {
+        "status": COMING_SOON, "name": "Remix Lab generation",
+        "note": ("The brief builder, rights gate and likeness screen are "
+                 "built; concept generation is not connected, and the page "
+                 "shows a worked example labelled as one."),
+    },
 
     # --- never asserted without a person ---
     "royalty_finding": {"status": REQUIRES_VERIFICATION,

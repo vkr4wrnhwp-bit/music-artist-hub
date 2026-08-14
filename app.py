@@ -2578,7 +2578,7 @@ def create_app():
                      "/start", "/artist-control",
                      "/product-tour", "/product-tour/smart-link",
                      "/about", "/contact", "/partners", "/release-check",
-                     "/release-signal"}
+                     "/release-signal", "/remix-lab"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7263,6 +7263,25 @@ def create_app():
 
         return render_template("release_signal.html",
                                rs=get_release_signal_config())
+
+    @app.route("/remix-lab")
+    def remix_lab():
+        """Remix Lab - remix briefs from audio the artist owns, in preview.
+
+        Public: the rights gate, the likeness screen and the worked
+        example are exactly what a visitor needs to judge the tool.
+        Generation is not connected and the page says so; nothing on it
+        uploads or stores anything. When a backend lands, every
+        reference string must pass remix_lab_config.check_reference_text
+        server-side before a generation request is made - the browser
+        copy of that screen is convenience, not enforcement.
+        """
+        from remix_lab_config import (get_remix_lab_config,
+                                      get_remix_lab_client_config)
+
+        return render_template(
+            "remix_lab.html", remix=get_remix_lab_config(),
+            remix_json=json.dumps(get_remix_lab_client_config()))
 
     @app.route("/release-check")
     def release_check():
