@@ -17,6 +17,7 @@ import demo_seed
 import acr_provider
 import documents_engine
 import inbox_engine
+import operator_desk
 import producers
 import recovery_engine
 import report_builder
@@ -7743,6 +7744,8 @@ def create_app():
         if alert is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "message": alert.resolution_message})
+
+    operator_desk.init(app, is_owner_email=_is_owner_email)
 
     return app
 
