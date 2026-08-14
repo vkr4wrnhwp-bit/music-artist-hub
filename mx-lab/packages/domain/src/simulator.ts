@@ -1,4 +1,5 @@
 import type { Db, EventMarker, Lap, Session, Track } from './types';
+import { importedTraceToSimData } from './telemetryImport';
 
 /**
  * Deterministic telemetry simulator.
@@ -47,6 +48,17 @@ function speedProfile(track: Track, frac: number): number {
 const cache = new Map<string, SimData>();
 
 export function simulateSession(db: Db, session: Session): SimData {
+  // measured data wins: an imported trace replaces the simulator entirely
+  const imported = db.importedTraces?.[session.id];
+  if (imported) {
+    const key = `imported|${session.id}|${imported.importedAt}`;
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const data = importedTraceToSimData(imported, session);
+    cache.set(key, data);
+    return data;
+  }
+
   const markers = db.markers.filter((m) => m.sessionId === session.id);
   // the marker set is part of the cache key: a marker exists because something
   // happened on track, so the regenerated trace must contain its anomaly

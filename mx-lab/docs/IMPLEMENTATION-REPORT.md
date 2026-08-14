@@ -257,3 +257,32 @@ hardware integration.
   shown exactly once, and consumed on use. Self-service password change
   ships alongside (authenticated by the old password). Deployment guide:
   docs/architecture/deployment.md (TLS, systemd, backups, lifecycle).
+
+---
+
+# Measured-data addendum — CSV telemetry import
+
+## COMPLETED (real, working software)
+- **The platform's first measured-data path.** A data engineer or org admin
+  imports a logger CSV on a session's Telemetry tab; the parser accepts
+  flexible headers (time, rpm, throttle/tps, speed in kph or mph with unit
+  conversion, gear, coolant, iat, voltage, clutch, slip, accel, fork,
+  shock, optional lap column), validates strictly (monotonic time, 30 s–3 h,
+  ≥50 rows), resamples to the platform's 10 Hz, and stores the trace
+  compactly (base64 Float32) on the session. From that moment every
+  analysis surface — charts, compare, insights, Start Lab, archive upload —
+  runs on the measured trace, labeled IMPORTED — MEASURED DATA.
+- **Honesty rules enforced in code**: channels the file does not carry stay
+  flat at zero and are listed as absent, never synthesized; laps come only
+  from an explicit lap column (otherwise the trace is one labeled span);
+  removal reverts to the labeled simulation; import and removal are audited.
+- Imported traces sync (union per session), are grant-redacted by bike
+  scope and the telemetry permission, and survive the defaults migration on
+  older stored databases.
+- 6 new domain tests (93 total); browser E2E: import → IMPORTED labeling →
+  channel honesty → remove reverts.
+
+## Brand rollout
+- The circuit mark ships as the app favicon (inline SVG data URI — the
+  single-file build stays self-contained); printable reports carry the
+  one-color black wordmark, a sanctioned brand application.

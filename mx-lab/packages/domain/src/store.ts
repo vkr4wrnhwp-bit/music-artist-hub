@@ -14,6 +14,12 @@ export interface StoragePort {
 export const SCHEMA_VERSION = 2; // v2: TRACE expansion (test plans, twin, knowledge, race ops)
 const LS_KEY = 'mx-lab-db-v1';
 
+/** additive fields default in place so older stored v2 databases keep loading */
+export function applyDbDefaults(db: Db): Db {
+  if (!db.importedTraces) db.importedTraces = {};
+  return db;
+}
+
 export class LocalStoragePort implements StoragePort {
   load(): Db | null {
     try {
@@ -21,7 +27,7 @@ export class LocalStoragePort implements StoragePort {
       if (!raw) return null;
       const db = JSON.parse(raw) as Db;
       if (db.schemaVersion !== SCHEMA_VERSION) return null; // future: migrations
-      return db;
+      return applyDbDefaults(db);
     } catch {
       return null;
     }
@@ -51,5 +57,5 @@ export function importDb(json: string): Db {
   if (!db || db.schemaVersion !== SCHEMA_VERSION || !Array.isArray(db.bikes)) {
     throw new Error('Not a valid MX LAB archive (schema mismatch).');
   }
-  return db;
+  return applyDbDefaults(db);
 }

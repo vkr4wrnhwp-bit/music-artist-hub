@@ -740,4 +740,6 @@ export interface Db {
   debriefs: import('./expansion').Debrief[];
   grants: import('./expansion').RemoteAccessGrant[];
   listings: import('./expansion').MarketplaceListing[];
+  /** measured telemetry imported from logger CSVs, keyed by session id */
+  importedTraces: Record<string, import('./telemetryImport').ImportedTrace>;
 }

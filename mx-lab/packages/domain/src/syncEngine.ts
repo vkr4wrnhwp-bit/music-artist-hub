@@ -92,6 +92,8 @@ export function fullMerge(localDb: Db, remoteDb: Db): FullMergeResult {
 
   // slot maps: union per bike, local wins per slot number
   merged.mapSlots = { ...remoteDb.mapSlots, ...localDb.mapSlots };
+  // measured telemetry: union per session, local wins on same session
+  merged.importedTraces = { ...(remoteDb.importedTraces ?? {}), ...(localDb.importedTraces ?? {}) };
 
   return { merged, conflicts };
 }
@@ -134,6 +136,9 @@ export function redactDbForGrant(db: Db, grant: RemoteAccessGrant): Db {
     twin: db.twin.filter((c) => bikeIds.has(c.bikeId)),
     maintenance: db.maintenance.filter((m) => bikeIds.has(m.bikeId)),
     faults: db.faults.filter((f) => bikeIds.has(f.bikeId)),
+    importedTraces: grant.readTelemetry
+      ? Object.fromEntries(Object.entries(db.importedTraces ?? {}).filter(([sid]) => sessionIds.has(sid)))
+      : {},
     // never exposed through a grant:
     decisions: [], debriefs: [], testPlans: [], events: [], crewTasks: [],
     grants: [], listings: [], audit: [], envelopes: db.envelopes,

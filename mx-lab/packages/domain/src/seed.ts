@@ -275,6 +275,7 @@ export function createSeededDb(): Db {
     debriefs: [],
     grants: [],
     listings: [],
+    importedTraces: {},
   };
 
   // ---- bikes -------------------------------------------------------------

@@ -17,6 +17,7 @@ npm test           # 76 tests: domain units + sync engine + server integration
 npm run typecheck  # strict TS across all three packages
 npm run build      # single-file offline build → apps/web/dist/index.html
 npm run server     # optional self-hosted team sync server (default :8787)
+npm run demo       # one command: build + app on :8080 + sync server on :8787
 ```
 
 The production build is **one self-contained HTML file** — open it from disk,

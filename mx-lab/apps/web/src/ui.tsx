@@ -107,21 +107,74 @@ export function inkFor(rgb: string): string {
 }
 
 // ------------------------------------------------------------ TRACE brand
-// Reference 01 logo lock: track-line T icon with orange nodes + angular
-// wordmark. One-color white wordmark is a sanctioned brand application.
+// Brand sheet lock, drawn to match the reference exactly:
+//  - icon: continuous track line forming a leaning T — tilted top bar ending
+//    at an orange node top-right, rounded left corner, diagonal descender
+//    carrying the orange apex dash, hairpin sweep down to the bottom node
+//  - wordmark: custom extended-italic letterforms; the E's top arm is a
+//    detached orange speed bar overshooting to the right
+// One-color white is a sanctioned application; orange is accent-only.
+
+const INK = '#f4f5f6';
+const ORANGE = '#ff6a00';
 
 export function TraceIcon({ size = 30 }: { size?: number }) {
+  // The mark is a thin outlined racetrack circuit forming a leaning T:
+  //  - top straight out to a left hairpin and back (the T bar, two lines)
+  //  - the return straight drops through a diagonal to a bottom-left hairpin
+  //  - from the top-right ring an S-curve descends carrying the orange
+  //    sector (with a thin orange kerb echo), hooking down to the finish
+  //  - both routes converge at the bottom ring
+  const track = (d: string, w: number, color: string) => (
+    <path d={d} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" />
+  );
+  const casing = 'rgba(4,5,8,0.9)';
+  const routeA = 'M 82.5 11.5 L 21 14 Q 10 14.5 10.5 20 Q 11 25.5 21 25.5 L 40 24.8 Q 47 24.5 44.5 30.5 L 32 52 Q 28.5 58 31.5 62 L 38 68.5 Q 42.5 72.5 48.5 72';
+  const routeB = 'M 87 19.5 Q 84 27 76.5 30.5 Q 66 35 60 41.5 L 57.5 44.5';
+  const routeC = 'M 50 53.5 Q 47 57.5 48.5 61.5 Q 50.5 66 54.5 68.7';
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-label="TRACE" role="img">
-      <path
-        d="M 30 24 L 72 17 M 30 24 Q 22 26 23 34 L 24 40 Q 25 46 33 45 L 44 44 L 40 68"
-        fill="none" stroke="#f4f5f6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"
-      />
-      <path d="M 44 44 L 42 56" fill="none" stroke="#ff6a00" strokeWidth="9" strokeLinecap="round" />
-      <circle cx="78" cy="16" r="8" fill="#ff6a00" />
-      <circle cx="78" cy="16" r="3.2" fill="#0b0d10" />
-      <circle cx="39" cy="75" r="8" fill="#ff6a00" />
-      <circle cx="39" cy="75" r="3.2" fill="#0b0d10" />
+    <svg width={size} height={size * 0.8} viewBox="0 0 100 80" aria-label="TRACE" role="img">
+      {/* casing first, then the white road on top */}
+      {track(routeA, 4.8, casing)}{track(routeB, 4.8, casing)}{track(routeC, 4.8, casing)}
+      {track(routeA, 3.1, INK)}{track(routeB, 3.1, INK)}{track(routeC, 3.1, INK)}
+      {/* orange sector on the descent + thin kerb echo inside the hook */}
+      {track('M 56 46.5 L 52 52', 4.6, ORANGE)}
+      {track('M 53 56.5 Q 51.5 59.5 52.5 62.5', 1.4, ORANGE)}
+      {/* track rings: orange annuli, open centres */}
+      <circle cx="89" cy="13" r="5" fill="none" stroke={ORANGE} strokeWidth="4.6" />
+      <circle cx="58" cy="71" r="5" fill="none" stroke={ORANGE} strokeWidth="4.6" />
+    </svg>
+  );
+}
+
+/**
+ * Drawn wordmark — extended, heavy, italic. Cap height 100, baseline 100;
+ * letters are built upright and leaned with a single skew so every terminal
+ * stays parallel. The E has no white top arm: the orange bar above it is
+ * part of the letter.
+ */
+export function TraceWordmark({ height = 15, color = INK }: { height?: number; color?: string }) {
+  // Speed-cut italic letterforms from the lockup: hard lean, slim bars,
+  // chevron A with no crossbar, E as three floating bars (orange on top).
+  const W = 600;
+  return (
+    <svg height={height} width={height * (W / 100)} viewBox={`0 0 ${W} 100`} aria-label="TRACE" role="img">
+      <g transform="translate(40 0) skewX(-22)">
+        {/* T — wide bar, stem sweeping from its centre */}
+        <path fill={color} d="M0 0 H92 V19 H56 V100 H34 V19 H0 Z" />
+        {/* R — slim stem, open angular bowl, leg to the baseline */}
+        <path fill={color} fillRule="evenodd" d="M112 0 H176 L190 13 V38 L176 51 H112 Z M133 18 V33 H168 V18 Z" />
+        <path fill={color} d="M112 51 H133 V100 H112 Z" />
+        <path fill={color} d="M148 51 H169 L194 100 H167 Z" />
+        {/* A — pure chevron, no crossbar */}
+        <path fill={color} d="M254 0 H278 L316 100 H292 L266 22 L240 100 H216 Z" />
+        {/* C — angular, open right, speed-cut terminals */}
+        <path fill={color} d="M340 17 L357 0 H420 V19 H362 V81 H420 V100 H357 L340 83 Z" />
+        {/* E — three floating speed bars, the long top one orange */}
+        <path fill={ORANGE} d="M452 0 H548 V18 H452 Z" />
+        <path fill={color} d="M446 41 H528 V59 H446 Z" />
+        <path fill={color} d="M440 82 H532 V100 H440 Z" />
+      </g>
     </svg>
   );
 }
@@ -131,14 +184,58 @@ export function TraceLogo({ tagline = false }: { tagline?: boolean }) {
     <span className="brandlock">
       <TraceIcon />
       <span>
-        <span className="wordmark">TRACE</span>
+        <TraceWordmark />
         {tagline && (
           <span style={{ display: 'block', fontSize: 8.5, letterSpacing: '0.3em', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 2 }}>
-            Telemetry &amp; Tuning
+            Telemetry &amp; Tuning Platform
           </span>
         )}
       </span>
     </span>
+  );
+}
+
+/** Brand value pictograms: ANALYZE · OPTIMIZE · TUNE · PERFORM */
+export function BrandValues() {
+  const S = { fill: 'none', stroke: ORANGE, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+  const items: Array<[string, React.ReactNode]> = [
+    ['Analyze', (
+      <svg key="a" width="22" height="22" viewBox="0 0 24 24">
+        <path {...S} d="M3 17 L9 10 L14 13 L21 5" />
+        <circle cx="9" cy="10" r="2" fill={ORANGE} stroke="none" />
+        <circle cx="14" cy="13" r="2" fill={ORANGE} stroke="none" />
+      </svg>
+    )],
+    ['Optimize', (
+      <svg key="o" width="22" height="22" viewBox="0 0 24 24">
+        <circle {...S} cx="12" cy="12" r="6.5" />
+        <circle cx="12" cy="12" r="2" fill={ORANGE} stroke="none" />
+        <path {...S} d="M12 1.5 V5 M12 19 V22.5 M1.5 12 H5 M19 12 H22.5" />
+      </svg>
+    )],
+    ['Tune', (
+      <svg key="t" width="22" height="22" viewBox="0 0 24 24">
+        <path {...S} d="M3 6 H21 M3 12 H21 M3 18 H21" />
+        <circle cx="9" cy="6" r="2.4" fill={ORANGE} stroke="none" />
+        <circle cx="16" cy="12" r="2.4" fill={ORANGE} stroke="none" />
+        <circle cx="7" cy="18" r="2.4" fill={ORANGE} stroke="none" />
+      </svg>
+    )],
+    ['Perform', (
+      <svg key="p" width="22" height="22" viewBox="0 0 24 24">
+        <path {...S} d="M5 22 V3" />
+        <path {...S} d="M5 4 C9 2 12 6 16 4.5 L19 4 V13 L16 13.5 C12 15 9 11 5 13" />
+      </svg>
+    )],
+  ];
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 26, flexWrap: 'wrap', marginTop: 26 }}>
+      {items.map(([label, icon]) => (
+        <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>
+          {icon}{label}
+        </span>
+      ))}
+    </div>
   );
 }
 
