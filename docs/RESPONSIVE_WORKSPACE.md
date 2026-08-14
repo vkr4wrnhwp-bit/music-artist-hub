@@ -41,3 +41,14 @@ Production build, Bearing Support workspace, default states per size:
 
 Readiness status, blocker count and next action remain visible in
 every state, including Focus (compact critical chip with EXIT FOCUS).
+
+## Consolidation pass 2 — default-state corrections
+
+Part-workspace defaults changed: the context drawer starts collapsed
+on part routes at every width (the rail and the context tabs already
+carry navigation there), and the operation runway starts minimized at
+every width (its one-line bar still names the active op, tool and
+time). Explicit user choices always win and persist.
+
+Re-measured default canvas share: 1440×900 37% → 67%; 1920×1080
+49% → 74% — inside the brief's 70–75% desktop target without Focus.

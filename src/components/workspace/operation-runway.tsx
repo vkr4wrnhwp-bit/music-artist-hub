@@ -67,8 +67,10 @@ export function OperationRunway({
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("canvas.timelineCollapsed");
-      // Laptop widths start minimized unless the user has chosen otherwise.
-      setCollapsed(stored === null ? window.innerWidth < 1440 : stored === "1");
+      // Minimized by default at every width — the one-line bar still names
+      // the active operation, tool and time. Expanding is one click, and an
+      // explicit choice always wins. (Workspace-consolidation brief §13.)
+      setCollapsed(stored === null ? true : stored === "1");
     } catch {
       /* fine */
     }

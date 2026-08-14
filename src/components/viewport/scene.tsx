@@ -85,6 +85,9 @@ export interface ViewportProps {
    * means the Studio White defaults.
    */
   env?: import("@/lib/view-environment").ViewEnvironment;
+  /** AUTO defers to the device; PERFORMANCE trades shadows, reflections and
+      pixel ratio for frame rate. Never removes geometry or warnings. */
+  quality?: "AUTO" | "HIGH" | "PERFORMANCE";
   /**
    * Datum reference frame, anchored to the features that establish it. A
    * proposed datum renders visibly different from an accepted one — the
@@ -159,9 +162,9 @@ export function Viewport(props: ViewportProps) {
 
   return (
     <Canvas
-      dpr={[1, 2]}
+      dpr={props.quality === "PERFORMANCE" ? [1, 1.25] : [1, 2]}
       gl={{ antialias: true }}
-      shadows
+      shadows={props.quality !== "PERFORMANCE"}
       /* Product-photography framing: a strong three-quarter view with enough
          focal length to avoid the wide-angle distortion that makes a machined
          part look like a game asset. A commercial product shot is taken on a
@@ -204,7 +207,7 @@ export function Viewport(props: ViewportProps) {
           depend on the network to render a part — and fails closed to a lost
           WebGL context when that network is not there. This is generated in
           process, so it works on a shop floor with no internet. */}
-      <Environment resolution={256} environmentIntensity={0.2 + (props.env?.reflectionStrength ?? 0.5) * 0.6}>
+      <Environment resolution={props.quality === "PERFORMANCE" ? 64 : 256} environmentIntensity={props.quality === "PERFORMANCE" ? 0.15 : 0.2 + (props.env?.reflectionStrength ?? 0.5) * 0.6}>
         <Lightformer form="rect" intensity={3} position={[0, 8, 3]} scale={[12, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1.3} position={[-7, 3, 4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1} position={[7, 2, -4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
@@ -226,7 +229,7 @@ export function Viewport(props: ViewportProps) {
       {/* A soft contact shadow grounds the part. Without it the component
           floats, and a floating object reads as a CAD viewport rather than as
           a physical thing sitting on a surface. */}
-      {(props.env?.shadowStrength ?? 0.42) > 0.01 && (
+      {props.quality !== "PERFORMANCE" && (props.env?.shadowStrength ?? 0.42) > 0.01 && (
         <ContactShadows
           position={[0, stock ? -stock.z / 2 - 0.002 : 0, 0]}
           scale={span * 3.2}

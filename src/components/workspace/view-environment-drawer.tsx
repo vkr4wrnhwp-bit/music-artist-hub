@@ -43,6 +43,8 @@ export function ViewEnvironmentDrawer({
   material,
   onApplyViewMode,
   onClose,
+  quality = "AUTO",
+  onQuality,
 }: {
   env: ViewEnvironment;
   onChange: (env: ViewEnvironment) => void;
@@ -50,6 +52,8 @@ export function ViewEnvironmentDrawer({
   /** Applies a view mode's visibility defaults in the workspace. */
   onApplyViewMode: (mode: ViewMode) => void;
   onClose: () => void;
+  quality?: "AUTO" | "HIGH" | "PERFORMANCE";
+  onQuality?: (q: "AUTO" | "HIGH" | "PERFORMANCE") => void;
 }) {
   const [saved, setSaved] = useState(loadSavedPresets);
   const [presetName, setPresetName] = useState("");
@@ -300,6 +304,23 @@ export function ViewEnvironmentDrawer({
           )}
           <p className="mt-1 text-[9.5px] leading-snug text-muted">Saved to your account — presets follow you across devices.</p>
         </section>
+
+        {/* ---- Quality ---- */}
+        {onQuality && (
+          <section>
+            <p className={label}>Viewport quality</p>
+            <div className="mt-1.5 flex gap-1">
+              {(["AUTO", "HIGH", "PERFORMANCE"] as const).map((q) => (
+                <button key={q} className={btn(quality === q)} onClick={() => onQuality(q)}>
+                  {q === "PERFORMANCE" ? "PERF" : q}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[9.5px] leading-snug text-muted">
+              Performance lowers pixel ratio, shadows and reflections for frame rate. Geometry, toolpaths, datums and warnings are never removed.
+            </p>
+          </section>
+        )}
 
         {/* ---- Reset ---- */}
         <section>

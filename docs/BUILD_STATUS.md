@@ -1396,3 +1396,13 @@ horizontal and zero page scroll at 1366/1440/1920/1024; part canvas
 62% of a 1366×768 screen by default and 66–77% in Focus, with the
 critical-status chip (NOT READY · N BLOCKING · next action) retained
 in Focus at every size. F/V/1–5 shortcuts confirmed live.
+
+## Workspace consolidation pass 2
+
+Part-route defaults corrected (drawer collapsed, runway minimized at
+every width — default canvas share now 67% at 1440×900 and 74% at
+1920×1080, inside the brief's 70–75% target without Focus).
+Context-aware quick toggles beside VIEW/FOCUS (HOLD→Fixture,
+CUT→Toolpath/Tool). Viewport quality AUTO/HIGH/PERFORMANCE persisted;
+PERFORMANCE reduces dpr/shadows/reflections only — never geometry,
+toolpaths, datums or warnings. All browser-verified.

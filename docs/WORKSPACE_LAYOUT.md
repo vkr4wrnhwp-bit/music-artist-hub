@@ -77,3 +77,15 @@ header 36→24px, data row 31→27px.
   PART/HOLD/CUT/VERIFY/DELIVER, floating VIEW menu, functional view
   environment with live background, panel persistence, focus mode
   with the critical-status chip.
+
+## Consolidation pass 2
+
+- Context-aware quick toggles float beside VIEW/FOCUS: HOLD shows
+  Fixture; CUT shows Toolpath and Tool; other contexts show none —
+  every other switch stays one click away inside VIEW (§41).
+- Viewport quality AUTO / HIGH / PERFORMANCE in the View environment
+  drawer, persisted (canvas.quality). PERFORMANCE lowers pixel ratio,
+  shadows, and environment-map resolution; it never removes geometry,
+  toolpaths, datums or warnings (§43).
+- Part-route defaults: drawer collapsed, runway minimized, at every
+  width.

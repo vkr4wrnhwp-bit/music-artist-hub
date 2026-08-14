@@ -190,6 +190,27 @@ function WorkspaceInner(props: WorkspaceProps) {
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
 
+  // Viewport quality — AUTO defers to the device, PERFORMANCE trades
+  // shadows/reflections/resolution for frame rate. It never removes
+  // geometry, toolpaths, datums or warnings. Persisted per browser.
+  const [quality, setQuality] = useState<"AUTO" | "HIGH" | "PERFORMANCE">("AUTO");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("canvas.quality");
+      if (stored === "HIGH" || stored === "PERFORMANCE") setQuality(stored);
+    } catch {
+      /* fine */
+    }
+  }, []);
+  const changeQuality = (q: "AUTO" | "HIGH" | "PERFORMANCE") => {
+    setQuality(q);
+    try {
+      window.localStorage.setItem("canvas.quality", q);
+    } catch {
+      /* fine */
+    }
+  };
+
   // View environment — how the viewport is drawn. The localStorage cache
   // renders immediately after mount (SSR renders the default); the per-user
   // server copy is fetched and wins when present, so preferences follow the
@@ -550,6 +571,7 @@ function WorkspaceInner(props: WorkspaceProps) {
               showHoldCallouts={state.activeContext === "HOLD"}
               simHandle={simActive ? simHandle : null}
               env={viewEnv}
+              quality={quality}
               datums={props.datums}
               verify={Object.fromEntries(
                 Object.entries(props.featureDetails).map(([id, d]) => [id, d.verify.state]),
@@ -627,6 +649,8 @@ function WorkspaceInner(props: WorkspaceProps) {
               <div className="absolute inset-y-3 right-3 z-30 flex">
                 <ViewEnvironmentDrawer
                   env={viewEnv}
+                  quality={quality}
+                  onQuality={changeQuality}
                   onChange={updateEnv}
                   material={props.material}
                   onApplyViewMode={applyViewMode}
@@ -698,6 +722,34 @@ function WorkspaceInner(props: WorkspaceProps) {
               >
                 Focus
               </button>
+              {/* Context-aware quick toggles — only the switches the active
+                  manufacturing mode actually argues about. Everything else
+                  stays one click away inside VIEW. */}
+              {(
+                state.activeContext === "HOLD"
+                  ? ([["Fixture", "showFixture", showFixture]] as const)
+                  : state.activeContext === "CUT"
+                    ? ([
+                        ["Toolpath", "showToolpath", showToolpath],
+                        ["Tool", "showTool", showTool],
+                      ] as const)
+                    : ([] as const)
+              ).map(([label, key, on]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFlag(key)(!on)}
+                  aria-pressed={on}
+                  title={`Toggle ${label.toLowerCase()} visibility in this context`}
+                  className={`pointer-events-auto border px-2.5 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                    on
+                      ? "border-precision/60 bg-card/92 text-precision-dim"
+                      : "border-line-strong bg-card/92 text-muted hover:text-platinum"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* Compact controls, left edge, behind the VIEW toggle. */}

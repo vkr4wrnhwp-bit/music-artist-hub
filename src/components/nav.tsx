@@ -511,9 +511,11 @@ function Drawer({
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("canvas.contextDrawer");
-      // No stored preference: laptop widths start collapsed — the part, not
-      // the menu, owns a 1366px screen. An explicit choice always wins.
-      setCollapsed(stored === null ? window.innerWidth < 1440 : stored === "collapsed");
+      // No stored preference: part routes start collapsed at every width —
+      // the rail and the context tabs already carry navigation there, and
+      // the part owns the screen. Elsewhere, laptop widths start collapsed.
+      // An explicit choice always wins.
+      setCollapsed(stored === null ? (partId !== null || window.innerWidth < 1440) : stored === "collapsed");
     } catch {
       /* fine */
     }
