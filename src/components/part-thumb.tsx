@@ -27,6 +27,19 @@ export function MillPartThumb({ features, stock }: { features: Feature[]; stock:
   const X = (v: number) => ox + (v + sx / 2) * k;
   const Y = (v: number) => oy + (sy / 2 - v) * k;
 
+  // No geometry yet: an empty stock outline looks like a finished blank
+  // plate, which is a lie. Say what the tile actually knows.
+  if (features.length === 0) {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label="No geometry yet">
+        {stock && <rect x={ox} y={oy} width={sx * k} height={sy * k} fill="none" stroke={MUTED_INK} strokeWidth={1} strokeDasharray="5 4" />}
+        <text x={W / 2} y={H / 2 + 3} fontSize={9} fill={MUTED_INK} fontFamily="monospace" textAnchor="middle">
+          {stock ? "stock only — no geometry yet" : "no geometry yet"}
+        </text>
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label="Part top view">
       <rect x={ox} y={oy} width={sx * k} height={sy * k} fill="none" stroke={INK} strokeWidth={1.4} />

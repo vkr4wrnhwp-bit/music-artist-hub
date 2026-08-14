@@ -1349,3 +1349,17 @@ blocking banner hides its truncating message below sm, leaving
 "N blocking — action required" + FIX. Known accepted nits: the
 top-bar trail is horizontally scrollable (chips can sit cut at rest),
 and page titles appear in both the bar and the heading.
+
+## Mobile polish round two + honest empty thumbnail
+
+The two accepted nits from the mobile audit are now addressed: the
+top-bar trail fades out at its right edge (mask only — it still
+scrolls) so a chip waiting off-screen reads as "more to the right"
+rather than broken; and a mill part with no features no longer draws
+an empty stock outline that looks like a finished blank plate — the
+tile says "stock only — no geometry yet" (or "no geometry yet" with
+no stock), dashed outline, on the same paper ground.
+
+Browser-verified at 390px: no-geometry tile renders with its label,
+fade mask computed on the trail, readiness page showing the dominant
+blocker with SHOW ME/RESOLVE cleanly at phone width.

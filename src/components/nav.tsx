@@ -867,7 +867,15 @@ export function TopBar({
     <header className="canvas-shell flex min-h-[92px] shrink-0 flex-col justify-center gap-2.5 border-b border-line-strong bg-header py-3 pl-12 pr-4 lg:pl-6 lg:pr-6">
       {/* Context trail + who is signed in */}
       <div className="flex items-center justify-between gap-4">
-        <div className="no-scrollbar flex min-w-0 items-center gap-3 overflow-x-auto whitespace-nowrap">
+        <div
+          className="no-scrollbar flex min-w-0 items-center gap-3 overflow-x-auto whitespace-nowrap"
+          style={{
+            // A hard cut mid-chip reads as broken; a fade reads as "more to
+            // the right". Only the visual mask — the trail still scrolls.
+            maskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)",
+            WebkitMaskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)",
+          }}
+        >
           {children}
         </div>
         <div className="flex shrink-0 items-center gap-3">
