@@ -86,6 +86,11 @@ def test_the_footer_carries_the_modules_and_every_link_is_public():
     It named five modules and sent all five into the login wall. The
     footer's Platform column names them instead, and every destination in
     the whole footer answers a signed-out visitor.
+
+    One deliberate exception: the Company column carries /operator-desk,
+    the team's own door. A stranger clicking it meets the login wall,
+    and that is correct — it is not an artist module pretending to be
+    open, it is the staff entrance, labeled as such.
     """
     from landing_config import get_landing_config
 
@@ -98,7 +103,12 @@ def test_the_footer_carries_the_modules_and_every_link_is_public():
     for col in get_landing_config()["footer"]["columns"]:
         for link in col["links"]:
             assert 'href="%s"' % link["href"] in body, link["href"]
-            assert client.get(link["href"]).status_code == 200, link["href"]
+            response = client.get(link["href"])
+            if link["href"] == "/operator-desk":
+                assert response.status_code == 302, link["href"]
+                assert "/login" in response.headers["Location"]
+            else:
+                assert response.status_code == 200, link["href"]
 
 
 def test_the_retired_homepage_blocks_are_gone_from_config_and_page():
