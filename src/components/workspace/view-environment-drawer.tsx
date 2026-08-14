@@ -301,6 +301,44 @@ export function ViewEnvironmentDrawer({
           <p className="mt-1 text-[9.5px] leading-snug text-muted">Saved to your account — presets follow you across devices.</p>
         </section>
 
+        {/* ---- Reset ---- */}
+        <section>
+          <p className={label}>Reset</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-1">
+            <button
+              className={btn(false)}
+              title="Default camera, orientation, background and visibility. Manufacturing data is untouched."
+              onClick={() => {
+                onChange(VIEW_PRESETS.STUDIO_WHITE.env);
+                window.dispatchEvent(new CustomEvent("canvas:reset-view"));
+              }}
+            >
+              Reset view
+            </button>
+            <button
+              className={btn(false)}
+              title="Restore the approved default panel layout — collapsed drawer, compact runway, closed drawers."
+              onClick={() => {
+                try {
+                  for (const k of Object.keys(window.localStorage)) {
+                    if (k.startsWith("canvas.") && (k.includes("Width") || k.includes("Drawer") || k.includes("View") || k.includes("runway") || k.includes("panel"))) {
+                      window.localStorage.removeItem(k);
+                    }
+                  }
+                } catch {
+                  /* fine */
+                }
+                window.location.reload();
+              }}
+            >
+              Reset workspace
+            </button>
+          </div>
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">
+            Reset view restores the default scene; reset workspace restores the default panel layout. Neither touches manufacturing data.
+          </p>
+        </section>
+
         {/* ---- Export view ---- */}
         <section>
           <p className={label}>Export view</p>

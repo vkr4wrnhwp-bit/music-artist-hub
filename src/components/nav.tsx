@@ -861,12 +861,26 @@ export function TopBar({
 }) {
   const pathname = usePathname();
   const user = useContext(ShellUserContext);
-  const heading = title ?? routeHeading(pathname);
+  // With everything on one row, an inferred heading beside a trail that
+  // already names the page is the duplication the mobile audit flagged —
+  // infer a heading only when the page brought no trail of its own.
+  const heading = title ?? (children ? null : routeHeading(pathname));
 
   return (
-    <header className="canvas-shell flex min-h-[92px] shrink-0 flex-col justify-center gap-2.5 border-b border-line-strong bg-header py-3 pl-12 pr-4 lg:pl-6 lg:pr-6">
-      {/* Context trail + who is signed in */}
-      <div className="flex items-center justify-between gap-4">
+    /* ONE compact command bar — the workspace-consolidation brief's header
+       rule. The old two-row stack (trail row + 22px identity row) cost 92px
+       of the work column on every page and duplicated the page's own
+       heading. Identity, trail, metadata and status now share a single
+       64px row; on narrow screens it wraps rather than clipping, and the
+       right group's status module is the last thing standing. */
+    <header className="canvas-shell flex min-h-[64px] shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line-strong bg-header py-2 pl-12 pr-4 lg:pl-5 lg:pr-5">
+      <div className="flex min-w-0 shrink grow basis-[16rem] items-center gap-3 overflow-hidden">
+        {heading && (
+          <h1 className="shrink-0 truncate text-[16px] font-medium leading-none tracking-[0.01em] text-platinum">
+            {heading}
+          </h1>
+        )}
+        {chips && <span className="flex shrink-0 items-center gap-2">{chips}</span>}
         <div
           className="no-scrollbar flex min-w-0 items-center gap-3 overflow-x-auto whitespace-nowrap"
           style={{
@@ -878,65 +892,25 @@ export function TopBar({
         >
           {children}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {user && (
-            <Link href="/settings" className="hidden text-right leading-tight lg:block">
-              <span className="block text-[11.5px] text-platinum-dim transition-colors hover:text-platinum">
-                {user.name}
-              </span>
-              <span className="shell-label block" style={{ fontSize: 9 }}>
-                {user.organizationName}
-              </span>
-            </Link>
-          )}
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-            <line x1="0" y1="7" x2="14" y2="7" stroke="var(--c-blue)" strokeWidth="1" />
-            <line x1="7" y1="0" x2="7" y2="14" stroke="var(--c-blue)" strokeWidth="1" />
-            <circle cx="7" cy="7" r="2.5" fill="none" stroke="var(--c-blue)" strokeWidth="1" />
-          </svg>
-        </div>
       </div>
-
-      {/* Job identity.
-          `overflow-hidden` on the left group is load-bearing: it is the only
-          thing stopping a long title's chips from painting over the metadata
-          on a narrow screen.
-
-          WHAT GIVES WAY, AND WHY.
-          The work column is the viewport minus a 282px shell, so `lg` (1024)
-          is the width at which this row has the LEAST room, not the most.
-          Gating the metadata on `lg` switched it on exactly where it did not
-          fit: measured, the right group is 831px against a 694px content box
-          at 1024, so the readiness verdict was pushed 103px off the right edge
-          of a shell that clips and does not scroll. Metadata now waits for
-          `xl`.
-
-          Above that the row WRAPS rather than squeezing. Full title plus full
-          metadata plus status needs 1246px and the content box only reaches
-          that around 1460, so between 1280 and there the metadata takes its
-          own line and the header grows by one row. That is the honest trade:
-          the alternative is a silent horizontal scroller quietly hiding the
-          machine and the program number, or a part name ellipsised to nothing
-          — which is what the previous version did, rendering the h1 at zero
-          width across a 250px band of ordinary laptop widths.
-
-          The right group is `min-w-0 … overflow-hidden` rather than `shrink-0`
-          so it can never bleed past the header again, and the status module
-          inside it stays `shrink-0`, so readiness is the last thing standing. */}
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-[12rem] shrink grow basis-[18rem] items-center gap-3 overflow-hidden">
-          {heading && (
-            <h1 className="truncate text-[22px] font-medium leading-none tracking-[0.01em] text-platinum">
-              {heading}
-            </h1>
-          )}
-          {chips && <span className="flex shrink-0 items-center gap-2">{chips}</span>}
-        </div>
-        <div className="ml-auto flex min-w-0 shrink items-end gap-5 overflow-hidden">
-          {meta && <span className="no-scrollbar hidden items-end gap-5 overflow-x-auto xl:flex">{meta}</span>}
-          {status}
-          {!meta && !status && <span className="instrument-label hidden lg:inline">Plan │ Machine │ Deliver</span>}
-        </div>
+      <div className="ml-auto flex min-w-0 shrink items-center gap-4 overflow-hidden">
+        {meta && <span className="no-scrollbar hidden items-end gap-5 overflow-x-auto xl:flex">{meta}</span>}
+        {status && <span className="shrink-0">{status}</span>}
+        {user && (
+          <Link href="/settings" className="hidden shrink-0 text-right leading-tight xl:block">
+            <span className="block text-[11px] text-platinum-dim transition-colors hover:text-platinum">
+              {user.name}
+            </span>
+            <span className="shell-label block" style={{ fontSize: 8.5 }}>
+              {user.organizationName}
+            </span>
+          </Link>
+        )}
+        <svg className="shrink-0" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <line x1="0" y1="7" x2="14" y2="7" stroke="var(--c-blue)" strokeWidth="1" />
+          <line x1="7" y1="0" x2="7" y2="14" stroke="var(--c-blue)" strokeWidth="1" />
+          <circle cx="7" cy="7" r="2.5" fill="none" stroke="var(--c-blue)" strokeWidth="1" />
+        </svg>
       </div>
     </header>
   );

@@ -57,3 +57,23 @@ density hooks (d-panel-header, d-panel-body, d-row, d-td) in
 globals.css — panel chrome, data rows and table cells tighten; type
 hierarchy, color and page structure are untouched. Measured: panel
 header 36→24px, data row 31→27px.
+
+## Consolidation pass (workspace-parity brief)
+
+- Command bar is ONE row (min 64px): identity, chips, trail (fading
+  scroll), metadata (xl+), status, user. The inferred page heading
+  renders only when a page brings no trail — the duplicate-title
+  stack is gone shell-wide.
+- Shell height is 100dvh; nothing outside a page's own main scrolls.
+- Keyboard: F focus · V view environment · 1–5 contexts · Esc close
+  · G guide — all guarded against typing targets.
+- RESET VIEW (default camera/orientation/scene via OrbitControls
+  reset + Studio White) and RESET WORKSPACE (clears layout keys,
+  restores approved defaults) live in the View environment drawer.
+  Neither touches manufacturing data.
+- Already in place from prior phases and verified again: two-layer
+  left side (72px rail + collapsible/resizable context drawer,
+  auto-collapsed under 1440px), routes grouped under
+  PART/HOLD/CUT/VERIFY/DELIVER, floating VIEW menu, functional view
+  environment with live background, panel persistence, focus mode
+  with the critical-status chip.

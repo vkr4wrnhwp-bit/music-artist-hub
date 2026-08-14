@@ -297,7 +297,15 @@ function CameraSync() {
       (controls as { update?: () => void } | null)?.update?.();
     };
     window.addEventListener("canvas:setview", handler);
-    return () => window.removeEventListener("canvas:setview", handler);
+    // RESET VIEW — default camera and orbit target. Scene data untouched.
+    const reset = () => {
+      (controls as { reset?: () => void } | null)?.reset?.();
+    };
+    window.addEventListener("canvas:reset-view", reset);
+    return () => {
+      window.removeEventListener("canvas:setview", handler);
+      window.removeEventListener("canvas:reset-view", reset);
+    };
   }, [camera, controls]);
   return null;
 }

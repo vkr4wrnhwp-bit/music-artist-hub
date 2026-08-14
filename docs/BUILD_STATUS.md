@@ -1384,3 +1384,15 @@ custom background changes silently did nothing. Replaced with an
 imperative SceneBackground that follows the value every change.
 Verified live: Dark Machine Bay preset and custom hexes now repaint
 the scene immediately.
+
+## Workspace consolidation + visual parity pass
+
+Header condensed to one 64px command row shell-wide (identity + trail
++ metadata + status; inferred headings only on pages without a trail
+— duplicate titles gone). Shell now 100dvh. RESET VIEW and RESET
+WORKSPACE added to the View environment drawer. Camera reset listener
+added to the scene. Verified across the brief's matrix: zero
+horizontal and zero page scroll at 1366/1440/1920/1024; part canvas
+62% of a 1366×768 screen by default and 66–77% in Focus, with the
+critical-status chip (NOT READY · N BLOCKING · next action) retained
+in Focus at every size. F/V/1–5 shortcuts confirmed live.
