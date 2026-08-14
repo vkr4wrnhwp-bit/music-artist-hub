@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildImportedTrace, createSeededDb, decodeSeries, encodeSeries, fullMerge,
-  parseTelemetryCsv, redactDbForGrant, simulateSession,
+  buildImportedTrace, buildRecommendation, createSeededDb, decodeSeries,
+  encodeSeries, fullMerge, parseTelemetryCsv, redactDbForGrant, simulateSession,
 } from '../src';
 
 function makeCsv(opts: { mph?: boolean; laps?: boolean; rows?: number } = {}): string {
@@ -66,6 +66,21 @@ describe('CSV telemetry import (REAL data path)', () => {
     // channels the file did not carry stay flat at zero — never invented
     expect(Math.max(...sim.channels.slip)).toBe(0);
     expect(Math.max(...sim.channels.rpm)).toBeGreaterThan(8000);
+  });
+
+  it('the AI engineer treats imported data as measured — quality from actual channels', () => {
+    const db = createSeededDb();
+    const marker = db.markers[0];
+    const session = db.sessions.find((s) => s.id === marker.sessionId)!;
+    const parsed = parseTelemetryCsv(makeCsv({ laps: true })); // rpm/speed/tps only — no slip/accel
+    db.importedTraces[session.id] = buildImportedTrace(parsed, 'log.csv', 'u-data', '2026-08-14T10:00:00Z');
+    const rec = buildRecommendation(db, session, marker, 'Felt an abrupt hit on exit.');
+    // measured data is never blanket-labeled Simulated…
+    expect(rec.dataQuality.some((f) => f.channelId === '*')).toBe(false);
+    // …but channels the log did not carry are flagged impossible, and cap confidence
+    expect(rec.dataQuality.some((f) => f.channelId === 'slip' && f.quality === 'Missing')).toBe(true);
+    expect(rec.dataQualityStatus).toBe('DEGRADED');
+    expect(rec.confidencePct).toBeLessThanOrEqual(55);
   });
 
   it('sync merges imported traces by union and grants redact them by scope', () => {

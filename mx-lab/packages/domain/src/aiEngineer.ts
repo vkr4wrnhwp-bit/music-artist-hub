@@ -29,20 +29,36 @@ export function buildRecommendation(
   riderStatement: string,
 ): AIRecommendation {
   // ---- 1. data-quality check --------------------------------------------
+  // An imported trace is measured data: quality comes from what the log file
+  // actually carried, not from the simulated device's channel health.
+  const imported = db.importedTraces?.[session.id];
   const device = db.devices.find((d) => d.id === session.hardwareCheck.deviceId);
   const dataQuality: DataQualityFlag[] = [];
-  if (device) {
-    for (const [chId, q] of Object.entries(device.channelHealth)) {
-      if (q === 'Missing' || q === 'Intermittent' || q === 'Out of range' || q === 'Uncalibrated' || q === 'Low confidence') {
-        dataQuality.push({ channelId: chId, quality: q, note: `${chId} reported ${q} during this session.` });
+  if (imported) {
+    for (const chId of ['rpm', 'tps', 'speed', 'slip', 'accel']) {
+      if (!imported.channelNames.includes(chId)) {
+        dataQuality.push({
+          channelId: chId, quality: 'Missing',
+          note: `${chId} is not in the imported log — correlation on this channel is impossible, not merely weak.`,
+        });
       }
     }
-  }
-  if (session.simulated) {
-    dataQuality.push({ channelId: '*', quality: 'Simulated', note: 'All channels are simulated demonstration data.' });
+  } else {
+    if (device) {
+      for (const [chId, q] of Object.entries(device.channelHealth)) {
+        if (q === 'Missing' || q === 'Intermittent' || q === 'Out of range' || q === 'Uncalibrated' || q === 'Low confidence') {
+          dataQuality.push({ channelId: chId, quality: q, note: `${chId} reported ${q} during this session.` });
+        }
+      }
+    }
+    if (session.simulated) {
+      dataQuality.push({ channelId: '*', quality: 'Simulated', note: 'All channels are simulated demonstration data.' });
+    }
   }
   const degraded = dataQuality.some((f) => f.quality !== 'Simulated');
-  const blocked = session.hardwareCheck.ecuData === 'Missing';
+  const blocked = imported
+    ? !['rpm', 'tps'].some((c) => imported.channelNames.includes(c))
+    : session.hardwareCheck.ecuData === 'Missing';
   const dataQualityStatus = blocked ? 'BLOCKED' : degraded ? 'DEGRADED' : 'OK';
 
   // ---- 2. telemetry correlation ----------------------------------------
