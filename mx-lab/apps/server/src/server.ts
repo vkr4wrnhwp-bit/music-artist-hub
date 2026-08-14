@@ -159,12 +159,20 @@ export interface TraceServer {
   close(): Promise<void>;
 }
 
-export function createTraceServer(store: ServerStore, secret: string): Server {
+export function createTraceServer(store: ServerStore, secret: string, staticHtmlPath?: string): Server {
   return createServer(async (req, res) => {
     try {
       if (req.method === 'OPTIONS') { send(res, 204, ''); return; }
       const url = new URL(req.url ?? '/', 'http://localhost');
       const parts = url.pathname.split('/').filter(Boolean);
+
+      // Single-service deployments (e.g. Render) serve the built app from the
+      // same origin: any GET outside the API surface returns the one-file app.
+      if (staticHtmlPath && req.method === 'GET'
+        && parts[0] !== 'orgs' && parts[0] !== 'auth' && existsSync(staticHtmlPath)) {
+        send(res, 200, readFileSync(staticHtmlPath), 'text/html; charset=utf-8');
+        return;
+      }
 
       // ---- auth: password sign-in (scrypt; first sign-in sets the password) ----
       // An IdP for SSO replaces only this handler. Once the org database has
@@ -357,12 +365,12 @@ export function createTraceServer(store: ServerStore, secret: string): Server {
   });
 }
 
-export async function startTraceServer(dataDir: string, port = 0): Promise<TraceServer> {
+export async function startTraceServer(dataDir: string, port = 0, staticHtmlPath?: string): Promise<TraceServer> {
   mkdirSync(dataDir, { recursive: true });
   const secretPath = join(dataDir, 'secret');
   if (!existsSync(secretPath)) writeFileSync(secretPath, randomBytes(32).toString('hex'));
   const secret = readFileSync(secretPath, 'utf8');
-  const server = createTraceServer(new FileStore(dataDir), secret);
+  const server = createTraceServer(new FileStore(dataDir), secret, staticHtmlPath);
   await new Promise<void>((resolve) => server.listen(port, resolve));
   const addr = server.address();
   const boundPort = typeof addr === 'object' && addr ? addr.port : port;

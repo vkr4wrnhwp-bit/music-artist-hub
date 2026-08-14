@@ -36,6 +36,8 @@ server never merges silently — divergent approvals, decisions, debriefs, and
 TRACE Focus land in an on-screen conflict queue for a person to resolve.
 The Live Pit Board goes genuinely live when connected: it polls a
 lightweight revision probe and pulls within seconds of any teammate's sync.
+Hosting: the repo's `render.yaml` deploys app + server as one Render web
+service with automatic TLS — see `docs/architecture/deployment.md`.
 Remote-tuner grant tokens are enforced server-side: the server redacts the
 database down to the grant's bike scope and permissions before it ever
 leaves the machine. Managers mint access tokens from the Remote Tuner

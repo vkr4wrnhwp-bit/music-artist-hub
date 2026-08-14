@@ -3,8 +3,8 @@ import { appendAudit, simulateSession, type SyncConflict } from '@mxlab/domain';
 import { useApp } from '../state';
 import { Help, Panel, Pill } from '../ui';
 import {
-  changePassword, loadConflicts, loadSyncConfig, saveConflicts, saveSyncConfig, serverLogin,
-  syncNow, uploadTelemetry, type SyncConfig,
+  changePassword, defaultServerUrl, loadConflicts, loadSyncConfig, saveConflicts, saveSyncConfig,
+  serverLogin, syncNow, uploadTelemetry, type SyncConfig,
 } from '../syncClient';
 
 /**
@@ -15,7 +15,7 @@ import {
 export function SyncScreen() {
   const { db, user, update, allowed } = useApp();
   const [cfg, setCfg] = useState<SyncConfig | null>(() => loadSyncConfig());
-  const [serverUrl, setServerUrl] = useState(cfg?.serverUrl ?? 'http://localhost:8787');
+  const [serverUrl, setServerUrl] = useState(cfg?.serverUrl ?? defaultServerUrl());
   const [password, setPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [pwOld, setPwOld] = useState('');

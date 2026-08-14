@@ -19,6 +19,16 @@ export interface SyncConfig {
 const CFG_KEY = 'mx-lab-sync-cfg';
 const CONFLICTS_KEY = 'mx-lab-sync-conflicts';
 
+/**
+ * When the app is served by the sync server itself (Render, a pit laptop),
+ * the team server IS this origin — prefill it. Local dev keeps :8787.
+ */
+export function defaultServerUrl(): string {
+  const { protocol, hostname, origin } = window.location;
+  if (protocol.startsWith('http') && hostname !== 'localhost' && hostname !== '127.0.0.1') return origin;
+  return 'http://localhost:8787';
+}
+
 export function loadSyncConfig(): SyncConfig | null {
   try { return JSON.parse(localStorage.getItem(CFG_KEY) ?? 'null'); } catch { return null; }
 }

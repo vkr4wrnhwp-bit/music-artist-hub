@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -120,6 +120,25 @@ describe('sync with optimistic concurrency', () => {
     expect(res.body.rev).toBe(3);
     const anon = await api(`/orgs/${ORG}/rev`, {}, '');
     expect(anon.status).toBe(401);
+  });
+});
+
+describe('same-origin app serving (single-service deployments)', () => {
+  it('serves the built app at non-API GETs; the API stays token-gated', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'trace-static-'));
+    const htmlPath = join(dir, 'index.html');
+    writeFileSync(htmlPath, '<title>TRACE</title><div id="root"></div>');
+    const s = await startTraceServer(dir, 0, htmlPath);
+    const base2 = `http://localhost:${s.port}`;
+    const root = await fetch(`${base2}/`);
+    expect(root.status).toBe(200);
+    expect(root.headers.get('content-type')).toContain('text/html');
+    expect(await root.text()).toContain('TRACE');
+    const deep = await fetch(`${base2}/anything`);
+    expect(deep.status).toBe(200); // hash-router SPA — every page is the app
+    const apiRes = await fetch(`${base2}/orgs/org-x/db`);
+    expect(apiRes.status).toBe(401); // API untouched
+    await s.close();
   });
 });
 

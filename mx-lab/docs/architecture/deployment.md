@@ -54,6 +54,30 @@ server {
 
 Then the URL teams enter in More → Team Sync is `https://trace.example.com`.
 
+## One-click hosting on Render
+
+The repo carries a `render.yaml` Blueprint that deploys everything as ONE
+web service: the sync server also serves the built one-file app from the
+same origin, and Render terminates TLS automatically — no proxy to run.
+
+1. On [Render](https://render.com): **New → Blueprint**, connect this
+   GitHub repository, accept the defaults, deploy.
+2. Open the service URL. That page IS the app; More → Team Sync prefills
+   the server URL with the same origin, so the first sign-in (which sets
+   your password) is the whole setup. Bootstrap and run your first Sync in
+   one sitting, then invite the team from More → Team & roles.
+
+Notes, honestly stated:
+- The blueprint requests a **1 GB persistent disk** at `/var/data`, which
+  needs a paid instance type (Render's cheapest paid tier). On the free
+  plan, delete the `disk:` block: everything runs, but server-side data
+  resets on each deploy or restart — browsers keep their local databases
+  and can re-push, but passwords, invites, and telemetry chunks on the
+  server are lost. Fine for a trial; not for a season.
+- Auto-deploy is on by default: every push to `main` redeploys the service.
+- Backups on Render: shell into the service and copy `/var/data`, or attach
+  the disk snapshot feature if your plan has it.
+
 ## Keeping it running (systemd)
 
 ```

@@ -1,0 +1,23 @@
+# TRACE — one-service deployment: the sync server serves the built app
+# from the same origin. Connect this repo on Render as a Blueprint.
+# Details: mx-lab/docs/architecture/deployment.md (Render section).
+services:
+  - type: web
+    name: trace
+    runtime: node
+    rootDir: mx-lab
+    plan: starter # a paid instance is required for the persistent disk below;
+    # on the free plan, delete the `disk:` block — the server runs, but its
+    # data resets on every deploy/restart (browsers keep local data and re-push)
+    buildCommand: npm install && npm run build
+    startCommand: npx tsx apps/server/src/main.ts
+    healthCheckPath: /
+    envVars:
+      - key: TRACE_DATA_DIR
+        value: /var/data
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+    disk:
+      name: trace-data
+      mountPath: /var/data
+      sizeGB: 1
