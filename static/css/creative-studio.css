@@ -37,7 +37,7 @@
   height: 100%;
   object-fit: cover;
   /* The tall frame is cover-cropped into a landscape box twice over: the
-     768-1023 band forces 4/3, and past ~1085px the 820px cap does the
+     768-1023 band forces 4/3, and on desktop the height cap does the
      same. Both take their loss vertically around this point, so it sits
      high - centred, a third of the frame's height goes and the top of a
      standing subject is cut off on exactly the widest screens. */
@@ -255,7 +255,7 @@
 /* --- desktop ------------------------------------------------------------- */
 @media (min-width: 1024px) {
   .sbcs-inner {
-    grid-template-columns: 36fr 64fr;
+    grid-template-columns: 52fr 48fr;
     align-items: stretch;
   }
   .sbcs-copy {
@@ -264,11 +264,18 @@
     align-self: center;
     padding-right: clamp(20px, 2.5vw, 40px);
   }
-  .sbcs-photo { grid-row: 1; grid-column: 2; }
-  /* The frame is taller than it is wide, so it keeps its own ratio and
-     is capped rather than stretched across the section: cover on a
-     landscape box would zoom past the subject and land on one shoulder. */
-  .sbcs-img { aspect-ratio: 830 / 980; max-height: 820px; }
+  /* Centred rather than stretched: if the copy column is ever the taller
+     of the two, the picture stays its own height instead of growing a
+     black gap under itself. */
+  .sbcs-photo { grid-row: 1; grid-column: 2; align-self: center; }
+  /* Height is the constraint here - at 820px this one picture set the
+     height of the whole section. 574px is a third off that.
+     The column narrows with it, and has to: cover crops a portrait
+     vertically, so holding the old 64% width at this height would slice
+     the subject off below the eyes. At 48% the box stays near enough to
+     the frame's own proportion that the crop is gentler than it was
+     before, not tighter. */
+  .sbcs-img { aspect-ratio: 830 / 980; max-height: 574px; }
   /* Only the photograph's left edge needs seating against the black
      column beside it: opaque at the join, clear 54px later on a 1075px
      frame. At 16% that ramp ran 172px - invisible across a near-black

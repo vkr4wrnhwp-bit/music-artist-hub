@@ -326,4 +326,4 @@ def test_the_assets_are_linked_and_the_cache_version_moved():
     # revalidation and the image URLs carry no ?v=, so VERSION is the only
     # cache key they have. At the old floor of 90 a forgotten bump passed
     # silently, which is exactly the failure this test is named for.
-    assert version and int(version.group(1)) >= 112
+    assert version and int(version.group(1)) >= 113
