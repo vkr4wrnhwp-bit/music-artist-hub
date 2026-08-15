@@ -71,6 +71,14 @@ def _billing():
     return _env("STRIPE_SECRET_KEY")
 
 
+def _press_sending():
+    """Stricter than the fan-email probe on purpose. A provider key alone
+    leaves the shared test sender in place, and that one delivers only to
+    the account owner's own inbox - so a press pitch would report success
+    and reach no journalist. Both must be set before this claims Live."""
+    return _env("RESEND_API_KEY", "EMAIL_FROM")
+
+
 # Capability -> fixed status, or a probe that decides at request time.
 #
 # `probe` entries take the first status when the probe passes and the
@@ -87,6 +95,7 @@ CAPABILITIES = {
     "smart_links": {"status": LIVE, "name": "Smart Links"},
     "email_capture": {"status": LIVE, "name": "Email capture with consent"},
     "rollout_plans": {"status": LIVE, "name": "Rollout plans"},
+    "press_desk": {"status": LIVE, "name": "Press Desk"},
     "lanes": {"status": LIVE, "name": "Three Street Banker Lanes"},
 
     # --- things that depend on the environment ---
@@ -110,6 +119,18 @@ CAPABILITIES = {
         "when_false": INTEGRATION_READY,
         "note_true": "Consented fans are emailed the listen link on release day.",
         "note_false": "Built, and no email provider is connected on this deployment.",
+    },
+    "press_sending": {
+        "name": "Sending press pitches from Street Banker",
+        "probe": _press_sending,
+        "when_true": LIVE,
+        "when_false": INTEGRATION_READY,
+        "note_true": ("Each contact is emailed separately from the "
+                      "configured sending domain."),
+        "note_false": ("Built, and no sending domain is configured on this "
+                       "deployment. The Press Desk prepares every message "
+                       "and refuses to send rather than report a delivery "
+                       "that did not happen."),
     },
     "billing": {
         "name": "Subscriptions and billing",

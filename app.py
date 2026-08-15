@@ -18,6 +18,7 @@ import acr_provider
 import documents_engine
 import inbox_engine
 import operator_desk
+import press_desk
 import producers
 import recovery_engine
 import report_builder
@@ -2557,6 +2558,12 @@ def create_app():
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@",
+                        # A journalist who was sent an announcement reads it
+                        # without an account. The token in the URL is the
+                        # authorisation, and it identifies which recipient
+                        # opened it. ("/press-desk" does not match this
+                        # prefix - that one stays behind the wall.)
+                        "/press/",
                         # A beat licence is read and signed by somebody who
                         # has no account here, and the cleared list exists to
                         # be checked by a label that never will.
@@ -7746,6 +7753,10 @@ def create_app():
         return jsonify({"ok": True, "message": alert.resolution_message})
 
     operator_desk.init(app, is_owner_email=_is_owner_email)
+    # Press links are baked into emails and read days later, so they are
+    # built from the canonical address rather than whichever host the
+    # request happened to arrive on.
+    press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL)
 
     return app
 
