@@ -127,12 +127,14 @@ def test_status_vocabulary_is_the_agreed_six():
 def test_no_homepage_link_sends_a_visitor_into_the_login_wall(client, home):
     """The rule the whole pass exists for, checked against real responses.
 
-    One deliberate exception: /operator-desk in the footer's Company
-    column is the staff entrance, labeled as such — a stranger clicking
-    it is SUPPOSED to meet the login wall."""
+    Two deliberate exceptions, both in the footer: /operator-desk is the
+    staff entrance, and /press-desk is an artist workspace the owner
+    asked to list under Platform. A stranger clicking either is SUPPOSED
+    to meet the login wall. Everything else on the page must answer."""
+    gated_on_purpose = {"/operator-desk", "/press-desk"}
     seen = {}
     for href in sorted(set(re.findall(r'href="(/[^"?#]*)"', home))):
-        if href.startswith("/static") or href == "/operator-desk":
+        if href.startswith("/static") or href in gated_on_purpose:
             continue
         if href not in seen:
             seen[href] = client.get(href).status_code
