@@ -24,7 +24,7 @@ PUBLIC_ROUTES = [
     "/artist-control", "/plan", "/lanes", "/creative-studio", "/rollout",
     "/royalty-sweep", "/distribution", "/metadata", "/ai",
     "/artist-twin/start", "/catalog-sweep", "/services", "/remix-lab",
-    "/about",
+    "/press", "/about",
     "/contact", "/partners", "/terms", "/privacy", "/submit", "/login",
     "/signup", "/forgot",
 ]

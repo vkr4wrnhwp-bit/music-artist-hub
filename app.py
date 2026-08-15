@@ -2586,7 +2586,11 @@ def create_app():
                      "/start", "/artist-control",
                      "/product-tour", "/product-tour/smart-link",
                      "/about", "/contact", "/partners", "/release-check",
-                     "/release-signal", "/remix-lab"}
+                     "/release-signal", "/remix-lab",
+                     # Exact only. "/press" explains the desk to a stranger;
+                     # "/press-desk" and everything under it stays gated,
+                     # and "/press/<token>" is covered by the prefix above.
+                     "/press"}
 
     def _is_public_path(path):
         if path in _PUBLIC_EXACT:
@@ -7483,6 +7487,23 @@ def create_app():
         return render_template("creative_studio_public.html",
                                capabilities=CAPABILITIES, workflow=WORKFLOW,
                                memory_title=MEMORY_TITLE, memory_copy=MEMORY_COPY)
+
+    @app.route("/press")
+    def press_public():
+        """The Press Desk, explained before an account is asked for.
+
+        Sits at /press rather than /press-desk because /press-desk is the
+        artist's own workspace and stays behind the wall. The two live in
+        one namespace on purpose: /press says what the desk is, and
+        /press/<token> is one announcement sent to one recipient.
+
+        The sending status on this page is resolved from capability_status
+        at request time, so it cannot promise a delivery route the running
+        deployment has not been given credentials for.
+        """
+        from press_config import get_press_config
+
+        return render_template("press_public.html", press=get_press_config())
 
     @app.route("/lanes")
     def lanes_public():

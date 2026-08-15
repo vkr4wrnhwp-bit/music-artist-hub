@@ -448,6 +448,65 @@ def test_the_desk_says_so_when_it_cannot_send(flask_app, monkeypatch):
     assert "No email provider is connected" in body
 
 
+def test_the_public_page_explains_the_desk_without_an_account(flask_app):
+    anon = flask_app.test_client()
+    response = anon.get("/press")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Press Desk" in body
+    assert "How it runs" in body
+    # The workspace itself is still behind the wall.
+    assert anon.get("/press-desk").status_code == 302
+
+
+def test_the_public_page_prints_what_the_desk_cannot_do(flask_app):
+    """The two things a press tool is usually sold on are the two this
+    one does not provide. A page that will not say so is a sales page."""
+    body = flask_app.test_client().get("/press").get_data(as_text=True)
+    assert "What it does not do" in body
+    assert "It is not a media database" in body
+    assert "No journalist contacts come with it" in body
+    assert "It cannot promise coverage" in body
+    assert "No wire distribution" in body
+    # And the honest reason the open count is lower than a rival's.
+    assert "No open pixel" in body
+
+
+def test_the_public_page_reads_its_sending_claim_from_the_environment(
+        flask_app, monkeypatch):
+    """Written copy would go stale the moment a key changed; this asks."""
+    client = flask_app.test_client()
+
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("EMAIL_FROM", raising=False)
+    body = client.get("/press").get_data(as_text=True)
+    assert "Integration ready" in body
+    assert "no sending domain is configured" in body
+    assert "Live</p>" not in body
+
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("EMAIL_FROM", "Artist <press@artist.example>")
+    body = client.get("/press").get_data(as_text=True)
+    assert "Sending from Street Banker — Live" in body
+
+
+def test_the_footer_sends_a_stranger_to_the_public_page(flask_app):
+    """The Platform column is for links that answer a signed-out visitor.
+    It points at /press, not at the gated workspace."""
+    from landing_config import get_landing_config
+
+    platform = [c for c in get_landing_config()["footer"]["columns"]
+                if c["title"] == "Platform"][0]
+    hrefs = {l["label"]: l["href"] for l in platform["links"]}
+    assert hrefs["Press Desk"] == "/press"
+
+    client = flask_app.test_client()
+    assert client.get("/press").status_code == 200
+    body = client.get("/").get_data(as_text=True)
+    assert 'href="/press"' in body
+    assert 'href="/press-desk"' not in body      # no gated link in the footer
+
+
 def test_press_desk_is_in_the_nav_and_the_palette():
     import hubs
 

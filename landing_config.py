@@ -116,10 +116,7 @@ def get_landing_config():
                     {"label": "Global Distribution", "href": "/distribution"},
                     {"label": "Metadata Passport", "href": "/metadata"},
                     {"label": "Smart Links", "href": "/product-tour/smart-link"},
-                    # The odd one out in this column: every link above it
-                    # explains itself to a signed-out visitor, and this one
-                    # meets the login wall. Listed at the owner's request.
-                    {"label": "Press Desk", "href": "/press-desk"},
+                    {"label": "Press Desk", "href": "/press"},
                 ]},
                 {"title": "Solutions", "links": [
                     {"label": "Start a plan", "href": "/start"},

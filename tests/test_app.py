@@ -87,23 +87,18 @@ def test_the_footer_carries_the_modules_and_every_link_is_public():
     footer's Platform column names them instead, and every destination in
     the whole footer answers a signed-out visitor.
 
-    Two deliberate exceptions, both listed here so a third cannot be
-    added without somebody deciding to:
+    One deliberate exception, named here so a second cannot be added
+    without somebody deciding to: /operator-desk, the team's own door in
+    the Company column. A stranger meeting the login wall there is
+    correct — it is the staff entrance, labeled as such.
 
-      /operator-desk  the team's own door, in the Company column. A
-                      stranger meeting the login wall there is correct —
-                      it is the staff entrance, labeled as such.
-      /press-desk     an artist workspace listed in the Platform column
-                      at the owner's request. Unlike its neighbours it
-                      has no public page explaining it, so a signed-out
-                      visitor gets a password field instead of an
-                      answer. Giving it an explainer the way Remix Lab
-                      and Creative Studio have would retire this
-                      exception.
+    The Press Desk briefly needed an exception too, when the Platform
+    column pointed straight at the gated workspace. It has a public page
+    now, so the column is back to every link answering a stranger.
     """
     from landing_config import get_landing_config
 
-    GATED_ON_PURPOSE = {"/operator-desk", "/press-desk"}
+    GATED_ON_PURPOSE = {"/operator-desk"}
 
     client = create_app().test_client()
     body = client.get("/").get_data(as_text=True)
