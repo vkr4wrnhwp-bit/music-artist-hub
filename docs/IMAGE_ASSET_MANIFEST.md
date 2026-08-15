@@ -26,7 +26,14 @@ photograph is `loading="lazy"`.
 
 ## What was done to each image
 
-Sections 4, 5, 7, 8, 9 and 10 arrived as layout mockups with generated
+Sections 2 and 7 now carry real photographs supplied by the owner, built
+from one original each through `tools/build_photo.py`, which crops,
+resizes and encodes and does nothing else. Neither was retouched. Section
+2 is a four-piece band in a venue backline; section 7 is a portrait
+against a pale wall. The repair tool that once produced section 7's
+bytes was deleted with the mockup it existed to repair.
+
+Sections 4, 5, 8, 9 and 10 arrived as layout mockups with generated
 text baked into the picture — invented track lists, malformed
 handwriting, fabricated registration numbers, nonsensical tour routes and
 repeated fake Street Banker branding. The brief for each section
@@ -59,4 +66,7 @@ tapes and hard drives creating a trail toward the stage."*
 The rendered result of any of these images was never seen in a browser
 during this work — every screenshot attempt in this environment timed
 out. Crops, masks and dimensions were verified numerically against the
-source files. A human should look at the page.
+source files, and the section 2 and section 7 crops were inspected as
+image files after building. That is not the same as seeing them laid out
+at a real breakpoint: the CSS crops both further with `object-fit: cover`,
+so a human should still look at the page.

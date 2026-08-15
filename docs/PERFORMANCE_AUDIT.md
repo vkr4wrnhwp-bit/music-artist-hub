@@ -11,7 +11,7 @@ metric. Treat it as an inventory, not a score.
 | --- | --- |
 | Homepage HTML, uncompressed | 130 KB |
 | Distinct static assets referenced | 163 |
-| Total bytes of all srcset variants | 9012 KB |
+| Total bytes of all srcset variants | 8821 KB |
 | `<picture>` elements | 11 |
 | `<img>` elements | 14 |
 | Images with AVIF + WebP + JPEG | all |
@@ -25,7 +25,11 @@ metric. Treat it as an inventory, not a score.
 The total-bytes figure is the sum of **every** variant. A browser picks
 one per image, so a real page load is a fraction of it — but the number
 is worth watching because it is what a cold service-worker precache
-would cost if anyone added these to it.
+would cost if anyone added these to it. It is derived, not hand-kept:
+sum the file behind every distinct `/static` image URL in the rendered
+homepage's `src` and `srcset`. Recompute it whenever a photograph is
+replaced. Last moved 2026-08-14, when the real hero and Section 7
+photographs replaced generated frames and took 412 KB out with them.
 
 ## What is already right
 

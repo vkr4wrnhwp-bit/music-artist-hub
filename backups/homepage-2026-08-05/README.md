@@ -32,8 +32,21 @@ photographs of a real artist instead.
 
 ## To restore
 
+**This tag now predates two landed replacements.** The hero and Section 7
+carry real owner-supplied photographs as of 2026-08-14; restoring from
+here puts the generated frames back. For Section 7 alone, prefer
+`backups/section07-2026-08-14/` and the `pre-section7-photo-2026-08-14`
+tag, which also captures the stylesheet.
+
+The stylesheets are listed above but were missing from this command,
+which mattered once the CSS was retuned for the new photographs: restore
+the pictures without them and a low-key frame sits under crop and veil
+values tuned for a high-key one.
+
     git checkout pre-real-photography -- static/img/hero-band-* \
         static/img/creative-* static/img/rollout-* \
+        static/css/hero.css static/css/creative-studio.css \
+        static/css/rollout.css \
         landing_config.py creative_config.py rollout_config.py \
         templates/landing.html templates/partials/creative_studio.html \
         templates/partials/rollout.html

@@ -5,9 +5,9 @@
    bottom edge that say a sentence each when you point at them.
 
    Two crops, chosen by the browser rather than by cropping one file on
-   the fly: the tall frame on a desktop, the close one at its own ratio
-   on a phone. Nothing in the picture carries information - every word
-   that matters is markup. #}
+   the fly: the room on a desktop, the table and the working light on a
+   phone. Nothing in the picture carries information - every word that
+   matters is markup. #}
 
 {% set cs = creative %}
 {% set img = cs.image %}
@@ -53,7 +53,7 @@
 
     <figure class="sbcs-photo">
       <picture>
-        {# Phone: the close crop, shown at its own ratio. #}
+        {# Phone and narrow tablet: the table and the one working light. #}
         <source media="(max-width: 767px)" type="image/avif"
                 srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
                 sizes="100vw">
@@ -63,7 +63,7 @@
         <source media="(max-width: 767px)" type="image/jpeg"
                 srcset="{% for w in img.close.widths %}{{ img.close.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
                 sizes="100vw">
-        {# Everything wider: the tall frame. #}
+        {# Everything wider: the room. #}
         <source type="image/avif"
                 srcset="{% for w in img.wide.widths %}{{ img.wide.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
                 sizes="(min-width: 1024px) 64vw, 100vw">

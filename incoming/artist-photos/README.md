@@ -4,30 +4,49 @@ Originals at full resolution. Do not pre-resize or pre-crop — every
 derivative is generated from the original, and cropping twice costs
 quality that cannot be recovered.
 
-## Slots waiting for a photograph
+## Slots
 
-Two photographs, both documentary and both anonymous: a crowd frame shot
-from the stage, and a backstage corridor. Neither shows a recognisable
-face, which is the point — a homepage selling infrastructure for any
-artist should not read as one artist's press kit.
+Two anonymous documentary frames — a crowd shot and a backstage corridor
+— were selected first, on the reasoning that a homepage selling
+infrastructure for any artist should not read as one artist's press kit.
+Neither ever reached disk. What the owner delivered instead, and what
+ships now, is different.
 
-| Slot | Section | Aspect | Master | Source |
-| --- | --- | --- | --- | --- |
-| `hero-wide` | 2 Hero, desktop | 1342 x 775 | 1342 | crowd |
-| `hero-tall` | 2 Hero, phone | 900 x 1200 | 900 | crowd, cropped tight on the performer |
-| `rollout-wide` | 8 Rollout Engine, desktop | 940 x 710 | 940 | corridor |
-| `rollout-close` | 8 Rollout Engine, phone | 600 x 630 | 600 | corridor, tighter |
+| Slot | Section | Aspect | Master | Source | Status |
+| --- | --- | --- | --- | --- | --- |
+| `hero-wide` | 2 Hero, desktop | 1342 x 775 | 1342 | `hero-band.webp` | shipped 2026-08-14 |
+| `hero-tall` | 2 Hero, phone | 900 x 1200 | 900 | `hero-band.webp` | shipped 2026-08-14 |
+| `creative-wide` | 7 Creative Studio, desktop | 830 x 980 | 830 | `creative-portrait.jpg` | shipped 2026-08-14 |
+| `creative-close` | 7 Creative Studio, phone | 600 x 520 | 600 | `creative-portrait.jpg` | shipped 2026-08-14 |
+| `rollout-wide` | 8 Rollout Engine, desktop | 940 x 710 | 940 | waiting | — |
+| `rollout-close` | 8 Rollout Engine, phone | 600 x 630 | 600 | waiting | — |
 
-**Section 7 Creative Studio keeps its current image.** There is no real
-photograph for it, and the artist portrait series was ruled out: putting
-the same recognisable person across three sections turns the page into a
-press kit for one artist.
+**The anonymity rule was overtaken, and narrowed rather than dropped.**
+This file used to record that Section 7 keeps its generated image because
+an artist portrait would put the same recognisable person across three
+sections. Section 7 now carries a recognisable face, at the owner's
+direction. What that rule existed to prevent — one subject recurring
+until the page reads as their press kit — is still enforced, by keeping
+each subject to a single section: the hero is a four-piece band, Section
+7 is one portrait, and Sections 5 and 8 must reuse neither.
 
-The hero's two crops both come from the crowd frame after all. A 3:4 crop
-centred on the performer keeps the performer, the raised hands and the
-front of the crowd; it loses the width but not the subject. The corridor
-is not reused for the hero, because the same photograph appearing twice
-on one page reads as a shortage rather than a motif.
+## What was actually run
+
+Recorded because a crop that cannot be reproduced is a crop that cannot
+be retuned. `tests/test_creative_studio.py` re-runs the Section 7 pair
+and compares pixels, so these cannot quietly drift.
+
+    python tools/build_photo.py incoming/artist-photos/hero-band.webp hero-wide --focus 0.52,0.5
+    python tools/build_photo.py incoming/artist-photos/hero-band.webp hero-tall --focus 0.53,0.30
+    python tools/build_photo.py incoming/artist-photos/creative-portrait.jpg creative-wide --focus 0.53,0.42
+    python tools/build_photo.py incoming/artist-photos/creative-portrait.jpg creative-close --focus 0.53,0.0
+
+`creative-portrait.jpg` arrived as a 1080 x 1080 export rather than a
+camera original — the thing the rule at the top of this file warns
+against. It does not upscale at the sizes shipped today (the 830px master
+is cut from a 915 x 1080 crop) but there is no headroom above that, so a
+larger master, a retina variant or a wider recrop all need a new file
+from the owner.
 
 ## Building
 

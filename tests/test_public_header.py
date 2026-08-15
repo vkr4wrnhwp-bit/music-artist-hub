@@ -280,7 +280,9 @@ def test_the_hero_product_panel_is_labelled_as_an_example():
 def test_the_hero_is_accessible():
     body = _home()
     assert 'aria-labelledby="sbhero-title"' in body
-    assert 'alt="Band rehearsing while release artwork is developed inside a working music studio."' in body
+    assert ('alt="Four-piece band in the dark backline of a venue: the '
+            'frontman in a denim jacket up front, flanked by two masked '
+            'members and a hooded bandmate."' in body)
     assert 'aria-label="Example of the Release Readiness panel"' in body
     css = open("static/css/hero.css", encoding="utf-8").read()
     assert "prefers-reduced-motion" in css

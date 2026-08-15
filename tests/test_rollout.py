@@ -277,8 +277,10 @@ def test_the_dark_system_holds_and_the_section_is_its_own():
         assert token in css, token
     eq = _section()
     text = re.sub(r"<[^>]+>", " ", eq).lower()
-    # Not Section 6's rack, not Section 7's merch table, not Section 5's
-    # assessment.
+    # Not Section 6's rack, not Section 5's assessment, and none of the
+    # touring vocabulary other sections own. ("merch table" stays in the
+    # list as a generic guard - Section 7's own picture is a portrait
+    # now, but the phrase must still not wander in here.)
     for borrowed in ("vu", "fader", "mastering", "merch table", "confidence",
                      "what the twin observed"):
         assert borrowed not in text, borrowed

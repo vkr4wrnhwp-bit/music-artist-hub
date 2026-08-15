@@ -5,7 +5,7 @@
  * credits; nothing is in a card, nothing floats, and the only thing that
  * moves is a line of text appearing under a label.
  *
- * Section 6 is the analog rack. This one is a room.
+ * Section 6 is the analog rack. This one is a person.
  */
 
 .sbcs {
@@ -36,16 +36,28 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 62% 45%;
+  /* The tall frame is cover-cropped into a landscape box twice over: the
+     768-1023 band forces 4/3, and past ~1085px the 820px cap does the
+     same. Both take their loss vertically around this point, so it sits
+     high - centred, a third of the frame's height goes and the top of a
+     standing subject is cut off on exactly the widest screens. */
+  object-position: 50% 6%;
 }
-/* A gradient only where the type has to stay readable - the picture is
-   not dimmed for the sake of being dimmed. */
+/* An edge treatment, not a scrim. No type is ever set over this
+   photograph - the copy lives in the black column beside it - so the
+   picture is never dimmed to keep words readable.
+
+   The ramp must START opaque. That is what makes the picture's first
+   pixel column exactly the ground colour beside it, so there is no step
+   at the join. What changes for a high-key frame is the LENGTH: over a
+   pale ground the old 46% carried a black wash halfway across the
+   picture, which reads as a smudge rather than an edge. */
 .sbcs-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(to right,
-    var(--cs-black) 0%, rgb(9 9 8 / 0.72) 14%, rgb(9 9 8 / 0) 46%);
+    var(--cs-black) 0%, rgb(9 9 8 / 0) 7%);
 }
 
 /* --- the copy ------------------------------------------------------------ */
@@ -255,12 +267,14 @@
   .sbcs-photo { grid-row: 1; grid-column: 2; }
   /* The frame is taller than it is wide, so it keeps its own ratio and
      is capped rather than stretched across the section: cover on a
-     landscape box would zoom past the room and land on one shoulder. */
+     landscape box would zoom past the subject and land on one shoulder. */
   .sbcs-img { aspect-ratio: 830 / 980; max-height: 820px; }
-  /* Only the photograph's left edge needs softening into the black
-     column beside it. */
+  /* Only the photograph's left edge needs seating against the black
+     column beside it: opaque at the join, clear 54px later on a 1075px
+     frame. At 16% that ramp ran 172px - invisible across a near-black
+     picture, a grey stain across a pale one. */
   .sbcs-veil {
-    background: linear-gradient(to right, var(--cs-black) 0%, rgb(9 9 8 / 0) 16%);
+    background: linear-gradient(to right, var(--cs-black) 0%, rgb(9 9 8 / 0) 5%);
   }
   .sbcs-features { padding-top: 0; }
 }
@@ -274,8 +288,13 @@
   /* The tablet band gets the wide composition, so it keeps a wider box;
      the phone gets the close crop and its own ratio exactly. */
   .sbcs-img { aspect-ratio: 4 / 3; }
+  /* Stacked, the photograph's top edge meets the copy block above it,
+     so the ramp runs downward and still starts opaque. It used to reach
+     55% black a third of the way down the picture, which a low-key frame
+     absorbed and a high-key one wears as a grey band across its
+     brightest area - and across the hat. */
   .sbcs-veil {
-    background: linear-gradient(to bottom, rgb(9 9 8 / 0.55) 0%, rgb(9 9 8 / 0) 38%);
+    background: linear-gradient(to bottom, var(--cs-black) 0%, rgb(9 9 8 / 0) 12%);
   }
   .sbcs-cta { width: 100%; justify-content: center; }
 }

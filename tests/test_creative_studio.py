@@ -1,16 +1,18 @@
 """Section 7 — Creative Studio.
 
 The photograph carries the section, so the tests care most about what is
-NOT in it: no generated Street Banker merchandise, no invented prices, no
-malformed shirt lettering. The rest is the ordinary contract - the copy
-is markup, the labels say a sentence each, and a stranger can read what
-the tools do and do not do without an account.
+NOT in it: nothing generated, nothing invented, no lettering the markup
+should have carried. The section now ships a real photograph rather than
+a repaired layout mockup, and these tests hold that line. The rest is the
+ordinary contract - the copy is markup, the labels say a sentence each,
+and a stranger can read what the tools do and do not do without an
+account.
 """
 
 import os
 import re
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 
 from app import create_app
 
@@ -92,8 +94,8 @@ def test_the_workflow_is_five_steps_on_request():
 # --- the photograph -------------------------------------------------------
 
 def test_two_crops_chosen_by_the_browser():
-    """A phone gets the table and the working light; anything wider gets
-    the room. Not one file centre-cropped for every device."""
+    """A phone gets the close frame at its own ratio; anything wider gets
+    the tall one. Not one file centre-cropped for every device."""
     eq = _section()
     assert eq.count("<img") == 1
     assert eq.count('media="(max-width: 767px)"') == 3      # avif, webp, jpeg
@@ -122,32 +124,88 @@ def test_both_crops_ship_in_three_formats():
     assert ratios["wide"] < 1 < ratios["close"], ratios
 
 
-def test_the_alt_text_describes_the_room_and_sells_nothing():
+def test_the_alt_text_describes_the_picture_and_sells_nothing():
     eq = _section()
     alt = re.search(r'alt="([^"]+)"', eq).group(1)
-    assert alt == ("Touring artist and crew setting up a merchandise table "
-                   "backstage inside a small music venue.")
+    assert alt == ("Artist in a black cowboy hat, white-blonde hair and a "
+                   "patent leather jacket, photographed against a pale wall.")
     words = set(re.findall(r"[a-z]+", alt.lower()))
     for marketing in ("street", "banker", "creative", "studio", "premium",
                       "campaign"):
         assert marketing not in words, marketing
 
 
-def test_the_photograph_carries_no_functional_text():
-    """The supplied frame had a price sheet reading STREET BANKER /
-    SECTION 7, a shirt printed SECTIN 7, two more Street Banker prints, a
-    reaper logo on the merch cloth and SB7 stickers. The tool that built
-    these assets clears all of it - and every word that matters is in the
-    markup either way."""
-    tool = open("tools/clean_creative_photo.py", encoding="utf-8").read()
-    assert "ZONES" in tool and tool.count("# ") > 8
-    for cleared in ("price sheet", "hanging shirt", "reaper logo", "sticker"):
-        assert cleared in tool, cleared
+def test_the_repair_tool_is_gone_and_the_build_tool_only_crops():
+    """This section used to ship a generated layout mockup: a price sheet
+    reading STREET BANKER / SECTION 7, a shirt printed SECTIN 7, a reaper
+    logo and SB7 stickers, all painted out by a repair tool before the
+    bytes were shippable.
+
+    Both are gone. The repair tool is asserted ABSENT on purpose: left on
+    disk it would keep a test green while vouching for bytes it no longer
+    produces. This test is deliberately named for what it proves - the
+    provenance of the picture itself is the next test's job.
+    """
+    assert not os.path.exists("tools/clean_creative_photo.py"), (
+        "the mockup repair tool outlived the mockup it repaired")
+    tool = open("tools/build_photo.py", encoding="utf-8").read()
+    assert "creative-wide" in tool and "creative-close" in tool
+    assert "Nothing here retouches, repairs or alters content" in tool
     eq = _section()
     # Nothing in the section depends on reading the picture.
     for word in ("Cover Art", "Merch", "Campaign Assets", "Platform Formats",
                  "Build the", "Open Creative Studio"):
         assert word in eq, word
+
+
+# The photograph, and the crop that produced each shipped master. This is
+# the only written record of the invocation, and the test below re-runs it,
+# so the two cannot drift.
+ORIGINAL = "incoming/artist-photos/creative-portrait.jpg"
+CROPS = (("creative-wide", 830, (0.53, 0.42)),
+         ("creative-close", 600, (0.53, 0.0)))
+
+
+def test_the_shipped_crops_are_reproducible_from_the_tracked_original():
+    """The bytes in static/img really are that photograph, cropped.
+
+    The test above proves a negative - the repair tool is gone. This one
+    proves the positive, because a negative was not enough: the old
+    mockup and the new portrait have identical dimensions and ratios, so
+    every other check in this file passes with either picture on disk.
+    Restoring the mockup was tried, and the suite stayed green.
+
+    So rebuild both masters from the original and compare pixels. A
+    different picture in static/img, a silently skipped derivative, or a
+    changed crop all diverge here.
+    """
+    import importlib.util
+    import tempfile
+
+    assert os.path.exists(ORIGINAL), (
+        "%s is missing - the derivatives cannot be rebuilt without it, and "
+        "shipping crops with no original is how a picture loses its "
+        "provenance" % ORIGINAL)
+
+    spec = importlib.util.spec_from_file_location(
+        "build_photo", "tools/build_photo.py")
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+
+    with tempfile.TemporaryDirectory() as out_dir:
+        builder.OUT_DIR = out_dir
+        for slot, master, focus in CROPS:
+            builder.build(ORIGINAL, slot, focus)
+            rebuilt = os.path.join(out_dir, "%s-%d.jpg" % (slot, master))
+            shipped = "static/img/%s-%d.jpg" % (slot, master)
+            with Image.open(rebuilt) as fresh, Image.open(shipped) as live:
+                assert fresh.size == live.size, (slot, fresh.size, live.size)
+                diff = ImageChops.difference(fresh.convert("RGB"),
+                                             live.convert("RGB"))
+                drift = sum(ImageStat.Stat(diff).mean) / 3
+                assert drift < 1.0, (
+                    "%s does not match a rebuild from %s (mean channel "
+                    "difference %.2f)" % (shipped, ORIGINAL, drift))
 
 
 # --- destinations ---------------------------------------------------------
@@ -209,9 +267,11 @@ def test_the_dark_system_holds():
     assert "background: var(--cs-black)" in css
     for bright in ("background: #fff", "background: white"):
         assert bright not in css, bright
-    # Gradients only where the type has to stay readable: the base veil,
-    # the narrower one the desktop column needs, and the top-down one on
-    # a phone. Nothing is dimmed for the sake of being dimmed.
+    # Three veils and no more: the base edge, the narrower one the desktop
+    # column needs, and the top-down one when the section stacks. No type
+    # is set over the photograph, so none of them is a scrim - they seat
+    # the picture against the black ground and nothing is dimmed for the
+    # sake of being dimmed.
     assert css.count("linear-gradient") == 3
 
 
@@ -261,4 +321,9 @@ def test_the_assets_are_linked_and_the_cache_version_moved():
     assert "/static/js/creative-studio.js" in body
     sw = open("static/js/sw.js", encoding="utf-8").read()
     version = re.search(r'VERSION = "sb-v(\d+)"', sw)
-    assert version and int(version.group(1)) >= 90
+    # The floor is this section's own last ship. It has to move whenever
+    # these bytes do: the worker serves /static cache-first with no
+    # revalidation and the image URLs carry no ?v=, so VERSION is the only
+    # cache key they have. At the old floor of 90 a forgotten bump passed
+    # silently, which is exactly the failure this test is named for.
+    assert version and int(version.group(1)) >= 112

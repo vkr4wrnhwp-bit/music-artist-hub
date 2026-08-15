@@ -1,7 +1,7 @@
 """Section 7 — Creative Studio.
 
-One portrait and four words along the bottom edge. The picture carries
-the section; the interface stays out of its way.
+A backstage photograph and four words along the bottom edge. The picture
+carries the section; the interface stays out of its way.
 
 The capability list on the public tour is grouped by what is actually
 true: what is in the app today, what is guided rather than automatic, and
@@ -53,8 +53,8 @@ IMAGE = {
              "width": 830, "height": 980},
     "close": {"stem": "/static/img/creative-close", "widths": [400, 600],
               "width": 600, "height": 520},
-    "alt": ("Artist in a black cowboy hat, white-blonde hair and a patent "
-            "leather jacket, photographed against a pale wall."),
+    "alt": ("Touring artist and crew setting up a merchandise table backstage "
+            "inside a small music venue."),
 }
 
 # The public tour, grouped by what is true rather than by feature.

@@ -1,34 +1,41 @@
 # Homepage image replacement map
 
-Every homepage image, classified. Written during the implementation pass;
-the replacement work itself is **blocked** — see the bottom of this file.
+Every homepage image, classified. Written during the implementation pass,
+when the work was blocked on delivery. Two of the four replacements have
+since landed — hero and Creative Studio, both from owner-supplied
+originals on 2026-08-14. See Status at the bottom.
 
 ## Classification
 
 | # | Section | Asset | Verdict | Why |
 | --- | --- | --- | --- | --- |
-| 2 | Hero | `hero-band-wide` / `hero-band-tall` | **REPLACE** | Generated. Reads as stock. The most valuable frame on the site and the least credible. |
+| 2 | Hero | `hero-band-wide` / `hero-band-tall` | **REPLACED** 2026-08-14 | Owner's own band photograph, venue backline. Was generated and read as stock. |
 | 3 | Artist EQ | `eq-room` | KEEP | Used as a frame with its centre painted out; the console sits in a real hole. Carries no claim. |
 | 4 | Six Departments | `departments` | RETOUCH | Repaired once (fabricated wall text removed). Composition is strong; the generated look remains. |
 | 5 | AI Artist Twin | `artist-twin` | **REPLACE** | Generated, and repaired for invented track lists. A real artist at work is the whole point of this section. |
 | 6 | Three Lanes | `lanes-unit` | KEEP | Object-led. Hardware, no people, no claim. Now carries live overlay controls. |
-| 7 | Creative Studio | `creative-wide` / `creative-close` | **REPLACE** | Generated merch table, repaired for fake branding. A real campaign series would prove the section's claim. |
+| 7 | Creative Studio | `creative-wide` / `creative-close` | **REPLACED** 2026-08-14 | Owner-supplied portrait against a pale wall. Was a generated merch table repaired for fake branding. |
 | 8 | Rollout Engine | `rollout-wide` / `rollout-close` | **REPLACE** | Generated, repaired for nonsensical tour routes. |
 | 9 | Royalty Sweep | `sweep-wide` / `sweep-close` | KEEP | Object-led archival frame. Repaired and holding. |
 | 10 | Global Distribution | `distro-wide` / `distro-close` | KEEP | Object-led. Repaired for invented registration numbers. |
 | 11 | Metadata Passport | `passport-wide` / `passport-close` | KEEP | Blueprint. Used unaltered, no repair needed. |
 | 12 | Closing | `closing-wide` / `closing-close` | KEEP | Used unaltered, cropped only. The strongest frame on the page. |
 
-Six KEEP, one RETOUCH, four REPLACE, zero REMOVE.
+Six KEEP, one RETOUCH, four REPLACE (two done, two outstanding: 5 AI
+Artist Twin and 8 Rollout Engine), zero REMOVE.
 
 ## Where real photography is worth most
 
-Ranked. Hero first because it is seen by everyone and currently reads as
-stock; Creative Studio second because a real campaign series is
-*evidence* for that section's central claim rather than decoration.
+Ranked when the work was blocked. The top two have since landed:
 
-1. Hero
-2. Creative Studio
+1. ~~Hero~~ — done 2026-08-14, the owner's own band photograph.
+2. ~~Creative Studio~~ — done 2026-08-14. Note what this paragraph
+   originally asked for and did not get: a real *campaign series*, on the
+   argument that it would be evidence for the section's claim rather than
+   decoration. What shipped is a single portrait. It is real photography
+   and it is the owner's own, which was the blocking condition — but the
+   evidence argument is still unmet, and a campaign series would still be
+   a stronger frame here.
 3. AI Artist Twin
 4. Rollout Engine
 5. Fan Intelligence (no homepage section yet)
@@ -71,7 +78,23 @@ python tools/build_photo.py incoming/artist-photos/crowd.jpg hero-wide --focus 0
 `--focus` names the point that must survive the crop. Centre-cropping
 decides that for itself and usually decides wrong.
 
-## Status: BLOCKED
+## Status: two of four done
+
+2026-08-14. The hero and Creative Studio now carry owner-supplied
+photographs, delivered as files and built with `build_photo.py`. Neither
+was retouched, and no credit line was requested. AI Artist Twin (5) and
+Rollout Engine (8) are still outstanding.
+
+The no-repeated-artist rule under "Rules applied" above still holds: the
+hero is a four-piece band and Creative Studio is a different subject, so
+no face repeats across the page. A third replacement must reuse neither.
+
+The two invocations that produced the Section 7 crops are recorded in
+`incoming/artist-photos/README.md`, and `tests/test_creative_studio.py`
+re-runs them against the tracked original and compares pixels — so the
+shipped bytes cannot drift from the photograph they claim to be.
+
+### The original blockage, kept for the record
 
 Blocked on the stop condition the brief names — **a real artist image
 lacking confirmed usage permission** — plus a delivery problem.
@@ -96,7 +119,9 @@ beyond what was already repaired in earlier section work.
 
 | Asset | Photographer | Permission | Credit required | Expires |
 | --- | --- | --- | --- | --- |
-| All current homepage images | generated | n/a | no | n/a |
+| `hero-band-wide` / `hero-band-tall` | owner-supplied | owner states rights held | no, declined by owner | n/a |
+| `creative-wide` / `creative-close` | owner-supplied | owner states rights held | no, declined by owner | n/a |
+| All other homepage images | generated | n/a | no | n/a |
 | `crowd` (pending) | owner-stated | stated owned, unverified in writing | no (owner's own) | n/a |
 | `corridor` (pending) | owner-stated | stated owned, unverified in writing | no (owner's own) | n/a |
 | red-light live shot | watermark "K.J.M…" | **not established** | yes, if licensed | unknown |
