@@ -45,8 +45,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # The QC engine renders and probes real defective MP4s, so ffmpeg is a
-      # test dependency, not just a runtime one. ubuntu-latest ships it.
-      - run: ffmpeg -version && ffprobe -version
+      # test dependency, not just a runtime one. The runner image does not
+      # ship it.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
       - uses: pnpm/action-setup@v4
         with:
           version: 10
