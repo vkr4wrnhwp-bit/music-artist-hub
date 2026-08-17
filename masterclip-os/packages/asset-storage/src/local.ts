@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { AppError, hmacHex, safeEqual, sha256File, sha256Hex } from '@masterclip/shared'
 import type { PutOptions, StorageDriver, StoredObject } from './driver.js'
+import { stableExpiry } from './expiry.js'
 
 export interface LocalStorageOptions {
   root: string
@@ -101,7 +102,10 @@ export class LocalStorage implements StorageDriver {
   }
 
   async signedUrl(key: string, ttlSeconds = 3600): Promise<string> {
-    const expires = Math.floor(this.now() / 1000) + ttlSeconds
+    // Anchored to a window boundary so repeated requests for the same key
+    // produce the identical string and the browser can actually reuse what it
+    // already downloaded. See stableExpiry().
+    const { expiresAtEpochSeconds: expires } = stableExpiry(this.now(), ttlSeconds)
     const sig = signAssetKey(this.secret, key, expires)
     return `${this.urlPrefix}?key=${encodeURIComponent(key)}&exp=${expires}&sig=${sig}`
   }

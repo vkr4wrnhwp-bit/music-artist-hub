@@ -36,7 +36,7 @@ against the mock provider, which renders real MP4s with ffmpeg.
 |---|---|
 | `pnpm typecheck` | **27/27 projects clean** |
 | `pnpm lint` | **clean** — secret scan, shell-exec guard, SQL-interpolation guard, typecheck |
-| `pnpm test` | **201 passed / 201**, 14 files |
+| `pnpm test` | **207 passed / 207**, 14 files |
 | `pnpm test:e2e` | **10 passed / 10** (Playwright, Chromium, against the production web build) |
 | `pnpm build` | **succeeds** — `dist/api.js`, `dist/worker.js`, `dist/masterclip.js`, `apps/web/dist` |
 | bundled artifacts run | `node dist/masterclip.js doctor` → all required checks pass; `node dist/api.js` → serves `/api/health` |
@@ -61,7 +61,7 @@ against the mock provider, which renders real MP4s with ffmpeg.
 | Database: SQLite + PostgreSQL, one SQL | **REAL** | `packages/database/` | 10 tests; verified on live PG 16 |
 | Migrations, forward-only, transactional | **REAL** | `packages/database/src/migrations.ts` | idempotency + all-tables tests |
 | Durable queue: leases, backoff+jitter, dead-letter, stalled recovery, dedupe, replay | **REAL** | `packages/queue/` | 13 tests |
-| Local object storage + signed URLs | **REAL** | `packages/asset-storage/src/local.ts` | 6 tests incl. path-escape and expiry |
+| Local object storage + signed URLs | **REAL** | `packages/asset-storage/src/local.ts`, `src/expiry.ts` | 16 tests incl. path-escape, expiry, and cache stability |
 | S3 storage driver | **DEV-LABELED** | `packages/asset-storage/src/s3.ts` | SigV4 verified against AWS's published test vector; **never run against a live bucket** |
 | Auth: scrypt, hashed sessions, project roles | **REAL** | `packages/auth/` | exercised by every API test + e2e |
 | Rate limiting: token bucket, 8 request classes, two-tier login budget | **REAL** | `packages/shared/src/rate-limit.ts`, `apps/api/src/security/rate-limit.ts` | 10 unit tests on a fake clock (refill, burst, memory bound, self-lockout, eviction-under-attack) + 24 HTTP tests |
@@ -206,6 +206,12 @@ Bucket eviction was also rewritten during this work: the first version evicted
 least-recently-used, which let an attacker erase their own penalty by making
 noise from a few hundred fresh addresses. It now evicts by fullness, so the
 noise evicts itself. That one was caught by a test written before the review.
+
+## Performance defects found after the hardening pass
+
+| Defect | Why it mattered |
+|---|---|
+| Signed asset URLs embedded `now + ttl`, so every response produced a different string | the review grid re-signs each clip whenever outputs reload — once per approve or reject — so the browser re-downloaded every video and poster in the grid on every decision, and the `cache-control: private, max-age=3600` on the asset route never applied. Both drivers are now anchored to a window boundary (`stableExpiry`), so the URL is byte-identical within the window and still never outlives the requested ttl |
 
 ## Bugs this build's own tests found and fixed
 

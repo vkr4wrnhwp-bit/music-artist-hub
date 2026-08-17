@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { AppError, classifyStatus, sha256File, sha256Hex } from '@masterclip/shared'
 import type { PutOptions, StorageDriver, StoredObject } from './driver.js'
 import { presignUrl, signRequest, uriEncode, type SigV4Credentials } from './sigv4.js'
+import { stableExpiry } from './expiry.js'
 
 export interface S3StorageOptions {
   endpoint: string
@@ -12,6 +13,8 @@ export interface S3StorageOptions {
   credentials: SigV4Credentials
   /** MinIO/R2 want path-style; AWS accepts it too. */
   forcePathStyle?: boolean
+  /** Injectable clock, so presign stability is testable without waiting. */
+  now?: () => number
 }
 
 /**
@@ -24,9 +27,12 @@ export interface S3StorageOptions {
 export class S3Storage implements StorageDriver {
   readonly name = 's3' as const
 
+  private readonly now: () => number
+
   constructor(private readonly opts: S3StorageOptions) {
     if (!opts.bucket) throw new Error('S3Storage requires a bucket')
     if (!opts.endpoint) throw new Error('S3Storage requires an endpoint')
+    this.now = opts.now ?? Date.now
   }
 
   private urlFor(key: string): URL {
@@ -113,11 +119,16 @@ export class S3Storage implements StorageDriver {
   }
 
   async signedUrl(key: string, ttlSeconds = 3600): Promise<string> {
+    // SigV4 presigning embeds X-Amz-Date, so signing at the current instant
+    // yields a different URL every second and defeats browser caching exactly
+    // as the local driver did. Sign as of the window start instead.
+    const { issuedAtEpochSeconds } = stableExpiry(this.now(), ttlSeconds)
     return presignUrl({
       url: this.urlFor(key),
       region: this.opts.region,
       credentials: this.opts.credentials,
       expiresSeconds: ttlSeconds,
+      date: new Date(issuedAtEpochSeconds * 1000),
     })
   }
 

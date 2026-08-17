@@ -7,6 +7,7 @@ export * from './driver.js'
 export { LocalStorage, signAssetKey, verifySignedUrl } from './local.js'
 export { S3Storage, downloadToFile } from './s3.js'
 export * from './sigv4.js'
+export * from './expiry.js'
 
 export function createStorage(config: AppConfig = loadConfig()): StorageDriver {
   if (config.STORAGE_DRIVER === 's3') {

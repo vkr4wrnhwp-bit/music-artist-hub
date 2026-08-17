@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { LocalStorage, objectKey, sanitizeFilename, signingKey, uriEncode, verifySignedUrl } from '../src/index.js'
+import { LocalStorage, S3Storage, objectKey, sanitizeFilename, signingKey, uriEncode, verifySignedUrl } from '../src/index.js'
 
 let root: string
 beforeEach(async () => {
@@ -102,5 +102,71 @@ describe('local path staging', () => {
     const dest = join(root, 'staged', 'copy.txt')
     expect(await storage.materialize(stored.key, dest)).toBe(dest)
     expect(storage.localPath(stored.key)).toContain('proj/k/i/source.txt')
+  })
+})
+
+/**
+ * A signed URL that changes on every call silently defeats HTTP caching. The
+ * review grid re-signs every clip whenever outputs reload — once per approve or
+ * reject — so an unstable URL means the browser re-downloads every video in the
+ * grid on every decision. These pin the fix.
+ */
+describe('signed URLs are cacheable', () => {
+  const secret = 'stability-test-secret'
+
+  it('returns the identical string for the same key within a window', async () => {
+    let clock = 1_800_000_000_000
+    const storage = new LocalStorage({ root, signingSecret: secret, now: () => clock })
+
+    const first = await storage.signedUrl('proj/a/clip.mp4', 3600)
+    clock += 60_000 // a minute of reviewing later
+    const second = await storage.signedUrl('proj/a/clip.mp4', 3600)
+    clock += 15 * 60_000
+    const third = await storage.signedUrl('proj/a/clip.mp4', 3600)
+
+    expect(second).toBe(first)
+    expect(third).toBe(first)
+  })
+
+  it('still expires, and never outlives the requested ttl', async () => {
+    let clock = 1_800_000_000_000
+    const storage = new LocalStorage({ root, signingSecret: secret, now: () => clock })
+    const url = await storage.signedUrl('proj/a/clip.mp4', 3600)
+    const exp = Number(new URL(url, 'http://x').searchParams.get('exp'))
+
+    const remaining = exp - Math.floor(clock / 1000)
+    expect(remaining).toBeLessThanOrEqual(3600)
+    // Half the ttl is the floor: a request arriving at the very end of a window
+    // must still get a usable link.
+    expect(remaining).toBeGreaterThanOrEqual(1800)
+  })
+
+  it('rolls over to a new URL once the window advances', async () => {
+    let clock = 1_800_000_000_000
+    const storage = new LocalStorage({ root, signingSecret: secret, now: () => clock })
+    const first = await storage.signedUrl('proj/a/clip.mp4', 3600)
+    clock += 31 * 60_000 // past the 30-minute window
+    expect(await storage.signedUrl('proj/a/clip.mp4', 3600)).not.toBe(first)
+  })
+
+  it('keeps different keys on different URLs', async () => {
+    const storage = new LocalStorage({ root, signingSecret: secret, now: () => 1_800_000_000_000 })
+    expect(await storage.signedUrl('proj/a/one.mp4', 3600)).not.toBe(await storage.signedUrl('proj/a/two.mp4', 3600))
+  })
+
+  it('presigns S3 stably too, since X-Amz-Date changes every second otherwise', async () => {
+    let clock = 1_800_000_000_000
+    const storage = new S3Storage({
+      endpoint: 'https://s3.example.com',
+      bucket: 'masterclip',
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+      now: () => clock,
+    })
+    const first = await storage.signedUrl('proj/a/clip.mp4', 3600)
+    clock += 5 * 60_000
+    expect(await storage.signedUrl('proj/a/clip.mp4', 3600)).toBe(first)
+    clock += 31 * 60_000
+    expect(await storage.signedUrl('proj/a/clip.mp4', 3600)).not.toBe(first)
   })
 })

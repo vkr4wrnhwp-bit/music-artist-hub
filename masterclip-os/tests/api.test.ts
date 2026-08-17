@@ -11,7 +11,7 @@ import { buildServer, SESSION_COOKIE } from '../apps/api/src/server.js'
 import { CSRF_COOKIE, CSRF_HEADER } from '../apps/api/src/security/csrf.js'
 
 /**
- * HTTP-level security tests.
+  * HTTP-level tests against the real Fastify instance.
  *
  * These drive the real Fastify instance through `inject`, so the hooks, the
  * error handler and the cookie plumbing are all the shipping ones. The point is
@@ -404,5 +404,43 @@ describe('proxy trust', () => {
       if (response.statusCode === 429) refusals++
     }
     expect(refusals).toBeGreaterThan(0)
+  })
+})
+
+describe('asset links are stable enough to cache', () => {
+  it('hands out the identical URL for the same asset across reloads', async () => {
+    const { session, csrf } = await signup()
+    const cookies = { [SESSION_COOKIE]: session, [CSRF_COOKIE]: csrf }
+    const headers = { [CSRF_HEADER]: csrf }
+
+    const project = await app.inject({ method: 'POST', url: '/api/projects', cookies, headers, payload: { name: 'Cache Project' } })
+    const projectId = project.json().project.id as string
+
+    const boundary = '----masterclipCacheBoundary'
+    // Built as a Buffer: a PNG signature carried in a JS string is re-encoded
+    // as UTF-8 on the way out, and 0x89 becomes two bytes that sniff as nothing.
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Array(64).fill(0)])
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="ref.png"\r\nContent-Type: image/png\r\n\r\n`),
+      png,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ])
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${projectId}/assets`,
+      cookies,
+      headers: { ...headers, 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: body,
+    })
+    expect(upload.statusCode).toBe(200)
+
+    const list = () => app.inject({ method: 'GET', url: `/api/projects/${projectId}/assets`, cookies })
+    const first = (await list()).json().assets[0].url as string
+    const second = (await list()).json().assets[0].url as string
+
+    // The review grid reloads after every decision. A URL that differs each
+    // time makes the browser re-download every clip in the grid, however good
+    // the cache-control header on the asset route is.
+    expect(second).toBe(first)
   })
 })

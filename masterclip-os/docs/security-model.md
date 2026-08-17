@@ -102,7 +102,9 @@ what makes an unsigned MuAPI or fal callback safe to accept.
 - Object keys are **constructed** from `(projectId, kind, assetId, filename)`,
   never taken from input, and the local driver additionally resolves and rejects
   any key that escapes the storage root.
-- Size limits: 512 MB per file, 8 files per request, 32 MB JSON bodies.
+- Size limits: 512 MB per file, **one file per request**, 32 MB JSON bodies. A
+  request carrying several files is refused rather than silently storing the last
+  one, which is what it used to do.
 - Content-addressed dedupe by SHA-256 means the same upload is stored once.
 
 ### Serving media
@@ -132,6 +134,19 @@ counts (passed through `Math.floor`) and table/column identifiers, which come
 from literal strings in the code and are additionally validated against
 `/^[a-z_][a-z0-9_]*$/i` by `assertIdent`. `pnpm lint` flags SQL that interpolates
 anything else.
+
+### Signed asset links
+
+Asset bytes are served only through `GET /api/assets/raw`, which takes no session
+and no cookie: the URL carries an HMAC over the key and an expiry, compared
+timing-safely. The signature is anchored to a **window boundary** rather than to
+the instant it was generated, so the same key yields a byte-identical URL for
+every request inside that window. That is a caching property, not a security
+one — an unstable URL changes on every response, which makes the browser
+re-download every clip in the review grid each time a decision reloads it — but
+it is worth stating here because it bounds link lifetime: a link is signed as of
+the start of its window, so it lives between half and all of the requested TTL,
+and never longer.
 
 ### Cross-site request forgery
 
