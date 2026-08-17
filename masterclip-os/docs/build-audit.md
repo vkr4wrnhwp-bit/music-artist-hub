@@ -36,14 +36,14 @@ against the mock provider, which renders real MP4s with ffmpeg.
 |---|---|
 | `pnpm typecheck` | **27/27 projects clean** |
 | `pnpm lint` | **clean** — secret scan, shell-exec guard, SQL-interpolation guard, typecheck |
-| `pnpm test` | **207 passed / 207**, 14 files |
+| `pnpm test` | **219 passed / 219**, 16 files |
 | `pnpm test:e2e` | **10 passed / 10** (Playwright, Chromium, against the production web build) |
 | `pnpm build` | **succeeds** — `dist/api.js`, `dist/worker.js`, `dist/masterclip.js`, `apps/web/dist` |
 | bundled artifacts run | `node dist/masterclip.js doctor` → all required checks pass; `node dist/api.js` → serves `/api/health` |
 | PostgreSQL parity | same migrations and same SQL verified against live PostgreSQL 16 |
 | full pipeline | plan → authorize → submit → poll → download → verify → QC → derivatives → review → promote → finish → package, with real media |
 
-135 source files, ~26,100 lines, 27 workspace packages, 16 test files.
+138 source files, ~26,500 lines, 27 workspace packages, 18 test files.
 
 ---
 
@@ -62,7 +62,7 @@ against the mock provider, which renders real MP4s with ffmpeg.
 | Migrations, forward-only, transactional | **REAL** | `packages/database/src/migrations.ts` | idempotency + all-tables tests |
 | Durable queue: leases, backoff+jitter, dead-letter, stalled recovery, dedupe, replay | **REAL** | `packages/queue/` | 13 tests |
 | Local object storage + signed URLs | **REAL** | `packages/asset-storage/src/local.ts`, `src/expiry.ts` | 16 tests incl. path-escape, expiry, and cache stability |
-| S3 storage driver | **DEV-LABELED** | `packages/asset-storage/src/s3.ts` | SigV4 verified against AWS's published test vector; **never run against a live bucket** |
+| S3 storage driver | **DEV-LABELED** | `packages/asset-storage/src/s3.ts` | SigV4 verified against AWS's published test vector; 12 tests drive the driver over a real socket against an in-repo S3-compatible server (put/get/head/delete/list, spec-checked key encoding, XML parsing, status mapping, presigned fetch), and three deliberate mutations were confirmed to fail them; **still never run against a live AWS bucket** |
 | Auth: scrypt, hashed sessions, project roles | **REAL** | `packages/auth/` | exercised by every API test + e2e |
 | Rate limiting: token bucket, 8 request classes, two-tier login budget | **REAL** | `packages/shared/src/rate-limit.ts`, `apps/api/src/security/rate-limit.ts` | 10 unit tests on a fake clock (refill, burst, memory bound, self-lockout, eviction-under-attack) + 24 HTTP tests |
 | CSRF: origin check + session-bound double-submit token | **REAL** | `apps/api/src/security/csrf.ts` | HTTP tests incl. forged token, cross-site, foreign Origin, stale-cookie recovery; proven in-browser by the e2e suite |
@@ -183,6 +183,35 @@ against the mock provider, which renders real MP4s with ffmpeg.
 | Per-org encrypted provider credentials | `provider_credentials` table and `SECRETS_ENCRYPTION_KEY` exist; this release reads keys from the environment only |
 
 ---
+
+## Testing added after the hardening pass
+
+**The S3 driver now makes real HTTP requests.** It previously had no test that
+opened a socket: the SigV4 signer was verified against AWS's published vector,
+but URL construction, key encoding, list-XML parsing, status mapping and
+presigned-URL fetchability were all unexercised. A minimal S3-compatible server
+lives in `packages/asset-storage/test/s3-server.ts` and 12 tests drive the real
+driver against it.
+
+Two of its checks are genuinely independent rather than circular:
+
+- It hashes the bytes that actually arrived and compares them to the driver's
+  declared `x-amz-content-sha256`, so a body signed differently from the body
+  sent is a 400.
+- It re-derives each path segment's percent-encoding from the S3 spec's rule
+  (only `A-Za-z0-9-._~` literal) and compares it to the raw path on the wire.
+  Node's `URL` leaves characters like `(` alone, so this is the only way to
+  catch a driver that skipped its own encoder — and it is the encoding the
+  signature is computed over, so a mismatch would be a 403 at AWS.
+
+The suite was mutation-checked rather than trusted for passing: breaking the
+payload hash failed 10 tests, breaking presign date stability failed 1, and
+breaking key encoding initially failed **none** — which exposed a real gap in
+the test, fixed by adding the spec-derived encoding check above.
+
+It is not a compatibility oracle. Passing proves the driver speaks well-formed
+S3 to something expecting S3, not that AWS agrees, so risk #12 is downgraded
+rather than closed.
 
 ## Bugs an adversarial review of the hardening work found and fixed
 
