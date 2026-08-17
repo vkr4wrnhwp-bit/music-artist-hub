@@ -459,12 +459,77 @@ def test_sender_health_passes_when_configured(sender_ready):
     assert states["unsubscribe"] == sender.PASS
 
 
-def test_unverified_checks_report_unknown_not_pass(monkeypatch, sender_ready):
+def test_absent_dns_record_fails_rather_than_passing(monkeypatch, sender_ready):
+    """A record REACH looked up and did not find is FAIL, not UNKNOWN."""
+    from reach import dns_checks
+
+    from .conftest import SENDER_DNS, SENDER_DOMAIN
+
+    without_spf = {key: value for key, value in SENDER_DNS.items()
+                   if key != (SENDER_DOMAIN, "TXT")}
+    dns_checks.set_resolver(dns_checks.offline_resolver(without_spf))
+
+    health = sender.health_summary()
+    states = {check["key"]: check["state"] for check in health["checks"]}
+    assert states["spf"] == sender.FAIL
+    assert health["ready"] is False
+
+
+def test_unresolvable_dns_reports_unknown_not_pass(monkeypatch, sender_ready):
+    """A lookup REACH could not perform is UNKNOWN — never a silent PASS."""
+    from reach import dns_checks
+
     monkeypatch.delenv("REACH_SENDER_SPF_VERIFIED", raising=False)
+    dns_checks.set_resolver(lambda name, rdtype: dns_checks.Lookup(
+        dns_checks.UNRESOLVED, name=name, rdtype=rdtype, detail="DNS timed out"))
+
     health = sender.health_summary()
     states = {check["key"]: check["state"] for check in health["checks"]}
     assert states["spf"] == sender.UNKNOWN
+    assert states["dmarc"] == sender.UNKNOWN
     assert health["ready"] is False
+
+
+def test_operator_declaration_covers_only_an_unresolvable_lookup(monkeypatch, sender_ready):
+    """The declared-value escape hatch applies when DNS is unreachable, and it
+    says so in the detail rather than implying REACH verified the record."""
+    from reach import dns_checks
+
+    dns_checks.set_resolver(lambda name, rdtype: dns_checks.Lookup(
+        dns_checks.UNRESOLVED, name=name, rdtype=rdtype, detail="DNS unavailable"))
+    monkeypatch.setenv("REACH_SENDER_SPF_VERIFIED", "v=spf1 -all")
+
+    health = sender.health_summary()
+    spf = next(check for check in health["checks"] if check["key"] == "spf")
+    assert spf["state"] == sender.PASS
+    assert "declared, not checked by REACH" in spf["detail"]
+
+
+def test_verified_records_quote_what_was_actually_read(sender_ready):
+    health = sender.health_summary()
+    by_key = {check["key"]: check for check in health["checks"]}
+    assert by_key["spf"]["state"] == sender.PASS
+    assert "Verified by DNS" in by_key["spf"]["detail"]
+    assert "v=spf1" in by_key["spf"]["detail"]
+    assert by_key["dmarc_alignment"]["state"] == sender.PASS
+    assert "p=reject" in by_key["dmarc_alignment"]["detail"]
+
+
+def test_dmarc_p_none_is_not_treated_as_enforcement(sender_ready):
+    """p=none monitors but does not enforce, and must not read as alignment."""
+    from reach import dns_checks
+
+    from .conftest import SENDER_DNS, SENDER_DOMAIN
+
+    monitoring_only = dict(SENDER_DNS)
+    monitoring_only[(f"_dmarc.{SENDER_DOMAIN}", "TXT")] = ["v=DMARC1; p=none"]
+    dns_checks.set_resolver(dns_checks.offline_resolver(monitoring_only))
+
+    health = sender.health_summary()
+    by_key = {check["key"]: check for check in health["checks"]}
+    assert by_key["dmarc"]["state"] == sender.PASS       # it is published
+    assert by_key["dmarc_alignment"]["state"] == sender.UNKNOWN  # but not enforcing
+    assert "does not enforce" in by_key["dmarc_alignment"]["detail"]
 
 
 def test_drafts_only_when_sender_health_fails(scouted_without_sender, mail):

@@ -53,7 +53,7 @@ a structured human task everywhere else.
 | Placements require evidence | Done | NOT NULL FK + validation; tested |
 | Metrics derived from real records | Done | `analytics.campaign_metrics`; asserted against raw SQL |
 | Security tests pass | Done | 40 tests in `test_security.py` |
-| Production build passes | Done | `pytest -q` → 251 passed |
+| Production build passes | Done | `pytest -q` → 270 passed |
 | Interface polished and usable | Done | 14 screens on the host design system |
 | Unavailable providers labelled honestly | Done | Provider Health shows NOT CONNECTED / MANUAL ONLY / APPROVAL REQUIRED |
 | No major screen is a shell | Done | every screen renders persisted data; asserted in `test_web.py` |
@@ -79,9 +79,11 @@ discouraged.
   error handling implemented and unit-tested against transports — but no real
   API key existed in this environment, so none has been run against the live
   service. Treat first production use as a verification step.
-* **DNS TXT verification.** Python's standard library cannot query TXT records,
-  so SPF/DKIM/DMARC checks read operator-declared verified values and say so in
-  the check detail. Adding `dnspython` would let REACH verify them directly.
+* **DNS is verified, with one caveat.** SPF, DKIM and DMARC are now looked up
+  directly. A restricted network that cannot resolve them reports UNKNOWN and
+  fails the gate; the operator-declared fallback covers that case and labels
+  itself as declared. What REACH still cannot check is whether your provider is
+  actually *included* in the SPF policy it read.
 * **Placement monitoring is manual plus one API path.** Spotify playlist
   membership can be checked when credentialed; other outlets rely on recorded
   evidence.

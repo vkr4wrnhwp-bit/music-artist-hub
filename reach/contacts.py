@@ -436,15 +436,16 @@ def check_domain(method_id):
 
 
 def _has_mx(domain):
-    import socket
+    """True when the domain publishes a mail exchanger (or an A record, which
+    RFC 5321 still allows to accept mail).
 
-    # No dnspython dependency: an A/AAAA record is a weak but honest signal, and
-    # the result is stored as such rather than as proof of deliverability.
-    try:
-        socket.getaddrinfo(domain, None)
-        return True
-    except socket.gaierror:
-        return False
+    A positive answer means "this domain can receive mail", not "this mailbox
+    exists" — REACH never probes a mailbox with an SMTP callback, so the result
+    is stored as a weak signal and never as proof of deliverability.
+    """
+    from . import dns_checks
+
+    return dns_checks.mx(domain).found
 
 
 def never_guess(local_part, domain):

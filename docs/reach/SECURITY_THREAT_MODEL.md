@@ -194,8 +194,9 @@ crosses tenants — a global opt-out must be honoured by every account.
 * **SQLite concurrency.** Fine for a single-process deployment. A multi-worker
   deployment should move to PostgreSQL; the SQL is portable and the job runner
   already claims rows with a conditional update.
-* **DNS TXT records.** SPF/DKIM/DMARC are operator-declared, not verified by
-  REACH; the check detail says so and never renders a false PASS.
+* **SPF policy contents.** REACH verifies that an SPF record exists and reads
+  it, but does not evaluate whether your sending provider is included in it. A
+  published-but-wrong policy passes the check.
 * **eTLD+1 heuristic.** `netguard.registrable_domain` handles the common
   two-part public suffixes rather than the full Public Suffix List. Impact is
   limited to dedup and budget granularity, not to security decisions.

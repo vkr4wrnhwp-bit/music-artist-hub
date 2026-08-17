@@ -10,7 +10,7 @@ import json
 import re
 import socket
 
-from . import audit, clock, config, db, policy, rbac
+from . import audit, clock, config, db, dns_checks, policy, rbac
 from .providers import email as email_provider
 
 PASS = "PASS"
@@ -48,15 +48,26 @@ CHECK_LABELS = {
 }
 
 
-def _txt_records(name):
-    """Look up TXT records without adding a DNS dependency.
+def _authentication_check(lookup, declared_env, label):
+    """Turn a DNS answer into a (state, detail) pair, honestly.
 
-    Python's stdlib cannot query TXT, so REACH reads the operator's declared
-    values from configuration and verifies that the domain at least resolves.
-    The check reports exactly which part it verified — it never claims to have
-    validated a record it could not read.
+    Three outcomes, never conflated:
+
+    * the record was found        -> PASS, quoting what was actually read
+    * the lookup worked, no record -> FAIL, because it is genuinely not published
+    * the lookup itself failed     -> UNKNOWN, and the operator may override with
+      a declared value, which is labelled as *declared*, not verified
     """
-    return config.env(name)
+    if lookup.found:
+        return PASS, f"Verified by DNS: {lookup.detail}"
+    if lookup.state == dns_checks.ABSENT:
+        return FAIL, lookup.detail
+    declared = config.env(declared_env)
+    if declared:
+        return PASS, (f"{lookup.detail}. Operator declares this verified "
+                      f"({declared_env}) — declared, not checked by REACH")
+    return UNKNOWN, (f"{lookup.detail}. Publish {label}, or set {declared_env} "
+                     "once you have verified it yourself")
 
 
 def _resolves(hostname):
@@ -103,22 +114,39 @@ def run_checks(tenant_id=None):
         PASS if domain and domain.count(".") >= 2 else UNKNOWN,
         "A dedicated outreach subdomain isolates reputation from transactional mail")
 
-    spf = _txt_records("REACH_SENDER_SPF_VERIFIED")
-    add("spf", PASS if spf else UNKNOWN,
-        "Verified SPF record declared" if spf
-        else "Set REACH_SENDER_SPF_VERIFIED once SPF is published and verified")
+    spf_lookup = dns_checks.spf(domain) if domain else dns_checks.Lookup(
+        dns_checks.UNRESOLVED, detail="No sending domain configured")
+    spf_state, spf_detail = _authentication_check(
+        spf_lookup, "REACH_SENDER_SPF_VERIFIED", "an SPF policy")
+    add("spf", spf_state, spf_detail)
 
-    dkim = _txt_records("REACH_SENDER_DKIM_VERIFIED")
-    add("dkim", PASS if dkim else UNKNOWN,
-        "Verified DKIM selector declared" if dkim
-        else "Set REACH_SENDER_DKIM_VERIFIED once DKIM signing is verified")
+    selector = config.env("REACH_SENDER_DKIM_SELECTOR")
+    dkim_lookup = dns_checks.dkim(domain, selector) if domain else dns_checks.Lookup(
+        dns_checks.UNRESOLVED, detail="No sending domain configured")
+    dkim_state, dkim_detail = _authentication_check(
+        dkim_lookup, "REACH_SENDER_DKIM_VERIFIED", "a DKIM key")
+    add("dkim", dkim_state, dkim_detail)
 
-    dmarc = _txt_records("REACH_SENDER_DMARC_VERIFIED")
-    add("dmarc", PASS if dmarc else UNKNOWN,
-        f"DMARC policy: {dmarc}" if dmarc
-        else "Set REACH_SENDER_DMARC_VERIFIED once a DMARC policy is published")
-    add("dmarc_alignment", PASS if (dmarc and spf and dkim) else UNKNOWN,
-        "Alignment requires SPF and DKIM to authenticate the same domain")
+    dmarc_lookup = dns_checks.dmarc(domain) if domain else dns_checks.Lookup(
+        dns_checks.UNRESOLVED, detail="No sending domain configured")
+    dmarc_state, dmarc_detail = _authentication_check(
+        dmarc_lookup, "REACH_SENDER_DMARC_VERIFIED", "a DMARC policy")
+    add("dmarc", dmarc_state, dmarc_detail)
+
+    # Alignment needs both authentication methods to pass AND a DMARC policy
+    # that actually asks receivers to act. p=none publishes intent, not
+    # enforcement, so it is reported as such rather than as a pass.
+    policy_value = dns_checks.dmarc_policy(domain) if domain else None
+    if spf_state == PASS and dkim_state == PASS and policy_value in ("quarantine", "reject"):
+        add("dmarc_alignment", PASS,
+            f"SPF and DKIM both pass under an enforcing policy (p={policy_value})")
+    elif policy_value == "none":
+        add("dmarc_alignment", UNKNOWN,
+            "DMARC is published as p=none, which monitors but does not enforce")
+    else:
+        add("dmarc_alignment", UNKNOWN,
+            "Alignment requires SPF and DKIM to authenticate the same domain "
+            "under an enforcing DMARC policy")
 
     add("tls", PASS if email_provider.api_host() else FAIL,
         "Provider API is reached over HTTPS with certificate verification")

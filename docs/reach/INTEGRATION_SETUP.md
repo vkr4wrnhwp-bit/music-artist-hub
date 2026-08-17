@@ -95,9 +95,10 @@ raise rather than bend.
 | `REACH_SENDER_NAME` | Display name |
 | `REACH_SENDER_POSTAL_ADDRESS` | **Required.** Physical address in every message |
 | `REACH_SENDER_COUNTRY` | Sender country code, default `US` |
-| `REACH_SENDER_SPF_VERIFIED` | Declared after publishing and verifying SPF |
-| `REACH_SENDER_DKIM_VERIFIED` | Declared after verifying DKIM signing |
-| `REACH_SENDER_DMARC_VERIFIED` | Declared after publishing a DMARC policy |
+| `REACH_SENDER_DKIM_SELECTOR` | **Required for DKIM.** The selector your provider issued, e.g. `resend` — REACH looks up `<selector>._domainkey.<domain>` |
+| `REACH_SENDER_SPF_VERIFIED` | Fallback only, used when the DNS lookup itself fails |
+| `REACH_SENDER_DKIM_VERIFIED` | Fallback only, same condition |
+| `REACH_SENDER_DMARC_VERIFIED` | Fallback only, same condition |
 | `REACH_SENDER_DOMAIN_VERIFIED` | Declared when DNS lookups are unavailable in the environment |
 
 **External requirements before any outreach:**
@@ -108,10 +109,21 @@ raise rather than bend.
    at `/reach/webhooks/email`.
 4. A real physical postal address.
 
-The `*_VERIFIED` variables exist because the Python standard library cannot
-query TXT records. They record an operator's verification; the check detail on
-screen states this rather than implying REACH validated the record itself.
-Adding `dnspython` would let REACH check them directly.
+**REACH now verifies SPF, DKIM and DMARC itself** by querying DNS
+(`reach/dns_checks.py`, via `dnspython`). Three outcomes are kept distinct:
+
+* the record was found — PASS, and the check quotes what was actually read;
+* the lookup succeeded and the record is absent — **FAIL**, because you have not
+  published it;
+* the lookup itself failed (no resolver, timeout, SERVFAIL) — UNKNOWN.
+
+The `*_VERIFIED` variables are now a fallback for the third case only. Setting
+one turns an UNRESOLVED check into a PASS whose detail reads *"declared, not
+checked by REACH"* — it cannot mask a record that is genuinely missing.
+
+DMARC alignment additionally requires an **enforcing** policy: `p=none`
+publishes intent without asking receivers to act, so it reports UNKNOWN with
+that reason stated rather than passing.
 
 ## Optional
 

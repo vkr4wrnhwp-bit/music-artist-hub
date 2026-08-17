@@ -8,8 +8,8 @@ import os
 
 import pytest
 
-from reach import (campaigns, catalog, clock, crypto, db, fetcher, jobs, pipeline,
-                   policy, profile, rbac)
+from reach import (campaigns, catalog, clock, crypto, db, dns_checks, fetcher, jobs,
+                   pipeline, policy, profile, rbac)
 from reach.providers import email as email_provider
 from reach.providers import soundcloud, spotify
 
@@ -21,9 +21,7 @@ SENDER_ENV = {
     "REACH_SENDER_COUNTRY": "DE",
     "REACH_EMAIL_API_KEY": "test-email-key",
     "REACH_EMAIL_WEBHOOK_SECRET": "test-webhook-secret",
-    "REACH_SENDER_SPF_VERIFIED": "v=spf1 include:provider -all",
-    "REACH_SENDER_DKIM_VERIFIED": "selector1",
-    "REACH_SENDER_DMARC_VERIFIED": "p=quarantine",
+    "REACH_SENDER_DKIM_SELECTOR": "selector1",
     "REACH_SENDER_DOMAIN_VERIFIED": "1",
     "REACH_ENCRYPTION_KEY": "reach-test-key-0123456789abcdef",
 }
@@ -42,6 +40,10 @@ def reach_environment(monkeypatch, tmp_path):
     db.configure(str(tmp_path / "reach.db"))
     db.reset_database()
 
+    # No test touches real DNS. The default resolver answers ABSENT for
+    # everything, so a test that expects a passing sender must say so.
+    dns_checks.set_resolver(dns_checks.offline_resolver())
+
     fetcher.set_transport(fetcher.FixtureTransport())
     fetcher.clear_robots_cache()
     fetcher.reset_rate_state()
@@ -58,6 +60,7 @@ def reach_environment(monkeypatch, tmp_path):
     yield
 
     clock.unfreeze()
+    dns_checks.set_resolver(None)
     fetcher.set_transport(None)
     email_provider.set_transport(None)
     rbac.clear_principal()
@@ -70,11 +73,23 @@ def mail():
     return email_provider.get_transport()
 
 
+SENDER_DOMAIN = "outreach.streetbanker.example"
+
+# The DNS records a correctly configured sending domain publishes.
+SENDER_DNS = {
+    (SENDER_DOMAIN, "TXT"): ["v=spf1 include:provider.example -all"],
+    (f"selector1._domainkey.{SENDER_DOMAIN}", "TXT"): ["v=DKIM1; k=rsa; p=MIIBIjAN"],
+    (f"_dmarc.{SENDER_DOMAIN}", "TXT"): ["v=DMARC1; p=reject; rua=mailto:dmarc@streetbanker.example"],
+}
+
+
 @pytest.fixture
 def sender_ready(monkeypatch):
-    """Configure a sending identity that passes the sender-health gate."""
+    """A sending identity that passes the gate: configuration *and* published
+    DNS. Both halves are required — configuration alone must not pass."""
     for key, value in SENDER_ENV.items():
         monkeypatch.setenv(key, value)
+    dns_checks.set_resolver(dns_checks.offline_resolver(SENDER_DNS))
     crypto.reset_key_cache()
     return SENDER_ENV
 

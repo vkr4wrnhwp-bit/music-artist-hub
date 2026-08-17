@@ -5,15 +5,16 @@ pip install -r requirements.txt
 python -m pytest -q
 ```
 
-**251 tests pass.** 109 are the host application's pre-existing suite, unchanged
-and still green. 142 are new:
+**270 tests pass.** 109 are the host application's pre-existing suite, unchanged
+and still green. 161 are new:
 
 | File | Tests | Covers |
 | --- | --: | --- |
 | `tests/reach/test_security.py` | 40 | Prompt injection, SSRF, DNS rebinding, redirects, downloads, robots, CAPTCHA/login walls, the AI firewall |
 | `tests/reach/test_compliance.py` | 35 | Campaign modes, approval integrity, contact categories, suppression, bounces, opt-out, deduplication, paid and guaranteed offers, tenant isolation, kill switches, audit |
-| `tests/reach/test_pipeline.py` | 44 | Campaign creation, profile provenance, query planning, discovery, scoring, staleness, quota, provider honesty, durable jobs, placements, metrics, sender health |
+| `tests/reach/test_pipeline.py` | 48 | Campaign creation, profile provenance, query planning, discovery, scoring, staleness, quota, provider honesty, durable jobs, placements, metrics, sender health |
 | `tests/reach/test_web.py` | 23 | Every screen renders inside the host app; honest labelling holds in the rendered HTML; API endpoints |
+| `tests/reach/test_dns.py` | 15 | SPF/DKIM/DMARC/MX lookups; ABSENT vs UNRESOLVED; caching; contact-domain validation |
 
 ## Test isolation
 
@@ -23,6 +24,8 @@ and still green. 142 are new:
 * **all `REACH_*` environment variables cleared**, so no ambient credential can
   make a test pass that would fail in a clean environment;
 * `fetcher.FixtureTransport` — the deterministic web corpus, no network;
+* `dns_checks.offline_resolver()` — an injected resolver that answers ABSENT for
+  everything, so a test expecting a passing sender must publish its own records;
 * `email_provider.RecordingTransport` — messages are captured, never sent;
 * a cleared robots cache, rate state and provider token caches;
 * a freshly seeded tenant, principal, policy registry and catalog mirror.
@@ -71,7 +74,7 @@ No test touches the network. `clock.freeze` makes time-dependent behaviour
 | 35 | Provider kill switches work | `test_provider_kill_switch_stops_provider_calls`, `test_global_stop_blocks_jobs` |
 | 36 | Data deletion removes required provider data | `test_provider_data_deletion_removes_stored_documents` |
 | 37 | Audit events capture every external action | `test_audit_captures_external_actions_and_the_chain_verifies`, `test_tampering_with_an_audit_row_breaks_the_chain` |
-| 38 | Production build passes | `python -m pytest -q` → 251 passed |
+| 38 | Production build passes | `python -m pytest -q` → 270 passed |
 | 39 | Lint and type checking pass | `python -m compileall` clean. This project has no linter or type checker configured, and REACH did not add one — see below |
 | 40 | Critical screens pass browser verification | `tests/reach/test_web.py` (15 routes, HTTP 200, asserted content) plus a Playwright pass over the 8 critical screens |
 
