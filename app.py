@@ -150,6 +150,12 @@ def build_song_detail(song_id):
 def create_app():
     app = Flask(__name__)
 
+    # REACH is a native module of this application: same Flask app, same
+    # templates, same catalog. See docs/reach/ARCHITECTURE.md.
+    from reach.web import bp as reach_bp
+
+    app.register_blueprint(reach_bp)
+
     @app.route("/")
     def index():
         return redirect("/dashboard")

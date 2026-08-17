@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# REACH's local store (see docs/reach/DATA_MODEL.md)
+reach.db
+reach.db-wal
+reach.db-shm

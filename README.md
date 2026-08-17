@@ -24,6 +24,34 @@ python app.py
 
 Then visit `http://127.0.0.1:5000/dashboard`.
 
+## REACH
+
+`reach/` adds a native module for global music discovery, opportunity
+intelligence and submission management, mounted at `/reach`. It builds campaigns
+from tracks already in this catalog, researches permitted sources, records the
+evidence behind every claim, and routes each opportunity either to an approved
+direct email or to a structured human task.
+
+REACH runs with no configuration: without a search credential, discovery uses a
+built-in fixture corpus and every screen labels it as such. See
+`docs/reach/INTEGRATION_SETUP.md` to connect real providers.
+
+```
+pip install -r requirements.txt
+python app.py
+```
+
+Then visit `http://127.0.0.1:5000/reach`.
+
+Documentation: [Phase One](docs/reach/PHASE_ONE.md) ·
+[Architecture](docs/reach/ARCHITECTURE.md) ·
+[Data model](docs/reach/DATA_MODEL.md) ·
+[Provider policy matrix](docs/reach/PROVIDER_POLICY_MATRIX.md) ·
+[Security threat model](docs/reach/SECURITY_THREAT_MODEL.md) ·
+[Outreach compliance](docs/reach/OUTREACH_COMPLIANCE.md) ·
+[Integration setup](docs/reach/INTEGRATION_SETUP.md) ·
+[Test plan](docs/reach/TEST_PLAN.md)
+
 ## Development
 
 ```
