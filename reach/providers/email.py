@@ -60,7 +60,6 @@ class HttpTransport:
     mode = base.LIVE
 
     def send(self, payload):
-        from .soundcloud import _post
         from ..fetcher import get_transport
 
         url = config.env("REACH_EMAIL_API_URL", DEFAULT_API_URL)

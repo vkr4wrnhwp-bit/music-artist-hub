@@ -75,7 +75,7 @@ No test touches the network. `clock.freeze` makes time-dependent behaviour
 | 36 | Data deletion removes required provider data | `test_provider_data_deletion_removes_stored_documents` |
 | 37 | Audit events capture every external action | `test_audit_captures_external_actions_and_the_chain_verifies`, `test_tampering_with_an_audit_row_breaks_the_chain` |
 | 38 | Production build passes | `python -m pytest -q` → 270 passed |
-| 39 | Lint and type checking pass | `python -m compileall` clean. This project has no linter or type checker configured, and REACH did not add one — see below |
+| 39 | Lint and type checking pass | `ruff check .` clean, enforced in CI. No type checker — see below |
 | 40 | Critical screens pass browser verification | `tests/reach/test_web.py` (15 routes, HTTP 200, asserted content) plus a Playwright pass over the 8 critical screens |
 
 ## Red-team fixtures
@@ -118,10 +118,19 @@ an honest dashboard into a misleading one.
 
 ## On scenario 39
 
-The host project has no linter, formatter or type checker configured — no
-`ruff`, `flake8`, `mypy`, `pyproject.toml` or `setup.cfg`. REACH did not add one,
-because introducing a new quality gate to a repository mid-feature would flag
-pre-existing code the author never asked to change. `python -m compileall reach
-tests` is clean, and the code follows the existing style (module-level functions,
-plain dataclasses, no annotations). Adding `ruff` in a dedicated change would be
-a reasonable Phase Two step.
+**Lint:** `ruff check .` runs in CI, configured in `pyproject.toml`. The rule set
+is deliberately narrow — pycodestyle errors plus pyflakes (`E4`, `E7`, `E9`,
+`F`). Those catch genuine defects (undefined names, unused imports, shadowed
+variables) without imposing a formatter on files that predate the config. Line
+length is **not** enforced: the existing code runs to ~120 characters and
+reformatting it was not this change's job.
+
+Adding the gate surfaced 11 real findings, all in REACH's own code and none in
+the host application's — ten dead imports and one dead local
+(`route` in `drafts.py`, left behind when cost moved to approval time). All are
+fixed; the pre-existing files pass unmodified.
+
+**Type checking:** no type checker is configured. The codebase uses no
+annotations anywhere, so `mypy` would either report nothing useful or demand a
+project-wide annotation pass — a change worth making deliberately, not as a
+side effect of this feature.

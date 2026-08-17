@@ -7,8 +7,7 @@ Covers Phase One scenarios 16, 33, 38 and the "no screen is a shell" bar.
 import pytest
 
 from app import create_app
-from reach import (analytics, approvals, campaigns, catalog, drafts, humanactions,
-                   outcomes, pipeline, profile)
+from reach import analytics, approvals, campaigns, catalog, drafts, humanactions, outcomes
 
 from .conftest import first_ready_target
 

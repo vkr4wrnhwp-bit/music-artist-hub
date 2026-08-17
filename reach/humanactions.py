@@ -8,8 +8,7 @@ submitted — only a person does that.
 
 import json
 
-from . import (audit, campaigns, catalog, clock, db, entities, profile, rbac,
-               royalty_bridge)
+from . import audit, campaigns, catalog, clock, db, entities, profile, rbac
 from .errors import ValidationError
 from .providers import spotify as spotify_provider
 

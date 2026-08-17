@@ -6,9 +6,9 @@ REACH adds one blueprint under ``/reach`` and reuses ``templates/base.html``.
 
 import json
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, render_template, request, url_for
 
-from . import (analytics, approvals, audit, campaigns, catalog, clock, compliance,
+from . import (analytics, approvals, audit, campaigns, catalog, compliance,
                contacts, db, drafts, entities, evidence, firewall, humanactions, jobs,
                outcomes, pipeline, policy, profile, rbac, relationships, royalty_bridge,
                scoring, sender)

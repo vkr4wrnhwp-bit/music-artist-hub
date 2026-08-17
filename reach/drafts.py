@@ -19,8 +19,8 @@ The rules the generator obeys, in code rather than in a prompt:
 import hashlib
 import json
 
-from . import (audit, campaigns, catalog, clock, compliance, config, contacts, crypto,
-               db, entities, evidence, firewall, profile, rbac, royalty_bridge, scoring,
+from . import (audit, campaigns, catalog, clock, compliance, config, contacts, db,
+               entities, evidence, firewall, profile, rbac, royalty_bridge, scoring,
                sender)
 from .errors import ValidationError
 
@@ -100,7 +100,6 @@ def generate(target_id, tenant_id=None):
     baseline = royalty_bridge.performance_baseline(song)
     identity = sender.identity(tenant_id)
 
-    route = entities.best_route(target["outlet_id"])
     method_row = _contact_method_for(target)
     if method_row is None:
         raise ValidationError("This target has no resolved contact method to draft for")

@@ -55,6 +55,9 @@ Documentation: [Phase One](docs/reach/PHASE_ONE.md) ·
 ## Development
 
 ```
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
+ruff check .
 pytest
 ```
+
+Both run in CI.

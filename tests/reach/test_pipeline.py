@@ -5,9 +5,8 @@ Covers Phase One scenarios 1–3, 13–17 and 31–33.
 
 import pytest
 
-from reach import (analytics, approvals, campaigns, catalog, clock, contacts, drafts,
-                   entities, evidence, extractor, jobs, outcomes, pipeline, policy,
-                   profile, scoring, sender)
+from reach import (analytics, approvals, campaigns, catalog, clock, drafts, evidence,
+                   jobs, outcomes, pipeline, policy, profile, scoring, sender)
 from reach.errors import (ProviderNotConnected, ProviderRateLimited, QuotaExceeded,
                           ValidationError)
 from reach.providers import base as provider_base
