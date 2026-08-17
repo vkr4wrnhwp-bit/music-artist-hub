@@ -8,7 +8,6 @@ SPF" is not the same as "SPF passes" and must never render as green.
 
 import json
 import re
-import socket
 
 from . import audit, clock, config, db, dns_checks, policy, rbac
 from .providers import email as email_provider
@@ -71,15 +70,18 @@ def _authentication_check(lookup, declared_env, label):
 
 
 def _resolves(hostname):
+    """Does the sending domain exist in DNS?
+
+    Routed through :mod:`reach.dns_checks` rather than calling getaddrinfo
+    directly, so it is cached and stubbable like every other lookup. This runs
+    once per target during compliance assessment; an uncached lookup there makes
+    a campaign's runtime depend on the resolver's mood.
+    """
     if not hostname:
         return False
-    try:
-        socket.getaddrinfo(hostname, None)
+    if dns_checks.query(hostname, "A").found:
         return True
-    except socket.gaierror:
-        return False
-    except Exception:  # pragma: no cover - defensive
-        return False
+    return dns_checks.query(hostname, "AAAA").found
 
 
 def run_checks(tenant_id=None):
