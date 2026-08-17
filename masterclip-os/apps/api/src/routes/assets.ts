@@ -102,6 +102,17 @@ export async function registerAssetRoutes(app: FastifyInstance, runtime: Runtime
 
     for await (const part of parts) {
       if (part.type === 'file') {
+        // One asset per request. Silently keeping the last of several was worse
+        // than refusing: a dropped set of character references returned 200 with
+        // a single row, and the gap only showed up later as identity work that
+        // had seen one image.
+        if (fileBuffer) {
+          throw new AppError({
+            kind: 'validation',
+            code: 'assets.too_many_files',
+            message: 'upload one file per request — send each reference separately',
+          })
+        }
         filename = sanitizeFilename(part.filename ?? 'upload')
         fileBuffer = await part.toBuffer()
       } else {

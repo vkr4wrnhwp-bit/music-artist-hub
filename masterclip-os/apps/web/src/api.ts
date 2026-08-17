@@ -18,12 +18,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server sets this cookie readable so we can echo it back in a header.
+ * Setting a header cross-site is the thing an attacker's page cannot do, which
+ * is what makes the pair meaningful rather than the cookie alone.
+ */
+function csrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)masterclip_csrf=([^;]*)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : ''
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const token = method === 'GET' || method === 'HEAD' ? '' : csrfToken()
   const response = await fetch(path, {
     credentials: 'same-origin',
     ...init,
     headers: {
       ...(init.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
+      // Outside the FormData branch on purpose: uploads need the token too, and
+      // they are the one call that suppresses the content-type header.
+      ...(token ? { 'x-csrf-token': token } : {}),
       ...(init.headers ?? {}),
     },
   })
@@ -182,6 +197,8 @@ export const api = {
   createShot: (projectId: string, spec: unknown) => post<{ shot: Shot; warnings: unknown[] }>(`/api/projects/${projectId}/shots`, { spec }),
   shot: (shotId: string) =>
     get<{ shot: Shot; version: { id: string; spec: Record<string, unknown> }; versions: unknown[]; outputs: unknown[] }>(`/api/shots/${shotId}`),
+  saveShotVersion: (shotId: string, spec: unknown, note: string) =>
+    post<{ version: { id: string } }>(`/api/shots/${shotId}/versions`, { spec, note }),
   importShots: (projectId: string, format: 'csv' | 'json', content: string, dryRun: boolean) =>
     post<Record<string, unknown>>(`/api/projects/${projectId}/shots/import`, { format, content, dryRun }),
 

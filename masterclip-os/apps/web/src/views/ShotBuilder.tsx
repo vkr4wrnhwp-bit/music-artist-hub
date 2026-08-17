@@ -44,11 +44,7 @@ export function ShotBuilder({ shotId }: { shotId: string }) {
         setError('fix the errors above before saving a new version')
         return
       }
-      await fetch(`/api/shots/${shotId}/versions`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ spec, note: 'edited in shot builder' }),
-      })
+      await api.saveShotVersion(shotId, spec, 'edited in shot builder')
       shot.reload()
       routing.reload()
     } catch (err) {

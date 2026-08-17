@@ -36,14 +36,14 @@ against the mock provider, which renders real MP4s with ffmpeg.
 |---|---|
 | `pnpm typecheck` | **27/27 projects clean** |
 | `pnpm lint` | **clean** — secret scan, shell-exec guard, SQL-interpolation guard, typecheck |
-| `pnpm test` | **165 passed / 165**, 12 files |
+| `pnpm test` | **201 passed / 201**, 14 files |
 | `pnpm test:e2e` | **10 passed / 10** (Playwright, Chromium, against the production web build) |
 | `pnpm build` | **succeeds** — `dist/api.js`, `dist/worker.js`, `dist/masterclip.js`, `apps/web/dist` |
 | bundled artifacts run | `node dist/masterclip.js doctor` → all required checks pass; `node dist/api.js` → serves `/api/health` |
 | PostgreSQL parity | same migrations and same SQL verified against live PostgreSQL 16 |
 | full pipeline | plan → authorize → submit → poll → download → verify → QC → derivatives → review → promote → finish → package, with real media |
 
-130 source files, ~24,800 lines, 27 workspace packages, 14 test files.
+135 source files, ~26,100 lines, 27 workspace packages, 16 test files.
 
 ---
 
@@ -64,6 +64,11 @@ against the mock provider, which renders real MP4s with ffmpeg.
 | Local object storage + signed URLs | **REAL** | `packages/asset-storage/src/local.ts` | 6 tests incl. path-escape and expiry |
 | S3 storage driver | **DEV-LABELED** | `packages/asset-storage/src/s3.ts` | SigV4 verified against AWS's published test vector; **never run against a live bucket** |
 | Auth: scrypt, hashed sessions, project roles | **REAL** | `packages/auth/` | exercised by every API test + e2e |
+| Rate limiting: token bucket, 8 request classes, two-tier login budget | **REAL** | `packages/shared/src/rate-limit.ts`, `apps/api/src/security/rate-limit.ts` | 10 unit tests on a fake clock (refill, burst, memory bound, self-lockout, eviction-under-attack) + 24 HTTP tests |
+| CSRF: origin check + session-bound double-submit token | **REAL** | `apps/api/src/security/csrf.ts` | HTTP tests incl. forged token, cross-site, foreign Origin, stale-cookie recovery; proven in-browser by the e2e suite |
+| `TRUST_PROXY` off by default | **REAL** | `apps/api/src/server.ts` | HTTP test confirms a rotated `X-Forwarded-For` buys no extra budget |
+| Webhook callback token demanded unconditionally | **REAL** | `apps/api/src/routes/ops.ts` | HTTP test: omitting `job` is 403 and writes no row |
+| Schema failures answered as 400 with field errors | **REAL** | `packages/shared/src/errors.ts` | HTTP test asserts kind, code and `details.issues` |
 
 ### Canonical shot system
 
@@ -179,6 +184,29 @@ against the mock provider, which renders real MP4s with ffmpeg.
 
 ---
 
+## Bugs an adversarial review of the hardening work found and fixed
+
+Four agents attacked the new rate-limit and CSRF code from independent angles;
+each candidate finding was then handed to a separate agent told to refute it.
+Nine survived and are fixed, with a regression test each:
+
+| Defect | Why it mattered |
+|---|---|
+| `classify()` read the raw URL while the router matches the decoded one | `POST /api/shots/x/%72ender` reached the render handler but was billed to the cheaper `mutation` budget |
+| The per-account login budget was keyed on email alone and charged before authentication | anyone who knew your address could hold you out of your own account for five requests every fifteen minutes |
+| A stale session cookie made login, signup **and** logout return 403 | the endpoints that repair a broken session were the ones a broken session locked you out of; the only escape was clearing cookies by hand |
+| The webhook callback token was only checked when the caller supplied `job` | omitting the parameter skipped verification, leaving an anonymous write path into `webhook_events` with an attacker-chosen dedupe key |
+| Retries and dead-letter replays fell into the `mutation` budget | both submit a new billable generation |
+| Every zod failure became a 500 with the raw `ZodError` dump as the message | caller mistakes logged as server faults, unreadable in the UI |
+| An 8-file upload stored only the last file, with a 200 | a dropped set of character references surfaced later as identity work that had seen one image |
+| `RATE_LIMIT_SCALE=0` clamped to 0.01 instead of disabling | "get out of my way" became one request per window, with nothing in the log connecting cause to symptom |
+| `Retry-After` was a second too long on an empty bucket | dividing by the rounded refill rate instead of multiplying by the window |
+
+Bucket eviction was also rewritten during this work: the first version evicted
+least-recently-used, which let an attacker erase their own penalty by making
+noise from a few hundred fresh addresses. It now evicts by fullness, so the
+noise evicts itself. That one was caught by a test written before the review.
+
 ## Bugs this build's own tests found and fixed
 
 Worth recording, because they are the argument for the tests existing:
@@ -228,8 +256,11 @@ Requires Node ≥22.5 and ffmpeg/ffprobe on `PATH`.
 
 ## Security warnings
 
-1. No API rate limiting — put a rate-limiting proxy in front before exposing it.
-2. No CSRF token; `sameSite=lax` is the only cross-site protection today.
+1. Rate limiting is per process. One API instance is bounded; behind N instances
+   the effective budget is N times the configured one, so a cluster still wants a
+   shared limiter in the proxy.
+2. `TRUST_PROXY` now defaults to off. A deployment that genuinely sits behind a
+   proxy **must** set it, or every client will be rate-limited as one address.
 3. The S3 driver has never touched a live bucket.
 4. `ASSET_SIGNING_SECRET` **must** be set in production — the code refuses to
    start with the development fallback when `NODE_ENV=production`, but check it.

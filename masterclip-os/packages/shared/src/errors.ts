@@ -9,6 +9,7 @@ export type ErrorKind =
   | 'conflict' // idempotency / optimistic concurrency
   | 'unauthorized'
   | 'forbidden'
+  | 'rate_limited' // this API refused an inbound request — distinct from a provider refusing ours
   | 'budget_exceeded' // hard stop, never retry without new authorization
   | 'provider_rejected' // provider says the request is invalid or unsafe — never retry
   | 'provider_rate_limited' // retry with backoff
@@ -56,6 +57,7 @@ const HTTP_STATUS: Record<ErrorKind, number> = {
   conflict: 409,
   unauthorized: 401,
   forbidden: 403,
+  rate_limited: 429,
   budget_exceeded: 402,
   provider_rejected: 422,
   provider_rate_limited: 429,
@@ -93,8 +95,46 @@ export function retryCostsMoney(err: unknown): boolean {
 
 export function asAppError(err: unknown, fallback: ErrorKind = 'internal'): AppError {
   if (err instanceof AppError) return err
+  const schema = asSchemaError(err)
+  if (schema) return schema
   const message = err instanceof Error ? err.message : String(err)
   return new AppError({ kind: fallback, message, cause: err })
+}
+
+interface SchemaIssue {
+  path?: Array<string | number>
+  message?: string
+  code?: string
+}
+
+/**
+ * Recognises a zod failure without importing zod.
+ *
+ * Every route validates its body with `Schema.parse`, and a thrown ZodError is
+ * a *caller* mistake. Left to the generic fallback it became a 500 whose
+ * message was the raw multi-line JSON dump of the issue array — the wrong
+ * status, logged at error level as if the server had broken, and unreadable in
+ * the UI. `shared` deliberately has no zod dependency, so this matches on the
+ * shape instead of `instanceof`, which also survives two copies of zod in the
+ * tree.
+ */
+function asSchemaError(err: unknown): AppError | null {
+  if (!(err instanceof Error) || err.name !== 'ZodError') return null
+  const issues = (err as Error & { issues?: SchemaIssue[] }).issues
+  if (!Array.isArray(issues)) return null
+  const described = issues.slice(0, 10).map((issue) => ({
+    field: (issue.path ?? []).join('.') || '(body)',
+    message: issue.message ?? 'invalid',
+    code: issue.code ?? 'invalid',
+  }))
+  const summary = described.map((i) => `${i.field}: ${i.message}`).join('; ')
+  return new AppError({
+    kind: 'validation',
+    code: 'schema.invalid',
+    message: summary || 'request body failed validation',
+    details: { issues: described },
+    cause: err,
+  })
 }
 
 export const invalid = (message: string, details?: Record<string, unknown>) =>
@@ -105,3 +145,5 @@ export const forbidden = (message = 'forbidden') => new AppError({ kind: 'forbid
 export const unauthorized = (message = 'unauthorized') => new AppError({ kind: 'unauthorized', message })
 export const conflict = (message: string, details?: Record<string, unknown>) =>
   new AppError({ kind: 'conflict', message, details })
+export const rateLimited = (message: string, retryAfterSeconds: number, details?: Record<string, unknown>) =>
+  new AppError({ kind: 'rate_limited', code: 'rate_limited', message, retryAfterSeconds, details })

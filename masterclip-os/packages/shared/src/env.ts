@@ -30,6 +30,19 @@ const EnvSchema = z.object({
 
   API_HOST: z.string().default('127.0.0.1'),
   API_PORT: num(4310),
+  /**
+   * Whether to believe `X-Forwarded-For`/`X-Forwarded-Proto`.
+   *
+   * Defaults to **false** because these headers are client-supplied: trusting
+   * them on a directly-exposed port lets anyone forge their own source address,
+   * which both poisons the audit log and makes IP-keyed rate limiting useless.
+   * Set it only when the API genuinely sits behind a proxy that overwrites them.
+   */
+  TRUST_PROXY: bool(false),
+  /** Escape hatch for load testing against a throwaway deployment. */
+  RATE_LIMIT_ENABLED: bool(true),
+  /** Multiplies every rate-limit budget. Raise it for a busy shared deployment. */
+  RATE_LIMIT_SCALE: num(1),
   WEB_PORT: num(4311),
   /** Externally reachable origin, used to build provider webhook callback URLs. */
   PUBLIC_BASE_URL: z.string().default(''),

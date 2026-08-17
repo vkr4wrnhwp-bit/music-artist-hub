@@ -6,6 +6,8 @@ import { verifyCallbackToken } from '@masterclip/provider-core'
 import { ROUTING_PROFILES } from '@masterclip/model-router'
 import type { Runtime } from '@masterclip/runtime'
 import { SESSION_COOKIE, requireAuth, requireProject } from '../server.js'
+import { clearCsrfCookie, issueCsrfCookie } from '../security/csrf.js'
+import type { RateLimitHandle } from '../security/rate-limit.js'
 
 const LoginBody = z.object({ email: z.string().min(3), password: z.string().min(1) })
 const SignupBody = z.object({
@@ -16,7 +18,7 @@ const SignupBody = z.object({
 })
 
 /** Auth, providers, cost reporting, and provider webhooks. */
-export async function registerOpsRoutes(app: FastifyInstance, runtime: Runtime): Promise<void> {
+export async function registerOpsRoutes(app: FastifyInstance, runtime: Runtime, rateLimit: RateLimitHandle): Promise<void> {
   // ---------------------------------------------------------------- auth ----
   app.post('/api/auth/signup', async (request, reply) => {
     const body = SignupBody.parse(request.body)
@@ -36,13 +38,28 @@ export async function registerOpsRoutes(app: FastifyInstance, runtime: Runtime):
     })
     const session = await runtime.auth.login(body.email, body.password)
     void reply.setCookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', path: '/', secure: runtime.config.NODE_ENV === 'production' })
+    issueCsrfCookie(runtime, reply, session.token)
     return { user, org }
   })
 
   app.post('/api/auth/login', async (request, reply) => {
     const body = LoginBody.parse(request.body)
+    // Checked before the password so a refused caller never reaches the KDF.
+    // Two budgets: a tight one per (account, address) that only an attacker
+    // sharing the victim's address can exhaust, and a deliberately wide
+    // account-wide backstop that ends a distributed guessing campaign without
+    // handing anyone an account-lockout button.
+    const account = body.email.trim().toLowerCase()
+    const accountFromHere = `${account}|${request.ip}`
+    rateLimit.consume('authAccount', accountFromHere)
+    rateLimit.consume('authAccountGlobal', account)
     const session = await runtime.auth.login(body.email, body.password)
+    // Proving the password refunds the guesses: a legitimate user who mistyped
+    // four times must not be left one attempt from lockout.
+    rateLimit.refund('authAccount', accountFromHere)
+    rateLimit.refund('authAccountGlobal', account)
     void reply.setCookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', path: '/', secure: runtime.config.NODE_ENV === 'production' })
+    issueCsrfCookie(runtime, reply, session.token)
     return { user: session.user, expiresAt: session.expiresAt }
   })
 
@@ -50,10 +67,19 @@ export async function registerOpsRoutes(app: FastifyInstance, runtime: Runtime):
     const token = request.cookies[SESSION_COOKIE]
     if (token) await runtime.auth.logout(token)
     void reply.clearCookie(SESSION_COOKIE, { path: '/' })
+    clearCsrfCookie(reply)
     return { ok: true }
   })
 
-  app.get('/api/auth/me', async (request) => ({ user: await requireAuth(runtime, request) }))
+  app.get('/api/auth/me', async (request, reply) => {
+    const user = await requireAuth(runtime, request)
+    // The SPA calls this on boot, which is what re-arms a session that predates
+    // CSRF enforcement — otherwise a logged-in user's first mutation after a
+    // deploy would be refused with no way to recover but logging out.
+    const token = request.cookies[SESSION_COOKIE]
+    if (token) issueCsrfCookie(runtime, reply, token)
+    return { user }
+  })
 
   // ----------------------------------------------------------- providers ----
   app.get('/api/providers', async (request) => {
@@ -209,9 +235,20 @@ export async function registerOpsRoutes(app: FastifyInstance, runtime: Runtime):
     if (!runtime.registry.has(providerId)) {
       return reply.status(404).send({ error: { kind: 'not_found', message: `unknown provider ${providerId}` } })
     }
-    if (runtime.config.WEBHOOK_SECRET && query.job) {
-      verifyCallbackToken(runtime.config.WEBHOOK_SECRET, providerId, query.job, query.token)
+    // Fail closed. This used to run only when the caller supplied `job`, which
+    // made the check opt-in for the very party it defends against: omitting the
+    // parameter skipped verification and left an anonymous, unauthenticated
+    // write path into `webhook_events` with an attacker-chosen dedupe key —
+    // enough to pre-poison a genuine redelivery into being dropped as a
+    // duplicate. Every callback URL we hand out carries both `job` and `token`
+    // (see RenderService), so nothing legitimate is lost by demanding them.
+    if (!runtime.config.WEBHOOK_SECRET) {
+      throw new AppError({ kind: 'forbidden', code: 'webhook.no_secret', message: 'webhook callbacks are not configured on this deployment' })
     }
+    if (!query.job) {
+      throw new AppError({ kind: 'forbidden', code: 'webhook.missing_job', message: 'missing callback job id' })
+    }
+    verifyCallbackToken(runtime.config.WEBHOOK_SECRET, providerId, query.job, query.token)
 
     const provider = runtime.registry.get(providerId)
     if (!provider.normalizeWebhook) {

@@ -16,7 +16,7 @@ Ordered by expected cost of being wrong.
 | 10 | **MuAPI's image field name varies by model** | high | 422 on submit | runtime recovery loop swaps `image_url` ↔ `images_list` on a field-required 422 | low |
 | 11 | **Self-hosting adopted before it pays** | medium | worse cost per approved second plus ops burden | provider refuses to quote without measured GPU rate and compute ratio; `SELF_HOSTED_DRAFT` is not a default profile | low |
 | 12 | **S3 driver has never touched a live bucket** | certain | uploads fail in a cloud deployment | SigV4 unit-tested against AWS's published vector; local driver is the default | **open** — run `doctor` with `STORAGE_DRIVER=s3` first |
-| 13 | **No API rate limiting** | medium | brute force, upload flooding | documented in `docs/security-model.md`; deploy behind a rate-limiting proxy | **open** |
+| 13 | **API rate limiting is per process** | low | behind N instances the effective budget is N× | token-bucket limiter on every API class, per client address, plus a per-account login budget; `TRUST_PROXY` off by default so the key cannot be forged | low — closed for single-instance; use a shared limiter in the proxy for a cluster |
 | 14 | **Long single generations degrade** | high | wasted renders past ~10s | validator warns above 10s and points at chaining via `CONTINUITY` | low |
 | 15 | **Queue starvation under load** | low | slow renders block cheap bookkeeping | four separate queues (render, qc, media, maintenance) | low |
 | 16 | **Estimate-vs-invoice drift goes unnoticed** | medium | budgets quietly wrong | `estimate` and `charge` are separate ledger entry types; `variance()` reports the delta per job | low |
@@ -24,9 +24,11 @@ Ordered by expected cost of being wrong.
 
 ---
 
-## The three that need a human before production
+## The two that need a human before production
 
 1. **Confirm the Google pricing unit against a real invoice** (#1).
 2. **Run one live sandbox render per provider** and re-run the contract battery
    with `--submit` (#3).
-3. **Put a rate limiter in front of the API** (#13).
+
+Both need credentials this build has never had. Everything else on the list is
+mitigated in code.

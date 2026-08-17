@@ -77,6 +77,14 @@ Deliberately **not** taken as dependencies:
   step, so a clean checkout runs with no build toolchain.
 - **An ORM** — every query is visible SQL with bound parameters.
 - **An ffmpeg npm package** — see above.
+- **`@fastify/rate-limit`** (MIT, and perfectly usable) — the limiter is ~90 lines
+  in `@masterclip/shared` instead, because every timing-sensitive component here
+  takes an injectable `Clock`. A plugin bound to real wall-clock time would have
+  made the only tests worth having — does the 11th login in a minute get refused,
+  does a bucket refill correctly after an hour idle — either slow or flaky. The
+  in-repo version is tested by advancing a fake clock, and it holds the
+  app-specific policy (a per-account login budget, a separate budget for
+  spend-causing routes) that a generic plugin would not.
 
 ---
 

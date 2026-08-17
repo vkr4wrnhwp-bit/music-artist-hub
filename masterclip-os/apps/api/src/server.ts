@@ -10,6 +10,8 @@ import { registerProjectRoutes } from './routes/projects.js'
 import { registerRenderRoutes } from './routes/render.js'
 import { registerOpsRoutes } from './routes/ops.js'
 import { registerAssetRoutes } from './routes/assets.js'
+import { registerRateLimit, type RateLimitHandle } from './security/rate-limit.js'
+import { registerCsrf } from './security/csrf.js'
 
 export const SESSION_COOKIE = 'masterclip_session'
 
@@ -40,11 +42,20 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     logger: false,
     // Provider webhooks can carry inline base64 payloads.
     bodyLimit: 32 * 1024 * 1024,
-    trustProxy: true,
+    // Off unless the operator says otherwise: `X-Forwarded-For` is written by
+    // the client, so trusting it on a directly-exposed port would let anyone
+    // choose their own source address and walk straight through an IP-keyed
+    // rate limit.
+    trustProxy: runtime.config.TRUST_PROXY,
   })
 
   await app.register(cookie, {})
   await app.register(multipart, { limits: { fileSize: 512 * 1024 * 1024, files: 8 } })
+
+  // Both run in `onRequest`, ahead of body parsing, so a refused request never
+  // reaches the JSON or multipart parsers.
+  const rateLimit = registerRateLimit(app, runtime)
+  registerCsrf(app, runtime)
 
   // Webhook signature verification needs the exact bytes that were signed;
   // re-serializing parsed JSON produces different bytes and breaks every HMAC.
@@ -63,6 +74,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const appError = asAppError(error)
     if (appError.kind === 'internal') runtime.logger.error('api.unhandled', { err: appError })
     else runtime.logger.debug('api.error', { kind: appError.kind, code: appError.code, message: appError.message })
+    // Tell a well-behaved client when to come back instead of making it guess.
+    if (appError.retryAfterSeconds !== undefined) void reply.header('retry-after', String(appError.retryAfterSeconds))
     void reply.status(httpStatusFor(appError.kind)).send(appError.toJSON())
   })
 
@@ -89,7 +102,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     time: runtime.clock.isoNow(),
   }))
 
-  await registerOpsRoutes(app, runtime)
+  await registerOpsRoutes(app, runtime, rateLimit)
   await registerProjectRoutes(app, runtime)
   await registerAssetRoutes(app, runtime)
   await registerRenderRoutes(app, runtime)

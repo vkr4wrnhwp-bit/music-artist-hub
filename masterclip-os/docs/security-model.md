@@ -133,6 +133,109 @@ from literal strings in the code and are additionally validated against
 `/^[a-z_][a-z0-9_]*$/i` by `assertIdent`. `pnpm lint` flags SQL that interpolates
 anything else.
 
+### Cross-site request forgery
+
+State-changing requests that ride on a session **cookie** must clear two
+independent checks. Either alone has a gap the other covers.
+
+1. **Origin.** `Sec-Fetch-Site` is written by the browser and cannot be forged by
+   page script; anything but `same-origin` or `none` is refused. `Origin` is
+   checked against the request host as a fallback for engines that omit
+   `Sec-Fetch-Site`. This stops the classic cross-site POST outright.
+2. **A session-bound double-submit token.** The server issues
+   `masterclip_csrf` — deliberately *readable* by script, because the SPA has to
+   echo it into an `x-csrf-token` header, and setting a header is precisely what
+   a cross-site page cannot do. The token is `nonce.HMAC(SESSION_SECRET, nonce.sessionToken)`.
+
+The binding in (2) is the part that matters. Plain double-submit — "cookie and
+header must match" — is forgeable by anyone who can *write* a cookie on the
+domain, including a compromised sibling subdomain: they simply choose both
+halves. Tying the token to the session token means forging a pair that verifies
+requires the victim's session, which a cookie-writing attacker does not have.
+
+Three exemptions, each deliberate:
+
+- **Requests with no session cookie.** Nothing to ride on.
+- **Login, signup and logout.** These keep the origin checks but are not asked
+  for a token. The gate keys on the session cookie being *present*, not valid,
+  so a stale cookie — an expired session, a reset database, a token from a
+  previous deployment — would otherwise 403 all three, and the endpoints whose
+  job is to repair a broken session cannot be the ones a broken session locks
+  you out of. They are throttled instead (below).
+- **`Authorization: Bearer` callers.** Not cookie-driven, so a browser cannot be
+  induced to make one on a user's behalf. The CLI depends on this path.
+- **`/api/webhooks/*`.** Server-to-server, no cookie, no browser `Origin`. Their
+  authentication is an HMAC token in the callback URL — demanded
+  **unconditionally** by the route — plus a per-provider signature over the raw
+  body. That check used to run only when the caller supplied a `job` query
+  parameter, which made it opt-in for the one party it defends against: omitting
+  the parameter skipped it entirely and left an anonymous write path into
+  `webhook_events` with an attacker-chosen dedupe key, enough to pre-poison a
+  genuine redelivery into being dropped as a duplicate. It now fails closed.
+
+The token is issued at login and signup, and re-issued on `GET /api/auth/me`,
+which the SPA calls at boot. That last one is what stops a session created before
+this release from being permanently unable to mutate anything.
+
+### Rate limiting
+
+An in-process token-bucket limiter (`RateLimiter` in `@masterclip/shared`) runs in
+an `onRequest` hook — ahead of body parsing, so a refused caller never gets to
+hand the server a 32 MB payload to parse. Budgets are per client address:
+
+| Class | Budget | Covers |
+|---|---|---|
+| `auth` | 10 / 15 min | login, signup |
+| `authAccount` | 5 / 15 min | login, keyed by **(email, address)** |
+| `authAccountGlobal` | 50 / 15 min | login, keyed by **email** alone |
+| `upload` | 60 / hour | asset upload |
+| `render` | 120 / hour | anything that can put a paid generation on the wire |
+| `mutation` | 240 / 5 min | every other state change |
+| `read` | 1200 / 5 min | reads, including the queue view's poll loop |
+| `webhook` | 1200 / min | provider callbacks |
+
+The two account budgets exist because a per-address limit does nothing against a
+botnet spreading its guesses for one mailbox across a thousand addresses — but
+the obvious fix, an email-only budget, is an account-lockout weapon: anyone who
+knows your address spends your five guesses and *you* get the 429, held open
+forever for five requests every fifteen minutes. So the tight budget carries the
+address as well, and the email-only backstop sits far above any single
+attacker's reach (each address is separately capped at 10 by `auth`). Proving the
+password refunds both, so four typos does not leave a real user one attempt from
+lockout.
+
+Classification happens on the **decoded** path, because the router matches on the
+decoded path: `POST /api/shots/x/%72ender` reaches the render handler, and a
+classifier reading the raw target would bill it to the far cheaper `mutation`
+budget. Retries and dead-letter replays count as `render` — each submits a new
+billable generation.
+
+A token bucket rather than a fixed window because a fixed window lets a caller
+spend a full budget in the last millisecond of one window and a full budget again
+in the first millisecond of the next — twice the intended rate at exactly the
+moment it matters.
+
+Two details that are easy to get wrong and are tested:
+
+- **Refused requests do not consume tokens.** Otherwise a client in a tight retry
+  loop would hold itself out indefinitely.
+- **Eviction is by fullness, not recency.** The bucket map is capped so that key
+  rotation cannot exhaust memory, but evicting the *least recently used* key
+  would let an attacker erase their own penalty by making noise from a few
+  hundred fresh addresses. A full bucket carries no information; an empty one
+  carries all the enforcement, so the fullest go first.
+
+Being in-process, this bounds abuse against one instance. It is defence in
+depth, not a cluster-wide quota — see the gaps table.
+
+### Trusting the proxy
+
+`trustProxy` is **off by default** (`TRUST_PROXY=true` to enable).
+`X-Forwarded-For` is written by the client, so trusting it on a directly exposed
+port lets anyone choose their own source address — which poisons the audit trail
+and makes every IP-keyed limit above decorative. Turn it on only when the API
+genuinely sits behind a proxy that overwrites the header.
+
 ### Rights and consent
 
 `requireAuthorizedForIdentity` refuses unless every reference in the pack is
@@ -148,8 +251,7 @@ Stated plainly rather than left to be discovered:
 
 | Gap | Impact | Mitigation today |
 |---|---|---|
-| No rate limiting on the API | brute-force login, upload flooding | put it behind a reverse proxy that rate-limits |
-| No CSRF token | `sameSite=lax` blocks cross-site POSTs from forms, but a token would be belt-and-braces | same-origin deployment; add tokens before exposing to untrusted networks |
+| Rate limiting is per process, not per cluster | behind N API instances the effective budget is N times the configured one | run one instance, or put a shared limiter in the proxy in front; see "Rate limiting" above |
 | `SECRETS_ENCRYPTION_KEY` is defined but unused | the `provider_credentials` table exists for per-org keys; this release reads keys from the environment only | keys live in the environment, not the database |
 | S3 driver unexercised against a live bucket | signing is unit-tested against AWS's published vector, but no end-to-end run | run `masterclip doctor` with `STORAGE_DRIVER=s3` before relying on it |
 | No per-user MFA or invite flow | first account bootstraps, others are created by an owner | keep the deployment private |
