@@ -1,7 +1,7 @@
 /* Street Banker service worker — conservative on purpose:
    static assets cache-first, pages always network (dashboards must
    never go stale), offline navigations get a friendly fallback. */
-var VERSION = "sb-v113";   /* Section 7 portrait, and its height cut a third */
+var VERSION = "sb-v114";   /* Homepage gutters and container widths aligned */
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
 
