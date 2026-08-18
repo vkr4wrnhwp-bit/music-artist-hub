@@ -34,46 +34,31 @@ services:
   # REACH — music discovery, opportunity intelligence and outreach.
   # Shares no process, database or code with the service above.
   #
-  # ---------------------------------------------------------------------
-  # STORAGE IS EPHEMERAL ON THIS PLAN.
+  # This service runs on a paid starter instance with a mounted disk, so the
+  # SQLite store survives deploys, restarts and spin-downs. That durability is
+  # what makes REACH fit for real use: the catalog, campaigns, evidence,
+  # placements, the audit chain and — above all — the suppression list persist.
   #
-  # The free plan cannot mount a disk, so REACH's SQLite database lives in
-  # the container filesystem and is destroyed whenever the container is
-  # replaced — on every deploy, on every restart, and after the free plan
-  # spins the service down for inactivity. That last one happens routinely,
-  # not rarely.
-  #
-  # What is lost each time: the track catalog, campaigns, discovered
-  # opportunities and their evidence, recorded placements, the audit chain,
-  # and the suppression list. Losing suppression is the one with a victim —
-  # a recipient who opted out is no longer on record as having opted out.
-  #
-  # So this plan is right for trying REACH and wrong for outreach anyone
-  # actually receives. REACH says so on its own start screen rather than
-  # leaving it in this comment.
-  #
-  # To make storage durable: set plan to `starter`, restore the disk block
-  #     disk:
-  #       name: reach-data
-  #       mountPath: /var/data
-  #       sizeGB: 1
-  # and add REACH_DB_PATH = /var/data/reach.db so the store lands on it.
-  # ---------------------------------------------------------------------
+  # To run free instead (trial only): set plan to `free`, delete the `disk:`
+  # block and the REACH_DB_PATH env var. Everything still runs, but the
+  # database dies with the container and REACH's start screen will say so as a
+  # blocking item. Do not send real outreach from a free instance: losing the
+  # suppression list means losing the record of who opted out.
   - type: web
     name: reach
     runtime: python
     rootDir: reach-app
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
     healthCheckPath: /healthz
     envVars:
-      # REACH_DB_PATH is deliberately unset: with no disk to point it at,
-      # naming a path would only make the store look durable. Unset, REACH
-      # uses its default location and reports the storage as ephemeral.
-      #
+      # Where the SQLite store lives. On the mounted disk so it outlives the
+      # container.
+      - key: REACH_DB_PATH
+        value: /var/data/reach.db
       # Encrypts contact records at rest. Render generates this once and keeps
-      # it across restarts, so it outlives the data it protects.
+      # it; losing or changing it makes existing encrypted rows unreadable.
       - key: REACH_ENCRYPTION_KEY
         generateValue: true
       # Who REACH treats as the acting principal until it has real sessions.
@@ -82,3 +67,7 @@ services:
         sync: false
       - key: REACH_PRINCIPAL_ROLE
         value: OWNER
+    disk:
+      name: reach-data
+      mountPath: /var/data
+      sizeGB: 1

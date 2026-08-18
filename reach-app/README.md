@@ -73,20 +73,34 @@ Render generates `REACH_ENCRYPTION_KEY` itself. The only value it asks you for
 is `REACH_PRINCIPAL_EMAIL`, the address REACH treats as the acting user until it
 has logins.
 
-**The blueprint runs REACH on the free plan, which cannot mount a disk**, so the
-SQLite store lives in the container and is destroyed whenever the container is
-replaced — on every deploy, on every restart, and after the free plan spins the
-service down for inactivity, which happens routinely. Everything goes with it:
-the catalog, campaigns, evidence, placements, the audit chain, and the
-suppression list. That last one is the reason this matters beyond convenience —
-a recipient who opted out stops being on record as having opted out. REACH
-reports this on its own start screen as a blocking item rather than leaving it
-in a config comment.
+**The blueprint provisions a paid starter instance with a mounted disk**, so the
+SQLite store survives deploys, restarts and spin-downs. That durability is what
+makes REACH fit for real use: the catalog, campaigns, evidence, placements, the
+audit chain and — above all — the suppression list persist. Losing suppression
+is the failure with a victim: a recipient who opted out stops being on record as
+having opted out.
 
-That is the right plan for trying REACH and the wrong one for outreach anyone
-receives. To make it durable, edit the `reach` service in the root
-`render.yaml`: set `plan: starter`, add back the disk, and point
-`REACH_DB_PATH` at it. The block to restore is written out in a comment there.
+To trial REACH free instead, edit the `reach` service in the root `render.yaml`:
+set `plan: free`, delete the `disk:` block and the `REACH_DB_PATH` env var.
+Everything still runs, but the database dies with the container — REACH's start
+screen reports this as a blocking item — so never send real outreach from a free
+instance.
+
+## Making discovery real
+
+Without a search credential, discovery runs on the built-in fixture corpus and
+says so on every screen. To search the real web, add one environment variable to
+the service (Render → the `reach` service → Environment):
+
+| Variable | Value |
+| --- | --- |
+| `REACH_SEARCH_API_KEY` | Your Brave Search API key (default backend) |
+
+Google Programmable Search is also supported: set `REACH_SEARCH_BACKEND` to
+`google_cse` and add `REACH_SEARCH_CSE_ID` alongside the API key. No code
+change or redeploy config is needed for either — REACH reads the variable on
+the next request, leaves fixture mode, and labels the run accordingly. Each
+discovery run uses at most 24 search queries, budgeted in `reach/config.py`.
 
 **Without a blueprint**, create a Web Service by hand:
 
