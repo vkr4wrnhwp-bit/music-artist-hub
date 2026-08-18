@@ -46,6 +46,13 @@ def get_landing_config():
                 {"label": "Rollout Engine", "href": "/#rollout-engine"},
                 {"label": "Royalty Sweep", "href": "/#royalty-sweep"},
                 {"label": "Metadata Passport", "href": "/#metadata-passport"},
+                # A real page rather than a homepage anchor, because the
+                # Press Desk has no section on the homepage. Drawer only,
+                # like Metadata Passport and Rollout Engine: the desktop
+                # bar is full at 1024px, and page-guard clips overflow
+                # rather than scrolling it, so a seventh link there would
+                # cut the CTA off instead of wrapping.
+                {"label": "Press Desk", "href": "/press"},
                 {"label": "Product tour", "href": "/product-tour"},
                 {"label": "For Labels", "href": "/services"},
             ],
