@@ -183,7 +183,11 @@ export class CostController {
 
     // --- the global live-spend guard rail ------------------------------------
     if (!sandbox) {
-      const liveSpend = (await this.ledger.totalLiveSpend()) + committed
+      // Settled charges, plus this batch's running total, plus anything already
+      // with a provider and not yet settled. Leaving that last term out let each
+      // of N concurrent submissions authorize against a balance that none of the
+      // others had yet moved.
+      const liveSpend = (await this.ledger.totalLiveSpend()) + committed + (await this.ledger.committedInFlight())
       const cap = this.config.liveSpendCapMicros
       remaining.liveCapMicros = cap - liveSpend
       if (liveSpend + estimated > cap) {

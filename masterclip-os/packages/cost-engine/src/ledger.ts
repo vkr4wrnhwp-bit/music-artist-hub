@@ -98,6 +98,31 @@ export class CostLedger {
   }
 
   /** Live (non-sandbox) spend across every org. Backs the hard live-spend cap. */
+  /**
+   * Money already handed to a provider but not yet settled.
+   *
+   * `totalLiveSpend()` counts charges, and a charge is only written once a
+   * render finishes. Between submit and completion a job's cost is real — the
+   * provider is already generating — but invisible to any total built from
+   * charges alone. Authorizing against that total lets N renders each pass a cap
+   * that none of them individually breaches and all of them together do: ten
+   * $0.50 submissions against a $2 cap were all allowed, because each one asked
+   * "how much have we spent?" and the honest answer at that moment was nothing.
+   *
+   * Read from `render_jobs` rather than from unmatched `estimate` rows so the
+   * reservation releases itself: the moment a job reaches a terminal state it
+   * leaves this sum, whether it was charged, failed or cancelled. Nothing has to
+   * remember to write a release entry, and a missed transition makes the cap
+   * *stricter* rather than looser.
+   */
+  async committedInFlight(): Promise<MicroUsd> {
+    const row = await this.db.get<{ total: number | null }>(
+      `SELECT SUM(estimated_micros) AS total FROM render_jobs
+       WHERE sandbox = 0 AND status IN ('submitted', 'processing', 'downloading')`,
+    )
+    return toNum(row?.total, 0)
+  }
+
   async totalLiveSpend(): Promise<MicroUsd> {
     const row = await this.db.get<{ total: number | null }>(
       `SELECT SUM(micros) AS total FROM cost_ledger WHERE sandbox = 0 AND entry_type IN ('charge','refund','adjustment','qc','agent')`,
