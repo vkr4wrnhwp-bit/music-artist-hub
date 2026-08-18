@@ -1,0 +1,35 @@
+# REACH — its own Render service. Deliberately separate from the TRACE
+# blueprint at the repository root: different runtime, different disk,
+# different lifecycle. Neither one deploys the other.
+#
+# Connect this repository on Render as a Blueprint and point it at
+# reach-app/render.yaml, or create a Web Service manually with the build and
+# start commands below and Root Directory set to `reach-app`.
+services:
+  - type: web
+    name: reach
+    runtime: python
+    rootDir: reach-app
+    plan: starter # a paid instance is required for the persistent disk below.
+    # On the free plan, delete the `disk:` block and the REACH_DB_PATH value —
+    # REACH still runs, but its database resets on every deploy and restart.
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+    healthCheckPath: /healthz
+    envVars:
+      # Where the SQLite store lives. Must be on the mounted disk to survive.
+      - key: REACH_DB_PATH
+        value: /var/data/reach.db
+      # Encrypts contact records and credentials at rest. Render generates this
+      # once and keeps it; losing it makes existing encrypted rows unreadable.
+      - key: REACH_ENCRYPTION_KEY
+        generateValue: true
+      # Who REACH treats as the acting principal until it has real sessions.
+      - key: REACH_PRINCIPAL_EMAIL
+        sync: false
+      - key: REACH_PRINCIPAL_ROLE
+        value: OWNER
+    disk:
+      name: reach-data
+      mountPath: /var/data
+      sizeGB: 1

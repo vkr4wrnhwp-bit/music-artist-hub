@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+reach.db
+reach.db-wal
+reach.db-shm

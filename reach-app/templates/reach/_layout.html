@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{#
+  REACH shell. Design tokens: #0a0a0a page, #111113 panels, white/5 hairlines,
+  amber-500 accent, uppercase tracking-[0.2em] section labels. One design
+  system, defined here and in templates/base.html.
+#}
+
+{% macro section(title, subtitle=None) %}
+<h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">{{ title }}</h2>
+{% if subtitle %}<p class="mt-1 text-sm text-gray-500">{{ subtitle }}</p>{% endif %}
+{% endmacro %}
+
+{% macro state_badge(state) %}
+{% set ui = {
+  'CONNECTED':         'border-emerald-500/25 bg-emerald-500/10 text-emerald-400',
+  'NOT_CONNECTED':     'border-gray-500/25 bg-gray-500/10 text-gray-400',
+  'LIMITED':           'border-amber-500/25 bg-amber-500/10 text-amber-400',
+  'MANUAL_ONLY':       'border-sky-500/25 bg-sky-500/10 text-sky-400',
+  'APPROVAL_REQUIRED': 'border-violet-500/25 bg-violet-500/10 text-violet-300',
+  'QUOTA_LIMITED':     'border-orange-500/25 bg-orange-500/10 text-orange-400',
+  'DISABLED':          'border-gray-600/25 bg-gray-600/10 text-gray-500',
+  'BLOCKED':           'border-red-500/25 bg-red-500/10 text-red-400',
+  'BETA':              'border-sky-500/25 bg-sky-500/10 text-sky-400',
+  'ACTIVE':            'border-emerald-500/25 bg-emerald-500/10 text-emerald-400',
+} %}
+<span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ ui.get(state, ui['NOT_CONNECTED']) }}">
+  {{ state.replace('_', ' ') }}
+</span>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+{% set good = ['QUALIFIED','READY','APPROVED','SENT','SUBMITTED','DELIVERED','ACCEPTED','PLACED','RESPONDED'] %}
+{% set warn = ['DISCOVERED','ENRICHING','UNVERIFIED','DRAFTED','NEEDS_APPROVAL','QUEUED','FOLLOW_UP_DUE','STALE'] %}
+{% set bad  = ['DISQUALIFIED','DUPLICATE','BOUNCED','DECLINED','EXPIRED','OPTED_OUT','BLOCKED'] %}
+{% if status in good %}{% set cls = 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400' %}
+{% elif status in warn %}{% set cls = 'border-amber-500/25 bg-amber-500/10 text-amber-400' %}
+{% elif status in bad %}{% set cls = 'border-red-500/25 bg-red-500/10 text-red-400' %}
+{% else %}{% set cls = 'border-gray-500/25 bg-gray-500/10 text-gray-400' %}{% endif %}
+<span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ cls }}">{{ (status or 'UNKNOWN').replace('_',' ') }}</span>
+{% endmacro %}
+
+{% macro risk_badge(band) %}
+{% set ui = {
+  'LOW RISK':  'border-emerald-500/25 bg-emerald-500/10 text-emerald-400',
+  'REVIEW':    'border-amber-500/25 bg-amber-500/10 text-amber-400',
+  'HIGH RISK': 'border-orange-500/25 bg-orange-500/10 text-orange-400',
+  'BLOCK':     'border-red-500/25 bg-red-500/10 text-red-400',
+} %}
+<span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ ui.get(band, 'border-gray-500/25 bg-gray-500/10 text-gray-400') }}">{{ band or 'UNKNOWN' }}</span>
+{% endmacro %}
+
+{% macro score_pill(score) %}
+{% if score is none %}
+<span class="text-xs text-gray-600">UNKNOWN</span>
+{% else %}
+<span class="tabular-nums text-sm font-bold {{ 'text-emerald-400' if score >= 70 else ('text-amber-400' if score >= 45 else 'text-gray-500') }}">{{ score }}</span>
+{% endif %}
+{% endmacro %}
+
+{% macro metric(value, label, accent='text-gray-100') %}
+<div>
+  <div class="text-2xl font-bold tabular-nums {{ accent }}">{{ value }}</div>
+  <div class="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-gray-500">{{ label }}</div>
+</div>
+{% endmacro %}
+
+{% macro empty(message) %}
+<div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-600">{{ message }}</div>
+{% endmacro %}
+
+{% block title %}REACH{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-6">
+
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <h1 class="text-2xl font-semibold tracking-tight">REACH</h1>
+        {% if fixture_mode %}
+        <span class="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400"
+              title="No search credential is configured, so discovery runs against the built-in fixture corpus.">
+          Fixture corpus
+        </span>
+        {% endif %}
+      </div>
+      <p class="mt-1 text-sm text-gray-500">{% block subtitle %}Global music discovery, opportunity intelligence and submission management.{% endblock %}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5">
+      {% for endpoint, label in global_nav %}
+      <a href="{{ url_for(endpoint) }}"
+         class="rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if request.endpoint == endpoint else 'border-white/10 text-gray-500 hover:text-gray-300' }}">
+        {{ label }}{% if label == 'Needs You' and needs_you_count %} <span class="ml-0.5 tabular-nums">{{ needs_you_count }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if campaign_id %}
+  <nav class="flex flex-wrap gap-1 border-b border-white/5 pb-2">
+    {% for key, label in nav %}
+    {% set endpoint = 'reach.' + ('overview' if key == 'overview' else key) %}
+    <a href="{{ url_for(endpoint, campaign_id=campaign_id) }}"
+       class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors {{ 'bg-white/5 text-white' if active == key else 'text-gray-500 hover:text-gray-300' }}">
+      {{ label }}
+    </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  {% block reach_content %}{% endblock %}
+
+  <div id="reach-toast" class="pointer-events-none fixed bottom-6 left-1/2 z-50 hidden -translate-x-1/2 rounded-lg border border-white/10 bg-[#17171a] px-4 py-2.5 text-sm shadow-xl"></div>
+</div>
+
+<script>
+  function reachToast(message, ok) {
+    const el = document.getElementById('reach-toast');
+    el.textContent = message;
+    el.className = 'pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border px-4 py-2.5 text-sm shadow-xl '
+      + (ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => { el.classList.add('hidden'); }, 4200);
+  }
+
+  async function reachPost(url, payload) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    let data = {};
+    try { data = await response.json(); } catch (e) { data = { ok: false, error: 'Unexpected response' }; }
+    if (!data.ok) { reachToast(data.error || 'Request failed', false); }
+    return data;
+  }
+
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-post]');
+    if (!button) return;
+    event.preventDefault();
+    const payload = button.dataset.payload ? JSON.parse(button.dataset.payload) : {};
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = button.dataset.busy || 'Working…';
+    const data = await reachPost(button.dataset.post, payload);
+    button.disabled = false;
+    button.textContent = original;
+    if (data.ok) {
+      reachToast(button.dataset.success || 'Done', true);
+      if (button.dataset.reload !== 'false') setTimeout(() => window.location.reload(), 600);
+    }
+  });
+</script>
+{% endblock %}

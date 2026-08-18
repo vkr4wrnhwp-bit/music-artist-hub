@@ -1,4 +1,2 @@
 pytest
 flask
-cryptography
-dnspython
