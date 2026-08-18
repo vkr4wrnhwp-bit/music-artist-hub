@@ -44,6 +44,29 @@ that could not be confirmed from an official page.
 **The two readings differ by 8× on an 8-second clip** ($3.20 vs $0.40 for Veo 3.1
 1080p with audio).
 
+### Re-checked 2026-08-18 — narrowed, still not resolved
+
+`cloud.google.com/vertex-ai/generative-ai/pricing` became reachable from this
+environment after the build (the `/docs/` paths under the same host remain
+blocked), so the question was re-examined against Google's own page rather than
+a discovery document. Three things came out of it:
+
+1. **Every Veo figure below was confirmed unchanged** against the published rate
+   card — the build-time figures, derived from the v1beta discovery document,
+   were correct to the cent.
+2. **Vertex AI prints the identical "per 1 count" phrasing**, so this is not a
+   Gemini-API quirk to be resolved by reading the other surface. Both say the
+   same thing and neither defines it.
+3. **"count" is Google's generic billing-unit word, not a video-specific one.**
+   The same page prices Gemini image input at `$0.00032875 / 1 count`, video
+   input at `$0.002 / 1 count`, and text at `$0.0003125 / 1,000 count` — tokens.
+   It means "one unit of whatever is being metered", which is *evidence against*
+   reading it as "one clip": a generic unit word carries no such claim.
+
+That shifts the balance toward the per-second reading without establishing it.
+It is not enough to change the code's behaviour, and the `estimated` confidence
+marker and the spend cap both stay until an invoice settles it.
+
 How the application handles it:
 - `provider-google` treats a count as one second;
 - every Google quote is marked `confidence: 'estimated'`, never `exact`;
@@ -51,7 +74,10 @@ How the application handles it:
   UI's model catalog under "pricing note";
 - the global `LIVE_SPEND_CAP_USD` bounds the damage if the reading is wrong.
 
-**Resolve this against a real invoice before routing volume to Google.**
+**Resolve this against a real invoice before routing volume to Google.** A
+single cheap live render is the cheapest way: generate one 4-second clip and read
+the charge. Per-second predicts ~4x the per-clip figure, and the two are far
+enough apart that one render settles it.
 
 ---
 
