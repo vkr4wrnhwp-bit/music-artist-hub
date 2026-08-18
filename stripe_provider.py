@@ -14,6 +14,8 @@ import time
 import urllib.parse
 import urllib.request
 
+import sandbox
+
 _TIMEOUT = 20
 
 # Tier -> (monthly cents, display name). Keep in sync with plans.PLANS.
@@ -25,6 +27,9 @@ PRICES = {
 
 
 def configured():
+    # No card is charged from an experiment, whatever key is set.
+    if sandbox.active():
+        return False
     return bool(os.environ.get("STRIPE_SECRET_KEY"))
 
 

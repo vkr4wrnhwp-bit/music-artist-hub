@@ -14,10 +14,17 @@ import json
 import os
 import urllib.request
 
+import sandbox
+
 _TIMEOUT = 12
 
 
 def configured():
+    # A sandbox deployment reports no provider even if a key is present,
+    # so every path here degrades the way it already does without one. An
+    # experiment must not be able to mail a real person.
+    if sandbox.active():
+        return False
     return bool(os.environ.get("RESEND_API_KEY"))
 
 

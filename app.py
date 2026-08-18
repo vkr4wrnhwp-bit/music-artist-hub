@@ -22,6 +22,7 @@ import press_desk
 import producers
 import recovery_engine
 import report_builder
+import sandbox
 import shopify_buy
 import since_engine
 import valuation_engine
@@ -7772,6 +7773,27 @@ def create_app():
         if alert is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "message": alert.resolution_message})
+
+    @app.after_request
+    def _mark_sandbox(response):
+        """Stamp every HTML page on a sandbox deployment.
+
+        Registered unconditionally but inert unless SANDBOX is set, so
+        production returns the identical bytes it returned before this
+        existed. Skips streamed files and anything that is not HTML.
+        """
+        if not sandbox.active() or response.direct_passthrough:
+            return response
+        if (response.mimetype or "") != "text/html":
+            return response
+        try:
+            html = response.get_data(as_text=True)
+        except (UnicodeDecodeError, RuntimeError):
+            return response
+        marked = sandbox.mark(html)
+        if marked != html:
+            response.set_data(marked)
+        return response
 
     operator_desk.init(app, is_owner_email=_is_owner_email)
     # Press links are baked into emails and read days later, so they are

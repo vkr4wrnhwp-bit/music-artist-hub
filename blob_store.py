@@ -44,6 +44,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import sandbox
+
 log = logging.getLogger("blob_store")
 
 REGION = "auto"
@@ -61,6 +63,10 @@ def _env(name):
 
 
 def configured():
+    # Sandbox writes to its own ephemeral disk rather than the bucket
+    # production reads from. Test uploads are not production objects.
+    if sandbox.active():
+        return False
     return all(_env(k) for k in ("R2_ACCOUNT_ID", "R2_BUCKET",
                                  "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"))
 
