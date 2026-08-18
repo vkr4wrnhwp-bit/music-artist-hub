@@ -161,6 +161,11 @@ independent checks. Either alone has a gap the other covers.
    `masterclip_csrf` — deliberately *readable* by script, because the SPA has to
    echo it into an `x-csrf-token` header, and setting a header is precisely what
    a cross-site page cannot do. The token is `nonce.HMAC(SESSION_SECRET, nonce.sessionToken)`.
+   `SESSION_SECRET` is refused at startup in production if it is absent, is the
+   value published in this repository, or is under 16 characters — otherwise the
+   HMAC would be computed with a key anyone can read. The session cookie itself
+   is an opaque random token, not derived from this secret, so rotating it
+   invalidates outstanding CSRF tokens but logs nobody out.
 
 The binding in (2) is the part that matters. Plain double-submit — "cookie and
 header must match" — is forgeable by anyone who can *write* a cookie on the

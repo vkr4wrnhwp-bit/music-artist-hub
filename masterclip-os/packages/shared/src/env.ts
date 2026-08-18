@@ -114,6 +114,49 @@ const EnvSchema = z.object({
 
 export type RawEnv = z.infer<typeof EnvSchema>
 
+/**
+ * Signing secrets published in this repository.
+ *
+ * They exist so a clean checkout runs without generating keys by hand. They are
+ * defined here, once, because the production guard below refuses exactly these
+ * values — two copies of the string would eventually drift and the guard would
+ * quietly stop refusing the one still in use.
+ */
+export const DEV_SESSION_SECRET = 'masterclip-development-session-secret'
+export const DEV_ASSET_SIGNING_SECRET = 'masterclip-development-only-asset-signing-secret'
+
+const PUBLISHED_DEV_SECRETS = new Set<string>([DEV_SESSION_SECRET, DEV_ASSET_SIGNING_SECRET])
+
+/** Shortest secret worth signing with. Render's generateValue is far longer. */
+const MIN_SECRET_LENGTH = 16
+
+const PRODUCTION_REQUIRED = ['SESSION_SECRET', 'ASSET_SIGNING_SECRET'] as const
+
+/**
+ * Refuses to start a production deployment whose signing secrets are absent,
+ * published in this repository, or too short to be worth signing with.
+ *
+ * `createStorage()` already refused an empty ASSET_SIGNING_SECRET, but only on
+ * the local-driver path, and nothing refused an empty SESSION_SECRET at all —
+ * so a production deployment could boot signing CSRF tokens with a value
+ * anybody can read in this file. Checking at config load covers the API, the
+ * worker and the CLI in one place instead of at each point of use, and fails at
+ * boot rather than at the first request that happens to need a signature.
+ */
+function assertProductionSecrets(env: RawEnv): void {
+  if (env.NODE_ENV !== 'production') return
+  const problems: string[] = []
+  for (const key of PRODUCTION_REQUIRED) {
+    const value = env[key]
+    if (!value) problems.push(`${key} is not set`)
+    else if (PUBLISHED_DEV_SECRETS.has(value)) problems.push(`${key} is the development value published in this repository`)
+    else if (value.length < MIN_SECRET_LENGTH) problems.push(`${key} is ${value.length} characters; use at least ${MIN_SECRET_LENGTH}`)
+  }
+  if (problems.length > 0) {
+    throw new Error(`refusing to start in production: ${problems.join('; ')}`)
+  }
+}
+
 export interface AppConfig extends RawEnv {
   liveSpendCapMicros: MicroUsd
   isSandbox: boolean
@@ -130,6 +173,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, force = fals
     throw new Error(`invalid environment configuration: ${issues}`)
   }
   const env = parsed.data
+  assertProductionSecrets(env)
   for (const key of [
     'MUAPI_API_KEY',
     'GOOGLE_API_KEY',

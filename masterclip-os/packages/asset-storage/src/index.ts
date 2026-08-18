@@ -1,4 +1,4 @@
-import { loadConfig, type AppConfig } from '@masterclip/shared'
+import { DEV_ASSET_SIGNING_SECRET, loadConfig, type AppConfig } from '@masterclip/shared'
 import type { StorageDriver } from './driver.js'
 import { LocalStorage } from './local.js'
 import { S3Storage } from './s3.js'
@@ -38,5 +38,5 @@ function devSigningSecret(config: AppConfig): string {
   if (config.NODE_ENV === 'production') {
     throw new Error('ASSET_SIGNING_SECRET must be set when NODE_ENV=production')
   }
-  return 'masterclip-development-only-asset-signing-secret'
+  return DEV_ASSET_SIGNING_SECRET
 }

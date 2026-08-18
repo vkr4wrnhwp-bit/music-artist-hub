@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod/v4'
-import { AppError, newId, sha256File } from '@masterclip/shared'
+import { AppError, DEV_ASSET_SIGNING_SECRET, newId, sha256File } from '@masterclip/shared'
 import { LocalStorage, objectKey, sanitizeFilename, verifySignedUrl } from '@masterclip/asset-storage'
 import { probe } from '@masterclip/media-tools'
 import type { Runtime } from '@masterclip/runtime'
@@ -58,7 +58,7 @@ export async function registerAssetRoutes(app: FastifyInstance, runtime: Runtime
       throw new AppError({ kind: 'validation', code: 'assets.remote_storage', message: 'remote storage serves assets via presigned URLs' })
     }
     const query = request.query as { key?: string; exp?: string; sig?: string }
-    const secret = runtime.config.ASSET_SIGNING_SECRET || 'masterclip-development-only-asset-signing-secret'
+    const secret = runtime.config.ASSET_SIGNING_SECRET || DEV_ASSET_SIGNING_SECRET
     const key = verifySignedUrl(secret, query, runtime.clock.now())
     const path = (runtime.storage as LocalStorage).localPath(key)
     const asset = await runtime.db.get<{ mime: string; filename: string }>('SELECT mime, filename FROM assets WHERE storage_key = ?', [key])

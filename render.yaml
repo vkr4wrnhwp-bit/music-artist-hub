@@ -111,10 +111,12 @@ services:
         value: /var/data/masterclip.sqlite
       - key: STORAGE_LOCAL_ROOT
         value: /var/data/storage
-      # Signs session cookies and asset URLs. Render generates each once and
-      # keeps it; changing ASSET_SIGNING_SECRET invalidates every outstanding
-      # media link, and the application refuses to start in production without
-      # it rather than falling back to the development value.
+      # SESSION_SECRET signs CSRF tokens. The session cookie itself is an
+      # opaque random token, so rotating this logs nobody out. The other one
+      # signs media URLs, and rotating that does invalidate every outstanding
+      # link. Render generates each once and keeps it. Neither may be blank:
+      # under NODE_ENV=production the application refuses to start rather than
+      # fall back to a value published in this repository.
       - key: SESSION_SECRET
         generateValue: true
       - key: ASSET_SIGNING_SECRET
