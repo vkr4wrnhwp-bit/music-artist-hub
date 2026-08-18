@@ -76,6 +76,10 @@ pytest
 
 Both run in CI as the `REACH tests & lint` job.
 
+`tools/build-walkthrough.py` rebuilds the click-through capture of every screen
+(the app's own markup and stylesheet, frozen after a full campaign lifecycle) as
+one self-contained HTML file. It needs no browser and no network.
+
 `tools/audit-contrast.py` measures text contrast on every screen in a real
 browser and exits non-zero if anything falls below WCAG AA. It is the authority;
 `tests/test_a11y.py` is its CI-runnable proxy and runs on every commit.
