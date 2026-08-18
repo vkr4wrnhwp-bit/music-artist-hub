@@ -1,5 +1,5 @@
 import { AspectRatio, GenerationMode, TargetResolution } from '@masterclip/shot-schema'
-import type { CanonicalRenderRequest } from './types.js'
+import type { CanonicalRenderRequest, PriceQuote } from './types.js'
 import type { VideoProvider } from './provider.js'
 import { isQuoteValid } from './pricing.js'
 
@@ -44,6 +44,18 @@ export function sampleRequest(overrides: Partial<CanonicalRenderRequest> = {}): 
   }
 }
 
+/**
+ * Verdict from whoever is allowed to say yes to spending money.
+ *
+ * Mirrors the cost controller's `Authorization` rather than reimplementing it,
+ * so the battery cannot develop a second, laxer opinion about what is
+ * affordable.
+ */
+export interface ContractSubmitApproval {
+  allowed: boolean
+  reason?: string
+}
+
 export interface ContractOptions {
   /** Skips submit/poll/download. Use when no sandbox credential is available. */
   submitAndPoll?: boolean
@@ -52,6 +64,19 @@ export interface ContractOptions {
   /** Overrides for the request used against this provider. */
   request?: Partial<CanonicalRenderRequest>
   pollTimeoutMs?: number
+  /**
+   * Required before this battery may put a real request on the wire.
+   *
+   * `submit()` here talks to the provider directly — that is the whole point of
+   * a contract test — which means it is the one code path in the system that
+   * can reach a paid endpoint without passing the cost controller. Rather than
+   * duplicate the controller's rules, the battery refuses to submit at all
+   * unless the caller hands it something that has already applied them. The CLI
+   * wires this to the real controller; unit tests against the mock pass a stub.
+   *
+   * Without it, `submitAndPoll` records a failure instead of spending.
+   */
+  approveSubmit?: (input: { request: CanonicalRenderRequest; quote: PriceQuote }) => Promise<ContractSubmitApproval>
 }
 
 export async function runProviderContract(provider: VideoProvider, opts: ContractOptions = {}): Promise<ContractCheck[]> {
@@ -129,9 +154,14 @@ export async function runProviderContract(provider: VideoProvider, opts: Contrac
   }
 
   // --- quoting --------------------------------------------------------------
+  // Hoisted: the submit gate below has to show the caller what this request
+  // costs before anyone approves it, and an unquotable request must never be
+  // submittable.
+  let priced: PriceQuote | null = null
   try {
     const quote = await provider.quote(request)
     const valid = isQuoteValid(quote, request, now)
+    priced = quote
     record('quote returns a request-bound, time-limited price', valid.ok, valid.reason || `${quote.estimatedMicros} µUSD (${quote.source})`)
     record(
       'quote never reports a confident zero price',
@@ -153,6 +183,34 @@ export async function runProviderContract(provider: VideoProvider, opts: Contrac
   // --- submit / poll / download --------------------------------------------
   if (!opts.submitAndPoll) {
     record('submit → poll → download round trip', true, 'skipped (no sandbox credential)', true)
+    return checks
+  }
+
+  // The one place in this system that can reach a billable endpoint without
+  // going through RenderService. It does not get to skip the question.
+  if (!opts.approveSubmit) {
+    record(
+      'submit → poll → download round trip',
+      false,
+      'refused: --submit needs an authorization callback, so a contract run cannot spend money outside the cost controller',
+    )
+    return checks
+  }
+
+  if (!priced) {
+    record('submit → poll → download round trip', false, 'refused: cannot price this request, so it cannot be approved')
+    return checks
+  }
+
+  let approval: ContractSubmitApproval
+  try {
+    approval = await opts.approveSubmit({ request, quote: priced })
+  } catch (err) {
+    record('submit → poll → download round trip', false, `authorization threw: ${String(err)}`)
+    return checks
+  }
+  if (!approval.allowed) {
+    record('submit → poll → download round trip', true, `not authorized: ${approval.reason ?? 'declined'}`, true)
     return checks
   }
 
