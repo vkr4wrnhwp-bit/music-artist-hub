@@ -53,6 +53,33 @@ interface VeoModelSpec {
   capabilities: ModelCapabilities
 }
 
+/**
+ * What we know about a model Google lists but this build has never researched:
+ * nothing. Declaring no modes and no durations keeps the capability matcher
+ * from ever selecting it, which is the correct behaviour for a model whose
+ * price and limits are unknown — it appears in the catalogue as visible but
+ * unusable rather than being quietly guessed at.
+ */
+const UNKNOWN_MODEL_CAPABILITIES: ModelCapabilities = {
+  modes: [],
+  duration: { minSeconds: 0, maxSeconds: 0, allowedSeconds: [] },
+  resolutions: [],
+  aspectRatios: [],
+  fps: [],
+  nativeAudio: false,
+  dialogue: false,
+  firstFrame: false,
+  lastFrame: false,
+  videoReference: false,
+  extension: false,
+  maxReferenceImages: 0,
+  seed: false,
+  negativePrompt: false,
+  maxPromptChars: 0,
+  tier: 'standard',
+  safetyControls: [],
+}
+
 function veoCapabilities(overrides: Partial<ModelCapabilities>): ModelCapabilities {
   return {
     modes: ['text_to_video', 'image_to_video', 'first_last_frame'],
@@ -160,9 +187,96 @@ export class GoogleProvider extends BaseProvider {
     return { 'x-goog-api-key': this.apiKey, 'content-type': 'application/json' }
   }
 
+  /**
+   * The video models Google will actually accept today.
+   *
+   * This used to return the compiled-in list unconditionally, which made the
+   * "live catalogues preferred" mitigation against provider drift untrue for
+   * this adapter: a renamed or retired Veo model would have been discovered by
+   * a failed submission rather than by asking. The live endpoint decides which
+   * models *exist*; the compiled-in specs supply the capability and pricing
+   * detail Google does not publish there.
+   *
+   * A model Google lists that we have no spec for is still returned, with
+   * `pricing: null` — the cost controller refuses to authorize an unpriced
+   * billable request, so a newly launched model surfaces as "needs pricing
+   * research" instead of quietly failing or, worse, being priced by guesswork.
+   *
+   * Falls back to the static list when the catalogue cannot be read, so an
+   * unconfigured or offline deployment still knows what Veo is.
+   */
   async listModels(): Promise<NormalizedModel[]> {
     const fetchedAt = new Date(this.deps.now()).toISOString()
-    return VEO_MODELS.map((spec) => ({
+    if (!this.isConfigured()) return this.staticModels(fetchedAt)
+
+    let live: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }>
+    try {
+      const response = await httpJson<{ models?: typeof live }>(`${this.baseUrl}/v1beta/models?pageSize=200`, {
+        headers: this.headers(),
+        provider: this.providerId,
+        logger: this.deps.logger,
+        timeoutMs: 20_000,
+      })
+      live = response.body.models ?? []
+    } catch (err) {
+      this.deps.logger.warn('google.catalog_unavailable', { err: String(err), note: 'falling back to the compiled-in model list' })
+      return this.staticModels(fetchedAt)
+    }
+
+    // `predictLongRunning` is the method this adapter submits with, so it is
+    // the honest test of "can we drive this model" — more durable than matching
+    // on the name containing "veo".
+    const videoModels = live.filter((m) => (m.supportedGenerationMethods ?? []).includes('predictLongRunning'))
+    if (videoModels.length === 0) return this.staticModels(fetchedAt)
+
+    const specs = new Map(VEO_MODELS.map((spec) => [spec.modelId, spec]))
+    const seen = new Set<string>()
+    const models: NormalizedModel[] = []
+
+    for (const entry of videoModels) {
+      const modelId = String(entry.name ?? '').replace(/^models\//, '')
+      if (!modelId) continue
+      seen.add(modelId)
+      const spec = specs.get(modelId)
+      if (spec) {
+        models.push({ ...this.fromSpec(spec, fetchedAt), source: 'catalog', displayName: entry.displayName || spec.displayName })
+        continue
+      }
+      this.deps.logger.warn('google.unpriced_model', {
+        modelId,
+        note: 'Google lists a video model this build has no pricing or capability research for',
+      })
+      models.push({
+        providerId: this.providerId,
+        modelId,
+        displayName: entry.displayName || modelId,
+        family: 'veo',
+        capabilities: UNKNOWN_MODEL_CAPABILITIES,
+        pricing: null,
+        enabled: false,
+        raw: entry,
+        fetchedAt,
+        source: 'catalog',
+      })
+    }
+
+    for (const spec of VEO_MODELS) {
+      if (seen.has(spec.modelId)) continue
+      this.deps.logger.warn('google.model_retired', {
+        modelId: spec.modelId,
+        note: 'compiled-in model is no longer in Google\'s catalogue; not offered for routing',
+      })
+    }
+
+    return models
+  }
+
+  private staticModels(fetchedAt: string): NormalizedModel[] {
+    return VEO_MODELS.map((spec) => this.fromSpec(spec, fetchedAt))
+  }
+
+  private fromSpec(spec: (typeof VEO_MODELS)[number], fetchedAt: string): NormalizedModel {
+    return ({
       providerId: this.providerId,
       modelId: spec.modelId,
       displayName: spec.displayName,
@@ -184,7 +298,7 @@ export class GoogleProvider extends BaseProvider {
       raw: { spec, videoOnlyUsd: spec.videoOnlyUsd },
       fetchedAt,
       source: 'static' as const,
-    }))
+    })
   }
 
   /**
