@@ -26,10 +26,16 @@
   overflow: hidden;                    /* the desktop slices are clipped to it */
 }
 
+/* Container and gutter are the page's shared pair - 1600px and
+   clamp(20px, 4vw, 56px) - so this section's content starts the same
+   distance from the edge as the ones above and below it. They were
+   1540px and clamp(16px, 4vw, 48px), which put the left edge 4px
+   further out than its neighbours on a phone and 8px further on a
+   desktop: not a decision, just drift from being built separately. */
 .sbdept-inner {
-  max-width: 1540px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0 clamp(16px, 4vw, 48px);
+  padding: 0 clamp(20px, 4vw, 56px);
 }
 
 /* --- head ---------------------------------------------------------------- */

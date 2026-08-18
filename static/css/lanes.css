@@ -19,10 +19,11 @@
   padding: clamp(60px, 8vw, 116px) 0 clamp(52px, 6vw, 88px);
 }
 
+/* The page's shared container and gutter. Was 1560px / 52px. */
 .sblane-inner {
-  max-width: 1560px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0 clamp(20px, 4vw, 52px);
+  padding: 0 clamp(20px, 4vw, 56px);
 }
 
 /* --- head ---------------------------------------------------------------- */

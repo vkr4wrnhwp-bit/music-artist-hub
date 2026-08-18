@@ -27,8 +27,9 @@
    because on a desktop the photograph is the left column. The panel
    becomes `display: contents` so its children can be ordered directly;
    it is a plain div, so nothing is lost from the accessibility tree. */
+/* The page's shared container. Was 1560px. */
 .sbtw-inner {
-  max-width: 1560px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 0 clamp(20px, 4vw, 56px);
   display: flex;
