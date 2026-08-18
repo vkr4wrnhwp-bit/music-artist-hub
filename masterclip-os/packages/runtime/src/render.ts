@@ -513,7 +513,7 @@ export class RenderService {
     }
 
     await this.rt.renders.updateJob(jobId, { status: 'downloading', completedAt: this.rt.clock.isoNow() })
-    if (status.actualMicros !== null) await this.recordCharge(job, status.actualMicros, status.billableSeconds)
+    await this.settleCharge(job, status)
 
     await this.rt.queue.enqueue({
       queue: QUEUES.render,
@@ -525,7 +525,39 @@ export class RenderService {
     return { done: true, deferMs: 0 }
   }
 
-  private async recordCharge(job: RenderJob, micros: MicroUsd, seconds: number | null): Promise<void> {
+  /**
+   * Writes the charge for a completed generation, falling back to the estimate
+   * when the provider does not report a cost.
+   *
+   * Five of seven adapters — fal, Google, Luma, Replicate and the self-hosted
+   * one — always return `actualMicros: null`, because their APIs simply do not
+   * return a price. Skipping the ledger write in that case meant no `charge`
+   * row was ever produced for them, and every budget built from charges,
+   * including the global live-spend cap, read $0 for ever. The money was spent;
+   * only the record was missing.
+   *
+   * So an unpriced completion is charged at its estimate and labelled as such.
+   * That is deliberately the conservative direction: a cap fed slightly wrong
+   * numbers refuses too early, whereas a cap fed nothing never refuses at all.
+   * `variance()` will show a zero delta for these rows, which is the signal
+   * that the figure is ours rather than the provider's.
+   */
+  private async settleCharge(job: RenderJob, status: { actualMicros: MicroUsd | null; billableSeconds: number | null }): Promise<void> {
+    if (status.actualMicros !== null) {
+      await this.recordCharge(job, status.actualMicros, status.billableSeconds)
+      return
+    }
+    this.rt.logger.warn('render.cost_unreported', {
+      jobId: job.id,
+      providerId: job.providerId,
+      modelId: job.modelId,
+      chargedMicros: job.estimatedMicros,
+      note: 'provider reported no cost; charged at estimate so the spend is not invisible to budgets',
+    })
+    await this.recordCharge(job, job.estimatedMicros, status.billableSeconds, 'provider reported no cost; charged at estimate')
+  }
+
+  private async recordCharge(job: RenderJob, micros: MicroUsd, seconds: number | null, note?: string): Promise<void> {
     const project = await this.rt.projects.get(job.projectId)
     await this.rt.ledger.append({
       orgId: project.orgId,
@@ -541,7 +573,7 @@ export class RenderService {
       billableSeconds: seconds,
       externalRequestId: job.externalJobId,
       sandbox: job.sandbox,
-      note: 'provider-reported charge',
+      note: note ?? 'provider-reported charge',
       createdBy: job.createdBy,
     })
     await this.rt.renders.updateJob(job.id, { actualMicros: micros })

@@ -107,6 +107,19 @@ export class CostController {
         message: 'this model has no confident price; obtain a live provider quote before submitting',
       })
     }
+    // A zero or negative estimate satisfies every cap by arithmetic and slides
+    // under the human-approval threshold, so an adapter that fails to price a
+    // request must not be able to buy an unlimited one by returning nothing.
+    // `unknown` confidence is the honest way to say "no price"; zero is not.
+    if (!Number.isFinite(estimated) || estimated <= 0) {
+      if (!sandbox) {
+        denials.push({
+          code: 'quote.invalid',
+          message: `a billable request needs a positive price; this quote reports ${estimated} µUSD. A provider that cannot price a request must report confidence 'unknown' rather than zero.`,
+        })
+      }
+    }
+
     if (input.quote.confidence === 'estimated') {
       warnings.push(`price is a rate-card estimate (${input.quote.source}), not a live provider quote`)
     }

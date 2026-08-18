@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod/v4'
-import { AppError, formatUsd } from '@masterclip/shared'
+import { AppError, formatUsd, notFound } from '@masterclip/shared'
 import { toStr } from '@masterclip/database'
 import { RejectionReason, deriveRequirements } from '@masterclip/shot-schema'
 import { buildMatrix, defaultStopLoss, summarize } from '@masterclip/domain'
@@ -214,14 +214,65 @@ export async function registerRenderRoutes(app: FastifyInstance, runtime: Runtim
     return { ok: true }
   })
 
+  /**
+   * Dead-lettered jobs, scoped to one project.
+   *
+   * This used to swallow its own authorization failure with `.catch(() =>
+   * undefined)` and then return every tenant's rows regardless — the caller
+   * did not even need to be signed in. A dead-letter row carries the failing
+   * payload, so it leaked job ids, prompts and provider detail across orgs.
+   */
+  /**
+   * Dead-lettered jobs, scoped to one project.
+   *
+   * This used to swallow its own authorization failure with `.catch(() =>
+   * undefined)` and then return every tenant's rows regardless — the caller did
+   * not even need to be signed in. A dead-letter row carries the failing
+   * payload, so it leaked job ids and provider detail across orgs.
+   *
+   * The row identifies its work by a JSON payload rather than a foreign key, so
+   * the scoping is done in code: parse the payload, resolve the render job, keep
+   * only rows belonging to this project. Rows with no resolvable job are
+   * withheld rather than shown, since they cannot be attributed to anyone.
+   */
   app.get('/api/queue/dead', async (request) => {
-    await requireProject(runtime, request, String((request.query as { projectId?: string }).projectId ?? ''), 'producer').catch(() => undefined)
-    const rows = await runtime.db.query('SELECT * FROM queue_dead WHERE replayed_at IS NULL ORDER BY failed_at DESC LIMIT 100')
-    return { dead: rows }
+    const projectId = String((request.query as { projectId?: string }).projectId ?? '')
+    await requireProject(runtime, request, projectId, 'producer')
+    const rows = await runtime.db.query<Record<string, unknown>>(
+      'SELECT * FROM queue_dead WHERE replayed_at IS NULL ORDER BY failed_at DESC LIMIT 500',
+    )
+    const mine = []
+    for (const row of rows) {
+      const jobId = deadLetterJobId(row)
+      if (!jobId) continue
+      const job = await runtime.renders.getJob(jobId).catch(() => null)
+      if (job?.projectId === projectId) mine.push(row)
+      if (mine.length >= 100) break
+    }
+    return { dead: mine }
   })
 
+  /**
+   * Replaying a dead letter re-runs the job it describes, and for a render job
+   * that means a **new billable generation**. This was completely
+   * unauthenticated: anyone who could reach the API could spend another org's
+   * money by guessing an id. It now resolves the job the row points at and
+   * demands the same `producer` role as any other spend.
+   */
   app.post('/api/queue/dead/:deadId/replay', async (request) => {
     const { deadId } = request.params as { deadId: string }
+    const row = await runtime.db.get<Record<string, unknown>>('SELECT * FROM queue_dead WHERE id = ?', [deadId])
+    if (!row) throw notFound('dead-letter entry', deadId)
+    const jobId = deadLetterJobId(row)
+    if (!jobId) {
+      throw new AppError({
+        kind: 'forbidden',
+        code: 'queue.unattributable_replay',
+        message: 'this dead letter is not tied to a render job, so it cannot be attributed to a project or replayed through the API',
+      })
+    }
+    const job = await runtime.renders.getJob(jobId)
+    await requireProject(runtime, request, job.projectId, 'producer')
     return { queueJobId: await runtime.queue.replayDead(deadId) }
   })
 
@@ -403,4 +454,22 @@ export async function registerRenderRoutes(app: FastifyInstance, runtime: Runtim
       savingsUsd: formatUsd(comparison.savingsMicros, 2),
     }
   })
+}
+
+/**
+ * The render job a dead letter refers to, if any.
+ *
+ * Queue payloads are JSON text rather than foreign keys, so this is the only
+ * link back to an owner. Anything unparseable or without a jobId is treated as
+ * unattributable, which callers must handle by withholding the row.
+ */
+function deadLetterJobId(row: Record<string, unknown>): string | null {
+  const raw = row.payload
+  if (typeof raw !== 'string') return null
+  try {
+    const parsed = JSON.parse(raw) as { jobId?: unknown }
+    return typeof parsed.jobId === 'string' && parsed.jobId.length > 0 ? parsed.jobId : null
+  } catch {
+    return null
+  }
 }

@@ -109,6 +109,11 @@ export class CostLedger {
    * $0.50 submissions against a $2 cap were all allowed, because each one asked
    * "how much have we spent?" and the honest answer at that moment was nothing.
    *
+   * `authorizing` is included and matters: it is the job's status for the whole
+   * authorize -> submit window, which is exactly the window two concurrent
+   * submissions occupy when they both read the balance before either moves it.
+   * Leaving it out narrowed that race without closing it.
+   *
    * Read from `render_jobs` rather than from unmatched `estimate` rows so the
    * reservation releases itself: the moment a job reaches a terminal state it
    * leaves this sum, whether it was charged, failed or cancelled. Nothing has to
@@ -118,7 +123,7 @@ export class CostLedger {
   async committedInFlight(): Promise<MicroUsd> {
     const row = await this.db.get<{ total: number | null }>(
       `SELECT SUM(estimated_micros) AS total FROM render_jobs
-       WHERE sandbox = 0 AND status IN ('submitted', 'processing', 'downloading')`,
+       WHERE sandbox = 0 AND status IN ('authorizing', 'submitted', 'processing', 'downloading')`,
     )
     return toNum(row?.total, 0)
   }

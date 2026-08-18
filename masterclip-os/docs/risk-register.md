@@ -7,7 +7,7 @@ Ordered by expected cost of being wrong.
 | 1 | **Google's "per 1 count" pricing unit is per-clip, not per-second** | low-medium | 8× cost error either way | quotes marked `estimated`; warning surfaced in the UI and in every quote's `raw`; global live-spend cap bounds it. Re-checked 2026-08-18 against Vertex's published card, now reachable: prices confirmed to the cent, and "count" shown to be Google's generic unit word (used for images, video inputs, and 1,000-count tokens), which argues against the per-clip reading | **open** — narrowed, not settled; one cheap live render reads the charge and ends it |
 | 2 | **Provider API drift** (renamed models, changed fields) | high | submissions fail after a shot is planned | capabilities and prices carry `retrievedAt` + `sourceUrl`; live catalogues preferred; contract battery per adapter; static fallbacks labelled `source: 'static'` | ongoing — re-run `masterclip providers contract` on a schedule |
 | 3 | **No live provider call has ever been made from this build** | certain | adapters are spec-correct but unproven on the wire | every host was egress-blocked during development; adapters written from vendors' own client source, not memory | **open** — first live run needs a sandbox key and `masterclip providers contract --submit` |
-| 4 | **A routing bug spends at scale** | low | unbounded | sandbox default; global `LIVE_SPEND_CAP_USD`; batch-aware authorization; re-authorization at submit; attempt caps. The provider contract battery — the one path that calls `provider.submit()` directly — now refuses to submit without an authorization callback, and the CLI wires that to the cost controller | low |
+| 4 | **A routing bug spends at scale** | low | unbounded | sandbox default; global `LIVE_SPEND_CAP_USD`; batch-aware authorization; re-authorization at submit; attempt caps; contract battery gated on the cost controller. An adversarial review on 2026-08-18 found the caps were largely inert and fixed it: `sandbox` is now a provider fact rather than the deployment posture (it previously exempted every real provider from every cap), completions with no provider-reported cost are charged at estimate rather than not at all, in-flight jobs hold a reservation, and a zero or negative price is refused | low |
 | 5 | **Acceptance-rate learning overfits a tiny sample** | medium | bad routing that looks data-driven | Beta prior with 8 pseudo-observations; confidence reported on every decision; UI says when a ranking rests on priors | low |
 | 6 | **Identity misuse** — generating a real person without consent | low | serious | consent recorded at upload; `requireAuthorizedForIdentity` refuses unless explicitly authorized and unexpired; rights changes audited | low |
 | 7 | **A vision-QC false negative passes a bad clip** | medium | wasted finishing work | auto-rejection restricted to *demonstrated* technical failures; low confidence routes to a human; nothing auto-promotes | low |
@@ -32,3 +32,23 @@ Ordered by expected cost of being wrong.
 
 Both need credentials this build has never had. Everything else on the list is
 mitigated in code.
+
+---
+
+## Found by attacking the money path (2026-08-18)
+
+Six lenses attacked the cost engine, router, ledger and agent spend boundaries;
+each finding was handed to a separate agent instructed to refute it. **20 of 44
+candidates survived.** The four that mattered most, all fixed:
+
+| Defect | Why it mattered |
+|---|---|
+| `isSandboxProvider()` returned true for every provider whenever `MASTERCLIP_MODE=sandbox` | the default, documented-as-safe posture marked real fal/Google/Runway requests `sandbox: true`, which skipped the live-spend cap, human approval and attempt caps — and wrote ledger rows `sandbox = 1` so they never counted later either. A verifier reproduced 30 real submissions with the cap never once consulted |
+| Five of seven adapters return `actualMicros: null`, and no charge was recorded without one | every budget, including the global cap, read $0 for ever. Unpriced completions are now charged at estimate and labelled, because a cap fed slightly wrong numbers refuses too early while a cap fed nothing never refuses at all |
+| The live cap counted only settled charges | N concurrent submissions each authorized against a balance none had moved; in-flight jobs now hold a reservation from `authorizing` through `downloading` |
+| A $0 or negative quote satisfied every cap | zero passes every budget by arithmetic and slides under the approval threshold; a billable request now needs a positive price, and `unknown` confidence is the honest way to report no price |
+| `GET /api/queue/dead` swallowed its own auth failure; replay had no auth at all | any caller could read every tenant's dead letters, and replay re-triggers a billable generation for another org |
+
+Sixteen further confirmed findings — double-charging on concurrent polls,
+unrecorded charges on cancel and timeout paths, QC spend outside the cap, router
+statistics corruption — are recorded in the review output and not yet fixed.

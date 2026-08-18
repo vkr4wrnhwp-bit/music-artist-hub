@@ -287,3 +287,34 @@ describe('the live cap counts money already with a provider', () => {
     expect(result.allowed).toBe(true)
   })
 })
+
+describe('a billable request must carry a real price', () => {
+  it('refuses a zero-priced live request', async () => {
+    // Zero satisfies every cap by arithmetic and slides under the human-approval
+    // threshold, so an adapter that cannot price a request must not be able to
+    // buy an unlimited one by returning nothing. 'unknown' confidence is the
+    // honest way to say "no price"; zero is not.
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: false })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: 0, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(false)
+    expect(result.denials.map((d) => d.code)).toContain('quote.invalid')
+  })
+
+  it('refuses a negative price', async () => {
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: false })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: -1_000_000, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(false)
+  })
+
+  it('still allows a zero-priced sandbox request, which spends nothing', async () => {
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: true })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: 0, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard' })
+    expect(result.allowed).toBe(true)
+  })
+})

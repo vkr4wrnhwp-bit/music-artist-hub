@@ -460,3 +460,38 @@ describe('asset links are stable enough to cache', () => {
     expect(second).toBe(first)
   })
 })
+
+describe('sandbox mode does not authorize real providers', () => {
+  it('refuses a billable provider while MASTERCLIP_MODE=sandbox', async () => {
+    /**
+     * `isSandboxProvider` used to return true for every provider whenever the
+     * deployment posture was sandbox, which marked real fal/Google/Runway
+     * requests `sandbox: true`. The cost controller reads that flag to decide
+     * what to enforce, so those requests skipped the global live-spend cap, the
+     * human-approval gate and the attempt caps — and their ledger rows were
+     * written sandbox=1, so they never counted toward any later cap either. The
+     * default posture, the one documented as costing nothing, was the one that
+     * spent without limit.
+     */
+    const { CostController } = await import('@masterclip/cost-engine')
+    const { sampleRequest, quoteFromProvider } = await import('@masterclip/provider-core')
+    const { usdToMicros } = await import('@masterclip/shared')
+
+    const controller = new CostController(db, runtime.config, runtime.clock)
+    const org = await runtime.projects.createOrg('Sandbox Org')
+    const project = await runtime.projects.create({ orgId: org.id, name: 'Sandbox P', createdBy: 'test' })
+    await controller.budgetStore.ensureDefaults('project', project.id)
+    await controller.budgetStore.ensureDefaults('org', org.id)
+
+    // What a real provider's request looks like now: not sandbox, because the
+    // provider bills regardless of how this deployment is configured.
+    const request = sampleRequest({ providerId: 'fal', durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: false })
+    const quote = quoteFromProvider({ providerId: 'fal', request, micros: usdToMicros(0.8), nowMs: runtime.clock.now(), raw: {} })
+
+    const result = await controller.authorize({
+      orgId: org.id, projectId: project.id, shotId: 'shot_x', request, quote, tier: 'standard', humanApproved: true,
+    })
+    expect(result.allowed).toBe(false)
+    expect(result.denials.map((d) => d.code)).toContain('mode.sandbox_required')
+  })
+})
