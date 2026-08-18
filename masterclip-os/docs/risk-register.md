@@ -21,9 +21,24 @@ Ordered by expected cost of being wrong.
 | 15 | **Queue starvation under load** | low | slow renders block cheap bookkeeping | four separate queues (render, qc, media, maintenance) | low |
 | 16 | **Estimate-vs-invoice drift goes unnoticed** | medium | budgets quietly wrong | `estimate` and `charge` are separate ledger entry types; `variance()` reports the delta per job | low |
 | 17 | **Ledger corruption via a partial write** | low | wrong spend totals | ledger writes are transactional with the state change they describe; append-only | low |
-| 18 | **The deployment image has never been built** | medium | first deploy fails | no Docker daemon was reachable during development, so `docker build` was never run. What *was* verified: the `COPY` set is sufficient — `pnpm install --frozen-lockfile && pnpm build` both succeed in a clean directory containing exactly what the Dockerfile copies with `.dockerignore` applied — and the full stack boots from that directory and serves, seeds, closes signup and authenticates. Untested: the base image, the apt layer and corepack | **open** — the remaining risk is the three boilerplate layers, not the application |
+| 18 | **The deployment image had never been built** | ~~medium~~ | first deploy fails | no Docker daemon was reachable during development, so `docker build` was never run here. **Closed 2026-08-18**: the image built on Render's builders first time and the service is running — ffmpeg layer, corepack, `pnpm install --frozen-lockfile` and `pnpm build` all succeeded on a clean clone, which is the part this repository could not test. The application layers had already been proven locally against an exact replica of the build context | **closed** — the image is built and serving |
 
 ---
+
+## Deployed 2026-08-18
+
+Live on Render in `sandbox` mode with no provider keys set. That closes #18 (the
+image builds) and changes nothing about #1 or #3: a deployment that refuses every
+billable submission proves the factory runs, not that it renders.
+
+Two risks the deployment makes newly relevant:
+
+- **#13, per-process rate limiting** — currently correct, because this is a
+  single instance. Scaling to more than one makes the effective budget N× the
+  configured one; move the limiter to the proxy before scaling out.
+- **#12, the untested S3 driver** — unchanged and still unused. Storage is the
+  local driver on a mounted disk. Do not switch `STORAGE_DRIVER=s3` on a live
+  deployment without running `doctor` against the bucket first.
 
 ## The two that need a human before production
 
