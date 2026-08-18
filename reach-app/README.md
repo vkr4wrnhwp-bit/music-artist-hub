@@ -69,9 +69,24 @@ top of it.
 
     New → Blueprint → this repository → Apply
 
-Render generates `REACH_ENCRYPTION_KEY` itself and mounts a disk for
-`REACH_DB_PATH`. The only value it asks you for is `REACH_PRINCIPAL_EMAIL`,
-which is just the address REACH treats as the acting user until it has logins.
+Render generates `REACH_ENCRYPTION_KEY` itself. The only value it asks you for
+is `REACH_PRINCIPAL_EMAIL`, the address REACH treats as the acting user until it
+has logins.
+
+**The blueprint runs REACH on the free plan, which cannot mount a disk**, so the
+SQLite store lives in the container and is destroyed whenever the container is
+replaced — on every deploy, on every restart, and after the free plan spins the
+service down for inactivity, which happens routinely. Everything goes with it:
+the catalog, campaigns, evidence, placements, the audit chain, and the
+suppression list. That last one is the reason this matters beyond convenience —
+a recipient who opted out stops being on record as having opted out. REACH
+reports this on its own start screen as a blocking item rather than leaving it
+in a config comment.
+
+That is the right plan for trying REACH and the wrong one for outreach anyone
+receives. To make it durable, edit the `reach` service in the root
+`render.yaml`: set `plan: starter`, add back the disk, and point
+`REACH_DB_PATH` at it. The block to restore is written out in a comment there.
 
 **Without a blueprint**, create a Web Service by hand:
 

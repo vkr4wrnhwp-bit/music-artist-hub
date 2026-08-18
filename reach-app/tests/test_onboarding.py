@@ -89,6 +89,26 @@ def test_a_missing_encryption_key_surfaces_with_its_consequence(monkeypatch):
     crypto.reset_key_cache()
 
 
+def test_unset_db_path_is_reported_as_non_durable_storage(monkeypatch):
+    """The free-plan failure mode, made visible.
+
+    Without a disk there is no path to point REACH_DB_PATH at, so the store sits
+    beside the application and dies with the container. REACH cannot detect a
+    mounted volume, but it can tell nobody chose a location.
+    """
+    monkeypatch.delenv("REACH_DB_PATH", raising=False)
+    item = next(c for c in onboarding.capabilities() if c["key"] == "storage")
+    assert item["severity"] == onboarding.BLOCKING
+    # The consequence that has a victim is named, not just "data may be lost".
+    assert "suppression" in item["detail"]
+    assert "opted out" in item["detail"]
+
+
+def test_a_configured_db_path_removes_the_storage_warning(monkeypatch, tmp_path):
+    monkeypatch.setenv("REACH_DB_PATH", str(tmp_path / "reach.db"))
+    assert "storage" not in keys(onboarding.status())
+
+
 def test_an_unhealthy_sender_is_blocking_and_lists_what_fails():
     item = next(c for c in onboarding.capabilities() if c["key"] == "sender")
     assert item["severity"] == onboarding.BLOCKING

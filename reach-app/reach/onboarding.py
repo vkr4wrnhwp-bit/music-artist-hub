@@ -13,6 +13,8 @@ now, in the same voice the rest of the product uses for UNKNOWN: the gap is
 shown, not filled in.
 """
 
+import os
+
 from . import campaigns, catalog, config, crypto, db, profile, rbac, sender
 from .providers import search as search_provider
 
@@ -99,6 +101,23 @@ def capabilities():
                        "restarts. Set REACH_ENCRYPTION_KEY before doing real work, and keep "
                        "it — rotating it has the same effect."),
             "fix": "REACH_ENCRYPTION_KEY"})
+
+    if not os.environ.get(config.DB_PATH_ENV):
+        # REACH cannot know whether a given path sits on a mounted volume, but
+        # it can tell that nobody chose one. Unset means the store is beside the
+        # application code, which on any hosted container is wiped whenever the
+        # container is replaced — including when a free plan spins the service
+        # down for inactivity, which is routine rather than rare.
+        items.append({
+            "key": "storage", "severity": BLOCKING,
+            "label": "Storage is not durable",
+            "detail": ("REACH_DB_PATH is not set, so the database sits next to the application "
+                       "rather than on a disk that outlives it. If this is running on a hosted "
+                       "container, everything goes when the container is replaced: the catalog, "
+                       "campaigns, evidence, placements, the audit chain — and the suppression "
+                       "list, which means someone who opted out stops being on record as having "
+                       "opted out. Fine for trying REACH; not fine for outreach anyone receives."),
+            "fix": "REACH_DB_PATH"})
 
     health = sender.health_summary()
     if not health["ready"]:
