@@ -166,8 +166,10 @@ def get(campaign_id):
 def list_campaigns(tenant_id=None, limit=50):
     tenant_id = tenant_id or rbac.current_principal().tenant_id
     return db.query(
-        "SELECT c.*, r.title AS recording_title FROM campaign c "
+        "SELECT c.*, r.title AS recording_title, a.name AS artist_name "
+        "FROM campaign c "
         "JOIN recording r ON r.id = c.recording_id "
+        "JOIN artist a ON a.id = r.artist_id "
         "WHERE c.tenant_id = ? ORDER BY c.created_at DESC LIMIT ?",
         (tenant_id, limit),
     )

@@ -11,10 +11,10 @@ from flask import (Blueprint, abort, jsonify, redirect, render_template, request
                    url_for)
 
 from . import REACH_VERSION
-from . import (analytics, approvals, audit, campaigns, catalog, compliance, contacts,
-               db, drafts, entities, evidence, firewall, firstparty, humanactions, jobs,
-               onboarding, outcomes, pipeline, policy, profile, rbac, relationships,
-               scoring, sender)
+from . import (analytics, approvals, audit, campaigns, catalog, clock, compliance,
+               contacts, db, drafts, entities, evidence, firewall, firstparty,
+               humanactions, jobs, onboarding, outcomes, pipeline, policy, profile,
+               rbac, relationships, scoring, sender)
 from .errors import ReachError
 from .providers import email as email_provider
 from .providers import search as search_provider
@@ -286,16 +286,63 @@ def _next_best_actions(qualified, drafted, follow_ups):
 @bp.route("/campaigns", methods=["GET"])
 def campaigns_list():
     bootstrap()
+    shared = _shared_outlets()
     items = []
-    for row in campaigns.list_campaigns():
+    rows = campaigns.list_campaigns()
+    for row in rows:
         metrics = analytics.campaign_metrics(row["id"])
         stage = campaign_stage(row["id"], metrics)
         items.append({"campaign": row, "metrics": metrics, "stage": stage,
                       "stages": CAMPAIGN_STAGES,
                       "next_url": _stage_next_url(row["id"], stage),
-                      "health": analytics.campaign_health(row["id"])["score"]})
+                      "health": analytics.campaign_health(row["id"])["score"],
+                      "shared_outlets": shared.get(row["id"], [])})
+    status_counts = {}
+    for row in rows:
+        status_counts[row["status"]] = status_counts.get(row["status"], 0) + 1
     return render_template("reach/campaigns.html", campaigns=items,
+                           status_counts=status_counts, total=len(rows),
                            recordings=catalog.recordings(), **_shell())
+
+
+def _shared_outlets():
+    """Outlets targeted by more than one campaign — the same curator should
+    not get two pitches in the same week from two campaigns. Computed from
+    live target records; campaigns that are finished don't count."""
+    rows = db.query(
+        "SELECT t.campaign_id, t.outlet_id, o.name AS outlet_name "
+        "FROM campaign_target t "
+        "JOIN outlet o ON o.id = t.outlet_id "
+        "JOIN campaign c ON c.id = t.campaign_id "
+        "WHERE c.tenant_id = ? AND c.status NOT IN (?, ?) "
+        "AND t.status NOT IN ('DUPLICATE', 'DISQUALIFIED', 'BLOCKED')",
+        (rbac.current_principal().tenant_id, campaigns.COMPLETED,
+         campaigns.CANCELLED),
+    )
+    campaigns_per_outlet = {}
+    for row in rows:
+        campaigns_per_outlet.setdefault(row["outlet_id"], set()).add(row["campaign_id"])
+    shared = {}
+    for row in rows:
+        if len(campaigns_per_outlet[row["outlet_id"]]) > 1:
+            shared.setdefault(row["campaign_id"], []).append(row["outlet_name"])
+    return {cid: sorted(set(names)) for cid, names in shared.items()}
+
+
+@bp.route("/campaigns/<campaign_id>/status", methods=["POST"])
+def campaign_status(campaign_id):
+    """Pause, resume, or archive a campaign. Allowed states only; every
+    change lands in the audit log via campaigns.set_status."""
+    _campaign_or_404(campaign_id)
+    data = request.get_json(silent=True) or request.form
+    status = data.get("status")
+    if status not in (campaigns.ACTIVE, campaigns.PAUSED, campaigns.COMPLETED):
+        return _json_error(ReachError("Only ACTIVE, PAUSED or COMPLETED can be set here"))
+    try:
+        campaigns.set_status(campaign_id, status)
+    except ReachError as exc:
+        return _json_error(exc)
+    return jsonify({"ok": True, "status": status})
 
 
 @bp.route("/opportunities")
@@ -330,8 +377,41 @@ def all_responses():
 @bp.route("/contacts")
 def contacts_view():
     bootstrap()
-    return render_template("reach/relationships.html",
-                           rows=relationships.listing(), **_shell())
+    rows = []
+    for row in relationships.listing():
+        item = dict(row)
+        # Cooling status, computed — never guessed. next_eligible_at comes
+        # from the recontact rules (60 days after contact, a year after a
+        # decline, ten after an opt-out).
+        item["eligible_in_days"] = None
+        if item["next_eligible_at"] and not clock.is_past(item["next_eligible_at"]):
+            days = clock.days_since(item["next_eligible_at"])
+            if days is not None:
+                item["eligible_in_days"] = max(1, round(-days))
+        rows.append(item)
+    return render_template("reach/relationships.html", rows=rows, **_shell())
+
+
+@bp.route("/relationships/<relationship_id>/notes")
+def relationship_notes(relationship_id):
+    bootstrap()
+    return jsonify({"ok": True, "notes": [
+        {"body": note["body"], "created_at": note["created_at"]}
+        for note in relationships.notes(relationship_id)
+    ]})
+
+
+@bp.route("/relationships/<relationship_id>/notes", methods=["POST"])
+def add_relationship_note(relationship_id):
+    data = request.get_json(silent=True) or request.form
+    body = (data.get("body") or "").strip()
+    if not body:
+        return _json_error(ReachError("A note needs some text"))
+    try:
+        relationships.add_note(relationship_id, body[:2000])
+    except ReachError as exc:
+        return _json_error(exc)
+    return jsonify({"ok": True})
 
 
 @bp.route("/relationships")

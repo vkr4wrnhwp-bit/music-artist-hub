@@ -19,6 +19,15 @@
       title="Not measured. REACH shows the gap rather than inventing a number.">UNKNOWN</span>
 {% endmacro %}
 
+{% macro mode_badge(mode) %}
+{% set ui = {
+  'COPILOT':   'border-amber-500/30 bg-amber-500/10 text-amber-400',
+  'SCOUT':     'border-sky-500/25 bg-sky-500/10 text-sky-400',
+  'AUTOPILOT': 'border-violet-500/25 bg-violet-500/10 text-violet-300',
+} %}
+<span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide {{ ui.get(mode, 'border-gray-500/25 bg-gray-500/10 text-gray-400') }}">{{ mode }}</span>
+{% endmacro %}
+
 {% macro state_badge(state) %}
 {% set ui = {
   'CONNECTED':         'border-emerald-500/25 bg-emerald-500/10 text-emerald-400',
@@ -188,6 +197,24 @@
     <span class="flex items-center gap-1.5">Source {{ unknown() }}</span>
     {% endif %}
     {% if retrieved %}<span>Read {{ retrieved[:10] }}</span>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{#  The compact form of the stage track: six discrete segments, the current
+    one lit. "Stage 3 of 6" is a fact about a discrete sequence — unlike a
+    percentage, it has an honest denominator. #}
+{% macro stage_bar(stages, current) %}
+{% set reached = stages.index(current) if current in stages else 0 %}
+<div>
+  <div class="flex items-center gap-1" role="img" aria-label="Stage {{ reached + 1 }} of {{ stages | length }}: {{ current }}">
+    {% for stage in stages %}
+    <span class="h-1.5 flex-1 rounded-full {{ 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.55)]' if loop.index0 == reached else ('bg-amber-500/50' if loop.index0 < reached else 'bg-white/10') }}"></span>
+    {% endfor %}
+  </div>
+  <div class="mt-1.5 flex items-baseline justify-between text-[10px]">
+    <span class="font-semibold uppercase tracking-[0.18em] text-amber-400">{{ current }}</span>
+    <span class="tabular-nums text-faint">Stage {{ reached + 1 }} of {{ stages | length }}</span>
   </div>
 </div>
 {% endmacro %}
