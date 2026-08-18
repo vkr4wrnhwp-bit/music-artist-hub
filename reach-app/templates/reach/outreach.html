@@ -15,15 +15,15 @@
   <div class="mt-4 grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
     {% for check in health.checks %}
     <div class="flex items-baseline justify-between gap-3 border-b border-white/5 py-1">
-      <span class="text-[11px] uppercase tracking-wide text-gray-500">{{ check.label }}</span>
+      <span class="text-[11px] uppercase tracking-wide text-gray-400">{{ check.label }}</span>
       <span class="shrink-0 text-[11px] font-bold
-        {{ 'text-emerald-400' if check.state == 'PASS' else ('text-red-400' if check.state == 'FAIL' else 'text-gray-500') }}">{{ check.state }}</span>
+        {{ 'text-emerald-400' if check.state == 'PASS' else ('text-red-400' if check.state == 'FAIL' else 'text-gray-400') }}">{{ check.state }}</span>
     </div>
     {% endfor %}
   </div>
   <div class="mt-3 space-y-0.5">
     {% for check in health.checks if check.state != 'PASS' %}
-    <div class="text-[11px] text-gray-600">{{ check.label }}: {{ check.detail }}</div>
+    <div class="text-[11px] text-faint">{{ check.label }}: {{ check.detail }}</div>
     {% endfor %}
   </div>
 </section>
@@ -48,7 +48,7 @@
   <div class="overflow-x-auto">
     <table class="w-full min-w-[760px] text-left text-sm">
       <thead>
-        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-500">
+        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-400">
           <th class="px-4 py-2.5 font-medium">Outlet</th>
           <th class="px-4 py-2.5 font-medium">Method</th>
           <th class="px-4 py-2.5 font-medium">Subject</th>
@@ -63,10 +63,10 @@
           <td class="px-4 py-2.5 text-xs text-gray-400">{{ submission.method.replace('_',' ') }}</td>
           <td class="max-w-[280px] truncate px-4 py-2.5 text-xs text-gray-400">{{ submission.subject or '—' }}</td>
           <td class="px-4 py-2.5">{{ ui.status_badge(submission.status) }}</td>
-          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-500">{{ submission.sent_at[:10] if submission.sent_at else '—' }}</td>
+          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-400">{{ submission.sent_at[:10] if submission.sent_at else '—' }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="px-4 py-10 text-center text-xs text-gray-600">Nothing sent yet.</td></tr>
+        <tr><td colspan="5" class="px-4 py-10 text-center text-xs text-faint">Nothing sent yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -80,7 +80,7 @@
     {% for follow_up in follow_ups %}
     <div class="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-xs">
       <span>{{ follow_up.outlet_name }}</span>
-      <span class="text-gray-500">due {{ follow_up.due_at[:10] }}</span>
+      <span class="text-gray-400">due {{ follow_up.due_at[:10] }}</span>
     </div>
     {% endfor %}
   </div>

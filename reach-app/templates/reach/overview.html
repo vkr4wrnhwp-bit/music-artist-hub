@@ -16,7 +16,7 @@
     <div>
       <div class="text-[11px] uppercase tracking-[0.25em] text-amber-500/80">{{ recording.artist_name }}</div>
       <div class="mt-1 text-xl font-bold tracking-tight">{{ recording.title }}</div>
-      <div class="mt-1 text-xs text-gray-500">{{ campaign.mode }} campaign · {{ settings.territories | join(', ') or 'no territories set' }}</div>
+      <div class="mt-1 text-xs text-gray-400">{{ campaign.mode }} campaign · {{ settings.territories | join(', ') or 'no territories set' }}</div>
     </div>
     {{ ui.status_badge(campaign.status) }}
   </div>
@@ -32,12 +32,12 @@
 
   <div class="mt-6 flex flex-wrap items-center gap-6 border-t border-white/5 pt-4">
     <div class="flex items-center gap-2">
-      <span class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Campaign health</span>
+      <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Campaign health</span>
       {{ ui.score_pill(health.score) }}
     </div>
     <div class="flex items-center gap-2">
-      <span class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Needs you</span>
-      <span class="text-sm font-bold tabular-nums {{ 'text-amber-400' if task_count else 'text-gray-500' }}">{{ task_count }}</span>
+      <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Needs you</span>
+      <span class="text-sm font-bold tabular-nums {{ 'text-amber-400' if task_count else 'text-gray-400' }}">{{ task_count }}</span>
     </div>
     <div class="ml-auto flex gap-2">
       <a href="{{ url_for('reach.opportunities', campaign_id=campaign.id) }}"
@@ -78,7 +78,7 @@
         <div class="mt-1 h-1 overflow-hidden rounded-full bg-white/5">
           <div class="h-full rounded-full bg-amber-500/60" style="width: {{ factor.score }}%"></div>
         </div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ factor.detail }}</div>
+        <div class="mt-1 text-[11px] text-faint">{{ factor.detail }}</div>
       </div>
       {% endfor %}
     </div>
@@ -93,9 +93,9 @@
       <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
         <div class="flex items-start justify-between gap-2">
           <span class="text-xs font-semibold">{{ task.title }}</span>
-          <span class="shrink-0 text-[10px] uppercase tracking-wide text-gray-600">{{ task.provider }}</span>
+          <span class="shrink-0 text-[10px] uppercase tracking-wide text-faint">{{ task.provider }}</span>
         </div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ task.reason }}</div>
+        <div class="mt-1 text-[11px] text-faint">{{ task.reason }}</div>
       </div>
       {% else %}
       {{ ui.empty('No open tasks.') }}
@@ -120,7 +120,7 @@
             {%- else %}UNKNOWN{% endif %}
           </span>
         </div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ row.note }}</div>
+        <div class="mt-1 text-[11px] text-faint">{{ row.note }}</div>
       </div>
       {% endfor %}
     </div>

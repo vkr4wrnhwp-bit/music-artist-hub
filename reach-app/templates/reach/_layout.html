@@ -7,8 +7,8 @@
 #}
 
 {% macro section(title, subtitle=None) %}
-<h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">{{ title }}</h2>
-{% if subtitle %}<p class="mt-1 text-sm text-gray-500">{{ subtitle }}</p>{% endif %}
+<h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">{{ title }}</h2>
+{% if subtitle %}<p class="mt-1 text-sm text-gray-400">{{ subtitle }}</p>{% endif %}
 {% endmacro %}
 
 {% macro state_badge(state) %}
@@ -19,7 +19,7 @@
   'MANUAL_ONLY':       'border-sky-500/25 bg-sky-500/10 text-sky-400',
   'APPROVAL_REQUIRED': 'border-violet-500/25 bg-violet-500/10 text-violet-300',
   'QUOTA_LIMITED':     'border-orange-500/25 bg-orange-500/10 text-orange-400',
-  'DISABLED':          'border-gray-600/25 bg-gray-600/10 text-gray-500',
+  'DISABLED':          'border-gray-600/25 bg-gray-600/10 text-gray-400',
   'BLOCKED':           'border-red-500/25 bg-red-500/10 text-red-400',
   'BETA':              'border-sky-500/25 bg-sky-500/10 text-sky-400',
   'ACTIVE':            'border-emerald-500/25 bg-emerald-500/10 text-emerald-400',
@@ -52,21 +52,21 @@
 
 {% macro score_pill(score) %}
 {% if score is none %}
-<span class="text-xs text-gray-600">UNKNOWN</span>
+<span class="text-xs text-faint">UNKNOWN</span>
 {% else %}
-<span class="tabular-nums text-sm font-bold {{ 'text-emerald-400' if score >= 70 else ('text-amber-400' if score >= 45 else 'text-gray-500') }}">{{ score }}</span>
+<span class="tabular-nums text-sm font-bold {{ 'text-emerald-400' if score >= 70 else ('text-amber-400' if score >= 45 else 'text-gray-400') }}">{{ score }}</span>
 {% endif %}
 {% endmacro %}
 
 {% macro metric(value, label, accent='text-gray-100') %}
 <div>
   <div class="text-2xl font-bold tabular-nums {{ accent }}">{{ value }}</div>
-  <div class="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-gray-500">{{ label }}</div>
+  <div class="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-gray-400">{{ label }}</div>
 </div>
 {% endmacro %}
 
 {% macro empty(message) %}
-<div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-600">{{ message }}</div>
+<div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-faint">{{ message }}</div>
 {% endmacro %}
 
 {% block title %}REACH{% endblock %}
@@ -85,12 +85,12 @@
         </span>
         {% endif %}
       </div>
-      <p class="mt-1 text-sm text-gray-500">{% block subtitle %}Global music discovery, opportunity intelligence and submission management.{% endblock %}</p>
+      <p class="mt-1 text-sm text-gray-400">{% block subtitle %}Global music discovery, opportunity intelligence and submission management.{% endblock %}</p>
     </div>
     <div class="flex flex-wrap items-center gap-1.5">
       {% for endpoint, label in global_nav %}
       <a href="{{ url_for(endpoint) }}"
-         class="rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if request.endpoint == endpoint else 'border-white/10 text-gray-500 hover:text-gray-300' }}">
+         class="rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if request.endpoint == endpoint else 'border-white/10 text-gray-400 hover:text-gray-300' }}">
         {{ label }}{% if label == 'Needs You' and needs_you_count %} <span class="ml-0.5 tabular-nums">{{ needs_you_count }}</span>{% endif %}
       </a>
       {% endfor %}
@@ -102,7 +102,7 @@
     {% for key, label in nav %}
     {% set endpoint = 'reach.' + ('overview' if key == 'overview' else key) %}
     <a href="{{ url_for(endpoint, campaign_id=campaign_id) }}"
-       class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors {{ 'bg-white/5 text-white' if active == key else 'text-gray-500 hover:text-gray-300' }}">
+       class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors {{ 'bg-white/5 text-white' if active == key else 'text-gray-400 hover:text-gray-300' }}">
       {{ label }}
     </a>
     {% endfor %}

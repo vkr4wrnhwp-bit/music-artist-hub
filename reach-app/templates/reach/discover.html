@@ -25,7 +25,7 @@
     <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
       <div id="progress-bar" class="h-full rounded-full bg-amber-500 transition-all" style="width: {{ progress.pct }}%"></div>
     </div>
-    <span id="progress-label" class="shrink-0 text-xs tabular-nums text-gray-500">{{ progress.done }}/{{ progress.total }} jobs</span>
+    <span id="progress-label" class="shrink-0 text-xs tabular-nums text-gray-400">{{ progress.done }}/{{ progress.total }} jobs</span>
   </div>
 
   <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -50,7 +50,7 @@
       {% for query in queries %}
       <div class="flex items-start justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5">
         <span class="min-w-0 truncate text-xs text-gray-300">{{ query.query }}</span>
-        <span class="shrink-0 text-[10px] uppercase tracking-wide text-gray-600">
+        <span class="shrink-0 text-[10px] uppercase tracking-wide text-faint">
           {{ query.family }}{% if query.territory %} · {{ query.territory }}{% endif %}
         </span>
       </div>

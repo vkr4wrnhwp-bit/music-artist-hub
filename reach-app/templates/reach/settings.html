@@ -15,10 +15,10 @@
     <div class="mt-4 space-y-0.5">
       {% for check in health.checks %}
       <div class="flex items-baseline justify-between gap-3 border-b border-white/5 py-1">
-        <span class="text-[11px] uppercase tracking-wide text-gray-500">{{ check.label }}</span>
-        <span class="shrink-0 text-[11px] font-bold {{ 'text-emerald-400' if check.state == 'PASS' else ('text-red-400' if check.state == 'FAIL' else 'text-gray-500') }}">{{ check.state }}</span>
+        <span class="text-[11px] uppercase tracking-wide text-gray-400">{{ check.label }}</span>
+        <span class="shrink-0 text-[11px] font-bold {{ 'text-emerald-400' if check.state == 'PASS' else ('text-red-400' if check.state == 'FAIL' else 'text-gray-400') }}">{{ check.state }}</span>
       </div>
-      <div class="pb-1 text-[10px] text-gray-600">{{ check.detail }}</div>
+      <div class="pb-1 text-[10px] text-faint">{{ check.detail }}</div>
       {% endfor %}
     </div>
   </section>
@@ -30,7 +30,7 @@
         <div class="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
           <div>
             <div class="text-xs font-semibold">Outreach send stop</div>
-            <div class="text-[11px] text-gray-600">Blocks every send while leaving research running.</div>
+            <div class="text-[11px] text-faint">Blocks every send while leaving research running.</div>
           </div>
           <button type="button" data-post="{{ url_for('reach.emergency_stop') }}"
                   data-payload='{"scope": "send", "enabled": {{ 'false' if send_stop else 'true' }}}'
@@ -42,7 +42,7 @@
         <div class="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
           <div>
             <div class="text-xs font-semibold">Global emergency stop</div>
-            <div class="text-[11px] text-gray-600">Refuses every provider call, job and send.</div>
+            <div class="text-[11px] text-faint">Refuses every provider call, job and send.</div>
           </div>
           <button type="button" data-post="{{ url_for('reach.emergency_stop') }}"
                   data-payload='{"scope": "global", "enabled": {{ 'false' if global_stop else 'true' }}}'
@@ -59,8 +59,8 @@
       <div class="mt-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
         {% for flag in flags %}
         <div class="flex items-center justify-between gap-2 border-b border-white/5 py-1 text-[11px]">
-          <span class="truncate font-mono text-gray-500">{{ flag.flag }}</span>
-          <span class="shrink-0 font-semibold {{ 'text-emerald-400' if flag.enabled else 'text-gray-600' }}">{{ 'ON' if flag.enabled else 'OFF' }}</span>
+          <span class="truncate font-mono text-gray-400">{{ flag.flag }}</span>
+          <span class="shrink-0 font-semibold {{ 'text-emerald-400' if flag.enabled else 'text-faint' }}">{{ 'ON' if flag.enabled else 'OFF' }}</span>
         </div>
         {% endfor %}
       </div>
@@ -68,14 +68,14 @@
 
     <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
       {{ ui.section('Roles', 'Acting as ' ~ principal.email ~ ' (' ~ principal.role ~ ')') }}
-      <p class="mt-2 text-[11px] leading-relaxed text-gray-500">
+      <p class="mt-2 text-[11px] leading-relaxed text-gray-400">
         REACH has no session system yet, so it resolves the acting principal from
         <span class="font-mono">REACH_PRINCIPAL_EMAIL</span> and <span class="font-mono">REACH_PRINCIPAL_ROLE</span>.
         Permissions are enforced on every privileged call; no model can grant itself one.
       </p>
       <div class="mt-3 flex flex-wrap gap-1.5">
         {% for role in roles %}
-        <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide {{ 'border-amber-500/40 bg-amber-500/10 text-amber-400' if role == principal.role else 'border-white/10 text-gray-500' }}">{{ role.replace('_',' ') }}</span>
+        <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide {{ 'border-amber-500/40 bg-amber-500/10 text-amber-400' if role == principal.role else 'border-white/10 text-gray-400' }}">{{ role.replace('_',' ') }}</span>
         {% endfor %}
       </div>
     </section>
@@ -95,15 +95,15 @@
   <div class="mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
     {% for record in suppression %}
     <div class="flex items-center justify-between gap-2 rounded border border-white/5 bg-white/5 px-3 py-1.5 text-[11px]">
-      <span class="font-mono text-gray-500">{{ record.value_hash[:20] }}…</span>
+      <span class="font-mono text-gray-400">{{ record.value_hash[:20] }}…</span>
       <span class="text-gray-400">{{ record.reason }}</span>
-      <span class="shrink-0 text-gray-600">{{ record.scope }} · {{ record.created_at[:10] }}</span>
+      <span class="shrink-0 text-faint">{{ record.scope }} · {{ record.created_at[:10] }}</span>
     </div>
     {% else %}
     {{ ui.empty('Suppression list is empty.') }}
     {% endfor %}
   </div>
-  <p class="mt-2 text-[10px] text-gray-600">Values are stored as keyed hashes, never as plaintext.</p>
+  <p class="mt-2 text-[10px] text-faint">Values are stored as keyed hashes, never as plaintext.</p>
 </section>
 
 <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
@@ -117,8 +117,8 @@
     {% for event in audit_events %}
     <div class="flex items-center justify-between gap-3 rounded border border-white/5 bg-white/5 px-3 py-1.5 text-[11px]">
       <span class="font-mono text-gray-300">{{ event.action }}</span>
-      <span class="min-w-0 flex-1 truncate text-gray-600">{{ event.entity_type or '' }} {{ (event.entity_id or '')[:20] }}</span>
-      <span class="shrink-0 text-gray-600">{{ event.created_at[11:19] }}</span>
+      <span class="min-w-0 flex-1 truncate text-faint">{{ event.entity_type or '' }} {{ (event.entity_id or '')[:20] }}</span>
+      <span class="shrink-0 text-faint">{{ event.created_at[11:19] }}</span>
     </div>
     {% endfor %}
   </div>

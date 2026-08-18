@@ -12,7 +12,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h2 class="truncate text-lg font-semibold">{{ target.outlet_name }}</h2>
-          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
             <span>{{ (target.outlet_kind or '').replace('_',' ') }}</span>
             {% if outlet.url %}<a href="{{ outlet.url }}" rel="noopener noreferrer nofollow" target="_blank" class="text-amber-400 hover:text-amber-300">{{ outlet.domain }} ↗</a>{% endif %}
           </div>
@@ -40,8 +40,8 @@
       <div class="mt-3 space-y-1.5">
         {% for reason in score_reasons %}
         <div class="flex items-start gap-2 text-sm">
-          <span class="mt-0.5 w-3 shrink-0 text-center font-bold {{ 'text-emerald-400' if reason.sign == '+' else ('text-red-400' if reason.sign == '-' else 'text-gray-600') }}">{{ reason.sign }}</span>
-          <span class="{{ 'text-gray-300' if reason.sign == '+' else 'text-gray-500' }}">{{ reason.text }}</span>
+          <span class="mt-0.5 w-3 shrink-0 text-center font-bold {{ 'text-emerald-400' if reason.sign == '+' else ('text-red-400' if reason.sign == '-' else 'text-faint') }}">{{ reason.sign }}</span>
+          <span class="{{ 'text-gray-300' if reason.sign == '+' else 'text-gray-400' }}">{{ reason.text }}</span>
         </div>
         {% else %}
         {{ ui.empty('No score has been computed for this target yet.') }}
@@ -52,11 +52,11 @@
       <div class="mt-4 grid grid-cols-1 gap-1.5 border-t border-white/5 pt-3 sm:grid-cols-2">
         {% for key, value in score_components.items() %}
         <div class="flex items-center gap-2 text-[11px]">
-          <span class="w-40 shrink-0 truncate text-gray-500">{{ component_labels.get(key, key) }}</span>
+          <span class="w-40 shrink-0 truncate text-gray-400">{{ component_labels.get(key, key) }}</span>
           <span class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
             {% if value is not none %}<span class="block h-full rounded-full bg-amber-500/60" style="width: {{ (value * 100) | round | int }}%"></span>{% endif %}
           </span>
-          <span class="w-14 shrink-0 text-right tabular-nums {{ 'text-gray-600' if value is none else 'text-gray-400' }}">{{ 'UNKNOWN' if value is none else ((value * 100) | round | int) }}</span>
+          <span class="w-14 shrink-0 text-right tabular-nums {{ 'text-faint' if value is none else 'text-gray-400' }}">{{ 'UNKNOWN' if value is none else ((value * 100) | round | int) }}</span>
         </div>
         {% endfor %}
       </div>
@@ -70,14 +70,14 @@
         <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-xs font-semibold text-gray-300">{{ item.field.replace('_',' ') }}: {{ item.value }}</span>
-            <span class="flex items-center gap-2 text-[10px] uppercase tracking-wide text-gray-600">
+            <span class="flex items-center gap-2 text-[10px] uppercase tracking-wide text-faint">
               {% if item.official %}<span class="text-emerald-500">official</span>{% endif %}
               {% if item.stale %}<span class="text-amber-500">stale</span>{% endif %}
               <span>{{ (item.confidence * 100) | round | int }}%</span>
             </span>
           </div>
-          {% if item.excerpt %}<p class="mt-1 text-[11px] italic text-gray-500">“{{ item.excerpt }}”</p>{% endif %}
-          <div class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-600">
+          {% if item.excerpt %}<p class="mt-1 text-[11px] italic text-gray-400">“{{ item.excerpt }}”</p>{% endif %}
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-faint">
             <a href="{{ item.source_url }}" rel="noopener noreferrer nofollow" target="_blank" class="truncate text-amber-500/80 hover:text-amber-400">{{ item.source_url }}</a>
             <span>· retrieved {{ item.retrieved_at[:10] }}</span>
             {% if item.verified_at %}<span>· verified {{ item.verified_at[:10] }}</span>{% endif %}
@@ -107,10 +107,10 @@
       {{ ui.section('Contact and route') }}
       {% if contact_method %}
       <dl class="mt-3 space-y-1.5 text-xs">
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Address</dt><dd class="font-mono text-gray-200">{{ contact_method.value_preview }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Category</dt><dd class="text-right text-gray-200">{{ contact_method.category.replace('_',' ') }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Independent sources</dt><dd class="text-gray-200">{{ sendability.independent_domains }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Verified</dt><dd class="text-gray-200">{{ contact_method.verified_at[:10] if contact_method.verified_at else 'UNKNOWN' }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Address</dt><dd class="font-mono text-gray-200">{{ contact_method.value_preview }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Category</dt><dd class="text-right text-gray-200">{{ contact_method.category.replace('_',' ') }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Independent sources</dt><dd class="text-gray-200">{{ sendability.independent_domains }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Verified</dt><dd class="text-gray-200">{{ contact_method.verified_at[:10] if contact_method.verified_at else 'UNKNOWN' }}</dd></div>
       </dl>
       <div class="mt-3 rounded-lg border px-3 py-2 text-[11px] {{ 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300' if sendability.sendable else 'border-amber-500/20 bg-amber-500/5 text-amber-300' }}">
         {% if sendability.sendable %}
@@ -127,7 +127,7 @@
       {% endif %}
 
       {% if route %}
-      <div class="mt-3 border-t border-white/5 pt-3 text-[11px] text-gray-500">
+      <div class="mt-3 border-t border-white/5 pt-3 text-[11px] text-gray-400">
         <div>Method: <span class="text-gray-300">{{ route.method.replace('_',' ') }}</span></div>
         <div>Cost: <span class="text-gray-300">{{ route.cost_model.replace('_',' ') }}{% if route.cost_amount %} · {{ route.cost_amount }} {{ route.currency or '' }}{% endif %}</span></div>
         {% if route.instructions %}<div class="mt-1 italic">“{{ route.instructions[:200] }}”</div>{% endif %}
@@ -140,12 +140,12 @@
       {% if compliance_record %}
       <div class="mt-2">{{ ui.status_badge(compliance_decision) }}</div>
       <dl class="mt-3 space-y-1.5 text-[11px]">
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Recipient country</dt><dd class="text-gray-300">{{ compliance_record.recipientCountry or 'UNKNOWN' }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Sender country</dt><dd class="text-gray-300">{{ compliance_record.senderCountry }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-500">Outreach category</dt><dd class="text-right text-gray-300">{{ compliance_record.outreachCategory.replace('_',' ') }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Recipient country</dt><dd class="text-gray-300">{{ compliance_record.recipientCountry or 'UNKNOWN' }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Sender country</dt><dd class="text-gray-300">{{ compliance_record.senderCountry }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Outreach category</dt><dd class="text-right text-gray-300">{{ compliance_record.outreachCategory.replace('_',' ') }}</dd></div>
       </dl>
-      <p class="mt-2 text-[11px] leading-relaxed text-gray-500">{{ compliance_record.lawfulBasisRecord }}</p>
-      <ul class="mt-2 list-disc space-y-0.5 pl-4 text-[11px] text-gray-500">
+      <p class="mt-2 text-[11px] leading-relaxed text-gray-400">{{ compliance_record.lawfulBasisRecord }}</p>
+      <ul class="mt-2 list-disc space-y-0.5 pl-4 text-[11px] text-gray-400">
         {% for reason in compliance_record.reasons %}<li>{{ reason }}</li>{% endfor %}
       </ul>
       {% else %}
@@ -156,7 +156,7 @@
     {% if risk_signals %}
     <section class="rounded-2xl border border-orange-500/15 bg-[#111113] p-5">
       {{ ui.section('Risk indicators') }}
-      <p class="mt-2 text-[11px] text-gray-500">Potential risk indicators detected. This is an observation from the evidence reviewed, not an accusation.</p>
+      <p class="mt-2 text-[11px] text-gray-400">Potential risk indicators detected. This is an observation from the evidence reviewed, not an accusation.</p>
       <ul class="mt-2 space-y-1 text-[11px] text-orange-300">
         {% for signal in risk_signals %}<li>· {{ signal.label }}</li>{% endfor %}
       </ul>
@@ -175,9 +175,9 @@
     <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
       {{ ui.section('Relationship history') }}
       <dl class="mt-3 space-y-1.5 text-[11px]">
-        <div class="flex justify-between"><dt class="text-gray-500">Submissions</dt><dd class="text-gray-300">{{ relationship_history.submissions | length }}</dd></div>
-        <div class="flex justify-between"><dt class="text-gray-500">Responses</dt><dd class="text-gray-300">{{ relationship_history.responses | length }}</dd></div>
-        <div class="flex justify-between"><dt class="text-gray-500">Placements</dt><dd class="text-gray-300">{{ relationship_history.placements | length }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-400">Submissions</dt><dd class="text-gray-300">{{ relationship_history.submissions | length }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-400">Responses</dt><dd class="text-gray-300">{{ relationship_history.responses | length }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-400">Placements</dt><dd class="text-gray-300">{{ relationship_history.placements | length }}</dd></div>
       </dl>
     </section>
 

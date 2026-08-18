@@ -13,13 +13,13 @@
        class="group flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/10">
       <span class="min-w-0">
         <span class="block truncate text-sm font-semibold">{{ recording.title }}</span>
-        <span class="text-xs text-gray-500">{{ recording.artist_name }}{% if recording.isrc %} · {{ recording.isrc }}{% else %} · no ISRC{% endif %}</span>
+        <span class="text-xs text-gray-400">{{ recording.artist_name }}{% if recording.isrc %} · {{ recording.isrc }}{% else %} · no ISRC{% endif %}</span>
       </span>
       <span class="shrink-0 text-[11px] font-semibold text-amber-400 opacity-0 transition-opacity group-hover:opacity-100">Create →</span>
     </a>
     {% endfor %}
   </div>
-  <p class="mt-3 text-xs text-gray-500">
+  <p class="mt-3 text-xs text-gray-400">
     Manage this list on the <a href="{{ url_for('reach.catalog_view') }}" class="text-amber-400 hover:underline">Catalog</a> screen.
   </p>
 </section>
@@ -34,11 +34,11 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div class="text-sm font-semibold">{{ item.campaign.name }}</div>
-          <div class="mt-0.5 text-xs text-gray-500">{{ item.campaign.recording_title }} · {{ item.campaign.mode }}</div>
+          <div class="mt-0.5 text-xs text-gray-400">{{ item.campaign.recording_title }} · {{ item.campaign.mode }}</div>
         </div>
         <div class="flex items-center gap-2">
           {{ ui.status_badge(item.campaign.status) }}
-          <span class="text-xs text-gray-500">Health</span>
+          <span class="text-xs text-gray-400">Health</span>
           {{ ui.score_pill(item.health) }}
         </div>
       </div>

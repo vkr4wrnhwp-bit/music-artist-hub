@@ -64,6 +64,10 @@ pytest
 
 Both run in CI as the `REACH tests & lint` job.
 
+`tools/audit-contrast.py` measures text contrast on every screen in a real
+browser and exits non-zero if anything falls below WCAG AA. It is the authority;
+`tests/test_a11y.py` is its CI-runnable proxy and runs on every commit.
+
 `static/tailwind.css` is committed so deploying stays a pure-Python operation.
 Run `tools/build-css.sh` after adding a utility class a template has not used
 before — that is the only step that needs node, and a test tells you when it is

@@ -8,7 +8,7 @@
   <div class="overflow-x-auto">
     <table class="w-full min-w-[760px] text-left text-sm">
       <thead>
-        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-500">
+        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-400">
           <th class="px-4 py-2.5 font-medium">Outlet</th>
           <th class="px-4 py-2.5 font-medium">Type</th>
           <th class="px-4 py-2.5 font-medium">Submissions</th>
@@ -28,11 +28,11 @@
           <td class="px-4 py-2.5 tabular-nums text-xs text-gray-300">{{ row.responses }}</td>
           <td class="px-4 py-2.5 tabular-nums text-xs text-emerald-400">{{ row.accepted_count }}</td>
           <td class="px-4 py-2.5 tabular-nums text-xs text-emerald-400">{{ row.placement_count }}</td>
-          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-500">{{ row.last_contact_at[:10] if row.last_contact_at else '—' }}</td>
-          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-500">{{ row.next_eligible_at[:10] if row.next_eligible_at else '—' }}</td>
+          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-400">{{ row.last_contact_at[:10] if row.last_contact_at else '—' }}</td>
+          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-400">{{ row.next_eligible_at[:10] if row.next_eligible_at else '—' }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="px-4 py-10 text-center text-xs text-gray-600">No relationships yet. They start when the first message is sent.</td></tr>
+        <tr><td colspan="8" class="px-4 py-10 text-center text-xs text-faint">No relationships yet. They start when the first message is sent.</td></tr>
         {% endfor %}
       </tbody>
     </table>

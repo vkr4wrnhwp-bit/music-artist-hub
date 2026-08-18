@@ -11,7 +11,7 @@
     {% for stage in pipeline_counts %}
     <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
       <div class="text-lg font-bold tabular-nums">{{ stage.count }}</div>
-      <div class="text-[10px] uppercase tracking-[0.15em] text-gray-500">{{ stage.label }}</div>
+      <div class="text-[10px] uppercase tracking-[0.15em] text-gray-400">{{ stage.label }}</div>
     </div>
     {% endfor %}
   </div>
@@ -19,11 +19,11 @@
 
 <div class="flex flex-wrap gap-1.5">
   <a href="{{ url_for('reach.opportunities', campaign_id=campaign.id) }}"
-     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if not selected_status else 'border-white/10 text-gray-500 hover:text-gray-300' }}">All</a>
+     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if not selected_status else 'border-white/10 text-gray-400 hover:text-gray-300' }}">All</a>
   {% for status in statuses %}
   {% if status_counts.get(status) %}
   <a href="{{ url_for('reach.opportunities', campaign_id=campaign.id, status=status) }}"
-     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if selected_status == status else 'border-white/10 text-gray-500 hover:text-gray-300' }}">
+     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if selected_status == status else 'border-white/10 text-gray-400 hover:text-gray-300' }}">
     {{ status.replace('_',' ') }} <span class="tabular-nums">{{ status_counts[status] }}</span>
   </a>
   {% endif %}
@@ -34,7 +34,7 @@
   <div class="overflow-x-auto">
     <table class="w-full min-w-[820px] text-left text-sm">
       <thead>
-        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-500">
+        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-400">
           <th class="px-4 py-2.5 font-medium">Opportunity</th>
           <th class="px-4 py-2.5 font-medium">Type</th>
           <th class="px-4 py-2.5 font-medium">Status</th>
@@ -49,7 +49,7 @@
           <td class="px-4 py-2.5">
             <a href="{{ url_for('reach.target_detail', campaign_id=campaign.id, target_id=target.id) }}" class="block">
               <span class="block max-w-[280px] truncate font-semibold">{{ target.outlet_name }}</span>
-              <span class="text-[11px] text-gray-600">{{ target.outlet_domain or '' }}</span>
+              <span class="text-[11px] text-faint">{{ target.outlet_domain or '' }}</span>
             </a>
           </td>
           <td class="px-4 py-2.5 text-xs text-gray-400">{{ (target.outlet_kind or '').replace('_',' ') }}</td>
@@ -59,7 +59,7 @@
           <td class="px-4 py-2.5 text-[11px] text-gray-400">{{ (target.compliance_decision or 'UNKNOWN').replace('_',' ') }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="px-4 py-10 text-center text-xs text-gray-600">No opportunities in this view.</td></tr>
+        <tr><td colspan="6" class="px-4 py-10 text-center text-xs text-faint">No opportunities in this view.</td></tr>
         {% endfor %}
       </tbody>
     </table>

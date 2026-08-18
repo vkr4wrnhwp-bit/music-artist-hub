@@ -33,7 +33,7 @@
   {% if observability.providers %}
   <div class="mt-4 overflow-x-auto border-t border-white/5 pt-3">
     <table class="w-full min-w-[520px] text-left text-xs">
-      <thead><tr class="text-[10px] uppercase tracking-[0.15em] text-gray-500">
+      <thead><tr class="text-[10px] uppercase tracking-[0.15em] text-gray-400">
         <th class="py-1.5 font-medium">Provider</th><th class="py-1.5 font-medium">Calls</th>
         <th class="py-1.5 font-medium">Units</th><th class="py-1.5 font-medium">OK</th>
         <th class="py-1.5 font-medium">429</th><th class="py-1.5 font-medium">Errors</th>
@@ -45,8 +45,8 @@
           <td class="py-1.5 tabular-nums text-gray-400">{{ row.calls }}</td>
           <td class="py-1.5 tabular-nums text-gray-400">{{ row.units }}</td>
           <td class="py-1.5 tabular-nums text-emerald-400">{{ row.ok }}</td>
-          <td class="py-1.5 tabular-nums {{ 'text-amber-400' if row.rate_limited else 'text-gray-600' }}">{{ row.rate_limited }}</td>
-          <td class="py-1.5 tabular-nums {{ 'text-red-400' if row.errors else 'text-gray-600' }}">{{ row.errors }}</td>
+          <td class="py-1.5 tabular-nums {{ 'text-amber-400' if row.rate_limited else 'text-faint' }}">{{ row.rate_limited }}</td>
+          <td class="py-1.5 tabular-nums {{ 'text-red-400' if row.errors else 'text-faint' }}">{{ row.errors }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -64,7 +64,7 @@
         All <span class="tabular-nums">{{ states | length }}</span>
       </button>
       {% for state_name, rows in groups %}
-      <button type="button" class="provider-filter rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-500 hover:text-gray-300" data-filter="{{ state_name }}">
+      <button type="button" class="provider-filter rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 hover:text-gray-300" data-filter="{{ state_name }}">
         {{ state_name.replace('_',' ') }} <span class="tabular-nums">{{ rows | list | length }}</span>
       </button>
       {% endfor %}
@@ -82,7 +82,7 @@
           {% if state.kill_switch %}<span class="rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-red-400">Kill switch</span>{% endif %}
           {% if state.provider == 'spotify' %}<span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-400">{{ spotify.quota_mode.replace('_',' ') }}</span>{% endif %}
         </div>
-        <div class="mt-1 text-[11px] text-gray-600">{{ state.policy_source }}</div>
+        <div class="mt-1 text-[11px] text-faint">{{ state.policy_source }}</div>
       </div>
       <div class="flex shrink-0 gap-2">
         <button type="button" data-post="{{ url_for('reach.mark_reviewed', provider_id=state.provider) }}"
@@ -99,38 +99,38 @@
 
     <div class="mt-3 grid grid-cols-1 gap-x-8 gap-y-1 text-[11px] sm:grid-cols-2">
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Credentials</span>
-        <span class="{{ 'text-emerald-400' if state.credentials_present else 'text-gray-500' }}">
+        <span class="text-gray-400">Credentials</span>
+        <span class="{{ 'text-emerald-400' if state.credentials_present else 'text-gray-400' }}">
           {{ 'present' if state.credentials_present else (state.missing_credentials | join(', ') or 'none required') }}
         </span>
       </div>
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Quota</span>
+        <span class="text-gray-400">Quota</span>
         <span class="text-gray-300">{{ state.quota_used }}{% if state.quota_limit %} / {{ state.quota_limit }} ({{ state.quota_pct }}%){% endif %}</span>
       </div>
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Last success</span>
+        <span class="text-gray-400">Last success</span>
         <span class="text-gray-300">{{ state.last_success_at[:16] if state.last_success_at else 'never' }}</span>
       </div>
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Last error</span>
-        <span class="max-w-[220px] truncate {{ 'text-red-400' if state.last_error else 'text-gray-600' }}">{{ state.last_error or 'none' }}</span>
+        <span class="text-gray-400">Last error</span>
+        <span class="max-w-[220px] truncate {{ 'text-red-400' if state.last_error else 'text-faint' }}">{{ state.last_error or 'none' }}</span>
       </div>
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Policy reviewed</span>
+        <span class="text-gray-400">Policy reviewed</span>
         <span class="text-gray-300">{{ state.last_verified_at[:10] }} → next {{ state.next_review_at[:10] }}</span>
       </div>
       <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
-        <span class="text-gray-500">Retention</span>
+        <span class="text-gray-400">Retention</span>
         <span class="text-gray-300">{{ state.retention_days ~ ' days' if state.retention_days else 'not limited' }}</span>
       </div>
     </div>
 
     <div class="mt-3 flex flex-wrap gap-1.5">
       {% for capability in state.capabilities %}
-      <span class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">{{ capability.replace('_',' ') }}</span>
+      <span class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-400">{{ capability.replace('_',' ') }}</span>
       {% endfor %}
-      {% if not state.capabilities %}<span class="text-[10px] uppercase tracking-wide text-gray-600">no capabilities enabled</span>{% endif %}
+      {% if not state.capabilities %}<span class="text-[10px] uppercase tracking-wide text-faint">no capabilities enabled</span>{% endif %}
     </div>
 
     <div class="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide">
@@ -142,13 +142,13 @@
     </div>
 
     {% if state.notes %}
-    <ul class="mt-3 list-disc space-y-0.5 border-t border-white/5 pl-4 pt-3 text-[11px] text-gray-500">
+    <ul class="mt-3 list-disc space-y-0.5 border-t border-white/5 pl-4 pt-3 text-[11px] text-gray-400">
       {% for note in state.notes %}<li>{{ note }}</li>{% endfor %}
     </ul>
     {% endif %}
   </div>
   {% endfor %}
-  <div id="provider-empty" class="hidden rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-600">
+  <div id="provider-empty" class="hidden rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-faint">
     No providers in this state.
   </div>
 </section>
@@ -162,7 +162,7 @@
       const active = other === button;
       other.className = 'provider-filter rounded-md border px-2.5 py-1 text-[11px] font-semibold '
         + (active ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
-                  : 'border-white/10 text-gray-500 hover:text-gray-300');
+                  : 'border-white/10 text-gray-400 hover:text-gray-300');
     });
     let visible = 0;
     document.querySelectorAll('.provider-card').forEach((card) => {

@@ -9,7 +9,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 npx --yes tailwindcss@3 \
-    --content './templates/**/*.html' \
+    --config tools/tailwind.config.js \
     --input tools/tailwind-input.css \
     --output static/tailwind.css \
     --minify
