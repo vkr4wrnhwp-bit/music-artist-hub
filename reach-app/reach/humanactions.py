@@ -185,6 +185,41 @@ def _expand(row):
     return item
 
 
+# Short queue-group labels for the reasons above. A hundred undifferentiated
+# tasks reads as a wall; "45 CAPTCHA walls" reads as a batch you can sit down
+# and clear.
+REASON_GROUPS = [
+    (REASON_ACCOUNT, "Platform tools"),
+    (REASON_CAPTCHA, "CAPTCHA walls"),
+    (REASON_LOGIN, "Login required"),
+    (REASON_NO_API, "Web forms"),
+    (REASON_JUDGMENT, "Web forms"),
+    (REASON_PAID, "Paid submissions"),
+    (REASON_FORBIDDEN, "Automation forbidden"),
+    (REASON_LEGAL, "Legal review"),
+]
+
+
+def open_summary(tenant_id=None):
+    """Open-task counts grouped by why each one needs a human."""
+    tenant_id = tenant_id or rbac.current_principal().tenant_id
+    rows = db.query(
+        "SELECT reason, COUNT(*) AS n FROM human_action_task "
+        "WHERE tenant_id = ? AND status IN (?, ?) GROUP BY reason",
+        (tenant_id, OPEN, IN_PROGRESS),
+    )
+    counts = {row["reason"]: row["n"] for row in rows}
+    labels = dict(REASON_GROUPS)
+    grouped = {}
+    for reason, count in counts.items():
+        label = labels.get(reason, "Other")
+        entry = grouped.setdefault(label, {"label": label, "count": 0, "reasons": []})
+        entry["count"] += count
+        entry["reasons"].append(reason)
+    groups = sorted(grouped.values(), key=lambda g: -g["count"])
+    return {"total": sum(counts.values()), "groups": groups}
+
+
 def open_count(campaign_id=None, tenant_id=None):
     tenant_id = tenant_id or rbac.current_principal().tenant_id
     sql = ("SELECT COUNT(*) AS n FROM human_action_task WHERE tenant_id = ? "

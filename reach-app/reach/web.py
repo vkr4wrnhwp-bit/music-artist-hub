@@ -40,11 +40,30 @@ def _template_globals():
         local = principal.email.split("@")[0].strip()
         if local not in ("owner", "artist", "demo", "admin", "hello", "info"):
             name = local
+    # Sender posture is worth a header pill on every page: whether a message
+    # could actually leave should be visible long before anyone finds a Send
+    # button. DNS answers are cached (reach.dns_checks), so this does not cost
+    # a lookup per request.
+    health = sender.health_summary()
+    failing = health.get("failing") or []
+    dns_terms = ("spf", "dkim", "dmarc", "dns", "domain")
+    if health["ready"]:
+        sender_detail = None
+    elif any(term in item.lower() for item in failing for term in dns_terms):
+        sender_detail = "DNS unverified"
+    elif failing:
+        sender_detail = "setup incomplete"
+    else:
+        sender_detail = "not ready"
     return {
         "reach_version": REACH_VERSION,
         "principal_name": name or "there",
         "fixture_mode": not search_provider.connected(),
         "needs_you_count": humanactions.open_count(),
+        "needs_you_summary": humanactions.open_summary(),
+        "sender_ready": health["ready"],
+        "sender_failing": failing,
+        "sender_detail": sender_detail,
     }
 
 # Campaign tabs follow the stage sequence an artist experiences. Placements and
@@ -104,7 +123,7 @@ def _stage_next_url(campaign_id, stage):
 
 def _shell(campaign_id=None, active=None):
     principal = rbac.current_principal()
-    return {
+    shell = {
         "nav": NAV,
         "active": active,
         "campaign_id": campaign_id,
@@ -113,6 +132,11 @@ def _shell(campaign_id=None, active=None):
         "search_state": search_provider.status(),
         "fixture_mode": not search_provider.connected(),
     }
+    if campaign_id:
+        # The stepper needs to know where the campaign actually is, which is
+        # independent of which tab the user happens to be looking at.
+        shell["stage_now"] = campaign_stage(campaign_id)
+    return shell
 
 
 def _json_error(exc, status=400):
@@ -180,6 +204,8 @@ def _targets_everywhere(status=None, limit=300):
         "o.domain AS outlet_domain, o.submissions_open, o.territory, "
         "(SELECT score FROM opportunity_score s WHERE s.target_id = t.id "
         " ORDER BY created_at DESC LIMIT 1) AS reach_score, "
+        "(SELECT components_json FROM opportunity_score s WHERE s.target_id = t.id "
+        " ORDER BY created_at DESC LIMIT 1) AS score_components_json, "
         "(SELECT band FROM risk_assessment r WHERE r.target_id = t.id "
         " ORDER BY created_at DESC LIMIT 1) AS risk_band, "
         "(SELECT decision FROM compliance_decision cd WHERE cd.target_id = t.id "
@@ -196,6 +222,19 @@ def _targets_everywhere(status=None, limit=300):
     sql += " ORDER BY reach_score DESC NULLS LAST, t.created_at DESC LIMIT ?"
     params.append(limit)
     return db.query(sql, tuple(params))
+
+
+def _with_components(rows):
+    """Parse each row's stored score components so the list pages can show the
+    breakdown inline. Missing components stay None — the template renders
+    UNKNOWN, never zero."""
+    items = []
+    for row in rows:
+        item = dict(row)
+        raw = item.get("score_components_json")
+        item["score_components"] = json.loads(raw) if raw else None
+        items.append(item)
+    return items
 
 
 def _next_best_actions(qualified, drafted, follow_ups):
@@ -275,7 +314,8 @@ def all_opportunities():
     }
     chosen = filters.get(view, filters["actionable"])
     return render_template("reach/opportunities_all.html",
-                           targets=[t for t in rows if chosen(t)],
+                           targets=_with_components([t for t in rows if chosen(t)]),
+                           component_labels=scoring.COMPONENT_LABELS,
                            view=view, total=len(rows), **_shell())
 
 
@@ -562,7 +602,8 @@ def opportunities(campaign_id):
     return render_template(
         "reach/opportunities.html",
         campaign=campaign,
-        targets=campaigns.targets(campaign_id, status=status),
+        targets=_with_components(campaigns.targets(campaign_id, status=status)),
+        component_labels=scoring.COMPONENT_LABELS,
         status_counts=campaigns.status_counts(campaign_id),
         pipeline_counts=campaigns.pipeline_counts(campaign_id),
         statuses=campaigns.TARGET_STATUSES,
@@ -810,12 +851,19 @@ def record_placement(target_id):
 def needs_you():
     bootstrap()
     campaign_id = request.args.get("campaign_id") or None
+    group = request.args.get("group") or None
+    tasks = humanactions.queue(campaign_id, include_done=False)
+    if group:
+        labels = dict(humanactions.REASON_GROUPS)
+        tasks = [t for t in tasks if labels.get(t["reason"], "Other") == group]
     return render_template(
         "reach/needs_you.html",
-        tasks=humanactions.queue(campaign_id, include_done=False),
+        tasks=tasks,
         done=humanactions.queue(campaign_id, include_done=True)[:0],
         campaigns=campaigns.list_campaigns(),
         selected_campaign=campaign_id,
+        selected_group=group,
+        groups=humanactions.open_summary()["groups"],
         **_shell(campaign_id, None),
     )
 

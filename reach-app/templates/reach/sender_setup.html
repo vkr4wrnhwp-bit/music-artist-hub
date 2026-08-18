@@ -45,19 +45,19 @@
   <dl class="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
     <div class="flex items-baseline justify-between gap-3 border-b border-white/[0.06] py-1.5">
       <dt class="text-xs text-gray-400">From name</dt>
-      <dd class="font-semibold text-gray-100">{{ health.from_name or 'UNKNOWN' }}</dd>
+      <dd class="font-semibold text-gray-100">{% if health.from_name %}{{ health.from_name }}{% else %}{{ ui.unknown() }}{% endif %}</dd>
     </div>
     <div class="flex items-baseline justify-between gap-3 border-b border-white/[0.06] py-1.5">
       <dt class="text-xs text-gray-400">From address</dt>
-      <dd class="font-semibold text-gray-100">{{ health.from_email or 'UNKNOWN' }}</dd>
+      <dd class="font-semibold text-gray-100">{% if health.from_email %}{{ health.from_email }}{% else %}{{ ui.unknown() }}{% endif %}</dd>
     </div>
     <div class="flex items-baseline justify-between gap-3 border-b border-white/[0.06] py-1.5">
       <dt class="text-xs text-gray-400">Domain</dt>
-      <dd class="font-semibold text-gray-100">{{ health.domain or 'UNKNOWN' }}</dd>
+      <dd class="font-semibold text-gray-100">{% if health.domain %}{{ health.domain }}{% else %}{{ ui.unknown() }}{% endif %}</dd>
     </div>
     <div class="flex items-baseline justify-between gap-3 border-b border-white/[0.06] py-1.5">
       <dt class="text-xs text-gray-400">Postal address</dt>
-      <dd class="truncate font-semibold text-gray-100" title="{{ health.postal_address or '' }}">{{ health.postal_address or 'UNKNOWN' }}</dd>
+      <dd class="truncate font-semibold text-gray-100" title="{{ health.postal_address or '' }}">{% if health.postal_address %}{{ health.postal_address }}{% else %}{{ ui.unknown() }}{% endif %}</dd>
     </div>
   </dl>
   <p class="mt-3 text-[11px] text-faint">

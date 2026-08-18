@@ -127,7 +127,9 @@ def test_a_track_added_through_the_interface_appears_in_the_catalog(client):
     assert response.get_json()["ok"] is True
     body = page(client, "/reach/catalog")
     assert "Harbour Lights" in body
-    assert "streams UNKNOWN" in body
+    # The unentered stream count renders as the UNKNOWN badge — never 0,
+    # never blank.
+    assert "streams" in body and ">UNKNOWN</span>" in body
 
 
 def test_the_interface_refuses_a_track_with_no_title(client):

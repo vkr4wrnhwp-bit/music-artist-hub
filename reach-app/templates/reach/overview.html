@@ -120,7 +120,7 @@
           <span class="text-xs tabular-nums text-gray-300">
             {% if row.state == 'MEASURED' %}{{ '{:+,.0f}'.format(row.delta) }}
             {%- elif row.get('baseline') is not none %}{{ '{:,.0f}'.format(row.baseline) }}
-            {%- else %}UNKNOWN{% endif %}
+            {%- else %}{{ ui.unknown() }}{% endif %}
           </span>
         </div>
         <div class="mt-1 text-[11px] text-faint">{{ row.note }}</div>
