@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { formatUsd, loadConfig, maskSecret } from '@masterclip/shared'
 import { migrationStatus } from '@masterclip/database'
 import { checkTools } from '@masterclip/media-tools'
-import { contractSummary, runProviderContract } from '@masterclip/provider-core'
+import { contractSummary, runProviderContract, type CanonicalRenderRequest, type PriceQuote } from '@masterclip/provider-core'
 import { importCsv, importJson, shotJsonSchema, validateShot, csvTemplate, exportCsv } from '@masterclip/shot-schema'
 import { createRuntime, MasterService, RenderService, type Runtime } from '@masterclip/runtime'
 
@@ -216,10 +216,65 @@ async function cmdProvidersContract(ctx: Ctx, runtime: Runtime): Promise<number>
   const target = String(ctx.flags.provider ?? 'mock')
   const provider = runtime.registry.get(target)
   const submitAndPoll = ctx.flags['submit'] === true || ctx.flags['submit'] === 'true'
+  const confirmed = ctx.flags['yes'] === true || ctx.flags['yes'] === 'true'
+
+  /**
+   * The battery talks to the provider directly, so this is the one submit path
+   * that does not run through RenderService. It gets the same three gates the
+   * render path gets — mode, an exact quote the operator has seen, and the cost
+   * controller — rather than a looser copy of them.
+   */
+  /**
+   * The battery talks to the provider directly, so this is the one submit path
+   * in the system that does not run through RenderService. It gets the same
+   * gates the render path gets rather than a looser copy: sandbox mode, an
+   * exact quote the operator has seen and confirmed, and the cost controller
+   * itself — which is what enforces the global live-spend cap and writes the
+   * ledger entry. A billable check therefore has to name a real project, so the
+   * money it spends is attributed like any other spend.
+   */
+  const approveSubmit = async ({ request, quote }: { request: CanonicalRenderRequest; quote: PriceQuote }) => {
+    if (target === 'mock') return { allowed: true }
+
+    if (runtime.config.isSandbox) {
+      return { allowed: false, reason: 'MASTERCLIP_MODE=sandbox — set MASTERCLIP_MODE=live to run a billable contract check' }
+    }
+    const projectId = ctx.flags.project ? String(ctx.flags.project) : ''
+    if (!projectId) {
+      return { allowed: false, reason: 'a billable contract check must name a real project: --project <projectId>, so the spend is budgeted and ledgered' }
+    }
+    const project = await runtime.projects.get(projectId)
+    if (!project) return { allowed: false, reason: `project ${projectId} not found` }
+
+    if (!confirmed) {
+      return {
+        allowed: false,
+        reason:
+          `this would spend about ${formatUsd(quote.estimatedMicros)} on ${target}/${request.modelId} ` +
+          `(${request.durationSeconds}s ${request.resolution}, price confidence: ${quote.confidence}) — ` +
+          `re-run with --yes to authorize it`,
+      }
+    }
+
+    const authorization = await runtime.cost.authorize({
+      orgId: project.orgId,
+      projectId: project.id,
+      shotId: request.shotId,
+      request: { ...request, projectId: project.id },
+      quote,
+      tier: 'standard',
+      humanApproved: true,
+    })
+    return authorization.allowed
+      ? { allowed: true }
+      : { allowed: false, reason: authorization.denials.map((d) => d.message).join('; ') }
+  }
+
   const checks = await runProviderContract(provider, {
     submitAndPoll,
     destDir: 'var/tmp/contract',
     pollTimeoutMs: 120_000,
+    approveSubmit,
   })
   const summary = contractSummary(checks)
   output(ctx, { provider: target, checks, summary }, () =>
@@ -544,6 +599,8 @@ function printHelp(): void {
   providers list           list registered provider adapters
   providers health         live health check for every provider
   providers contract       run the provider contract battery  [--provider mock] [--submit]
+                           a billable --submit also needs --project <id> and --yes,
+                           and MASTERCLIP_MODE=live; the cost controller still decides
   models refresh           refresh the merged model catalog
   project create           --name "<name>" [--org <orgId>]
   project list             list projects

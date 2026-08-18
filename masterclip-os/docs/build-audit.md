@@ -36,7 +36,7 @@ against the mock provider, which renders real MP4s with ffmpeg.
 |---|---|
 | `pnpm typecheck` | **27/27 projects clean** |
 | `pnpm lint` | **clean** — secret scan, shell-exec guard, SQL-interpolation guard, typecheck |
-| `pnpm test` | **221 passed / 221**, 16 files |
+| `pnpm test` | **223 passed / 223**, 16 files |
 | `pnpm test:e2e` | **11 passed / 11** (Playwright, Chromium, against the production web build) |
 | `pnpm build` | **succeeds** — `dist/api.js`, `dist/worker.js`, `dist/masterclip.js`, `apps/web/dist` |
 | bundled artifacts run | `node dist/masterclip.js doctor` → all required checks pass; `node dist/api.js` → serves `/api/health` |
@@ -330,9 +330,19 @@ Requires Node ≥22.5 and ffmpeg/ffprobe on `PATH`.
 
 ## Recommended next milestone
 
-**Prove one live provider end to end.** Obtain a MuAPI sandbox key, run
-`pnpm masterclip providers contract --provider muapi --submit`, then a single
-live render with `MASTERCLIP_MODE=live LIVE_SPEND_CAP_USD=2`, and confirm the
-charge the ledger records matches the provider's own reported cost. That single
+**Prove one live provider end to end.** MuAPI, fal and Runway remain
+unreachable from this environment; Google and Anthropic became reachable after
+the build, so Google is the one to do first. With `GOOGLE_API_KEY` set:
+
+```
+pnpm masterclip providers contract --provider google          # free: catalog, capabilities, quote, health
+MASTERCLIP_MODE=live LIVE_SPEND_CAP_USD=2 \
+  pnpm masterclip providers contract --provider google --submit --project <projectId> --yes
+```
+
+The first command spends nothing. The second refuses unless the mode is `live`,
+a real project is named, `--yes` is given, **and** the cost controller
+authorizes it — it prints the exact figure and declines until you confirm.
+Then confirm the charge the ledger records matches Google's own reported cost. That single
 run converts six adapters from DEV-LABELED toward REAL faster than any amount of
 further building, and it is the only way to close risk #3.

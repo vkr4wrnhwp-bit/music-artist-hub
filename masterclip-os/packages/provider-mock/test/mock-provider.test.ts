@@ -20,11 +20,46 @@ afterAll(async () => {
 describe('provider contract', () => {
   it('passes the full battery including a real submit/poll/download round trip', async () => {
     const provider = createMockProvider({ ...deps(), workDir: join(dir, 'work'), latencyMs: 50, defectRate: 0, failureRate: 0 })
-    const checks = await runProviderContract(provider, { submitAndPoll: true, destDir: join(dir, 'downloads'), pollTimeoutMs: 30_000 })
+    const checks = await runProviderContract(provider, {
+      submitAndPoll: true,
+      destDir: join(dir, 'downloads'),
+      pollTimeoutMs: 30_000,
+      // The mock spends nothing, so approval is unconditional here. Against a
+      // real provider the CLI supplies the cost controller instead.
+      approveSubmit: async () => ({ allowed: true }),
+    })
     const summary = contractSummary(checks)
     expect(summary.failures.map((f) => `${f.name}: ${f.detail}`)).toEqual([])
     expect(summary.failed).toBe(0)
     expect(summary.passed).toBeGreaterThan(10)
+  })
+
+  it('refuses to submit at all when nobody has authorized the spend', async () => {
+    // `submit()` here reaches the provider directly, bypassing RenderService
+    // and therefore the cost controller. Without an approval callback the
+    // battery must refuse rather than quietly bill someone.
+    const provider = createMockProvider({ ...deps(), workDir: join(dir, 'work2'), latencyMs: 0, defectRate: 0, failureRate: 0 })
+    const checks = await runProviderContract(provider, { submitAndPoll: true, destDir: join(dir, 'downloads2'), pollTimeoutMs: 5_000 })
+    const roundTrip = checks.find((c) => c.name === 'submit → poll → download round trip')
+    expect(roundTrip?.ok).toBe(false)
+    expect(roundTrip?.detail).toMatch(/authorization callback/)
+    // And nothing further ran: no job id was ever obtained.
+    expect(checks.some((c) => c.name === 'submit returns an external job id')).toBe(false)
+  })
+
+  it('skips the round trip without failing when the spend is declined', async () => {
+    const provider = createMockProvider({ ...deps(), workDir: join(dir, 'work3'), latencyMs: 0, defectRate: 0, failureRate: 0 })
+    const checks = await runProviderContract(provider, {
+      submitAndPoll: true,
+      destDir: join(dir, 'downloads3'),
+      approveSubmit: async () => ({ allowed: false, reason: 'over the live-spend cap' }),
+    })
+    const roundTrip = checks.find((c) => c.name === 'submit → poll → download round trip')
+    // A declined spend is a correct outcome, not a broken adapter.
+    expect(roundTrip?.skipped).toBe(true)
+    expect(roundTrip?.ok).toBe(true)
+    expect(roundTrip?.detail).toMatch(/over the live-spend cap/)
+    expect(contractSummary(checks).failed).toBe(0)
   })
 })
 
