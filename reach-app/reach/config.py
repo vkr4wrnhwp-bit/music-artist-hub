@@ -45,6 +45,30 @@ PROVIDER_CREDENTIAL_ENV = {
     "language_model": ["REACH_LLM_API_KEY"],
 }
 
+# Domains that are platforms, marketplaces, encyclopedias, code hosts,
+# stock/AI-music services or listicle directories. Pages here rank for "submit
+# music" constantly, but the domain's operator is not an outlet a campaign can
+# pitch — when there is an outlet, it is whoever runs a profile ON the platform,
+# which Phase One does not model. Deliberately absent: bandcamp.com, where the
+# page owner (a label or artist) genuinely is the outlet.
+PLATFORM_DOMAINS = {
+    # DSPs and big platforms
+    "spotify.com", "apple.com", "youtube.com", "youtu.be", "soundcloud.com",
+    "deezer.com", "tidal.com", "amazon.com", "pandora.com", "last.fm",
+    # social
+    "facebook.com", "instagram.com", "tiktok.com", "twitter.com", "x.com",
+    "reddit.com", "linkedin.com", "pinterest.com", "discord.com",
+    # encyclopedias, code hosts, marketplaces
+    "wikipedia.org", "fandom.com", "github.com", "gitlab.com",
+    "fiverr.com", "upwork.com", "etsy.com",
+    # stock / AI music and creator tools — they sell music, they do not take it
+    "epidemicsound.com", "artlist.io", "audiojungle.net", "envato.com",
+    "pixabay.com", "premiumbeat.com", "pond5.com", "mubert.com",
+    "elevenlabs.io", "soundstripe.com",
+    # listicle and directory aggregators
+    "feedspot.com", "toolify.ai", "player.fm",
+}
+
 # Search backend selection: "brave" | "google_cse". Only consulted when the
 # search credential is present.
 SEARCH_BACKEND_ENV = "REACH_SEARCH_BACKEND"

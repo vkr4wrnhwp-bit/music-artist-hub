@@ -10,7 +10,7 @@ Merges are recorded, reversible, and never delete the losing row's evidence.
 
 import json
 
-from . import audit, clock, db, evidence, extractor, netguard, rbac
+from . import audit, clock, config, db, evidence, extractor, netguard, rbac
 from .errors import ValidationError
 
 MERGE_RULE_SAME_ROUTE = "SAME_SUBMISSION_ROUTE"
@@ -182,6 +182,29 @@ def report_broken_route(route_id, reason=None):
 # --------------------------------------------------------------------------
 # deduplication
 # --------------------------------------------------------------------------
+
+def outlet_by_domain(domain, tenant_id=None):
+    tenant_id = tenant_id or rbac.current_principal().tenant_id
+    return db.query_one(
+        "SELECT * FROM outlet WHERE tenant_id = ? AND domain = ? LIMIT 1",
+        (tenant_id, domain),
+    )
+
+
+def is_platform_domain(domain):
+    """Is this a platform whose pages can never themselves be an outlet?
+
+    Matched on the registrable domain, so open.spotify.com and music.apple.com
+    resolve to their platforms. The first real discovery run qualified
+    spotify.com, youtube.com, wikipedia.org and fiverr.com as "curators" —
+    submission language appears on all of them, and none of them is somewhere
+    a campaign can send a track.
+    """
+    from . import netguard
+
+    registrable = netguard.registrable_domain(domain or "")
+    return registrable in config.PLATFORM_DOMAINS
+
 
 def dedup_key(outlet_id, contact_method_id=None):
     """What makes two opportunities "the same recipient".

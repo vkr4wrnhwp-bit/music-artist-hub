@@ -280,6 +280,31 @@ def _fail(job, message, error_kind, retry=True, delay_seconds=None):
                           "status": status, "attempt": attempts})
 
 
+def requeue_stale(older_than_seconds=300):
+    """Requeue jobs a dead worker left claimed forever.
+
+    A SIGKILLed request (the server's timeout, a deploy, a crash) never reaches
+    the code that marks its in-flight job finished, so the job sits in RUNNING
+    where nothing will ever claim it again. Anything RUNNING longer than the
+    threshold is returned to PENDING; the attempt was already counted at claim
+    time, so a job that keeps killing its worker still dead-letters after
+    max_attempts rather than looping forever.
+    """
+    from datetime import timedelta
+
+    cutoff = clock.to_iso(clock.now() - timedelta(seconds=older_than_seconds))
+    cursor = db.execute(
+        "UPDATE job_run SET status = ?, next_attempt_at = NULL "
+        "WHERE status = ? AND started_at < ? AND cancelled = 0",
+        (PENDING, RUNNING, cutoff),
+    )
+    if cursor.rowcount:
+        audit.record("jobs.stale_requeued", entity_type="job_run", entity_id=None,
+                     payload={"count": cursor.rowcount,
+                              "older_than_seconds": older_than_seconds})
+    return cursor.rowcount
+
+
 def run_pending(limit=200):
     """Drain the queue. Used by tests and by the synchronous 'run now' path."""
     processed = []

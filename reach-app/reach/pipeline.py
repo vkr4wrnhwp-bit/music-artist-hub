@@ -14,6 +14,7 @@ or change external state — the research path has no access to those tools at a
 """
 
 import json
+import time
 
 from . import (audit, campaigns, clock, compliance, contacts, crypto, db, entities,
                evidence, extractor, fetcher, jobs, netguard, policy, profile,
@@ -193,6 +194,7 @@ def _search_provider(context):
     context.cost(searches=1)
 
     enqueued = 0
+    platform_skipped = 0
     for result in response.items:
         url = result.get("url")
         if not url:
@@ -202,6 +204,9 @@ def _search_provider(context):
         except FetchBlocked:
             continue
         domain = validated["domain"]
+        if entities.is_platform_domain(domain):
+            platform_skipped += 1
+            continue
         if not campaigns.domain_budget_available(campaign_id, domain):
             continue
         campaigns.spend_budget(campaign_id, domain=domain)
@@ -219,6 +224,7 @@ def _search_provider(context):
         "query": query["query"],
         "results": len(response.items),
         "fetch_jobs": enqueued,
+        "platform_skipped": platform_skipped,
         "mode": response.mode,
         "note": response.note,
     }
@@ -248,7 +254,8 @@ def _fetch_public_page(context):
     context.cost(pages=1)
 
     sanitized = sanitizer.sanitize(result.text(), base_url=result.final_url)
-    extracted = extractor.extract(sanitized, result.final_url, result.domain)
+    extracted = extractor.extract(sanitized, result.final_url, result.domain,
+                                  http_status=result.status)
 
     if extracted["injection_findings"]:
         # Recorded as a risk signal on the source, never acted on.
@@ -263,6 +270,20 @@ def _fetch_public_page(context):
         sanitized_text=sanitized["visible_text"], title=sanitized["title"],
         classification=extracted["classification"], robots_decision=result.robots_decision,
     )
+
+    if extracted["page_state"] != extractor.PAGE_OK:
+        # A bot challenge or an error page is not the site behind it. The fetch
+        # is recorded as evidence of the attempt, but nothing downstream may
+        # classify, name or qualify an outlet from an interstitial — the first
+        # real run turned eight of these into "curators" called "Just a
+        # moment...".
+        audit.record("fetch.page_unusable", entity_type="source_document",
+                     entity_id=document_id,
+                     payload={"url": result.final_url,
+                              "page_state": extracted["page_state"],
+                              "http_status": result.status})
+        return {"url": result.final_url, "page_state": extracted["page_state"],
+                "document_id": document_id, "skipped": True}
 
     context.enqueue("RESOLVE_ENTITY", {
         "document_id": document_id,
@@ -293,6 +314,13 @@ def _resolve_entity(context):
     extracted = context.payload["extracted"]
     document_id = context.payload.get("document_id")
     territory = context.payload.get("territory")
+
+    if extracted.get("page_state", extractor.PAGE_OK) != extractor.PAGE_OK:
+        return {"skipped": extracted["page_state"]}
+    if entities.is_platform_domain(extracted["domain"]):
+        # Belt to the search-stage filter: a redirect can land on a platform
+        # even when the search result did not start on one.
+        return {"skipped": "PLATFORM_DOMAIN", "domain": extracted["domain"]}
 
     classification = extracted["classification"]
     kind = classification if classification in extractor.OUTLET_KINDS else _infer_kind(extracted)
@@ -711,10 +739,20 @@ def start(campaign_id):
     return job_id
 
 
-def run_to_completion(campaign_id, max_jobs=2000):
-    """Drain every job for this campaign, honouring the stop rules."""
+def run_to_completion(campaign_id, max_jobs=2000, max_seconds=None):
+    """Drain jobs for this campaign, honouring the stop rules.
+
+    ``max_seconds`` bounds one draining pass so a web request can chunk a long
+    run instead of dying at the server's request timeout: the first real run
+    was killed mid-flight at 120 seconds and needed manual re-taps to finish.
+    Jobs a killed worker left claimed forever are requeued first.
+    """
+    jobs.requeue_stale()
+    started = time.monotonic()
     processed = 0
     while processed < max_jobs:
+        if max_seconds is not None and time.monotonic() - started >= max_seconds:
+            break
         stop_reason = should_stop(campaign_id)
         if stop_reason and "budget" not in stop_reason.lower():
             audit.record("discovery.stopped", entity_type="campaign",

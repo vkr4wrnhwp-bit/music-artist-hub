@@ -277,13 +277,23 @@ def discover(campaign_id):
 
 @bp.route("/campaigns/<campaign_id>/discover/start", methods=["POST"])
 def start_discovery(campaign_id):
+    """Start discovery, or resume it — and only ever drain in short chunks.
+
+    Each call does at most ~20 seconds of work and reports what is left, so no
+    request can hit the server's timeout mid-run; the page keeps calling until
+    nothing is pending. When queued jobs already exist the call resumes them
+    rather than planning a second run on a spent search budget.
+    """
     _campaign_or_404(campaign_id)
+    job_id = None
     try:
-        job_id = pipeline.start(campaign_id)
+        if not jobs.pending_count(campaign_id):
+            job_id = pipeline.start(campaign_id)
+        processed = pipeline.run_to_completion(campaign_id, max_seconds=20)
     except ReachError as exc:
         return _json_error(exc)
-    processed = pipeline.run_to_completion(campaign_id)
     return jsonify({"ok": True, "job_id": job_id, "jobs_processed": processed,
+                    "pending": jobs.pending_count(campaign_id),
                     "progress": jobs.progress_for_campaign(campaign_id)})
 
 
