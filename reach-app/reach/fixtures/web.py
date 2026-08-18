@@ -365,3 +365,24 @@ PAGES["https://personalblog.example/about"] = _page(_html(
     <p>You can reach me at <a href="mailto:sam.personal@gmail.example">sam.personal@gmail.example</a>.</p>
     """,
 ))
+
+# ---------------------------------------------------------------------------
+# 18. Bot-challenge interstitial and upstream error — pages that are not the
+#     site behind them. The first real discovery run qualified eight of the
+#     former as curators named "Just a moment...".
+# ---------------------------------------------------------------------------
+_site("cfshield.example")
+PAGES["https://cfshield.example/submit"] = _page(_html(
+    "Just a moment...",
+    """
+    <p>Checking your browser before accessing cfshield.example.</p>
+    <p>Enable JavaScript and cookies to continue.</p>
+    <p>Performance &amp; security by Cloudflare</p>
+    """,
+))
+
+_site("brokenupstream.example")
+PAGES["https://brokenupstream.example/playlists"] = _page(_html(
+    "502",
+    "<h1>502 Bad Gateway</h1><p>The upstream server is temporarily unavailable.</p>",
+), status=502)

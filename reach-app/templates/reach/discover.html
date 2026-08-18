@@ -8,7 +8,7 @@
 <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
-      {{ ui.section('Scout run', 'Read-only. No emails, no form submissions, no spending, no external state changes.') }}
+      {{ ui.section('Discovery', 'Always read-only, in every campaign mode: no emails, no form submissions, no spending, no external state changes.') }}
     </div>
     <div class="flex gap-2">
       <button type="button" data-post="{{ url_for('reach.cancel_discovery', campaign_id=campaign.id) }}"
@@ -94,17 +94,59 @@
 {% endif %}
 
 <script>
-  document.getElementById('run-discovery').addEventListener('click', async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = 'Running…';
-    const data = await reachPost('{{ url_for("reach.start_discovery", campaign_id=campaign.id) }}');
-    button.disabled = false;
-    button.textContent = 'Run discovery';
-    if (data.ok) {
-      reachToast(`Discovery complete — ${data.jobs_processed} jobs`, true);
-      setTimeout(() => window.location.reload(), 700);
+  // Discovery drains in ~20-second chunks so no single request can die at the
+  // server's timeout; this loop keeps requesting until nothing is pending, and
+  // resumes automatically when the page loads with work still queued.
+  const runButton = document.getElementById('run-discovery');
+  const progressBar = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const START_URL = '{{ url_for("reach.start_discovery", campaign_id=campaign.id) }}';
+  let driving = false;
+
+  function paintProgress(progress) {
+    if (!progress || !progress.total) return;
+    progressBar.style.width = Math.round(progress.done / progress.total * 100) + '%';
+    progressLabel.textContent = `${progress.done}/${progress.total} jobs`;
+  }
+
+  async function driveDiscovery() {
+    if (driving) return;
+    driving = true;
+    runButton.disabled = true;
+    runButton.textContent = 'Running…';
+    let idleRounds = 0;
+    try {
+      for (;;) {
+        const data = await reachPost(START_URL);
+        if (!data.ok) break;
+        paintProgress(data.progress);
+        if (!data.pending) {
+          reachToast('Discovery complete', true);
+          setTimeout(() => window.location.reload(), 700);
+          return;
+        }
+        // Pending but nothing processed twice in a row: a job is mid-retry
+        // backoff or stalled. Stop looping instead of hammering the server.
+        idleRounds = data.jobs_processed === 0 ? idleRounds + 1 : 0;
+        if (idleRounds >= 2) {
+          reachToast('A job is waiting to retry — it resumes on its own. Check back shortly.', true);
+          return;
+        }
+      }
+    } catch (error) {
+      reachToast('Connection dropped — tap Run discovery to resume. Nothing is lost.', false);
+    } finally {
+      driving = false;
+      runButton.disabled = false;
+      runButton.textContent = 'Run discovery';
     }
-  });
+  }
+
+  runButton.addEventListener('click', driveDiscovery);
+
+  {% if progress.pending or progress.running %}
+  // Work was queued when this page loaded (an interrupted run): pick it up.
+  driveDiscovery();
+  {% endif %}
 </script>
 {% endblock %}

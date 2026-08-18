@@ -129,6 +129,48 @@ _CAPTCHA_PATTERNS = [
     re.compile(r"\b(?:captcha|recaptcha|hcaptcha|prove\s+you.{0,10}re\s+(?:not\s+a\s+robot|human))\b", re.I),
 ]
 
+# --- page state -------------------------------------------------------------
+#
+# The first real discovery run qualified eight Cloudflare interstitials as
+# curators named "Just a moment...", one 502 error page, and one page named
+# "Cloudflare". A challenge page is not the site behind it: nothing on it is
+# evidence about the outlet, so nothing may be classified, named or qualified
+# from one.
+
+PAGE_OK = "OK"
+PAGE_BOT_CHALLENGE = "BOT_CHALLENGE"
+PAGE_ERROR = "ERROR"
+
+_CHALLENGE_PATTERNS = [
+    re.compile(r"\bjust a moment\b", re.I),
+    re.compile(r"\bchecking your browser\b", re.I),
+    re.compile(r"\bverify(?:ing)? (?:that )?you are (?:a )?human\b", re.I),
+    re.compile(r"\benable javascript and cookies to continue\b", re.I),
+    re.compile(r"\battention required!?\s*\|\s*cloudflare\b", re.I),
+    re.compile(r"\bddos protection by\b", re.I),
+    re.compile(r"\bperformance & security by cloudflare\b", re.I),
+    re.compile(r"\bchecking if the site connection is secure\b", re.I),
+]
+_ERROR_TITLE_RE = re.compile(
+    r"^\s*(?:40[134]|429|50[0-9])\b|"
+    r"\b(?:bad gateway|service unavailable|gateway time-?out|"
+    r"access denied|page not found|too many requests)\b", re.I)
+
+
+def page_state(sanitized, http_status=None):
+    """Real content, or an interstitial standing in front of it?"""
+    if http_status is not None and http_status >= 400:
+        return PAGE_ERROR
+    title = sanitized.get("title") or ""
+    head = " ".join(filter(None, [title, sanitized.get("visible_text") or ""]))[:4000]
+    for pattern in _CHALLENGE_PATTERNS:
+        if pattern.search(head):
+            return PAGE_BOT_CHALLENGE
+    if _ERROR_TITLE_RE.search(title):
+        return PAGE_ERROR
+    return PAGE_OK
+
+
 _DATE_RE = re.compile(
     r"\b(20\d{2}-\d{2}-\d{2})\b|"
     r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+(20\d{2})\b",
@@ -143,9 +185,15 @@ def _excerpt_around(text, match, width=160):
 
 
 def classify(sanitized):
-    """Highest-weight matching class wins; risk classes outrank everything."""
+    """Highest-weight matching class wins; risk classes outrank everything.
+
+    A match in the page *title* earns a bonus: "Decibel Magazine" mentioning a
+    playlist somewhere in its body is a publication, not a playlist, and the
+    title is where a site says what it is.
+    """
+    title = sanitized.get("title") or ""
     text = " ".join(filter(None, [
-        sanitized.get("title") or "",
+        title,
         sanitized.get("meta_description") or "",
         sanitized.get("visible_text") or "",
     ]))
@@ -154,13 +202,14 @@ def classify(sanitized):
     for classification, weight, pattern in _CLASS_RULES:
         match = pattern.search(text)
         if match:
+            effective = weight + (20 if pattern.search(title) else 0)
             hits.append({
                 "classification": classification,
-                "weight": weight,
+                "weight": effective,
                 "excerpt": _excerpt_around(text, match),
             })
-            if weight > best[1]:
-                best = (classification, weight, _excerpt_around(text, match))
+            if effective > best[1]:
+                best = (classification, effective, _excerpt_around(text, match))
     return {
         "classification": best[0],
         "confidence": min(0.95, best[1] / 100) if best[1] else 0.0,
@@ -329,14 +378,16 @@ def outlet_name(sanitized, fallback_domain):
     return fallback_domain
 
 
-def extract(sanitized, url, domain):
+def extract(sanitized, url, domain, http_status=None):
     """The single structured record produced from one page."""
+    state = page_state(sanitized, http_status=http_status)
     classification = classify(sanitized)
     submission = submission_state(sanitized)
     cost = cost_model(sanitized, classification["classification"])
     return {
         "extractor_version": EXTRACTOR_VERSION,
         "sanitizer_version": sanitized.get("version", sanitizer.SANITIZER_VERSION),
+        "page_state": state,
         "url": url,
         "domain": domain,
         "title": sanitized.get("title"),
