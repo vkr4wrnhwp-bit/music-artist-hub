@@ -262,6 +262,8 @@ def targets(campaign_id, status=None, statuses=None, limit=500, order="score"):
         "o.follower_count, o.last_activity_at, "
         "(SELECT score FROM opportunity_score s WHERE s.target_id = t.id "
         " ORDER BY created_at DESC LIMIT 1) AS reach_score, "
+        "(SELECT components_json FROM opportunity_score s WHERE s.target_id = t.id "
+        " ORDER BY created_at DESC LIMIT 1) AS score_components_json, "
         "(SELECT score FROM risk_assessment r WHERE r.target_id = t.id "
         " ORDER BY created_at DESC LIMIT 1) AS risk_score, "
         "(SELECT band FROM risk_assessment r WHERE r.target_id = t.id "

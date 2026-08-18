@@ -80,7 +80,7 @@
           <div class="mt-0.5 text-xs text-gray-400">
             {{ item.recording.artist_name }} ·
             {% if item.recording.isrc %}{{ item.recording.isrc }}{% else %}<span class="text-faint">no ISRC</span>{% endif %} ·
-            {% if item.track.streams is not none %}{{ '{:,}'.format(item.track.streams) }} streams{% else %}<span class="text-faint">streams UNKNOWN</span>{% endif %}
+            {% if item.track.streams is not none %}{{ '{:,}'.format(item.track.streams) }} streams{% else %}<span class="inline-flex items-center gap-1">streams {{ ui.unknown() }}</span>{% endif %}
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-2">

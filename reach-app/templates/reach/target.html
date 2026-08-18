@@ -72,7 +72,7 @@
             <span class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
               {% if value is not none %}<span class="block h-full rounded-full bg-amber-500/60" style="width: {{ (value * 100) | round | int }}%"></span>{% endif %}
             </span>
-            <span class="w-14 shrink-0 text-right tabular-nums {{ 'text-faint' if value is none else 'text-gray-400' }}">{{ 'UNKNOWN' if value is none else ((value * 100) | round | int) }}</span>
+            <span class="flex w-20 shrink-0 justify-end tabular-nums text-gray-400">{% if value is none %}{{ ui.unknown() }}{% else %}{{ (value * 100) | round | int }}{% endif %}</span>
           </div>
           {% endfor %}
         </div>
@@ -152,7 +152,7 @@
         <div class="flex justify-between gap-2"><dt class="text-gray-400">Address</dt><dd class="font-mono text-gray-200">{{ contact_method.value_preview }}</dd></div>
         <div class="flex justify-between gap-2"><dt class="text-gray-400">Category</dt><dd class="text-right text-gray-200">{{ contact_method.category.replace('_',' ') }}</dd></div>
         <div class="flex justify-between gap-2"><dt class="text-gray-400">Independent sources</dt><dd class="text-gray-200">{{ sendability.independent_domains }}</dd></div>
-        <div class="flex justify-between gap-2"><dt class="text-gray-400">Verified</dt><dd class="text-gray-200">{{ contact_method.verified_at[:10] if contact_method.verified_at else 'UNKNOWN' }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Verified</dt><dd class="text-gray-200">{% if contact_method.verified_at %}{{ contact_method.verified_at[:10] }}{% else %}{{ ui.unknown() }}{% endif %}</dd></div>
       </dl>
       <div class="mt-3 rounded-lg border px-3 py-2 text-[11px] {{ 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300' if sendability.sendable else 'border-amber-500/20 bg-amber-500/5 text-amber-300' }}">
         {% if sendability.sendable %}
@@ -185,7 +185,7 @@
         <span class="text-[10px] uppercase tracking-wide text-faint">{{ (compliance_decision or '').replace('_',' ') }}</span>
       </div>
       <dl class="mt-3 space-y-1.5 text-[11px]">
-        <div class="flex justify-between gap-2"><dt class="text-gray-400">Recipient country</dt><dd class="text-gray-300">{{ compliance_record.recipientCountry or 'UNKNOWN' }}</dd></div>
+        <div class="flex justify-between gap-2"><dt class="text-gray-400">Recipient country</dt><dd class="text-gray-300">{% if compliance_record.recipientCountry %}{{ compliance_record.recipientCountry }}{% else %}{{ ui.unknown() }}{% endif %}</dd></div>
         <div class="flex justify-between gap-2"><dt class="text-gray-400">Sender country</dt><dd class="text-gray-300">{{ compliance_record.senderCountry }}</dd></div>
         <div class="flex justify-between gap-2"><dt class="text-gray-400">Outreach category</dt><dd class="text-right text-gray-300">{{ compliance_record.outreachCategory.replace('_',' ') }}</dd></div>
       </dl>

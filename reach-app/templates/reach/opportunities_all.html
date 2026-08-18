@@ -30,7 +30,7 @@
           <th class="px-4 py-2.5 font-medium">Campaign</th>
           <th class="px-4 py-2.5 font-medium">Match</th>
           <th class="px-4 py-2.5 font-medium">Status</th>
-          <th class="px-4 py-2.5 font-medium">Outreach</th>
+          <th class="px-4 py-2.5 font-medium">Action</th>
         </tr>
       </thead>
       <tbody>
@@ -43,9 +43,9 @@
             </a>
           </td>
           <td class="max-w-[180px] truncate px-4 py-3 text-xs text-gray-400">{{ t.campaign_name }}</td>
-          <td class="px-4 py-3">{{ ui.match_pill(t.reach_score) }}</td>
+          <td class="px-4 py-3 align-top">{{ ui.score_breakdown(t.reach_score, t.score_components, component_labels) }}</td>
           <td class="px-4 py-3">{{ ui.status_badge(t.status) }}</td>
-          <td class="px-4 py-3">{{ ui.decision_label(t.compliance_decision) }}</td>
+          <td class="px-4 py-3">{{ ui.target_actions(t, t.campaign_id) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -55,20 +55,19 @@
 
 <section class="space-y-2 md:hidden">
   {% for t in targets %}
-  <a href="{{ url_for('reach.target_detail', campaign_id=t.campaign_id, target_id=t.id) }}"
-     class="block rounded-xl border border-white/[0.08] bg-[#111113] p-4">
+  <div class="rounded-xl border border-white/[0.08] bg-[#111113] p-4">
     <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
+      <a href="{{ url_for('reach.target_detail', campaign_id=t.campaign_id, target_id=t.id) }}" class="min-w-0">
         <div class="truncate text-sm font-semibold text-gray-100">{{ t.outlet_name or t.outlet_domain }}</div>
         <div class="mt-0.5 text-[11px] uppercase tracking-wide text-faint">{{ (t.outlet_kind or 'UNKNOWN').replace('_',' ') }} · {{ t.campaign_name }}</div>
-      </div>
-      {{ ui.match_pill(t.reach_score) }}
+      </a>
+      {{ ui.score_breakdown(t.reach_score, t.score_components, component_labels) }}
     </div>
     <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
       {{ ui.status_badge(t.status) }}
-      {% if t.compliance_decision and t.compliance_decision != 'ALLOW' %}{{ ui.decision_label(t.compliance_decision) }}{% endif %}
+      <span class="ml-auto">{{ ui.target_actions(t, t.campaign_id) }}</span>
     </div>
-  </a>
+  </div>
   {% endfor %}
 </section>
 

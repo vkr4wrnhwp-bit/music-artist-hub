@@ -89,7 +89,7 @@
         {% for key, value in identifiers.items() if key != 'platform_assets' %}
         <div class="flex justify-between gap-3">
           <dt class="text-gray-400">{{ key.replace('_',' ') }}</dt>
-          <dd class="truncate text-right {{ 'text-faint' if value is none else 'text-gray-200' }}">{{ value if value is not none else 'UNKNOWN' }}</dd>
+          <dd class="truncate text-right {{ 'text-faint' if value is none else 'text-gray-200' }}">{% if value is not none %}{{ value }}{% else %}{{ ui.unknown() }}{% endif %}</dd>
         </div>
         {% endfor %}
       </dl>
