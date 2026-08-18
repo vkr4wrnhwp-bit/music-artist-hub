@@ -61,10 +61,31 @@ tracks are in, or start empty with `REACH_SEED_SAMPLE_TRACKS=0`.
 
 ## Deploy
 
-`render.yaml` in this directory is REACH's own Render blueprint — separate from
-the TRACE blueprint at the repository root. Neither one deploys the other.
-`Dockerfile` is the container equivalent. Both need one thing to be useful:
-`REACH_DB_PATH` pointing at a mounted disk, so the store survives a restart.
+**On Render, sync the blueprint at the repository root.** Render only reads
+`render.yaml` from the root of a repo, so the root file is what declares the
+`reach` service (alongside the unrelated `trace` one). The copy in this
+directory is not what gets deployed while REACH lives here — see the note at the
+top of it.
+
+    New → Blueprint → this repository → Apply
+
+Render generates `REACH_ENCRYPTION_KEY` itself and mounts a disk for
+`REACH_DB_PATH`. The only value it asks you for is `REACH_PRINCIPAL_EMAIL`,
+which is just the address REACH treats as the acting user until it has logins.
+
+**Without a blueprint**, create a Web Service by hand:
+
+| Field | Value |
+| --- | --- |
+| Root Directory | `reach-app` |
+| Runtime | Python |
+| Build command | `pip install -r requirements.txt` |
+| Start command | `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app` |
+| Health check path | `/healthz` |
+
+Then set `REACH_ENCRYPTION_KEY` to any long random string, and point
+`REACH_DB_PATH` at a mounted disk so the store survives a restart. `Dockerfile`
+is the container equivalent of all of this.
 
 ## Develop
 
