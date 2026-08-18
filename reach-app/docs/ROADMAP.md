@@ -107,6 +107,44 @@ review and optionally in the pitch footer.
 records the artist's attestation; it has not independently verified chain of
 title, and saying otherwise would be a fabricated claim.
 
+### Campaign guardrails (mostly already enforced)
+The proposal: auto-pause outreach when sender DNS drops mid-run or quotas are
+reached. The enforcement already exists as **hard gates at send time** —
+`approvals.send_approved` re-runs sender health and throttle checks on every
+send, so a DNS regression or exhausted quota stops sending immediately without
+any state flip. Auto-mutating the campaign's *mode* would change a
+user-chosen setting behind their back; the honest version is the header
+posture pill (shipped) plus the existing refusals with reasons.
+
+### Cross-campaign target overlap
+**Shipped** in minimal form: the Campaigns page flags outlets targeted by
+more than one live campaign, with the outlet names in the tooltip. The
+recontact rules (60-day cooling per contact) already prevent double-pitching
+the same address; the flag exists so the user knows *which* campaign will
+reach an outlet first.
+
+### Autonomous catalog portfolio routing
+Routing an incoming opportunity to the best-matching track in the catalog is
+scoring REACH already does — inverted. Honest v1: when qualifying an outlet,
+compute the profile-fit score against *every* attested track and surface the
+ranking ("fits Midnight Drive 78, Neon Dreams 44") with per-component
+receipts. "Automatically routes" stays out: campaign creation and rights
+attestation remain explicit human choices.
+
+### Predictive campaign yield
+Estimates are only honest with a denominator the artist owns. v1: before a
+run, show *this account's* historical medians ("your last 3 campaigns
+qualified 24–31 of ~200 discovered") — computed from stored metrics, labeled
+as your history, never an industry benchmark. With fewer than a handful of
+finished campaigns the answer is UNKNOWN, and it says so.
+
+### Global relationship reputation (zero-knowledge)
+Same shape as the fraud-telemetry note above: only domain-level verdicts
+(pay-for-play demanded, yield bands) with evidence excerpts could ever be
+shared across tenants — never contact addresses, never artist identities.
+Requires real anonymisation review before any data leaves a tenant;
+until then, reputation stays per-account (the Contacts page).
+
 ### Territory pitch adapters
 Deterministic per-territory formatting (salutation, structure, citation
 style: US/UK/DACH/JP) over the same fact set. Every factual sentence keeps

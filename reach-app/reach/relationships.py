@@ -121,7 +121,12 @@ def listing(tenant_id=None, limit=200):
         "(SELECT COUNT(*) FROM response rs JOIN campaign_target t ON t.id = rs.target_id "
         " WHERE t.outlet_id = r.outlet_id AND rs.tenant_id = r.tenant_id) AS responses, "
         "(SELECT COUNT(*) FROM relationship_note n WHERE n.relationship_id = r.id "
-        " AND n.tenant_id = r.tenant_id) AS note_count "
+        " AND n.tenant_id = r.tenant_id) AS note_count, "
+        "(SELECT COUNT(*) FROM response rs JOIN campaign_target t ON t.id = rs.target_id "
+        " WHERE t.outlet_id = r.outlet_id AND rs.tenant_id = r.tenant_id "
+        " AND rs.kind = 'ACCEPT') AS accepted_responses, "
+        "(SELECT COUNT(*) FROM campaign_target t WHERE t.outlet_id = r.outlet_id "
+        " AND t.tenant_id = r.tenant_id AND t.status = 'OPTED_OUT') AS opted_out "
         "FROM relationship r LEFT JOIN outlet o ON o.id = r.outlet_id "
         "WHERE r.tenant_id = ? ORDER BY r.updated_at DESC LIMIT ?",
         (tenant_id, limit),
