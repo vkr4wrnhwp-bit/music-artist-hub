@@ -10,9 +10,9 @@ import json
 from flask import Blueprint, abort, jsonify, render_template, request, url_for
 
 from . import REACH_VERSION
-from . import (analytics, approvals, audit, campaigns, catalog, compliance,
-               contacts, db, drafts, entities, evidence, firewall, humanactions, jobs,
-               outcomes, pipeline, policy, profile, rbac, relationships, firstparty,
+from . import (analytics, approvals, audit, campaigns, catalog, compliance, contacts,
+               db, drafts, entities, evidence, firewall, firstparty, humanactions, jobs,
+               onboarding, outcomes, pipeline, policy, profile, rbac, relationships,
                scoring, sender)
 from .errors import ReachError
 from .providers import email as email_provider
@@ -91,7 +91,8 @@ def index():
         items.append({"campaign": row, "metrics": metrics,
                       "health": analytics.campaign_health(row["id"])["score"]})
     return render_template("reach/index.html", campaigns=items,
-                           recordings=catalog.recordings(), **_shell(active="overview"))
+                           recordings=catalog.recordings(),
+                           onboarding=onboarding.status(), **_shell(active="overview"))
 
 
 @bp.route("/catalog")

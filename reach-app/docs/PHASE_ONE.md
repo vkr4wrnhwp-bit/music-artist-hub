@@ -7,6 +7,13 @@ has been independently verified, a structured human task everywhere else.
 
 ## What a real user can do today
 
+Opening a fresh install shows a **Getting started** panel: six steps to a first
+real campaign, each answered from the database rather than from a checklist, and
+every capability that is not configured yet named with the consequence it has
+right now — an ephemeral encryption key, an unhealthy sending identity, fixture
+mode, uncredentialed discovery sources. It empties itself as the work happens.
+
+
 1. Open `/reach/catalog`, add a track — only a title and an artist are required
    — then pick it. A first run seeds five clearly badged SAMPLE tracks so the
    pipeline can be tried before real ones are entered.

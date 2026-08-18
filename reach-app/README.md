@@ -30,6 +30,18 @@ and every screen labels the run as fixture mode rather than passing invented
 results off as real ones. See [`docs/INTEGRATION_SETUP.md`](docs/INTEGRATION_SETUP.md)
 to connect real providers.
 
+## First run
+
+Opening REACH shows a **Getting started** panel: the six steps to a first real
+campaign, and everything that is not configured yet stated with its consequence.
+Both halves are derived from your actual data and environment, so the panel is
+never out of date and disappears once there is nothing left to say.
+
+The one worth acting on immediately is `REACH_ENCRYPTION_KEY`. Without it REACH
+encrypts stored contacts with a key generated for that process, and every record
+written becomes unreadable at the next restart. The Render blueprint generates
+one for you; a local run needs it set by hand for work you intend to keep.
+
 ## Your catalog
 
 The **Catalog** screen is where tracks come from. REACH does not read another
