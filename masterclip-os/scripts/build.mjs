@@ -20,6 +20,9 @@ const targets = [
   { entry: 'apps/api/src/main.ts', out: 'dist/api.js' },
   { entry: 'apps/worker/src/main.ts', out: 'dist/worker.js' },
   { entry: 'apps/cli/src/main.ts', out: 'dist/masterclip.js' },
+  // Bundled so a deployment can seed before it is reachable, without shipping
+  // tsx and the TypeScript sources to production.
+  { entry: 'scripts/seed.ts', out: 'dist/seed.js' },
 ]
 
 for (const target of targets) {
