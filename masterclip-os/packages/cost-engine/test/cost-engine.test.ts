@@ -212,3 +212,109 @@ describe('metrics', () => {
     expect(result.submittedCount).toBe(0)
   })
 })
+
+describe('the live cap counts money already with a provider', () => {
+  /**
+   * The cap used to be built from charges alone, and a charge is only written
+   * when a render finishes. Between submit and completion a job's cost is real
+   * but invisible, so every concurrent submission authorized against a balance
+   * none of the others had moved yet: ten $0.50 renders all passed a $2 cap
+   * because each asked "how much have we spent?" at a moment when the honest
+   * answer was nothing.
+   */
+  async function submittedJob(id: string, usd: number, status = 'submitted') {
+    await insertRow(db, 'shots', {
+      id: `${SHOT}_${id}`, project_id: PROJECT, scene_id: null, shot_key: id, title: id,
+      current_version: 1, ordinal: 1, created_at: clock.isoNow(), updated_at: clock.isoNow(),
+    })
+    await insertRow(db, 'shot_versions', {
+      id: `sver_${id}`, shot_id: `${SHOT}_${id}`, version: 1, spec: '{}', spec_hash: id,
+      created_by: 'test', created_at: clock.isoNow(), note: '', locked: 0,
+    })
+    await insertRow(db, 'render_jobs', {
+      id: `job_${id}`, batch_id: null, project_id: PROJECT, scene_id: null, shot_id: `${SHOT}_${id}`,
+      shot_version_id: `sver_${id}`, provider_id: 'mock', model_id: 'm', routing_profile: 'STANDARD',
+      compiled_prompt: 'p', request: '{}', request_hash: id, idempotency_key: id, status,
+      external_job_id: 'x', quote_id: null, estimated_micros: usdToMicros(usd), actual_micros: 0,
+      attempts: 1, seed: null, sandbox: 0, priority: 0, error: null, created_by: 'test',
+      created_at: clock.isoNow(), updated_at: clock.isoNow(), submitted_at: clock.isoNow(),
+      completed_at: null, failed_at: null, cancelled_at: null,
+    })
+  }
+
+  it('refuses a second render whose predecessor is still in flight', async () => {
+    const controller = new CostController(db, config(), clock)
+    const { request, quote } = quoteFor(1.5)
+
+    const first = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(first.allowed).toBe(true)
+
+    // That render is now with the provider and has not settled.
+    await submittedJob('a', 1.5)
+
+    const second = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(second.allowed).toBe(false)
+    expect(second.denials.map((d) => d.code)).toContain('spend.live_cap')
+  })
+
+  it('releases the reservation once the job reaches a terminal state', async () => {
+    const controller = new CostController(db, config(), clock)
+    const { request, quote } = quoteFor(1.5)
+    // A cancelled job is not going to be billed, and must not hold the cap down.
+    await submittedJob('b', 1.5, 'cancelled')
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(true)
+  })
+
+  it('ignores sandbox jobs, which spend nothing', async () => {
+    const controller = new CostController(db, config(), clock)
+    await insertRow(db, 'shots', {
+      id: `${SHOT}_sb`, project_id: PROJECT, scene_id: null, shot_key: 'sb', title: 'sb',
+      current_version: 1, ordinal: 2, created_at: clock.isoNow(), updated_at: clock.isoNow(),
+    })
+    await insertRow(db, 'shot_versions', { id: 'sver_sb', shot_id: `${SHOT}_sb`, version: 1, spec: '{}', spec_hash: 'sb', created_by: 't', created_at: clock.isoNow(), note: '', locked: 0 })
+    await insertRow(db, 'render_jobs', {
+      id: 'job_sb', batch_id: null, project_id: PROJECT, scene_id: null, shot_id: `${SHOT}_sb`,
+      shot_version_id: 'sver_sb', provider_id: 'mock', model_id: 'm', routing_profile: 'STANDARD',
+      compiled_prompt: 'p', request: '{}', request_hash: 'sb', idempotency_key: 'sb', status: 'submitted',
+      external_job_id: 'x', quote_id: null, estimated_micros: usdToMicros(50), actual_micros: 0,
+      attempts: 1, seed: null, sandbox: 1, priority: 0, error: null, created_by: 't',
+      created_at: clock.isoNow(), updated_at: clock.isoNow(), submitted_at: clock.isoNow(),
+      completed_at: null, failed_at: null, cancelled_at: null,
+    })
+    const { request, quote } = quoteFor(1.5)
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(true)
+  })
+})
+
+describe('a billable request must carry a real price', () => {
+  it('refuses a zero-priced live request', async () => {
+    // Zero satisfies every cap by arithmetic and slides under the human-approval
+    // threshold, so an adapter that cannot price a request must not be able to
+    // buy an unlimited one by returning nothing. 'unknown' confidence is the
+    // honest way to say "no price"; zero is not.
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: false })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: 0, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(false)
+    expect(result.denials.map((d) => d.code)).toContain('quote.invalid')
+  })
+
+  it('refuses a negative price', async () => {
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: false })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: -1_000_000, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true })
+    expect(result.allowed).toBe(false)
+  })
+
+  it('still allows a zero-priced sandbox request, which spends nothing', async () => {
+    const controller = new CostController(db, config(), clock)
+    const request = sampleRequest({ durationSeconds: 8, maxCostMicros: usdToMicros(5), sandbox: true })
+    const quote = quoteFromProvider({ providerId: 'mock', request, micros: 0, nowMs: clock.now(), raw: {} })
+    const result = await controller.authorize({ orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard' })
+    expect(result.allowed).toBe(true)
+  })
+})

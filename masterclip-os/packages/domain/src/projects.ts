@@ -197,9 +197,13 @@ export class ProjectRepo {
       created_by: record.createdBy,
       created_at: record.createdAt,
     })
+    // Only touch the title when the new spec actually names one. Passing
+    // `undefined` here does not mean "leave it alone" — it reaches the update as
+    // NULL and violates the NOT NULL column, so a shot whose spec carries an
+    // empty title (which `emptyShot()` produces) failed to save at all.
     await updateRow(this.db, 'shots', input.shotId, {
       current_version: version,
-      title: spec.title || undefined,
+      ...(spec.title ? { title: spec.title } : {}),
       updated_at: this.clock.isoNow(),
     })
     return record

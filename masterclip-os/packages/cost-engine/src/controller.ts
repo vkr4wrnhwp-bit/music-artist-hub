@@ -107,6 +107,19 @@ export class CostController {
         message: 'this model has no confident price; obtain a live provider quote before submitting',
       })
     }
+    // A zero or negative estimate satisfies every cap by arithmetic and slides
+    // under the human-approval threshold, so an adapter that fails to price a
+    // request must not be able to buy an unlimited one by returning nothing.
+    // `unknown` confidence is the honest way to say "no price"; zero is not.
+    if (!Number.isFinite(estimated) || estimated <= 0) {
+      if (!sandbox) {
+        denials.push({
+          code: 'quote.invalid',
+          message: `a billable request needs a positive price; this quote reports ${estimated} µUSD. A provider that cannot price a request must report confidence 'unknown' rather than zero.`,
+        })
+      }
+    }
+
     if (input.quote.confidence === 'estimated') {
       warnings.push(`price is a rate-card estimate (${input.quote.source}), not a live provider quote`)
     }
@@ -183,7 +196,11 @@ export class CostController {
 
     // --- the global live-spend guard rail ------------------------------------
     if (!sandbox) {
-      const liveSpend = (await this.ledger.totalLiveSpend()) + committed
+      // Settled charges, plus this batch's running total, plus anything already
+      // with a provider and not yet settled. Leaving that last term out let each
+      // of N concurrent submissions authorize against a balance that none of the
+      // others had yet moved.
+      const liveSpend = (await this.ledger.totalLiveSpend()) + committed + (await this.ledger.committedInFlight())
       const cap = this.config.liveSpendCapMicros
       remaining.liveCapMicros = cap - liveSpend
       if (liveSpend + estimated > cap) {
