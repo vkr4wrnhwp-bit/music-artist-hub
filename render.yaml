@@ -1,6 +1,15 @@
-# TRACE — one-service deployment: the sync server serves the built app
-# from the same origin. Connect this repo on Render as a Blueprint.
-# Details: mx-lab/docs/architecture/deployment.md (Render section).
+# Render reads this file from the repository root, so every service that should
+# be deployable from a Blueprint has to be declared here — a render.yaml inside
+# a subdirectory is never picked up by the Blueprint flow.
+#
+# The services below are separate products that share nothing but this file.
+# Each has its own rootDir, its own runtime and its own disk; syncing the
+# blueprint creates or updates them independently.
+#
+#   trace  — mx-lab/     motocross session tracking (Node)
+#   reach  — reach-app/  music discovery and outreach (Python)
+#
+# Details: mx-lab/docs/architecture/deployment.md and reach-app/README.md.
 services:
   - type: web
     name: trace
@@ -19,5 +28,36 @@ services:
         value: "false"
     disk:
       name: trace-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  # REACH — music discovery, opportunity intelligence and outreach.
+  # Shares no process, database or code with the service above.
+  - type: web
+    name: reach
+    runtime: python
+    rootDir: reach-app
+    plan: starter # a paid instance is required for the persistent disk below.
+    # On the free plan, delete the `disk:` block and the REACH_DB_PATH value —
+    # REACH still runs, but its database resets on every deploy and restart.
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+    healthCheckPath: /healthz
+    envVars:
+      # Where the SQLite store lives. Must be on the mounted disk to survive.
+      - key: REACH_DB_PATH
+        value: /var/data/reach.db
+      # Encrypts contact records at rest. Render generates this once and keeps
+      # it; losing or changing it makes existing encrypted rows unreadable.
+      - key: REACH_ENCRYPTION_KEY
+        generateValue: true
+      # Who REACH treats as the acting principal until it has real sessions.
+      # Render prompts for this value when the blueprint is synced.
+      - key: REACH_PRINCIPAL_EMAIL
+        sync: false
+      - key: REACH_PRINCIPAL_ROLE
+        value: OWNER
+    disk:
+      name: reach-data
       mountPath: /var/data
       sizeGB: 1

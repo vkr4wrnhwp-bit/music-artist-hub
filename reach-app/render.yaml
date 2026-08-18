@@ -1,10 +1,15 @@
-# REACH — its own Render service. Deliberately separate from the TRACE
-# blueprint at the repository root: different runtime, different disk,
-# different lifecycle. Neither one deploys the other.
+# REACH's standalone service definition.
 #
-# Connect this repository on Render as a Blueprint and point it at
-# reach-app/render.yaml, or create a Web Service manually with the build and
-# start commands below and Root Directory set to `reach-app`.
+# NOTE: Render's Blueprint flow only reads render.yaml from the *repository
+# root*, so this file is not what gets deployed while REACH lives in this
+# repo — the root render.yaml declares the `reach` service and is the one to
+# sync. This copy is kept for two reasons: it is immediately correct if REACH
+# moves to its own repository, and it documents the service on its own terms.
+#
+# To deploy REACH without a blueprint: create a Web Service, set Root Directory
+# to `reach-app`, and use the build and start commands below.
+#
+# Keep this file and the root one in step if either changes.
 services:
   - type: web
     name: reach
