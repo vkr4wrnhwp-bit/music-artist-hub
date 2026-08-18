@@ -122,7 +122,12 @@
       payload[key] = form.elements[key].checked ? '1' : '0';
     });
     const data = await reachPost('{{ url_for("reach.add_track") }}', payload);
-    if (data.ok) { reachToast('Track added', true); setTimeout(() => window.location.reload(), 600); }
+    if (data.ok) {
+      reachToast('Track added — opening its campaign profile', true);
+      setTimeout(() => {
+        window.location = '{{ url_for("reach.new_campaign") }}?recording_id=' + data.recording_id;
+      }, 700);
+    }
   });
 </script>
 {% endblock %}

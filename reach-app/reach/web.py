@@ -202,7 +202,7 @@ def create_campaign():
     analytics.capture_baseline(campaign_id)
     humanactions.build_dsp_tasks(campaign_id)
     return jsonify({"ok": True, "campaign_id": campaign_id,
-                    "url": url_for("reach.overview", campaign_id=campaign_id)})
+                    "url": url_for("reach.discover", campaign_id=campaign_id)})
 
 
 def _list(data, key):
@@ -423,6 +423,7 @@ def review(campaign_id):
         health=sender.health_summary(),
         throttle=sender.throttle_state(campaign_id),
         ready_targets=campaigns.targets(campaign_id, status=campaigns.READY),
+        draftable_targets=campaigns.targets(campaign_id, status=campaigns.QUALIFIED),
         **_shell(campaign_id, "review"),
     )
 
