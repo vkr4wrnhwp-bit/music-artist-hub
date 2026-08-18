@@ -275,6 +275,12 @@ async function cmdProvidersContract(ctx: Ctx, runtime: Runtime): Promise<number>
     destDir: 'var/tmp/contract',
     pollTimeoutMs: 120_000,
     approveSubmit,
+    // `sampleRequest()` defaults to sandbox:true, which is right for the mock
+    // and wrong for everyone else: the cost controller reads that flag to
+    // decide what to enforce, so a live contract run was authorizing itself
+    // past the live-spend cap, the unknown-price denial and the approval gate.
+    // A real provider bills, so its request says so.
+    request: target === 'mock' ? {} : { sandbox: false },
   })
   const summary = contractSummary(checks)
   output(ctx, { provider: target, checks, summary }, () =>

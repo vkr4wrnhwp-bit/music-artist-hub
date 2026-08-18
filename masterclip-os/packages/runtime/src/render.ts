@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AppError, formatUsd, newId, sha256File, type MicroUsd } from '@masterclip/shared'
 import { JOB_TYPES, QUEUES } from '@masterclip/queue'
+import { toNum } from '@masterclip/database'
 import { objectKey, type StorageDriver } from '@masterclip/asset-storage'
 import { AUDIT_ACTIONS, type RenderJob } from '@masterclip/domain'
 import {
@@ -162,6 +163,14 @@ export class RenderService {
           skipped.push({ candidate, reason: `provider validation failed: ${validation.errors.join('; ')}` })
           continue
         }
+        // validate() works out the provider-legal duration and records it in
+        // `adjustments`, but nothing ever applied it: the request kept its
+        // original value, the quote was bound to that value, and every adapter
+        // then submitted `Math.round(durationSeconds)`. So a 7.6s shot was
+        // priced at 7.6s and generated at 8s — the quote described a request
+        // the provider never received, and on a per-second model the difference
+        // is charged to us.
+        applyAdjustments(request, validation.adjustments)
 
         const quote = await provider.quote(request)
         const quoteId = await this.rt.quotes.save(quote, { projectId: input.projectId, shotId: input.shotId })
@@ -484,11 +493,35 @@ export class RenderService {
 
     const submittedAt = job.submittedAt ? Date.parse(job.submittedAt) : this.rt.clock.now()
     if (this.rt.clock.now() - submittedAt > this.rt.config.PROVIDER_JOB_TIMEOUT_MS) {
+      // Ask once more before giving up. Timing out is our decision, not the
+      // provider's: the generation may well have finished — or failed — while we
+      // were waiting, and a final status is the only chance to learn what it
+      // cost. Failing the job without asking discarded that, and since the poll
+      // loop stops at a terminal state nothing would ever ask again.
+      let finalCost: MicroUsd | null = null
+      let finalSeconds: number | null = null
+      try {
+        const last = await this.rt.registry.get(job.providerId).getStatus(job.externalJobId)
+        finalCost = last.actualMicros
+        finalSeconds = last.billableSeconds
+      } catch (err) {
+        this.rt.logger.warn('render.timeout_status_failed', { jobId, err: String(err) })
+      }
       await this.rt.renders.updateJob(jobId, {
         status: 'failed',
         failedAt: this.rt.clock.isoNow(),
         error: { code: 'provider.timeout', message: `no terminal state after ${Math.round(this.rt.config.PROVIDER_JOB_TIMEOUT_MS / 60000)} minutes` },
       })
+      // The provider started work, so it very likely billed for it. Charge what
+      // it reported, or the estimate when it reports nothing — the alternative
+      // is a generation that cost money and left no trace in any budget.
+      await chargeJobOnce(
+        this.rt,
+        job,
+        finalCost ?? job.estimatedMicros,
+        finalSeconds,
+        finalCost === null ? 'timed out with no provider cost; charged at estimate' : 'timed out; charged at the provider-reported cost',
+      )
       return { done: true, deferMs: 0 }
     }
 
@@ -542,6 +575,28 @@ export class RenderService {
    * `variance()` will show a zero delta for these rows, which is the signal
    * that the figure is ours rather than the provider's.
    */
+  /**
+   * Refuses QC work once the global live-spend ceiling is gone.
+   *
+   * QC is not a provider generation, so it never passes through
+   * `CostController.authorize()` — which is where every other spend meets the
+   * cap. That left one class of real spending permanently outside the only
+   * global limit in the system. This is the narrow equivalent: the same ledger
+   * total, the same ceiling, checked before the request rather than after.
+   */
+  private async assertQcSpendAllowed(outputId: string): Promise<void> {
+    if (this.rt.config.isSandbox) return
+    const spent = (await this.rt.ledger.totalLiveSpend()) + (await this.rt.ledger.committedInFlight())
+    const cap = this.rt.config.liveSpendCapMicros
+    if (spent < cap) return
+    throw new AppError({
+      kind: 'budget_exceeded',
+      code: 'qc.live_cap',
+      message: `visual QC needs to spend, but live spend of ${formatUsd(spent)} has reached the ${formatUsd(cap, 2)} cap`,
+      details: { outputId },
+    })
+  }
+
   private async settleCharge(job: RenderJob, status: { actualMicros: MicroUsd | null; billableSeconds: number | null }): Promise<void> {
     if (status.actualMicros !== null) {
       await this.recordCharge(job, status.actualMicros, status.billableSeconds)
@@ -558,26 +613,9 @@ export class RenderService {
   }
 
   private async recordCharge(job: RenderJob, micros: MicroUsd, seconds: number | null, note?: string): Promise<void> {
-    const project = await this.rt.projects.get(job.projectId)
-    await this.rt.ledger.append({
-      orgId: project.orgId,
-      projectId: job.projectId,
-      sceneId: job.sceneId,
-      shotId: job.shotId,
-      batchId: job.batchId,
-      jobId: job.id,
-      providerId: job.providerId,
-      modelId: job.modelId,
-      entryType: 'charge',
-      micros,
-      billableSeconds: seconds,
-      externalRequestId: job.externalJobId,
-      sandbox: job.sandbox,
-      note: note ?? 'provider-reported charge',
-      createdBy: job.createdBy,
-    })
-    await this.rt.renders.updateJob(job.id, { actualMicros: micros })
+    await chargeJobOnce(this.rt, job, micros, seconds, note ?? 'provider-reported charge')
   }
+
 
   // ==========================================================================
   // ingest
@@ -749,6 +787,13 @@ export class RenderService {
         })
         framePaths = frames.map((f) => f.path)
 
+        // Vision QC spends real Anthropic money, and it used to do so with no
+        // reference to the cap at all: the charge was appended to the ledger
+        // after the fact, so QC kept spending long after LIVE_SPEND_CAP_USD was
+        // exhausted. It is not a provider generation and does not go through
+        // authorize(), but it must still respect the one global ceiling.
+        await this.assertQcSpendAllowed(outputId)
+
         const client = this.visionClient(() => technical)
         const characters = [...(await this.rt.bibles.listCharacters(output.projectId))]
           .filter((c) => version.spec.identity_locks.some((lock) => lock.character_key === c.characterKey))
@@ -762,7 +807,19 @@ export class RenderService {
           tier: version.spec.routing_profile === 'HERO' ? 'deep' : 'fast',
         })
 
-        if (visual.costMicros > 0) {
+        // A negative cost is the sentinel for "this model is not in the pricing
+        // table". Skipping the ledger write for it, as `> 0` did, hid the spend
+        // from every budget — precisely the outcome the sentinel exists to
+        // prevent. Pinning a dated model snapshot in ANTHROPIC_QC_MODEL is
+        // ordinary practice, so this is reachable by configuration alone.
+        if (visual.costMicros < 0) {
+          this.rt.logger.error('qc.unpriced_model', {
+            outputId,
+            engine: visual.engine,
+            note: 'visual QC ran on a model with no entry in the pricing table; its cost is unknown and therefore unbudgeted',
+          })
+        }
+        if (visual.costMicros !== 0) {
           await this.rt.ledger.append({
             orgId: project.orgId,
             projectId: output.projectId,
@@ -927,3 +984,97 @@ export class RenderService {
 }
 
 export type { StorageDriver }
+
+/**
+ * Writes at most one `charge` row per render job.
+ *
+ * Three separate paths settle a job — the poll loop, an operator cancel, and
+ * the poll timeout — and two of them can run concurrently: a provider webhook
+ * enqueues a poll under its own dedupe key while the timer poll is still
+ * scheduled, so both can observe the same terminal state and both call through
+ * here. `downloading` is not a terminal guard, so nothing upstream stopped the
+ * second one. One generation would then appear in the ledger as two charges,
+ * which inflates every budget and the global cap against work that happened
+ * once.
+ *
+ * Idempotence lives here rather than in each caller because "one generation,
+ * one charge" is a property of the ledger, not of whoever happens to notice the
+ * job finished first.
+ *
+ * Returns the micros written, or null when a charge already existed.
+ */
+export async function chargeJobOnce(
+  rt: Runtime,
+  job: RenderJob,
+  micros: MicroUsd,
+  seconds: number | null,
+  note: string,
+): Promise<MicroUsd | null> {
+  const existing = await rt.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM cost_ledger WHERE job_id = ? AND entry_type = 'charge'`,
+    [job.id],
+  )
+  if (toNum(existing?.n, 0) > 0) return null
+
+  const project = await rt.projects.get(job.projectId)
+  await rt.ledger.append({
+    orgId: project.orgId,
+    projectId: job.projectId,
+    sceneId: job.sceneId,
+    shotId: job.shotId,
+    batchId: job.batchId,
+    jobId: job.id,
+    providerId: job.providerId,
+    modelId: job.modelId,
+    entryType: 'charge',
+    micros,
+    billableSeconds: seconds,
+    quoteId: job.quoteId,
+    externalRequestId: job.externalJobId,
+    sandbox: job.sandbox,
+    note,
+    createdBy: 'render-service',
+  })
+  return micros
+}
+
+/**
+ * Settles a job an operator cancelled.
+ *
+ * Cancelling stops the poll loop, so this is the last chance to record what the
+ * generation cost. A job that had reached the provider is charged at its
+ * estimate whether or not the cancel was confirmed: providers bill for work
+ * already done, several refuse to cancel past a point of no return, and the two
+ * error directions are not symmetric — over-counting refuses the next render
+ * slightly too early, under-counting lets the cap approve work that was
+ * actually paid for. A job still queued locally never reached anyone and costs
+ * nothing.
+ */
+export async function settleCancelledJob(rt: Runtime, jobId: string, opts: { providerStopped: boolean }): Promise<MicroUsd | null> {
+  const job = await rt.renders.getJob(jobId)
+  const reachedProvider = Boolean(job.externalJobId)
+  if (!reachedProvider) return null
+  const note = opts.providerStopped
+    ? 'cancelled at the provider; charged at estimate since work already done is usually billed'
+    : 'cancel not confirmed by the provider; charged at estimate'
+  return chargeJobOnce(rt, job, job.estimatedMicros, null, note)
+}
+
+/**
+ * Applies the corrections `validate()` worked out, so the request that gets
+ * priced is the request that gets submitted.
+ *
+ * Only fields whose value the provider genuinely dictates are applied;
+ * anything else is left alone and remains visible in `adjustments` for the
+ * caller to report.
+ */
+export function applyAdjustments(
+  request: CanonicalRenderRequest,
+  adjustments: Array<{ field: string; from: string; to: string; reason: string }>,
+): void {
+  for (const adjustment of adjustments) {
+    if (adjustment.field !== 'durationSeconds') continue
+    const snapped = Number(adjustment.to)
+    if (Number.isFinite(snapped) && snapped > 0) request.durationSeconds = snapped
+  }
+}

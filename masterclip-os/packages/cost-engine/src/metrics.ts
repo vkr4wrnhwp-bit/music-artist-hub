@@ -74,7 +74,14 @@ export class MetricsService {
       `SELECT o.id,
               o.duration_seconds,
               (SELECT MAX(q.technical_pass) FROM output_qc q WHERE q.output_id = o.id AND q.layer = 'technical') AS technical_pass,
-              (SELECT r.decision FROM reviews r WHERE r.output_id = o.id ORDER BY r.created_at DESC LIMIT 1) AS decision
+              -- Only decisions that carry a verdict. 'rank' orders candidates
+              -- against each other and 'reset' clears a decision; neither says
+              -- the clip was good or bad, and taking simply the newest review
+              -- meant ranking a shortlist after approving one of its clips
+              -- silently turned that approval into a failure.
+              (SELECT r.decision FROM reviews r WHERE r.output_id = o.id
+                AND r.decision IN ('approve', 'promote', 'reject', 'regenerate')
+                ORDER BY r.created_at DESC LIMIT 1) AS decision
          FROM outputs o
         WHERE o.project_id = ?`,
       [projectId],
@@ -156,7 +163,9 @@ export class MetricsService {
     }>(
       `SELECT o.provider_id, o.model_id, o.id AS output_id, o.duration_seconds, o.job_id,
               (SELECT MAX(q.technical_pass) FROM output_qc q WHERE q.output_id = o.id AND q.layer = 'technical') AS technical_pass,
-              (SELECT r.decision FROM reviews r WHERE r.output_id = o.id ORDER BY r.created_at DESC LIMIT 1) AS decision,
+              (SELECT r.decision FROM reviews r WHERE r.output_id = o.id
+                AND r.decision IN ('approve', 'promote', 'reject', 'regenerate')
+                ORDER BY r.created_at DESC LIMIT 1) AS decision,
               (SELECT a.latency_ms FROM render_attempts a WHERE a.job_id = o.job_id ORDER BY a.attempt DESC LIMIT 1) AS latency_ms,
               (SELECT sv.spec FROM render_jobs j JOIN shot_versions sv ON sv.id = j.shot_version_id WHERE j.id = o.job_id) AS shot_category
          FROM outputs o

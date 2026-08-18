@@ -49,6 +49,21 @@ candidates survived.** The four that mattered most, all fixed:
 | A $0 or negative quote satisfied every cap | zero passes every budget by arithmetic and slides under the approval threshold; a billable request now needs a positive price, and `unknown` confidence is the honest way to report no price |
 | `GET /api/queue/dead` swallowed its own auth failure; replay had no auth at all | any caller could read every tenant's dead letters, and replay re-triggers a billable generation for another org |
 
-Sixteen further confirmed findings — double-charging on concurrent polls,
-unrecorded charges on cancel and timeout paths, QC spend outside the cap, router
-statistics corruption — are recorded in the review output and not yet fixed.
+The remaining confirmed findings are now fixed too:
+
+| Defect | Fix |
+|---|---|
+| Retry re-submitted a job still generating at the provider — a second paid generation alongside the first, with the original orphaned so its cost was never recorded | retry is refused for any job in `authorizing`/`submitted`/`processing`/`downloading`; cancel it first |
+| Cancel discarded provider errors and marked the job cancelled locally, stopping the poll loop before anything was charged | cancel now reports whether the provider actually stopped, and settles at estimate for any job that reached the provider — the last chance to record it |
+| The poll timeout failed the job without ever asking the provider for a final state or cost | it asks once more, charges what the provider reports, and falls back to the estimate when it reports nothing |
+| Webhook-driven and timer-driven polls could both settle the same job, writing one generation to the ledger as two charges | `chargeJobOnce()` — idempotence belongs to the ledger, not to whichever poller noticed first |
+| Visual QC spent real Anthropic money with no reference to the global cap | QC checks the same ceiling before running; it is not a provider generation, but it is real spend |
+| An unpriced QC model returned `-1` and the caller only ledgered `> 0`, hiding the spend entirely | any nonzero cost is recorded, and an unpriced model is logged as an error |
+| A `rank` or `reset` review overwrote an earlier `approve` in the routing statistics, turning approvals into failures | only decisions carrying a verdict count toward measured acceptance |
+| The contract battery submitted with `sandbox: true`, exempting a live run from the cap, the unknown-price denial and the approval gate | a contract run against a real provider now says it is billable |
+| `validate()` computed a provider-legal duration and no caller applied it, so a 7.6s shot was priced at 7.6s and generated at 8s | adjustments are applied before quoting, so the priced request is the submitted request |
+
+One further bug surfaced while writing the regression tests: `addVersion`
+passed `title: spec.title || undefined` to an update, and `undefined` reaches
+SQL as NULL against a NOT NULL column — so saving a shot whose spec carried an
+empty title failed outright. Fixed by omitting the field instead.

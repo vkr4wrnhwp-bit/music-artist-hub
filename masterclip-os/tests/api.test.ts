@@ -495,3 +495,69 @@ describe('sandbox mode does not authorize real providers', () => {
     expect(result.denials.map((d) => d.code)).toContain('mode.sandbox_required')
   })
 })
+
+describe('money-path regressions', () => {
+  /** Project + shot + job, built through the real repositories. */
+  async function seedJob(name: string, opts: { sandbox: boolean; estimatedMicros: number }) {
+    const { emptyShot } = await import('@masterclip/shot-schema')
+    const org = await runtime.projects.createOrg(`${name} Org`)
+    const project = await runtime.projects.create({ orgId: org.id, name: `${name} P`, createdBy: 'test' })
+    const { shot, version } = await runtime.projects.createShot({
+      projectId: project.id,
+      spec: emptyShot({ generation_mode: 'text_to_video', action: 'a woman turns', duration_seconds: 4 }),
+      createdBy: 'test',
+    })
+    const { job } = await runtime.renders.createJob({
+      projectId: project.id, shotId: shot.id, shotVersionId: version.id,
+      providerId: 'mock', modelId: 'mock-draft', routingProfile: 'STANDARD',
+      compiledPrompt: 'p', request: { n: name }, estimatedMicros: opts.estimatedMicros,
+      sandbox: opts.sandbox, createdBy: 'test',
+    })
+    return { project, shot, job }
+  }
+
+  it('refuses to retry a job that is still running at the provider', async () => {
+    // Retrying an in-flight job submits a second paid generation alongside the
+    // first, and orphans the original so nothing ever records what it cost.
+    const { session, csrf } = await signup()
+    const cookies = { [SESSION_COOKIE]: session, [CSRF_COOKIE]: csrf }
+    const headers = { [CSRF_HEADER]: csrf }
+    // The job has to live in a project this user can act on, or the
+    // authorization check answers first and the status guard is never reached.
+    const created = await app.inject({ method: 'POST', url: '/api/projects', cookies, headers, payload: { name: 'Retry P' } })
+    const projectId = created.json().project.id as string
+    const { emptyShot } = await import('@masterclip/shot-schema')
+    const { shot, version } = await runtime.projects.createShot({
+      projectId,
+      spec: emptyShot({ generation_mode: 'text_to_video', action: 'a woman turns', duration_seconds: 4 }),
+      createdBy: 'test',
+    })
+    const { job } = await runtime.renders.createJob({
+      projectId, shotId: shot.id, shotVersionId: version.id,
+      providerId: 'mock', modelId: 'mock-draft', routingProfile: 'STANDARD',
+      compiledPrompt: 'p', request: { n: 'retry' }, estimatedMicros: 100_000,
+      sandbox: true, createdBy: 'test',
+    })
+    await runtime.renders.updateJob(job.id, { status: 'processing', externalJobId: 'ext-1' })
+
+    const response = await app.inject({ method: 'POST', url: `/api/jobs/${job.id}/retry`, cookies, headers })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().error.code).toBe('job.still_running')
+  })
+
+  it('writes one charge per generation even if two pollers settle it', async () => {
+    // A provider webhook enqueues a poll under its own dedupe key while the
+    // timer poll is still scheduled, so both can observe the same terminal
+    // state. One generation must not become two charges.
+    const { chargeJobOnce } = await import('@masterclip/runtime')
+    const { job } = await seedJob('Charge', { sandbox: false, estimatedMicros: 250_000 })
+
+    expect(await chargeJobOnce(runtime, job, 250_000, 4, 'first settle')).toBe(250_000)
+    expect(await chargeJobOnce(runtime, job, 250_000, 4, 'racing settle')).toBeNull()
+
+    const rows = await runtime.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM cost_ledger WHERE job_id = ? AND entry_type = 'charge'", [job.id],
+    )
+    expect(Number(rows?.n ?? 0)).toBe(1)
+  })
+})

@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod/v4'
 import { AppError, formatUsd, notFound } from '@masterclip/shared'
+
+/** Statuses where the provider is working and billing for it. */
+const IN_FLIGHT_STATUSES = new Set(['authorizing', 'submitted', 'processing', 'downloading'])
 import { toStr } from '@masterclip/database'
 import { RejectionReason, deriveRequirements } from '@masterclip/shot-schema'
 import { buildMatrix, defaultStopLoss, summarize } from '@masterclip/domain'
 import { compareStrategies, routeShot } from '@masterclip/model-router'
 import { JOB_TYPES, QUEUES } from '@masterclip/queue'
-import { MasterService, RenderService, type PlannedCandidate, type Runtime } from '@masterclip/runtime'
+import { MasterService, RenderService, type PlannedCandidate, type Runtime, settleCancelledJob } from '@masterclip/runtime'
 import { requireProject } from '../server.js'
 
 const CandidateSchema = z.object({
@@ -192,6 +195,18 @@ export async function registerRenderRoutes(app: FastifyInstance, runtime: Runtim
     if (job.status === 'completed') {
       throw new AppError({ kind: 'conflict', code: 'job.already_complete', message: 'this job already produced outputs' })
     }
+    // Only a job that has stopped may be retried. Retrying one that is still
+    // with the provider submits a *second* paid generation while the first is
+    // still running and still billing, and the original external job is then
+    // orphaned — nothing polls it, so its cost is never recorded at all. Cancel
+    // it first if that is really what you want.
+    if (IN_FLIGHT_STATUSES.has(job.status)) {
+      throw new AppError({
+        kind: 'conflict',
+        code: 'job.still_running',
+        message: `this job is ${job.status} at the provider and is still billing; cancel it before retrying, or a second generation will be paid for alongside the first`,
+      })
+    }
     await runtime.renders.updateJob(jobId, { status: 'queued', error: null })
     const { id, deduped } = await runtime.queue.enqueue({
       queue: QUEUES.render,
@@ -207,11 +222,27 @@ export async function registerRenderRoutes(app: FastifyInstance, runtime: Runtim
     const job = await runtime.renders.getJob(jobId)
     await requireProject(runtime, request, job.projectId, 'director')
     const provider = runtime.registry.get(job.providerId)
+    // Whether the provider actually stopped decides whether we owe for this
+    // generation. Swallowing the failure and marking it cancelled locally meant
+    // a provider that had already billed — or that refuses to cancel past the
+    // point of no return — was never charged to the ledger, because polling
+    // stops the moment the status is terminal.
+    let providerStopped = false
+    let cancelError: string | null = null
     if (job.externalJobId && provider.cancel) {
-      await provider.cancel(job.externalJobId).catch(() => undefined)
+      try {
+        await provider.cancel(job.externalJobId)
+        providerStopped = true
+      } catch (err) {
+        cancelError = err instanceof Error ? err.message : String(err)
+      }
     }
     await runtime.renders.updateJob(jobId, { status: 'cancelled', cancelledAt: runtime.clock.isoNow() })
-    return { ok: true }
+    // Settle before polling stops. A cancel we could not confirm is assumed to
+    // have cost its estimate: over-counting refuses the next render too early,
+    // under-counting lets the cap through work that was actually paid for.
+    const settled = await settleCancelledJob(runtime, jobId, { providerStopped })
+    return { ok: true, providerStopped, cancelError, chargedMicros: settled }
   })
 
   /**
