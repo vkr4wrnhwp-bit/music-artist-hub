@@ -1,0 +1,126 @@
+{% extends "reach/_layout.html" %}
+{% import "reach/_layout.html" as ui with context %}
+
+{% block subtitle %}Routes REACH will not automate — with the answers prepared.{% endblock %}
+
+{% block reach_content %}
+
+<div class="flex flex-wrap gap-1.5">
+  <a href="{{ url_for('reach.needs_you') }}"
+     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if not selected_campaign else 'border-white/10 text-gray-400 hover:text-gray-300' }}">All campaigns</a>
+  {% for campaign in campaigns %}
+  <a href="{{ url_for('reach.needs_you', campaign_id=campaign.id) }}"
+     class="rounded-md border px-2.5 py-1 text-[11px] font-semibold {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if selected_campaign == campaign.id else 'border-white/10 text-gray-400 hover:text-gray-300' }}">{{ campaign.recording_title }}</a>
+  {% endfor %}
+</div>
+
+<div class="space-y-3">
+  {% for task in tasks %}
+  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="text-sm font-semibold">{{ task.title }}</h2>
+          <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ task.provider.replace('_',' ') }}</span>
+          {% if task.risk_band %}{{ ui.risk_badge(task.risk_band) }}{% endif %}
+        </div>
+        <p class="mt-1.5 text-xs text-gray-400">{{ task.action }}</p>
+        <p class="mt-1 text-[11px] text-amber-400/80">Why it isn't automated: {{ task.reason }}</p>
+      </div>
+      <div class="shrink-0 text-right text-[11px] text-gray-400">
+        <div>{{ task.effort }}</div>
+        {% if task.cost %}<div class="text-amber-400">{{ task.cost }} {{ task.currency or '' }}</div>{% endif %}
+        {% if task.deadline %}<div>Due {{ task.deadline[:10] }}</div>{% endif %}
+        <div>{{ ui.status_badge(task.status) }}</div>
+      </div>
+    </div>
+
+    {% if task.eligibility %}
+    <div class="mt-4">
+      <div class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Eligibility</div>
+      <div class="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+        {% for item in task.eligibility %}
+        <div class="flex items-start gap-2 text-[11px]">
+          <span class="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border text-[8px] font-bold
+            {{ 'border-emerald-500/40 text-emerald-400' if item.ok else ('border-gray-600 text-faint' if item.ok is none else 'border-amber-500/40 text-amber-400') }}">
+            {{ '✓' if item.ok else ('?' if item.ok is none else '!') }}
+          </span>
+          <span class="{{ 'text-gray-400' if item.ok else 'text-gray-400' }}">
+            {{ item.label }}{% if item.get('detail') %} <span class="text-faint">— {{ item.detail }}</span>{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if task.fields %}
+    <details class="mt-4">
+      <summary class="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-gray-400">Copy-ready field answers ({{ task.fields | length }})</summary>
+      <div class="mt-2 space-y-1">
+        {% for field in task.fields %}
+        <div class="flex items-start gap-2 rounded border border-white/5 bg-white/5 px-2.5 py-1 text-[11px]">
+          <span class="w-40 shrink-0 text-gray-400">{{ field.label }}</span>
+          <span class="min-w-0 flex-1 {{ 'text-faint' if field.value == 'UNKNOWN' or (field.value or '').startswith('UNKNOWN') else 'text-gray-300' }}">{{ field.value }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" class="copy-fields mt-2 rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 hover:bg-white/5"
+              data-fields="{{ task.fields | tojson | forceescape }}">Copy field answers</button>
+    </details>
+    {% endif %}
+
+    {% if task.pitch_text %}
+    <details class="mt-3">
+      <summary class="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-gray-400">Prepared pitch</summary>
+      <pre class="mt-2 whitespace-pre-wrap rounded border border-white/5 bg-[#0a0a0a] p-3 font-sans text-[11px] leading-relaxed text-gray-400">{{ task.pitch_text }}</pre>
+      <button type="button" class="copy-pitch mt-2 rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-gray-400 hover:bg-white/5"
+              data-pitch="{{ task.pitch_text | forceescape }}">Copy pitch</button>
+    </details>
+    {% endif %}
+
+    <div class="mt-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+      {% if task.destination_url %}
+      <a href="{{ task.destination_url }}" target="_blank" rel="noopener noreferrer nofollow"
+         class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400 hover:bg-amber-500/20">
+        Open destination ↗
+      </a>
+      {% endif %}
+      <button type="button" data-post="{{ url_for('reach.task_status', task_id=task.id) }}"
+              data-payload='{"status": "SUBMITTED"}' data-success="Marked submitted"
+              class="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20">Mark submitted</button>
+      <button type="button" data-post="{{ url_for('reach.task_status', task_id=task.id) }}"
+              data-payload='{"status": "SNOOZED", "days": 7}' data-success="Snoozed for 7 days"
+              class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-400 hover:bg-white/5">Snooze</button>
+      <button type="button" data-post="{{ url_for('reach.task_status', task_id=task.id) }}"
+              data-payload='{"status": "SKIPPED"}' data-success="Skipped"
+              class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-400 hover:bg-white/5">Skip</button>
+      <button type="button" data-post="{{ url_for('reach.task_status', task_id=task.id) }}"
+              data-payload='{"status": "BROKEN_ROUTE"}' data-success="Route reported broken"
+              class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-400 hover:bg-white/5">Report broken route</button>
+      <span class="self-center text-[10px] text-faint">Opening the destination does not mark this submitted.</span>
+    </div>
+  </section>
+  {% else %}
+  {{ ui.empty('Nothing needs you right now.') }}
+  {% endfor %}
+</div>
+
+<script>
+  document.addEventListener('click', async (event) => {
+    const fieldsButton = event.target.closest('.copy-fields');
+    if (fieldsButton) {
+      const fields = JSON.parse(fieldsButton.dataset.fields);
+      const text = fields.map((f) => `${f.label}: ${f.value}`).join('\n');
+      await navigator.clipboard.writeText(text);
+      reachToast('Field answers copied', true);
+      return;
+    }
+    const pitchButton = event.target.closest('.copy-pitch');
+    if (pitchButton) {
+      await navigator.clipboard.writeText(pitchButton.dataset.pitch);
+      reachToast('Pitch copied', true);
+    }
+  });
+</script>
+{% endblock %}

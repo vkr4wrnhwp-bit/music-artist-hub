@@ -1,0 +1,41 @@
+{% extends "reach/_layout.html" %}
+{% import "reach/_layout.html" as ui with context %}
+
+{% block subtitle %}Durable history per outlet and contact. Private notes never leave this account.{% endblock %}
+
+{% block reach_content %}
+<section class="overflow-hidden rounded-2xl border border-white/5 bg-[#111113]">
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[760px] text-left text-sm">
+      <thead>
+        <tr class="border-b border-white/5 text-[10px] uppercase tracking-[0.15em] text-gray-400">
+          <th class="px-4 py-2.5 font-medium">Outlet</th>
+          <th class="px-4 py-2.5 font-medium">Type</th>
+          <th class="px-4 py-2.5 font-medium">Submissions</th>
+          <th class="px-4 py-2.5 font-medium">Responses</th>
+          <th class="px-4 py-2.5 font-medium">Accepted</th>
+          <th class="px-4 py-2.5 font-medium">Placements</th>
+          <th class="px-4 py-2.5 font-medium">Last contact</th>
+          <th class="px-4 py-2.5 font-medium">Next eligible</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="border-b border-white/5 last:border-0">
+          <td class="px-4 py-2.5 font-semibold">{{ row.outlet_name or 'Unknown outlet' }}</td>
+          <td class="px-4 py-2.5 text-xs text-gray-400">{{ (row.outlet_kind or '').replace('_',' ') }}</td>
+          <td class="px-4 py-2.5 tabular-nums text-xs text-gray-300">{{ row.submissions }}</td>
+          <td class="px-4 py-2.5 tabular-nums text-xs text-gray-300">{{ row.responses }}</td>
+          <td class="px-4 py-2.5 tabular-nums text-xs text-emerald-400">{{ row.accepted_count }}</td>
+          <td class="px-4 py-2.5 tabular-nums text-xs text-emerald-400">{{ row.placement_count }}</td>
+          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-400">{{ row.last_contact_at[:10] if row.last_contact_at else '—' }}</td>
+          <td class="px-4 py-2.5 text-xs tabular-nums text-gray-400">{{ row.next_eligible_at[:10] if row.next_eligible_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="px-4 py-10 text-center text-xs text-faint">No relationships yet. They start when the first message is sent.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
