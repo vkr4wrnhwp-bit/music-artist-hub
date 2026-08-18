@@ -1,11 +1,11 @@
 {% extends "reach/_layout.html" %}
 {% import "reach/_layout.html" as ui with context %}
 
-{% block subtitle %}Discovery — {{ campaign.name }}{% endblock %}
+{% block title %}REACH — Discovery — {{ campaign.name }}{% endblock %}
 
 {% block reach_content %}
 
-<section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+<section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       {{ ui.section('Discovery', 'Always read-only, in every campaign mode: no emails, no form submissions, no spending, no external state changes.') }}
@@ -44,11 +44,11 @@
 </section>
 
 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+  <section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
     {{ ui.section('Planned query families', 'Built only from profile values you supplied.') }}
     <div class="mt-3 max-h-96 space-y-1.5 overflow-y-auto pr-1">
       {% for query in queries %}
-      <div class="flex items-start justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5">
+      <div class="flex items-start justify-between gap-2 rounded-lg border border-white/[0.08] bg-white/5 px-3 py-1.5">
         <span class="min-w-0 truncate text-xs text-gray-300">{{ query.query }}</span>
         <span class="shrink-0 text-[10px] uppercase tracking-wide text-faint">
           {{ query.family }}{% if query.territory %} · {{ query.territory }}{% endif %}
@@ -60,11 +60,11 @@
     </div>
   </section>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+  <section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
     {{ ui.section('Agent activity', 'Every job is durable, idempotent and cancellable.') }}
     <div class="mt-3 max-h-96 space-y-1.5 overflow-y-auto pr-1">
       {% for job in job_rows %}
-      <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-1.5">
+      <div class="rounded-lg border border-white/[0.08] bg-white/5 px-3 py-1.5">
         <div class="flex items-center justify-between gap-2">
           <span class="truncate font-mono text-[11px] text-gray-300">{{ job.kind }}</span>
           {{ ui.status_badge(job.status) }}
@@ -81,7 +81,7 @@
 </div>
 
 {% if dead_letters %}
-<section class="rounded-2xl border border-red-500/15 bg-[#111113] p-5">
+<section class="rounded-xl border border-red-500/15 bg-[#111113] p-5">
   {{ ui.section('Dead letter queue', 'Jobs that exhausted their retries.') }}
   <div class="mt-3 space-y-1.5">
     {% for job in dead_letters %}

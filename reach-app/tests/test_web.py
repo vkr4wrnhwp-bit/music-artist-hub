@@ -76,7 +76,8 @@ def test_the_stylesheet_is_served_and_carries_the_design_tokens(client):
     response = client.get("/static/tailwind.css")
     assert response.status_code == 200
     css = response.get_data(as_text=True)
-    for token in [r".bg-\[\#0a0a0a\]", r".bg-\[\#111113\]", r".tracking-\[0\.2em\]"]:
+    for token in [r".bg-\[\#090909\]", r".bg-\[\#111113\]", r".bg-\[\#171719\]",
+                  r".tracking-\[0\.2em\]"]:
         assert token in css, f"{token} missing from the build — rerun tools/build-css.sh"
 
 
@@ -92,7 +93,9 @@ def test_sending_is_not_offered_when_the_sender_is_not_ready(client, live_campai
     dns_checks.clear_cache()
     body = page(client, f"/reach/campaigns/{live_campaign}/review")
     assert "Sending is disabled until the sender health checks pass." in body
-    assert "/send" not in body
+    # No send action anywhere: the POST URL for sending ends in /send". The
+    # nav's /reach/sender setup link is a page, not an action, and doesn't match.
+    assert '/send"' not in body
 
 
 def test_sending_is_offered_once_the_sender_is_healthy(client, live_campaign):
@@ -101,8 +104,10 @@ def test_sending_is_offered_once_the_sender_is_healthy(client, live_campaign):
     assert "Send approved message" in body
 
 
-def test_reach_index_lists_catalog_tracks(client):
-    body = page(client, "/reach")
+def test_campaigns_screen_lists_catalog_tracks(client):
+    """Starting a campaign from a track lives on the Campaigns screen now; the
+    dashboard stays focused on what needs attention."""
+    body = page(client, "/reach/campaigns")
     assert "Midnight Drive" in body
     assert "Neon Dreams" in body
     assert "Synthwave Surfer" in body
@@ -161,14 +166,14 @@ def test_opportunity_detail_shows_evidence_and_score_reasons(client, live_campai
     body = page(client, f"/reach/campaigns/{live_campaign}/targets/{target['id']}")
     assert "Why do we know this?" in body
     assert "Why this score?" in body
-    assert "Compliance decision" in body
-    assert "retrieved" in body
+    assert "Outreach decision" in body
+    assert "Read 20" in body  # every receipt shows its retrieval date
 
 
 def test_review_screen_shows_the_exact_payload(client, live_campaign):
     body = page(client, f"/reach/campaigns/{live_campaign}/review")
     assert "Exactly what will be sent" in body
-    assert "Payload hash" in body
+    assert "Approval verified against" in body
     assert "Source of every factual claim" in body
     assert "Independent verification of this address" in body
 
@@ -185,8 +190,10 @@ def test_every_completed_action_offers_the_next_step(client, live_campaign):
 
     target = campaigns.targets(live_campaign)[0]
     body = page(client, f"/reach/campaigns/{live_campaign}/targets/{target['id']}")
-    assert "data-next=" in body, "Generate pitch must hand the user the review screen"
-    assert f"/campaigns/{live_campaign}/review" in body
+    assert f"/campaigns/{live_campaign}/review" in body, \
+        "the target page must hand the user the review screen"
+    assert "data-next=" in body or "Review the pitch" in body, \
+        "drafting must navigate onward, or an existing draft must link to review"
 
 
 def test_the_review_queue_is_never_a_dead_end(client, scouted_without_sender):
@@ -240,14 +247,18 @@ def test_settings_shows_flags_suppression_and_audit(client, live_campaign):
     assert "Chain verified" in body
 
 
-def test_relationships_screen_renders(client, live_campaign):
-    body = page(client, "/reach/relationships")
-    assert "Relationships" in body
+def test_contacts_screen_renders_and_old_url_still_works(client, live_campaign):
+    body = page(client, "/reach/contacts")
+    assert "Contacts" in body
+    # The old bookmark keeps working.
+    response = client.get("/reach/relationships")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/reach/contacts")
 
 
 def test_fixture_mode_is_labelled_in_the_interface(client, live_campaign):
     body = page(client, "/reach")
-    assert "Fixture corpus" in body
+    assert "Demo data — fixture corpus" in body
 
 
 # --- API endpoints ----------------------------------------------------------

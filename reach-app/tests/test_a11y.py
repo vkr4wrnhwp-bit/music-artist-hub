@@ -22,10 +22,16 @@ import re
 import pytest
 
 # The surfaces REACH paints text on. #1a1a1c is a white/5 panel over #111113 —
-# the lightest of the three and therefore the binding constraint for light text.
-SURFACES = {"page": "#0a0a0a", "panel": "#111113", "raised": "#1a1a1c"}
+# the lightest of the four and therefore the binding constraint for light text.
+SURFACES = {"page": "#090909", "panel": "#111113", "raised": "#171719",
+            "overlay": "#1a1a1c"}
 
 AA_NORMAL = 4.5
+
+# Tones that never sit on a dark surface: text-black exists only for solid
+# amber primary buttons. Measured against that fill (test below), and guarded
+# by a pairing test so it cannot drift onto the dark grounds unmeasured.
+PAIRED_ONLY = {"black": "#f59e0b"}
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STYLESHEET = ROOT / "static" / "tailwind.css"
@@ -88,6 +94,8 @@ def test_every_text_colour_used_clears_wcag_aa(surface):
     utilities = stylesheet_text_utilities()
     failures, unbuilt = [], []
     for name in sorted(used_text_classes()):
+        if name in PAIRED_ONLY:
+            continue  # measured against its paired fill in the tests below
         rgb = palette.get(name)
         if rgb is None:
             # A size or alignment utility is fine. A class the build has never
@@ -106,6 +114,29 @@ def test_every_text_colour_used_clears_wcag_aa(surface):
     assert not failures, (
         f"Text colours below WCAG AA ({AA_NORMAL}:1) on the {surface} surface:\n  "
         + "\n  ".join(failures))
+
+
+def test_paired_tones_clear_aa_on_their_own_fill():
+    palette = stylesheet_colours()
+    for name, fill in PAIRED_ONLY.items():
+        rgb = palette.get(name)
+        if rgb is None:
+            continue  # not used anywhere; nothing to measure
+        assert contrast(rgb, fill) >= AA_NORMAL, \
+            f"text-{name} is {contrast(rgb, fill):.2f}:1 on its fill {fill}"
+
+
+def test_paired_tones_never_leave_their_fill():
+    """text-black may only appear alongside a solid amber background — on a
+    dark surface it would be unreadable, and the surface test above skips it."""
+    offenders = []
+    for path in TEMPLATES:
+        for attr in re.findall(r'class="([^"]*)"', path.read_text()):
+            if "text-black" in attr and "bg-amber-500" not in attr:
+                offenders.append(f"{path.name}: {attr[:80]}")
+    assert not offenders, (
+        "text-black used without bg-amber-500 in the same class list:\n  "
+        + "\n  ".join(offenders))
 
 
 def test_the_tertiary_tone_stays_dimmer_than_the_secondary_one():

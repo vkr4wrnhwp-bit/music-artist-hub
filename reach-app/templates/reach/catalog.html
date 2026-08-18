@@ -1,11 +1,16 @@
 {% extends "reach/_layout.html" %}
 {% import "reach/_layout.html" as ui with context %}
 
-{% block subtitle %}The tracks REACH works from. This is REACH's own catalog — nothing here is read from another application.{% endblock %}
+{% block title %}REACH — My music{% endblock %}
 
 {% block reach_content %}
 
-<section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+<section>
+  <h1 class="text-2xl font-semibold tracking-tight">My music</h1>
+  <p class="mt-1 text-sm text-gray-400">The tracks REACH works from. This is REACH's own catalog — nothing here is read from another application.</p>
+</section>
+
+<section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
   {{ ui.section('Add a track', 'Only a title and an artist are required. Anything you leave blank stays UNKNOWN — REACH will show the gap rather than fill it in.') }}
   <form id="add-track" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {#
@@ -31,16 +36,16 @@
     <label class="block">
       <span class="text-[10px] font-medium uppercase tracking-[0.15em] text-gray-400">{{ label }}</span>
       <input name="{{ name }}" placeholder="{{ placeholder }}"
-             class="mt-1 w-full rounded-lg border border-white/10 bg-[#0a0a0a] px-3 py-2 text-sm outline-none focus:border-amber-500/50">
+             class="mt-1 w-full rounded-lg border border-white/10 bg-[#090909] px-3 py-2 text-sm outline-none focus:border-amber-500/50">
     </label>
     {% endfor %}
     <div class="flex flex-wrap items-end gap-4 sm:col-span-2 lg:col-span-3">
       <label class="flex items-center gap-2 text-sm text-gray-300">
-        <input type="checkbox" name="distributed" class="h-4 w-4 rounded border-white/20 bg-[#0a0a0a]">
+        <input type="checkbox" name="distributed" class="h-4 w-4 rounded border-white/20 bg-[#090909]">
         Delivered through a distributor
       </label>
       <label class="flex items-center gap-2 text-sm text-gray-300">
-        <input type="checkbox" name="splits_confirmed" class="h-4 w-4 rounded border-white/20 bg-[#0a0a0a]">
+        <input type="checkbox" name="splits_confirmed" class="h-4 w-4 rounded border-white/20 bg-[#090909]">
         Splits confirmed with all collaborators
       </label>
       <button type="submit"
@@ -60,7 +65,7 @@
   {% if tracks %}
   <div class="mt-3 space-y-2">
     {% for item in tracks %}
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
+    <div class="rounded-xl border border-white/[0.08] bg-[#111113] p-4">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">

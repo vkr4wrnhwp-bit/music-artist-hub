@@ -146,11 +146,14 @@ def test_the_panel_hides_once_there_is_nothing_left_to_say(monkeypatch):
 def test_the_panel_renders_on_a_fresh_install():
     from app import create_app
 
-    body = create_app().test_client().get("/reach").get_data(as_text=True)
+    client = create_app().test_client()
+    body = client.get("/reach").get_data(as_text=True)
     assert "Getting started" in body
     assert "Add a track of your own" in body
-    assert "Not connected yet" in body
     assert "0 of 6 done" in body
+    # The capability list moved with the system screens, but stays reachable.
+    advanced = client.get("/reach/advanced").get_data(as_text=True)
+    assert "Not connected yet" in advanced
 
 
 def test_campaign_counts_are_scoped_to_the_tenant(campaign_id):

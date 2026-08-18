@@ -146,7 +146,7 @@ def capabilities():
             "label": f"{len(missing)} discovery sources not connected",
             "detail": ("Discovery still runs, over fewer sources: "
                        + ", ".join(sorted(missing)) + ". Each one reads NOT CONNECTED on "
-                       "Provider Health rather than quietly returning nothing."),
+                       "the Connections screen rather than quietly returning nothing."),
             "fix": "reach.providers_view"})
 
     return items

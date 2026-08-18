@@ -7,7 +7,8 @@ already refers to it, and ``/`` redirects here.
 
 import json
 
-from flask import Blueprint, abort, jsonify, render_template, request, url_for
+from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
+                   url_for)
 
 from . import REACH_VERSION
 from . import (analytics, approvals, audit, campaigns, catalog, compliance, contacts,
@@ -24,25 +25,38 @@ bp = Blueprint("reach", __name__, url_prefix="/reach")
 
 @bp.app_context_processor
 def _template_globals():
-    # Cache-busts the stylesheet across releases without hashing on every request.
-    return {"reach_version": REACH_VERSION}
+    """Globals every page needs: version, the acting person, honesty flags."""
+    from . import config
 
+    principal = rbac.current_principal()
+    # Greet by a name that actually came from the user: REACH_PRINCIPAL_NAME,
+    # or a display name someone set. The seeded placeholder and a default
+    # email are not names, so those fall back to "there" — never invented.
+    name = (config.env("REACH_PRINCIPAL_NAME", "")
+            or config.env("REACH_SENDER_NAME", "")).strip()
+    if not name and principal.display_name and principal.display_name != "Account Owner":
+        name = principal.display_name.strip()
+    if not name:
+        local = principal.email.split("@")[0].strip()
+        if local not in ("owner", "artist", "demo", "admin", "hello", "info"):
+            name = local
+    return {
+        "reach_version": REACH_VERSION,
+        "principal_name": name or "there",
+        "fixture_mode": not search_provider.connected(),
+        "needs_you_count": humanactions.open_count(),
+    }
+
+# Campaign tabs follow the stage sequence an artist experiences. Placements and
+# the campaign's Needs You queue stay reachable from the same bar, rendered as
+# secondary links by the layout.
 NAV = [
     ("overview", "Overview"),
     ("discover", "Discover"),
     ("opportunities", "Opportunities"),
     ("review", "Review"),
     ("outreach", "Outreach"),
-    ("responses", "Responses"),
-    ("placements", "Placements"),
-]
-
-GLOBAL_NAV = [
-    ("reach.catalog_view", "Catalog"),
-    ("reach.relationships_view", "Relationships"),
-    ("reach.providers_view", "Provider Health"),
-    ("reach.needs_you", "Needs You"),
-    ("reach.settings_view", "Settings"),
+    ("responses", "Results"),
 ]
 
 
@@ -53,11 +67,45 @@ def bootstrap():
     catalog.ensure_catalog()
 
 
+CAMPAIGN_STAGES = ["Setup", "Discover", "Opportunities", "Review", "Outreach", "Results"]
+
+
+def campaign_stage(campaign_id, metrics=None):
+    """Which concrete stage a campaign is in, derived from persisted records.
+
+    No percentages: there is no honest denominator for "67% complete", but
+    "has discovered targets, none drafted yet" is a fact.
+    """
+    metrics = metrics or analytics.campaign_metrics(campaign_id)
+    spent = campaigns.budget(campaign_id) or {}
+    if metrics.get("responses") or metrics.get("placed"):
+        return "Results"
+    if metrics.get("submitted"):
+        return "Outreach"
+    if campaigns.targets(campaign_id, status=campaigns.DRAFTED):
+        return "Review"
+    if metrics.get("discovered"):
+        return "Opportunities"
+    if spent.get("searches_used"):
+        return "Discover"
+    return "Setup"
+
+
+def _stage_next_url(campaign_id, stage):
+    return {
+        "Setup": url_for("reach.discover", campaign_id=campaign_id),
+        "Discover": url_for("reach.discover", campaign_id=campaign_id),
+        "Opportunities": url_for("reach.opportunities", campaign_id=campaign_id),
+        "Review": url_for("reach.review", campaign_id=campaign_id),
+        "Outreach": url_for("reach.outreach", campaign_id=campaign_id),
+        "Results": url_for("reach.responses", campaign_id=campaign_id),
+    }[stage]
+
+
 def _shell(campaign_id=None, active=None):
     principal = rbac.current_principal()
     return {
         "nav": NAV,
-        "global_nav": GLOBAL_NAV,
         "active": active,
         "campaign_id": campaign_id,
         "principal": principal,
@@ -83,16 +131,198 @@ def _handle_reach_error(exc):
 
 @bp.route("/", strict_slashes=False)
 def index():
+    """Home: what needs attention, best opportunities, the moving campaign.
+
+    Every number on this screen is a query over persisted records. Anything
+    REACH does not actually know is omitted or shown as UNKNOWN — never zero.
+    """
     bootstrap()
+
+    qualified = _targets_everywhere(status=campaigns.QUALIFIED)
+    drafted = _targets_everywhere(status=campaigns.DRAFTED)
+    follow_ups = outcomes.follow_ups_due()
+    recent_responses = outcomes.responses(limit=6)
+
     rows = campaigns.list_campaigns()
-    items = []
-    for row in rows:
+    campaign_cards = []
+    for row in rows[:3]:
         metrics = analytics.campaign_metrics(row["id"])
-        items.append({"campaign": row, "metrics": metrics,
+        stage = campaign_stage(row["id"], metrics)
+        campaign_cards.append({
+            "campaign": row, "metrics": metrics, "stage": stage,
+            "stages": CAMPAIGN_STAGES,
+            "next_url": _stage_next_url(row["id"], stage),
+        })
+
+    actions = _next_best_actions(qualified, drafted, follow_ups)
+    return render_template(
+        "reach/home.html",
+        qualified=qualified,
+        best=qualified[:4],
+        drafted=drafted,
+        follow_ups=follow_ups,
+        recent_responses=recent_responses,
+        featured=campaign_cards[0] if campaign_cards else None,
+        more_campaigns=campaign_cards[1:3],
+        campaign_count=len(rows),
+        actions=actions,
+        onboarding=onboarding.status(),
+        **_shell(),
+    )
+
+
+def _targets_everywhere(status=None, limit=300):
+    """Targets across every campaign, enriched exactly like campaigns.targets:
+    outlet identity, latest score, risk band, compliance decision."""
+    sql = (
+        "SELECT t.*, c.name AS campaign_name, "
+        "o.name AS outlet_name, o.url AS outlet_url, o.kind AS outlet_kind, "
+        "o.domain AS outlet_domain, o.submissions_open, o.territory, "
+        "(SELECT score FROM opportunity_score s WHERE s.target_id = t.id "
+        " ORDER BY created_at DESC LIMIT 1) AS reach_score, "
+        "(SELECT band FROM risk_assessment r WHERE r.target_id = t.id "
+        " ORDER BY created_at DESC LIMIT 1) AS risk_band, "
+        "(SELECT decision FROM compliance_decision cd WHERE cd.target_id = t.id "
+        " ORDER BY decided_at DESC LIMIT 1) AS compliance_decision "
+        "FROM campaign_target t "
+        "JOIN campaign c ON c.id = t.campaign_id "
+        "JOIN outlet o ON o.id = t.outlet_id "
+        "WHERE c.tenant_id = ?"
+    )
+    params = [rbac.current_principal().tenant_id]
+    if status:
+        sql += " AND t.status = ?"
+        params.append(status)
+    sql += " ORDER BY reach_score DESC NULLS LAST, t.created_at DESC LIMIT ?"
+    params.append(limit)
+    return db.query(sql, tuple(params))
+
+
+def _next_best_actions(qualified, drafted, follow_ups):
+    """A work queue computed from real state — never motivational filler."""
+    actions = []
+    if drafted:
+        first = drafted[0]
+        actions.append({
+            "title": f"Approve {len(drafted)} prepared message{'s' if len(drafted) != 1 else ''}",
+            "context": ", ".join(t["outlet_name"] or t["outlet_domain"] for t in drafted[:2]),
+            "url": url_for("reach.review", campaign_id=first["campaign_id"]),
+            "icon": "send",
+        })
+    undrafted = [t for t in qualified]
+    if undrafted:
+        first = undrafted[0]
+        actions.append({
+            "title": f"Review {len(undrafted)} new opportunit{'ies' if len(undrafted) != 1 else 'y'}",
+            "context": ", ".join((t["outlet_name"] or t["outlet_domain"]) for t in undrafted[:2]),
+            "url": url_for("reach.all_opportunities"),
+            "icon": "star",
+        })
+    open_tasks = humanactions.open_count()
+    if open_tasks:
+        actions.append({
+            "title": f"Complete {open_tasks} manual submission{'s' if open_tasks != 1 else ''}",
+            "context": "Forms and platform tools REACH will not automate",
+            "url": url_for("reach.needs_you"),
+            "icon": "hand",
+        })
+    if follow_ups:
+        actions.append({
+            "title": f"Send {len(follow_ups)} follow-up{'s' if len(follow_ups) != 1 else ''}",
+            "context": ", ".join(f["outlet_name"] or "" for f in follow_ups[:2]),
+            "url": url_for("reach.all_responses"),
+            "icon": "clock",
+        })
+    health = sender.health_summary()
+    if not health["ready"]:
+        actions.append({
+            "title": "Finish sender setup",
+            "context": "Emails stay drafts-only until sending passes its checks",
+            "url": url_for("reach.outreach_setup"),
+            "icon": "shield",
+        })
+    return actions[:5]
+
+
+@bp.route("/campaigns", methods=["GET"])
+def campaigns_list():
+    bootstrap()
+    items = []
+    for row in campaigns.list_campaigns():
+        metrics = analytics.campaign_metrics(row["id"])
+        stage = campaign_stage(row["id"], metrics)
+        items.append({"campaign": row, "metrics": metrics, "stage": stage,
+                      "stages": CAMPAIGN_STAGES,
+                      "next_url": _stage_next_url(row["id"], stage),
                       "health": analytics.campaign_health(row["id"])["score"]})
-    return render_template("reach/index.html", campaigns=items,
-                           recordings=catalog.recordings(),
-                           onboarding=onboarding.status(), **_shell(active="overview"))
+    return render_template("reach/campaigns.html", campaigns=items,
+                           recordings=catalog.recordings(), **_shell())
+
+
+@bp.route("/opportunities")
+def all_opportunities():
+    """Every opportunity across campaigns, decision-first."""
+    bootstrap()
+    view = request.args.get("view", "actionable")
+    rows = _targets_everywhere()
+    filters = {
+        "actionable": lambda t: t["status"] in (campaigns.QUALIFIED, campaigns.READY,
+                                                campaigns.DRAFTED),
+        "qualified": lambda t: t["status"] == campaigns.QUALIFIED,
+        "review": lambda t: t["status"] in (campaigns.DRAFTED, campaigns.READY),
+        "blocked": lambda t: t["status"] == campaigns.BLOCKED,
+        "all": lambda t: True,
+    }
+    chosen = filters.get(view, filters["actionable"])
+    return render_template("reach/opportunities_all.html",
+                           targets=[t for t in rows if chosen(t)],
+                           view=view, total=len(rows), **_shell())
+
+
+@bp.route("/responses")
+def all_responses():
+    bootstrap()
+    return render_template("reach/responses_all.html",
+                           responses=outcomes.responses(limit=100),
+                           follow_ups=outcomes.follow_ups_due(), **_shell())
+
+
+@bp.route("/contacts")
+def contacts_view():
+    bootstrap()
+    return render_template("reach/relationships.html",
+                           rows=relationships.listing(), **_shell())
+
+
+@bp.route("/relationships")
+def relationships_view():
+    return redirect(url_for("reach.contacts_view"))
+
+
+@bp.route("/advanced")
+def advanced():
+    """The system area: everything an artist rarely needs, kept out of the way
+    but never removed."""
+    bootstrap()
+    from . import crypto
+
+    health = sender.health_summary()
+    return render_template(
+        "reach/advanced.html",
+        provider_counts=policy.connection_summary(),
+        sender_health=health,
+        key_state=crypto.key_state(),
+        onboarding_capabilities=onboarding.capabilities(),
+        **_shell(),
+    )
+
+
+@bp.route("/sender")
+def outreach_setup():
+    """Sender setup as its own plain-language page; details expandable."""
+    bootstrap()
+    return render_template("reach/sender_setup.html",
+                           health=sender.health_summary(), **_shell())
 
 
 @bp.route("/catalog")
@@ -240,11 +470,16 @@ def _campaign_or_404(campaign_id):
 def overview(campaign_id):
     bootstrap()
     campaign = _campaign_or_404(campaign_id)
+    metrics = analytics.campaign_metrics(campaign_id)
+    stage = campaign_stage(campaign_id, metrics)
     return render_template(
         "reach/overview.html",
         campaign=campaign,
         recording=catalog.get_recording(campaign["recording_id"]),
-        metrics=analytics.campaign_metrics(campaign_id),
+        stage=stage,
+        stages=CAMPAIGN_STAGES,
+        stage_next_url=_stage_next_url(campaign_id, stage),
+        metrics=metrics,
         health=analytics.campaign_health(campaign_id),
         pipeline_counts=campaigns.pipeline_counts(campaign_id),
         settings=campaigns.settings(campaign_id),
@@ -599,14 +834,6 @@ def task_status(task_id):
     return jsonify({"ok": True, "status": status})
 
 
-@bp.route("/relationships")
-def relationships_view():
-    bootstrap()
-    return render_template(
-        "reach/relationships.html",
-        rows=relationships.listing(),
-        **_shell(None, None),
-    )
 
 
 @bp.route("/providers")
