@@ -144,6 +144,35 @@ def get_transport():
     return HttpTransport()
 
 
+_fixture_fallback = None
+
+
+def transport_for(hostname):
+    """The transport that serves this host.
+
+    An installed transport (tests) always wins. Otherwise reserved ``.example``
+    hosts are served from the built-in fixture corpus: RFC 2606 keeps them
+    permanently unresolvable, so a real HTTP transport can never fetch one.
+    Without this routing, keyless discovery finds fixture URLs and then blocks
+    on every fetch of them — which is exactly what the first production run
+    did: 24 searches, thirteen fetch jobs that all "succeeded" as refusals,
+    zero pages, zero outlets. Real hosts always get the real transport, with
+    DNS resolution and every other guard intact.
+    """
+    global _fixture_fallback
+    if _transport is not None:
+        return _transport
+    if (hostname or "").lower().rstrip(".").endswith(".example"):
+        if _fixture_fallback is None:
+            _fixture_fallback = FixtureTransport()
+        return _fixture_fallback
+    return HttpTransport()
+
+
+def _served_by_fixtures(hostname):
+    return isinstance(transport_for(hostname), FixtureTransport)
+
+
 def using_fixtures():
     return isinstance(get_transport(), FixtureTransport)
 
@@ -177,8 +206,10 @@ def _robots_for(scheme, hostname, port):
     parser.set_url(robots_url)
     decision = ROBOTS_UNAVAILABLE
     try:
-        validated = netguard.validate_url(robots_url, resolve=not using_fixtures())
-        status, headers, body = get_transport().request(
+        transport = transport_for(hostname)
+        validated = netguard.validate_url(
+            robots_url, resolve=not isinstance(transport, FixtureTransport))
+        status, headers, body = transport.request(
             validated, {"User-Agent": config.USER_AGENT, "Accept": "text/plain"}
         )
         if status == 200:
@@ -249,10 +280,15 @@ def fetch(url, honor_robots=True, max_redirects=None):
             raise FetchBlocked("Redirect loop", netguard.REASON_REDIRECT)
         seen.add(current)
 
-        # Fixture mode skips only DNS: reserved .example names never resolve.
-        # Every other control — scheme, host blocklist, literal-IP checks, port
-        # and file type — still runs exactly as it does against the live web.
-        validated = netguard.validate_url(current, resolve=not using_fixtures())
+        # Fixture-served hosts skip only DNS: reserved .example names never
+        # resolve. Every other control — scheme, host blocklist, literal-IP
+        # checks, port and file type — still runs exactly as it does against
+        # the live web, and the decision is per hop, so a fixture page
+        # redirecting at a real address gets the real checks.
+        hop_host = urlsplit(current).hostname
+        transport = transport_for(hop_host)
+        validated = netguard.validate_url(
+            current, resolve=not isinstance(transport, FixtureTransport))
         if honor_robots:
             robots_decision, delay = robots_check(current)
             if robots_decision == ROBOTS_DISALLOWED:
@@ -261,7 +297,7 @@ def fetch(url, honor_robots=True, max_redirects=None):
                 )
             _respect_crawl_delay(validated["domain"], delay)
 
-        status, headers, body = get_transport().request(validated, {
+        status, headers, body = transport.request(validated, {
             "User-Agent": config.USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
             "Accept-Language": "en,*;q=0.5",
