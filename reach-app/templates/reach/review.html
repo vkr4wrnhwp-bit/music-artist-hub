@@ -48,6 +48,24 @@
       {% endfor %}
     </div>
 
+    {% if draftable_targets %}
+    <div class="rounded-lg border border-white/5 bg-[#111113] p-3">
+      <div class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Qualified — drafts start here</div>
+      <p class="mt-1 text-[11px] text-gray-400">Drafting works even while sending is disabled.</p>
+      <div class="mt-2 space-y-1">
+        {% for target in draftable_targets %}
+        <div class="flex items-center justify-between gap-2 text-[11px]">
+          <span class="min-w-0 truncate text-gray-300">{{ target.outlet_name }}</span>
+          <button type="button" data-post="{{ url_for('reach.generate_draft', target_id=target.id) }}"
+                  data-success="Pitch drafted"
+                  data-next="{{ url_for('reach.review', campaign_id=campaign.id, target_id=target.id) }}"
+                  class="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-400 hover:bg-amber-500/20">Draft</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if ready_targets %}
     <div class="rounded-lg border border-white/5 bg-[#111113] p-3">
       <div class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Ready, not yet drafted</div>

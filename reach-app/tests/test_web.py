@@ -175,6 +175,44 @@ def test_review_screen_shows_the_exact_payload(client, live_campaign):
 
 # --- global screens ---------------------------------------------------------
 
+def test_every_completed_action_offers_the_next_step(client, live_campaign):
+    """The guided flow: each screen hands the user its natural next action.
+
+    Its first real user got stranded at every seam — a draft created with no
+    pointer to where it went, an empty review queue with no way in.
+    """
+    from reach import campaigns
+
+    target = campaigns.targets(live_campaign)[0]
+    body = page(client, f"/reach/campaigns/{live_campaign}/targets/{target['id']}")
+    assert "data-next=" in body, "Generate pitch must hand the user the review screen"
+    assert f"/campaigns/{live_campaign}/review" in body
+
+
+def test_the_review_queue_is_never_a_dead_end(client, scouted_without_sender):
+    """With no sender, nothing is READY — but qualified targets must still be
+    draftable from the review screen itself, as its banner promises."""
+    body = page(client, f"/reach/campaigns/{scouted_without_sender}/review")
+    assert "Qualified — drafts start here" in body
+    assert "Drafting works even while sending is disabled." in body
+
+
+def test_campaign_creation_lands_on_discovery(client):
+    from reach import catalog, profile
+
+    recording = catalog.recording_by_slug("midnight-drive")
+    profile_id = profile.get_or_create(recording["id"])
+    for field, value in [("primary_genre", "synthwave"), ("microgenres", ["synthwave"]),
+                         ("mood", ["driving"]), ("language", "English"),
+                         ("comparable_artists", ["The Midnight"])]:
+        profile.set_field(profile_id, field, value)
+    catalog.attest_rights(recording["id"])
+    payload = client.post("/reach/campaigns",
+                          json={"recording_id": recording["id"]}).get_json()
+    assert payload["ok"] is True
+    assert payload["url"].endswith("/discover"),         "the next step after creating a campaign is running discovery"
+
+
 def test_provider_health_never_shows_a_fake_green(client, live_campaign):
     body = page(client, "/reach/providers")
     assert "NOT CONNECTED" in body

@@ -149,7 +149,13 @@
     button.textContent = original;
     if (data.ok) {
       reachToast(button.dataset.success || 'Done', true);
-      if (button.dataset.reload !== 'false') setTimeout(() => window.location.reload(), 600);
+      // Every completed action should hand the user its next step: a button
+      // with data-next navigates there instead of reloading in place.
+      if (button.dataset.next) {
+        setTimeout(() => { window.location = button.dataset.next; }, 600);
+      } else if (button.dataset.reload !== 'false') {
+        setTimeout(() => window.location.reload(), 600);
+      }
     }
   });
 </script>

@@ -121,8 +121,10 @@
         if (!data.ok) break;
         paintProgress(data.progress);
         if (!data.pending) {
-          reachToast('Discovery complete', true);
-          setTimeout(() => window.location.reload(), 700);
+          reachToast('Discovery complete — opening opportunities', true);
+          setTimeout(() => {
+            window.location = '{{ url_for("reach.opportunities", campaign_id=campaign.id) }}';
+          }, 800);
           return;
         }
         // Pending but nothing processed twice in a row: a job is mid-retry
