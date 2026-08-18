@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py ./
 COPY reach ./reach
 COPY templates ./templates
+COPY static ./static
 
 # The SQLite store belongs on a mounted volume; the default path here is inside
 # the image and resets with the container, which is fine for a trial run and

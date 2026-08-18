@@ -9,6 +9,7 @@ import json
 
 from flask import Blueprint, abort, jsonify, render_template, request, url_for
 
+from . import REACH_VERSION
 from . import (analytics, approvals, audit, campaigns, catalog, compliance,
                contacts, db, drafts, entities, evidence, firewall, humanactions, jobs,
                outcomes, pipeline, policy, profile, rbac, relationships, firstparty,
@@ -19,6 +20,12 @@ from .providers import search as search_provider
 from .providers import spotify as spotify_provider
 
 bp = Blueprint("reach", __name__, url_prefix="/reach")
+
+
+@bp.app_context_processor
+def _template_globals():
+    # Cache-busts the stylesheet across releases without hashing on every request.
+    return {"reach_version": REACH_VERSION}
 
 NAV = [
     ("overview", "Overview"),

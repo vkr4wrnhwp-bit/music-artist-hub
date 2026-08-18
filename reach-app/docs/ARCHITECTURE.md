@@ -15,7 +15,7 @@ proven here, and it kept its own SQLite store because it always had one.
 | --- | --- |
 | Sibling product | **Royalty Sweep by Street Banker** — where REACH first lived |
 | Framework | Flask 3 + Jinja2, Python 3.11/3.12 |
-| Front end | Tailwind via CDN, Chart.js via CDN, server-rendered Jinja. No build step, no `package.json` for this app |
+| Front end | Tailwind via CDN, Chart.js via CDN, server-rendered Jinja. No build step, no `package.json` for this app. **REACH does not use the CDN** — see below |
 | Database | **None** in the sibling app: `royalty_data.py` holds module-level seeded dataclasses. REACH brought its own |
 | Authentication | **None.** No sessions, no users, no login |
 | Tenancy | **None.** Single implicit account |
@@ -42,6 +42,7 @@ codebase over the brief's implied stack, as the execution contract requires.
 | "Reuse the existing queue" — there is none | `reach/jobs.py` implements a durable queue over the same SQLite store: idempotency keys, retries with exponential backoff, cancellation, progress, dead-letter, per-provider concurrency, cost accounting. A background thread drains it in production; tests drain it synchronously. |
 | Pitch writing implies an LLM; no credential exists | Drafts are composed **deterministically** from first-party facts and permitted evidence, with every sentence bound to a source in `facts_json`. The LLM adapter exists, reports `DISABLED`, and the firewall gates the composition path exactly as it would gate a model call. Nothing is fabricated. |
 | Encryption at rest | Added `cryptography` to `requirements.txt` — one well-known dependency, used for Fernet. Without `REACH_ENCRYPTION_KEY` the process uses an ephemeral key and says so on Provider Health. Nothing is ever stored in plaintext. |
+| Tailwind via `cdn.tailwindcss.com` | That script is a development tool by Tailwind's own documentation, and loading it makes every page render depend on a third party being reachable. REACH builds the stylesheet ahead of time into `static/tailwind.css` and serves it itself. Tailwind **v3** is pinned deliberately — it is what the CDN served while these screens were designed, so the switch changes nothing visually. The CSS is committed, so deploying stays `pip install` + `gunicorn` with no node step; `tools/build-css.sh` regenerates it when a template gains a class the build does not have. A test fails if any page reintroduces a third-party asset. |
 | Search backend | Brave Search API and Google Programmable Search are implemented. Without a credential, discovery runs a **fixture corpus**, and every screen and job result is labelled `FIXTURE`. Claude's own web search is deliberately not the production backend. |
 
 ## 1. Where REACH lives
@@ -63,10 +64,13 @@ music-artist-hub/
     ├── Dockerfile             # REACH's own container
     ├── pyproject.toml         # REACH's own lint and test config
     ├── reach/                 # the package
+    ├── static/
+    │   └── tailwind.css       # built ahead of time, committed, served by REACH
+    ├── tools/build-css.sh     # regenerates it; the only step that needs node
     ├── templates/
     │   ├── base.html          # REACH's shell
     │   └── reach/             # 15 screens
-    ├── tests/                 # 163 tests
+    ├── tests/                 # 183 tests
     └── docs/                  # these eight documents
 ```
 

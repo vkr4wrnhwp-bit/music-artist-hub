@@ -313,7 +313,7 @@ def _context_sentence(recording, values, baseline):
             "we report on."
         )
         facts.append({
-            "claim": f"{baseline['streams']} streams",
+            "claim": f"{baseline['streams']:,} streams",
             "basis": "REACH catalog — the artist's own reported figures",
             "source": "reach_catalog",
         })

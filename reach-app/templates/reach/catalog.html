@@ -8,19 +8,25 @@
 <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
   {{ ui.section('Add a track', 'Only a title and an artist are required. Anything you leave blank stays UNKNOWN — REACH will show the gap rather than fill it in.') }}
   <form id="add-track" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {#
+      Placeholders describe the shape of the field rather than showing a
+      plausible value. A realistic-looking example reads as a pre-filled form,
+      and a half-read placeholder submitted as fact is exactly the kind of
+      invented data the rest of REACH refuses to produce.
+    #}
     {% for name, label, placeholder in [
-      ('title', 'Track title', 'Midnight Drive'),
-      ('artist_name', 'Artist', 'Your artist name'),
-      ('isrc', 'ISRC', 'USRC12345678'),
-      ('iswc', 'ISWC', 'T-034.524.680-1'),
-      ('upc', 'UPC', '810012345671'),
-      ('publisher', 'Publisher', 'Your publishing company'),
-      ('writers', 'Writers (comma separated)', 'You, Co-writer'),
-      ('producers', 'Producers (comma separated)', 'You'),
-      ('alternate_titles', 'Alternate titles (comma separated)', 'Midnight Drive (Extended Mix)'),
-      ('streams', 'Streams to date', '5200000'),
-      ('monthly_streams', 'Monthly streams, oldest first (comma separated)', '412000, 470000, 505000'),
-      ('reporting_platforms', 'Platforms reporting (comma separated)', 'Spotify, Apple Music'),
+      ('title', 'Track title', 'required'),
+      ('artist_name', 'Artist', 'required'),
+      ('isrc', 'ISRC', '12 characters, from your distributor'),
+      ('iswc', 'ISWC', 'from your PRO'),
+      ('upc', 'UPC', 'release barcode'),
+      ('publisher', 'Publisher', 'leave blank if unpublished'),
+      ('writers', 'Writers (comma separated)', 'name, name'),
+      ('producers', 'Producers (comma separated)', 'name, name'),
+      ('alternate_titles', 'Alternate titles (comma separated)', 'other titles this is catalogued under'),
+      ('streams', 'Streams to date', 'whole number'),
+      ('monthly_streams', 'Monthly streams, oldest first (comma separated)', 'number, number, number'),
+      ('reporting_platforms', 'Platforms reporting (comma separated)', 'platform, platform'),
     ] %}
     <label class="block">
       <span class="text-[10px] font-medium uppercase tracking-[0.15em] text-gray-500">{{ label }}</span>

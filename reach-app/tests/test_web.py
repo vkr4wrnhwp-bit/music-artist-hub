@@ -58,6 +58,49 @@ def test_the_app_serves_reach_and_nothing_else(client):
     assert stray == [], f"unexpected routes mounted: {stray}"
 
 
+def test_the_page_loads_no_third_party_assets(client):
+    """Every asset is served by REACH itself.
+
+    A CDN link would make each page render depend on a third party being up, and
+    cdn.tailwindcss.com is a development tool by its own documentation.
+    """
+    body = page(client, "/reach")
+    head = body.split("<body")[0]
+    assert "cdn.tailwindcss.com" not in body
+    assert "//" not in head.replace("<!DOCTYPE", "").replace("http-equiv", "") \
+        .replace('xmlns=\'http://www.w3.org/2000/svg\'', "")
+    assert 'href="/static/tailwind.css' in body
+
+
+def test_the_stylesheet_is_served_and_carries_the_design_tokens(client):
+    response = client.get("/static/tailwind.css")
+    assert response.status_code == 200
+    css = response.get_data(as_text=True)
+    for token in [r".bg-\[\#0a0a0a\]", r".bg-\[\#111113\]", r".tracking-\[0\.2em\]"]:
+        assert token in css, f"{token} missing from the build — rerun tools/build-css.sh"
+
+
+def test_sending_is_not_offered_when_the_sender_is_not_ready(client, live_campaign):
+    """A drafted, approved message with a sender whose DNS stops validating.
+
+    Configuration alone must not re-enable the control: the records have to be
+    published and readable, and when they stop being either, the screen says so.
+    """
+    from reach import dns_checks
+
+    dns_checks.set_resolver(dns_checks.offline_resolver())  # every lookup now ABSENT
+    dns_checks.clear_cache()
+    body = page(client, f"/reach/campaigns/{live_campaign}/review")
+    assert "Sending is disabled until the sender health checks pass." in body
+    assert "/send" not in body
+
+
+def test_sending_is_offered_once_the_sender_is_healthy(client, live_campaign):
+    body = page(client, f"/reach/campaigns/{live_campaign}/review")
+    assert "Sending is disabled until the sender health checks pass." not in body
+    assert "Send approved message" in body
+
+
 def test_reach_index_lists_catalog_tracks(client):
     body = page(client, "/reach")
     assert "Midnight Drive" in body

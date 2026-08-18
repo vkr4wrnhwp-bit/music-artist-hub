@@ -20,6 +20,10 @@ python app.py
 
 Then open `http://127.0.0.1:5000` — `/` redirects to `/reach`.
 
+REACH needs no internet connection to render: the stylesheet is built ahead of
+time into `static/` and served by the app, so there is no CDN in the page and
+nothing to load from a third party.
+
 REACH runs with **no configuration at all**. Without a search credential,
 discovery runs against a built-in fixture corpus of reserved `.example` domains,
 and every screen labels the run as fixture mode rather than passing invented
@@ -59,6 +63,11 @@ pytest
 ```
 
 Both run in CI as the `REACH tests & lint` job.
+
+`static/tailwind.css` is committed so deploying stays a pure-Python operation.
+Run `tools/build-css.sh` after adding a utility class a template has not used
+before — that is the only step that needs node, and a test tells you when it is
+needed.
 
 **Pre-release schema note.** REACH has never been deployed, so the migration
 that creates the catalog was edited in place rather than layered over with an
