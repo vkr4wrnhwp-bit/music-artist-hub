@@ -148,3 +148,118 @@ def test_a_deliverable_domain_is_not_proof_of_a_mailbox(records):
     source = inspect.getsource(contacts._has_mx)
     assert "never probes a mailbox" in source
     assert "SMTP" in source
+
+
+# --- what the record actually says ------------------------------------------
+#
+# Finding a record and reading it are different things. Every case below used to
+# report PASS with the sender ready to send, because the checks stopped at
+# "a record exists". These assert the difference.
+
+def spf_policy(record):
+    domain = "sender.example"
+    dns_checks.set_resolver(dns_checks.offline_resolver({
+        (domain, "TXT"): record if isinstance(record, list) else [record]}))
+    return dns_checks.analyse_spf(domain)
+
+
+@pytest.mark.parametrize("record", [
+    "v=spf1 include:provider.example -all",
+    "v=spf1 include:provider.example ~all",
+    "v=spf1 -all",
+])
+def test_a_protective_spf_policy_passes(record):
+    policy = spf_policy(record)
+    assert policy.found
+    assert policy.protective
+    assert policy.problems == []
+    # It still quotes what was read, so the operator can check it themselves.
+    assert record in policy.detail
+
+
+@pytest.mark.parametrize("record,expected", [
+    ("v=spf1 include:provider.example +all", "+"),
+    ("v=spf1 +all", "+"),
+    ("v=spf1 include:provider.example ?all", "?"),
+])
+def test_a_permissive_spf_policy_protects_nothing(record, expected):
+    """+all authorises the whole internet; ?all asserts nothing about anyone."""
+    policy = spf_policy(record)
+    assert policy.found, "the record does exist — that was never the question"
+    assert policy.all_qualifier == expected
+    assert policy.protective is False
+    assert policy.problems
+    assert record in policy.problems[0]
+
+
+def test_spf_with_no_all_mechanism_is_neutral_by_default():
+    """RFC 7208: a record with no 'all' leaves unlisted senders neutral."""
+    policy = spf_policy("v=spf1 include:provider.example")
+    assert policy.found
+    assert policy.all_qualifier is None
+    assert policy.protective is False
+
+
+def test_spf_redirect_delegates_rather_than_omits():
+    """redirect= hands the decision to another domain, which is legitimate."""
+    policy = spf_policy("v=spf1 redirect=_spf.provider.example")
+    assert policy.redirect == "_spf.provider.example"
+    assert policy.protective is True
+    assert policy.problems == []
+
+
+def test_two_spf_records_are_a_permanent_error():
+    """RFC 7208 s4.5: receivers stop rather than pick a winner."""
+    policy = spf_policy(["v=spf1 -all", "v=spf1 +all"])
+    assert policy.record_count == 2
+    assert policy.protective is False
+    assert "permanent error" in policy.problems[0]
+
+
+def test_spf_lookup_budget_is_counted_and_its_limits_are_stated():
+    within = spf_policy("v=spf1 include:a.example include:b.example mx -all")
+    assert within.lookup_count == 3
+    assert within.protective
+    note = dns_checks.spf_lookup_note(within)
+    # The count is of what is written in the record. REACH does not expand
+    # include: chains and the note has to say so rather than imply a full check.
+    assert "does not expand include:" in note
+
+    over = spf_policy("v=spf1 " + " ".join(f"include:p{i}.example" for i in range(11)) + " -all")
+    assert over.lookup_count == 11
+    assert over.protective is False
+    assert "permanent error" in over.problems[0]
+
+
+def test_spf_ignores_the_exp_modifier_in_the_lookup_count():
+    """exp= points at an explanation string, and costs no lookup budget."""
+    policy = spf_policy("v=spf1 include:a.example exp=why.example -all")
+    assert policy.lookup_count == 1
+
+
+def dkim_key(record):
+    domain, selector = "sender.example", "sel"
+    dns_checks.set_resolver(dns_checks.offline_resolver({
+        (f"{selector}._domainkey.{domain}", "TXT"): [record]}))
+    return dns_checks.analyse_dkim(domain, selector)
+
+
+def test_a_published_dkim_key_is_usable():
+    key = dkim_key("v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0B")
+    assert key.found and key.usable
+    assert key.revoked is False
+    assert key.key_type == "rsa"
+
+
+def test_a_revoked_dkim_key_is_not_usable():
+    """RFC 6376 s3.6.1: an empty p= means revoked. The record still exists,
+    which is exactly why a presence check reads it as healthy."""
+    key = dkim_key("v=DKIM1; k=rsa; p=")
+    assert key.found, "the record is published — it just carries no key"
+    assert key.revoked is True
+    assert key.usable is False
+    assert "revoked" in key.problems[0]
+
+
+def test_dkim_key_type_is_read_from_the_record():
+    assert dkim_key("v=DKIM1; k=ed25519; p=abc").key_type == "ed25519"

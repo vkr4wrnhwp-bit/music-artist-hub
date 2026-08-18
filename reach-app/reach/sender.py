@@ -47,25 +47,30 @@ CHECK_LABELS = {
 }
 
 
-def _authentication_check(lookup, declared_env, label):
+def _authentication_check(assessment, declared_env, label, usable):
     """Turn a DNS answer into a (state, detail) pair, honestly.
 
-    Three outcomes, never conflated:
+    Four outcomes, never conflated:
 
-    * the record was found        -> PASS, quoting what was actually read
-    * the lookup worked, no record -> FAIL, because it is genuinely not published
-    * the lookup itself failed     -> UNKNOWN, and the operator may override with
-      a declared value, which is labelled as *declared*, not verified
+    * found, and the record does its job  -> PASS, quoting what was read
+    * found, but the record protects nothing -> FAIL, saying which part is wrong
+    * the lookup worked, no record        -> FAIL, it is genuinely not published
+    * the lookup itself failed            -> UNKNOWN, and the operator may
+      override with a declared value, which is labelled *declared*, not verified
+
+    The declaration only applies to the last case. Once REACH has read a record,
+    an operator saying "it is fine" cannot make ``+all`` into protection — the
+    contents are evidence and the declaration is not.
     """
-    if lookup.found:
-        return PASS, f"Verified by DNS: {lookup.detail}"
-    if lookup.state == dns_checks.ABSENT:
-        return FAIL, lookup.detail
+    if assessment.found:
+        return (PASS, assessment.detail) if usable else (FAIL, assessment.detail)
+    if assessment.state == dns_checks.ABSENT:
+        return FAIL, assessment.detail
     declared = config.env(declared_env)
     if declared:
-        return PASS, (f"{lookup.detail}. Operator declares this verified "
+        return PASS, (f"{assessment.detail}. Operator declares this verified "
                       f"({declared_env}) — declared, not checked by REACH")
-    return UNKNOWN, (f"{lookup.detail}. Publish {label}, or set {declared_env} "
+    return UNKNOWN, (f"{assessment.detail}. Publish {label}, or set {declared_env} "
                      "once you have verified it yourself")
 
 
@@ -116,23 +121,28 @@ def run_checks(tenant_id=None):
         PASS if domain and domain.count(".") >= 2 else UNKNOWN,
         "A dedicated outreach subdomain isolates reputation from transactional mail")
 
-    spf_lookup = dns_checks.spf(domain) if domain else dns_checks.Lookup(
+    spf_policy = dns_checks.analyse_spf(domain) if domain else dns_checks.SpfPolicy(
         dns_checks.UNRESOLVED, detail="No sending domain configured")
     spf_state, spf_detail = _authentication_check(
-        spf_lookup, "REACH_SENDER_SPF_VERIFIED", "an SPF policy")
+        spf_policy, "REACH_SENDER_SPF_VERIFIED", "an SPF policy", spf_policy.protective)
+    note = dns_checks.spf_lookup_note(spf_policy)
+    if note and spf_state == PASS:
+        spf_detail = f"{spf_detail}. {note}"
     add("spf", spf_state, spf_detail)
 
     selector = config.env("REACH_SENDER_DKIM_SELECTOR")
-    dkim_lookup = dns_checks.dkim(domain, selector) if domain else dns_checks.Lookup(
+    dkim_key = dns_checks.analyse_dkim(domain, selector) if domain else dns_checks.DkimKey(
         dns_checks.UNRESOLVED, detail="No sending domain configured")
     dkim_state, dkim_detail = _authentication_check(
-        dkim_lookup, "REACH_SENDER_DKIM_VERIFIED", "a DKIM key")
+        dkim_key, "REACH_SENDER_DKIM_VERIFIED", "a DKIM key", dkim_key.usable)
     add("dkim", dkim_state, dkim_detail)
 
     dmarc_lookup = dns_checks.dmarc(domain) if domain else dns_checks.Lookup(
         dns_checks.UNRESOLVED, detail="No sending domain configured")
     dmarc_state, dmarc_detail = _authentication_check(
-        dmarc_lookup, "REACH_SENDER_DMARC_VERIFIED", "a DMARC policy")
+        dmarc_lookup, "REACH_SENDER_DMARC_VERIFIED", "a DMARC policy", True)
+    if dmarc_lookup.found:
+        dmarc_detail = f"Verified by DNS: {dmarc_lookup.detail}"
     add("dmarc", dmarc_state, dmarc_detail)
 
     # Alignment needs both authentication methods to pass AND a DMARC policy

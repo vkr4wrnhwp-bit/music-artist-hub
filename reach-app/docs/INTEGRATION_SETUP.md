@@ -109,17 +109,51 @@ raise rather than bend.
    at `/reach/webhooks/email`.
 4. A real physical postal address.
 
-**REACH now verifies SPF, DKIM and DMARC itself** by querying DNS
-(`reach/dns_checks.py`, via `dnspython`). Three outcomes are kept distinct:
+**REACH verifies SPF, DKIM and DMARC itself** by querying DNS
+(`reach/dns_checks.py`, via `dnspython`), and it reads the records rather than
+merely counting them. Four outcomes are kept distinct:
 
-* the record was found — PASS, and the check quotes what was actually read;
+* the record was found and it does its job — PASS, quoting what was read;
+* the record was found and it protects nothing — **FAIL**, naming the part that
+  is wrong (see below);
 * the lookup succeeded and the record is absent — **FAIL**, because you have not
   published it;
 * the lookup itself failed (no resolver, timeout, SERVFAIL) — UNKNOWN.
 
-The `*_VERIFIED` variables are now a fallback for the third case only. Setting
-one turns an UNRESOLVED check into a PASS whose detail reads *"declared, not
-checked by REACH"* — it cannot mask a record that is genuinely missing.
+The `*_VERIFIED` variables are a fallback for the last case only. Setting one
+turns an UNRESOLVED check into a PASS whose detail reads *"declared, not checked
+by REACH"*. It cannot mask a record that is genuinely missing, and it cannot
+override a record REACH has read — once the contents are evidence, a declaration
+that they are fine is not.
+
+### What makes an SPF record fail
+
+A record's existence is not protection. These all publish an SPF record and all
+fail the gate:
+
+| Record | Why it fails |
+| --- | --- |
+| `v=spf1 include:… +all` | `+all` authorises **every sender on the internet**. Worse than publishing nothing: it tells receivers the forgery is legitimate |
+| `v=spf1 include:… ?all` | `?all` asserts nothing about anyone, so unlisted senders are never challenged |
+| `v=spf1 include:…` | No `all` mechanism and no `redirect=`. RFC 7208 defaults to neutral — the same as `?all` |
+| Two `v=spf1` records | RFC 7208 §4.5 makes this a permanent error; receivers stop rather than pick a winner |
+| More than 10 lookup mechanisms | Exceeds the RFC 7208 §4.6.4 budget, so receivers return a permanent error |
+
+`-all` and `~all` both pass. `~all` is weaker, but it genuinely challenges
+unlisted senders and is a normal configuration alongside an enforcing DMARC
+policy. `redirect=` passes too — it delegates the decision rather than omitting it.
+
+**One limit worth knowing.** REACH counts the lookup mechanisms written in your
+record. It does **not** expand `include:` chains, so a record that looks within
+budget can still exceed it once your provider's own includes are resolved. The
+check says so on screen rather than implying a completeness it does not have.
+
+### What makes a DKIM record fail
+
+A selector record published with an empty `p=` value is, per RFC 6376 §3.6.1, a
+**revoked** key: signatures made with it will not verify. The record still
+exists, which is exactly why a presence check reads it as healthy. REACH reads
+the `p=` tag and fails the check, telling you to rotate the selector.
 
 DMARC alignment additionally requires an **enforcing** policy: `p=none`
 publishes intent without asking receivers to act, so it reports UNKNOWN with

@@ -6,7 +6,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 python -m pytest -q
 ```
 
-**183 tests pass**, all of them REACH's own. REACH is a standalone application
+**203 tests pass**, all of them REACH's own. REACH is a standalone application
 with its own suite; the sibling products in this repository run their own tests
 in their own CI jobs and share nothing with these.
 
@@ -14,9 +14,9 @@ in their own CI jobs and share nothing with these.
 | --- | --: | --- |
 | `tests/test_security.py` | 40 | Prompt injection, SSRF, DNS rebinding, redirects, downloads, robots, CAPTCHA/login walls, the AI firewall |
 | `tests/test_compliance.py` | 35 | Campaign modes, approval integrity, contact categories, suppression, bounces, opt-out, deduplication, paid and guaranteed offers, tenant isolation, kill switches, audit |
-| `tests/test_pipeline.py` | 48 | Campaign creation, profile provenance, query planning, discovery, scoring, staleness, quota, provider honesty, durable jobs, placements, metrics, sender health |
+| `tests/test_pipeline.py` | 54 | Campaign creation, profile provenance, query planning, discovery, scoring, staleness, quota, provider honesty, durable jobs, placements, metrics, sender health |
 | `tests/test_web.py` | 32 | Every screen renders; no page loads a third-party asset; REACH mounts no other product's routes; honest labelling holds in the rendered HTML; API endpoints |
-| `tests/test_dns.py` | 15 | SPF/DKIM/DMARC/MX lookups; ABSENT vs UNRESOLVED; caching; contact-domain validation |
+| `tests/test_dns.py` | 29 | SPF/DKIM/DMARC/MX lookups; ABSENT vs UNRESOLVED; caching; contact-domain validation; **what the records actually say** — permissive and malformed SPF, revoked DKIM keys |
 | `tests/test_catalog.py` | 13 | REACH's own catalog: the standalone import guard, add/delete, UNKNOWN preservation, sample labelling, readiness |
 
 ## Test isolation
@@ -77,7 +77,7 @@ No test touches the network. `clock.freeze` makes time-dependent behaviour
 | 35 | Provider kill switches work | `test_provider_kill_switch_stops_provider_calls`, `test_global_stop_blocks_jobs` |
 | 36 | Data deletion removes required provider data | `test_provider_data_deletion_removes_stored_documents` |
 | 37 | Audit events capture every external action | `test_audit_captures_external_actions_and_the_chain_verifies`, `test_tampering_with_an_audit_row_breaks_the_chain` |
-| 38 | Production build passes | `python -m pytest -q` → 183 passed |
+| 38 | Production build passes | `python -m pytest -q` → 203 passed |
 | 39 | Lint and type checking pass | `ruff check .` clean, enforced in CI. No type checker — see below |
 | 40 | Critical screens pass browser verification | `tests/test_web.py` (18 routes, HTTP 200, asserted content) plus a Playwright pass over all 15 screens at desktop (1440×1000) and mobile (390×844) widths, reporting **0 console errors and 0 failed requests** — the app now serves its own stylesheet, so this exercises the real production render path rather than an injected one |
 

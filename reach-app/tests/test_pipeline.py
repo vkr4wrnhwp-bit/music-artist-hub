@@ -514,6 +514,77 @@ def test_verified_records_quote_what_was_actually_read(sender_ready):
     assert "p=reject" in by_key["dmarc_alignment"]["detail"]
 
 
+def _health_with_spf(record, monkeypatch=None):
+    from reach import dns_checks
+
+    from .conftest import SENDER_DNS, SENDER_DOMAIN
+
+    table = dict(SENDER_DNS)
+    table[(SENDER_DOMAIN, "TXT")] = record if isinstance(record, list) else [record]
+    dns_checks.set_resolver(dns_checks.offline_resolver(table))
+    return sender.health_summary()
+
+
+def test_a_permissive_spf_record_fails_the_gate(sender_ready):
+    """+all is a published record that authorises every sender on the internet.
+
+    Passing it because the lookup succeeded is the exact fake-green this gate
+    exists to refuse.
+    """
+    health = _health_with_spf("v=spf1 include:provider.example +all")
+    spf = next(c for c in health["checks"] if c["key"] == "spf")
+    assert spf["state"] == sender.FAIL
+    assert "no protection against forgery" in spf["detail"]
+    assert health["ready"] is False
+
+
+def test_an_spf_record_with_no_all_mechanism_fails_the_gate(sender_ready):
+    health = _health_with_spf("v=spf1 include:provider.example")
+    spf = next(c for c in health["checks"] if c["key"] == "spf")
+    assert spf["state"] == sender.FAIL
+    assert health["ready"] is False
+
+
+def test_duplicate_spf_records_fail_the_gate(sender_ready):
+    health = _health_with_spf(["v=spf1 -all", "v=spf1 +all"])
+    assert next(c for c in health["checks"] if c["key"] == "spf")["state"] == sender.FAIL
+    assert health["ready"] is False
+
+
+def test_a_softfail_spf_record_still_passes(sender_ready):
+    """~all is weaker than -all but genuinely challenges unlisted senders,
+    and with DMARC enforcing it is a normal, correct configuration."""
+    health = _health_with_spf("v=spf1 include:provider.example ~all")
+    assert next(c for c in health["checks"] if c["key"] == "spf")["state"] == sender.PASS
+    assert health["ready"] is True
+
+
+def test_a_declaration_cannot_override_a_record_reach_actually_read(sender_ready, monkeypatch):
+    """The operator override exists for "REACH could not look", not for
+    "REACH looked and did not like what it found"."""
+    monkeypatch.setenv("REACH_SENDER_SPF_VERIFIED", "1")
+    health = _health_with_spf("v=spf1 +all")
+    spf = next(c for c in health["checks"] if c["key"] == "spf")
+    assert spf["state"] == sender.FAIL
+    assert "declared" not in spf["detail"]
+    assert health["ready"] is False
+
+
+def test_a_revoked_dkim_key_fails_the_gate(sender_ready):
+    from reach import dns_checks
+
+    from .conftest import SENDER_DNS, SENDER_DOMAIN
+
+    table = dict(SENDER_DNS)
+    table[(f"selector1._domainkey.{SENDER_DOMAIN}", "TXT")] = ["v=DKIM1; k=rsa; p="]
+    dns_checks.set_resolver(dns_checks.offline_resolver(table))
+    health = sender.health_summary()
+    dkim = next(c for c in health["checks"] if c["key"] == "dkim")
+    assert dkim["state"] == sender.FAIL
+    assert "revoked" in dkim["detail"]
+    assert health["ready"] is False
+
+
 def test_dmarc_p_none_is_not_treated_as_enforcement(sender_ready):
     """p=none monitors but does not enforce, and must not read as alignment."""
     from reach import dns_checks
