@@ -92,13 +92,14 @@ def _now():
 
 
 class Principal:
-    __slots__ = ("id", "tenant_id", "email", "role")
+    __slots__ = ("id", "tenant_id", "email", "role", "display_name")
 
-    def __init__(self, principal_id, tenant_id, email, role):
+    def __init__(self, principal_id, tenant_id, email, role, display_name=None):
         self.id = principal_id
         self.tenant_id = tenant_id
         self.email = email
         self.role = role
+        self.display_name = display_name
 
     def can(self, permission):
         return self.role in PERMISSIONS.get(permission, set())
@@ -113,7 +114,8 @@ def current_principal():
         return override
     tenant_id, principal_id = ensure_default_tenant()
     row = db.query_one("SELECT * FROM principal WHERE id = ?", (principal_id,))
-    return Principal(row["id"], tenant_id, row["email"], row["role"])
+    return Principal(row["id"], tenant_id, row["email"], row["role"],
+                     row["display_name"])
 
 
 def set_principal(principal):

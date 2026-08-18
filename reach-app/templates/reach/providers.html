@@ -1,9 +1,14 @@
 {% extends "reach/_layout.html" %}
 {% import "reach/_layout.html" as ui with context %}
 
-{% block subtitle %}Provider health and policy. No green status is ever shown for a provider that is not actually connected.{% endblock %}
+{% block title %}REACH — Connections{% endblock %}
 
 {% block reach_content %}
+
+<section>
+  <h1 class="text-2xl font-semibold tracking-tight">Connections</h1>
+  <p class="mt-1 text-sm text-gray-400">Everything REACH can talk to. No green light is ever shown for a service that is not actually connected.</p>
+</section>
 
 {% if global_stop or send_stop %}
 <div class="rounded-xl border border-red-500/25 bg-red-500/5 px-4 py-3 text-xs text-red-300">
@@ -19,7 +24,7 @@
 </div>
 {% endif %}
 
-<section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+<section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
   {{ ui.section('Operations') }}
   <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
     {{ ui.metric(observability.pages_fetched, 'Pages fetched') }}
@@ -31,7 +36,7 @@
     {{ ui.metric(observability.model_tokens, 'Model tokens') }}
   </div>
   {% if observability.providers %}
-  <div class="mt-4 overflow-x-auto border-t border-white/5 pt-3">
+  <div class="mt-4 overflow-x-auto border-t border-white/[0.08] pt-3">
     <table class="w-full min-w-[520px] text-left text-xs">
       <thead><tr class="text-[10px] uppercase tracking-[0.15em] text-gray-400">
         <th class="py-1.5 font-medium">Provider</th><th class="py-1.5 font-medium">Calls</th>
@@ -40,7 +45,7 @@
       </tr></thead>
       <tbody>
         {% for row in observability.providers %}
-        <tr class="border-t border-white/5">
+        <tr class="border-t border-white/[0.08]">
           <td class="py-1.5 font-mono text-gray-300">{{ row.provider }}</td>
           <td class="py-1.5 tabular-nums text-gray-400">{{ row.calls }}</td>
           <td class="py-1.5 tabular-nums text-gray-400">{{ row.units }}</td>
@@ -71,7 +76,7 @@
     </div>
   </div>
   {% for state in states %}
-  <div class="provider-card rounded-2xl border {{ 'border-red-500/20' if state.kill_switch else 'border-white/5' }} bg-[#111113] p-5"
+  <div class="provider-card rounded-xl border {{ 'border-red-500/20' if state.kill_switch else 'border-white/[0.08]' }} bg-[#111113] p-5"
        data-state="{{ state.state }}">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
@@ -98,29 +103,29 @@
     </div>
 
     <div class="mt-3 grid grid-cols-1 gap-x-8 gap-y-1 text-[11px] sm:grid-cols-2">
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Credentials</span>
         <span class="{{ 'text-emerald-400' if state.credentials_present else 'text-gray-400' }}">
           {{ 'present' if state.credentials_present else (state.missing_credentials | join(', ') or 'none required') }}
         </span>
       </div>
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Quota</span>
         <span class="text-gray-300">{{ state.quota_used }}{% if state.quota_limit %} / {{ state.quota_limit }} ({{ state.quota_pct }}%){% endif %}</span>
       </div>
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Last success</span>
         <span class="text-gray-300">{{ state.last_success_at[:16] if state.last_success_at else 'never' }}</span>
       </div>
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Last error</span>
         <span class="max-w-[220px] truncate {{ 'text-red-400' if state.last_error else 'text-faint' }}">{{ state.last_error or 'none' }}</span>
       </div>
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Policy reviewed</span>
         <span class="text-gray-300">{{ state.last_verified_at[:10] }} → next {{ state.next_review_at[:10] }}</span>
       </div>
-      <div class="flex justify-between gap-2 border-b border-white/5 py-0.5">
+      <div class="flex justify-between gap-2 border-b border-white/[0.08] py-0.5">
         <span class="text-gray-400">Retention</span>
         <span class="text-gray-300">{{ state.retention_days ~ ' days' if state.retention_days else 'not limited' }}</span>
       </div>
@@ -142,7 +147,7 @@
     </div>
 
     {% if state.notes %}
-    <ul class="mt-3 list-disc space-y-0.5 border-t border-white/5 pl-4 pt-3 text-[11px] text-gray-400">
+    <ul class="mt-3 list-disc space-y-0.5 border-t border-white/[0.08] pl-4 pt-3 text-[11px] text-gray-400">
       {% for note in state.notes %}<li>{{ note }}</li>{% endfor %}
     </ul>
     {% endif %}

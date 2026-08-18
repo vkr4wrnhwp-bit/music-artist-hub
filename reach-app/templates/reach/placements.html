@@ -1,21 +1,26 @@
 {% extends "reach/_layout.html" %}
 {% import "reach/_layout.html" as ui with context %}
 
-{% block subtitle %}Placements — {{ campaign.name }}{% endblock %}
+{% block title %}REACH — Placements — {{ campaign.name }}{% endblock %}
 
 {% block reach_content %}
 
-<section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+<section>
+  <h1 class="text-2xl font-semibold tracking-tight">Placements</h1>
+  <p class="mt-1 text-sm text-gray-400">The wins that are proven. Every placement requires an evidence URL — acceptance alone is not one.</p>
+</section>
+
+<section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
   {{ ui.section('Record a placement', 'A placement cannot be created without an evidence source. Acceptance alone is not enough.') }}
   <div class="mt-4 space-y-2">
     {% for target in accepted %}
-    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-white/5 px-3 py-2">
       <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ target.outlet_name }}</span>
       {{ ui.status_badge(target.status) }}
-      <select class="placement-evidence rounded-md border border-white/10 bg-[#0a0a0a] px-2 py-1 text-[11px]" data-target="{{ target.id }}">
+      <select class="placement-evidence rounded-md border border-white/10 bg-[#090909] px-2 py-1 text-[11px]" data-target="{{ target.id }}">
         {% for source in evidence_sources %}<option value="{{ source }}">{{ source.replace('_',' ') }}</option>{% endfor %}
       </select>
-      <input class="placement-url w-56 rounded-md border border-white/10 bg-[#0a0a0a] px-2 py-1 text-[11px]"
+      <input class="placement-url w-56 rounded-md border border-white/10 bg-[#090909] px-2 py-1 text-[11px]"
              placeholder="Placement URL" data-target="{{ target.id }}">
       <button type="button" class="record-placement shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20"
               data-target="{{ target.id }}">Record</button>
@@ -31,7 +36,7 @@
   <div class="mt-3 space-y-3">
     {% for placement in placements %}
     {% set value = values.get(placement.id) %}
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <div class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="text-sm font-semibold">{{ placement.outlet_name }}</div>
@@ -46,7 +51,7 @@
           {% if placement.removed_date %}<div class="text-red-400">removed {{ placement.removed_date }}</div>{% endif %}
         </div>
       </div>
-      <div class="mt-3 border-t border-white/5 pt-3">
+      <div class="mt-3 border-t border-white/[0.08] pt-3">
         <div class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Placement value</div>
         {% if value and value.state == 'MEASURED' %}
         <div class="mt-1 flex items-baseline gap-2">
@@ -64,11 +69,11 @@
   </div>
 </section>
 
-<section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+<section class="rounded-xl border border-white/[0.08] bg-[#111113] p-5">
   {{ ui.section('Attribution', 'Observed change, not asserted cause.') }}
   <div class="mt-3 space-y-2">
     {% for row in attribution %}
-    <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+    <div class="rounded-lg border border-white/[0.08] bg-white/5 px-3 py-2">
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-xs font-semibold">{{ row.metric.replace('_',' ') }}</span>
         <span class="text-[11px] uppercase tracking-wide text-gray-400">{{ row.get('attribution', row.state).replace('_',' ') }}</span>

@@ -760,6 +760,24 @@ def all_connection_states(tenant_id=None):
     return [connection_state(p.provider, tenant_id) for p in BASELINE_POLICIES]
 
 
+def connection_summary(tenant_id=None):
+    """State counts across every provider, for a one-line summary in the UI.
+
+    Counts only — never a percentage, and never a green light computed from
+    absence of information.
+    """
+    states = all_connection_states(tenant_id)
+    counts = {}
+    for state in states:
+        counts[state["state"]] = counts.get(state["state"], 0) + 1
+    return {
+        "total": len(states),
+        "connected": counts.get(CONNECTED, 0),
+        "by_state": counts,
+        "attention": [s for s in states if s["last_error"] or s["kill_switch"]],
+    }
+
+
 def _ensure_connection_row(provider_id, tenant_id):
     row = db.query_one(
         "SELECT * FROM provider_connection WHERE provider = ? AND tenant_id = ?",
