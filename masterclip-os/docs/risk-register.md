@@ -21,6 +21,7 @@ Ordered by expected cost of being wrong.
 | 15 | **Queue starvation under load** | low | slow renders block cheap bookkeeping | four separate queues (render, qc, media, maintenance) | low |
 | 16 | **Estimate-vs-invoice drift goes unnoticed** | medium | budgets quietly wrong | `estimate` and `charge` are separate ledger entry types; `variance()` reports the delta per job | low |
 | 17 | **Ledger corruption via a partial write** | low | wrong spend totals | ledger writes are transactional with the state change they describe; append-only | low |
+| 18 | **The deployment image has never been built** | medium | first deploy fails | no Docker daemon was reachable during development, so `docker build` was never run. What *was* verified: the `COPY` set is sufficient — `pnpm install --frozen-lockfile && pnpm build` both succeed in a clean directory containing exactly what the Dockerfile copies with `.dockerignore` applied — and the full stack boots from that directory and serves, seeds, closes signup and authenticates. Untested: the base image, the apt layer and corepack | **open** — the remaining risk is the three boilerplate layers, not the application |
 
 ---
 

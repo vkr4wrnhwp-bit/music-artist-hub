@@ -150,6 +150,51 @@ Every command takes `--json`. Exit codes: `0` ok · `1` error · `2` usage ·
 
 ---
 
+## Deploying it
+
+One container runs both processes. Generation never happens inside an HTTP
+request — the API queues work and a worker performs it — so a deployment that
+started only the API would accept renders and never run them.
+`scripts/serve.mjs` seeds, then starts the worker, then the API, and exits if
+either child dies, so the platform restarts a half-running factory rather than
+leaving it accepting work it cannot do.
+
+It is a Docker image rather than a plain Node runtime because ffmpeg and ffprobe
+are load-bearing here: they render, probe, measure and transcode on the critical
+path, and QC is meaningless without them.
+
+```
+docker build -t masterclip .
+docker run -p 4310:4310 \
+  -e SESSION_SECRET=... -e ASSET_SIGNING_SECRET=... \
+  -e SEED_EMAIL=you@example.com -e SEED_PASSWORD=... \
+  -v masterclip-data:/var/data \
+  -e SQLITE_PATH=/var/data/masterclip.sqlite -e STORAGE_LOCAL_ROOT=/var/data/storage \
+  masterclip
+```
+
+The repository root's `render.yaml` describes the same thing as a Render
+Blueprint; syncing it prompts for `SEED_EMAIL` and `SEED_PASSWORD` and generates
+the two secrets. A paid instance is required only for the persistent disk —
+without it the database and every rendered clip are lost on each restart.
+
+Three things about a deployment that are not obvious:
+
+- **Seed before the port opens.** The first account to reach `/api/auth/signup`
+  bootstraps the organization and closes signup behind itself. On a public URL
+  that is a race against the internet, so the owner is created at boot, before
+  anything is listening. Seeding is idempotent — restarts do not accumulate demo
+  projects, and the seed refuses to run under `NODE_ENV=production` with the
+  development password.
+- **`TRUST_PROXY` is off by default** and must be turned on behind a load
+  balancer, or every visitor shares one rate-limit bucket. Turn it on only when
+  a proxy you control writes `X-Forwarded-For`; otherwise the key is forgeable.
+- **Sandbox is still the default.** A deployment refuses every billable
+  submission until `MASTERCLIP_MODE=live` is set deliberately, and is bound by
+  `LIVE_SPEND_CAP_USD` after that.
+
+---
+
 ## Where things live
 
 ```

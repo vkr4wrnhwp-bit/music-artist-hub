@@ -9,10 +9,25 @@
 import { createRuntime } from '@masterclip/runtime'
 import { CharacterRecord, EnvironmentRecord, emptyShot } from '@masterclip/shot-schema'
 
+const DEV_PASSWORD = 'masterclip-dev-password'
 const EMAIL = process.env.SEED_EMAIL ?? 'producer@masterclip.local'
-const PASSWORD = process.env.SEED_PASSWORD ?? 'masterclip-dev-password'
+const PASSWORD = process.env.SEED_PASSWORD || DEV_PASSWORD
+
+// A deployed seed writes to a log stream that is retained and readable by
+// anyone with access to the host's dashboard, so the password is echoed only
+// when it is the published development one and therefore not a secret at all.
+const passwordIsPublic = PASSWORD === DEV_PASSWORD
+const credentials = passwordIsPublic ? `${EMAIL} / ${PASSWORD}` : `${EMAIL} (password: SEED_PASSWORD)`
 
 async function main(): Promise<void> {
+  // The owner account this creates can spend money and read every project in
+  // the org. Reaching a public URL with the password that ships in this file is
+  // the same as having no password, so refuse rather than seed a known account.
+  if (process.env.NODE_ENV === 'production' && passwordIsPublic) {
+    console.error('refusing to seed: set SEED_PASSWORD — the development default is public')
+    process.exit(1)
+  }
+
   const runtime = await createRuntime()
 
   const existingUser = await runtime.db.get<{ id: string; org_id: string }>('SELECT id, org_id FROM users WHERE email = ?', [EMAIL])
@@ -34,7 +49,21 @@ async function main(): Promise<void> {
     })
     orgId = org.id
     userId = user.id
-    console.log(`created org ${org.id} and user ${EMAIL} (password: ${PASSWORD})`)
+    console.log(`created org ${org.id} and user ${credentials}`)
+  }
+
+  // Seeding establishes initial state; it does not append to it. A deployed
+  // container runs this on every boot — every deploy, every restart, every wake
+  // from idle — and without this guard each one would leave behind another
+  // identical demo project. Set SEED_FORCE_PROJECT=1 to add a fresh one anyway.
+  if (existingUser && process.env.SEED_FORCE_PROJECT !== '1') {
+    const existingProjects = await runtime.projects.list(orgId)
+    if (existingProjects.length > 0) {
+      console.log(`org already seeded (${existingProjects.length} project(s)) — nothing to do`)
+      console.log(`sign in as ${EMAIL}`)
+      await runtime.close()
+      return
+    }
   }
 
   const project = await runtime.projects.create({
@@ -183,7 +212,7 @@ async function main(): Promise<void> {
   }
 
   console.log('')
-  console.log(`sign in as ${EMAIL} / ${PASSWORD}`)
+  console.log(`sign in as ${credentials}`)
   console.log(`project id: ${project.id}`)
   console.log('next: pnpm masterclip render submit --shot <shotId> --count 4   (mock provider, no spend)')
 
