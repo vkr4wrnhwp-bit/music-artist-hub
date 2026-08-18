@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { AppError } from '@masterclip/shared'
+import { AppError, DEV_SESSION_SECRET } from '@masterclip/shared'
 import type { Runtime } from '@masterclip/runtime'
 import { SESSION_COOKIE } from '../server.js'
 import { routedPath } from './rate-limit.js'
@@ -91,7 +91,7 @@ export function clearCsrfCookie(reply: FastifyReply): void {
 function csrfSecret(runtime: Runtime): string {
   // Same trust root as the session itself: anyone who knows it can already mint
   // sessions, so a separate secret would add key management, not security.
-  return runtime.config.SESSION_SECRET || 'masterclip-development-session-secret'
+  return runtime.config.SESSION_SECRET || DEV_SESSION_SECRET
 }
 
 /**

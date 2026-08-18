@@ -312,8 +312,14 @@ Requires Node ≥22.5 and ffmpeg/ffprobe on `PATH`.
 2. `TRUST_PROXY` now defaults to off. A deployment that genuinely sits behind a
    proxy **must** set it, or every client will be rate-limited as one address.
 3. The S3 driver has never touched a live bucket.
-4. `ASSET_SIGNING_SECRET` **must** be set in production — the code refuses to
-   start with the development fallback when `NODE_ENV=production`, but check it.
+4. `ASSET_SIGNING_SECRET` and `SESSION_SECRET` **must** both be set in
+   production. `loadConfig()` refuses to start under `NODE_ENV=production` if
+   either is absent, is the value published in this repository, or is shorter
+   than 16 characters. Until 2026-08-18 that refusal covered only
+   `ASSET_SIGNING_SECRET`, and only on the local-storage path — with
+   `STORAGE_DRIVER=s3` nothing checked it, and nothing checked `SESSION_SECRET`
+   anywhere, so a production deployment could sign CSRF tokens with a value
+   printed in the source.
 
 ## Cost-saving recommendations
 
