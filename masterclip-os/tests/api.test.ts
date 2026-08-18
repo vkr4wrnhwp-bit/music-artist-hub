@@ -266,6 +266,22 @@ describe('regressions found by attacking this code', () => {
     expect(classify('POST', '/api/queue/dead/dead_1/replay')).toBe('render')
   })
 
+  it('keeps free pricing previews out of the paid render budget', async () => {
+    const { classify } = await import('../apps/api/src/security/rate-limit.js')
+    // Sharing one budget meant a producer iterating in the cost lab spent the
+    // allowance the actual submission needed, so the refusal landed on the
+    // submit rather than the preview.
+    expect(classify('POST', '/api/shots/shot_1/matrix')).toBe('preview')
+    expect(classify('POST', '/api/shots/validate')).toBe('preview')
+    expect(classify('POST', '/api/cost-lab/strategy')).toBe('preview')
+    expect(classify('POST', '/api/shots/shot_1/render')).toBe('render')
+  })
+
+  it('lets a producer price far more matrices than they could submit', async () => {
+    const { POLICIES } = await import('../apps/api/src/security/rate-limit.js')
+    expect(POLICIES.preview.limit).toBeGreaterThan(POLICIES.render.limit)
+  })
+
   it('lets a user log in with a stale session cookie instead of locking them out', async () => {
     await signup()
     // A session row that no longer exists — an expired session, a reset

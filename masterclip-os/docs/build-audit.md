@@ -36,8 +36,8 @@ against the mock provider, which renders real MP4s with ffmpeg.
 |---|---|
 | `pnpm typecheck` | **27/27 projects clean** |
 | `pnpm lint` | **clean** — secret scan, shell-exec guard, SQL-interpolation guard, typecheck |
-| `pnpm test` | **219 passed / 219**, 16 files |
-| `pnpm test:e2e` | **10 passed / 10** (Playwright, Chromium, against the production web build) |
+| `pnpm test` | **221 passed / 221**, 16 files |
+| `pnpm test:e2e` | **11 passed / 11** (Playwright, Chromium, against the production web build) |
 | `pnpm build` | **succeeds** — `dist/api.js`, `dist/worker.js`, `dist/masterclip.js`, `apps/web/dist` |
 | bundled artifacts run | `node dist/masterclip.js doctor` → all required checks pass; `node dist/api.js` → serves `/api/health` |
 | PostgreSQL parity | same migrations and same SQL verified against live PostgreSQL 16 |
@@ -64,7 +64,7 @@ against the mock provider, which renders real MP4s with ffmpeg.
 | Local object storage + signed URLs | **REAL** | `packages/asset-storage/src/local.ts`, `src/expiry.ts` | 16 tests incl. path-escape, expiry, and cache stability |
 | S3 storage driver | **DEV-LABELED** | `packages/asset-storage/src/s3.ts` | SigV4 verified against AWS's published test vector; 12 tests drive the driver over a real socket against an in-repo S3-compatible server (put/get/head/delete/list, spec-checked key encoding, XML parsing, status mapping, presigned fetch), and three deliberate mutations were confirmed to fail them; **still never run against a live AWS bucket** |
 | Auth: scrypt, hashed sessions, project roles | **REAL** | `packages/auth/` | exercised by every API test + e2e |
-| Rate limiting: token bucket, 8 request classes, two-tier login budget | **REAL** | `packages/shared/src/rate-limit.ts`, `apps/api/src/security/rate-limit.ts` | 10 unit tests on a fake clock (refill, burst, memory bound, self-lockout, eviction-under-attack) + 24 HTTP tests |
+| Rate limiting: token bucket, 9 request classes, two-tier login budget | **REAL** | `packages/shared/src/rate-limit.ts`, `apps/api/src/security/rate-limit.ts` | 10 unit tests on a fake clock (refill, burst, memory bound, self-lockout, eviction-under-attack) + 24 HTTP tests |
 | CSRF: origin check + session-bound double-submit token | **REAL** | `apps/api/src/security/csrf.ts` | HTTP tests incl. forged token, cross-site, foreign Origin, stale-cookie recovery; proven in-browser by the e2e suite |
 | `TRUST_PROXY` off by default | **REAL** | `apps/api/src/server.ts` | HTTP test confirms a rotated `X-Forwarded-For` buys no extra budget |
 | Webhook callback token demanded unconditionally | **REAL** | `apps/api/src/routes/ops.ts` | HTTP test: omitting `job` is 403 and writes no row |
@@ -212,6 +212,21 @@ the test, fixed by adding the spec-derived encoding check above.
 It is not a compatibility oracle. Passing proves the driver speaks well-formed
 S3 to something expecting S3, not that AWS agrees, so risk #12 is downgraded
 rather than closed.
+
+## Resilience defects found by the same review
+
+The verifier refuted these as *security* findings, correctly — they are
+usability and performance defects. They were sitting in the screens an operator
+uses all day, so they are fixed anyway:
+
+| Defect | Why it mattered |
+|---|---|
+| `AsyncBlock` returned the error callout *instead of* data whenever an error was set | one failed poll blanked the whole queue table, the stat cards and the cost-controller callout, replacing a working screen with a line of red text. Stale data with a banner beats losing what you were reading; the error now only takes the screen when there is nothing else to show |
+| The queue polled every 4s forever, with no backoff and no pause when hidden | a tab left open polled all night for nobody, and retrying into a 429 at full speed spent the budget that would let it recover. Now backs off exponentially on consecutive failures, stops while the document is hidden, and refreshes on return |
+| Free pricing previews shared the paid `render` budget | a producer iterating in the cost lab spent the allowance the submission needed, so the refusal landed on the submit rather than the preview |
+
+Both UI fixes are pinned by a browser test that fails against the old code —
+verified by reverting the change and watching it fail.
 
 ## Bugs an adversarial review of the hardening work found and fixed
 

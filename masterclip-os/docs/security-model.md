@@ -205,6 +205,7 @@ hand the server a 32 MB payload to parse. Budgets are per client address:
 | `authAccountGlobal` | 50 / 15 min | login, keyed by **email** alone |
 | `upload` | 60 / hour | asset upload |
 | `render` | 120 / hour | anything that can put a paid generation on the wire |
+| `preview` | 600 / hour | pricing previews, which spend nothing |
 | `mutation` | 240 / 5 min | every other state change |
 | `read` | 1200 / 5 min | reads, including the queue view's poll loop |
 | `webhook` | 1200 / min | provider callbacks |
@@ -218,6 +219,11 @@ address as well, and the email-only backstop sits far above any single
 attacker's reach (each address is separately capped at 10 by `auth`). Proving the
 password refunds both, so four typos does not leave a real user one attempt from
 lockout.
+
+Pricing previews get their own budget rather than sharing `render`. Sharing one
+meant a producer iterating in the cost lab — the exact behaviour this system is
+built to encourage — spent the allowance the submission needed, and the refusal
+then landed on the submit rather than the preview: the worst possible ordering.
 
 Classification happens on the **decoded** path, because the router matches on the
 decoded path: `POST /api/shots/x/%72ender` reaches the render handler, and a

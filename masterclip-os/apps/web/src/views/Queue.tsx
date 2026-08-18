@@ -8,10 +8,29 @@ export function QueueView({ projectId }: { projectId: string }) {
   const [filter, setFilter] = React.useState<string>('all')
   const [busy, setBusy] = React.useState<string | null>(null)
 
-  // The queue is the one screen where staleness is actively misleading.
+  // The queue is the one screen where staleness is actively misleading, so it
+  // polls — but a fixed 4s forever is wrong in two ways. A tab left open in the
+  // background polls all night for nobody, and a poll that is failing (a
+  // restart, a blip, a rate limit) is the worst moment to keep asking at full
+  // speed: retrying into a 429 spends the budget that would let it recover.
+  // So: back off on consecutive failures, and stop entirely while hidden.
+  const failures = queue.failures
   React.useEffect(() => {
-    const timer = setInterval(() => queue.reload(), 4000)
-    return () => clearInterval(timer)
+    if (typeof document !== 'undefined' && document.hidden) return
+    const delay = failures === 0 ? 4000 : Math.min(60_000, 4000 * 2 ** failures)
+    const timer = setTimeout(() => queue.reload(), delay)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, failures, queue.data, queue.error])
+
+  // Coming back to the tab should show current state immediately, not whatever
+  // was on screen when it was hidden.
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) queue.reload()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 

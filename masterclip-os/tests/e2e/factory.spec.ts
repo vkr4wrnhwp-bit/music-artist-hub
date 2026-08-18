@@ -104,6 +104,28 @@ test('the queue reports jobs, their state and their cost', async () => {
   await expect(page.getByText('sandbox').first()).toBeVisible()
 })
 
+test('a failed poll does not blank the queue that is already on screen', async () => {
+  await page.goto(`/#/queue/${projectId}`)
+  const row = page.locator('td').filter({ hasText: 'mock/mock-standard' }).first()
+  await expect(row).toBeVisible({ timeout: 30_000 })
+
+  // Fail every subsequent queue poll the way a restart, a blip or a rate limit
+  // would. Losing the table you were reading because one request out of many
+  // failed is worse than reading figures a few seconds stale.
+  await page.route('**/api/projects/*/queue', (route) => route.fulfill({
+    status: 429,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: { kind: 'rate_limited', code: 'rate_limited', message: 'too many requests — retry in 4s' } }),
+  }))
+
+  await expect(page.getByText('Showing the last good data')).toBeVisible({ timeout: 30_000 })
+  // The point of the fix: the data is still there underneath the warning.
+  await expect(row).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Render queue' })).toBeVisible()
+
+  await page.unroute('**/api/projects/*/queue')
+})
+
 test('the cost lab reports no-data honestly before anything is approved', async () => {
   await page.goto(`/#/costs/${projectId}`)
   await expect(page.getByRole('heading', { name: 'Cost lab' })).toBeVisible()

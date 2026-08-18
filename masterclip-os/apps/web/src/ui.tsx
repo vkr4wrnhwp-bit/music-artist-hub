@@ -62,27 +62,38 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   )
 }
 
-export function useAsync<T>(fn: () => Promise<T>, deps: React.DependencyList): {
+export interface AsyncState<T> {
   data: T | null
   error: string | null
   loading: boolean
+  /** Consecutive failures. Pollers use this to back off instead of hammering. */
+  failures: number
   reload: () => void
-} {
+}
+
+export function useAsync<T>(fn: () => Promise<T>, deps: React.DependencyList): AsyncState<T> {
   const [data, setData] = React.useState<T | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [failures, setFailures] = React.useState(0)
   const [nonce, setNonce] = React.useState(0)
 
   React.useEffect(() => {
     let cancelled = false
     setLoading(true)
-    setError(null)
     fn()
       .then((value) => {
-        if (!cancelled) setData(value)
+        if (cancelled) return
+        setData(value)
+        // Clear the error only once a request has actually succeeded. Clearing
+        // it up front made a failing poll flicker the banner off and on.
+        setError(null)
+        setFailures(0)
       })
       .catch((err: Error) => {
-        if (!cancelled) setError(err.message)
+        if (cancelled) return
+        setError(err.message)
+        setFailures((n) => n + 1)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -93,9 +104,20 @@ export function useAsync<T>(fn: () => Promise<T>, deps: React.DependencyList): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, nonce])
 
-  return { data, error, loading, reload: () => setNonce((n) => n + 1) }
+  return { data, error, loading, failures, reload: () => setNonce((n) => n + 1) }
 }
 
+/**
+ * Renders async state.
+ *
+ * An error only takes over the screen when there is nothing else to show. If
+ * data has already loaded, the error rides above it as a banner and the data
+ * stays put — one failed poll used to blank the entire queue table, the stat
+ * cards and the cost-controller callout, replacing a working screen with a
+ * single line of red text. Losing what you were reading because one request out
+ * of many timed out is worse than looking at figures a few seconds stale, and
+ * the banner says which it is.
+ */
 export function AsyncBlock<T>({
   state,
   children,
@@ -104,9 +126,24 @@ export function AsyncBlock<T>({
   children: (data: T) => React.ReactNode
 }) {
   if (state.loading && !state.data) return <div className="spinner">loading…</div>
-  if (state.error) return <Callout tone="danger" title="Request failed">{state.error}</Callout>
+  if (state.error && !state.data) {
+    return (
+      <Callout tone="danger" title="Request failed">
+        {state.error}
+      </Callout>
+    )
+  }
   if (!state.data) return <Empty>nothing here yet</Empty>
-  return <>{children(state.data)}</>
+  return (
+    <>
+      {state.error ? (
+        <Callout tone="warn" title="Showing the last good data">
+          {state.error}
+        </Callout>
+      ) : null}
+      {children(state.data)}
+    </>
+  )
 }
 
 export function qcTone(action: string | undefined): 'ok' | 'warn' | 'danger' | 'info' {

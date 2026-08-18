@@ -35,6 +35,16 @@ export const POLICIES = {
   upload: { limit: 60, windowMs: 60 * 60_000 },
   /** Anything that can put a paid generation on the wire. */
   render: { limit: 120, windowMs: 60 * 60_000 },
+  /**
+   * Pricing previews, which spend nothing.
+   *
+   * Kept out of the `render` budget deliberately. Sharing one meant a producer
+   * tuning model selection in the cost lab — exactly the iteration this system
+   * is built to encourage — spent the allowance the actual submission needed,
+   * and the refusal then landed on the submit rather than the preview: the
+   * worst possible ordering.
+   */
+  preview: { limit: 600, windowMs: 60 * 60_000 },
   /** Every other state change. */
   mutation: { limit: 240, windowMs: 5 * 60_000 },
   /** Reads, including the poll loop the queue view runs. */
@@ -45,9 +55,10 @@ export const POLICIES = {
 
 export type PolicyName = keyof typeof POLICIES
 
+/** Costs nothing to serve and nothing to the caller — priced, not submitted. */
+const PREVIEW_PATHS = [/^\/api\/shots\/[^/]+\/matrix$/, /^\/api\/shots\/validate$/, /^\/api\/cost-lab\/strategy$/]
 const RENDER_PATHS = [
   /^\/api\/shots\/[^/]+\/render$/,
-  /^\/api\/shots\/[^/]+\/matrix$/,
   /^\/api\/masters\/[^/]+\/(finish|package)$/,
   // A retry and a dead-letter replay each submit a *new* billable generation,
   // so they belong in the same budget as the original submission.
@@ -87,6 +98,7 @@ export function classify(method: string, path: string): PolicyName | null {
   if (path === '/api/auth/login' || path === '/api/auth/signup') return 'auth'
   if (method === 'GET' || method === 'HEAD') return 'read'
   if (UPLOAD_PATHS.some((re) => re.test(path))) return 'upload'
+  if (PREVIEW_PATHS.some((re) => re.test(path))) return 'preview'
   if (RENDER_PATHS.some((re) => re.test(path))) return 'render'
   return 'mutation'
 }
