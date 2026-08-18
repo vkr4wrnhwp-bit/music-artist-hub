@@ -33,22 +33,47 @@ services:
 
   # REACH — music discovery, opportunity intelligence and outreach.
   # Shares no process, database or code with the service above.
+  #
+  # ---------------------------------------------------------------------
+  # STORAGE IS EPHEMERAL ON THIS PLAN.
+  #
+  # The free plan cannot mount a disk, so REACH's SQLite database lives in
+  # the container filesystem and is destroyed whenever the container is
+  # replaced — on every deploy, on every restart, and after the free plan
+  # spins the service down for inactivity. That last one happens routinely,
+  # not rarely.
+  #
+  # What is lost each time: the track catalog, campaigns, discovered
+  # opportunities and their evidence, recorded placements, the audit chain,
+  # and the suppression list. Losing suppression is the one with a victim —
+  # a recipient who opted out is no longer on record as having opted out.
+  #
+  # So this plan is right for trying REACH and wrong for outreach anyone
+  # actually receives. REACH says so on its own start screen rather than
+  # leaving it in this comment.
+  #
+  # To make storage durable: set plan to `starter`, restore the disk block
+  #     disk:
+  #       name: reach-data
+  #       mountPath: /var/data
+  #       sizeGB: 1
+  # and add REACH_DB_PATH = /var/data/reach.db so the store lands on it.
+  # ---------------------------------------------------------------------
   - type: web
     name: reach
     runtime: python
     rootDir: reach-app
-    plan: starter # a paid instance is required for the persistent disk below.
-    # On the free plan, delete the `disk:` block and the REACH_DB_PATH value —
-    # REACH still runs, but its database resets on every deploy and restart.
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
     healthCheckPath: /healthz
     envVars:
-      # Where the SQLite store lives. Must be on the mounted disk to survive.
-      - key: REACH_DB_PATH
-        value: /var/data/reach.db
+      # REACH_DB_PATH is deliberately unset: with no disk to point it at,
+      # naming a path would only make the store look durable. Unset, REACH
+      # uses its default location and reports the storage as ephemeral.
+      #
       # Encrypts contact records at rest. Render generates this once and keeps
-      # it; losing or changing it makes existing encrypted rows unreadable.
+      # it across restarts, so it outlives the data it protects.
       - key: REACH_ENCRYPTION_KEY
         generateValue: true
       # Who REACH treats as the acting principal until it has real sessions.
@@ -57,7 +82,3 @@ services:
         sync: false
       - key: REACH_PRINCIPAL_ROLE
         value: OWNER
-    disk:
-      name: reach-data
-      mountPath: /var/data
-      sizeGB: 1
