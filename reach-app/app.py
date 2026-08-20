@@ -14,7 +14,7 @@ docs/INTEGRATION_SETUP.md to connect real providers.
 
 import os
 
-from flask import Flask, redirect
+from flask import Flask, render_template
 
 from reach.web import bp as reach_bp
 
@@ -25,7 +25,8 @@ def create_app():
 
     @app.route("/")
     def index():
-        return redirect("/reach")
+        # The public front door. The app itself lives at /reach.
+        return render_template("landing.html")
 
     @app.route("/healthz")
     def healthz():

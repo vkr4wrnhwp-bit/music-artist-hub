@@ -40,10 +40,15 @@ def page(client, path):
 
 # --- the standalone application --------------------------------------------
 
-def test_root_redirects_into_reach(client):
-    response = client.get("/")
-    assert response.status_code == 302
-    assert response.headers["Location"].endswith("/reach")
+def test_root_serves_the_landing_page(client):
+    body = page(client, "/")
+    assert "Open REACH" in body
+    assert 'href="/reach"' in body
+    # The landing page sells the honesty mechanics, not invented results:
+    # no fake counts, no testimonials — the components speak for themselves.
+    assert "UNKNOWN" in body
+    assert "What REACH refuses to do" in body
+    assert "cdn.tailwindcss.com" not in body
 
 
 def test_health_check_does_not_depend_on_the_database(client):
