@@ -97,6 +97,19 @@ services:
     # block and the two /var/data paths: everything still runs, but the database
     # and every rendered clip vanish on each deploy, restart and spin-down.
     healthCheckPath: /api/health
+    # `rootDir` already stops a change under reach-app/ or mx-lab/ from
+    # rebuilding this service. What it does not stop is a documentation edit
+    # inside masterclip-os/ triggering the full ffmpeg-and-27-packages image
+    # build, which is several minutes of builder time to publish a paragraph.
+    # Build filter paths are relative to the repo root even though rootDir is
+    # set, so they are spelled out in full here.
+    buildFilter:
+      paths:
+        - masterclip-os/**
+      ignoredPaths:
+        - masterclip-os/docs/**
+        - masterclip-os/*.md
+        - masterclip-os/**/*.md
     envVars:
       # Render terminates TLS and proxies, so X-Forwarded-For is written by a
       # proxy we control and can be believed. Without this every visitor shares
