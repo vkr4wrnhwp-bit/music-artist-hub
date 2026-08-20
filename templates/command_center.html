@@ -3,6 +3,39 @@
 {% block title %}Command Center - Street Banker{% endblock %}
 
 {% block content %}
+{# The unlock moment. Queued when a milestone opens a module, shown once,
+   and gone for good when dismissed — the dismissal is stored, so it
+   cannot reappear on the next visit. #}
+{% for note in unlock_notices %}
+<section class="mb-4 rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="min-w-0">
+      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Now open</div>
+      <p class="mt-1 text-sm text-gray-100">{{ unlock_opened[note] }}</p>
+    </div>
+    <div class="flex shrink-0 items-center gap-2">
+      <form method="post" action="/unlocks/{{ note }}/dismiss">
+        <input type="hidden" name="back" value="/command-center">
+        <button type="submit" class="rounded-lg border border-white/15 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-300">Got it</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endfor %}
+
+{# Somebody followed a link to a module that has not opened yet. Say what
+   opens it rather than dropping them on the dashboard with no reason. #}
+{% if locked_hint %}
+<section class="mb-4 rounded-2xl border border-white/10 bg-[#111113] p-4">
+  <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-300">Not open yet</div>
+  <p class="mt-1 text-sm text-gray-100">{{ locked_hint }}</p>
+  <p class="mt-1 text-[11px] text-gray-300">
+    Every feature is still here — the interface fills in as you use it. You can
+    <a href="/settings" class="text-[#e8c667] underline">show everything now</a> if you would rather see all of it.
+  </p>
+</section>
+{% endif %}
+
 {% if firstrun %}
 <!-- Start here: derived from what the account actually has, and gone for
      good once enough of it exists. -->

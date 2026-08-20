@@ -24,6 +24,37 @@
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
     <div class="space-y-5">
+      {# The escape hatch. Nothing is ever withheld — this decides whether
+         the interface arrives all at once or fills in as the account is
+         used. Switching it on shows everything immediately; switching it
+         back off returns to whatever has genuinely been unlocked, because
+         the milestones are kept either way. #}
+      <section id="disclosure" class="rounded-2xl border border-[#c9a24a]/20 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0 max-w-xl">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-100">How much of the app you see</h2>
+            <p class="mt-1 text-sm text-[#a99e88]">
+              {% if unlock_simple %}
+                Street Banker is showing the modules you are using and filling
+                in the rest as you go. Nothing is withheld — every dimmed item
+                says what opens it, and you can show all of it right now.
+              {% else %}
+                Every module is showing. Switch this off and the interface
+                starts simple again, filling in as you use it. Anything you
+                have already unlocked stays open.
+              {% endif %}
+            </p>
+          </div>
+          <form method="post" action="/settings/disclosure" class="shrink-0">
+            <input type="hidden" name="back" value="/settings#disclosure">
+            <input type="hidden" name="mode" value="{{ 'full' if unlock_simple else 'simple' }}">
+            <button type="submit" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-[#e8c667]">
+              {{ 'Show me everything' if unlock_simple else 'Back to simple' }}
+            </button>
+          </form>
+        </div>
+      </section>
+
       <section id="account-profile" class="rounded-2xl border border-[#c9a24a]/20 bg-gradient-to-b from-[#151310] to-[#100f0c] p-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -23,6 +23,8 @@ import producers
 import recovery_engine
 import report_builder
 import sandbox
+import unlock_rules
+import unlock_store
 import shopify_buy
 import since_engine
 import valuation_engine
@@ -489,6 +491,12 @@ def create_app():
     for _u in store.list_users():
         _grant_owner_plan(_u)
 
+    # Progressive disclosure. Runs AFTER the demo accounts are seeded and
+    # after any other boot-time account creation, because its one-time
+    # backfill is what promises every account that already exists keeps
+    # every module. Anything created from here on starts in simple mode.
+    unlock_store.init_unlocks()
+
     def current_user():
         user_id = session.get("user_id")
         return store.get_user(user_id) if user_id else None
@@ -927,6 +935,7 @@ def create_app():
             else:
                 error = _ingest_statement(user["id"], f.filename, f.read())
                 if error is None:
+                    unlock_store.flag(user["id"], "statement_uploaded")
                     return redirect(url_for("statements"))
         ctx = build_dashboard_context()
         ctx["user"] = user
@@ -1277,6 +1286,10 @@ def create_app():
                 mls.track(campaign["id"], "page_view", variant_id=variant_id,
                           referrer=request.referrer,
                           utm_source=request.args.get("utm_source"))
+                # The artist's running total across all their links. Owner
+                # previews are excluded above, so an artist refreshing
+                # their own page cannot unlock their own audience view.
+                unlock_store.bump(campaign["user_id"], "smart_link_visit_count")
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
                 _process_due_presaves(campaign)
@@ -2320,6 +2333,7 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
+            _note_release_milestones(user["id"], fields)
             return redirect("/links/%s/edit" % cid)
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
@@ -2347,6 +2361,7 @@ def create_app():
             mls.update_campaign(cid, campaign["user_id"], _ml_form_fields())
             mls.set_destinations(cid, _ml_form_destinations())
             campaign = mls.get_campaign(cid)
+            _note_release_milestones(campaign["user_id"], campaign)
         dests = mls.get_destinations(cid)
         score = links_engine.calculate_street_banker_score(campaign, dests)
         return render_template("links_builder.html", active_page="links",
@@ -2364,6 +2379,9 @@ def create_app():
         mls.update_campaign(cid, campaign["user_id"],
                             {"status": "live", "published_at": store._now(),
                              "archived_at": None})
+        # Published is what "completed" means here: a draft campaign is
+        # not a release anybody can reach.
+        unlock_store.flag(campaign["user_id"], "first_release_completed")
         store.notify(campaign["user_id"], "campaign",
                      "Campaign live: %s" % campaign["title"],
                      "Public page is up at /l/%s — start sharing variant links." % campaign["slug"],
@@ -2611,6 +2629,67 @@ def create_app():
                      or request.form.get("token") or "")
         return hmac.compare_digest(presented, token)
 
+    # href -> module key, from the same definitions the sidebar renders,
+    # so a module cannot be gated under a path the nav does not have.
+    _MODULE_BY_PATH = {}
+    for _hk, _hn, _ht, _hitems in hub_defs.HUBS:
+        for _mkey, _mhref, *_rest in _hitems:
+            _MODULE_BY_PATH[_mhref] = _mkey
+    for _group in (hub_defs.LABEL_GROUP, hub_defs.COMMUNITY_GROUP,
+                   hub_defs.ACCOUNT_GROUP):
+        for _mkey, _mhref, *_rest in _group[1]:
+            _MODULE_BY_PATH.setdefault(_mhref, _mkey)
+
+    def _note_release_milestones(user_id, fields=None):
+        """Milestones that follow from a campaign being created or edited.
+
+        A campaign in this product IS a release - /releases builds its
+        calendar from the same rows /links writes - so one action moves
+        the smart-link milestone and the release count together. The two
+        are still separate milestones because they open different things.
+        """
+        unlock_store.flag(user_id, "smart_link_created")
+        unlock_store.set_count(user_id, "releases_count",
+                               len(mls.list_campaigns(user_id)))
+        when = ((fields or {}).get("release_date") or "").strip()[:10]
+        if when:
+            try:
+                ahead = (date.fromisoformat(when) - date.today()).days
+            except ValueError:
+                ahead = -1
+            if ahead >= unlock_rules.ROLLOUT_LEAD_DAYS:
+                unlock_store.flag(user_id, "release_scheduled_2wk_out")
+
+    _PATH_BY_MODULE = {k: h for h, k in _MODULE_BY_PATH.items()}
+
+    def _module_for_path(path):
+        """Longest match wins, so /releases/autopilot resolves to the
+        autopilot module rather than to /releases."""
+        best_href, best_key = "", None
+        for href, key in _MODULE_BY_PATH.items():
+            if path == href or path.startswith(href.rstrip("/") + "/"):
+                if len(href) > len(best_href):
+                    best_href, best_key = href, key
+        return best_key
+
+    def _disclosure_locked(user):
+        """Locked modules, minus anything the plan blocks anyway.
+
+        The two systems overlap: ten of the modules progressive disclosure
+        gates also need a higher plan. Showing "unlocks when you upload a
+        statement" to somebody whose plan will refuse the upload — and
+        refuse the module after it — is a promise the product cannot keep.
+        Where the plan is the real answer, the plan gate gives it and this
+        one stays quiet.
+        """
+        locked = unlock_store.state(user["id"])["locked"]
+        if not locked:
+            return locked
+        plan = user.get("plan") or "artist"
+        return {key for key in locked
+                if plans.allowed(plan,
+                                 plans.required_tier(_PATH_BY_MODULE.get(key, "")))}
+
     @app.before_request
     def plan_gate():
         user = current_user()
@@ -2623,7 +2702,65 @@ def create_app():
             return render_template("upgrade.html", required=tier,
                                    plans_list=plans.PLANS,
                                    **build_dashboard_context()), 402
+        # Progressive disclosure. Navigation only: this is a way of not
+        # putting the whole product in front of somebody on day one, not
+        # a permission boundary. The modules are the account's own, so a
+        # GET is turned around and everything else is left alone.
+        if request.method == "GET":
+            key = _module_for_path(request.path)
+            if key and key in _disclosure_locked(user):
+                return redirect("/command-center?locked=" + key)
         return None
+
+    @app.context_processor
+    def inject_unlock_context():
+        """Every surface that renders a module list reads these."""
+        user = None
+        try:
+            user = current_user()
+        except RuntimeError:
+            pass
+        base = {"unlock_locked": set(), "unlock_simple": False,
+                "unlock_hint": unlock_rules.hint,
+                "unlock_opened": unlock_rules.OPENED,
+                "unlock_notices": [], "locked_hint": ""}
+        if user is None:
+            return base
+        state = unlock_store.state(user["id"])
+        # Set when the gate above turned somebody around, so the dashboard
+        # can say which module and what opens it.
+        asked_for = ""
+        try:
+            asked_for = request.args.get("locked") or ""
+        except RuntimeError:
+            pass
+        base.update({"unlock_locked": _disclosure_locked(user),
+                     "unlock_simple": state["simple"],
+                     "unlock_notices": state["notices"],
+                     "locked_hint": unlock_rules.hint(asked_for)})
+        return base
+
+    @app.route("/settings/disclosure", methods=["POST"])
+    def set_disclosure_mode():
+        """The escape hatch. Flips instantly, both ways, and never
+        discards the milestones already earned - so somebody who turns
+        everything on and back off again returns to what they had
+        unlocked, not to nothing."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        mode = (request.form.get("mode") or "").strip()
+        if mode in unlock_store.MODES:
+            unlock_store.set_mode(user["id"], mode)
+        return redirect(request.form.get("back") or url_for("settings"))
+
+    @app.route("/unlocks/<key>/dismiss", methods=["POST"])
+    def dismiss_unlock_notice(key):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        unlock_store.dismiss_notice(user["id"], key)
+        return redirect(request.form.get("back") or "/command-center")
 
     @app.route("/world/<world>")
     def switch_world(world):
@@ -7660,6 +7797,12 @@ def create_app():
         splits = add_split(song_id, collaborator, role, percentage)
         if splits is None:
             return jsonify({"ok": False}), 404
+        # Second name on the track is what makes conflict and dispute
+        # tooling mean anything. The milestone is latched here and
+        # persists even though the split itself is held in memory.
+        _splitter = current_user()
+        if _splitter is not None and len(splits) >= 2:
+            unlock_store.flag(_splitter["id"], "second_contributor_added")
         song = live_song(get_song(song_id))
         return jsonify({
             "ok": True,

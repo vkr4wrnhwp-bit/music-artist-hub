@@ -164,8 +164,14 @@
            With seventy destinations, the four you were just in beat any
            ordering we could guess. #}
         <div id="sb-recent" class="sb-hide-rail hidden space-y-1"></div>
+        {# `locked` is progressive disclosure: the module exists and is
+           dimmed, with the one line that says what opens it. It stays a
+           link on purpose - clicking turns you around at the dashboard
+           with the same sentence, which is friendlier than a dead item
+           you cannot interrogate. #}
         {% macro nav_item(key, href, path, label) -%}
-          <a href="{{ href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-300 hover:bg-white/5 hover:text-white' }}"{% if key not in live_keys %} title="Open — but this page shows example data, not yours"{% endif %}>
+          {% set locked = key in unlock_locked %}
+          <a href="{{ href }}" data-unlock="{{ 'locked' if locked else 'open' }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'opacity-60 ' if locked }}{{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-300 hover:bg-white/5 hover:text-white' }}"{% if locked %} title="{{ unlock_hint(key) }}"{% elif key not in live_keys %} title="Open — but this page shows example data, not yours"{% endif %}>
             <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               {% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
             </svg>
@@ -177,12 +183,19 @@
                forbidden symbol for "not wired up yet" made the owner of
                the product feel locked out of it. A word does the job the
                icon was failing at. #}
-            {% if key not in live_keys %}
+            {% if locked %}
+            <span class="nav-lock ml-auto shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-gray-300">
+              Soon
+            </span>
+            {% elif key not in live_keys %}
             <span class="nav-lock ml-auto shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-300/90">
               Sample
             </span>
             {% endif %}
           </a>
+          {% if locked %}
+          <p class="sb-hide-rail -mt-0.5 mb-1 px-3 text-[10px] leading-snug text-gray-300">{{ unlock_hint(key) }}</p>
+          {% endif %}
         {%- endmacro %}
 
         {% if nav_world == 'fan' %}
