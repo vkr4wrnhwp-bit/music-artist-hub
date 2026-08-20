@@ -201,13 +201,20 @@ def test_demo_open_only_opens_demo_accounts():
         assert not sess.get("user_id")
 
 
-def test_remember_this_device_keeps_its_own_answer():
-    """A box labelled 'remember this device' that arrives unticked every
-    visit is not remembering anything."""
+def test_remember_this_device_is_on_unless_it_was_turned_off():
+    """Unticked, a sign-in lasts only until the browser closes — and a
+    box nobody noticed meant signing in again every visit, which reads as
+    the feature being broken. It ships ticked; the script restores only an
+    explicit opt-out, so somebody who turned it off stays turned off."""
     js = open("static/js/login-session-recall.js", encoding="utf-8").read()
     assert "sbRemember" in js
+    assert 'localStorage.getItem("sbRemember") === "0"' in js
+    assert "remember.checked = false" in js
+
     body = _anon().get("/login").get_data(as_text=True)
-    assert 'id="lsr-remember"' in body
+    box = re.search(r'<input[^>]*id="lsr-remember"[^>]*>', body).group(0)
+    assert 'name="remember"' in box
+    assert "checked" in box, box
 
 
 def test_the_session_cookie_is_configured_for_a_real_return_visit():

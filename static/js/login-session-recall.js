@@ -85,14 +85,17 @@
   } catch (e) {}
   applyWorkspace();
 
-  /* "Remember this device" remembers the choice too. The box controls a
-     31-day session; arriving unticked every time meant a returning
-     artist had to opt in again on every sign-in, which is the opposite
-     of what the label promises. Stored in this browser, nowhere else. */
+  /* "Remember this device" remembers the choice too. The box ships
+     ticked — it controls a 31-day session, and a sign-in without it
+     lasts only until the browser closes — so the only thing worth
+     restoring here is an explicit opt-OUT. Reading "1" and ticking would
+     be redundant now, and would also re-tick the box for somebody who
+     had deliberately turned it off. Stored in this browser, nowhere
+     else. */
   var remember = document.getElementById("lsr-remember");
   if (remember) {
     try {
-      if (localStorage.getItem("sbRemember") === "1") { remember.checked = true; }
+      if (localStorage.getItem("sbRemember") === "0") { remember.checked = false; }
     } catch (e) {}
     remember.addEventListener("change", function () {
       try {

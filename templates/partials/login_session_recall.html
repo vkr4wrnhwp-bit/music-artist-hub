@@ -50,11 +50,17 @@
             </button>
           </div>
         </div>
-        {# The choice itself is remembered, in this browser only. A box
-           labelled "remember this device" that arrives unticked every
-           time is not remembering anything. #}
+        {# Ticked by default, and the choice is remembered in this browser.
+
+           Unticked, a sign-in gets a cookie that dies when the browser
+           closes — so somebody who did not notice the box was asked to
+           sign in again every time and reasonably read that as the
+           feature being broken. Staying signed in is what every other
+           tool this sits beside does, and the box is right here to turn
+           off. The script below only overrides this when the visitor has
+           explicitly unticked it before. #}
         <label class="lsr-remember">
-          <input type="checkbox" name="remember" value="1" id="lsr-remember">
+          <input type="checkbox" name="remember" value="1" id="lsr-remember" checked>
           <span>Remember this device</span>
         </label>
       </div>
