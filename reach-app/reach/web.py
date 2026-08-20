@@ -5,10 +5,12 @@ though REACH is now its own application: every route, bookmark, test and doc
 already refers to it, and ``/`` redirects here.
 """
 
+import hmac
 import json
+import time
 
 from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
-                   url_for)
+                   session, url_for)
 
 from . import REACH_VERSION
 from . import (analytics, approvals, audit, campaigns, catalog, clock, compliance,
@@ -21,6 +23,57 @@ from .providers import search as search_provider
 from .providers import spotify as spotify_provider
 
 bp = Blueprint("reach", __name__, url_prefix="/reach")
+
+# Endpoints reachable while the gate is locked: the unlock form itself, and
+# the email webhook, which authenticates every request with its own signature.
+ACCESS_EXEMPT = {"reach.unlock", "reach.email_webhook"}
+
+
+@bp.before_request
+def _access_gate():
+    """When REACH_ACCESS_KEY is set, every screen and action under /reach
+    needs the key once per browser. Without the variable, nothing changes —
+    the gate does not exist. The landing page and /healthz live outside the
+    blueprint and stay public either way."""
+    from . import config
+
+    key = config.env("REACH_ACCESS_KEY")
+    if not key:
+        return None
+    if request.endpoint in ACCESS_EXEMPT:
+        return None
+    if session.get("reach_unlocked"):
+        return None
+    if request.method != "GET":
+        return jsonify({"ok": False, "kind": "LOCKED",
+                        "error": "REACH is locked. Open it and enter the access key."}), 401
+    return redirect(url_for("reach.unlock", next=request.full_path.rstrip("?")))
+
+
+@bp.route("/unlock", methods=["GET", "POST"])
+def unlock():
+    from . import config
+
+    key = config.env("REACH_ACCESS_KEY")
+    if not key:
+        return redirect(url_for("reach.index"))
+    error = None
+    if request.method == "POST":
+        supplied = (request.form.get("key") or "").strip()
+        if supplied and hmac.compare_digest(supplied.encode("utf-8"), key.encode("utf-8")):
+            session.permanent = True
+            session["reach_unlocked"] = True
+            audit.record("access.unlocked", entity_type="access", entity_id="gate")
+            target = request.form.get("next") or ""
+            if not target.startswith("/") or target.startswith("//"):
+                target = url_for("reach.index")
+            return redirect(target)
+        # A wrong key is recorded and slowed, never described in detail.
+        audit.record("access.denied", entity_type="access", entity_id="gate")
+        time.sleep(0.4)
+        error = "That key is not correct."
+    return render_template("reach/unlock.html", error=error,
+                           next=request.values.get("next") or "")
 
 
 @bp.app_context_processor

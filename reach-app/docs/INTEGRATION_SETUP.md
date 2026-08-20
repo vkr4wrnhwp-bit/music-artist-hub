@@ -22,6 +22,7 @@ python app.py
 | `REACH_ENCRYPTION_KEY` | ephemeral per process | Fernet key for contact values at rest. **Set this in production** — without it, stored contacts cannot be decrypted after a restart, and Provider Health says so |
 | `REACH_PRINCIPAL_EMAIL` | `owner@streetbanker.local` | Acting principal until REACH has sessions |
 | `REACH_PRINCIPAL_ROLE` | `OWNER` | One of `OWNER`, `ADMIN`, `CAMPAIGN_MANAGER`, `REVIEWER`, `ANALYST`, `VIEW_ONLY` |
+| `REACH_ACCESS_KEY` | unset — no gate | When set, every `/reach` screen and action requires this key once per browser (30-day cookie). The public landing page, `/healthz` and the signed email webhook stay reachable. **Set this before sharing your URL** — without it anyone who has the address can open your workspace |
 
 Generate a key:
 

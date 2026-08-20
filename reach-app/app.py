@@ -12,15 +12,30 @@ the built-in fixture corpus and every screen says so. See
 docs/INTEGRATION_SETUP.md to connect real providers.
 """
 
+import hashlib
 import os
+from datetime import timedelta
 
 from flask import Flask, render_template
 
+from reach import config
 from reach.web import bp as reach_bp
 
 
 def create_app():
     app = Flask(__name__)
+    # Sessions exist only for the access gate. The signing secret derives from
+    # secrets the deployment already has, so an unlocked browser survives
+    # restarts; with no secrets configured there is no gate to remember, and a
+    # per-process key is fine.
+    seed = config.env("REACH_ENCRYPTION_KEY", "") or config.env("REACH_ACCESS_KEY", "")
+    app.secret_key = (hashlib.sha256(("reach-session::" + seed).encode("utf-8")).digest()
+                      if seed else os.urandom(32))
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+    )
     app.register_blueprint(reach_bp)
 
     @app.route("/")
