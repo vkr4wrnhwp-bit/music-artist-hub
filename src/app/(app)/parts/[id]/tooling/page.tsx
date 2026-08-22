@@ -262,18 +262,24 @@ export default async function ToolingPage(props: { params: Promise<{ id: string 
               {economics && (
                 <div className="mt-5 border-t border-line pt-5">
                   <p className="tech-label mb-2">What it costs</p>
-                  <div className="grid gap-x-8 sm:grid-cols-2">
-                    <DataRow label="Cutting the jaws" value={`$${economics.cutCost.toFixed(2)}`} />
-                    <DataRow label="Charged to this job alone" value={`$${economics.costIfBespoke.toFixed(2)}/part`} />
-                    <DataRow
-                      label={`Spread over ${economics.expectedUses} jobs`}
-                      value={`$${economics.costAmortised.toFixed(2)}/part`}
-                    />
-                    <DataRow
-                      label="Reusing what you have"
-                      value={economics.costIfReused !== null ? `$${economics.costIfReused.toFixed(2)}/part` : "—"}
-                    />
-                  </div>
+                  {/* Every figure is NaN when an input is missing, and .toFixed
+                      on it renders "$NaN" into a make/buy decision. The rows
+                      are only drawn when the arithmetic actually ran; the
+                      verdict below says what is missing either way. */}
+                  {economics.computable ? (
+                    <div className="grid gap-x-8 sm:grid-cols-2">
+                      <DataRow label="Cutting the jaws" value={`$${economics.cutCost.toFixed(2)}`} />
+                      <DataRow label="Charged to this job alone" value={`$${economics.costIfBespoke.toFixed(2)}/part`} />
+                      <DataRow
+                        label={`Spread over ${economics.expectedUses} jobs`}
+                        value={`$${economics.costAmortised.toFixed(2)}/part`}
+                      />
+                      <DataRow
+                        label="Reusing what you have"
+                        value={economics.costIfReused !== null ? `$${economics.costIfReused.toFixed(2)}/part` : "—"}
+                      />
+                    </div>
+                  ) : null}
                   <p className="mt-3 max-w-2xl text-[12.5px] leading-relaxed text-platinum">{economics.verdict}</p>
                 </div>
               )}

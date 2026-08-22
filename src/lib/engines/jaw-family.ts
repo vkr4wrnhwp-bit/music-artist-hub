@@ -88,6 +88,21 @@ export function solveShim(perSide: number): ShimSolution | null {
   const error = Number((perSide - total).toFixed(4));
   const exact = Math.abs(error) <= 0.002;
 
+  // A gap between MIN_USEFUL_SHIM and the thinnest shim on the shelf produces
+  // an empty stack, and the note then rendered as ` = 0.000" per side` — an
+  // empty join with nothing in front of it. Worse than looking broken, it was
+  // returned as a shim solution, so the caller told the machinist to "shim it
+  // down 0.012 per side" and listed no shims to do it with.
+  if (stack.length === 0) {
+    return {
+      perSide: Number(perSide.toFixed(4)),
+      stack: [],
+      error,
+      exact: false,
+      note: `Nothing on the shelf is that thin — the smallest shim stocked is ${Math.min(...STANDARD_SHIMS).toFixed(3)}" and this gap is ${perSide.toFixed(4)}". Face a shim to suit, or run the part as it sits and probe it.`,
+    };
+  }
+
   return {
     perSide: Number(perSide.toFixed(4)),
     stack,
@@ -119,6 +134,11 @@ export interface JawMatch {
   direct: boolean;
   /** Minutes to put this jaw set on the machine and prove it. */
   setupMinutes: number;
+  /**
+   * True when the request gave a length and the jaw set has none recorded, so
+   * whether the part fits along the jaw could not be checked.
+   */
+  lengthUnverified: boolean;
   reason: string;
 }
 
@@ -141,6 +161,23 @@ export function findExistingJaws(request: JawRequest, inventory: JawSet[]): JawM
     if (jaw.nominalSize < request.size - 0.0005) continue;
     if (jaw.stepDepth < request.requiredStep - 0.002) continue;
 
+    // The second dimension was never checked. A rectangular set cut 4.000
+    // across and 2.000 long was offered for a 4.000 × 6.000 part with the
+    // words "this part drops straight in" — a third of the part hanging out
+    // of a jaw that cannot reach it.
+    let lengthUnverified = false;
+    if (request.profile === "RECTANGULAR" && request.length != null) {
+      if (jaw.nominalLength == null) {
+        lengthUnverified = true;
+      } else if (jaw.nominalLength < request.length - 0.0005) {
+        continue;
+      }
+    }
+
+    const unverifiedNote = lengthUnverified
+      ? ` No length is recorded for this set, so whether the part fits along the jaw has not been checked — measure it before you rely on it.`
+      : "";
+
     const perSide = (jaw.nominalSize - request.size) / 2;
 
     if (perSide < MIN_USEFUL_SHIM) {
@@ -149,7 +186,8 @@ export function findExistingJaws(request: JawRequest, inventory: JawSet[]): JawM
         shim: null,
         direct: true,
         setupMinutes: 10,
-        reason: `${jaw.name} is already at ${sizeLabel(jaw.profile, jaw.nominalSize)} — this part drops straight in with no shims.`,
+        lengthUnverified,
+        reason: `${jaw.name} is already at ${sizeLabel(jaw.profile, jaw.nominalSize)} — this part drops straight in with no shims.${unverifiedNote}`,
       });
       continue;
     }
@@ -162,7 +200,8 @@ export function findExistingJaws(request: JawRequest, inventory: JawSet[]): JawM
       shim,
       direct: false,
       setupMinutes: 15,
-      reason: `${jaw.name} is cut ${sizeLabel(jaw.profile, jaw.nominalSize)}. Shim it down ${perSide.toFixed(3)}" per side and it holds this part — no jaw cutting at all.`,
+      lengthUnverified,
+      reason: `${jaw.name} is cut ${sizeLabel(jaw.profile, jaw.nominalSize)}. Shim it down ${perSide.toFixed(3)}" per side and it holds this part — no jaw cutting at all.${unverifiedNote}`,
     });
   }
 
@@ -214,11 +253,15 @@ export function proposeFamily(request: JawRequest, inventory: JawSet[]): FamilyP
   // Cutting bigger costs nothing extra in time; the jaw is the same operation.
   const minutesToCut = 35;
 
+  // A jaw cannot close past nothing. This was candidate - 2 * MAX_SHIM_PER_SIDE
+  // unclamped, so a ⌀1.000 jaw was advertised as covering "-0.500–⌀1.000".
+  const coversFrom = Number(Math.max(0, candidate - 2 * MAX_SHIM_PER_SIDE).toFixed(3));
+
   return {
     cutAt: candidate,
     partSize: request.size,
     shim,
-    coversFrom: Number((candidate - 2 * MAX_SHIM_PER_SIDE).toFixed(3)),
+    coversFrom,
     coversTo: candidate,
     minutesToCut,
     rationale:
@@ -226,7 +269,7 @@ export function proposeFamily(request: JawRequest, inventory: JawSet[]): FamilyP
         ? `Cut the jaws at ${sizeLabel(request.profile, candidate)}, which is what this part needs anyway and a size the next job is likely to want.`
         : `Cut the jaws at ${sizeLabel(request.profile, candidate)} rather than ${sizeLabel(request.profile, request.size)}. This part then runs on ${shim.stack.map((s) => s.toFixed(3)).join(" + ")}" of shim per side, and the jaws are left at a standard size the next job can use.`,
     versusBespoke:
-      `Cut bespoke at ${sizeLabel(request.profile, request.size)} and the jaws hold exactly one part. Cut at ${sizeLabel(request.profile, candidate)} and they cover ${(candidate - 2 * MAX_SHIM_PER_SIDE).toFixed(3)}–${sizeLabel(request.profile, candidate)} with shims. Same ${minutesToCut} minutes either way.`,
+      `Cut bespoke at ${sizeLabel(request.profile, request.size)} and the jaws hold exactly one part. Cut at ${sizeLabel(request.profile, candidate)} and they cover ${coversFrom.toFixed(3)}–${sizeLabel(request.profile, candidate)} with shims. Same ${minutesToCut} minutes either way.`,
   };
 }
 
@@ -245,6 +288,8 @@ export interface JawEconomics {
   /** Cost of this job when an existing jaw is reused instead. */
   costIfReused: number | null;
   verdict: string;
+  /** False when an input was missing and every figure above is NaN. */
+  computable: boolean;
 }
 
 export function jawEconomics(input: {
@@ -255,6 +300,28 @@ export function jawEconomics(input: {
   expectedUses: number;
   reuseSetupMinutes: number | null;
 }): JawEconomics {
+  // Without this, a missing shop rate produced "the jaws add $NaN a part" —
+  // a cost figure a shop owner is being asked to make a make/buy decision on.
+  // There is no rate to guess: the arithmetic simply cannot be done.
+  const inputsUsable =
+    Number.isFinite(input.minutesToCut) &&
+    Number.isFinite(input.shopRatePerHour) &&
+    Number.isFinite(input.blankCost) &&
+    input.shopRatePerHour > 0;
+
+  if (!inputsUsable) {
+    return {
+      cutCost: Number.NaN,
+      costIfBespoke: Number.NaN,
+      costAmortised: Number.NaN,
+      expectedUses: Math.max(1, input.expectedUses),
+      costIfReused: null,
+      verdict:
+        "The cost of cutting these jaws cannot be worked out — the shop rate, the blank cost or the time to cut is missing. Soft jaws are a make/buy argument and it needs those three numbers to have.",
+      computable: false,
+    };
+  }
+
   const cutCost = (input.minutesToCut / 60) * input.shopRatePerHour + input.blankCost;
   const qty = Math.max(1, input.quantity);
   const uses = Math.max(1, input.expectedUses);
@@ -279,6 +346,7 @@ export function jawEconomics(input: {
     expectedUses: uses,
     costIfReused,
     verdict,
+    computable: true,
   };
 }
 
