@@ -56,6 +56,15 @@ export interface ReadinessInput {
   workholding: WorkholdingDevice | null;
   workholdingAssessment: WorkholdingAssessment | null;
   hasInspectionPlan: boolean;
+  /**
+   * What the assigned machine's tool changer is recorded as holding.
+   *
+   * `null` — or an empty list — means the changer has not been mapped, which
+   * is NOT the same as "the tools are not loaded". The gate treats the two
+   * differently on purpose: an unmapped changer is NOT_ATTEMPTED, a mapped
+   * changer missing a required tool is MISSING.
+   */
+  carousel?: { machineId: string; loadedToolNumbers: number[] } | null;
   /** Metrology the shop actually owns. Drives the inspection capability gate. */
   instruments?: Instrument[];
   simulationRun: boolean;
@@ -109,6 +118,65 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     gates.push(gate("tools", "Tool availability", "MISSING", "No tools are assigned to this part.", true, ["Assign tools from the tool crib"]));
   } else {
     gates.push(gate("tools", "Tool availability", "PASS", `${input.tools.length} tools assigned from the crib.`, true, []));
+  }
+
+  /* ---- Tooling loaded ----
+   *
+   * A separate gate from the one above, deliberately. "The crib contains this
+   * cutter" and "this cutter is in the machine" are different questions, and
+   * collapsing them lets a part read as ready with the tooling still on the
+   * shelf. This is the last question before Cycle Start that CANVAS can
+   * actually answer, so it is blocking.
+   *
+   * The distinction that matters: a tool the changer map does not list is a
+   * real finding. A changer nobody has mapped is not — absence of evidence is
+   * not evidence of absence, and failing a shop for not having adopted a
+   * feature would be the gate lying in the other direction. That case is
+   * NOT_ATTEMPTED, which keeps the part off READY_TO_RUN without claiming the
+   * tooling is missing.
+   */
+  if (input.tools.length > 0) {
+    const carousel = input.carousel ?? null;
+    if (!input.machine) {
+      gates.push(
+        gate("tool-loading", "Tooling loaded", "NOT_ATTEMPTED", "No machine is assigned, so there is no changer to check the tooling against.", true, [
+          "Assign a machine to the setup",
+        ]),
+      );
+    } else if (carousel === null || carousel.loadedToolNumbers.length === 0) {
+      gates.push(
+        gate(
+          "tool-loading",
+          "Tooling loaded",
+          "NOT_ATTEMPTED",
+          `The ${input.machine.manufacturer} ${input.machine.model} changer has not been mapped, so CANVAS cannot say whether this tooling is in the machine.`,
+          true,
+          ["Map the changer on the machine's carousel page"],
+        ),
+      );
+    } else {
+      const loaded = new Set(carousel.loadedToolNumbers);
+      const absent = input.tools.filter((t) => !loaded.has(t.toolNumber));
+      gates.push(
+        absent.length === 0
+          ? gate(
+              "tool-loading",
+              "Tooling loaded",
+              "PASS",
+              `All ${input.tools.length} assigned tools are in the ${input.machine.manufacturer} ${input.machine.model} changer.`,
+              true,
+              [],
+            )
+          : gate(
+              "tool-loading",
+              "Tooling loaded",
+              "MISSING",
+              `${absent.map((t) => `T${t.toolNumber}`).join(", ")} ${absent.length === 1 ? "is" : "are"} not in the ${input.machine.manufacturer} ${input.machine.model} changer.`,
+              true,
+              [`Load ${absent.map((t) => `T${t.toolNumber}`).join(", ")} into the changer and record the pockets`],
+            ),
+      );
+    }
   }
 
   /* ---- Tool reach ---- */

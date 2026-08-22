@@ -186,6 +186,19 @@ export async function buildPackage(
     calibrated: d.calibrated,
   }));
 
+  /*
+   * What the assigned machine's changer is recorded as holding. Queried
+   * rather than derived: a tool is in a pocket because somebody recorded
+   * putting it there. An empty result means the changer has not been mapped,
+   * which the gate treats as unknown rather than as absent.
+   */
+  const loadedInMachine = primaryMachine
+    ? await db.tool.findMany({
+        where: { organizationId, machineId: primaryMachine.id, pocket: { not: null } },
+        select: { toolNumber: true },
+      })
+    : [];
+
   const readiness = evaluateReadiness({
     intent: revision.intent,
     stock: revision.stock,
@@ -195,6 +208,9 @@ export async function buildPackage(
     workholding: primaryWorkholding,
     workholdingAssessment: worstAssessment,
     hasInspectionPlan: Boolean(plan),
+    carousel: primaryMachine
+      ? { machineId: primaryMachine.id, loadedToolNumbers: loadedInMachine.map((t) => t.toolNumber) }
+      : null,
     instruments,
     simulationRun: Boolean(sim),
     ncGenerated: Boolean(nc),

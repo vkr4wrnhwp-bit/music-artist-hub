@@ -1745,3 +1745,40 @@ The seed loads seven of ten tools into pockets and leaves three in the crib —
 the boring head and the tap among them — because that is what a changer looks
 like on a Tuesday, and a demo where everything happens to be loaded would
 teach the opposite of what the carousel exists to show.
+
+## TOOL AVAILABILITY now asks whether the tooling is in the machine
+
+A new blocking gate, `tool-loading` / "Tooling loaded", separate from the
+existing tool availability gate on purpose. "The crib contains this cutter"
+and "this cutter is in the machine" are different questions, and collapsing
+them lets a part read as ready with the tooling still on the shelf. This is
+the last question before Cycle Start that CANVAS can actually answer.
+
+The distinction that carries the whole design: a tool the changer map does
+not list is a real finding; a changer nobody has mapped is not. Absence of
+evidence is not evidence of absence, and failing a shop for not having
+adopted the carousel would be the gate lying in the other direction.
+
+  no machine assigned      NOT_ATTEMPTED — nothing to check against
+  changer not mapped       NOT_ATTEMPTED — "CANVAS cannot say whether this
+                           tooling is in the machine", never "it is missing"
+  mapped, all present      PASS
+  mapped, some absent      MISSING, naming the T numbers and the action
+
+MIGRATION CONSEQUENCE, stated plainly: this gate is blocking, so a shop that
+has not mapped its changers will see parts drop out of READY_TO_RUN into
+NOT_ATTEMPTED on this gate. That is the honest state — CANVAS genuinely does
+not know — and the fix is one visit to the carousel page per machine. If that
+trade is wrong for a shop, the gate's `blocking` flag is the single line to
+change, and this paragraph is the record of the decision.
+
+Seven new tests pin the behaviour, including the two that matter most: an
+unmapped changer must never read as MISSING, and a genuinely absent tool must
+never average away into READY_TO_RUN.
+
+Verified in the running build against the seeded demo, which produces a real
+finding on its own: the Bearing Support uses T9 and T10, the boring head and
+the tap, and the seed deliberately leaves both in the crib. The gate reports
+"T9, T10 are not in the Haas VF-2 changer" with the load action. Clearing all
+pocket assignments flips the same part to "the changer has not been mapped",
+and restoring them flips it back.
