@@ -631,7 +631,11 @@
      the silhouette alone tells you which one is in the chain. Cone offsets
      are measured from the centre of the box; the box stands on the floor. */
   var FLOOR = 103, CAB_X = 12;
-  var CABS = {
+  // Named apart from the DSP tables at the top of this file on purpose:
+  // they live in the same function scope, so sharing a name meant sharing
+  // a binding, and whichever ran last won. These are the picture; CABS and
+  // MICS up there are the filters.
+  var CAB_ART = {
     direct:    {cap: "Direct / DI", w: 0, h: 0, cones: []},
     combo112:  {cap: "1×12 combo", w: 78, h: 56, cones: [[0, 0, 17]]},
     open212:   {cap: "2×12 open-back", w: 82, h: 50,
@@ -645,7 +649,7 @@
                         [-10.5, 10.5, 8.5], [10.5, 10.5, 8.5],
                         [-10.5, 31.5, 8.5], [10.5, 31.5, 8.5]]},
   };
-  var MICS = {dynamic: "Dynamic", ribbon: "Ribbon", condenser: "Condenser"};
+  var MIC_LABELS = {dynamic: "Dynamic", ribbon: "Ribbon", condenser: "Condenser"};
 
   function svgEl(name, attrs) {
     var el = document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -686,7 +690,7 @@
     if (!svg) { return; }
     var cap = document.getElementById("rk-cabview-cap");
     var c = state.cab;
-    var spec = CABS[c.cab] || CABS.direct;
+    var spec = CAB_ART[c.cab] || CAB_ART.direct;
     var room = Math.round(35 * c.dist);
     svg.innerHTML = "";
     svg.setAttribute("opacity", c.on ? "1" : "0.32");
@@ -759,7 +763,7 @@
 
     if (cap) {
       cap.textContent = (c.on ? "" : "BYPASSED · ")
-        + spec.cap.toUpperCase() + " · " + MICS[c.mic].toUpperCase()
+        + spec.cap.toUpperCase() + " · " + (MIC_LABELS[c.mic] || "").toUpperCase()
         + " · " + (c.axis === "off" ? "OFF-AXIS" : "ON-AXIS")
         + " · ROOM " + room + "%";
     }
@@ -1475,8 +1479,12 @@
   });
 
   // ---------- per-module power + A/B compare ----------
+  // Every data-mod in rack.html needs an entry here: the A/B button reads
+  // MOD_KEYS[mod] directly. "vlv" is the valve bank, whose state lives
+  // under `valves`.
   var MOD_KEYS = {tube: ["tube"], eq: ["eq", "q"], sub: ["sub"], comp: ["comp"],
-                  cab: ["cab"], dly: ["dly"], rev: ["rev"], out: ["out"]};
+                  cab: ["cab"], dly: ["dly"], rev: ["rev"], out: ["out"],
+                  vlv: ["valves"]};
 
   function modSlice(m) {
     var o = {};

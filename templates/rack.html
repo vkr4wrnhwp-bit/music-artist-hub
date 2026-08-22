@@ -1075,6 +1075,9 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
-<script src="/static/js/rackdsp.js?v=34"></script>
+{# The rack reads window.__savedRack once, at load. It has to be set
+   BEFORE the script that reads it — the other way round it was always
+   undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
+<script src="/static/js/rackdsp.js?v=35"></script>
 {% endblock %}
