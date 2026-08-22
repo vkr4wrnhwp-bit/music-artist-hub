@@ -109,7 +109,8 @@ export function assessBoringBar(input: {
 export function assessPartOff(input: {
   cutoffZ: number;
   cutoffDiameter: number;
-  distanceFromChuck: number;
+  /** Jaw face to the cutoff plane. Null when the stickout is unrecorded. */
+  distanceFromChuck: number | null;
   toolWidth: number | null;
   hasPartsCatcher: boolean;
   hasSubSpindle: boolean;
@@ -120,6 +121,19 @@ export function assessPartOff(input: {
   if (input.toolWidth === null) missing.push("Cutoff insert width not recorded.");
   if (input.tailstockActive) {
     return dev("FAIL", "Part-off with the tailstock engaged pinches the blade at separation.", ["Retract the tailstock before the cutoff", "Part off in a later operation"], missing);
+  }
+  if (input.distanceFromChuck === null) {
+    // Overhang is the whole verdict here. Computed from an assumed zero it
+    // would read as the most stable cutoff possible.
+    missing.push("Stickout from the jaw face not recorded.");
+    return {
+      verdict: "UNKNOWN",
+      detail: "Part-off overhang cannot be checked without the stickout — the distance from the jaws to the cutoff plane is what decides whether the free end whips at separation.",
+      recommendations: ["Record the stickout from the jaw face"],
+      missingInputs: missing,
+      assumptions: [],
+      developmentAnalysis: true,
+    };
   }
   const overhang = input.distanceFromChuck / Math.max(1e-6, input.cutoffDiameter);
   if (!input.hasPartsCatcher && !input.hasSubSpindle) {

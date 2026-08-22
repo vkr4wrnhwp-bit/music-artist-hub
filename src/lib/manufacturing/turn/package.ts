@@ -5,6 +5,7 @@ import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from 
 import { evaluateTurnReadiness } from "./readiness";
 import { emitLatheProgram } from "./post";
 import { parseThreadPitch } from "@/lib/engines/cam/engine";
+import { criticalToleranceBand, cutoffDistanceFromChuck, inspectionCapableFor, materialFromIntent } from "./derive";
 
 /**
  * THE TURNING PACKAGE — one assembly of the rotational model, its
@@ -37,6 +38,8 @@ export interface TurnPackage {
   };
   readiness: ReturnType<typeof evaluateTurnReadiness>;
   blocking: ReturnType<typeof evaluateTurnReadiness>["gates"];
+  /** The material the part's own intent records, or null. */
+  materialFromIntent: string | null;
   program: { code: string; refusals: string[] };
 }
 
@@ -118,7 +121,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     ? assessPartOff({
         cutoffZ: cutoff.startZ,
         cutoffDiameter: cutoff.startDiameter,
-        distanceFromChuck: cutoff.startZ - (rot.gripLength ?? 0) + (rot.stickout ?? 0) - (profile.stockLength - (rot.gripLength ?? 0)),
+        distanceFromChuck: cutoffDistanceFromChuck({ cutoffZ: cutoff.startZ, stickout: rot.stickout }),
         toolWidth: toolWidthFor(cutoff.toolStation),
         hasPartsCatcher: lathe?.hasPartsCatcher ?? false,
         hasSubSpindle: lathe?.hasSubSpindle ?? false,
@@ -127,15 +130,8 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     : null;
 
   /* ---- inspection capability, simplest honest form ---- */
-  const criticalTol = Math.min(
-    ...profile.segments.filter((s) => s.critical && s.toleranceMinus != null).map((s) => (s.tolerancePlus ?? 0) + (s.toleranceMinus ?? 0)),
-    Infinity,
-  );
-  const bestInstrument = metrology
-    .filter((m) => m.deviceType === "MICROMETER" || m.deviceType === "BORE_GAUGE" || m.deviceType === "CMM")
-    .sort((a, b) => a.uncertainty - b.uncertainty)[0];
-  const inspectionCapable =
-    criticalTol === Infinity ? true : bestInstrument ? bestInstrument.uncertainty * 4 <= criticalTol : false;
+  const criticalTol = criticalToleranceBand(profile);
+  const inspectionCapable = inspectionCapableFor(criticalTol, metrology);
 
   /* ---- readiness, worst-gate ---- */
   const cssUsed = plan.some((o) => o.params.cssEnabled);
@@ -145,15 +141,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
    * fail. It reads the part's own intent now, exactly as the milling side
    * does.
    */
-  const intentMaterial = (() => {
-    try {
-      const intent = JSON.parse(revision.intentJson ?? "{}") as { material?: { value?: unknown } };
-      const v = intent.material?.value;
-      return typeof v === "string" && v.trim() !== "" ? v : null;
-    } catch {
-      return null;
-    }
-  })();
+  const intentMaterial = materialFromIntent(revision.intentJson);
 
   const readiness = evaluateTurnReadiness({
     profile,
@@ -211,6 +199,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     analyses: { grip, stickout, boringBar, partOff },
     readiness,
     blocking,
+    materialFromIntent: intentMaterial,
     program,
   };
 }

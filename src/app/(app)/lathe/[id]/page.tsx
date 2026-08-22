@@ -13,14 +13,10 @@ import { NcExportPanel } from "@/components/nc/export-panel";
 import { mintTurnExport, recordTurnExport } from "./nc/actions";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
-import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
+import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
-import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
-import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from "@/lib/manufacturing/turn/analysis";
-import { evaluateTurnReadiness } from "@/lib/manufacturing/turn/readiness";
-import { emitLatheProgram } from "@/lib/manufacturing/turn/post";
+import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
 import { bestNominalSuggestion } from "@/lib/engines/nominal";
-import { parseThreadPitch } from "@/lib/engines/cam/engine";
 
 /**
  * THE TURNING WORKSPACE — PROFILE view, plan, hold intelligence, gates.
@@ -41,114 +37,30 @@ export default async function LathePartPage(props: {
   const { op: opParam } = await props.searchParams;
   const user = await requireUser();
 
-  const part = await db.part.findFirst({ where: { id, organizationId: user.organizationId } });
-  if (!part) notFound();
-  const revision = await db.partRevision.findFirst({ where: { partId: part.id }, orderBy: { createdAt: "desc" } });
-  if (!revision) notFound();
-  const rot = await db.rotationalPart.findFirst({
-    where: { partRevisionId: revision.id, organizationId: user.organizationId },
-  });
-  if (!rot) notFound();
+  /*
+   * ONE ASSEMBLY. This page used to rebuild the toolpaths, hold analyses,
+   * inspection check and readiness itself, from its own copy of the same
+   * arithmetic — and the copies had already drifted: the workspace handed
+   * the material gate a literal `true` (a PASS/FAIL gate that could not
+   * fail) and assessed boring-bar reach against a fabricated 0.625" x 3"
+   * steel bar when the crib held none. The export mint, meanwhile, gated on
+   * buildTurnPackage. A workspace showing a different readiness than the
+   * gate is exactly what "the rendered button is not the gate" means.
+   */
+  const pkg = await buildTurnPackage(user.organizationId, id);
+  if (!pkg) notFound();
+  const { part, rot, profile, plan, results, totalMinutes, lathe, holding, tools, readiness, blocking, program } = pkg;
+  const { grip, stickout, partOff } = pkg.analyses;
 
-  const [lathe, holding, tools, metrology] = await Promise.all([
-    rot.latheMachineId ? db.latheMachine.findFirst({ where: { id: rot.latheMachineId, organizationId: user.organizationId } }) : null,
-    rot.workholdingId ? db.latheWorkholding.findFirst({ where: { id: rot.workholdingId, organizationId: user.organizationId } }) : null,
-    db.turningTool.findMany({ where: { organizationId: user.organizationId } }),
-    db.metrologyDevice.findMany({ where: { organizationId: user.organizationId } }),
-  ]);
-
-  const profile = JSON.parse(rot.profileJson) as RotationalProfile;
   // A reverse-engineering part with no readings yet has no geometry to show —
   // the bench flow is the workspace until the first step is recorded.
   if (profile.segments.length === 0) redirect(`/lathe/${id}/reverse`);
-  const plan = JSON.parse(rot.planJson) as TurnOperation[];
 
-  /* ---------------- Toolpaths, deterministic ---------------- */
-  const toolWidthFor = (station: string) => tools.find((t) => t.station === station)?.grooveWidth ?? null;
-  const results = plan.map((op) => {
-    const seg = op.targetSegmentId ? profile.segments.find((s) => s.id === op.targetSegmentId) : null;
-    const pitch = seg?.thread ? parseThreadPitch(seg.thread) : null;
-    return { op, result: generateTurnToolpath(op, profile, toolWidthFor(op.toolStation), pitch) };
-  });
-  const totalMinutes = results.reduce((t, r) => t + (r.result.ok ? r.result.toolpath.estimatedMinutes : 0), 0);
   const selectedOpNum = opParam ? Number(opParam) : plan[0]?.operationNumber ?? null;
   const selected = results.find((r) => r.op.operationNumber === selectedOpNum) ?? null;
   const selSeg = selected?.op.targetSegmentId
     ? profile.segments.find((s) => s.id === selected.op.targetSegmentId) ?? null
     : null;
-
-  /* ---------------- Analyses ---------------- */
-  const gripDiameter = profile.stockDiameter;
-  const grip = assessChuckGrip({
-    gripDiameter,
-    gripLength: rot.gripLength ?? 0,
-    jawMaterial: (holding?.jawMaterial as "HARD" | "SOFT_MACHINED" | null) ?? null,
-    serrated: holding?.serrated ?? null,
-    clampForceLbf: rot.clampForceLbf,
-    stickout: rot.stickout ?? 0,
-    chuckMaxRpm: holding?.maxRPM ?? null,
-    programmedMaxRpm: rot.maxRpmClamp,
-  });
-  const stickout = assessStickout({
-    unsupportedLength: rot.stickout ?? 0,
-    diameter: profile.stockDiameter,
-    tailstock: rot.tailstockActive,
-  });
-  const boringOps = plan.filter((o) => o.type.startsWith("ID_BORE"));
-  const boringBar = boringOps.length
-    ? assessBoringBar({
-        barDiameter: tools.find((t) => t.toolClass === "BORING_BAR")?.barDiameter ?? 0.625,
-        stickout: tools.find((t) => t.toolClass === "BORING_BAR")?.stickout ?? 3,
-        boreDepth: Math.max(...boringOps.map((o) => Math.abs(o.endZ - o.startZ))),
-        barMaterial: "STEEL",
-      })
-    : null;
-  const cutoff = plan.find((o) => o.type === "PART_OFF");
-  const partOff = cutoff
-    ? assessPartOff({
-        cutoffZ: cutoff.startZ,
-        cutoffDiameter: cutoff.startDiameter,
-        distanceFromChuck: cutoff.startZ - (rot.gripLength ?? 0) + (rot.stickout ?? 0) - (profile.stockLength - (rot.gripLength ?? 0)),
-        toolWidth: toolWidthFor(cutoff.toolStation),
-        hasPartsCatcher: lathe?.hasPartsCatcher ?? false,
-        hasSubSpindle: lathe?.hasSubSpindle ?? false,
-        tailstockActive: rot.tailstockActive,
-      })
-    : null;
-
-  /* ---------------- Inspection capability, simplest honest form ------- */
-  // The critical journal is ±0.0005: a micrometer at ≤0.0001 uncertainty
-  // covers it; calipers do not. Reuses the instrument library directly.
-  const criticalTol = Math.min(
-    ...profile.segments.filter((s) => s.critical && s.toleranceMinus != null).map((s) => (s.tolerancePlus ?? 0) + (s.toleranceMinus ?? 0)),
-    Infinity,
-  );
-  const bestInstrument = metrology
-    .filter((m) => m.deviceType === "MICROMETER" || m.deviceType === "BORE_GAUGE" || m.deviceType === "CMM")
-    .sort((a, b) => a.uncertainty - b.uncertainty)[0];
-  const inspectionCapable =
-    criticalTol === Infinity ? true : bestInstrument ? bestInstrument.uncertainty * 4 <= criticalTol : false;
-
-  /* ---------------- Readiness, worst-gate ---------------- */
-  const cssUsed = plan.some((o) => o.params.cssEnabled);
-  const readiness = evaluateTurnReadiness({
-    profile,
-    materialKnown: true,
-    latheSelected: Boolean(lathe),
-    workholdingSelected: Boolean(holding),
-    grip,
-    stickout,
-    boringBar,
-    partOff,
-    toolsAssigned: plan.filter((o) => tools.some((t) => t.station === o.toolStation)).length,
-    toolsRequired: plan.length,
-    chuckRpmKnown: holding?.maxRPM != null,
-    cssUsed,
-    inspectionCapable,
-    postSelected: true,
-    humanApproved: rot.humanApproved,
-  });
-  const blocking = readiness.gates.filter((g) => g.blocking && (g.status === "FAIL" || g.status === "NOT_ATTEMPTED"));
 
   /* ---------------- Nominal reasoning (never auto-applied) ------------ */
   const journal = profile.segments.find((s) => s.functionalRole === "BEARING_JOURNAL");
@@ -156,27 +68,6 @@ export default async function LathePartPage(props: {
     journal && !journal.confirmedByUser
       ? bestNominalSuggestion({ measured: journal.diameterStart, uncertainty: 0.0002, context: "SHAFT" })
       : null;
-
-  /* ---------------- NC preview (development post) ---------------- */
-  const postOps = results
-    .filter((r) => r.result.ok)
-    .map((r) => ({
-      toolpath: (r.result as { ok: true; toolpath: never }).toolpath,
-      station: r.op.toolStation,
-      description: r.op.label,
-      cssEnabled: r.op.params.cssEnabled,
-      surfaceSpeed: r.op.params.surfaceSpeed,
-      rpm: r.op.params.rpm,
-      coolant: r.op.params.coolant === "FLOOD",
-    }));
-  const program = emitLatheProgram(postOps, {
-    programNumber: "2001",
-    partName: part.name,
-    machine: lathe ? `${lathe.manufacturer} ${lathe.model}` : "No lathe",
-    workOffset: "G54",
-    maxRpmClamp: rot.maxRpmClamp,
-    generatedAtIso: new Date().toISOString().slice(0, 10),
-  });
 
   /* ---------------- Actions ---------------- */
 
@@ -264,11 +155,11 @@ export default async function LathePartPage(props: {
   const tone = (v: string): Tone => (v === "PASS" ? "pass" : v === "REVIEW" ? "review" : v === "UNKNOWN" ? "unknown" : "risk");
 
   // Cinematic input: real operations, real cycle proportions, turning voice.
-  const intentDoc = JSON.parse(revision.intentJson ?? "{}") as { material?: { value?: string } };
+  const partMaterial = pkg.materialFromIntent;
   const cinematicInput = {
     partName: part.name,
     partNumber: part.partNumber,
-    material: intentDoc.material?.value ?? null,
+    material: partMaterial,
     process: "TURN" as const,
     stock: null,
     barStock: { diameter: profile.stockDiameter, length: profile.stockLength },
@@ -294,7 +185,7 @@ export default async function LathePartPage(props: {
     partId: id,
     hasStock: profile.stockDiameter > 0 && profile.stockLength > 0,
     hasMachine: Boolean(lathe),
-    hasMaterial: Boolean(intentDoc.material?.value),
+    hasMaterial: partMaterial !== null,
     featureCount: profile.segments.length,
     pendingProposals: 0,
     setupCount: holding ? 1 : 0,
