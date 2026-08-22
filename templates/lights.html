@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=7">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=8">{% endblock %}
 
 {% block content %}
 <script>
@@ -182,10 +182,11 @@
         <div id="lx-looks" class="lx-looks"></div>
         <div class="lx-look-form">
           <input id="lx-look-name" class="lx-input" type="text" maxlength="24" placeholder="name it — e.g. Verse teal" aria-label="Name for the new look">
-          <button id="lx-look-save" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Save the selected cue's colour, intensity and fade as a look">Save selected cue as look</button>
+          <button id="lx-look-new" class="lx-btn lx-btn--small" type="button" aria-haspopup="dialog" aria-label="Mix any colour and add it as a look — opens the gel book and colour mixer">+ Mix a new look</button>
+          <button id="lx-look-save" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Save the selected cue's colour, intensity and fade as a look">Save selected cue</button>
           <span id="lx-look-form-hint" class="lx-hint"></span>
         </div>
-        <p class="lx-hint">One tap applies the look to the selected cue, or drops a new cue at the playhead. Keys <span class="lx-kbd">1</span>–<span class="lx-kbd">6</span> are the house looks; your saved looks take <span class="lx-kbd">7</span> <span class="lx-kbd">8</span> <span class="lx-kbd">9</span> <span class="lx-kbd">0</span> and travel with the show. Colour per cue: click its swatch for the gel book.</p>
+        <p class="lx-hint">One tap applies the look to the selected cue, or drops a new cue at the playhead. The six house looks take keys <span class="lx-kbd">1</span>–<span class="lx-kbd">6</span> and your first four take <span class="lx-kbd">7</span> <span class="lx-kbd">8</span> <span class="lx-kbd">9</span> <span class="lx-kbd">0</span> — you can keep more than that, they just have no shortcut. <b>+ Mix a new look</b> opens the full gel book and RGB/HSV mixer; you do not need a cue selected. A cue's own colour is its swatch in the list.</p>
       </details>
 
       <details class="lx-more" open>
@@ -211,8 +212,12 @@
   </div>
 </div>
 
-<div id="lx-gel" class="lx-gel" role="dialog" aria-label="Cue colour" hidden>
+<div id="lx-gel" class="lx-gel" role="dialog" aria-label="Colour" hidden>
   <div class="lx-gel-head"><span id="lx-gel-for" class="lx-hint"></span><button id="lx-gel-close" class="lx-cue-x" type="button" aria-label="Close the colour picker">×</button></div>
+  <div id="lx-gel-make" class="lx-gel-foot" hidden>
+    <input id="lx-gel-look-name" class="lx-input lx-input--mid" type="text" maxlength="24" placeholder="look name" aria-label="Name for the new look">
+    <button id="lx-gel-look-add" class="lx-btn lx-btn--small" type="button" aria-label="Add this colour to the Looks row as a new look">Add as look</button>
+  </div>
   <div id="lx-gel-recent-wrap" hidden><p class="lx-gel-lab">Recent</p><div id="lx-gel-recent" class="lx-gel-grid"></div></div>
   <p class="lx-gel-lab">Gel book</p>
   <div id="lx-gel-grid" class="lx-gel-grid"></div>
@@ -256,5 +261,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=6"></script>
-<script src="/static/js/lights.js?v=13"></script>
+<script src="/static/js/lights.js?v=14"></script>
 {% endblock %}

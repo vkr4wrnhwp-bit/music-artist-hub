@@ -7,13 +7,17 @@
   "use strict";
   var E = window.LightsEngine;
   var $ = function (id) { return document.getElementById(id); };
+  // Your own looks. The first four get keyboard shortcuts (7 8 9 0); the
+  // rest are click-only. The old cap of four made the Looks row look like a
+  // fixed palette of six house colours, which is not what it is.
+  var MAX_USER_LOOKS = 16;
   var saved = window.__savedShow || null;
   var lib = window.__lightsLibrary || {shows: [], tracks: [], tour_shows: []};
   var show = (saved && saved.cues) ? saved : {name: "", bars: 6, chans: 4, cues: []};
   show.bars = Math.max(2, Math.min(10, show.bars || 6));
   show.chans = show.chans === 3 ? 3 : 4;
   show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
-  show.looks = Array.isArray(show.looks) ? show.looks.slice(0, 4) : [];   // user looks (keys 7 8 9 0), saved with the show
+  show.looks = Array.isArray(show.looks) ? show.looks.slice(0, MAX_USER_LOOKS) : [];   // user looks (keys 7 8 9 0), saved with the show
 
   // ---------- state ----------
   var ctx = null, buffer = null, playing = false, startAt = 0, playOffset = 0, runStart = null, scrubT = 0, src = null;
@@ -1101,8 +1105,10 @@
     (show.looks || []).forEach(function (l, i) {
       var wrap = document.createElement("span"); wrap.className = "lx-look is-user";
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-look-apply";
-      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + esc(l.name) + ' <span class="lx-kbd" aria-hidden="true">' + USER_KEYS[i] + '</span>';
-      b.setAttribute("aria-label", l.name + " (your look, " + l.intensity + "%, fade " + l.fade + " s) — apply to the selected cue or add a cue at the playhead (key " + USER_KEYS[i] + ")");
+      var key = USER_KEYS[i];
+      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + esc(l.name) +
+        (key ? ' <span class="lx-kbd" aria-hidden="true">' + key + '</span>' : "");
+      b.setAttribute("aria-label", l.name + " (your look, " + l.intensity + "%, fade " + l.fade + " s) — apply to the selected cue or add a cue at the playhead" + (key ? " (key " + key + ")" : ""));
       b.addEventListener("click", function () { applyLook(l); });
       var x = document.createElement("button"); x.type = "button"; x.className = "lx-look-x"; x.textContent = "×"; x.setAttribute("aria-label", "Remove the look " + l.name);
       x.addEventListener("click", function () { record("look-remove"); show.looks.splice(i, 1); markDirty(); paintLooks(); announce("Look " + l.name + " removed"); });
@@ -1117,12 +1123,30 @@
     var hint = $("lx-look-form-hint");
     if (!selectedCue) { hint.textContent = "Select a cue first — its colour, intensity and fade become the look."; announce(hint.textContent); return; }
     show.looks = show.looks || [];
-    if (show.looks.length >= 4) { hint.textContent = "Four of your own looks max (keys 7, 8, 9, 0) — remove one first."; announce(hint.textContent); return; }
+    if (show.looks.length >= MAX_USER_LOOKS) { hint.textContent = "That is " + MAX_USER_LOOKS + " of your own looks — remove one first."; announce(hint.textContent); return; }
     var name = ($("lx-look-name").value || "").trim() || selectedCue.note || ("Look " + (show.looks.length + 1));
+    addUserLook(name, selectedCue.color, selectedCue.intensity, selectedCue.fade, hint);
+  });
+
+  function addUserLook(name, color, intensity, fade, hint) {
+    show.looks = show.looks || [];
     record("look-save");
-    show.looks.push({key: "user-" + Date.now().toString(36), name: name.slice(0, 24), color: selectedCue.color, intensity: selectedCue.intensity, fade: selectedCue.fade, user: true});
-    $("lx-look-name").value = ""; hint.textContent = "Saved as key " + USER_KEYS[show.looks.length - 1] + ". It travels with the show (working copy and library).";
-    markDirty(); paintLooks(); announce("Look " + name + " saved — key " + USER_KEYS[show.looks.length - 1]);
+    show.looks.push({key: "user-" + Date.now().toString(36) + show.looks.length,
+                     name: (name || "Look").slice(0, 24), color: color,
+                     intensity: intensity, fade: fade, user: true});
+    $("lx-look-name").value = "";
+    var key = USER_KEYS[show.looks.length - 1];
+    var msg = "“" + name + "” added to Looks" + (key ? " — key " + key : " (no shortcut left, click it)") +
+      ". It travels with the show.";
+    if (hint) hint.textContent = msg;
+    markDirty(); paintLooks(); announce(msg);
+  }
+
+  // Mix a look with no cue selected. Before this, the colour mixer could
+  // only be reached through a cue's swatch - so with no song loaded there
+  // were no cues, and no way to reach it at all.
+  $("lx-look-new").addEventListener("click", function () {
+    openGelForNewLook($("lx-look-new"));
   });
 
   // ---------- gel book: the colour popover behind every cue swatch ----------
@@ -1169,7 +1193,9 @@
     })));
   }
 
-  var gel = $("lx-gel"), gelFor = null, gelReturn = null;
+  // gelMode: "cue" writes the colour straight onto the selected cue;
+  // "look" mixes a standalone colour that becomes a new entry in Looks.
+  var gel = $("lx-gel"), gelFor = null, gelReturn = null, gelMode = "cue";
   function gelChip(hex, name) {
     var b = document.createElement("button"); b.type = "button"; b.className = "lx-gel-chip"; b.style.background = hex; b.title = name; b.setAttribute("data-hex", hex.toLowerCase());
     b.setAttribute("aria-label", name + (name.toLowerCase() === hex.toLowerCase() ? "" : " (" + hex + ")"));
@@ -1177,7 +1203,11 @@
     b.addEventListener("click", function () { pickGel(hex, name); });
     return b;
   }
-  function gelSummary() { return "Cue at " + E.fmtTimecode(gelFor.t) + " · " + (gelName(gelFor.color) || gelFor.color) + " · intensity stays " + gelFor.intensity + "%"; }
+  function gelSummary() {
+    var what = gelName(gelFor.color) || gelFor.color;
+    if (gelMode === "look") return "New look · " + what + " · name it below and add it to Looks";
+    return "Cue at " + E.fmtTimecode(gelFor.t) + " · " + what + " · intensity stays " + gelFor.intensity + "%";
+  }
 
   // ---------- the mixer: RGB and HSV, kept in step ----------
   var mixIds = {r: "lx-mix-r", g: "lx-mix-g", b: "lx-mix-b", h: "lx-mix-h", s: "lx-mix-s", v: "lx-mix-v"};
@@ -1229,7 +1259,27 @@
       box.appendChild(b);
     });
   }
-  function openGel(cue, anchor, nativeInput) {
+  function openGelForNewLook(anchor) {
+    // A throwaway draft so the whole gel book and mixer work with no song,
+    // no cue and nothing selected.
+    openGel({color: "#ffb347", intensity: 85, fade: 1.0, t: 0, _id: "__draft__"}, anchor, null, "look");
+    $("lx-gel-look-name").value = "";
+    setTimeout(function () { $("lx-gel-look-name").focus(); }, 0);
+  }
+  $("lx-gel-look-add").addEventListener("click", function () {
+    if (gelMode !== "look" || !gelFor) return;
+    if ((show.looks || []).length >= MAX_USER_LOOKS) {
+      $("lx-gel-for").textContent = "That is " + MAX_USER_LOOKS + " looks — remove one first.";
+      return;
+    }
+    var name = ($("lx-gel-look-name").value || "").trim() || gelName(gelFor.color) || gelFor.color;
+    addUserLook(name, gelFor.color, gelFor.intensity, gelFor.fade, $("lx-look-form-hint"));
+    closeGel(true);
+  });
+
+  function openGel(cue, anchor, nativeInput, mode) {
+    gelMode = mode || "cue";
+    $("lx-gel-make").hidden = gelMode !== "look";
     gelFor = cue; gelReturn = anchor;
     var grid = $("lx-gel-grid"); grid.innerHTML = "";
     GELS.forEach(function (gl) { grid.appendChild(gelChip(gl[1], gl[0])); });
@@ -1251,8 +1301,14 @@
   }
   function applyGelColor(hex, name, syncMix) {
     if (!gelFor) return;
-    var row = cuesWrap.querySelector('[data-id="' + gelFor._id + '"]'), sw = row ? row.querySelector(".lx-swatch") : null;
-    setCueColor(gelFor, hex, sw);
+    if (gelMode === "look") {
+      // a draft colour, not a cue - nothing is recorded or marked dirty
+      gelFor.color = hex;
+      pushRecent(hex);
+    } else {
+      var row = cuesWrap.querySelector('[data-id="' + gelFor._id + '"]'), sw = row ? row.querySelector(".lx-swatch") : null;
+      setCueColor(gelFor, hex, sw);
+    }
     $("lx-gel-for").textContent = gelSummary();
     Array.prototype.forEach.call(gel.querySelectorAll(".lx-gel-chip"), function (ch) {
       ch.setAttribute("aria-pressed", ch.getAttribute("data-hex") === hex.toLowerCase() ? "true" : "false");
@@ -1513,7 +1569,7 @@
     show = data && data.cues ? data : {name: meta ? meta.name : "", bars: 6, chans: 4, cues: []};
     show.bars = Math.max(2, Math.min(10, show.bars || keep.bars || 6)); show.chans = show.chans === 3 ? 3 : 4;
     show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
-    show.looks = Array.isArray(show.looks) ? show.looks.slice(0, 4) : [];
+    show.looks = Array.isArray(show.looks) ? show.looks.slice(0, MAX_USER_LOOKS) : [];
     show.dmxStart = parseInt(show.dmxStart, 10) || 1; show.dmxUniverse = parseInt(show.dmxUniverse, 10) || 1; show.dmxAddr = show.dmxAddr || {};
     show.rigName = show.rigName || ""; show.rigKey = show.rigKey || null;
     delete show.draftDirty; delete show.draftSavedAt;
