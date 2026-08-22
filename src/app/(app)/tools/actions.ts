@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { TOOL_CLASSES } from "@/lib/domain/shop";
@@ -82,7 +82,7 @@ function summarize(d: ReturnType<typeof parse>): string {
 }
 
 export async function createTool(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
 
   let data;
   try {
@@ -126,7 +126,7 @@ export async function createTool(formData: FormData): Promise<void> {
 }
 
 export async function updateTool(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
 
   // Org from the session, id checked against it. Never trust the posted id.
@@ -177,7 +177,7 @@ export async function updateTool(formData: FormData): Promise<void> {
 }
 
 export async function deleteTool(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.tool.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/tools");

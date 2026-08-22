@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser, canApprove } from "@/lib/auth";
+import { canApprove, requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
@@ -31,7 +31,7 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
 
   async function approve() {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     if (!canApprove(currentUser)) redirect(`/parts/${id}/readiness`);
 
     const fresh = await buildPackage(currentUser.organizationId, id);
@@ -67,7 +67,7 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
    */
   async function disagree(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const fresh = await buildPackage(currentUser.organizationId, id);
     if (!fresh) notFound();
 

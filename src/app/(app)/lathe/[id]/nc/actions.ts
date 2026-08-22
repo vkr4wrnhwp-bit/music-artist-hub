@@ -1,7 +1,7 @@
 "use server";
 
 import { createHash, randomBytes } from "node:crypto";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
@@ -26,7 +26,7 @@ const LATHE_POST_ID = "canvas-lathe-dev";
 const LATHE_PROGRAM_NUMBER = "2001";
 
 export async function mintTurnExport(partId: string): Promise<MintGrant | MintRefusal> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const pkg = await buildTurnPackage(user.organizationId, partId);
   if (!pkg) return { ok: false, refused: [{ id: "part", label: "Part", detail: "Not found in this organisation" }] };
 
@@ -109,7 +109,7 @@ export async function recordTurnExport(input: {
   clientDigest?: string;
   failureDetail?: string;
 }): Promise<RecordResult> {
-  const user = await requireUser();
+  const user = await requireWrite();
 
   const auth = await db.nCExportAuthorization.findUnique({ where: { token: input.token } });
   if (!auth || auth.organizationId !== user.organizationId || auth.issuedToUserId !== user.id) {

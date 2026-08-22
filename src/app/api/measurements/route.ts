@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { DEVICE_UNCERTAINTY, type MetrologyDeviceType } from "@/lib/domain/shop";
@@ -26,7 +26,9 @@ const createSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid" }, { status: 400 });
 
@@ -105,7 +107,9 @@ const resolveSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const parsed = resolveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 

@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
@@ -70,7 +70,7 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
    */
   async function establishDatum(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const owned = await db.measurementSession.findFirst({
       where: { id, partRevision: { part: { organizationId: currentUser.organizationId } } },
     });

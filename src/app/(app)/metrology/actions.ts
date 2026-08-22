@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { METROLOGY_DEVICES } from "@/lib/domain/shop";
@@ -57,7 +57,7 @@ const summary = (d: ReturnType<typeof parse>) =>
   `${d.description} · ±${d.uncertainty} · ${d.calibrated ? "calibrated" : "not calibrated"}`;
 
 export async function createInstrument(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   let data;
   try {
     data = parse(formData);
@@ -82,7 +82,7 @@ export async function createInstrument(formData: FormData): Promise<void> {
 }
 
 export async function updateInstrument(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.metrologyDevice.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/metrology");
@@ -115,7 +115,7 @@ export async function updateInstrument(formData: FormData): Promise<void> {
 }
 
 export async function deleteInstrument(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.metrologyDevice.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/metrology");

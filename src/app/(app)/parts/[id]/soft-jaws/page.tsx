@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
@@ -87,7 +87,7 @@ export default async function SoftJawsPage(props: {
 
   async function saveJaws(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const fresh = await buildPackage(currentUser.organizationId, id);
     if (!fresh) notFound();
 

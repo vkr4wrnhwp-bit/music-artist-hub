@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
@@ -65,7 +65,7 @@ export default async function InspectionSessionPage(props: {
 
   async function record(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const rev = await loadRevision(currentUser.organizationId, id);
     if (!rev) notFound();
     const s = await db.measurementSession.findFirst({
@@ -120,7 +120,7 @@ export default async function InspectionSessionPage(props: {
 
   async function complete() {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const rev = await loadRevision(currentUser.organizationId, id);
     if (!rev) notFound();
     await db.measurementSession.updateMany({

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { proposeSequence, type SequencedOperation } from "@/lib/engines/sequencing";
@@ -21,7 +21,7 @@ import { proposeSequence, type SequencedOperation } from "@/lib/engines/sequenci
  * order does change, so the audit entry says so and the UI says so.
  */
 export async function applySequenceProposal(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const setupId = String(formData.get("setupId") ?? "");
   const partId = String(formData.get("partId") ?? "");
   const back = `/parts/${partId}/setups`;

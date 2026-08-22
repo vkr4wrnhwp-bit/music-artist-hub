@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { SUBJECT_LABEL, promoteToShopKnowledge, type DisagreementSubject } from "@/lib/disagreement";
@@ -109,7 +109,7 @@ export default async function KnowledgePage(props: {
     "use server";
     // Organisation comes from the session; the form supplies only the ids the
     // library call re-checks against that organisation.
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const disagreementId = String(formData.get("disagreementId"));
     const category = String(formData.get("category"));
     const observation = String(formData.get("observation") ?? "").trim();
@@ -147,7 +147,7 @@ export default async function KnowledgePage(props: {
 
   async function decline(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const disagreementId = String(formData.get("disagreementId"));
     const reason = String(formData.get("reason") ?? "").trim();
     if (!reason) redirect("/knowledge?error=reason");
@@ -179,7 +179,7 @@ export default async function KnowledgePage(props: {
   /** WAS CANVAS RIGHT? — beta run evidence. Stored, audited, read by no engine. */
   async function recordBetaRun(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const verdict = String(formData.get("verdict") ?? "");
     if (!["YES", "PARTLY", "NO"].includes(verdict)) redirect("/knowledge?error=verdict");
     const wrong = formData.getAll("wrong").map(String).filter(Boolean);

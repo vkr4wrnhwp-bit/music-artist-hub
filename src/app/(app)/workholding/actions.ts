@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { WORKHOLDING_TYPES } from "@/lib/domain/shop";
@@ -40,7 +40,7 @@ const summary = (d: ReturnType<typeof parse>) =>
   `${title(d.type)} · ${d.description} · jaw ${d.jawWidth}×${d.jawHeight}`;
 
 export async function createDevice(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   let data;
   try {
     data = parse(formData);
@@ -64,7 +64,7 @@ export async function createDevice(formData: FormData): Promise<void> {
 }
 
 export async function updateDevice(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.workholdingDevice.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/workholding");
@@ -97,7 +97,7 @@ export async function updateDevice(formData: FormData): Promise<void> {
 }
 
 export async function deleteDevice(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.workholdingDevice.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/workholding");

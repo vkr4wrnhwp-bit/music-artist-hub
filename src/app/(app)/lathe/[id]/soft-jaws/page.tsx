@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -70,7 +70,7 @@ export default async function LatheSoftJawsPage(props: { params: Promise<{ id: s
 
   async function recordBore(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const jawId = String(formData.get("jawId") ?? "");
     const dia = Number(String(formData.get("boredDiameter") ?? "").trim());
     const depth = Number(String(formData.get("boredDepth") ?? "").trim());

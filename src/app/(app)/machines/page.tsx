@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { getMachines } from "@/lib/data";
@@ -30,7 +30,7 @@ export default async function MachinesPage() {
 
   async function recordCycle(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const machineId = String(formData.get("machineId") ?? "");
     const programLabel = String(formData.get("programLabel") ?? "").trim();
     const est = Number(String(formData.get("estimated") ?? "").trim());
@@ -51,7 +51,7 @@ export default async function MachinesPage() {
 
   async function recordReferenceCut(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const get = (k: string) => String(formData.get(k) ?? "").trim();
     const num = (k: string) => Number(get(k));
     const machineId = get("machineId") || null;

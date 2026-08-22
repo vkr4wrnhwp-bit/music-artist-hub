@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireUser, destroySession } from "@/lib/auth";
+import { destroySession, requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditChanges } from "@/lib/audit";
 import { getShopSettings } from "@/lib/data";
@@ -19,7 +19,7 @@ export default async function SettingsPage() {
 
   async function saveRates(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const existing = await db.shop.findFirst({ where: { organizationId: currentUser.organizationId } });
 
     const data = {

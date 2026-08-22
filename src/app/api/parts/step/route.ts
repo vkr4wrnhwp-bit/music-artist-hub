@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { recognizeStep } from "@/lib/step/recognize";
@@ -21,7 +21,9 @@ import { calculated, unknown as unknownField } from "@/lib/provenance";
 const MAX_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");

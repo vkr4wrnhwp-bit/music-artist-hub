@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { MACHINE_TYPES, CONTROLLERS } from "@/lib/domain/shop";
@@ -60,7 +60,7 @@ const summary = (d: ReturnType<typeof parse>) =>
   `${d.manufacturer} ${d.model} · ${d.travelsX}×${d.travelsY}×${d.travelsZ} · ${d.maxSpindleRPM} rpm`;
 
 export async function createMachine(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   let data;
   try {
     data = parse(formData);
@@ -93,7 +93,7 @@ export async function createMachine(formData: FormData): Promise<void> {
 }
 
 export async function updateMachine(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.machine.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/machines");
@@ -146,7 +146,7 @@ export async function updateMachine(formData: FormData): Promise<void> {
 }
 
 export async function deleteMachine(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.machine.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/machines");

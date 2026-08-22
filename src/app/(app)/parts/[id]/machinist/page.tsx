@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser, canApprove } from "@/lib/auth";
+import { canApprove, requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
@@ -97,7 +97,7 @@ export default async function MachinistPage(props: {
 
   async function approvePlan(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     if (!canApprove(currentUser)) redirect(`/parts/${id}/machinist`);
 
     const pattern = String(formData.get("pattern")) as ThoughtPattern;

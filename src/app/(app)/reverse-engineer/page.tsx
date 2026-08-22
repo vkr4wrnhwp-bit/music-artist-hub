@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
@@ -32,7 +32,7 @@ export default async function ReverseEngineerPage() {
 
   async function startSession(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const name = String(formData.get("name") || "Untitled component");
 
     // A reverse engineering session always creates a part to hang the

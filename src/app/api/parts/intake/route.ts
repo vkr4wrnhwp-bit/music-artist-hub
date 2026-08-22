@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { getAiProvider } from "@/lib/ai/provider";
@@ -18,7 +18,9 @@ import { buildIntakeIntent } from "@/lib/ai/intake-intent";
 const bodySchema = z.object({ prompt: z.string().min(3).max(4000) });
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

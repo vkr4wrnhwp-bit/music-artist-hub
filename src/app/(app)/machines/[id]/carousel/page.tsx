@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -58,7 +58,7 @@ export default async function CarouselPage(props: {
 
   async function loadTool(formData: FormData): Promise<void> {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const machineId = String(formData.get("machineId") ?? "");
     const toolId = String(formData.get("toolId") ?? "");
     const pocket = Number(String(formData.get("pocket") ?? ""));
@@ -116,7 +116,7 @@ export default async function CarouselPage(props: {
 
   async function unloadTool(formData: FormData): Promise<void> {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const toolId = String(formData.get("toolId") ?? "");
     const machineId = String(formData.get("machineId") ?? "");
     const t = await db.tool.findFirst({ where: { id: toolId, organizationId: u.organizationId } });

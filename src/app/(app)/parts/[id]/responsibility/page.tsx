@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditChanges } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
@@ -52,7 +52,7 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
 
   async function save(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const rev = await loadRevision(currentUser.organizationId, id);
     if (!rev) notFound();
 

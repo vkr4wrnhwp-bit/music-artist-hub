@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -182,7 +182,7 @@ export default async function LathePartPage(props: {
 
   async function acceptNominal() {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!fresh) notFound();
     const prof = JSON.parse(fresh.profileJson) as RotationalProfile;
@@ -213,7 +213,7 @@ export default async function LathePartPage(props: {
 
   async function keepMeasured() {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!fresh) notFound();
     const prof = JSON.parse(fresh.profileJson) as RotationalProfile;
@@ -232,7 +232,7 @@ export default async function LathePartPage(props: {
 
   async function toggleTailstock() {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!fresh) notFound();
     await db.rotationalPart.update({ where: { id: fresh.id }, data: { tailstockActive: !fresh.tailstockActive } });
@@ -247,7 +247,7 @@ export default async function LathePartPage(props: {
 
   async function recordClampForce(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const v = Number(String(formData.get("clampForce") ?? "").trim());
     if (!Number.isFinite(v) || v <= 0) redirect(`/lathe/${id}`);
     const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });

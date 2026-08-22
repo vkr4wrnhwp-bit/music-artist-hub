@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
@@ -48,7 +48,7 @@ export default async function NetworkPage() {
 
   async function setDefaultSharing(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const level = String(formData.get("level"));
     if (!SHARING_LEVELS.includes(level as never)) redirect("/network");
 

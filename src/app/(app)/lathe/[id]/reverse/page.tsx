@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -60,7 +60,7 @@ export default async function LatheReversePage(props: { params: Promise<{ id: st
 
   async function addReading(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const owned = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!owned) notFound();
     const diameter = Number(String(formData.get("diameter") ?? "").trim());
@@ -85,7 +85,7 @@ export default async function LatheReversePage(props: { params: Promise<{ id: st
 
   async function removeLast() {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const owned = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!owned) notFound();
     const current = JSON.parse(owned.reReadingsJson) as TurnReading[];
@@ -103,7 +103,7 @@ export default async function LatheReversePage(props: { params: Promise<{ id: st
 
   async function resolve(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const owned = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
     if (!owned) notFound();
     const index = Number(String(formData.get("index") ?? ""));

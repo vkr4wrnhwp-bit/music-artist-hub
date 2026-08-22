@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { storage, validateUpload } from "@/lib/storage";
@@ -12,7 +12,9 @@ import { storage, validateUpload } from "@/lib/storage";
  */
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const form = await request.formData();
 
   const files = form.getAll("files").filter((f): f is File => f instanceof File);

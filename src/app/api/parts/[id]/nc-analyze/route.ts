@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
 import { parseNC } from "@/lib/nc/parse";
@@ -24,7 +24,9 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const user = await requireUser();
+  const gate = await requireWriteApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const revision = await loadRevision(user.organizationId, id);
   if (!revision) return NextResponse.json({ error: "Part not found" }, { status: 404 });
 

@@ -98,25 +98,23 @@ export async function requireUser(): Promise<SessionUser> {
 }
 
 /**
- * NOT YET ENFORCED — canWrite is exported and called by nothing.
+ * Both are enforced.
  *
- * canApprove IS enforced, inside the two server actions that use it, against
- * a freshly read session rather than a rendered prop. canWrite has no such
- * caller: every mutating server action in the app checks that a user is
- * signed in and does not check what they may do. A VIEWER could change a
- * machine, a tool, a material or a sharing level.
+ * canApprove is checked inside the two server actions that use it, against a
+ * freshly read session rather than a rendered prop — a disabled button is not
+ * a gate.
  *
- * Nothing can exploit that today. Every user this application creates is an
- * OWNER — sign-up and the demo seed both hardcode it — and there is no invite
- * flow or role-assignment UI, so no VIEWER, MACHINIST or ENGINEER account can
- * exist. The hazard is a future one and it is specific: somebody adds user
- * invitations, sees an exported canWrite, and reasonably assumes writes are
- * already gated.
+ * canWrite was exported and called by nothing until every mutating action was
+ * wired to requireWrite() or requireWriteApi(): thirty-six server actions and
+ * seven route handlers. Before that, each of them checked that a user was
+ * signed in and never what they were allowed to do.
  *
- * requireWrite() below is the one line each action needs. Wiring it through
- * roughly thirty actions is a deliberate change with no non-OWNER account to
- * test the negative path against, so it is called out here rather than done
- * quietly.
+ * The change is a no-op for every account that exists today, because every
+ * account this application creates is an OWNER — sign-up and the demo seed
+ * both hardcode it, and there is no invite flow. It is not a fix for a live
+ * hole; it makes a declared control real before there is a role that could
+ * fall through it. tests/engines/tenancy.test.ts fails if a new mutating
+ * action ships without one.
  */
 export const canWrite = (user: SessionUser) => roleCanWrite(user.role);
 export const canApprove = (user: SessionUser) => roleCanApprove(user.role);
@@ -129,6 +127,29 @@ export async function requireWrite(): Promise<SessionUser> {
   const user = await requireUser();
   if (!canWrite(user)) redirect("/");
   return user;
+}
+
+/**
+ * The same check for a route handler, which must answer with a status rather
+ * than a redirect — a fetch() following a 307 to the dashboard and parsing
+ * HTML as JSON is a worse failure than a plain 403.
+ *
+ * Returns the user, or the Response to return.
+ */
+export async function requireWriteApi(): Promise<{ user: SessionUser } | { denied: Response }> {
+  const user = await getSessionUser();
+  if (!user) {
+    return { denied: new Response(JSON.stringify({ error: "Not signed in." }), { status: 401, headers: { "content-type": "application/json" } }) };
+  }
+  if (!canWrite(user)) {
+    return {
+      denied: new Response(JSON.stringify({ error: "Your role does not permit changing manufacturing data." }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+    };
+  }
+  return { user };
 }
 
 /** Constant-time compare for any token comparison outside the DB lookup. */

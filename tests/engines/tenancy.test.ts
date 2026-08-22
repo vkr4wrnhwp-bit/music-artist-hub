@@ -107,3 +107,76 @@ test("the session is the only source of an organisation id", () => {
   }
   assert.deepEqual(offenders, [], `an organisation id is being read from a request:\n  ${offenders.join("\n  ")}`);
 });
+
+/* ---------------- What a signed-in user may DO ---------------- */
+
+/**
+ * Files that mutate but are not manufacturing data, each with its reason.
+ * A viewer may keep their own UI state and ask the copilot a question; they
+ * may not change a machine, a tool, a material or a program.
+ */
+const NOT_MANUFACTURING_DATA: Record<string, string> = {
+  "src/app/(auth)/sign-in/page.tsx": "Runs before there is a session.",
+  "src/app/(auth)/sign-up/page.tsx": "Creates the organisation and its first user.",
+  "src/app/api/guide/route.ts": "The signed-in user's own guide progress.",
+  "src/app/api/guide/events/route.ts": "The signed-in user's own guide telemetry.",
+  "src/app/api/view-preferences/route.ts": "The signed-in user's own viewport preferences.",
+  "src/app/api/copilot/route.ts": "Logs a conversation. Asking a question is not changing a parameter.",
+};
+
+test("every action that changes manufacturing data checks that the user may", () => {
+  // canWrite was exported and called by nothing: every mutating action
+  // checked that a user was signed in and never what they were allowed to do.
+  // Nothing could exploit it, because every account this application creates
+  // is an OWNER — but an exported permission that looks enforced is the same
+  // shape as an unimplemented feature that looks implemented.
+  const offenders: string[] = [];
+  for (const file of walk(APP)) {
+    const src = readFileSync(file, "utf8");
+    if (!MUTATION.test(src)) continue;
+    if (NOT_MANUFACTURING_DATA[file]) continue;
+    if (/requireWrite\(\)|requireWriteApi\(\)/.test(src)) continue;
+    offenders.push(file);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `these change manufacturing data without checking the user's role:\n  ${offenders.join("\n  ")}`,
+  );
+});
+
+test("the exemptions are still the files they were written for", () => {
+  for (const [file, why] of Object.entries(NOT_MANUFACTURING_DATA)) {
+    const src = readFileSync(file, "utf8");
+    assert.ok(MUTATION.test(src), `${file} no longer mutates — drop its exemption (${why})`);
+  }
+});
+
+test("a route handler denies with a status, never a redirect", () => {
+  // A fetch() following a 307 to the dashboard and parsing HTML as JSON is a
+  // worse failure than a plain 403, so route handlers use requireWriteApi.
+  const offenders: string[] = [];
+  for (const file of walk(APP)) {
+    if (!file.endsWith("route.ts")) continue;
+    if (readFileSync(file, "utf8").includes("requireWrite()")) offenders.push(file);
+  }
+  assert.deepEqual(offenders, [], `route handlers using the redirecting guard:\n  ${offenders.join("\n  ")}`);
+});
+
+test("a page still renders for someone who may only read it", () => {
+  // requireWrite belongs inside the actions, not at the top of the render.
+  // A viewer who cannot open the page cannot see the part they are being
+  // asked to run.
+  const offenders: string[] = [];
+  for (const file of walk(APP)) {
+    if (!file.endsWith(".tsx")) continue;
+    const lines = readFileSync(file, "utf8").split("\n");
+    if (lines[0].trim().replace(/[;"']/g, "") === "use server") continue;
+    lines.forEach((line, i) => {
+      if (!line.includes("requireWrite()")) return;
+      const before = lines.slice(Math.max(0, i - 7), i).join("\n");
+      if (!before.includes('"use server"')) offenders.push(`${file}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, [], `requireWrite outside a server action:\n  ${offenders.join("\n  ")}`);
+});

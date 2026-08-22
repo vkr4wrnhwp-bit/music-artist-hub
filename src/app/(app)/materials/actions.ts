@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { FormReader, rejectionQuery } from "@/lib/shop-form";
@@ -45,7 +45,7 @@ const summary = (d: ReturnType<typeof parse>) =>
   `${d.name} (${title(d.family)}, ${d.condition}) · ${d.specificEnergy} hp/in³/min`;
 
 export async function createMaterial(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   let data;
   try {
     data = parse(formData);
@@ -69,7 +69,7 @@ export async function createMaterial(formData: FormData): Promise<void> {
 }
 
 export async function updateMaterial(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.material.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/materials");
@@ -102,7 +102,7 @@ export async function updateMaterial(formData: FormData): Promise<void> {
 }
 
 export async function deleteMaterial(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireWrite();
   const id = String(formData.get("id") ?? "");
   const existing = await db.material.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!existing) redirect("/materials");

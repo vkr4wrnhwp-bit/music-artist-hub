@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -26,7 +26,7 @@ export default async function LathePage() {
 
   async function startReverse(formData: FormData) {
     "use server";
-    const u = await requireUser();
+    const u = await requireWrite();
     const name = String(formData.get("name") ?? "").trim();
     if (!name) redirect("/lathe");
     const part = await db.part.create({

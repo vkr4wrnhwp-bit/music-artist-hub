@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -34,7 +34,7 @@ export default async function OnboardingPage() {
 
   async function save(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
 
     const list = (k: string) =>
       String(formData.get(k) ?? "")
