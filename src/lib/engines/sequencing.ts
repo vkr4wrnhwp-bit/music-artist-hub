@@ -32,6 +32,8 @@
  * reports what it found. It never claims to have found the minimum.
  */
 
+import type { OperationType } from "./cam/types";
+
 export interface SequencedOperation {
   id: string;
   sequence: number;
@@ -83,7 +85,14 @@ export interface SequenceProposal {
  * last. Lower runs first, and two operations at the same rank keep the order
  * the planner already gave them.
  */
-const FEATURE_STAGE: Record<string, number> = {
+export const FEATURE_STAGE: Record<OperationType, number> = {
+  // Cutting the soft jaws happens before the part is in them, so it precedes
+  // everything. It was absent from this table and fell through to the `?? 1`
+  // default, which sequenced jaw-cutting alongside part roughing. Typing the
+  // table by OperationType means the compiler asks for a stage the day an
+  // operation type is added — this was found by sweeping for the same
+  // hand-kept-table pattern that had bitten next-action.ts.
+  SOFT_JAW_POCKET: -1,
   FACE: 0,
   POCKET_2D: 1,
   ADAPTIVE_2D: 1,
@@ -96,7 +105,8 @@ const FEATURE_STAGE: Record<string, number> = {
   CONTOUR_2D: 8,
 };
 
-const stage = (type: string): number => FEATURE_STAGE[type] ?? 1;
+const stage = (type: string): number =>
+  type in FEATURE_STAGE ? FEATURE_STAGE[type as OperationType] : 1;
 
 export const SEQUENCING_METHOD =
   "Precedence graph over the setup's operations, then a greedy topological pass that keeps the tool in the spindle wherever the graph allows it.";
@@ -133,19 +143,38 @@ export function precedenceEdges(ops: SequencedOperation[]): PrecedenceEdge[] {
 
   const faces = byIndex.filter((o) => o.type === "FACE");
   const contours = byIndex.filter((o) => o.type === "CONTOUR_2D");
+  const jawCuts = byIndex.filter((o) => o.type === "SOFT_JAW_POCKET");
 
   for (const op of byIndex) {
-    // Facing establishes the Z datum every later depth is cut to. Nothing
-    // moves ahead of it.
-    for (const f of faces) {
-      if (f.id !== op.id) {
-        edges.push({ beforeId: f.id, afterId: op.id, rule: "Facing sets the Z datum every later depth is cut from" });
+    // Cutting the soft jaws comes before everything, including facing.
+    //
+    // The facing rule below said nothing moves ahead of the datum cut, and
+    // that is right for every operation on the PART — but a soft jaw pocket
+    // is cut into the jaws, not the part. The part cannot be faced until it
+    // is held, and it is held by the jaws that have not been cut yet. The
+    // sequencer was ordering face, rough, then cut the jaws.
+    for (const j of jawCuts) {
+      if (j.id !== op.id) {
+        edges.push({
+          beforeId: j.id,
+          afterId: op.id,
+          rule: "The soft jaws are cut before the part is held in them",
+        });
+      }
+    }
+    // Facing establishes the Z datum every later depth is cut to. Nothing on
+    // the part moves ahead of it.
+    if (op.type !== "SOFT_JAW_POCKET") {
+      for (const f of faces) {
+        if (f.id !== op.id) {
+          edges.push({ beforeId: f.id, afterId: op.id, rule: "Facing sets the Z datum every later depth is cut from" });
+        }
       }
     }
     // The part is held by its own stock until the profile is cut. Profiling
     // early changes what is holding the part for everything after it.
     for (const c of contours) {
-      if (c.id !== op.id) {
+      if (c.id !== op.id && op.type !== "SOFT_JAW_POCKET") {
         edges.push({
           beforeId: op.id,
           afterId: c.id,

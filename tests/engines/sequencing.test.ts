@@ -4,8 +4,10 @@ import {
   proposeSequence,
   countToolChanges,
   precedenceEdges,
+  FEATURE_STAGE,
   type SequencedOperation,
 } from "@/lib/engines/sequencing";
+import { OPERATION_TYPES } from "@/lib/engines/cam/types";
 
 /**
  * The invariant that matters here is not "fewer tool changes" — it is that a
@@ -227,4 +229,49 @@ test("a correctly ordered plan reports no violations", () => {
   assert.equal(p.violations.length, 0);
   assert.equal(p.saved, 0);
   assert.deepEqual(p.proposedOrder, p.currentOrder, "nothing to fix and nothing to save means no churn");
+});
+
+/* ---------------- Every operation type has a stage ---------------- */
+
+test("cutting the soft jaws precedes everything that is held in them", () => {
+  // SOFT_JAW_POCKET was absent from the stage table and fell through to the
+  // `?? 1` default, which put jaw-cutting alongside part roughing. You cut
+  // the jaws before the part goes into them, and every other operation in
+  // the setup depends on the jaws existing.
+  //
+  // Found by sweeping for the same hand-kept-lookup-table pattern that had
+  // already bitten next-action.ts, rather than by reading this file again.
+  const ops = [
+    op({ id: "face", sequence: 1, type: "FACE", toolNumber: 1 }),
+    op({ id: "rough", sequence: 2, type: "POCKET_2D", toolNumber: 2, featureId: "f1" }),
+    op({ id: "jaws", sequence: 3, type: "SOFT_JAW_POCKET", toolNumber: 2, featureId: "jaw" }),
+  ];
+  const ids = proposeSequence(ops).proposedOrder;
+  assert.equal(ids[0], "jaws", `jaws must be cut first; got ${ids.join(" -> ")}`);
+});
+
+test("every operation type has a stage rather than falling through to the default", () => {
+  // A type missing from the table silently takes stage 1 — the roughing
+  // stage — which is a plausible-looking wrong answer rather than a visible
+  // failure. That is how SOFT_JAW_POCKET got there.
+  //
+  // Asserted against the table directly rather than inferred from ordering:
+  // ADAPTIVE_2D deliberately SHARES stage 1 with POCKET_2D because both are
+  // roughing, so a behavioural test cannot tell a deliberate tie from a
+  // fall-through. The first version of this test could not either.
+  for (const type of OPERATION_TYPES) {
+    assert.ok(type in FEATURE_STAGE, `${type} has no stage and would be sequenced as roughing`);
+  }
+});
+
+test("the stage table orders roughing before finishing and profiling last", () => {
+  assert.ok(FEATURE_STAGE.SOFT_JAW_POCKET < FEATURE_STAGE.FACE, "the jaws are cut before anything is held in them");
+  assert.ok(FEATURE_STAGE.FACE < FEATURE_STAGE.POCKET_2D, "facing sets the datum first");
+  assert.ok(FEATURE_STAGE.DRILL < FEATURE_STAGE.TAP, "a hole is drilled before it is tapped");
+  assert.ok(FEATURE_STAGE.POCKET_2D < FEATURE_STAGE.BORE, "rough before you finish to size");
+  assert.equal(FEATURE_STAGE.POCKET_2D, FEATURE_STAGE.ADAPTIVE_2D, "both are roughing and tie deliberately");
+  assert.ok(
+    FEATURE_STAGE.CONTOUR_2D === Math.max(...Object.values(FEATURE_STAGE)),
+    "the profile is cut last — it is what holds the part",
+  );
 });
