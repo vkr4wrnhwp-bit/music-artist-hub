@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import { partIntentExtractionSchema, type PartIntentExtraction } from "@/lib/domain/part-intent";
 import { featureSuggestionSchema, type FeatureSuggestion } from "@/lib/domain/features";
@@ -9,7 +10,12 @@ import { featureSuggestionSchema, type FeatureSuggestion } from "@/lib/domain/fe
  * through this interface, returns a schema-validated structure, and is tagged
  * AI_INFERENCE provenance downstream. Two rules are absolute:
  *
- *   1. No API key ever reaches the client. These functions run server-side.
+ *   1. No API key ever reaches the client. These functions run server-side —
+ *      enforced by the server-only import above rather than by this comment.
+ *      anthropic.ts carries its own guard, but it is reached through a dynamic
+ *      import, which resolves at runtime and so cannot fail a client build.
+ *      Without a guard here, a client import of getAiProvider would have built
+ *      cleanly and silently fallen back to the deterministic provider.
  *   2. The model never produces machine motion, and never produces a value
  *      that bypasses a manufacturing gate. It proposes; engines dispose.
  */

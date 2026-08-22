@@ -4,8 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { getAiProvider } from "@/lib/ai/provider";
-import { emptyPartIntent, type PartIntent } from "@/lib/domain/part-intent";
-import { inferred, userValue, unknown as unknownField } from "@/lib/provenance";
+import { buildIntakeIntent } from "@/lib/ai/intake-intent";
 
 /**
  * NEW PART INTAKE
@@ -31,25 +30,7 @@ export async function POST(request: Request) {
   const extraction = await ai.interpretPartPrompt(prompt);
   const suggestions = await ai.suggestFeatures(prompt, extraction);
 
-  const intent: PartIntent = emptyPartIntent(extraction.partName ?? "New Part");
-  intent.description = inferred(prompt, 1, "Verbatim from the intake request");
-  if (extraction.units) intent.units = userValue(extraction.units);
-  if (extraction.material) intent.material = inferred(extraction.material, extraction.confidence, "Recognised from the description");
-  if (extraction.materialCondition) intent.materialCondition = inferred(extraction.materialCondition, extraction.confidence);
-  if (extraction.stock) intent.stock = inferred(extraction.stock, extraction.confidence, "Stock sized from the finished envelope with a facing allowance");
-  if (extraction.finishedEnvelope) intent.finishedEnvelope = inferred(extraction.finishedEnvelope, extraction.confidence);
-  if (extraction.quantity) intent.quantity = inferred(extraction.quantity, extraction.confidence);
-  if (extraction.generalTolerance) intent.generalTolerance = inferred(extraction.generalTolerance, extraction.confidence);
-  if (extraction.surfaceFinish) intent.surfaceFinish = inferred(extraction.surfaceFinish, extraction.confidence);
-  if (extraction.features?.length) intent.features = inferred(extraction.features, extraction.confidence);
-  if (extraction.notes) intent.notes = inferred(extraction.notes, extraction.confidence);
-
-  // Responsibility is never inferred. It is asked.
-  intent.loadBearing = unknownField("Requires the Part Responsibility interview");
-  intent.safetyCritical = unknownField("Requires the Part Responsibility interview");
-  intent.failureConsequence = unknownField("Requires the Part Responsibility interview");
-  intent.unknowns = extraction.unknowns;
-  intent.confidence = extraction.confidence;
+  const { intent, stock } = buildIntakeIntent(prompt, extraction);
 
   const part = await db.part.create({
     data: {
@@ -63,16 +44,9 @@ export async function POST(request: Request) {
           status: "DRAFT",
           units: extraction.units ?? "IN",
           intentJson: JSON.stringify(intent),
-          stockJson: extraction.stock
-            ? JSON.stringify({
-                form: extraction.stock.form,
-                x: extraction.stock.x ?? 0,
-                y: extraction.stock.y ?? 0,
-                z: extraction.stock.z ?? 0,
-                material: extraction.material ?? "Unspecified",
-                condition: extraction.materialCondition,
-              })
-            : null,
+          // Null rather than a zero-filled record when the extraction gave a
+          // form and no dimensions. See stockFromExtraction.
+          stockJson: stock ? JSON.stringify(stock) : null,
           responsibility: { create: {} },
         },
       },
