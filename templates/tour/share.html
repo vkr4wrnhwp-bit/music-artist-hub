@@ -2,7 +2,7 @@
 {% block title %}Share links - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-<div class="to-head"><div><p class="to-eyebrow">Share links</p><h1 class="to-h1" style="font-size:20px">Give outsiders exactly one thing</h1><p class="to-sub">A day sheet for the local crew, a check-in list for the door, a driver sheet, a production pack. Each link is one scope, one show; optional password and expiry; revoke any time. Never the whole tour.</p></div></div>
+<div class="to-head"><div><p class="to-eyebrow">Share links</p><h1 class="to-h1" style="font-size:20px">Give outsiders exactly one thing</h1><p class="to-sub">A day sheet for the local crew, a check-in list for the door, a driver sheet, a production pack. Each link is one scope; most are one show. Optional password and expiry; revoke any time. The one exception is the band itinerary, which is the whole run on purpose — and still carries no money, no room list and no phone numbers.</p></div></div>
 
 <form method="post" action="/tours/{{ tour['id'] }}/share/new" class="to-form">
   <div class="to-grid">

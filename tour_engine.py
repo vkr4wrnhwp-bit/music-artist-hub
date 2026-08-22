@@ -754,10 +754,18 @@ def _to_iso(raw):
     raw = raw.strip()
     if re.match(r"^20\d{2}-\d{2}-\d{2}$", raw):
         return raw
-    m = re.match(r"^(\d{1,2})/(\d{1,2})/(20\d{2})$", raw)
+    # Two-digit years are what a routing sheet actually carries — an
+    # itinerary reads "10/14/26", not "10/14/2026". Windowed the usual
+    # way: 69-99 is last century, 00-68 is this one. A tour date is never
+    # in the 1900s in practice, but guessing forward would turn a typo
+    # into a booking a year out.
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2}|20\d{2})$", raw)
     if m:
+        year = int(m.group(3))
+        if year < 100:
+            year += 2000 if year <= 68 else 1900
         try:
-            return date(int(m.group(3)), int(m.group(1)), int(m.group(2))).isoformat()
+            return date(year, int(m.group(1)), int(m.group(2))).isoformat()
         except ValueError:
             return None
     for fmt in ("%B %d, %Y", "%B %d %Y", "%b %d, %Y", "%b %d %Y", "%b. %d, %Y", "%b. %d %Y"):
@@ -767,6 +775,79 @@ def _to_iso(raw):
         except ValueError:
             continue
     return None
+
+
+# --- fuel and mileage -------------------------------------------------------
+# A van tour's second-largest line after guarantees, and the one nobody
+# has in a system. This is arithmetic over figures a person entered — no
+# routing engine, no distance API, no guessing. If the miles are an
+# estimate somebody typed, the result says so on every screen it reaches.
+
+def _num(value):
+    try:
+        f = float(str(value).replace(",", "").replace("$", "").strip())
+    except (TypeError, ValueError):
+        return None
+    return f if f == f and abs(f) != float("inf") else None
+
+
+def fuel_plan(tour, legs=None):
+    """-> {miles, miles_source, gallons, fuel_cost, reserve, total, mpg,
+    price, per_show, missing, ready}.
+
+    `legs` is the list of drives somebody has actually entered. When they
+    add up, they win: a routed total beats a planning estimate, and the
+    result says which one it used. Nothing is invented — a missing figure
+    comes back in `missing` and the numbers that depend on it stay None.
+    """
+    mpg = _num(tour.get("fuel_mpg"))
+    price = _num(tour.get("fuel_price"))
+    reserve_pct = _num(tour.get("fuel_reserve_pct"))
+    stated = _num(tour.get("stated_miles"))
+
+    entered = [_num(l.get("miles")) for l in (legs or [])]
+    entered = [m for m in entered if m is not None and m > 0]
+    routed = sum(entered) if entered else None
+    # A part-entered route is worse than no route: it would read as a
+    # total and be short by every leg nobody filled in.
+    complete = bool(legs) and len(entered) == len(legs)
+
+    if complete and routed:
+        miles, source = routed, "routed"
+    elif stated:
+        miles, source = stated, "estimate"
+    else:
+        miles, source = None, "none"
+
+    missing = []
+    if mpg is None or mpg <= 0:
+        missing.append("miles per gallon")
+    if price is None or price <= 0:
+        missing.append("price per gallon")
+    if miles is None:
+        missing.append("mileage")
+
+    out = {"miles": miles, "miles_source": source, "mpg": mpg, "price": price,
+           "reserve_pct": reserve_pct, "stated_miles": stated,
+           "routed_miles": routed if entered else None,
+           "legs_entered": len(entered), "legs_total": len(legs or []),
+           "gallons": None, "fuel_cost": None, "reserve": None, "total": None,
+           "per_show": None, "missing": missing, "ready": not missing}
+    if missing:
+        return out
+    out["gallons"] = miles / mpg
+    out["fuel_cost"] = out["gallons"] * price
+    out["reserve"] = out["fuel_cost"] * ((reserve_pct or 0) / 100.0)
+    out["total"] = out["fuel_cost"] + out["reserve"]
+    return out
+
+
+def fuel_per_show(plan, show_count):
+    """Fuel divided across the dates that have to carry it. Returns None
+    rather than dividing by zero on a tour with no shows yet."""
+    if not plan.get("total") or not show_count:
+        return None
+    return plan["total"] / show_count
 
 
 # --- imports ----------------------------------------------------------------
@@ -780,6 +861,12 @@ CSV_ALIASES = {
     "tz": ("timezone", "tz", "time zone"),
     "promoter": ("promoter", "buyer"),
     "capacity": ("capacity", "cap"),
+    # A deal sheet carries the parts of a deal. The importer reads them so
+    # a tour manager does not retype 35 rows they already have.
+    "status": ("status", "confirmation", "hold", "hold status"),
+    "fee": ("fee", "guarantee", "money", "artist fee", "devora $$", "support $$", "$$"),
+    "merch": ("merch rate", "merch", "merch split", "merchandise"),
+    "ticket_url": ("ticket link", "tickets", "ticket url", "on sale link"),
 }
 
 
@@ -787,8 +874,16 @@ def parse_csv_rows(text):
     """-> (rows, problems). Each row: {date, city, venue, kind, notes, tz,
     promoter, capacity}. Header aliases are matched case-insensitively."""
     rows, problems = [], []
+    text = (text or "").strip()
+    # A deal sheet or routing grid is copied out of a spreadsheet, which
+    # puts TABS between the columns, not commas — and a venue called
+    # "Chelsea's Live" or a merch rate of "90/10, 100% CD/DVD" is full of
+    # commas that would tear a comma-split apart. Pick the delimiter from
+    # the header line rather than assuming.
+    header = text.split("\n", 1)[0]
+    delim = "\t" if header.count("\t") >= 1 else (";" if header.count(";") > header.count(",") else ",")
     try:
-        reader = csv.DictReader(io.StringIO((text or "").strip()))
+        reader = csv.DictReader(io.StringIO(text), delimiter=delim)
         raw_rows = list(reader)
     except (csv.Error, ValueError) as exc:
         return [], ["Could not read as CSV: %s" % exc]
@@ -807,13 +902,26 @@ def parse_csv_rows(text):
         if not iso:
             problems.append("Line %d: no usable date (%r)." % (i, d))
             continue
-        kind = (pick(raw, "kind") or "show").lower()
+        city, venue = pick(raw, "city"), pick(raw, "venue")
+        kind = (pick(raw, "kind") or "").lower()
         kind = {"travel day": "travel", "day off": "off", "off day": "off", "show": "show"}.get(kind, kind)
+        if not kind:
+            # A routing grid writes the day type in the CITY column —
+            # "OFF" on its own line, "START" and "END" to bracket the run.
+            # Read as a venue-less show, those became empty date rows.
+            marker = city.strip(" *").upper()
+            if marker in ("OFF", "DAY OFF", "TRAVEL", "DRIVE", "START", "END", "HOLD"):
+                kind = {"TRAVEL": "travel", "DRIVE": "travel"}.get(marker, "off")
+                city = ""
+            else:
+                kind = "show" if venue else "other"
         if kind not in ts.DAY_KINDS:
-            kind = "show" if pick(raw, "venue") else "other"
-        rows.append({"date": iso, "city": pick(raw, "city"), "venue": pick(raw, "venue"),
+            kind = "show" if venue else "other"
+        rows.append({"date": iso, "city": city, "venue": venue,
                      "kind": kind, "notes": pick(raw, "notes"), "tz": pick(raw, "tz"),
                      "promoter": pick(raw, "promoter"), "capacity": pick(raw, "capacity"),
+                     "status": pick(raw, "status"), "fee": pick(raw, "fee"),
+                     "merch": pick(raw, "merch"), "ticket_url": pick(raw, "ticket_url"),
                      "line": i})
     return rows, problems
 
@@ -861,42 +969,123 @@ def parse_ics(text):
     return rows, problems
 
 
-_PASTE_RE = re.compile(r"^\s*(?P<date>20\d{2}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/20\d{2}|[A-Z][a-z]{2,8}\.? \d{1,2}(?:st|nd|rd|th)?,? 20\d{2})\s*[-–—:|]?\s*(?P<rest>.+)$")
+_PASTE_RE = re.compile(
+    r"^\s*(?P<date>"
+    r"20\d{2}-\d{2}-\d{2}"
+    r"|\d{1,2}/\d{1,2}/(?:\d{2}|20\d{2})"
+    # A month name with no year at all is what a routing email looks
+    # like ("October 14 - Wednesday - ..."). The tour's own year fills
+    # it in; without a tour to ask, the line is reported rather than
+    # guessed at.
+    r"|[A-Z][a-z]{2,8}\.? \d{1,2}(?:st|nd|rd|th)?(?:,? 20\d{2})?"
+    r")\s*[-–—:|]?\s*(?P<rest>.+)$")
+
+_WEEKDAYS = {"monday", "tuesday", "wednesday", "thursday", "friday",
+             "saturday", "sunday", "mon", "tue", "tues", "wed", "thu",
+             "thur", "thurs", "fri", "sat", "sun"}
+# "Ticket Link:", "GA Ticket Link:", "VIP Ticket Link:" — a routing email
+# puts these on their own line under the date they belong to.
+_LINK_RE = re.compile(r"^\s*(?P<label>[A-Za-z ]{0,12}?)\s*ticket link\s*:\s*(?P<url>.*)$", re.I)
+# "City, ST" — two letters at the end is a state, which is what tells a
+# city apart from a venue when a sheet lists them in either order.
+_CITY_RE = re.compile(r",\s*[A-Z]{2}\.?$")
 
 
-def parse_pasted(text):
+def parse_pasted(text, default_year=None):
     """One date per line: '2026-09-12 — Nashville, The Basement' or
-    '9/12/2026 Nashville | The Basement | show'."""
+    '9/12/2026 Nashville | The Basement | show'.
+
+    Also swallows the shapes a real routing sheet arrives in: two-digit
+    years, tab-separated table columns, a month name with no year (which
+    takes `default_year`), venue and city in either order, a bare "OFF"
+    day, and "Ticket Link:" lines that belong to the date above them.
+    """
     rows, problems = [], []
     for i, line in enumerate((text or "").splitlines(), start=1):
         if not line.strip():
             continue
+
+        link = _LINK_RE.match(line)
+        if link:
+            # Belongs to the row above, not to a row of its own.
+            url = link.group("url").strip()
+            if not rows:
+                problems.append("Line %d: a ticket link with no date above it." % i)
+                continue
+            if not url or url.startswith("**"):
+                rows[-1]["ticket_pending"] = True    # "**waiting on link**"
+                continue
+            label = (link.group("label") or "").strip().upper()
+            if label in ("VIP",) and rows[-1].get("ticket_url"):
+                rows[-1].setdefault("extra_links", []).append(("VIP", url))
+            elif rows[-1].get("ticket_url"):
+                rows[-1].setdefault("extra_links", []).append((label or "Also", url))
+            else:
+                rows[-1]["ticket_url"] = url
+                if label:
+                    rows[-1]["ticket_label"] = label
+            continue
+
         m = _PASTE_RE.match(line)
         if not m:
             problems.append("Line %d: no date at the start." % i)
             continue
-        iso = _to_iso(m.group("date"))
+        raw_date = m.group("date")
+        if default_year and not re.search(r"\d{4}$|/\d{2}$", raw_date):
+            raw_date = "%s %d" % (raw_date.rstrip(","), default_year)
+        iso = _to_iso(raw_date)
         if not iso:
-            problems.append("Line %d: date not understood." % i)
+            problems.append("Line %d: date not understood%s." % (
+                i, " — add a year" if not re.search(r"\d{4}|/\d{2}", raw_date) else ""))
             continue
+
         rest = m.group("rest")
-        # "City, ST | Venue" / "City — Venue" split on the pipe or dash;
-        # commas are part of a place name, not a separator, unless there
-        # is no other separator and three or more comma segments.
-        parts = [p.strip() for p in re.split(r"\s*[|—–]\s*", rest) if p.strip()]
+        # "City, ST | Venue" / "City — Venue" / "City - Venue" split on the
+        # pipe, dash or a SPACED hyphen; commas are part of a place name,
+        # not a separator, unless there is no other separator and three or
+        # more comma segments.
+        #
+        # A TAB counts too, because a table copied out of Word, Excel or
+        # Google Docs arrives tab-separated — which is how most routing
+        # sheets actually reach this box. Without it every line of a
+        # pasted itinerary landed in "city" with the venue stuck on the
+        # end of it. The hyphen must have spaces around it, or "X-Ray
+        # Arcade" and "Sold-Out Room" would be torn in half.
+        parts = [p.strip() for p in re.split(r"\t+|\s+-\s+|\s*[|—–]\s*", rest) if p.strip()]
         if len(parts) == 1:
+            # No separator at all: fall back to commas, but only here —
+            # doing it after the weekday filter re-split the raw line and
+            # undid the filter, so "Wednesday - OFF" came back whole and
+            # a day off was read as a show at a venue called "OFF".
             segs = [p.strip() for p in rest.split(",") if p.strip()]
             parts = [", ".join(segs[:2]), ", ".join(segs[2:])] if len(segs) >= 3 else [rest.strip()]
+        # A weekday beside the date says nothing the date does not.
+        parts = [p for p in parts if p.lower().strip(".,") not in _WEEKDAYS] or parts
+
         kind = "show"
-        rl = rest.lower()
+        rl = " ".join(parts).lower()
         if "travel" in rl or "drive" in rl:
             kind = "travel"
-        elif "day off" in rl or "off day" in rl or rl.strip() == "off":
+        elif any(p.strip(" *").lower() in ("off", "day off", "off day") for p in parts) \
+                or "day off" in rl or "off day" in rl:
             kind = "off"
-        city = parts[0] if parts else ""
-        venue = parts[1] if len(parts) > 1 else ""
-        if kind != "show":
-            venue = ""
+
+        city, venue = "", ""
+        if kind == "show":
+            # Sheets list these in either order. "Iowa City, IA" ends in a
+            # state; "Gabe's" does not — so the state is what decides,
+            # rather than the column it happened to land in.
+            named = [p for p in parts if p]
+            cities = [p for p in named if _CITY_RE.search(p)]
+            if cities:
+                city = cities[0]
+                venue = next((p for p in named if p is not city), "")
+            else:
+                city = named[0] if named else ""
+                venue = named[1] if len(named) > 1 else ""
+        else:
+            city = next((p for p in parts if _CITY_RE.search(p)), "")
+
         rows.append({"date": iso, "city": city, "venue": venue, "kind": kind, "notes": "",
                      "tz": "", "promoter": "", "capacity": "", "line": i})
     return rows, problems

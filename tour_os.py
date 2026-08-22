@@ -1977,9 +1977,23 @@ def route_map(user, tour, viewer, tour_id):
                              _urlq(origin), _urlq(dest))})
         prev = stop
     off_days = [d for d in days if d["kind"] in ("off", "travel")]
+    # Fuel is computed from DRIVEN miles somebody entered on a travel leg,
+    # never from the straight-line distances above. A crow-flight total
+    # understates a real drive by something like a fifth, and a fuel
+    # figure that quietly does that is worse than no figure at all.
+    drives = [t for t in ts.list_travel(tour_id) if t.get("mode") == "ground"]
+    fuel = eng.fuel_plan(tour, drives)
+    fuel["per_show"] = eng.fuel_per_show(fuel, len(shows))
     return render_template("tour/map.html", **_ctx(
         user, tour, viewer, "map", shows=shows, legs=legs, off_days=off_days, venues=venues,
-        first=shows[0] if shows else None))
+        fuel=fuel, drives=drives, first=shows[0] if shows else None))
+
+
+@bp.route("/tours/<tour_id>/fuel", methods=["POST"])
+@require_tour("travel")
+def fuel_save(user, tour, viewer, tour_id):
+    ts.update_fuel(tour_id, {k: request.form.get(k) for k in ts.FUEL_FIELDS})
+    return redirect("/tours/%s/map" % tour_id)
 
 
 def _urlq(s):
@@ -2216,6 +2230,7 @@ SHARE_SCOPE_LABELS = {
     "production": "Production pack (production advance, plot, tech files)",
     "vip_checkin": "VIP check-in",
     "rooming": "Rooming list (names and rooms, for the front desk)",
+    "band": "Band itinerary (the WHOLE run — dates, times, hotels; no money, no rooms, no phone numbers)",
 }
 
 
@@ -2231,6 +2246,8 @@ def share_new(user, tour, viewer, tour_id):
         show_id = request.form.get("lodging_id") or None
         if not show_id or ts.get_lodging(tour_id, show_id) is None:
             return redirect("/tours/%s/share" % tour_id)
+    if scope in ts.TOUR_WIDE_SCOPES:
+        show_id = None          # the whole run, not one date
     pw = request.form.get("password") or ""
     ts.create_share_link(tour_id, tour["user_id"], scope, show_id,
                          _hash_pw(pw) if pw else "", request.form.get("expires") or "")
@@ -2284,6 +2301,46 @@ def shared(token):
             return _csv(eng.csv_text(["Name", "Room", "Type", "Notes"], rows),
                         "rooming-%s-%s.csv" % (l["checkin"], _slug(l["property"])))
         return render_template("tour/share_rooming.html", lodging=l, rooms=rooms, **base)
+    if scope == "band":
+        # The whole run for somebody playing it. Assembled field by field
+        # rather than by stripping a full tour object, so a column added
+        # later cannot quietly start travelling to everyone with the link.
+        pub = {"is_owner": False, "scopes": ["view"], "person": None, "user": {"id": ""}, "name": ""}
+        shows = ts.list_shows(tour["id"])
+        days = ts.list_days(tour["id"])
+        sched = _visible(pub, ts.list_schedule(tour["id"]))
+        # Departure and pickup, never the driver's phone or the booking.
+        travel = [{"day_date": t["day_date"], "show_id": t.get("show_id") or "",
+                   "mode": t["mode"], "dep_time": t["dep_time"], "arr_time": t["arr_time"],
+                   "dep_loc": t["dep_loc"], "arr_loc": t["arr_loc"],
+                   "pickup": t.get("pickup") or "", "status": t.get("status") or ""}
+                  for t in _visible(pub, ts.list_travel(tour["id"]))]
+        # Where the hotel is, never who is in which room or what it cost.
+        lodging = [{"checkin": l["checkin"], "checkout": l.get("checkout") or "",
+                    "property": l["property"], "address": l.get("address") or "",
+                    "show_id": l.get("show_id") or ""}
+                   for l in _visible(pub, ts.list_lodging(tour["id"]))]
+        venues = {v["id"]: {"name": v["name"], "address": v.get("address") or "",
+                            "city": v.get("city") or ""}
+                  for v in ts.list_venues(tour["user_id"])}
+        rows = []
+        for s in shows:
+            v = venues.get(s.get("venue_id") or "")
+            rows.append({
+                "kind": "show", "date": s["date"], "city": s.get("city") or "",
+                "venue": s["venue"], "support": s.get("support") or "",
+                "address": (v or {}).get("address") or "",
+                "schedule": [r for r in sched if r.get("show_id") == s["id"]],
+                "travel": [t for t in travel if t["show_id"] == s["id"] or t["day_date"] == s["date"]],
+                "hotel": next((l for l in lodging if l["show_id"] == s["id"]
+                               or l["checkin"] == s["date"]), None)})
+        for d in days:
+            rows.append({"kind": d["kind"], "date": d["date"], "city": d.get("city") or "",
+                         "venue": "", "support": "", "address": "", "label": d.get("label") or "",
+                         "schedule": [], "travel": [t for t in travel if t["day_date"] == d["date"]],
+                         "hotel": next((l for l in lodging if l["checkin"] == d["date"]), None)})
+        rows.sort(key=lambda r: r["date"])
+        return render_template("tour/share_band.html", rows=rows, shows=shows, **base)
     show = ts.get_show(tour["id"], link["show_id"])
     if show is None:
         abort(404)

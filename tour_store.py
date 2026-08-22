@@ -60,10 +60,23 @@ ADVANCE_CATEGORIES = {
     "artist": [("dressing_rooms", "Dressing rooms"), ("showers", "Showers"),
                ("laundry", "Laundry"), ("wifi", "Wi-Fi"),
                ("hospitality", "Hospitality"), ("catering", "Catering"),
+               # A buyout is a number per person, agreed in advance and
+               # argued about at settlement if nobody wrote it down.
+               ("buyout", "Buyout (per person)"),
                ("security", "Security")],
+    # A VIP package is sold to the public before anyone has confirmed where
+    # it happens or how those ticket holders get in early. Each of these is
+    # a question somebody asks on the day if it is not answered here.
+    "vip": [("vip_location", "VIP location"), ("vip_time", "VIP start time"),
+            ("vip_capacity", "VIP capacity"), ("vip_entry", "VIP early-entry path"),
+            ("vip_host", "VIP host / runner")],
     "travel": [("airport", "Airport"), ("driver", "Driver"), ("pickup", "Pickup"),
                ("hotel", "Hotel"), ("hotel_contact", "Hotel contact"),
-               ("parking_travel", "Parking")],
+               ("parking_travel", "Parking"),
+               # The parts of a drive that cost money or time and are never
+               # on the deal memo.
+               ("fuel_stop", "Nearest fuel stop"), ("tolls", "Tolls on the route"),
+               ("departure", "Planned departure")],
     "business": [("settlement_location", "Settlement location"),
                  ("settlement_contact", "Settlement contact"),
                  ("tax_paperwork", "Tax paperwork"),
@@ -111,8 +124,14 @@ CONTENT_STATUSES = ["planned", "captured", "uploaded", "selected", "edited",
 SEVERITIES = ["info", "important", "critical"]
 CHANGE_SOURCES = ["manual", "import", "extract", "api"]
 
+# Every scope below "band" is one SHOW handed to one person for one job.
+# "band" is the exception: a band member needs the whole run — where they
+# are on the 14th, what time the van leaves on the 15th — and needs it
+# without the money, the room list or anyone's phone number.
 SHARE_SCOPES = ["day_sheet", "photographer", "guest_checkin", "venue_guest_list",
-                "driver", "setlist", "production", "vip_checkin", "rooming"]
+                "driver", "setlist", "production", "vip_checkin", "rooming",
+                "band"]
+TOUR_WIDE_SCOPES = ("band",)
 
 # Permission scopes. `admin` implies everything; owner always has admin.
 SCOPES = ["view", "edit", "schedule", "travel", "hotel", "people", "advance",
@@ -622,6 +641,28 @@ def init_tour():
                 db.execute("ALTER TABLE tour_shows ADD COLUMN %s" % col)
             except Exception:
                 pass
+        # Added after the first release; ALTER is the migration.
+        for col in ("support TEXT NOT NULL DEFAULT ''",
+                    "source_note TEXT NOT NULL DEFAULT ''",
+                    "vip_ticket_url TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_show_ext ADD COLUMN %s" % col)
+            except Exception:
+                pass
+        for col in ("fuel_mpg TEXT NOT NULL DEFAULT ''",
+                    "fuel_price TEXT NOT NULL DEFAULT ''",
+                    "fuel_reserve_pct TEXT NOT NULL DEFAULT ''",
+                    "stated_miles TEXT NOT NULL DEFAULT ''",
+                    "vehicle TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tours ADD COLUMN %s" % col)
+            except Exception:
+                pass
+        for col in ("miles TEXT NOT NULL DEFAULT ''", "tolls TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_travel ADD COLUMN %s" % col)
+            except Exception:
+                pass
         db.execute("CREATE INDEX IF NOT EXISTS idx_tour_shows_tour ON tour_shows(tour_id)")
 
 
@@ -663,6 +704,32 @@ def update_tour(tour_id, fields):
              (fields.get("mode_override") if "mode_override" in fields else tour["mode_override"])[:10],
              (fields.get("notes") if "notes" in fields else tour["notes"])[:2000],
              _now(), tour_id))
+    return True
+
+
+FUEL_FIELDS = ("fuel_mpg", "fuel_price", "fuel_reserve_pct", "stated_miles", "vehicle")
+
+
+def update_fuel(tour_id, fields):
+    """The planning assumptions behind a fuel estimate, stored as typed.
+
+    Kept apart from update_tour because these are ASSUMPTIONS, not facts
+    about the tour: a tour manager changes the price of a gallon without
+    touching the tour, and the number the app shows must always be
+    traceable to the figures somebody entered.
+    """
+    if get_tour(tour_id) is None:
+        return False
+    sets, params = [], []
+    for key in FUEL_FIELDS:
+        if key in fields:
+            sets.append("%s = ?" % key)
+            params.append(str(fields.get(key) or "").strip()[:40])
+    if not sets:
+        return False
+    params.append(tour_id)
+    with get_db() as db:
+        db.execute("UPDATE tours SET %s WHERE id = ?" % ", ".join(sets), params)
     return True
 
 
@@ -896,6 +963,11 @@ def list_shows(tour_id):
     with get_db() as db:
         rows = db.execute(
             "SELECT s.*, e.venue_id, e.tz AS ext_tz, e.promoter, e.capacity, e.ticket_url, "
+            # Named one by one rather than e.*, so a column has to be added
+            # here on purpose. That is a good rule and it has a cost: a
+            # field written by update_show_ext but missed here reads back
+            # as None forever, which is how `support` first behaved.
+            "e.support, e.source_note, e.vip_ticket_url, "
             "e.ticket_status, e.tickets_sold, e.guest_allocation, e.guest_cutoff, "
             "e.deal_type, e.guarantee, e.backend_pct, e.bonus, e.deposit_required, "
             "e.deposit_received, e.deposit_date, e.ticket_gross, e.adjusted_gross, "
@@ -931,7 +1003,12 @@ def show_tour_id(show_id):
     return row["tour_id"] if row else None
 
 
+# `support` is the bill for this date, comma separated and in running
+# order. It varies show to show on a package tour, which is exactly why it
+# cannot live on the tour.  `source_note` records where a value came from
+# when two sheets disagreed, so nobody has to re-litigate it later.
 EXT_FIELDS = ["venue_id", "promoter", "capacity", "ticket_url", "ticket_status",
+              "support", "source_note", "vip_ticket_url",
               "tickets_sold", "guest_allocation", "guest_cutoff", "deal_type",
               "guarantee", "backend_pct", "bonus", "deposit_required",
               "deposit_received", "deposit_date", "ticket_gross", "adjusted_gross",
@@ -1266,10 +1343,14 @@ def advance_progress(tour_id, show_id):
 
 # --- travel -----------------------------------------------------------------
 
+# `miles` is the routed drive for this leg. It is what turns a fuel
+# estimate into a fuel figure, and it is entered by a person — nothing
+# here calls a routing service or guesses a distance.
 TRAVEL_FIELDS = ["show_id", "day_date", "mode", "carrier", "number", "dep_loc", "arr_loc",
                  "dep_time", "arr_time", "dep_tz", "arr_tz", "confirmation", "seat",
                  "terminal", "driver", "phone", "vehicle", "company", "pickup",
-                 "destination", "parking", "sleepers", "notes", "visibility", "status"]
+                 "destination", "parking", "sleepers", "miles", "tolls",
+                 "notes", "visibility", "status"]
 
 
 def _clean_travel(fields, cur=None):
