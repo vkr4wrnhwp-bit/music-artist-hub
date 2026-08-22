@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=10">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=14">{% endblock %}
 
 {% block content %}
 <script>
@@ -81,6 +81,7 @@
         <span id="lx-cue-hint" class="lx-hint">Load a song to drop cues</span>
         <label class="lx-master" title="Grand master — scales every intensity on the stage and over DMX; the cues themselves are not changed"><span>GM</span><input id="lx-master" type="range" min="0" max="100" value="100" aria-label="Grand master, percent of every intensity"><b id="lx-master-val">100%</b></label>
         <button id="lx-panic" class="lx-btn lx-btn--panic" type="button" aria-pressed="false" aria-label="All off — kill every light now, preview and DMX (key X). Press again to restore." title="All off now (X) — press again to restore">All off</button>
+        <button id="lx-bump" class="lx-btn lx-btn--small lx-bump" type="button" hidden aria-label="A look is held over the whole rig from the phone remote — press to release it back to the cue list">Held: <b id="lx-bump-name">—</b> · release</button>
         <span id="lx-dmx-chip" class="lx-chip" role="status" aria-live="polite"><i aria-hidden="true"></i><span id="lx-dmx-text">Preview only · no hardware</span></span>
         <label class="lx-audio-ctl" title="Where the cues go. The same frame loop feeds whichever sink is active."><span>Out</span>
           <select id="lx-output" class="lx-select lx-select--tiny" aria-label="Output: where the light cues are sent"></select>
@@ -262,6 +263,47 @@
       {# A setlist chains saved shows. Between songs the rig holds a gap
          look rather than going black - a black stage between songs reads
          as a fault. #}
+      {# A second operator on a phone. Buttons only - the laptop stays the
+         source of truth and decides what to act on. #}
+      <details class="lx-more" id="lx-rem-fold">
+        <summary>Phone remote <span id="lx-rem-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
+        <p class="lx-hint">Hand a bandmate a blackout button. Scan the code with a phone on any network — it needs no account, and it can only send presses: all off, play/stop, tap tempo, bump a look, next or previous song. It never sees the cue list.</p>
+        <div class="lx-rig-row">
+          <button id="lx-rem-start" class="lx-btn lx-btn--small" type="button" aria-label="Start a phone remote and show its pairing code">Start a remote</button>
+          <button id="lx-rem-end" class="lx-btn lx-btn--ghost lx-btn--small" type="button" hidden aria-label="End the phone remote">End remote</button>
+          <span id="lx-rem-status" class="lx-hint" role="status" aria-live="polite"></span>
+        </div>
+        <div id="lx-rem-pair" class="lx-rem-pair" hidden>
+          <img id="lx-rem-qr" class="lx-rem-qr" alt="Pairing code — scan this with the phone that will hold the remote" width="180" height="180">
+          <div>
+            <p class="lx-hint">Or open this on the phone:</p>
+            <input id="lx-rem-url" class="lx-input" type="text" readonly aria-label="Remote address" style="min-width:260px">
+            <p id="lx-rem-seen" class="lx-hint"></p>
+          </div>
+        </div>
+      </details>
+
+      {# Send the show out for notes. One show per link, no audio, and the
+         reader needs no account. Notes anchor to a timecode, not a cue -
+         cue ids are regenerated on every save. #}
+      <details class="lx-more" id="lx-note-fold">
+        <summary>Share &amp; notes <span id="lx-note-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
+        <p class="lx-hint">Send the open show to a manager, an MD or the artist and get notes back on the timeline. The link carries this one show and no audio — the song never leaves this machine. Save the show to the library first.</p>
+        <div class="lx-rig-row">
+          <input id="lx-share-label" class="lx-input lx-input--mid" type="text" maxlength="80" placeholder="who is it for? (optional)" aria-label="Who this link is for">
+          <label class="lx-field"><span>They can</span>
+            <select id="lx-share-perm" class="lx-select" aria-label="What the link allows">
+              <option value="comment">watch and leave notes</option>
+              <option value="read">watch only</option>
+            </select>
+          </label>
+          <button id="lx-share-new" class="lx-btn lx-btn--small" type="button" aria-label="Create a share link for the open show">Make a link</button>
+          <span id="lx-share-status" class="lx-hint" role="status" aria-live="polite"></span>
+        </div>
+        <ul id="lx-share-list" class="lx-share-list" role="list"></ul>
+        <div id="lx-note-threads" class="lx-note-threads"></div>
+      </details>
+
       <details class="lx-more" id="lx-set-fold">
         <summary>Setlist <span id="lx-set-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
         <div class="lx-rig-row">
@@ -306,5 +348,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=7"></script>
-<script src="/static/js/lights.js?v=19"></script>
+<script src="/static/js/lights.js?v=20"></script>
 {% endblock %}

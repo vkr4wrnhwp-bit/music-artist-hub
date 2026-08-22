@@ -341,6 +341,20 @@
         wg.fillRect(x + 14, 4, tw, 16); wg.fillStyle = "#EEE8DC"; wg.fillText(c.note, x + 19, 16);
       }
     });
+    // Notes left on this show (epic 5). Pinned under the wave so they sit
+    // clear of the cue flags: a note is about a moment, not a cue, and
+    // may well be pointing at a moment where there is no cue yet.
+    notes.forEach(function (n) {
+      if (n.parent_id || n.t === null || n.t === undefined) return;
+      if (n.t < view.start - 1 || n.t > view.end + 1) return;
+      var nx = Math.round(tToX(n.t)) + 0.5;
+      wg.fillStyle = n.resolved ? "rgba(194,187,174,0.5)" : "#e8c667";
+      wg.strokeStyle = "rgba(0,0,0,0.7)"; wg.lineWidth = 1;
+      wg.beginPath(); wg.arc(nx, h - 9, 5, 0, Math.PI * 2); wg.fill(); wg.stroke();
+      wg.fillStyle = "rgba(0,0,0,0.8)";
+      wg.font = "800 8px -apple-system, Segoe UI, Roboto, sans-serif";
+      wg.textAlign = "center"; wg.fillText("!", nx, h - 6); wg.textAlign = "left";
+    });
     // playhead
     var px = tToX(t);
     if (px >= -1 && px <= w + 1) {
@@ -860,11 +874,33 @@
   // outLooks() is what the stage, the list and the DMX frame all read:
   // the resolved cues scaled by the master, or nothing at all on panic.
   function outLooks(t) {
+    // A bump is a hand on the desk: someone pressed a look and the rig
+    // holds it until they release it. It outranks the cue list and the
+    // gap look, because it is the most recent human decision.
+    if (bump) return E.scaleLooks(bumpLooks(), master, panic);
     // Between songs the rig holds the gap look. A black stage between
     // songs reads as a fault rather than a choice.
     if (inGap) return E.scaleLooks(gapLooks(), master, panic);
     return E.scaleLooks(E.lightingAt(show, t), master, panic);
   }
+  // A held look. Set from the phone remote (or the release button here);
+  // it never touches show.cues, so releasing it hands the song straight
+  // back to the cue list with nothing to undo.
+  var bump = null;
+  function bumpLooks() {
+    var col = E.hexRgb(bump.color), inten = (bump.intensity || 0) / 100, out = [];
+    for (var i = 0; i < show.bars; i++) out.push({rgb: col.slice(), inten: inten});
+    return out;
+  }
+  function setBump(l) {
+    bump = (l && bump && bump.key === l.key) ? null : (l || null);   // same look again = release
+    $("lx-bump").hidden = !bump;
+    if (bump) $("lx-bump-name").textContent = bump.name;
+    if (writer) sendDmx(now());
+    announce(bump ? bump.name + " held over the whole rig" : "Look released — back to the cue list");
+  }
+  $("lx-bump").addEventListener("click", function () { setBump(null); });
+
   var masterEl = $("lx-master"), panicEl = $("lx-panic");
   function paintMaster() {
     $("lx-master-val").textContent = Math.round(master * 100) + "%";
@@ -1676,13 +1712,13 @@
         show.libraryId = d.id; dirty = false; libraryDirty = false;
         lib.shows = d.shows || lib.shows; $("lx-version-note").value = "";
         paintSaved("ok", "Saved to library ✓ v" + d.versions);
-        paintLibrary(); announce("Saved to library, version " + d.versions);
+        paintLibrary(); loadNotes(); announce("Saved to library, version " + d.versions);
         return post("/lights/save", draftPayload());
       });
   });
   $("lx-lib-select").addEventListener("change", function () {
     var id = $("lx-lib-select").value;
-    if (!id) { show.libraryId = null; libraryDirty = false; paintLibrary(); markDirty(false); return; }
+    if (!id) { show.libraryId = null; libraryDirty = false; paintLibrary(); loadNotes(); markDirty(false); return; }
     fetch("/lights/library/" + id).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) return;
       loadShowData(d.show.data, d.show); libraryDirty = false; paintLibDirty(); markDirty(false);
@@ -1703,6 +1739,7 @@
     H.reset(); paintHistory();
     paintRig();
     renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintBarCtl(); paintAutoCue();
+    loadNotes();                              // notes belong to the show, not the page
   }
 
   // ---------- import / export (JSON) ----------
@@ -1785,6 +1822,297 @@
         line.appendChild(btn); box.appendChild(line);
       });
     });
+  }
+
+  // ---------- share the show for notes (epic 5) ----------
+  // The designer sends one show out and gets notes back on the timeline.
+  // Notes anchor to a TIMECODE: payload() strips cue ids on save, so an
+  // id would not survive the round trip, but 1:14 is still 1:14 after the
+  // cue there is deleted.
+  var notes = [], shares = [];
+
+  function paintNoteSummary() {
+    var open = notes.filter(function (n) { return !n.parent_id && !n.resolved; }).length;
+    $("lx-note-now").textContent = open
+      ? "· " + open + " open note" + (open === 1 ? "" : "s")
+      : (shares.length ? "· " + shares.length + " live link" + (shares.length === 1 ? "" : "s") : "");
+  }
+
+  function loadNotes() {
+    // Only a saved show can carry notes - they are filed against a
+    // library row, and a working copy has not got one yet.
+    if (!show.libraryId) { notes = []; shares = []; renderShares(); renderNotes(); return; }
+    var id = show.libraryId;
+    fetch("/lights/library/" + id + "/comments", {cache: "no-store"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.ok && show.libraryId === id) { notes = d.comments || []; renderNotes(); drawWave(now()); } })
+      .catch(function () { /* offline: the studio still works without notes */ });
+    fetch("/lights/library/" + id + "/shares", {cache: "no-store"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.ok && show.libraryId === id) { shares = d.shares || []; renderShares(); } })
+      .catch(function () {});
+  }
+
+  function renderShares() {
+    var ul = $("lx-share-list");
+    ul.textContent = "";
+    shares.forEach(function (s) {
+      var li = document.createElement("li");
+      li.className = "lx-share-row";
+      var url = location.origin + "/lights/show/" + s.token;
+      var input = document.createElement("input");
+      input.className = "lx-input"; input.type = "text"; input.readOnly = true; input.value = url;
+      input.setAttribute("aria-label", "Share link" + (s.label ? " for " + s.label : ""));
+      input.addEventListener("focus", function () { this.select(); });
+      var who = document.createElement("span");
+      who.className = "lx-hint";
+      who.textContent = (s.label || "no label") + " · " + (s.permission === "comment" ? "can leave notes" : "watch only");
+      var kill = document.createElement("button");
+      kill.type = "button"; kill.className = "lx-btn lx-btn--ghost lx-btn--small";
+      kill.textContent = "Revoke";
+      kill.setAttribute("aria-label", "Revoke this link" + (s.label ? " for " + s.label : ""));
+      kill.addEventListener("click", function () {
+        post("/lights/share/" + s.token + "/revoke", {}).then(function () {
+          shares = shares.filter(function (x) { return x.token !== s.token; });
+          renderShares(); paintNoteSummary();
+          announce("Link revoked — it opens to a dead page now.");
+        });
+      });
+      li.appendChild(input); li.appendChild(who); li.appendChild(kill);
+      ul.appendChild(li);
+    });
+    paintNoteSummary();
+  }
+
+  $("lx-share-new").addEventListener("click", function () {
+    if (!show.libraryId) {
+      $("lx-share-status").textContent = "Save this show to the library first — a link points at a saved show.";
+      announce($("lx-share-status").textContent);
+      return;
+    }
+    post("/lights/library/" + show.libraryId + "/share",
+         {permission: $("lx-share-perm").value, label: $("lx-share-label").value})
+      .then(function (d) {
+        if (!d || !d.ok) { $("lx-share-status").textContent = "Could not make a link."; return; }
+        shares = d.shares || shares;
+        $("lx-share-label").value = "";
+        $("lx-share-status").textContent = "Link ready — copy it from the list.";
+        renderShares();
+        announce("Share link created");
+      });
+  });
+
+  function renderNotes() {
+    var box = $("lx-note-threads");
+    box.textContent = "";
+    var tops = notes.filter(function (n) { return !n.parent_id; });
+    if (!tops.length) {
+      var p = document.createElement("p");
+      p.className = "lx-hint";
+      p.textContent = show.libraryId
+        ? "No notes on this show yet. Anyone holding a link that allows notes can leave one."
+        : "Save this show to the library to share it and collect notes.";
+      box.appendChild(p);
+      paintNoteSummary();
+      return;
+    }
+    tops.forEach(function (n) {
+      var wrap = document.createElement("article");
+      wrap.className = "lx-note" + (n.resolved ? " is-done" : "");
+      wrap.appendChild(noteHead(n));
+      notes.filter(function (r) { return r.parent_id === n.id; }).forEach(function (r) {
+        var re = noteHead(r); re.classList.add("is-reply"); wrap.appendChild(re);
+      });
+      wrap.appendChild(noteActions(n));
+      box.appendChild(wrap);
+    });
+    paintNoteSummary();
+  }
+
+  function noteHead(n) {
+    var el = document.createElement("div");
+    el.className = "lx-note-item";
+    var head = document.createElement("p");
+    head.className = "lx-note-meta";
+    var who = document.createElement("b"); who.textContent = n.author; head.appendChild(who);
+    if (n.t !== null && n.t !== undefined) {
+      var at = document.createElement("button");
+      at.type = "button"; at.className = "lx-note-at"; at.textContent = "@ " + E.fmtClock(n.t);
+      at.setAttribute("aria-label", "Move the playhead to " + E.fmtClock(n.t));
+      at.addEventListener("click", function () {
+        seek(n.t);
+        // Bring the note into view if it is off-screen at this zoom;
+        // jumping the playhead somewhere you cannot see is not a jump.
+        if (n.t < view.start || n.t > view.end) panTo(n.t - (view.end - view.start) / 2);
+      });
+      head.appendChild(at);
+    }
+    var body = document.createElement("p");
+    body.className = "lx-note-body";
+    body.textContent = n.body;                     // textContent, never innerHTML
+    el.appendChild(head); el.appendChild(body);
+    return el;
+  }
+
+  function noteActions(n) {
+    var row = document.createElement("div");
+    row.className = "lx-note-actions";
+    var reply = document.createElement("form");
+    reply.className = "lx-note-reply";
+    var input = document.createElement("input");
+    input.className = "lx-input"; input.type = "text"; input.maxLength = 1200;
+    input.placeholder = "Reply…"; input.setAttribute("aria-label", "Reply to " + n.author);
+    var send = document.createElement("button");
+    send.className = "lx-btn lx-btn--ghost lx-btn--small"; send.type = "submit"; send.textContent = "Reply";
+    reply.appendChild(input); reply.appendChild(send);
+    reply.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      post("/lights/library/" + show.libraryId + "/comment", {body: input.value, parent_id: n.id})
+        .then(function (d) { if (d.ok) { notes = d.comments || notes; input.value = ""; renderNotes(); } });
+    });
+    var settle = document.createElement("button");
+    settle.type = "button"; settle.className = "lx-btn lx-btn--ghost lx-btn--small";
+    settle.textContent = n.resolved ? "Reopen" : "Settled";
+    settle.setAttribute("aria-label", (n.resolved ? "Reopen" : "Mark settled") + " — the note from " + n.author);
+    settle.addEventListener("click", function () {
+      post("/lights/comments/" + n.id + "/resolve", {resolved: !n.resolved}).then(function (d) {
+        if (!d.ok) return;
+        n.resolved = !n.resolved; renderNotes(); drawWave(now());
+        announce(n.resolved ? "Note settled" : "Note reopened");
+      });
+    });
+    var drop = document.createElement("button");
+    drop.type = "button"; drop.className = "lx-btn lx-btn--ghost lx-btn--small";
+    drop.textContent = "Delete";
+    drop.setAttribute("aria-label", "Delete the note from " + n.author + " and its replies");
+    drop.addEventListener("click", function () {
+      post("/lights/comments/" + n.id + "/delete", {}).then(function (d) {
+        if (!d.ok) return;
+        notes = notes.filter(function (x) { return x.id !== n.id && x.parent_id !== n.id; });
+        renderNotes(); drawWave(now());
+        announce("Note deleted");
+      });
+    });
+    row.appendChild(reply); row.appendChild(settle); row.appendChild(drop);
+    return row;
+  }
+
+  // ---------- phone remote (epic 3) ----------
+  // The laptop stays the source of truth. The phone can only enqueue a
+  // press; this end decides what to do with it, and ignores anything it
+  // does not recognise. There is no WebSocket in this stack, so the laptop
+  // polls - fast enough that a blackout lands about as quickly as a key.
+  var remoteCode = "", remoteTimer = null, remoteLastSeen = "", remoteQuietSince = 0;
+  // Fast while the show is live, because a blackout from the phone has to
+  // land like a key press. Slower once the rig has been sitting quiet, so
+  // a remote left paired overnight is not 2.5 requests a second for
+  // twelve hours. Any press, or hitting play, snaps it back to fast.
+  var REMOTE_POLL_MS = 400, REMOTE_IDLE_MS = 1500, REMOTE_QUIET_AFTER = 90000;
+
+  function remoteInterval() {
+    if (playing || runStart !== null) return REMOTE_POLL_MS;
+    if (!remoteQuietSince || Date.now() - remoteQuietSince < REMOTE_QUIET_AFTER) return REMOTE_POLL_MS;
+    return REMOTE_IDLE_MS;
+  }
+  function armRemotePoll() {
+    if (remoteTimer) clearInterval(remoteTimer);
+    var ms = remoteInterval();
+    remoteTimer = setInterval(function () {
+      pollRemote();
+      if (remoteInterval() !== ms) armRemotePoll();      // re-arm when the pace should change
+    }, ms);
+  }
+
+  function paintRemote() {
+    var on = !!remoteCode;
+    $("lx-rem-start").hidden = on;
+    $("lx-rem-end").hidden = !on;
+    $("lx-rem-pair").hidden = !on;
+    $("lx-rem-now").textContent = on
+      ? "· " + (remoteLastSeen ? "phone connected" : "waiting for the phone")
+      : "";
+  }
+
+  $("lx-rem-start").addEventListener("click", function () {
+    post("/lights/remote/start", {}).then(function (d) {
+      if (!d || !d.ok) { $("lx-rem-status").textContent = "Could not start a remote."; return; }
+      remoteCode = d.code; remoteLastSeen = "";
+      $("lx-rem-qr").src = "/lights/remote/" + d.code + "/qr.svg";
+      $("lx-rem-url").value = d.url;
+      $("lx-rem-status").textContent = "Scan the code. The remote ends when you press End, or after 12 hours.";
+      $("lx-rem-fold").open = true;
+      remoteQuietSince = Date.now();
+      paintRemote(); armRemotePoll();
+      announce("Phone remote started");
+    });
+  });
+  $("lx-rem-end").addEventListener("click", function () {
+    post("/lights/remote/end", {}).then(function () {
+      remoteCode = ""; remoteLastSeen = "";
+      if (remoteTimer) { clearInterval(remoteTimer); remoteTimer = null; }
+      $("lx-rem-status").textContent = "Remote ended.";
+      $("lx-rem-seen").textContent = "";
+      paintRemote();
+      announce("Phone remote ended");
+    });
+  });
+  $("lx-rem-url").addEventListener("focus", function () { this.select(); });
+
+  // A reload mid-set must not silently orphan the phone. The server still
+  // holds the pairing, so pick it back up rather than making the operator
+  // walk over and re-scan.
+  function resumeRemote() {
+    fetch("/lights/remote/poll", {cache: "no-store"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok || !d.code) return;
+        remoteCode = d.code;
+        $("lx-rem-qr").src = "/lights/remote/" + d.code + "/qr.svg";
+        $("lx-rem-url").value = location.origin + "/lights/remote/" + d.code;
+        $("lx-rem-status").textContent = "A phone remote is still paired from before this page reloaded.";
+        remoteQuietSince = Date.now();
+        paintRemote(); armRemotePoll();
+      })
+      .catch(function () { /* offline: no remote to resume */ });
+  }
+
+  function pollRemote() {
+    if (!remoteCode) return;
+    fetch("/lights/remote/poll", {cache: "no-store"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) return;
+        if (d.phone_seen && d.phone_seen !== remoteLastSeen) {
+          remoteLastSeen = d.phone_seen;
+          $("lx-rem-seen").textContent = "Phone last heard from " + String(d.phone_seen).slice(11, 16) + " UTC.";
+          paintRemote();
+        }
+        if (d.commands && d.commands.length) { remoteQuietSince = Date.now(); armRemotePoll(); }
+        (d.commands || []).forEach(applyRemoteCommand);
+      })
+      .catch(function () { /* a dropped poll is not worth surfacing; the next one retries */ });
+  }
+
+  function applyRemoteCommand(c) {
+    switch (c.kind) {
+      case "ping": return;                       // keep-alive only
+      case "blackout": if (!panic) togglePanic(); return;
+      case "restore": if (panic) togglePanic(); return;
+      case "play": togglePlay(); return;
+      case "stop": stopAll(); return;
+      case "tap": $("lx-tap").click(); return;
+      case "next": if (setlist && setIndex < setlist.items.length - 1) loadSetlistItem(setIndex + 1); return;
+      case "prev": if (setlist && setIndex > 0) loadSetlistItem(setIndex - 1); return;
+      case "look": {
+        // A phone press busks the stage; it must never edit the cue list,
+        // which the operator cannot see happening from across the room.
+        var n = parseInt(c.value, 10);
+        if (n >= 1 && n <= E.LOOKS.length) setBump(E.LOOKS[n - 1]);
+        return;
+      }
+      default: return;                           // unknown: ignore, never guess
+    }
   }
 
   // ---------- the show ships with the song (epic 6) ----------
@@ -2160,6 +2488,9 @@
     wheelHex: function () { return $("lx-gel-hex").value; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
+    applyRemoteCommand: applyRemoteCommand, pollRemote: pollRemote,
+    remoteCode: function () { return remoteCode; },
+    bump: function () { return bump; },
     trackShows: function () { return trackShows; }, paintTrackShip: paintTrackShip,
     setlist: function () { return setlist; }, setIndex: function () { return setIndex; },
     loadSetlistItem: loadSetlistItem, songEnded: songEnded, gapLooks: gapLooks,
@@ -2171,7 +2502,7 @@
     offerVenueRig: offerVenueRig, setBars: function (n) { barsSel.value = String(n); barsSel.dispatchEvent(new Event("change")); },
     spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
-  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintOutputs();
+  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintOutputs(); paintRemote(); resumeRemote(); loadNotes();
   paintHistory(); paintWaveAria(); paintSetlists(); maybeOfferDraft(); maybeOfferResume();
   loop();
 })();

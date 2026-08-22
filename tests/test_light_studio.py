@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -44,11 +45,13 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-wheel", "lx-gel-swatch", "lx-gel-name", "lx-gel-for", "lx-gel-hex",
                   "lx-look-new", "lx-look-name", "lx-output", "lx-bridge-port", "lx-bridge-test", "lx-bridge-status",
                   "lx-set-select", "lx-set-items", "lx-set-add", "lx-set-save", "lx-set-next", "lx-set-prev",
-                  "lx-resume", "lx-resume-go", "lx-resume-no", "lx-attach", "lx-pull",
+                  "lx-resume", "lx-resume-go", "lx-resume-no", "lx-attach", "lx-pull", "lx-rem-start", "lx-rem-end", "lx-rem-qr", "lx-rem-url", "lx-rem-status", "lx-rem-now", "lx-rem-seen", "lx-bump", "lx-bump-name",
+                  "lx-share-label", "lx-share-perm", "lx-share-new", "lx-share-status",
+                  "lx-share-list", "lx-note-threads", "lx-note-now", "lx-note-fold",
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=19" in page and "light-studio.css?v=10" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=20" in page and "light-studio.css?v=14" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
@@ -361,3 +364,287 @@ def test_stylesheet_has_no_tiny_helper_text():
     # design; running helper text is never below 12px.
     assert min(sizes) >= 9.5
     assert "font-size: 12px" in css or "font-size: 12.5px" in css
+
+
+def test_phone_remote_pairs_carries_only_known_presses_and_stays_private(flask_app):
+    """The remote is a second pair of hands, not a second copy of the show.
+    The code in the URL is the whole authorisation, so what it can reach
+    matters more here than anywhere else in the studio."""
+    client, user = _user(flask_app)
+    other, _ = _user(flask_app, "Another LD")
+
+    assert flask_app.test_client().post("/lights/remote/start", json={}).status_code in (302, 401)
+    started = client.post("/lights/remote/start", json={}).get_json()
+    assert started["ok"] and len(started["code"]) == 32 and started["code"] in started["url"]
+    # The QR must point at the host the laptop is on, not at a baked-in
+    # production URL - otherwise a local or self-hosted run hands out a
+    # code the phone cannot reach.
+    assert started["url"].startswith("http://localhost/lights/remote/"), started["url"]
+
+    code = started["code"]
+
+    # The phone page needs no account - and carries no show data at all.
+    phone = flask_app.test_client()
+    page = phone.get("/lights/remote/%s" % code)
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "All off" in html and "Amber wash" in html and "Blackout" in html
+    # Buttons only: none of the show, the library, or the studio script.
+    for leak in ("lx-cues", "__lightsLibrary", "lights.js", "lights-engine.js", '"cues"',
+                 "lightingAt", "/lights/library", user["email"]):
+        assert leak not in html, leak
+    # The QR is the laptop's to show, not something the code alone unlocks.
+    assert client.get("/lights/remote/%s/qr.svg" % code).status_code == 200
+    assert phone.get("/lights/remote/%s/qr.svg" % code).status_code in (302, 401)
+
+    # Only the listed presses are stored; anything else is refused outright.
+    for kind in lights_store.REMOTE_COMMANDS:
+        assert phone.post("/lights/remote/%s/cmd" % code, json={"kind": kind, "value": "3"}).status_code == 200
+    for junk in ("eval", "", "look; DROP TABLE", "load"):
+        assert phone.post("/lights/remote/%s/cmd" % code, json={"kind": junk}).status_code == 404
+    assert phone.post("/lights/remote/%s/cmd" % ("f" * 32), json={"kind": "play"}).status_code == 404
+
+    # The laptop drains its own queue once; a second poll is empty. The
+    # live code comes back too, so a reload can pick the phone back up.
+    got = client.get("/lights/remote/poll").get_json()
+    assert got["code"] == code
+    kinds = [c["kind"] for c in got["commands"]]
+    assert got["ok"] and kinds == list(lights_store.REMOTE_COMMANDS) and got["phone_seen"]
+    assert client.get("/lights/remote/poll").get_json()["commands"] == []
+
+    # Another account polling gets nothing - not this remote's presses.
+    assert other.get("/lights/remote/poll").get_json()["commands"] == []
+    phone.post("/lights/remote/%s/cmd" % code, json={"kind": "blackout"})
+    assert other.get("/lights/remote/poll").get_json()["commands"] == []
+    assert len(client.get("/lights/remote/poll").get_json()["commands"]) == 1
+
+    # Starting a second remote retires the first: one phone holds the rig.
+    again = client.post("/lights/remote/start", json={}).get_json()["code"]
+    assert again != code
+    assert phone.post("/lights/remote/%s/cmd" % code, json={"kind": "play"}).status_code == 404
+    assert "This remote has ended" in phone.get("/lights/remote/%s" % code).get_data(as_text=True)
+
+    # And ending it closes the door for good.
+    client.post("/lights/remote/end", json={})
+    assert phone.post("/lights/remote/%s/cmd" % again, json={"kind": "play"}).status_code == 404
+
+
+def test_the_pairing_url_follows_the_host_the_laptop_is_on(flask_app):
+    """A QR baked with the production domain is a dead code on a laptop
+    running the studio anywhere else."""
+    base = "https://lx.example.net"
+    email = "lx-host-%s@example.net" % uuid.uuid4().hex[:8]
+    c = flask_app.test_client()
+    c.post("/signup", data={"name": "Host LD", "email": email, "password": PASSWORD}, base_url=base)
+    c.post("/login", data={"email": email, "password": PASSWORD}, base_url=base)
+    url = c.post("/lights/remote/start", json={}, base_url=base).get_json()["url"]
+    assert url.startswith("https://lx.example.net/lights/remote/"), url
+    # Behind a TLS-terminating proxy the scheme arrives in a header only.
+    url2 = c.post("/lights/remote/start", json={}, base_url="http://lx.example.net",
+                  headers={"X-Forwarded-Proto": "https, http"}).get_json()["url"]
+    assert url2.startswith("https://lx.example.net/lights/remote/"), url2
+
+
+def test_phone_remote_expires_on_its_own(flask_app):
+    """A code left in a text message must not still open the rig next tour."""
+    client, user = _user(flask_app)
+    code = client.post("/lights/remote/start", json={}).get_json()["code"]
+    stale = (datetime.now(timezone.utc) - timedelta(hours=lights_store.REMOTE_TTL_HOURS + 1)).isoformat()
+    with store.get_db() as db:
+        db.execute("UPDATE light_remotes SET created = ? WHERE code = ?", (stale, code))
+    phone = flask_app.test_client()
+    assert lights_store.get_remote(code) is None
+    assert phone.post("/lights/remote/%s/cmd" % code, json={"kind": "blackout"}).status_code == 404
+    assert "This remote has ended" in phone.get("/lights/remote/%s" % code).get_data(as_text=True)
+    # ...and the studio must not resume polling a remote the phone cannot reach.
+    assert client.get("/lights/remote/poll").get_json()["code"] == ""
+
+def test_a_held_look_overrides_the_cue_list_without_editing_it(flask_app):
+    """The phone busks the stage. If a press edited cues instead, the
+    operator would find the show changed after the gig with no undo."""
+    js = open(os.path.join(ROOT, "static", "js", "lights.js"), encoding="utf-8").read()
+    body = js.split("function applyRemoteCommand")[1].split("\n  }")[0]
+    assert "setBump(E.LOOKS[n - 1])" in body and "applyLook" not in body
+    assert 'case "ping": return;' in body                       # keep-alive disturbs nothing
+    assert "if (bump) return E.scaleLooks(bumpLooks(), master, panic);" in js
+    assert "show.cues" not in js.split("function setBump")[1].split("\n  }")[0]
+
+
+def _saved_show(client, name="Notes show"):
+    data = {"name": name, "bars": 6, "chans": 4,
+            "cues": [{"t": 12.5, "group": "all", "color": "#ffb347", "intensity": 85, "fade": 1, "note": "intro"},
+                     {"t": 74.0, "group": "all", "color": "#3b82f6", "intensity": 60, "fade": 2, "note": "chorus"}]}
+    return client.post("/lights/library/save", json={"name": name, "data": data}).get_json()["id"]
+
+
+def test_a_share_link_carries_one_show_and_nothing_else(flask_app):
+    """The link is handed to someone with no account. It must open the
+    show it names and reveal nothing else about the designer."""
+    client, user = _user(flask_app)
+    other, _ = _user(flask_app, "Rival LD")
+    sid = _saved_show(client)
+    _saved_show(client, "A show they were NOT sent")
+
+    r = client.post("/lights/library/%s/share" % sid,
+                    json={"permission": "read", "label": "Tour manager"}).get_json()
+    assert r["ok"] and len(r["token"]) == 32 and r["token"] in r["url"]
+    token = r["token"]
+
+    reader = flask_app.test_client()
+    page = reader.get("/lights/show/%s" % token)
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Notes show" in html and "read only" in html
+    for leak in ("A show they were NOT sent", user["email"], "lx-lib-select", "__lightsLibrary",
+                 "/lights/library", "js/lights.js"):
+        assert leak not in html, leak
+
+    # Another account cannot mint a link for a show that is not theirs.
+    assert other.post("/lights/library/%s/share" % sid, json={}).status_code == 404
+    # ...nor revoke one.
+    assert other.post("/lights/share/%s/revoke" % token, json={}).status_code == 404
+    assert reader.get("/lights/show/%s" % token).status_code == 200
+    # The owner can, and then the link is dead.
+    assert client.post("/lights/share/%s/revoke" % token, json={}).get_json()["ok"]
+    dead = reader.get("/lights/show/%s" % token)
+    assert dead.status_code == 404 and "no longer live" in dead.get_data(as_text=True)
+    assert reader.post("/lights/show/%s/comment" % token,
+                       json={"author": "X", "body": "hi"}).status_code == 404
+
+
+def test_read_only_means_read_only(flask_app):
+    client, user = _user(flask_app)
+    sid = _saved_show(client)
+    ro = client.post("/lights/library/%s/share" % sid, json={"permission": "read"}).get_json()["token"]
+    rw = client.post("/lights/library/%s/share" % sid, json={"permission": "comment"}).get_json()["token"]
+    reader = flask_app.test_client()
+
+    assert reader.post("/lights/show/%s/comment" % ro,
+                       json={"author": "Marcus", "body": "too dark"}).status_code == 403
+    ok = reader.post("/lights/show/%s/comment" % rw,
+                     json={"author": "Marcus", "body": "too dark in the second chorus",
+                           "t": 74.0}).get_json()
+    assert ok["ok"] and len(ok["comments"]) == 1
+    assert ok["comments"][0]["author"] == "Marcus" and ok["comments"][0]["t"] == 74.0
+
+    # A read-only link still SHOWS the note - it just cannot add one.
+    assert len(reader.get("/lights/show/%s/comments" % ro).get_json()["comments"]) == 1
+    # An empty note is refused rather than stored blank.
+    assert reader.post("/lights/show/%s/comment" % rw,
+                       json={"author": "M", "body": "   "}).status_code == 400
+    # An unknown permission string cannot be smuggled in to unlock writing.
+    sneaky = client.post("/lights/library/%s/share" % sid,
+                         json={"permission": "admin"}).get_json()["token"]
+    assert reader.post("/lights/show/%s/comment" % sneaky,
+                       json={"author": "M", "body": "x"}).status_code == 403
+
+
+def test_notes_thread_settle_and_stay_with_their_show(flask_app):
+    client, user = _user(flask_app)
+    other, _ = _user(flask_app, "Rival LD")
+    sid = _saved_show(client)
+    mine = _saved_show(client, "Another of mine")
+    token = client.post("/lights/library/%s/share" % sid,
+                        json={"permission": "comment"}).get_json()["token"]
+    reader = flask_app.test_client()
+
+    top = reader.post("/lights/show/%s/comment" % token,
+                      json={"author": "Marcus", "body": "chorus is late", "t": 74.0}).get_json()["id"]
+    reader.post("/lights/show/%s/comment" % token,
+                json={"author": "Marcus", "body": "actually two beats", "parent_id": top})
+    client.post("/lights/library/%s/comment" % sid, json={"body": "pulled it back", "parent_id": top})
+    got = client.get("/lights/library/%s/comments" % sid).get_json()["comments"]
+    assert len(got) == 3
+    assert [c["parent_id"] for c in got] == ["", top, top]
+    assert got[2]["author"] == user["name"]
+
+    # A reply cannot be used to reach a thread on somebody else's show.
+    stray = client.post("/lights/library/%s/comment" % mine,
+                        json={"body": "wrong show", "parent_id": top}).get_json()["id"]
+    still = client.get("/lights/library/%s/comments" % sid).get_json()["comments"]
+    assert [c["id"] for c in still] == [c["id"] for c in got]
+    strays = client.get("/lights/library/%s/comments" % mine).get_json()["comments"]
+    assert len(strays) == 1 and strays[0]["id"] == stray and strays[0]["parent_id"] == ""
+
+    # Only the owner settles a note; a reader raises one but cannot close it.
+    assert other.post("/lights/comments/%s/resolve" % top, json={}).status_code == 404
+    assert client.post("/lights/comments/%s/resolve" % top, json={}).get_json()["ok"]
+    assert client.get("/lights/library/%s/comments" % sid).get_json()["comments"][0]["resolved"] == 1
+    assert client.post("/lights/comments/%s/resolve" % top,
+                       json={"resolved": False}).get_json()["ok"]
+    assert client.get("/lights/library/%s/comments" % sid).get_json()["comments"][0]["resolved"] == 0
+
+    # Deleting a note takes its replies with it, and only the owner can.
+    assert other.post("/lights/comments/%s/delete" % top, json={}).status_code == 404
+    assert client.post("/lights/comments/%s/delete" % top, json={}).get_json()["ok"]
+    assert client.get("/lights/library/%s/comments" % sid).get_json()["comments"] == []
+
+    # Another account cannot read this show's notes at all.
+    assert other.get("/lights/library/%s/comments" % sid).status_code == 404
+
+
+def test_deleting_a_show_takes_its_links_and_notes_with_it(flask_app):
+    """A dangling link that still opened, or notes that came back when an
+    id was reused, would both be worse than losing them."""
+    client, user = _user(flask_app)
+    sid = _saved_show(client)
+    token = client.post("/lights/library/%s/share" % sid,
+                        json={"permission": "comment"}).get_json()["token"]
+    reader = flask_app.test_client()
+    reader.post("/lights/show/%s/comment" % token, json={"author": "Marcus", "body": "note"})
+    assert len(lights_store.list_comments(sid)) == 1
+
+    client.post("/lights/library/%s/delete" % sid, json={})
+    assert lights_store.get_share(token) is None
+    assert lights_store.list_comments(sid) == []
+    assert reader.get("/lights/show/%s" % token).status_code == 404
+
+
+def test_a_note_anchors_to_a_timecode_not_a_cue_id(flask_app):
+    """lights.js strips cue ids on save, so an id anchor would break on
+    the next save. Pinned because it is the kind of thing a later
+    refactor would 'improve' back."""
+    js = open(os.path.join(ROOT, "static", "js", "lights.js"), encoding="utf-8").read()
+    share_js = open(os.path.join(ROOT, "static", "js", "lights-share.js"), encoding="utf-8").read()
+    store_py = open(os.path.join(ROOT, "lights_store.py"), encoding="utf-8").read()
+    assert "cue_id" not in js and "cue_id" not in share_js and "cue_id" not in store_py
+    # Reader-supplied text is written as text, never as markup.
+    assert ".innerHTML" not in share_js.split("function noteEl")[1].split("\n  }")[0]
+    assert "body.textContent = c.body" in share_js
+    assert "body.textContent = n.body" in js
+
+
+def test_js_json_never_drops_bare_text_into_a_script(flask_app):
+    """The filter accepts pre-serialised JSON, so it used to trust any
+    string. A bare token then landed unquoted and killed the inline
+    script; a user-supplied name would have been stored XSS."""
+    f = flask_app.jinja_env.filters["js_json"]
+    assert str(f("691ae30bf9604e0e9102e5e41a14b407")) == '"691ae30bf9604e0e9102e5e41a14b407"'
+    assert str(f("Marcus")) == '"Marcus"'
+    assert "</script>" not in str(f("</script><img src=x onerror=alert(1)>"))
+    assert str(f('{"already": "json"}')) == '{"already": "json"}'      # unchanged
+    assert str(f({"a": 1})) == '{"a": 1}'
+
+
+def test_a_share_link_carries_the_show_not_the_bookkeeping(flask_app):
+    """A saved show also holds the designer's own ids — which track it
+    belongs to, which tour date, its library row. A tour manager has no
+    reason to receive any of that, so the blob is filtered to a
+    whitelist rather than forwarded whole."""
+    client, user = _user(flask_app)
+    tid = store.add_os_track(user["id"], "Song One")
+    tour = store.add_tour_show(user["id"], "2030-05-02", "Room", "City", "")
+    data = {"name": "Filtered", "bars": 6, "chans": 4, "looks": [], "bpm": 128,
+            "cues": [{"t": 4.0, "group": "all", "color": "#ffb347", "intensity": 85, "fade": 1, "note": "in"}],
+            "trackId": tid, "tourShowId": tour, "libraryId": "should-not-travel",
+            "draftDirty": True, "draftSavedAt": "2026-08-22T00:00:00Z"}
+    sid = client.post("/lights/library/save",
+                      json={"name": "Filtered", "data": data,
+                            "track_id": tid, "tour_show_id": tour}).get_json()["id"]
+    token = client.post("/lights/library/%s/share" % sid, json={}).get_json()["token"]
+
+    html = flask_app.test_client().get("/lights/show/%s" % token).get_data(as_text=True)
+    assert "#ffb347" in html and '"bpm": 128' in html          # the show itself travels
+    for private in (tid, tour, "trackId", "tourShowId", "libraryId",
+                    "draftDirty", "draftSavedAt", "should-not-travel"):
+        assert private not in html, private

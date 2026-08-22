@@ -525,9 +525,22 @@ def create_app():
         typed. These four escapes are ordinary JSON string escapes, so the
         parsed value is byte-for-byte identical; U+2028/U+2029 are escaped
         too because they are literal line terminators in JavaScript.
-        Accepts an object or an already-serialised JSON string.
+        Accepts an object or an already-serialised JSON string. A string
+        that is NOT valid JSON is serialised rather than trusted: passing
+        one through raw would drop bare text into a <script>, which is the
+        exact injection this filter exists to stop. (Found the hard way —
+        a bare hex token landed as `x = 691ae30b…;` and took the whole
+        inline script down with a syntax error. A name would have been
+        worse than a syntax error.)
         """
-        text = value if isinstance(value, str) else json.dumps(value)
+        if isinstance(value, str):
+            try:
+                json.loads(value)
+                text = value
+            except ValueError:
+                text = json.dumps(value)
+        else:
+            text = json.dumps(value)
         return Markup(text.replace("<", "\\u003c").replace(">", "\\u003e")
                           .replace("&", "\\u0026")
                           .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
@@ -2704,6 +2717,15 @@ def create_app():
                         # opened it. ("/press-desk" does not match this
                         # prefix - that one stays behind the wall.)
                         "/press/",
+                        # The Light Studio phone remote. The unguessable code
+                        # in the URL is the authorisation, like a share link,
+                        # so a second operator can pick it up without an
+                        # account. It carries buttons, never show data.
+                        "/lights/remote/",
+                        # A light show sent out for notes. Carries one show
+                        # and no audio; the trailing slash keeps it from
+                        # swallowing anything else under /lights.
+                        "/lights/show/",
                         # A beat licence is read and signed by somebody who
                         # has no account here, and the cleared list exists to
                         # be checked by a label that never will.
@@ -4499,6 +4521,227 @@ def create_app():
             return jsonify({"ok": False}), 401
         lights_store.delete_show(user["id"], show_id)
         return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
+
+    # --- sharing a show for notes (epic 5) ------------------------------
+    # The designer sends one show and asks what people think. The link
+    # carries that show and nothing else about the account, and no audio -
+    # the song never left the designer's machine to begin with.
+
+    # The reader needs the light show: cues, the rig they render on, the
+    # looks and the patch. Everything else in a saved show is the
+    # designer's own bookkeeping and has no business on a public link.
+    _SHARED_SHOW_KEYS = ("cues", "bars", "chans", "looks", "sections", "stops",
+                         "bpm", "beatOffset", "rigName", "dmxStart", "dmxUniverse", "dmxAddr")
+
+    def _share_payload(share):
+        """What a share link is allowed to reveal. Assembled field by
+        field rather than handing over the row, so a column added to
+        light_show_library later cannot quietly start travelling — and
+        the show blob is filtered to a whitelist for the same reason:
+        `trackId`, `tourShowId` and `libraryId` are account-internal ids
+        that a tour manager has no reason to receive."""
+        show = share["show"]
+        data = show["data"] if isinstance(show["data"], dict) else {}
+        return {
+            "name": show["name"],
+            "data": {k: data[k] for k in _SHARED_SHOW_KEYS if k in data},
+            "updated": show["updated"],
+            "cue_count": show["cue_count"],
+            "permission": share["permission"],
+        }
+
+    @app.route("/lights/library/<show_id>/share", methods=["POST"])
+    def lights_share_create(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        token = lights_store.create_share(user["id"], show_id,
+                                          permission=body.get("permission") or "read",
+                                          label=body.get("label") or "")
+        if token is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "token": token,
+                        "url": "%s/lights/show/%s" % (_remote_origin(), token),
+                        "shares": lights_store.list_shares(user["id"], show_id)})
+
+    @app.route("/lights/library/<show_id>/shares")
+    def lights_share_list(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": True, "shares": lights_store.list_shares(user["id"], show_id),
+                        "origin": _remote_origin()})
+
+    @app.route("/lights/share/<token>/revoke", methods=["POST"])
+    def lights_share_revoke(token):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if not lights_store.revoke_share(user["id"], token):
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
+
+    @app.route("/lights/show/<token>")
+    def lights_share_page(token):
+        """Public on purpose: the unguessable token is the authorisation,
+        like every other share link on the platform. Standalone template —
+        it must render for someone with no account."""
+        share = lights_store.get_share(token)
+        if share is None:
+            return render_template("lights_share.html", gone=True, token=""), 404
+        return render_template("lights_share.html", gone=False, token=token,
+                               share=_share_payload(share),
+                               comments=lights_store.list_comments(share["show_id"]))
+
+    @app.route("/lights/show/<token>/comments")
+    def lights_share_comments(token):
+        share = lights_store.get_share(token)
+        if share is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "comments": lights_store.list_comments(share["show_id"])})
+
+    @app.route("/lights/show/<token>/comment", methods=["POST"])
+    def lights_share_comment(token):
+        share = lights_store.get_share(token)
+        if share is None:
+            return jsonify({"ok": False}), 404
+        if share["permission"] != "comment":
+            return jsonify({"ok": False, "error": "read-only"}), 403
+        body = request.get_json(silent=True) or {}
+        cid = lights_store.add_comment(share["show_id"], share["user_id"],
+                                       body.get("author") or "", body.get("body") or "",
+                                       t=body.get("t"), parent_id=body.get("parent_id") or "")
+        if cid is None:
+            return jsonify({"ok": False, "error": "empty"}), 400
+        return jsonify({"ok": True, "id": cid,
+                        "comments": lights_store.list_comments(share["show_id"])})
+
+    @app.route("/lights/library/<show_id>/comments")
+    def lights_comments_list(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if lights_store.get_show(user["id"], show_id) is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "comments": lights_store.list_comments(show_id)})
+
+    @app.route("/lights/library/<show_id>/comment", methods=["POST"])
+    def lights_comment_add(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if lights_store.get_show(user["id"], show_id) is None:
+            return jsonify({"ok": False}), 404
+        body = request.get_json(silent=True) or {}
+        cid = lights_store.add_comment(show_id, user["id"], user.get("name") or "You",
+                                       body.get("body") or "", t=body.get("t"),
+                                       parent_id=body.get("parent_id") or "")
+        if cid is None:
+            return jsonify({"ok": False}), 400
+        return jsonify({"ok": True, "id": cid, "comments": lights_store.list_comments(show_id)})
+
+    @app.route("/lights/comments/<comment_id>/resolve", methods=["POST"])
+    def lights_comment_resolve(comment_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        if not lights_store.resolve_comment(user["id"], comment_id, bool(body.get("resolved", True))):
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
+
+    @app.route("/lights/comments/<comment_id>/delete", methods=["POST"])
+    def lights_comment_delete(comment_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if not lights_store.delete_comment(user["id"], comment_id):
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
+
+    # Mirrors LOOKS in static/js/lights-engine.js — the phone shows the
+    # names and swatches, the laptop owns what they actually do. Order is
+    # the contract: the phone sends the index, not a colour.
+    _LIGHT_REMOTE_LOOKS = [
+        {"name": "Amber wash", "color": "#ffb347"}, {"name": "Cold blue", "color": "#3b82f6"},
+        {"name": "Red alert", "color": "#ff2d2d"}, {"name": "White full", "color": "#ffffff"},
+        {"name": "Violet haze", "color": "#8b5cf6"}, {"name": "Blackout", "color": "#000000"},
+    ]
+
+    def _remote_origin():
+        """Where the phone should point.
+
+        Unlike a share link, this one is scanned off the operator's own
+        screen seconds after it is made, so it has to be the host the
+        laptop is actually being served from — a local run, a self-hosted
+        box, or the public site. PUBLIC_BASE_URL is only the fallback.
+        """
+        host = request.host
+        if not host:
+            return PUBLIC_BASE_URL
+        scheme = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip() or request.scheme
+        return "%s://%s" % ("https" if scheme == "https" else "http", host)
+
+    @app.route("/lights/remote/start", methods=["POST"])
+    def lights_remote_start():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        code = lights_store.start_remote(user["id"])
+        return jsonify({"ok": True, "code": code,
+                        "url": "%s/lights/remote/%s" % (_remote_origin(), code)})
+
+    @app.route("/lights/remote/end", methods=["POST"])
+    def lights_remote_end():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        lights_store.end_remote(user["id"])
+        return jsonify({"ok": True})
+
+    @app.route("/lights/remote/poll")
+    def lights_remote_poll():
+        """The laptop drains whatever the phone has sent. The laptop stays
+        the source of truth; this only carries button presses."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify(dict(lights_store.drain_remote_commands(user["id"]), ok=True))
+
+    @app.route("/lights/remote/<code>")
+    def lights_remote_page(code):
+        """The phone page. Public on purpose - the unguessable code in the
+        URL is the authorisation, exactly like a share link, so a second
+        operator can pick it up without an account. It carries no show
+        data: only buttons."""
+        session_row = lights_store.get_remote(code)
+        if session_row is None:
+            return render_template("lights_remote.html", code="", expired=True,
+                                   looks=[]), 404
+        return render_template("lights_remote.html", code=code, expired=False,
+                               looks=[(i + 1, l["name"], l["color"]) for i, l in enumerate(_LIGHT_REMOTE_LOOKS)])
+
+    @app.route("/lights/remote/<code>/cmd", methods=["POST"])
+    def lights_remote_cmd(code):
+        body = request.get_json(silent=True) or {}
+        ok = lights_store.push_remote_command(code, body.get("kind") or "", body.get("value") or "")
+        if not ok:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
+
+    @app.route("/lights/remote/<code>/qr.svg")
+    def lights_remote_qr(code):
+        user = current_user()
+        if user is None:
+            return "", 401
+        import segno
+        import io as _io
+        url = "%s/lights/remote/%s" % (PUBLIC_BASE_URL.rstrip("/"), code)
+        buf = _io.BytesIO()
+        segno.make(url, error="m").save(buf, kind="svg", scale=5, dark="#e8c667", light=None)
+        return Response(buf.getvalue(), mimetype="image/svg+xml",
+                        headers={"Cache-Control": "no-store"})
 
     @app.route("/lights/track/<track_id>/attach", methods=["POST"])
     def lights_track_attach(track_id):

@@ -167,10 +167,130 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
   sanitises every field (`importShow`) and replaces the working copy only
   (confirm first when cues exist) — library saves are untouched.
 
+## The phone remote (epic 3)
+
+A second operator's hands. The laptop stays the source of truth; the
+phone can only enqueue a button press, and `applyRemoteCommand` in
+`lights.js` decides what to do with each one. Anything it does not
+recognise is ignored rather than guessed at.
+
+There is no WebSocket in this stack and no job runner, so the transport
+is polling: the phone POSTs a press, the laptop drains its own queue
+every 400ms. That is fast enough that a blackout from the phone lands
+about as quickly as pressing X on the keyboard.
+
+**Pairing.** `POST /lights/remote/start` mints a 32-hex code and retires
+any previous one — a rig has one remote at a time. The studio shows a QR
+(rendered by `segno`, already a dependency) plus the plain URL. The
+pairing URL is built from the request host, not `PUBLIC_BASE_URL`, so a
+local or self-hosted run hands out a code the phone can actually reach;
+`X-Forwarded-Proto` is honoured for TLS-terminating proxies.
+
+**Authorisation.** `/lights/remote/<code>` is public — the unguessable
+code is the whole authorisation, exactly like a share link, so a
+bandmate picks it up without an account. `_PUBLIC_PREFIXES` carries
+`"/lights/remote/"` with the trailing slash so it cannot swallow
+`/lights` or `/lights/library`; `start`, `end`, `poll` and `qr.svg` each
+call `current_user()` themselves. Codes expire after
+`REMOTE_TTL_HOURS = 12`.
+
+**What the phone carries.** Buttons only — no cue list, no show data, no
+audio, no studio script. `templates/lights_remote.html` is standalone
+and a test asserts the page contains none of it.
+
+**Commands.** `blackout` · `restore` · `play` · `stop` · `tap` · `look`
+(value 1–6) · `next` · `prev` · `ping`. Anything else is refused with a
+404 rather than stored — the remote is not a general channel. `ping` is
+a keep-alive so the phone's status line is honest before the first real
+press; the laptop treats it as a no-op, because sending `tap` as a
+heartbeat would drag the tempo.
+
+**Holding a look.** A phone look press does *not* edit the cue list —
+the operator cannot see that happening from across a dark room and
+would find the show changed after the gig with no undo. It sets `bump`,
+a rig-wide override read at the top of `outLooks()`, which outranks both
+the cue list and the between-songs gap look. Pressing the same look
+again releases it. The studio shows a loud `#lx-bump` chip in the
+transport row while a look is held, and that chip is also the release
+control.
+
+**Reload safety.** The studio calls `resumeRemote()` at boot: if the
+server still holds a live pairing for this account it picks it back up,
+so a mid-set refresh does not leave the phone pressing buttons into a
+queue nobody drains. `drain_remote_commands` applies the same expiry
+rule the phone sees, so an expired pairing is never resumed.
+
+
+## Sending a show out for notes (epic 5)
+
+A designer sends the show to a manager, an MD or the artist and asks
+"what do you think of the second chorus". `POST
+/lights/library/<id>/share` mints a 32-hex token with a permission of
+`read` or `comment`; the reader opens `/lights/show/<token>` with no
+account, exactly like every other share link on the platform. The owner
+can revoke a link at any time, and a revoked or deleted show renders a
+plain "this link is no longer live" page rather than a 500.
+
+**What travels.** `_share_payload()` in app.py assembles the response
+field by field — name, cue data, updated, cue count, permission —
+rather than handing over the library row, so a column added later
+cannot quietly start travelling. A test asserts the page contains none
+of the designer's other shows, their email, or the studio script.
+
+**No audio, ever.** The song never left the designer's machine, so the
+reader gets the cue list against a timeline plus a stage that runs the
+cues — the same thing "Run cues only" does in the studio.
+`lights-share.js` reuses `lights-engine.js` (`lightingAt`, `fmtClock`,
+`groupLabel`) so the reader sees the real show, not a mock-up.
+
+**Notes anchor to a TIMECODE, never a cue id.** `payload()` in lights.js
+strips `_id` from every cue on save, so cue ids are regenerated on each
+load and an id anchor would break on the next save. A second at 1:14 is
+still 1:14 after the cue there is deleted. `tests/test_light_studio.py`
+pins this, because it is the kind of thing a later refactor would
+"improve" back.
+
+**Threads stay shallow** — one level of reply. A note on a cue is not a
+forum. A reply whose `parent_id` belongs to a different show is filed as
+a new top-level note rather than accepted, so a reply cannot be used to
+reach a thread on someone else's show. Only the owner settles or deletes
+a note; a reader can raise one but cannot decide it is dealt with.
+Deleting a show takes its links and its notes with it.
+
+**Studio side.** The "Share & notes" fold lists live links with a revoke
+button and the note threads with reply / settled / delete. Unresolved
+notes draw as gold pins under the waveform — clear of the cue flags,
+because a note is about a moment and may point at a moment with no cue
+yet. Clicking `@ 1:13.8` moves the playhead and pans the view if that
+moment is off-screen at the current zoom.
+
+**A trap worth knowing.** The `js_json` Jinja filter accepts an object
+*or an already-serialised JSON string*, and used to pass any `str`
+through untouched. Handing it a bare token emitted
+`window.__lxToken = 691ae30b…;` — a malformed numeric literal that took
+the whole inline script down. It now serialises any string that is not
+valid JSON, because the same path with a user-supplied name would have
+been stored XSS rather than a syntax error.
+
+
 ## Endpoints
 
 `GET /lights/rigs` · `POST /lights/rigs/save` (`id?`, `name`, `venue`,
 `data`) · `POST /lights/rigs/<id>/delete`.
+
+`POST /lights/library/<id>/share` (`permission`, `label` → `token`, `url`) ·
+`GET /lights/library/<id>/shares` · `POST /lights/share/<token>/revoke` ·
+`GET /lights/show/<token>` (public reader page) ·
+`GET /lights/show/<token>/comments` · `POST /lights/show/<token>/comment`
+(`author`, `body`, `t?`, `parent_id?`) · `GET /lights/library/<id>/comments` ·
+`POST /lights/library/<id>/comment` · `POST /lights/comments/<id>/resolve` ·
+`POST /lights/comments/<id>/delete`.
+
+`POST /lights/remote/start` (→ `code`, `url`) · `POST /lights/remote/end`
+· `GET /lights/remote/poll` (→ `code`, `commands[]`, `phone_seen`) ·
+`GET /lights/remote/<code>` (public phone page) ·
+`POST /lights/remote/<code>/cmd` (`kind`, `value`) ·
+`GET /lights/remote/<code>/qr.svg`.
 
 `GET /lights` · `POST /lights/save` (working copy) · `GET /lights/library`
 · `POST /lights/library/save` (`id?`, `name`, `data`, `track_id`,
