@@ -215,6 +215,66 @@ def test_lifecycle_expiry_renew_edit(flask_app, monkeypatch):
     assert other.get("/tour-board/%s/edit" % lid).status_code == 404
 
 
+def test_legacy_rows_survive_the_migration_and_can_be_renewed(flask_app):
+    """A listing posted long before the lifecycle columns existed must not
+    be born expired, and must get a working renew token - otherwise it
+    silently drops off the board and its one renewal email 404s."""
+    client, user = _user(flask_app)
+    old = store.add_board_listing(user["id"], "artist", "Ancient listing", "SE", "Oct", "indie", "details")
+    with store.get_db() as db:                       # look like a pre-feature row
+        db.execute("UPDATE tour_board SET structured=0, expires_at='', renew_token='', created=? WHERE id=?",
+                   ("2019-03-04T10:00:00", old))
+    bs.migrate_legacy_listings()
+    l = bs.get_listing(old)
+    assert l["expires_at"] > date.today().isoformat(), "a six-year-old listing was born expired"
+    assert l["renew_token"], "no renew token, so its renewal email would be a dead link"
+    assert not l["is_expired"] and l["effective_status"] == "open"
+    assert "Ancient listing" in client.get("/tour-board").get_data(as_text=True)
+    # the token works, and only once
+    anon = flask_app.test_client()
+    assert anon.get("/board-renew/%s?t=%s" % (old, l["renew_token"])).status_code == 200
+    assert anon.get("/board-renew/%s?t=%s" % (old, l["renew_token"])).status_code == 404
+
+
+def test_a_renew_token_cannot_resurrect_a_closed_or_filled_listing(flask_app):
+    """The token arrives by GET from a mail client that may prefetch it. It
+    may extend a listing that is still meant to be up; it may not undo the
+    owner's decision to close or fill one."""
+    client, user = _user(flask_app)
+    r = client.post("/tour-board/post", data={"kind": "artist", "title": "Closed one", "region_code": "us-midwest", "region_text": "Midwest"})
+    lid = r.headers["Location"].rsplit("/", 1)[1]
+    token = bs.get_listing(lid)["renew_token"]
+    client.post("/tour-board/%s/close" % lid)
+    anon = flask_app.test_client()
+    assert anon.get("/board-renew/%s?t=%s" % (lid, token)).status_code == 404
+    assert bs.get_listing(lid)["status"] == "closed", "a prefetched email link reopened a closed listing"
+    # the owner, signed in, still can
+    client.post("/tour-board/%s/reopen" % lid)
+    assert bs.get_listing(lid)["status"] == "open"
+
+
+def test_region_filter_is_applied_in_sql_not_after_the_limit(flask_app):
+    """Region matching is a taxonomy relationship, so it used to be filtered
+    in Python after LIMIT - which returns an empty board once there are more
+    open listings than the limit."""
+    client, user = _user(flask_app)
+    for i in range(12):
+        client.post("/tour-board/post", data={"kind": "artist", "title": "PNW filler %d" % i,
+                                              "region_code": "metro-seattle", "region_text": "Seattle, WA"})
+    client.post("/tour-board/post", data={"kind": "artist", "title": "THE ATLANTA ONE",
+                                          "region_code": "metro-atlanta", "region_text": "Atlanta, GA"})
+    # A limit smaller than the number of newer non-matching listings: under a
+    # post-LIMIT filter the SQL would return five Seattle rows and the Python
+    # pass would drop them all, so Atlanta could never appear.
+    hits = [h["title"] for h in bs.list_listings(region="us-southeast", limit=5)]
+    assert "THE ATLANTA ONE" in hits
+    assert not any("PNW filler" in t for t in hits), hits
+    assert "THE ATLANTA ONE" in [h["title"] for h in bs.list_listings(region="metro-atlanta", limit=5)]
+    pnw = bs.list_listings(region="us-pnw", limit=5)
+    assert pnw and all("PNW filler" in h["title"] for h in pnw)
+    assert bs.list_listings(region="nonsense-region", limit=5) == []
+
+
 # --- filters, sort, watches --------------------------------------------------------------
 
 def test_filters_sort_and_saved_search_alerts(flask_app, monkeypatch):

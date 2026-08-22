@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=5">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=6">{% endblock %}
 
 {% block content %}
 <script>
@@ -39,7 +39,7 @@
       <input id="lx-show-name" class="lx-input" type="text" placeholder="Show name" aria-label="Show name" maxlength="120">
       <select id="lx-lib-select" class="lx-select" aria-label="Open a saved show"></select>
       <select id="lx-track" class="lx-select" aria-label="Track this show belongs to"><option value="">— track —</option>{% for t in lights_tracks %}<option value="{{ t['id'] }}">{{ t['title'] }}</option>{% endfor %}</select>
-      <select id="lx-tourshow" class="lx-select" aria-label="Tour date this show belongs to"><option value="">— tour date —</option>{% for s in lights_tour_shows %}<option value="{{ s['id'] }}">{{ s['date'] }} · {{ s['city'] or s['venue'] }}</option>{% endfor %}</select>
+      <select id="lx-tourshow" class="lx-select" aria-label="Tour date this show belongs to"><option value="">— tour date —</option>{% for s in lights_tour_shows %}<option value="{{ s['id'] }}" data-venue-key="{{ s['venue_key'] }}" data-venue="{{ s['venue'] }}">{{ s['date'] }} · {{ s['city'] or s['venue'] }}</option>{% endfor %}</select>
       <input id="lx-version-note" class="lx-input" type="text" placeholder="version note (optional)" aria-label="Version note" maxlength="200" style="min-width:150px">
       <button id="lx-lib-save" class="lx-btn" type="button" aria-label="Save this show to the library and keep a version">Save to library</button>
       <span id="lx-libdirty" class="lx-libdirty" role="status" aria-live="polite"></span>
@@ -137,6 +137,28 @@
           <label>Universe <input id="lx-dmx-universe" class="lx-input lx-input--tiny" type="number" min="1" max="64" value="1" aria-label="DMX universe this rig is patched in; shown on the DMX chip — the USB interface drives one universe"></label>
         </span>
       </div>
+
+      <details class="lx-more" id="lx-rig-fold">
+        <summary>Rig profile <span id="lx-rig-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
+        <p class="lx-hint">A rig is the room: how many bars, what they are, where they hang, how they're patched. Your cues are <b>looks and group roles</b>, not channel numbers, so the same show re-renders on any rig — bar-specific cues move to the matching position instead of going dark.</p>
+        <div class="lx-rig-row">
+          <label class="lx-field"><span>Load</span>
+            <select id="lx-rig-select" class="lx-select" aria-label="Load a rig profile — presets and your saved rigs">
+              <option value="">— this show's own rig —</option>
+            </select>
+          </label>
+          <button id="lx-rig-apply" class="lx-btn lx-btn--small" type="button" aria-label="Apply the selected rig profile to this show">Apply to show</button>
+        </div>
+        <div class="lx-rig-row">
+          <label class="lx-field lx-field--wide"><span>Save as</span><input id="lx-rig-name" class="lx-input" type="text" maxlength="80" placeholder="rig name — e.g. The Vault house rig" aria-label="Name for this rig profile"></label>
+          <label class="lx-field lx-field--wide"><span>Venue</span><input id="lx-rig-venue" class="lx-input" type="text" maxlength="120" list="lx-venue-list" placeholder="venue (optional)" aria-label="Bind this rig to a venue — linking a show to a tour date at that venue then offers this rig">
+            <datalist id="lx-venue-list">{% for s in lights_tour_shows %}<option value="{{ s['venue'] }}"></option>{% endfor %}</datalist>
+          </label>
+          <button id="lx-rig-save" class="lx-btn lx-btn--small" type="button" aria-label="Save the current bars, layout and patch as a rig profile">Save rig</button>
+          <button id="lx-rig-delete" class="lx-btn lx-btn--ghost lx-btn--small" type="button" disabled aria-label="Delete the selected saved rig">Delete</button>
+        </div>
+        <p id="lx-rig-status" class="lx-hint" role="status" aria-live="polite"></p>
+      </details>
       <details class="lx-more">
         <summary>All bars (text view &amp; patch)</summary>
         <ul id="lx-bars-list" class="lx-bars-list" aria-label="Bars: look now, position, DMX start address, mirror partner. Activate one to open its panel."></ul>
@@ -201,8 +223,8 @@
   <button id="lx-dock-black" class="lx-btn lx-btn--ghost" type="button" disabled aria-label="Add a blackout at the playhead">Blackout</button>
 </div>
 
-<script>window.__savedShow = {{ saved_show | safe }};</script>
-<script>window.__lightsLibrary = {{ lights_library | safe }};</script>
-<script src="/static/js/lights-engine.js?v=3"></script>
-<script src="/static/js/lights.js?v=10"></script>
+<script>window.__savedShow = {{ saved_show | js_json }};</script>
+<script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
+<script src="/static/js/lights-engine.js?v=4"></script>
+<script src="/static/js/lights.js?v=11"></script>
 {% endblock %}

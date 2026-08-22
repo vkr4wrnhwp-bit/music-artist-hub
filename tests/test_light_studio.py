@@ -39,9 +39,10 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-master", "lx-panic", "lx-gel", "lx-gel-grid", "lx-export", "lx-import", "lx-look-save",
                   "lx-vol", "lx-rate", "lx-scrub", "lx-dmx-start", "lx-dmx-universe", "lx-bar-addr", "lx-patch-warn",
                   "lx-autocue", "lx-autocue-clear", "lx-autocue-note",
+                  "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=3" in page and "lights.js?v=10" in page and "light-studio.css?v=5" in page
+    assert "lights-engine.js?v=4" in page and "lights.js?v=11" in page and "light-studio.css?v=6" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
@@ -113,6 +114,89 @@ def test_library_save_versions_restore_and_isolation(flask_app):
     assert lights_store.get_show(user["id"], sid) is not None      # a stranger cannot delete it
     d = client.post("/lights/library/%s/delete" % sid, json={}).get_json()
     assert d["ok"] and d["shows"] == [] and lights_store.list_versions(user["id"], sid) == []
+
+
+def test_user_text_cannot_break_out_of_the_inline_script(flask_app):
+    """json.dumps does not escape "<", so a show named "</script>..." would
+    close the tag and run as HTML. Every JSON blob embedded in an inline
+    script goes through the js_json filter instead."""
+    client, user = _user(flask_app)
+    payload = '</script><img src=x onerror=alert(1)>'
+    client.post("/lights/save", json={"name": payload, "bars": 4, "chans": 4, "cues": []})
+    client.post("/lights/library/save", json={"name": payload, "data": {"name": payload, "cues": [], "bars": 4, "chans": 4}})
+    page = client.get("/lights").get_data(as_text=True)
+    assert "</script><img" not in page          # the tag never closes early
+    assert "\\u003c/script\\u003e" in page      # it is there, escaped
+    # and it still parses back to exactly what the user typed
+    blob = page.split("window.__savedShow = ")[1].split(";</script>")[0]
+    import json as _j
+    assert _j.loads(blob)["name"] == payload
+
+
+def test_rig_profiles_save_bind_to_a_venue_and_stay_private(flask_app):
+    """A rig is layout + patch. It is per-account, sanitised on the way in,
+    and at most one rig is bound to a given venue name."""
+    client, user = _user(flask_app)
+    other, _ = _user(flask_app, "Other LD")
+    assert flask_app.test_client().get("/lights/rigs").status_code in (302, 401)
+    assert client.get("/lights/rigs").get_json()["rigs"] == []
+
+    rig = {"bars": 8, "chans": 3, "pos": {"1": [0.2, 0.1]}, "rot": {"1": 90, "2": 45},
+           "dmxStart": 101, "dmxAddr": {"1": 101, "2": 9999, "3": "nope"}}
+    r = client.post("/lights/rigs/save", json={"name": "The Vault house rig", "data": rig,
+                                              "venue": "The Vault, Charlotte!"}).get_json()
+    assert r["ok"] and len(r["rigs"]) == 1
+    rid = r["id"]
+    saved = r["rigs"][0]
+    assert saved["name"] == "The Vault house rig"
+    assert saved["venue_key"] == "the vault charlotte"          # punctuation and case are noise
+    d = saved["data"]
+    assert d["bars"] == 8 and d["chans"] == 3 and d["dmxStart"] == 101
+    assert d["rot"]["1"] == 90 and d["rot"]["2"] == 0            # only 0/90 survive
+    assert d["dmxAddr"] == {"1": 101}                            # out-of-range and junk dropped
+    assert lights_store.rig_for_venue(user["id"], "the vault   charlotte")["id"] == rid
+
+    # values outside the studio's own limits are clamped, never stored raw
+    r2 = client.post("/lights/rigs/save", json={"name": "Silly", "data": {"bars": 99, "dmxStart": 9999,
+                                                                         "pos": {"1": [5, -5]}}}).get_json()
+    d2 = [x for x in r2["rigs"] if x["id"] == r2["id"]][0]["data"]
+    assert d2["bars"] == 10 and d2["dmxStart"] == 512 and d2["pos"]["1"] == [0.97, 0.04]
+
+    # one rig per venue: binding a second rig to the same room unbinds the first
+    r3 = client.post("/lights/rigs/save", json={"name": "Vault B", "data": {"bars": 4},
+                                                "venue": "the vault charlotte"}).get_json()
+    assert lights_store.rig_for_venue(user["id"], "The Vault Charlotte")["id"] == r3["id"]
+    assert lights_store.get_rig(user["id"], rid)["venue_key"] == ""
+    assert lights_store.rig_for_venue(user["id"], "") is None
+    assert lights_store.rig_for_venue(user["id"], "Nowhere") is None
+
+    # the page ships the caller's rigs and the venue key for each tour date
+    store.add_tour_show(user["id"], "2030-06-01", "The Vault", "Charlotte", "")
+    page = client.get("/lights").get_data(as_text=True)
+    assert "The Vault house rig" in page and 'data-venue-key="the vault"' in page
+
+    # another account cannot see, edit or delete them
+    assert other.get("/lights/rigs").get_json()["rigs"] == []
+    other.post("/lights/rigs/%s/delete" % rid, json={})
+    assert lights_store.get_rig(user["id"], rid) is not None
+    assert lights_store.get_rig(other_id(other, flask_app), rid) is None
+    assert client.post("/lights/rigs/%s/delete" % rid, json={}).get_json()["ok"]
+    assert lights_store.get_rig(user["id"], rid) is None
+
+
+def other_id(client, flask_app):
+    """The user id behind a logged-in test client (via its session cookie)."""
+    with client.session_transaction() as sess:
+        return sess.get("user_id") or sess.get("uid") or ""
+
+
+def test_rig_count_is_capped(flask_app):
+    client, user = _user(flask_app)
+    last = None
+    for i in range(lights_store.MAX_RIGS + 2):
+        last = client.post("/lights/rigs/save", json={"name": "Rig %d" % i, "data": {"bars": 4}})
+    assert last.status_code == 400 and "delete one first" in last.get_json()["error"]
+    assert len(lights_store.list_rigs(user["id"])) == lights_store.MAX_RIGS
 
 
 def test_versions_are_capped(flask_app):

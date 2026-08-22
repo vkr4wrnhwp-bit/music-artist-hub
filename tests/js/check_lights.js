@@ -104,5 +104,47 @@ ok("frame writes each bar at its own address", patched[4 + 10] === 255 && patche
 const offEnd = E.dmxFrame({bars: 1, chans: 4, dmxAddr: {"1": 511}}, [{rgb: [9, 9, 9], inten: 1}]);
 ok("a fixture patched off the end of the universe is skipped, never wrapped", offEnd.length === 518 && offEnd[4 + 511] === 0 && offEnd[4 + 1] === 0);
 
+// movement hints compile per rig: strobe / pulse / chase ride on the faded intent
+const mv = {bars: 4, chans: 4, bpm: 120, cues: [{t: 0, group: "all", color: "#ffffff", intensity: 100, fade: 0, move: "chase"}]};
+const c0 = E.lightingAt(mv, 0.01).map(l => l.inten), c1 = E.lightingAt(mv, 0.51).map(l => l.inten), c3 = E.lightingAt(mv, 1.51).map(l => l.inten);
+ok("chase lights one bar per beat and walks", c0[0] === 1 && c0[1] < 0.2 && c1[1] === 1 && c1[0] < 0.2 && c3[3] === 1, JSON.stringify([c0, c1, c3]));
+const st = {bars: 2, chans: 4, bpm: 120, cues: [{t: 0, group: "all", color: "#ffffff", intensity: 100, fade: 0, move: "strobe"}]};
+ok("strobe is on early in the beat and off later", E.lightingAt(st, 0.05)[0].inten === 1 && E.lightingAt(st, 0.3)[0].inten === 0);
+// pulse: peak on the beat, floor at the half-beat (120 BPM default -> 0.5 s period)
+const pu = {bars: 1, chans: 4, cues: [{t: 0, group: "all", color: "#ffffff", intensity: 100, fade: 0, move: "pulse"}]};
+ok("pulse floors at the half-beat and peaks on the beat",
+   Math.abs(E.lightingAt(pu, 0.25)[0].inten - 0.3) < 1e-9 && Math.abs(E.lightingAt(pu, 0.5)[0].inten - 1) < 1e-9,
+   JSON.stringify([E.lightingAt(pu, 0.25)[0].inten, E.lightingAt(pu, 0.5)[0].inten]));
+ok("movement never exceeds the cue's own intensity", E.lightingAt({bars: 1, bpm: 120, cues: [{t: 0, group: "all", color: "#ffffff", intensity: 40, fade: 0, move: "pulse"}]}, 0.5)[0].inten <= 0.4 + 1e-9);
+ok("a still cue is untouched by movement", E.lightingAt({bars: 1, cues: [{t: 0, group: "all", color: "#ffffff", intensity: 50, fade: 0, move: ""}]}, 0.3)[0].inten === 0.5);
+ok("chase on an 8-bar rig walks all 8 (same intent, bigger rig)", E.lightingAt({bars: 8, bpm: 120, cues: mv.cues}, 3.51).map(l => l.inten)[7] === 1);
+
+// rig profiles: presets apply, shows carry intents so they re-render on any rig
+ok("three presets ship", E.RIG_PRESETS.length === 3 && E.RIG_PRESETS.map(r => r.key).join() === "dive4,club8,fest6");
+const sh = {bars: 6, chans: 4, pos: {"1": [0.5, 0.5]}, rot: {"2": 90}, dmxStart: 7, dmxAddr: {"3": 99}, cues: [{t: 0, group: "odd", color: "#ff0000", intensity: 100, fade: 0}]};
+E.applyRig(sh, E.RIG_PRESETS[0]);
+ok("applyRig sets bars/chans/layout/patch and tags the rig", sh.bars === 4 && sh.chans === 3 && sh.pos["1"][0] === 0.2 && sh.rot["2"] === undefined && sh.dmxStart === 1 && Object.keys(sh.dmxAddr).length === 0 && sh.rigKey === "dive4");
+ok("cues survive a rig swap and re-resolve (odd of 4)", E.lightingAt(sh, 1).map(l => l.inten).join() === "1,0,1,0");
+E.applyRig(sh, E.RIG_PRESETS[2]);
+ok("festival preset stands the outer bars up", sh.bars === 6 && sh.rot["1"] === 90 && sh.rot["6"] === 90 && sh.pos["1"][0] === 0.06);
+// same look, different bar count: bar-naming groups remap by position, roles do not
+ok("roles are rig-independent", ["all", "odd", "even"].every(g => E.remapGroup(g, 8, 4) === g));
+ok("bar groups remap by position, never to nothing", E.remapGroup("b7", 8, 4) === "b4" && E.remapGroup("b1", 8, 4) === "b1" && E.remapGroup("b1", 4, 8) === "b1" && E.remapGroup("b4", 4, 8) === "b7");
+ok("bar groups clamp inside the new rig", E.membersOf(E.remapGroup("b10", 10, 2), 2).length === 1 && E.remapGroup("b10", 10, 2) === "b2");
+ok("pairs remap outermost-in", E.remapGroup("pair4", 8, 4) === "pair2" && E.remapGroup("pair1", 8, 4) === "pair1");
+ok("custom picks remap and dedupe", E.remapGroup("b1+b2+b7+b8", 8, 4) === "b1+b4", E.remapGroup("b1+b2+b7+b8", 8, 4));
+ok("remap is identity at the same size", E.remapGroup("b3+b5", 6, 6) === "b3+b5" && E.remapGroup("pair2", 6, 6) === "pair2");
+ok("malformed groups fall back to all, never crash", E.remapGroup("bXX", 8, 4) === "all" && E.remapGroup("pair", 8, 4) === "all" && E.remapGroup("", 8, 4) === "all");
+// an 8-bar show played on a 4-bar rig still lights something for every cue
+const big = {bars: 8, chans: 4, cues: [{t: 0, group: "b7", color: "#ff0000", intensity: 100, fade: 0}, {t: 0, group: "pair4", color: "#00ff00", intensity: 100, fade: 0}]};
+ok("before remap, an 8-bar cue is dark on a 4-bar rig", E.lightingAt({bars: 4, cues: big.cues}, 1).every(l => l.inten === 0));
+E.applyRig(big, E.RIG_PRESETS[0]);
+ok("after a rig swap every cue still lights a bar", big.bars === 4 && E.lightingAt(big, 1).some(l => l.inten > 0) && big.cues.every(c => E.membersOf(c.group, 4).length > 0), JSON.stringify(big.cues.map(c => c.group)));
+ok("remapCues does not mutate the originals", (() => { const src = [{t: 0, group: "b8", color: "#fff", intensity: 50, fade: 0, note: "keep"}]; const out = E.remapCues(src, 8, 4); return src[0].group === "b8" && out[0].group === "b4" && out[0].note === "keep"; })());
+
+const rf = E.rigFromShow({bars: 5, chans: 3, pos: {"2": [0.1, 0.2]}, rot: {}, dmxStart: 33, dmxAddr: {}}, "My rig");
+ok("rigFromShow captures the current rig", rf.name === "My rig" && rf.bars === 5 && rf.chans === 3 && rf.pos["2"][1] === 0.2 && rf.dmxStart === 33);
+ok("venueKey normalises", E.venueKey("The Vault, Charlotte!") === "the vault charlotte" && E.venueKey("") === "");
+
 console.log(fails ? ("\n" + fails + " FAILED") : "\nall passed");
 process.exit(fails ? 1 : 0);

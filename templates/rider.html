@@ -105,7 +105,7 @@
   <script src="/static/js/stageplot.js"></script>
   <script>
     (function () {
-      var plot = {{ plot_json | safe }};
+      var plot = {{ plot_json | js_json }};
       if (plot && plot.items) {
         plot.name = plot.name || {{ show.artist_name | tojson }};
         document.getElementById("plot").innerHTML = window.StagePlot.buildSvg(plot);

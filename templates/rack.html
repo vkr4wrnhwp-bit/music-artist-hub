@@ -1076,5 +1076,5 @@
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
 <script src="/static/js/rackdsp.js?v=34"></script>
-{% if saved_rack %}<script>window.__savedRack = {{ saved_rack | safe }};</script>{% endif %}
+{% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
 {% endblock %}

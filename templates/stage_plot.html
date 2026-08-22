@@ -51,7 +51,7 @@
   var SP = window.StagePlot;
   var ST = SP.ST;
 
-  var saved = {{ saved_plot | safe }};
+  var saved = {{ saved_plot | js_json }};
   var state = saved && saved.items ? saved : {name: "", items: {}, pos: {}};
 
   var canvas = document.getElementById("sp-canvas");

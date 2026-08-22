@@ -129,12 +129,34 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
   removes only the untouched ones. Sections/stops are kept in
   `show.sections` / `show.stops` and drawn as tinted, labelled bands on
   the waveform; re-running replaces the auto set, never your cues.
+- **Looks abstraction + rig profiles (epic 2).** A cue stores *intent*, not
+  channel values: colour, intensity, fade, a **group role** (`all` / `odd` /
+  `even` / `pairN` / `bN` / a hand-picked `b1+b3`), an optional `move`
+  (still / pulse / strobe / chase, beat-locked to the show tempo, 120 BPM
+  until one is detected) and the `look` key it came from. `lightingAt` +
+  `movementGain` + `dmxFrame` are the compiler that renders that onto the
+  current rig, so a chase written for 8 bars runs across 4.
+  A **rig** is bar count, fixture type, layout and patch —
+  `LightsEngine.RIG_PRESETS` ships *Dive bar 4-bar*, *Club 8-bar* and
+  *Festival side-stick*; `applyRig` swaps one in. Because a bar-naming
+  group is a *position*, `remapGroup` moves it proportionally
+  (bar 7 of 8 → bar 4 of 4, `pair4` → `pair2`) instead of leaving the cue
+  dark; roles like All/Odd/Even are rig-independent and never rewritten.
+  Changing the Bars dropdown remaps too, and the whole swap is one undo step.
+  Saved rigs live in `light_rigs` (per account, capped at
+  `lights_store.MAX_RIGS`, sanitised server-side) and can be bound to a
+  **venue** by name (`venue_key` normalises case/punctuation, newest binding
+  wins). Linking a show to a tour date at that venue *offers* the rig — it
+  never swaps the rig under the user.
 - **Import / export.** `Export JSON` downloads
   `{format:"street-banker-lights", version:1, show}`; `Import JSON`
   sanitises every field (`importShow`) and replaces the working copy only
   (confirm first when cues exist) — library saves are untouched.
 
 ## Endpoints
+
+`GET /lights/rigs` · `POST /lights/rigs/save` (`id?`, `name`, `venue`,
+`data`) · `POST /lights/rigs/<id>/delete`.
 
 `GET /lights` · `POST /lights/save` (working copy) · `GET /lights/library`
 · `POST /lights/library/save` (`id?`, `name`, `data`, `track_id`,

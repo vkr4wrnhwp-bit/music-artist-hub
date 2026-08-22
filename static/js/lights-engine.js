@@ -98,15 +98,93 @@
         : {rgb: hexRgb(before.color || "#000000"),
            inten: (before.intensity || 0) / 100};
       var k = Math.min(1, (t - cur.t) / Math.max(0.01, cur.fade || 0.01));
+      var inten = from.inten + (target.inten - from.inten) * k;
+      if (cur.move) inten *= movementGain(cur, f, t, show, bars);
       out.push({
         rgb: [0, 1, 2].map(function (ci) {
           return Math.round(from.rgb[ci] + (target.rgb[ci] - from.rgb[ci]) * k);
         }),
-        inten: from.inten + (target.inten - from.inten) * k
+        inten: inten
       });
     }
     return out;
   }
+  // Movement hints are part of a cue's INTENT and are compiled per rig at
+  // runtime: the same "chase" runs across 4 bars or 8. Beat-locked when
+  // the show has a tempo, 120 BPM otherwise. rate = cycles per beat.
+  var MOVES = [["", "Still"], ["pulse", "Pulse"], ["strobe", "Strobe"], ["chase", "Chase"]];
+  function movementGain(cue, fixture, t, show, bars) {
+    var bpm = show.bpm || 120, period = 60 / bpm, rate = cue.rate > 0 ? cue.rate : 1;
+    var phase = Math.max(0, t - cue.t) / period * rate, frac = phase - Math.floor(phase);
+    if (cue.move === "strobe") return frac < 0.35 ? 1 : 0;
+    if (cue.move === "pulse") return 0.3 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * frac));
+    if (cue.move === "chase") {
+      var mem = membersOf(cue.group, bars), n = mem.length, idx = mem.indexOf(fixture);
+      if (n < 2 || idx < 0) return 1;
+      return (Math.floor(phase) % n) === idx ? 1 : 0.12;
+    }
+    return 1;
+  }
+
+  // ---------- rig profiles ----------
+  // A rig is bar count + fixture type + layout + patch. Shows store
+  // intents (looks, group roles, movement), so the same show compiles onto
+  // any rig — swap the profile and the cues re-render.
+  var RIG_PRESETS = [
+    {key: "dive4", name: "Dive bar 4-bar", bars: 4, chans: 3, dmxStart: 1, rot: {},
+     pos: {"1": [0.2, 0.14], "2": [0.8, 0.14], "3": [0.32, 0.8], "4": [0.68, 0.8]}},
+    {key: "club8", name: "Club 8-bar", bars: 8, chans: 4, dmxStart: 1, rot: {}, pos: null},
+    {key: "fest6", name: "Festival side-stick", bars: 6, chans: 4, dmxStart: 1, rot: {"1": 90, "6": 90},
+     pos: {"1": [0.06, 0.5], "2": [0.3, 0.12], "3": [0.5, 0.12], "4": [0.7, 0.12], "5": [0.5, 0.8], "6": [0.94, 0.5]}}
+  ];
+  function copyMap(m) { var o = {}; Object.keys(m || {}).forEach(function (k) { o[k] = Array.isArray(m[k]) ? m[k].slice() : m[k]; }); return o; }
+
+  // Same look, different rig. "all"/"odd"/"even" are roles and need no
+  // translation; anything that names a bar is a POSITION on the stage, so
+  // it is remapped proportionally instead of firing nothing. Bar N of F
+  // sits at (N-0.5)/F across; the bar covering that spot on the new rig
+  // is ceil(pos * T).
+  function remapGroup(group, fromBars, toBars) {
+    group = group || "all";
+    if (fromBars === toBars || group === "all" || group === "odd" || group === "even") return group;
+    function scale(n, fromN, toN) { return Math.max(1, Math.min(toN, Math.ceil((n - 0.5) / fromN * toN))); }
+    if (group.indexOf("+") > 0) return customGroup(membersOf(group, fromBars).map(function (n) { return scale(n, fromBars, toBars); }));
+    if (group.indexOf("pair") === 0) {
+      var k = parseInt(group.slice(4), 10);
+      if (!(k >= 1)) return "all";
+      return "pair" + scale(k, Math.ceil(fromBars / 2), Math.ceil(toBars / 2));
+    }
+    if (group.charAt(0) === "b") {
+      var n = parseInt(group.slice(1), 10);
+      if (!(n >= 1)) return "all";
+      return "b" + scale(n, fromBars, toBars);
+    }
+    return group;
+  }
+  function remapCues(cues, fromBars, toBars) {
+    return (cues || []).map(function (c) {
+      var d = {}; Object.keys(c).forEach(function (k) { d[k] = c[k]; });
+      d.group = remapGroup(c.group, fromBars, toBars);
+      return d;
+    });
+  }
+
+  function applyRig(show, rig) {
+    var fromBars = show.bars || 6;
+    show.bars = Math.max(2, Math.min(10, parseInt(rig.bars, 10) || 6));
+    show.chans = rig.chans === 3 ? 3 : 4;
+    show.pos = copyMap(rig.pos); show.rot = copyMap(rig.rot);
+    show.dmxStart = Math.max(1, Math.min(512, parseInt(rig.dmxStart, 10) || 1));
+    show.dmxAddr = copyMap(rig.dmxAddr);
+    show.rigKey = rig.key || rig.id || null; show.rigName = rig.name || "";
+    if (show.bars !== fromBars) show.cues = remapCues(show.cues, fromBars, show.bars);
+    return show;
+  }
+  function rigFromShow(show, name) {
+    return {name: name || show.rigName || "Custom rig", bars: show.bars, chans: show.chans, pos: copyMap(show.pos), rot: copyMap(show.rot),
+            dmxStart: show.dmxStart || 1, dmxAddr: copyMap(show.dmxAddr)};
+  }
+  function venueKey(name) { return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
   // ---------- output scaling: grand master + panic ----------
   function scaleLooks(looks, master, panic) {
@@ -507,6 +585,8 @@
     customGroup: customGroup, toggleInGroup: toggleInGroup,
     hexRgb: hexRgb, isBlackout: isBlackout, lightingAt: lightingAt, dmxFrame: dmxFrame,
     scaleLooks: scaleLooks, fixtureAddress: fixtureAddress, patchOverlaps: patchOverlaps,
+    MOVES: MOVES, movementGain: movementGain, RIG_PRESETS: RIG_PRESETS, applyRig: applyRig, rigFromShow: rigFromShow, venueKey: venueKey,
+    remapGroup: remapGroup, remapCues: remapCues,
     fmtClock: fmtClock, fmtTimecode: fmtTimecode, peaks: peaks,
     onsetEnvelope: onsetEnvelope, detectBeats: detectBeats, snapToBeat: snapToBeat,
     tapTempo: tapTempo, nearestCue: nearestCue, LOOKS: LOOKS,

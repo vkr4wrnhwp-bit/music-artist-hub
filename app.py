@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from flask import (Flask, Response, abort, jsonify, redirect, render_template,
                    request, session, url_for)
+from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import db as store
@@ -466,6 +467,24 @@ def create_app():
     # not care which; the bucket stays private and the URL expires.
     app.jinja_env.globals["media_url"] = blob_store.url_for
     app.jinja_env.filters["media_url"] = blob_store.url_for
+
+    def _js_json(value):
+        """JSON for embedding inside an inline <script>.
+
+        json.dumps does not escape "<", so a user-supplied string containing
+        "</script>" would close the tag and everything after it would be
+        parsed as HTML - stored XSS on any page that echoes a name the user
+        typed. These four escapes are ordinary JSON string escapes, so the
+        parsed value is byte-for-byte identical; U+2028/U+2029 are escaped
+        too because they are literal line terminators in JavaScript.
+        Accepts an object or an already-serialised JSON string.
+        """
+        text = value if isinstance(value, str) else json.dumps(value)
+        return Markup(text.replace("<", "\\u003c").replace(">", "\\u003e")
+                          .replace("&", "\\u0026")
+                          .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+    app.jinja_env.filters["js_json"] = _js_json
 
     store.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
@@ -4334,9 +4353,13 @@ def create_app():
             "shows": [{"id": s["id"], "name": s["name"], "cue_count": s["cue_count"],
                        "track_id": s["track_id"], "tour_show_id": s["tour_show_id"],
                        "updated": s["updated"]} for s in lights_store.list_shows(user["id"])],
+            "rigs": _lights_rigs(user["id"]),
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
-        tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or ""}
+        # venue_key lets the page pick the rig bound to the room without a
+        # round trip when a show is linked to a tour date.
+        tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or "",
+                       "venue_key": lights_store.venue_key(s["venue"])}
                       for s in store.list_tour_shows(user["id"])]
         return render_template("lights.html", active_page="lights",
                                saved_show=(_json.dumps(saved) if saved else "null"),
@@ -4426,6 +4449,85 @@ def create_app():
             return jsonify({"ok": False}), 401
         lights_store.delete_show(user["id"], show_id)
         return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
+
+    def _lights_rigs(user_id):
+        return [{"id": r["id"], "name": r["name"], "venue_key": r["venue_key"], "data": r["data"]}
+                for r in lights_store.list_rigs(user_id)]
+
+    @app.route("/lights/rigs")
+    def lights_rigs():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": True, "rigs": _lights_rigs(user["id"])})
+
+    @app.route("/lights/rigs/save", methods=["POST"])
+    def lights_rigs_save():
+        """A rig is layout + patch, not a show. Only the fields the studio
+        knows how to render are stored; anything else is dropped."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        raw = body.get("data") if isinstance(body.get("data"), dict) else {}
+
+        def _fracmap(m):
+            out = {}
+            if isinstance(m, dict):
+                for k, v in list(m.items())[:10]:
+                    if isinstance(v, list) and len(v) == 2:
+                        try:
+                            out[str(k)[:2]] = [min(0.97, max(0.03, float(v[0]))),
+                                               min(0.92, max(0.04, float(v[1])))]
+                        except (TypeError, ValueError):
+                            pass
+            return out
+
+        def _rotmap(m):
+            out = {}
+            if isinstance(m, dict):
+                for k, v in list(m.items())[:10]:
+                    out[str(k)[:2]] = 90 if v == 90 else 0
+            return out
+
+        def _addrmap(m):
+            out = {}
+            if isinstance(m, dict):
+                for k, v in list(m.items())[:10]:
+                    try:
+                        n = int(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if 1 <= n <= 512:
+                        out[str(k)[:2]] = n
+            return out
+
+        try:
+            bars = int(raw.get("bars") or 6)
+        except (TypeError, ValueError):
+            bars = 6
+        try:
+            start = int(raw.get("dmxStart") or 1)
+        except (TypeError, ValueError):
+            start = 1
+        data = {"bars": max(2, min(10, bars)),
+                "chans": 3 if raw.get("chans") == 3 else 4,
+                "pos": _fracmap(raw.get("pos")), "rot": _rotmap(raw.get("rot")),
+                "dmxStart": max(1, min(512, start)), "dmxAddr": _addrmap(raw.get("dmxAddr"))}
+        rig_id, err = lights_store.save_rig(
+            user["id"], body.get("id") or None, body.get("name") or "Untitled rig",
+            data, str(body.get("venue") or "")[:120])
+        if err:
+            return jsonify({"ok": False, "error": err}), 400
+        return jsonify({"ok": True, "id": rig_id, "rigs": _lights_rigs(user["id"])})
+
+    @app.route("/lights/rigs/<rig_id>/delete", methods=["POST"])
+    def lights_rigs_delete(rig_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        lights_store.delete_rig(user["id"], rig_id)
+        return jsonify({"ok": True, "rigs": _lights_rigs(user["id"])})
 
     @app.route("/rack")
     def rack():

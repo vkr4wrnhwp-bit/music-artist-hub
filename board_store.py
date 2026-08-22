@@ -190,17 +190,28 @@ def structure_from_text(region, window, genre, details):
 
 
 def migrate_legacy_listings():
+    """Backfill the structured columns for rows posted before they existed.
+
+    Expiry is measured from the migration, not from `created`: a listing
+    posted six months ago would otherwise be born already expired and drop
+    off the board the moment this ships. Legacy rows also need a renew
+    token, or the one renewal email they get carries a dead link and burns
+    the single notice they are allowed."""
+    now = _now()
+    grace = (datetime.now(timezone.utc) + timedelta(days=EXPIRE_DAYS)).isoformat(timespec="seconds")
     with get_db() as db:
         rows = db.execute("SELECT * FROM tour_board WHERE structured = 0").fetchall()
         for r in rows:
             s = structure_from_text(r["region"], r["window"], r["genre"], r["details"])
-            created = r["created"] or _now()
-            expires = (_parse_ts(created) + timedelta(days=EXPIRE_DAYS)).isoformat(timespec="seconds")
+            created = r["created"] or now
+            natural = (_parse_ts(created) + timedelta(days=EXPIRE_DAYS)).isoformat(timespec="seconds")
+            expires = max(natural, grace)
             db.execute("UPDATE tour_board SET region_code=?, region_text=?, window_start=?, window_end=?, genres=?, "
                        "draw_min=?, draw_max=?, parse_flag=?, expires_at=COALESCE(NULLIF(expires_at,''), ?), "
+                       "renew_token=CASE WHEN renew_token='' THEN ? ELSE renew_token END, "
                        "updated=COALESCE(NULLIF(updated,''), created), structured=1 WHERE id=?",
                        (s["region_code"], s["region_text"], s["window_start"], s["window_end"], json.dumps(s["genres"]),
-                        s["draw_min"], s["draw_max"], s["parse_flag"], expires, r["id"]))
+                        s["draw_min"], s["draw_max"], s["parse_flag"], expires, uuid.uuid4().hex, r["id"]))
 
 
 def migrate_legacy_replies():
@@ -423,12 +434,21 @@ def list_listings(kind=None, region=None, genre=None, start=None, end=None, sort
         q += " AND (b.window_end = '' OR b.window_end >= ?)"; args.append(start)
     if end:
         q += " AND (b.window_start = '' OR b.window_start <= ?)"; args.append(end)
+    if region:
+        # Region matching is a taxonomy relationship (a metro sits inside a
+        # region, "US - anywhere" matches everything), so it cannot be a
+        # plain SQL comparison. Resolve the related codes first and filter
+        # in SQL: filtering in Python after LIMIT would silently return an
+        # empty board once there are more than `limit` open listings.
+        related = [c for c, _label, _kind in tx.region_options() if tx.regions_related(c, region)]
+        if not related:
+            return []
+        q += " AND b.region_code IN (%s)" % ",".join("?" * len(related))
+        args.extend(related)
     q += " ORDER BY " + ("CASE WHEN b.window_start = '' THEN 1 ELSE 0 END, b.window_start ASC, b.created DESC" if sort == "soonest" else "b.created DESC")
     q += " LIMIT ?"; args.append(limit)
     with get_db() as db:
         rows = [_row(r) for r in db.execute(q, args).fetchall()]
-    if region:
-        rows = [r for r in rows if r["region_code"] and tx.regions_related(r["region_code"], region)]
     return rows
 
 
@@ -452,12 +472,21 @@ def set_status(user_id, lid, status, filled_via=""):
 
 
 def renew(lid, user_id=None, token=None):
-    """Reopen / extend for another EXPIRE_DAYS. Either the owner (user_id)
-    or the emailed token authorises it."""
+    """Extend an open (or lapsed) listing for another EXPIRE_DAYS. Either
+    the owner (user_id) or the emailed token authorises it.
+
+    A token arrives by GET from an email client, which may prefetch it, so
+    it may only extend a listing that is still meant to be up. It must not
+    resurrect one the owner deliberately closed or marked filled - only the
+    owner, signed in, can reopen those."""
     cur = get_listing(lid)
     if cur is None:
         return False
-    if not ((user_id and cur["user_id"] == user_id) or (token and cur.get("renew_token") and token == cur["renew_token"])):
+    by_owner = bool(user_id and cur["user_id"] == user_id)
+    by_token = bool(token and cur.get("renew_token") and token == cur["renew_token"])
+    if not (by_owner or by_token):
+        return False
+    if by_token and not by_owner and cur.get("status") != "open":
         return False
     expires = (datetime.now(timezone.utc) + timedelta(days=EXPIRE_DAYS)).isoformat(timespec="seconds")
     with get_db() as db:

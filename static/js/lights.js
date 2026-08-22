@@ -161,7 +161,13 @@
   function snapshot() {
     return JSON.stringify({cues: show.cues, pos: show.pos || {}, rot: show.rot || {}, bars: show.bars, chans: show.chans,
                            looks: show.looks || [], dmxStart: show.dmxStart || 1, dmxAddr: show.dmxAddr || {},
-                           sections: show.sections || [], stops: show.stops || []});
+                           sections: show.sections || [], stops: show.stops || [],
+                           rigKey: show.rigKey || null, rigName: show.rigName || "",
+                           // Auto-cue adopts the tempo it detected, so the
+                           // grid has to be part of the snapshot too - or
+                           // undoing it silently keeps a tempo that
+                           // overwrote a hand-tapped one.
+                           bpm: show.bpm || 0, beatOffset: show.beatOffset || 0, snap: !!show.snap});
   }
   function record(key) { var pushed = H.push(snapshot(), key, performance.now()); paintHistory(); return pushed; }
   function applySnapshot(json) {
@@ -170,12 +176,17 @@
     show.bars = Math.max(2, Math.min(10, s.bars || 6)); show.chans = s.chans === 3 ? 3 : 4;
     show.looks = Array.isArray(s.looks) ? s.looks : []; show.dmxStart = s.dmxStart || 1; show.dmxAddr = s.dmxAddr || {};
     show.sections = s.sections || []; show.stops = s.stops || [];
+    show.rigKey = s.rigKey || null; show.rigName = s.rigName || "";
+    show.bpm = s.bpm || 0; show.beatOffset = s.beatOffset || 0; show.snap = !!s.snap;
+    // The gel book holds a reference to a cue object this restore is about
+    // to throw away; leaving it open would write colours into nothing.
+    closeGel(false);
     ensureIds();
     selectedCue = null;
     show.cues.forEach(function (c) { if (selId && c._id === selId) selectedCue = c; });
     if (selBar > show.bars) selectedBar = null;
     barsSel.value = String(show.bars); chansSel.value = String(show.chans);
-    renderCues(); paintGroups(); paintLooks(); paintRig(); paintBarCtl(); paintAutoCue(); markDirty();
+    renderCues(); paintGroups(); paintLooks(); paintRig(); paintBarCtl(); paintAutoCue(); paintBeats(); markDirty();
   }
   function undo() { var s = H.undo(snapshot()); if (s) { applySnapshot(s); announce("Undone"); } paintHistory(); }
   function redo() { var s = H.redo(snapshot()); if (s) { applySnapshot(s); announce("Redone"); } paintHistory(); }
@@ -914,6 +925,13 @@
       inten.title = "Intensity";
       inten.addEventListener("input", function () { record("inten:" + c._id); c.intensity = parseInt(inten.value, 10); own(c); sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
       mid.appendChild(inten);
+      // movement is part of the cue's intent: it compiles per rig, so a
+      // chase runs across whatever bars the group has on the night.
+      var mv = document.createElement("select"); mv.className = "lx-select"; mv.setAttribute("aria-label", "Movement");
+      mv.title = "Movement — beat-locked to the show tempo (120 BPM until one is detected)";
+      E.MOVES.forEach(function (m) { var op = document.createElement("option"); op.value = m[0]; op.textContent = m[1]; op.selected = (c.move || "") === m[0]; mv.appendChild(op); });
+      mv.addEventListener("change", function () { record("move:" + c._id); c.move = mv.value; own(c); markDirty(); });
+      mid.appendChild(mv);
       var fw = document.createElement("label"); fw.textContent = "fade "; fw.title = "Seconds from the previous look into this one";
       var fin = document.createElement("input"); fin.type = "number"; fin.step = "0.1"; fin.min = "0"; fin.value = c.fade; fin.className = "lx-input"; fin.style.width = "64px"; fin.setAttribute("aria-label", "Fade seconds");
       fin.addEventListener("input", function () { record("fade:" + c._id); c.fade = Math.max(0, parseFloat(fin.value) || 0); own(c); markDirty(); });
@@ -939,8 +957,8 @@
   function addCue(look) {
     var t = Math.round(now() * 100) / 100;
     if (show.snap && show.bpm) t = E.snapToBeat(t, show.bpm, show.beatOffset);
-    var c = {t: t, group: defaultGroup, color: "#d8b25a", intensity: 80, fade: 0.5, note: ""};
-    if (look) { c.color = look.color; c.intensity = look.intensity; c.fade = look.fade; c.note = look.name; }
+    var c = {t: t, group: defaultGroup, color: "#d8b25a", intensity: 80, fade: 0.5, note: "", move: ""};
+    if (look) { c.color = look.color; c.intensity = look.intensity; c.fade = look.fade; c.note = look.name; c.look = look.key || ""; }
     record("add");
     show.cues.push(c); markDirty(); ensureIds(); renderCues(); selectCue(c, true);
     announce((look ? look.name : "Cue") + " added at " + E.fmtTimecode(t));
@@ -972,7 +990,10 @@
       b.addEventListener("focus", function () { hoverGroup = o[0]; });
       b.addEventListener("blur", function () { hoverGroup = null; });
       b.addEventListener("click", function () {
-        if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = o[0]; markDirty(); renderCues(); }
+        // own() matters: without it an auto cue the user just re-grouped
+        // still counts as auto, and "Clear auto cues" would delete the
+        // edit they just made.
+        if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = o[0]; own(selectedCue); markDirty(); renderCues(); }
         else defaultGroup = o[0];
         paintGroups();
       });
@@ -1005,7 +1026,7 @@
     });
   }
   function applyLook(l) {
-    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; own(selectedCue); markDirty(); renderCues(); announce(l.name + " applied"); }
+    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; selectedCue.look = l.key || ""; if (!selectedCue.note) selectedCue.note = l.name; own(selectedCue); markDirty(); renderCues(); announce(l.name + " applied"); }
     else if (buffer || runStart !== null) addCue(l);
   }
   $("lx-look-save").addEventListener("click", function () {
@@ -1089,7 +1110,19 @@
   // ---------- rig ----------
   var barsSel = $("lx-bars");
   for (var b = 2; b <= 10; b++) { var o = document.createElement("option"); o.value = b; o.textContent = b + " bars"; o.selected = b === show.bars; barsSel.appendChild(o); }
-  barsSel.addEventListener("change", function () { record("bars"); show.bars = parseInt(barsSel.value, 10); if (selectedBar > show.bars) selectBar(null); markDirty(); renderCues(); paintGroups(); paintBarCtl(); });
+  barsSel.addEventListener("change", function () {
+    // Changing the bar count is a rig change: bar-specific cues follow the
+    // position they were written for rather than going dark.
+    record("bars");
+    var was = show.bars, next = parseInt(barsSel.value, 10);
+    var moved = show.cues.filter(function (c) { return E.remapGroup(c.group, was, next) !== c.group; }).length;
+    show.cues = E.remapCues(show.cues, was, next);
+    show.bars = next;
+    if (selectedBar > show.bars) selectBar(null);
+    selectedCue = null; ensureIds();
+    markDirty(); renderCues(); paintGroups(); paintBarCtl(); paintRigList();
+    if (moved) announce(moved + " cue" + (moved === 1 ? "" : "s") + " moved to the matching bar on a " + next + "-bar rig");
+  });
   var chansSel = $("lx-chans"); chansSel.value = String(show.chans || 4);
   chansSel.addEventListener("change", function () { record("chans"); show.chans = parseInt(chansSel.value, 10); markDirty(); paintBarCtl(); paintBarsList(now()); });
   // DMX patch: first address (the run) and the universe label
@@ -1097,6 +1130,117 @@
   function paintRig() {
     barsSel.value = String(show.bars); chansSel.value = String(show.chans);
     dmxStartEl.value = String(show.dmxStart || 1); dmxUniEl.value = String(show.dmxUniverse || 1);
+    paintRigList();
+  }
+
+  // ---------- rig profiles (epic 2) ----------
+  // The show stores looks and group ROLES, so it compiles onto any rig.
+  // Applying a rig with a different bar count remaps bar-specific cues to
+  // the matching position (engine: remapCues) instead of leaving them dark.
+  var rigs = Array.isArray(lib.rigs) ? lib.rigs : [];
+  var rigSel = $("lx-rig-select"), rigStatus = $("lx-rig-status");
+  function rigStatusText(msg) { rigStatus.textContent = msg || ""; }
+  function paintRigList() {
+    if (!rigSel) return;
+    var cur = rigSel.value;
+    rigSel.innerHTML = '<option value="">— this show\'s own rig —</option>';
+    var mine = document.createElement("optgroup"); mine.label = "Your rigs";
+    rigs.forEach(function (r) {
+      var o = document.createElement("option"); o.value = "saved:" + r.id;
+      o.textContent = r.name + " · " + ((r.data && r.data.bars) || "?") + " bars" + (r.venue_key ? " · venue" : "");
+      mine.appendChild(o);
+    });
+    if (rigs.length) rigSel.appendChild(mine);
+    var pre = document.createElement("optgroup"); pre.label = "Presets";
+    E.RIG_PRESETS.forEach(function (p) {
+      var o = document.createElement("option"); o.value = "preset:" + p.key;
+      o.textContent = p.name + " · " + p.bars + " bars";
+      pre.appendChild(o);
+    });
+    rigSel.appendChild(pre);
+    rigSel.value = cur && rigSel.querySelector('[value="' + cur.replace(/"/g, "") + '"]') ? cur : "";
+    $("lx-rig-delete").disabled = rigSel.value.indexOf("saved:") !== 0;
+    var now = $("lx-rig-now");
+    if (now) now.textContent = "· " + (show.rigName ? show.rigName + " — " : "") + show.bars + " bars, " + (show.chans === 3 ? "RGB" : "dimmer + RGB");
+  }
+  function selectedRig() {
+    var v = rigSel.value;
+    if (v.indexOf("preset:") === 0) {
+      var k = v.slice(7), hit = null;
+      E.RIG_PRESETS.forEach(function (p) { if (p.key === k) hit = p; });
+      return hit;
+    }
+    if (v.indexOf("saved:") === 0) {
+      var id = v.slice(6), r = null;
+      rigs.forEach(function (x) { if (x.id === id) r = x; });
+      if (!r) return null;
+      var d = r.data || {};
+      return {key: r.id, name: r.name, bars: d.bars, chans: d.chans, pos: d.pos, rot: d.rot, dmxStart: d.dmxStart, dmxAddr: d.dmxAddr};
+    }
+    return null;
+  }
+  rigSel.addEventListener("change", function () {
+    $("lx-rig-delete").disabled = rigSel.value.indexOf("saved:") !== 0;
+    var r = selectedRig();
+    if (!r) { rigStatusText(""); return; }
+    rigStatusText(r.bars === show.bars
+      ? "“" + r.name + "” is " + r.bars + " bars, same as now — layout and patch would change, cues stay put."
+      : "“" + r.name + "” is " + r.bars + " bars (you have " + show.bars + "). Applying moves bar-specific cues to the matching position; roles like All / Odd / Pairs are unchanged.");
+  });
+  $("lx-rig-apply").addEventListener("click", function () {
+    var r = selectedRig();
+    if (!r) { rigStatusText("Pick a rig to apply first."); return; }
+    var was = show.bars, moved = show.cues.filter(function (c) { return E.remapGroup(c.group, was, r.bars) !== c.group; }).length;
+    record("rig");
+    E.applyRig(show, r);
+    selectedBar = null; selectedCue = null;
+    ensureIds(); markDirty(); paintRig(); renderCues(); paintGroups(); paintBarCtl(); paintBarsList(now());
+    var msg = "Applied “" + r.name + "” — " + show.bars + " bars" + (moved ? ", " + moved + " cue" + (moved === 1 ? "" : "s") + " remapped to the matching position" : ", every cue kept its group") + ". Undo puts it back.";
+    rigStatusText(msg); announce(msg);
+  });
+  $("lx-rig-save").addEventListener("click", function () {
+    var name = ($("lx-rig-name").value || "").trim() || show.rigName || "Rig " + show.bars + " bars";
+    var body = {id: "", name: name, venue: ($("lx-rig-venue").value || "").trim(), data: E.rigFromShow(show, name)};
+    var sel = rigSel.value;
+    if (sel.indexOf("saved:") === 0) body.id = sel.slice(6);      // update the loaded rig in place
+    rigStatusText("Saving rig…");
+    post("/lights/rigs/save", body).then(function (d) {
+      if (!d || !d.ok) { rigStatusText((d && d.error) || "Rig not saved."); return; }
+      rigs = d.rigs || rigs;
+      show.rigKey = d.id; show.rigName = name; markDirty();
+      $("lx-rig-name").value = "";
+      paintRigList(); rigSel.value = "saved:" + d.id; $("lx-rig-delete").disabled = false;
+      var v = ($("lx-rig-venue").value || "").trim();
+      rigStatusText("Saved “" + name + "”" + (v ? " and bound it to " + v + " — linking a show to a tour date there will offer it." : "."));
+      announce("Rig saved");
+    });
+  });
+  $("lx-rig-delete").addEventListener("click", function () {
+    var sel = rigSel.value;
+    if (sel.indexOf("saved:") !== 0) return;
+    var id = sel.slice(6), name = "";
+    rigs.forEach(function (r) { if (r.id === id) name = r.name; });
+    if (!window.confirm("Delete the rig “" + name + "”? Shows that used it keep their current layout.")) return;
+    post("/lights/rigs/" + id + "/delete", {}).then(function (d) {
+      if (!d || !d.ok) return;
+      rigs = d.rigs || [];
+      rigSel.value = ""; paintRigList();
+      rigStatusText("Deleted “" + name + "”."); announce("Rig deleted");
+    });
+  });
+  // Venue pack: linking a show to a tour date offers the rig bound to that
+  // room. Offers — never swaps the rig under you.
+  function offerVenueRig() {
+    var opt = $("lx-tourshow").selectedOptions && $("lx-tourshow").selectedOptions[0];
+    var key = opt ? opt.getAttribute("data-venue-key") : "";
+    if (!key) return;
+    var hit = null;
+    rigs.forEach(function (r) { if (r.venue_key && r.venue_key === key) hit = r; });
+    if (!hit || hit.id === show.rigKey) return;
+    $("lx-rig-fold").open = true;
+    rigSel.value = "saved:" + hit.id; $("lx-rig-delete").disabled = false;
+    var msg = "You have a rig saved for " + (opt.getAttribute("data-venue") || "this venue") + ": “" + hit.name + "” (" + ((hit.data && hit.data.bars) || "?") + " bars). Apply it to this show?";
+    rigStatusText(msg); announce(msg);
   }
   dmxStartEl.addEventListener("change", function () {
     var v = parseInt(dmxStartEl.value, 10); if (!(v >= 1 && v <= 512)) v = 1;
@@ -1181,7 +1325,7 @@
   }
   $("lx-show-name").addEventListener("input", function () { show.name = $("lx-show-name").value.slice(0, 120); markDirty(); });
   $("lx-track").addEventListener("change", function () { show.trackId = $("lx-track").value; markDirty(); });
-  $("lx-tourshow").addEventListener("change", function () { show.tourShowId = $("lx-tourshow").value; markDirty(); });
+  $("lx-tourshow").addEventListener("change", function () { show.tourShowId = $("lx-tourshow").value; markDirty(); offerVenueRig(); });
   $("lx-lib-save").addEventListener("click", function () {
     paintSaved("", "Saving…");
     var data = payload();
@@ -1210,6 +1354,7 @@
     show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
     show.looks = Array.isArray(show.looks) ? show.looks.slice(0, 4) : [];
     show.dmxStart = parseInt(show.dmxStart, 10) || 1; show.dmxUniverse = parseInt(show.dmxUniverse, 10) || 1; show.dmxAddr = show.dmxAddr || {};
+    show.rigName = show.rigName || ""; show.rigKey = show.rigKey || null;
     delete show.draftDirty; delete show.draftSavedAt;
     if (meta) { show.libraryId = meta.id; show.name = meta.name; show.trackId = meta.track_id || ""; show.tourShowId = meta.tour_show_id || ""; }
     selectedCue = null; selectedBar = null; closeGel(false);
@@ -1237,8 +1382,10 @@
     var s = obj && obj.show && Array.isArray(obj.show.cues) ? obj.show : (obj && Array.isArray(obj.cues) ? obj : null);
     if (!s) return "Not a Light Studio show file (no cues array).";
     var hex = /^#[0-9a-f]{6}$/i;
+    var moves = E.MOVES.map(function (m) { return m[0]; });
     var clean = {name: String(s.name || "").slice(0, 120), bars: Math.max(2, Math.min(10, parseInt(s.bars, 10) || 6)), chans: s.chans === 3 ? 3 : 4,
                  bpm: +s.bpm || 0, beatOffset: +s.beatOffset || 0, snap: !!s.snap, pos: {}, rot: {}, dmxAddr: {}, looks: [], cues: [],
+                 rigName: String(s.rigName || "").slice(0, 80), rigKey: null,
                  dmxStart: Math.max(1, Math.min(512, parseInt(s.dmxStart, 10) || 1)), dmxUniverse: Math.max(1, Math.min(64, parseInt(s.dmxUniverse, 10) || 1))};
     Object.keys(s.pos || {}).forEach(function (k) { var p = s.pos[k]; if (Array.isArray(p) && p.length === 2) clean.pos[k] = [clamp(+p[0] || 0, 0.03, 0.97), clamp(+p[1] || 0, 0.04, 0.92)]; });
     Object.keys(s.rot || {}).forEach(function (k) { clean.rot[k] = s.rot[k] === 90 ? 90 : 0; });
@@ -1249,7 +1396,9 @@
     s.cues.forEach(function (c) {
       if (!c || typeof c !== "object") return;
       clean.cues.push({t: Math.max(0, +c.t || 0), group: typeof c.group === "string" ? c.group.slice(0, 40) : "all", color: hex.test(c.color || "") ? c.color : "#d8b25a",
-                       intensity: clamp(parseInt(c.intensity, 10) || 0, 0, 100), fade: Math.max(0, +c.fade || 0), note: String(c.note || "").slice(0, 80), auto: !!c.auto});
+                       intensity: clamp(parseInt(c.intensity, 10) || 0, 0, 100), fade: Math.max(0, +c.fade || 0), note: String(c.note || "").slice(0, 80), auto: !!c.auto,
+                       move: moves.indexOf(c.move) > 0 ? c.move : "", rate: Math.max(0, Math.min(8, +c.rate || 0)) || undefined,
+                       look: String(c.look || "").slice(0, 40)});
     });
     loadShowData(clean, null); show.libraryId = null; libraryDirty = false; paintLibrary(); markDirty(false);
     return null;
@@ -1381,6 +1530,8 @@
     openGel: openGel, pickGel: pickGel, closeGel: closeGel, gels: function () { return GELS.slice(); }, gelOpen: function () { return !gel.hidden; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
+    rigs: function () { return rigs; }, applyRigNow: function (r) { record("rig"); E.applyRig(show, r); selectedCue = null; selectedBar = null; ensureIds(); markDirty(); paintRig(); renderCues(); paintGroups(); paintBarCtl(); },
+    offerVenueRig: offerVenueRig, setBars: function (n) { barsSel.value = String(n); barsSel.dispatchEvent(new Event("change")); },
     spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
   ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintDmx("", "Preview only · no hardware");
