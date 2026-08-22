@@ -1,0 +1,228 @@
+/* Street Banker — the landing page. Hand-written sb-* (the Tailwind build
+   is frozen, so a new utility class here would fail tests/test_stylesheet).
+   The design is the "Street Banker Recut": a dark book, photographs that
+   dissolve into the ground rather than sit in frames, and a mono voice for
+   anything that is a label rather than a sentence.
+
+   Two sections are NOT styled by this file and are deliberately unchanged:
+   the Artist EQ and the six-department grid. They keep their existing
+   Tailwind markup. Everything here is chosen to sit beside them without a
+   seam — same near-black ground, same gold. */
+
+.sb {
+  --sb-ink: #0B0C0D;
+  --sb-ink-2: #141618;
+  --sb-ink-3: #1C1F22;
+  --sb-paper: #F2EFE9;
+  --sb-paper-2: #9A968E;
+  --sb-paper-3: #6B6862;
+  --sb-rule: #2A2D30;
+  --sb-rule-2: #3A3E42;
+  --sb-gold: #D4A93C;
+  --sb-gold-dim: #8A6E24;
+
+  --sb-container: 1600px;
+  --sb-gutter: clamp(22px, 5vw, 88px);
+  --sb-measure: 37em;
+  --sb-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  color: var(--sb-paper);
+  background: var(--sb-ink);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+@media (max-width: 900px) { .sb { --sb-gutter: 22px; } }
+
+/* Fine grain so flat black reads as a printed ground rather than a void. */
+.sb-grain {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb *, .sb *::before, .sb *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+.sb-shell { max-width: var(--sb-container); margin-inline: auto; padding-inline: var(--sb-gutter); }
+
+/* --- typography ------------------------------------------------------- */
+.sb-kicker {
+  font-family: var(--sb-mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--sb-gold);
+  margin: 0 0 24px; display: flex; align-items: center; gap: 14px;
+}
+.sb-kicker::after { content: ""; height: 1px; flex: 1; background: var(--sb-rule-2); max-width: 140px; }
+
+.sb-h1 { font-size: clamp(36px, 5.6vw, 78px); font-weight: 900; line-height: .98; letter-spacing: -.022em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.sb-h2 { font-size: clamp(27px, 3.9vw, 54px); font-weight: 900; line-height: 1.02; letter-spacing: -.02em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.sb-h3 { font-size: clamp(19px, 1.9vw, 25px); font-weight: 700; line-height: 1.2; letter-spacing: -.012em; margin: 0; }
+.sb-h1 em, .sb-h2 em { font-style: normal; color: var(--sb-gold); }
+
+.sb-lede { font-size: clamp(17px, 1.35vw, 20px); line-height: 1.62; color: var(--sb-paper-2); max-width: var(--sb-measure); margin: 0 0 1em; }
+.sb-lede b { color: var(--sb-paper); font-weight: 500; }
+.sb-lede:last-child { margin-bottom: 0; }
+.sb-mono { font-family: var(--sb-mono); font-size: 12px; letter-spacing: .04em; color: var(--sb-paper-3); }
+
+/* --- section furniture ------------------------------------------------ */
+.sb-section { position: relative; border-top: 1px solid var(--sb-rule); scroll-margin-top: 92px; }
+.sb-band { padding-block: clamp(64px, 7.4vw, 116px); }
+.sb-section--alt { background: var(--sb-ink-2); }
+
+/* The margin numeral only exists once there is a real margin for it. */
+.sb-folio { display: none; }
+@media (min-width: 1760px) {
+  .sb-folio {
+    display: block; position: absolute; top: clamp(60px, 7vw, 110px);
+    left: calc(50% - (var(--sb-container) / 2) - 62px);
+    font-size: 52px; font-weight: 700; color: var(--sb-rule-2); line-height: 1;
+    pointer-events: none; user-select: none;
+  }
+}
+
+.sb-grid { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: clamp(18px, 2vw, 34px); row-gap: clamp(28px, 3vw, 52px); }
+@media (max-width: 860px) { .sb-grid { grid-template-columns: repeat(6, 1fr); } }
+.sb-c-full { grid-column: 1 / -1; }
+.sb-c-card { grid-column: 3 / span 8; }
+@media (max-width: 1100px) { .sb-c-card { grid-column: 1 / -1; } }
+
+/* Every section opens on a centred title block, then drops to full-width
+   detail — so each reads as a chapter opening rather than a continuation
+   of one long left column. */
+.sb-opener { max-width: min(100%, 56em); margin-inline: auto; text-align: center; margin-bottom: clamp(38px, 4.4vw, 68px); }
+.sb-opener .sb-kicker { justify-content: center; }
+.sb-opener .sb-kicker::before { content: ""; height: 1px; flex: 1; background: var(--sb-rule-2); max-width: 140px; }
+.sb-opener .sb-lede { margin-inline: auto; text-align: center; }
+.sb-opener .sb-actions { justify-content: center; margin-top: 32px; }
+
+/* --- bleed art -------------------------------------------------------- *
+ * Photographs anchor to the section edge and dissolve into the ground, so
+ * there is no frame and no seam. The vignette keeps the middle readable
+ * and lands the foot on clean page colour, because type over photography
+ * is the one thing this page must not do. */
+.sb-has-art { overflow: hidden; }
+.sb-has-art > .sb-shell { position: relative; z-index: 2; }
+.sb-art { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.sb-art--head { bottom: auto; height: 54%; }
+.sb-art-v { position: absolute; inset: 0; }
+.sb-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sb-art-v::after {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background:
+    radial-gradient(72% 82% at 50% 42%, rgba(11,12,13,.94) 0%, rgba(11,12,13,.80) 42%, rgba(11,12,13,.34) 74%, transparent 100%),
+    linear-gradient(to bottom, rgba(11,12,13,.55) 0%, transparent 26%, transparent 62%, var(--sb-ink) 100%);
+}
+.sb-section--alt .sb-art-v::after {
+  background:
+    radial-gradient(72% 82% at 50% 42%, rgba(20,22,24,.94) 0%, rgba(20,22,24,.80) 42%, rgba(20,22,24,.34) 74%, transparent 100%),
+    linear-gradient(to bottom, rgba(20,22,24,.55) 0%, transparent 26%, transparent 62%, var(--sb-ink-2) 100%);
+}
+
+/* --- buttons ---------------------------------------------------------- */
+.sb-btn {
+  display: inline-flex; align-items: center; gap: 11px;
+  font-family: var(--sb-mono); font-size: 11.5px; font-weight: 500;
+  letter-spacing: .15em; text-transform: uppercase; text-decoration: none;
+  padding: 15px 26px; border: 1px solid var(--sb-gold); white-space: nowrap;
+  background: var(--sb-gold); color: var(--sb-ink);
+  transition: background .18s, color .18s, border-color .18s;
+}
+.sb-btn:hover, .sb-btn:focus-visible { background: transparent; color: var(--sb-gold); }
+.sb-btn--ghost { background: transparent; color: var(--sb-paper); border-color: var(--sb-rule-2); }
+.sb-btn--ghost:hover, .sb-btn--ghost:focus-visible { border-color: var(--sb-paper); color: var(--sb-paper); }
+.sb-btn-text {
+  font-family: var(--sb-mono); font-size: 11.5px; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--sb-paper-2); text-decoration: none; border-bottom: 1px solid var(--sb-rule-2);
+  padding-bottom: 4px; transition: color .18s, border-color .18s;
+}
+.sb-btn-text:hover, .sb-btn-text:focus-visible { color: var(--sb-gold); border-color: var(--sb-gold); }
+.sb-actions { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: center; margin-top: 38px; }
+.sb a:focus-visible, .sb button:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 3px; }
+
+/* --- hero ------------------------------------------------------------- */
+.sb-hero { border-top: 0; position: relative; min-height: min(86vh, 780px); display: flex; align-items: flex-end; }
+.sb-plate { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.sb-plate img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 66%, transparent 99%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 66%, transparent 99%);
+}
+.sb-plate::after {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background:
+    linear-gradient(90deg, rgba(11,12,13,.93) 0%, rgba(11,12,13,.88) 33%, rgba(11,12,13,.72) 49%, rgba(11,12,13,.38) 64%, rgba(11,12,13,.10) 82%, rgba(11,12,13,.34) 100%),
+    linear-gradient(to bottom, rgba(11,12,13,.80) 0%, rgba(11,12,13,.30) 20%, transparent 46%, rgba(11,12,13,.55) 82%, var(--sb-ink) 100%),
+    radial-gradient(90% 70% at 76% 26%, rgba(212,169,60,.12), transparent 60%);
+}
+.sb-hero .sb-shell { position: relative; z-index: 2; width: 100%; padding-block: clamp(70px, 9vw, 120px); }
+.sb-hero .sb-h1 { max-width: 15ch; }
+.sb-hero .sb-lede { margin-top: 30px; color: #DCD8D0; }
+.sb-hero .sb-lede b { color: #FFFCF6; }
+.sb-hero .sb-btn-text { color: #CFCAC1; border-color: rgba(242,239,233,.34); }
+.sb-hero-foot { display: flex; flex-wrap: wrap; gap: 12px 34px; margin-top: 52px; padding-top: 22px; border-top: 1px solid var(--sb-rule-2); }
+.sb-hero-foot span { font-family: var(--sb-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-paper-3); }
+.sb-hero-foot b { color: var(--sb-gold); font-weight: 500; }
+
+/* --- numbered strips -------------------------------------------------- */
+.sb-steps { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--sb-rule); margin-top: 14px; position: relative; z-index: 2; }
+@media (max-width: 900px) { .sb-steps { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .sb-steps { grid-template-columns: 1fr; } }
+.sb-step { padding: 26px 24px 26px 0; border-right: 1px solid var(--sb-rule); }
+.sb-step:last-child { border-right: 0; }
+.sb-n { font-family: var(--sb-mono); font-size: 13px; letter-spacing: .14em; color: var(--sb-gold-dim); display: block; line-height: 1; margin-bottom: 16px; }
+.sb-step h3 { font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 9px; }
+.sb-step p { font-size: 15px; color: var(--sb-paper-2); margin: 0; }
+
+.sb-controls { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--sb-rule); }
+@media (max-width: 900px) { .sb-controls { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .sb-controls { grid-template-columns: 1fr; } }
+.sb-control { padding: 28px 26px 28px 0; border-right: 1px solid var(--sb-rule); }
+.sb-control:last-child { border-right: 0; }
+.sb-control h3 { font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sb-gold); margin: 0 0 11px; }
+.sb-control p { font-size: 15px; color: var(--sb-paper-2); margin: 0; }
+
+/* --- assessment card -------------------------------------------------- */
+.sb-assess { border: 1px solid var(--sb-rule); background: var(--sb-ink-2); }
+.sb-assess-h { padding: 16px 24px; border-bottom: 1px solid var(--sb-rule); font-family: var(--sb-mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--sb-paper-3); display: flex; justify-content: space-between; gap: 16px; }
+.sb-arow { display: flex; gap: 20px; align-items: flex-start; padding: 19px 24px; border-bottom: 1px solid var(--sb-rule); }
+.sb-arow:last-child { border-bottom: 0; }
+.sb-txt { flex: 1; }
+.sb-arow h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.sb-arow p { font-size: 14.5px; color: var(--sb-paper-2); margin: 0; }
+.sb-verdict { font-family: var(--sb-mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--sb-gold); white-space: nowrap; padding-top: 3px; }
+.sb-verdict.is-low { color: var(--sb-paper-3); }
+.sb-credit { font-family: var(--sb-mono); font-size: 10px; letter-spacing: .09em; color: var(--sb-paper-3); margin-top: 9px; display: block; text-transform: uppercase; }
+
+/* --- lanes ------------------------------------------------------------ */
+.sb-lanes { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--sb-rule); position: relative; z-index: 2; }
+@media (max-width: 900px) { .sb-lanes { grid-template-columns: 1fr; } }
+.sb-lane { padding: 34px 30px 34px 0; border-right: 1px solid var(--sb-rule); display: flex; flex-direction: column; }
+.sb-lane:last-child { border-right: 0; }
+@media (max-width: 900px) {
+  .sb-lane { border-right: 0; border-bottom: 1px solid var(--sb-rule); padding-right: 0; }
+  .sb-lane:last-child { border-bottom: 0; }
+}
+.sb-ln { font-family: var(--sb-mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--sb-paper-3); display: block; margin-bottom: 16px; }
+.sb-sub { font-family: var(--sb-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--sb-gold); display: block; margin: 6px 0 20px; }
+.sb-price { font-size: 32px; font-weight: 800; letter-spacing: -.02em; color: var(--sb-paper); display: block; margin-bottom: 4px; }
+.sb-price small { font-size: 15px; font-weight: 600; color: var(--sb-paper-2); }
+/* The lane is the story; the plan is what the visitor is charged for.
+   Naming both means nobody meets an unfamiliar word at checkout. */
+.sb-plan-tag { font-family: var(--sb-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--sb-paper-3); display: block; margin-bottom: 4px; }
+.sb-lane p { font-size: 15.5px; color: var(--sb-paper-2); margin: 18px 0 24px; }
+.sb-lane .sb-btn-text { margin-top: auto; align-self: flex-start; }
+
+.sb-close .sb-h2 { max-width: 16ch; }
+
+/* The page ground. The body was white from the old layout, so any gap
+   between sections — or an overscroll — flashed white behind a page that
+   is otherwise a dark book. The two preserved sections carry their own
+   near-black, close enough to this that the seams do not read. */
+body.sb-home { background: var(--sb-ink, #0B0C0D); }
+
+/* A text link is 23px of type. That is a fine target for a mouse and a
+   poor one for a thumb, so on small screens it gets the height without
+   getting a button's weight. */
+@media (max-width: 860px) {
+  .sb-btn-text { display: inline-block; padding-top: 12px; padding-bottom: 12px; }
+  .sb-actions { gap: 14px 22px; }
+}
