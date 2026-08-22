@@ -10,6 +10,7 @@ import { evaluateReadiness, type ReadinessReport } from "./engines/readiness";
 import { generateToolpath, totalCycleTime } from "./engines/cam/engine";
 import type { Toolpath, ToolpathError, MachiningContext, OperationRequest } from "./engines/cam/types";
 import { computeCost, quantityBreaks, DEFAULT_ASSUMPTIONS, type CostAssumptions, type CostResult } from "./engines/cost";
+import { selectPrimaryMachine, selectMaterial } from "./package-selectors";
 import { analyzeProcesses, type ProcessAnalysis } from "./engines/process-advisor";
 import type { MachineProfile, Tool, WorkholdingDevice } from "./domain/shop";
 
@@ -70,9 +71,17 @@ export async function buildPackage(
     db.simulation.findFirst({ where: { setup: { partRevisionId: revision.revisionId } } }),
   ]);
 
-  const primaryMachine = setups.find((s) => s.machine)?.machine
-    ? machines.find((m) => m.id === setups.find((s) => s.machine)!.machineId) ?? null
-    : machines[0] ?? null;
+  /*
+   * The machine this part is actually assigned to, or null.
+   *
+   * This used to fall back to machines[0] when no setup named one, so the
+   * machine-envelope gate validated against whichever machine happened to be
+   * first in the shop's list and every toolpath took its spindle and feed
+   * limits from it. readiness.ts already handles a null machine correctly —
+   * "No machine is selected, so travel and spindle limits cannot be
+   * validated" — and the fallback was talking over it.
+   */
+  const primaryMachine = selectPrimaryMachine(setups, machines);
 
   const primaryWorkholding = setups.find((s) => s.workholdingId)
     ? workholdingDevices.find((w) => w.id === setups.find((s) => s.workholdingId)!.workholdingId) ?? null
@@ -81,7 +90,25 @@ export async function buildPackage(
   const assignedToolIds = new Set(setups.flatMap((s) => s.operations.map((o) => o.toolId)).filter(Boolean) as string[]);
   const assignedTools = tools.filter((t) => assignedToolIds.has(t.id));
 
-  const material = materials.find((m) => m.name === revision.intent.material.value) ?? materials[0] ?? null;
+  /*
+   * The part's material, or null when the shop has no record of it.
+   *
+   * This used to fall back to materials[0]. Every consumer below is written
+   * honestly — `material?.specificEnergy ?? null`, `material?.family` — and
+   * the fallback defeated all of it by making `material` non-null with the
+   * WRONG material. A part specified in Titanium 6Al-4V, with no titanium in
+   * the shop's table, was force-modelled at aluminium's specific energy of
+   * 0.3 against titanium's 1.6: a five-fold understatement of cutting load,
+   * feeding the holding margin that decides whether the part stays in the
+   * vise.
+   *
+   * With null, cutting force returns ok:false and names the missing
+   * coefficients, the holding margin goes INDETERMINATE, and the workholding
+   * gate reports what it does not know. The cost engine's defaults are a
+   * different thing and stay: they are declared in the assumptions drawer for
+   * the user to see and change, which is what that engine is built around.
+   */
+  const material = selectMaterial(materials, revision.intent.material.value);
 
   /* ---------------- Toolpaths ---------------- */
 
