@@ -25,6 +25,7 @@ import report_builder
 import sandbox
 import shopify_buy
 import since_engine
+import tutor
 import valuation_engine
 
 # The address this product answers to in anything that outlives the
@@ -161,6 +162,7 @@ from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
                         deezer_track_metadata, musicbrainz_credits, press_mentions)
 import links_engine
 import links_store as mls
+import press_store
 import rollout_engine
 import rollout_store as ros
 import social_providers
@@ -1447,6 +1449,68 @@ def create_app():
             return None
         rows = store.get_statement_rows(user["id"])
         return build_royalty_summary(rows) if rows else None
+
+    TUTOR_COOKIE = "sb_tutor"
+
+    def _tutor_on():
+        return request.cookies.get(TUTOR_COOKIE) == "1"
+
+    def _tutor_panel(user):
+        """The full walkthrough, when tutor mode is switched on.
+
+        Same discipline as firstrun below: every flag is a real query, so
+        a step is done when the thing exists and comes back if the thing
+        is deleted. Steps whose route the plan cannot open are dropped -
+        a walkthrough must never point at a locked door.
+        """
+        if user is None or (user.get("plan") or "") == "fan":
+            return None
+        if not _tutor_on():
+            return None
+        uid = user["id"]
+        try:
+            campaigns = mls.list_campaigns(uid)
+            epk = store.get_epk(uid) or {}
+            profile_data = epk.get("data") if isinstance(epk, dict) else None
+            state = {
+                "profile": bool((user.get("name") or "").strip()
+                                or (profile_data and profile_data not in ("{}", {}))),
+                "track": bool(store.list_os_tracks(uid)),
+                "link": bool(campaigns) or any(
+                    l.get("user_id") == uid for l in store.get_db_links()),
+                "rack": bool(store.get_rack_preset(uid)),
+                "rate": bool(store.list_hours_rates(uid)),
+                "campaign": bool(campaigns),
+                "release_date": any((c.get("release_date") or "").strip()
+                                    for c in campaigns),
+                "publish": any(c.get("status") == "live" for c in campaigns),
+                "press_contact": bool(press_store.list_contacts(uid)),
+                "announcement": bool(press_store.list_releases(uid)),
+                "statement": bool(store.get_statements(uid)),
+            }
+            plan = user.get("plan") or "artist"
+            reachable = set()
+            for skey, _n, _p, steps in tutor.STAGES:
+                for key, _t, _w, href, _c in steps:
+                    if plans.allowed(plan, plans.required_tier(href)):
+                        reachable.add(key)
+        except Exception:
+            # A walkthrough is never worth breaking a page over.
+            return None
+        return tutor.build(state, reachable)
+
+    @app.route("/tutor/toggle", methods=["POST"])
+    def tutor_toggle():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        turning_on = request.form.get("on") == "1"
+        response = redirect(request.form.get("back") or "/command-center")
+        # A year: the choice should outlive the session, in this browser.
+        response.set_cookie(TUTOR_COOKIE, "1" if turning_on else "0",
+                            max_age=31536000, samesite="Lax",
+                            secure=bool(os.environ.get("RENDER")))
+        return response
 
     def _firstrun_panel(user):
         """The start-here checklist, or None once the account outgrows it.
@@ -2853,6 +2917,7 @@ def create_app():
                 pass
             signal_ctx = {"profile": signal, "points": pts,
                           "updated": updated, "stale": stale}
+        tutor_panel = _tutor_panel(user)
         return render_template(
             "command_center.html", active_page="command-center",
             summary=cc.get_summary(user["id"]),
@@ -2860,7 +2925,11 @@ def create_app():
             cc_actions=cc.open_actions(user["id"]),
             modules=cc.MODULES,
             signal=signal_ctx,
-            firstrun=_firstrun_panel(user),
+            tutor=tutor_panel,
+            # The tutor's first stage IS the firstrun checklist, so when
+            # it is on the smaller panel steps aside rather than showing
+            # the same five steps twice.
+            firstrun=None if tutor_panel else _firstrun_panel(user),
             **build_dashboard_context())
 
     @app.route("/actions", methods=["GET", "POST"])
