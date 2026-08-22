@@ -244,3 +244,78 @@ test("REVERSE_A_PART handoff waits for ruled nominals and real features", () => 
   assert.equal(handoff.done(reCtx({ inferredAwaitingReview: 0 }, { featureCount: 0 })), false);
   assert.equal(handoff.done(reCtx({ inferredAwaitingReview: 0 }, { featureCount: 6 })), true);
 });
+
+test("REVERSE_A_PART measuring is not complete when the plan asks for nothing", () => {
+  const measure = REVERSE_A_PART.steps.find((x) => x.id === "measure")!;
+  // An empty plan satisfies `complete >= required` arithmetically. Reading
+  // that as measured would tell a machinist the part is dimensioned when no
+  // instrument has touched it.
+  assert.equal(measure.done(reCtx({ measurementsRequired: 0, measurementsComplete: 0 })), false);
+  assert.equal(measure.done(reCtx({ measurementsRequired: 5, measurementsComplete: 4 })), false);
+  assert.equal(measure.done(reCtx({ measurementsRequired: 5, measurementsComplete: 5 })), true);
+});
+
+test("REVERSE_A_PART nominals cannot be ruled on before anything is measured", () => {
+  const nominals = REVERSE_A_PART.steps.find((x) => x.id === "nominals")!;
+  // Zero readings means zero inferred nominals awaiting review — vacuously
+  // "nothing to rule on", which is not the same as having ruled.
+  assert.equal(nominals.done(reCtx({ measurementsComplete: 0, inferredAwaitingReview: 0 })), false);
+  assert.equal(nominals.done(reCtx({ measurementsComplete: 4, inferredAwaitingReview: 2 })), false);
+  assert.equal(nominals.done(reCtx({ measurementsComplete: 4, inferredAwaitingReview: 0 })), true);
+});
+
+test("REVERSE_A_PART photo step reads the missing views, not the count on file", () => {
+  const photos = REVERSE_A_PART.steps.find((x) => x.id === "photos")!;
+  assert.equal(photos.done(reCtx({ photosOnFile: 9, missingViews: 1 })), false);
+  assert.equal(photos.done(reCtx({ photosOnFile: 6, missingViews: 0 })), true);
+});
+
+/* ------------------------------------------------------------------ */
+/* RUN_IT_PAST flow                                                    */
+/* ------------------------------------------------------------------ */
+
+import { RUN_IT_PAST } from "@/lib/guide/flows";
+
+const ncaCtx = (nca: Partial<NonNullable<GuideContext["nca"]>> = {}, over: Partial<GuideContext> = {}): GuideContext =>
+  ctx({ ...over, nca: { uploads: 0, optimized: 0, ...nca } });
+
+test("RUN_IT_PAST applies only where an NC analyzer snapshot exists", () => {
+  // Without the snapshot every step is inapplicable — the flow does not
+  // coach an audit of a program that was never uploaded.
+  const plain = ctx();
+  assert.ok(RUN_IT_PAST.steps.every((s) => s.applies?.(plain) === false));
+  const p = flowProgress(RUN_IT_PAST, startSession(RUN_IT_PAST, plain, "t"), plain);
+  assert.equal(p.total, 0);
+  assert.equal(startSession(RUN_IT_PAST, plain, "t").active, null);
+  assert.ok(RUN_IT_PAST.steps.some((s) => s.applies?.(ncaCtx()) === true));
+});
+
+test("RUN_IT_PAST upload and findings read stored facts, not intent", () => {
+  const upload = RUN_IT_PAST.steps.find((x) => x.id === "upload")!;
+  const findings = RUN_IT_PAST.steps.find((x) => x.id === "findings")!;
+  assert.equal(upload.done(ncaCtx({ uploads: 0 })), false);
+  assert.equal(upload.done(ncaCtx({ uploads: 1 })), true);
+  // A finding looked at is not a proposal accepted: the step completes on a
+  // stored optimized revision.
+  assert.equal(findings.done(ncaCtx({ uploads: 3, optimized: 0 })), false);
+  assert.equal(findings.done(ncaCtx({ uploads: 3, optimized: 1 })), true);
+});
+
+test("RUN_IT_PAST context step wants the stock and machine the gates need", () => {
+  const context = RUN_IT_PAST.steps.find((x) => x.id === "context")!;
+  assert.equal(context.done(ncaCtx({ uploads: 1 }, { hasStock: false, hasMachine: true })), false);
+  assert.equal(context.done(ncaCtx({ uploads: 1 }, { hasStock: true, hasMachine: false })), false);
+  assert.equal(context.done(ncaCtx({ uploads: 1 }, { hasStock: true, hasMachine: true })), true);
+});
+
+test("RUN_IT_PAST derived program stays incomplete while a gate blocks, and is not shown on training parts", () => {
+  const derived = RUN_IT_PAST.steps.find((x) => x.id === "derived")!;
+  const gated = ncaCtx({ uploads: 1, optimized: 1 }, {
+    blockingGates: [{ id: "insp", label: "Inspection capability", detail: "Calipers cannot verify this bore" }],
+  });
+  // A derived program exists; it is still not deliverable. The guide reports
+  // that, it does not step past it.
+  assert.equal(derived.done(gated), false);
+  assert.equal(derived.done(ncaCtx({ uploads: 1, optimized: 1 })), true);
+  assert.equal(derived.applies?.(ncaCtx({ uploads: 1 }, { training: true })), false);
+});
