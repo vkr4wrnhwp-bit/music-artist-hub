@@ -407,6 +407,44 @@ def test_a_signal_seat_without_a_desk_seat_is_not_sent_to_a_403(flask_app, seede
     assert "/operator-desk/leads/%s" % link["lead_id"] not in body
 
 
+def test_signal_and_the_desk_link_to_each_other(flask_app, seeded):
+    """The two halves of one workflow. Signal was reachable only by typing
+    the URL, and a lead gave no way back to the intelligence behind it."""
+    import desk_store
+    providers.reset_registry(providers.ProviderRegistry(adapters=[]))
+    client, user, org = _user(flask_app, "Linked Owner", role="owner")
+    desk_store.add_user(user["email"], "Linked Owner", "owner")
+
+    # the Desk sidebar offers Signal
+    desk_body = client.get("/operator-desk/").get_data(as_text=True)
+    assert 'href="/signal"' in desk_body
+
+    # the main app sidebar carries an Internal footer for a seat-holder
+    site = client.get("/command-center").get_data(as_text=True)
+    assert "Internal" in site and 'href="/signal"' in site and 'href="/operator-desk/"' in site
+
+    # ...and does not for someone with no seat at all
+    plain, plain_user, _ = _user(flask_app, "Plain User", role=None)
+    plain_site = plain.get("/command-center").get_data(as_text=True)
+    assert 'href="/signal"' not in plain_site and 'href="/operator-desk/"' not in plain_site
+
+    # a lead created by Signal links back, and shows the frozen snapshot
+    artist_id = [a["id"] for a in sstore.list_artists(limit=10)
+                 if not sstore.desk_link_for(org["id"], a["id"])][0]
+    r = client.post("/signal/artist/%s/operator-desk" % artist_id)
+    lead_id = r.headers["Location"].rsplit("/", 1)[1]
+    lead_body = client.get("/operator-desk/leads/%s" % lead_id).get_data(as_text=True)
+    assert "From Signal" in lead_body
+    assert '/signal/artist/%s' % artist_id in lead_body
+    assert scoring.SCORE_VERSION in lead_body
+    assert "not the live figures" in lead_body
+
+    # a lead that did NOT come from Signal shows no such panel
+    other_lead = desk_store.create_lead({"artist_name": "Walk-in Artist"}, [], [],
+                                        {"id": None, "name": "Linked Owner"})
+    assert "From Signal" not in client.get("/operator-desk/leads/%s" % other_lead).get_data(as_text=True)
+
+
 # --- pages ------------------------------------------------------------------
 
 @pytest.mark.parametrize("path", ["/signal", "/signal/breaking", "/signal/early",

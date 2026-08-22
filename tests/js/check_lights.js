@@ -88,6 +88,21 @@ ok("a fade that completed still starts from its full target",
      {t: 0, group: "all", color: "#ffffff", intensity: 100, fade: 0.5},
      {t: 5, group: "all", color: "#000000", intensity: 0, fade: 1}]}, 5)[0].inten - 1) < 1e-9);
 
+// colour maths behind the RGB/HSV mixer
+ok("rgbHex round trips and pads", E.rgbHex([255, 122, 0]) === "#ff7a00" && E.rgbHex([0, 0, 0]) === "#000000" && E.rgbHex([5, 5, 5]) === "#050505");
+ok("rgbHex clamps out-of-range input", E.rgbHex([300, -20, 12.6]) === "#ff000d");
+ok("rgb -> hsv on the primaries", E.rgbToHsv([255, 0, 0]).join() === "0,100,100" && E.rgbToHsv([0, 255, 0]).join() === "120,100,100" && E.rgbToHsv([0, 0, 255]).join() === "240,100,100");
+ok("rgb -> hsv on grey and black", E.rgbToHsv([128, 128, 128]).join() === "0,0,50" && E.rgbToHsv([0, 0, 0]).join() === "0,0,0");
+ok("hsv -> rgb on the primaries", E.hsvToRgb([0, 100, 100]).join() === "255,0,0" && E.hsvToRgb([120, 100, 100]).join() === "0,255,0" && E.hsvToRgb([240, 100, 100]).join() === "0,0,255");
+ok("hsv wraps and clamps", E.hsvToRgb([360, 100, 100]).join() === "255,0,0" && E.hsvToRgb([-120, 100, 100]).join() === "0,0,255" && E.hsvToRgb([0, 500, 500]).join() === "255,0,0");
+let rtFails = 0;
+for (const hex of ["#ff7a00", "#3b82f6", "#8b5cf6", "#ffffff", "#000000", "#123456", "#0a0b0c", "#e3001b"]) {
+  const back = E.rgbHex(E.hsvToRgb(E.rgbToHsv(E.hexRgb(hex))));
+  // rounding through integer HSV can move a channel by 1; anything more is a bug
+  if (E.hexRgb(back).some((v, i) => Math.abs(v - E.hexRgb(hex)[i]) > 2)) { rtFails++; console.log("   drift", hex, "->", back); }
+}
+ok("rgb -> hsv -> rgb round trips within rounding", rtFails === 0);
+
 // custom (hand-picked) groups
 ok("custom group members, sorted and deduped", E.membersOf("b3+b1+b3", 6).join() === "1,3");
 ok("custom group ignores bars beyond the rig", E.membersOf("b1+b9", 6).join() === "1");

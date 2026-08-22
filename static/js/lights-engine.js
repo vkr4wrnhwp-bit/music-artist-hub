@@ -77,6 +77,35 @@
   function isBlackout(cue) {
     return !cue.intensity || hexRgb(cue.color).join(",") === "0,0,0";
   }
+  function rgbHex(rgb) {
+    return "#" + rgb.map(function (v) {
+      var n = Math.max(0, Math.min(255, Math.round(v || 0))).toString(16);
+      return n.length < 2 ? "0" + n : n;
+    }).join("");
+  }
+  // RGB <-> HSV. The picker keeps both in step, so a designer can reach for
+  // whichever they think in. V is the colour's own brightness - never the
+  // fixture's output, which stays the cue's intensity.
+  function rgbToHsv(rgb) {
+    var r = (rgb[0] || 0) / 255, g = (rgb[1] || 0) / 255, b = (rgb[2] || 0) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    var h = 0;
+    if (d) {
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0));
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return [Math.round(h), Math.round(max ? (d / max) * 100 : 0), Math.round(max * 100)];
+  }
+  function hsvToRgb(hsv) {
+    var h = ((hsv[0] % 360) + 360) % 360, s = Math.max(0, Math.min(100, hsv[1])) / 100,
+        v = Math.max(0, Math.min(100, hsv[2])) / 100;
+    var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+    var p = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+          : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return p.map(function (n) { return Math.round((n + m) * 255); });
+  }
 
   // ---------- lighting resolver ----------
   function lightingAt(show, t) {
@@ -598,7 +627,8 @@
   return {
     membersOf: membersOf, groupOptions: groupOptions, groupLabel: groupLabel, mirrorOf: mirrorOf,
     customGroup: customGroup, toggleInGroup: toggleInGroup,
-    hexRgb: hexRgb, isBlackout: isBlackout, lightingAt: lightingAt, dmxFrame: dmxFrame,
+    hexRgb: hexRgb, rgbHex: rgbHex, rgbToHsv: rgbToHsv, hsvToRgb: hsvToRgb,
+    isBlackout: isBlackout, lightingAt: lightingAt, dmxFrame: dmxFrame,
     scaleLooks: scaleLooks, fixtureAddress: fixtureAddress, patchOverlaps: patchOverlaps,
     MOVES: MOVES, movementGain: movementGain, RIG_PRESETS: RIG_PRESETS, applyRig: applyRig, rigFromShow: rigFromShow, venueKey: venueKey,
     remapGroup: remapGroup, remapCues: remapCues,

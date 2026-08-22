@@ -984,6 +984,27 @@ def desk_link_for(organization_id, artist_id):
     return d
 
 
+def desk_link_by_lead(lead_id):
+    """Reverse lookup: which artist produced this Operator Desk lead.
+
+    Not organisation-scoped on purpose - the caller is the Desk, which has
+    already authorised the viewer against its own roster, and a lead maps to
+    exactly one artist.
+    """
+    if not lead_id:
+        return None
+    with get_db() as db:
+        row = db.execute(
+            "SELECT l.*, a.canonical_name FROM signal_desk_links l "
+            "JOIN signal_artists a ON a.id = l.artist_id WHERE l.lead_id = ?",
+            (lead_id,)).fetchone()
+    if row is None:
+        return None
+    d = _row(row)
+    d["snapshot"] = _load(d.get("snapshot"), {})
+    return d
+
+
 def list_desk_links(organization_id):
     with get_db() as db:
         rows = db.execute(

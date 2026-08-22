@@ -228,8 +228,17 @@ def lead(me, lead_id):
         abort(404)
     lead_warnings = [w for l, w in desk_store.warnings()
                      if l["id"] == lead_id]
+    # If Signal produced this lead, link back to the intelligence and show
+    # what it believed at the moment of the hand-off. Imported lazily and
+    # defensively: the Desk predates Signal and must not depend on it.
+    signal_link = None
+    try:
+        import signal_store as _sig
+        signal_link = _sig.desk_link_by_lead(lead_id)
+    except Exception:
+        signal_link = None
     return render_template("desk/lead.html", **_ctx(
-        me, lead=row,
+        me, lead=row, signal_link=signal_link,
         notes=desk_store.list_notes(lead_id),
         tasks=desk_store.list_tasks(lead_id=lead_id),
         deals=desk_store.list_deals(lead_id=lead_id),

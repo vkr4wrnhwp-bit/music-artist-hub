@@ -283,6 +283,36 @@
     }
     // cue flags
     var sorted = show.cues.slice().sort(function (a, b) { return a.t - b.t; });
+    // Fade indicators, drawn under the flags: a wedge running back from the
+    // cue over its fade time, so how long a look takes to arrive is visible
+    // on the timeline instead of only being a number in the row.
+    sorted.forEach(function (c) {
+      var fade = Math.max(0, c.fade || 0);
+      if (!fade || c.t < view.start - fade - 1 || c.t > view.end + 1) return;
+      var xEnd = tToX(c.t), xStart = tToX(c.t - fade);
+      if (xEnd - xStart < 1.5) return;
+      var col = E.isBlackout(c) ? [240, 165, 142] : E.hexRgb(c.color || "#d8b25a");
+      var g2 = wg.createLinearGradient(xStart, 0, xEnd, 0);
+      g2.addColorStop(0, "rgba(" + col.join(",") + ",0)");
+      g2.addColorStop(1, "rgba(" + col.join(",") + "," + (c === selectedCue ? 0.42 : 0.24) + ")");
+      wg.fillStyle = g2;
+      // a wedge: narrow where the fade starts, full height where it lands
+      wg.beginPath();
+      wg.moveTo(xStart, h - 3);
+      wg.lineTo(xEnd, 18);
+      wg.lineTo(xEnd, h - 3);
+      wg.closePath();
+      wg.fill();
+      if (c === selectedCue) {
+        wg.strokeStyle = "rgba(255,255,255,0.5)"; wg.lineWidth = 1;
+        wg.beginPath(); wg.moveTo(xStart, h - 3); wg.lineTo(xEnd, 18); wg.stroke();
+        if (xEnd - xStart > 34) {
+          wg.fillStyle = "rgba(238,232,220,0.85)";
+          wg.font = "600 9.5px -apple-system, Segoe UI, Roboto, sans-serif";
+          wg.fillText(fade.toFixed(1) + "s", xStart + 3, h - 6);
+        }
+      }
+    });
     sorted.forEach(function (c) {
       if (c.t < view.start - 1 || c.t > view.end + 1) return;
       var x = Math.round(tToX(c.t)) + 0.5, black = E.isBlackout(c), sel = c === selectedCue;
@@ -993,7 +1023,12 @@
   function paintGroups() {
     var box = $("lx-groups"), cur = selectedCue ? selectedCue.group : defaultGroup;
     box.innerHTML = "";
-    E.groupOptions(show.bars).forEach(function (o) {
+    // Roles and pairs only. One button per bar was a wall of chips that grew
+    // with the rig; a single bar is now the compact dropdown below, and any
+    // combination is shift-click on the stage.
+    E.groupOptions(show.bars).filter(function (o) {
+      return !/^b\d+$/.test(o[0]);
+    }).forEach(function (o) {
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-group";
       b.setAttribute("aria-pressed", cur === o[0] ? "true" : "false"); b.setAttribute("data-group", o[0]);
       b.setAttribute("aria-label", o[1] + " — " + o[2] + " (bars " + (E.membersOf(o[0], show.bars).join(", ") || "none") + ")");
@@ -1013,7 +1048,43 @@
       box.appendChild(b);
     });
     $("lx-groups-for").textContent = selectedCue ? "Sets the group of the selected cue (" + E.fmtTimecode(selectedCue.t) + ")." : "No cue selected — sets the group new cues start with.";
+    paintSingleBar(cur);
   }
+  // The compact replacement for a button per bar.
+  function paintSingleBar(cur) {
+    var sel = $("lx-group-one");
+    if (!sel) return;
+    var want = /^b\d+$/.test(cur) ? cur : "";
+    if (sel.options.length !== show.bars + 1) {
+      sel.innerHTML = '<option value="">— pick a bar —</option>';
+      for (var i = 1; i <= show.bars; i++) {
+        var op = document.createElement("option");
+        op.value = "b" + i; op.textContent = "Bar " + i;
+        sel.appendChild(op);
+      }
+    }
+    sel.value = want;
+    var picked = /\+/.test(cur) ? E.membersOf(cur, show.bars) : [];
+    $("lx-group-picked").textContent = picked.length
+      ? "Hand-picked: bars " + picked.join(", ") + "."
+      : "";
+    $("lx-group-clear").hidden = !picked.length;
+  }
+  function setGroup(next) {
+    if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = next; own(selectedCue); markDirty(); renderCues(); }
+    else defaultGroup = next;
+    paintGroups();
+  }
+  $("lx-group-one").addEventListener("change", function () {
+    var v = $("lx-group-one").value;
+    if (!v) return;
+    setGroup(v);
+    announce(E.groupLabel(v, show.bars) + (selectedCue ? " set on the selected cue" : " set for new cues"));
+  });
+  $("lx-group-clear").addEventListener("click", function () {
+    setGroup("all");
+    announce("Back to all bars");
+  });
 
   // ---------- looks: six house looks (keys 1-6) + up to four of yours (7 8 9 0) ----------
   var USER_KEYS = ["7", "8", "9", "0"];
@@ -1078,6 +1149,26 @@
     if (sw) { sw.style.background = hex; sw.classList.toggle("is-black", E.isBlackout(c)); sw.setAttribute("aria-label", "Cue colour " + (gelName(hex) || hex) + " — open the gel book"); }
     markDirty(); pushRecent(hex);
   }
+  // Your palette: gels you mixed yourself, kept per browser alongside the
+  // recent list. Saved gels are named, so a show can be talked about.
+  var PALETTE_KEY = "lxPalette";
+  function myPalette() {
+    try {
+      var raw = JSON.parse(safeGet(PALETTE_KEY) || "[]");
+      return raw.filter(function (p) { return p && /^#[0-9a-f]{6}$/i.test(p.hex); }).slice(0, 24);
+    } catch (e) { return []; }
+  }
+  function savePaletteEntry(hex, name) {
+    var list = myPalette().filter(function (p) { return p.hex.toLowerCase() !== hex.toLowerCase(); });
+    list.unshift({hex: hex.toLowerCase(), name: (name || "").slice(0, 24) || hex.toLowerCase()});
+    safeSet(PALETTE_KEY, JSON.stringify(list.slice(0, 24)));
+  }
+  function removePaletteEntry(hex) {
+    safeSet(PALETTE_KEY, JSON.stringify(myPalette().filter(function (p) {
+      return p.hex.toLowerCase() !== hex.toLowerCase();
+    })));
+  }
+
   var gel = $("lx-gel"), gelFor = null, gelReturn = null;
   function gelChip(hex, name) {
     var b = document.createElement("button"); b.type = "button"; b.className = "lx-gel-chip"; b.style.background = hex; b.title = name; b.setAttribute("data-hex", hex.toLowerCase());
@@ -1087,6 +1178,57 @@
     return b;
   }
   function gelSummary() { return "Cue at " + E.fmtTimecode(gelFor.t) + " · " + (gelName(gelFor.color) || gelFor.color) + " · intensity stays " + gelFor.intensity + "%"; }
+
+  // ---------- the mixer: RGB and HSV, kept in step ----------
+  var mixIds = {r: "lx-mix-r", g: "lx-mix-g", b: "lx-mix-b", h: "lx-mix-h", s: "lx-mix-s", v: "lx-mix-v"};
+  var mixing = false;                 // guards the two-way sync from looping
+  function paintMix(hex) {
+    var rgb = E.hexRgb(hex), hsv = E.rgbToHsv(rgb);
+    mixing = true;
+    $(mixIds.r).value = rgb[0]; $(mixIds.g).value = rgb[1]; $(mixIds.b).value = rgb[2];
+    $(mixIds.h).value = hsv[0]; $(mixIds.s).value = hsv[1]; $(mixIds.v).value = hsv[2];
+    ["r", "g", "b", "h", "s", "v"].forEach(function (k) { $(mixIds[k] + "-v").textContent = $(mixIds[k]).value; });
+    mixing = false;
+    var sw = $("lx-gel-swatch"); if (sw) sw.style.background = hex;
+    var nm = $("lx-gel-name"); if (nm) nm.textContent = gelName(hex) || hex;
+    $("lx-gel-hex").value = hex;
+  }
+  function mixFrom(space) {
+    if (mixing) return;
+    var hex;
+    if (space === "rgb") {
+      hex = E.rgbHex([+$(mixIds.r).value, +$(mixIds.g).value, +$(mixIds.b).value]);
+    } else {
+      hex = E.rgbHex(E.hsvToRgb([+$(mixIds.h).value, +$(mixIds.s).value, +$(mixIds.v).value]));
+    }
+    paintMix(hex);
+    if (gelFor) applyGelColor(hex, null, false);
+  }
+  ["r", "g", "b"].forEach(function (k) { $(mixIds[k]).addEventListener("input", function () { mixFrom("rgb"); }); });
+  ["h", "s", "v"].forEach(function (k) { $(mixIds[k]).addEventListener("input", function () { mixFrom("hsv"); }); });
+  $("lx-gel-save").addEventListener("click", function () {
+    var hex = $("lx-gel-hex").value.trim();
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+    savePaletteEntry(hex, $("lx-gel-save-name").value.trim());
+    $("lx-gel-save-name").value = "";
+    paintMyPalette();
+    announce("Gel saved to your palette");
+  });
+  function paintMyPalette() {
+    var mine = myPalette(), box = $("lx-gel-mine");
+    $("lx-gel-mine-wrap").hidden = !mine.length;
+    if (!box) return;
+    box.innerHTML = "";
+    mine.forEach(function (p) {
+      var b = gelChip(p.hex, p.name);
+      b.classList.add("is-mine");
+      b.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        if (window.confirm("Remove “" + p.name + "” from your palette?")) { removePaletteEntry(p.hex); paintMyPalette(); }
+      });
+      box.appendChild(b);
+    });
+  }
   function openGel(cue, anchor, nativeInput) {
     gelFor = cue; gelReturn = anchor;
     var grid = $("lx-gel-grid"); grid.innerHTML = "";
@@ -1094,7 +1236,8 @@
     var rec = recentColors(), rbox = $("lx-gel-recent"); rbox.innerHTML = "";
     rec.forEach(function (h) { rbox.appendChild(gelChip(h, gelName(h) || h)); });
     $("lx-gel-recent-wrap").hidden = !rec.length;
-    $("lx-gel-hex").value = cue.color;
+    paintMyPalette();
+    paintMix(/^#[0-9a-f]{6}$/i.test(cue.color) ? cue.color : "#000000");
     $("lx-gel-custom").onclick = function () { if (nativeInput) nativeInput.click(); };
     $("lx-gel-for").textContent = gelSummary();
     gel.hidden = false;
@@ -1106,14 +1249,19 @@
     gel.style.top = (top + window.scrollY) + "px";
     var first = grid.querySelector('[aria-pressed="true"]') || grid.querySelector("button"); if (first) first.focus();
   }
-  function pickGel(hex, name) {
+  function applyGelColor(hex, name, syncMix) {
     if (!gelFor) return;
     var row = cuesWrap.querySelector('[data-id="' + gelFor._id + '"]'), sw = row ? row.querySelector(".lx-swatch") : null;
     setCueColor(gelFor, hex, sw);
-    $("lx-gel-hex").value = hex; $("lx-gel-for").textContent = gelSummary();
-    Array.prototype.forEach.call(gel.querySelectorAll(".lx-gel-chip"), function (ch) { ch.setAttribute("aria-pressed", ch.getAttribute("data-hex") === hex.toLowerCase() ? "true" : "false"); });
-    announce((name || hex) + " set");
+    $("lx-gel-for").textContent = gelSummary();
+    Array.prototype.forEach.call(gel.querySelectorAll(".lx-gel-chip"), function (ch) {
+      ch.setAttribute("aria-pressed", ch.getAttribute("data-hex") === hex.toLowerCase() ? "true" : "false");
+    });
+    if (syncMix !== false) paintMix(hex);
+    else { $("lx-gel-hex").value = hex; var s = $("lx-gel-swatch"); if (s) s.style.background = hex; }
+    if (name) announce(name + " set");
   }
+  function pickGel(hex, name) { applyGelColor(hex, name || hex, true); }
   function closeGel(refocus) { if (gel.hidden) return; gel.hidden = true; if (refocus && gelReturn && gelReturn.isConnected) gelReturn.focus(); gelFor = null; }
   $("lx-gel-close").addEventListener("click", function () { closeGel(true); });
   $("lx-gel-hex").addEventListener("change", function () { var v = $("lx-gel-hex").value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) pickGel(v[0] === "#" ? v : "#" + v, null); });

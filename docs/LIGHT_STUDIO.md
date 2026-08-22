@@ -83,12 +83,26 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
   the look's colour. Lens geometry lives in `LENS_X` / `LENS_CY` /
   `LENS_R` in `lights.js` (measured from the sprite once). A drawn housing
   is the fallback until the sprite loads.
-- **Gel book.** Every cue swatch is a button that opens `#lx-gel`, one
-  shared popover: 30 named gels (Lee numbers people actually carry),
-  recent colours (`localStorage` `lxRecentGels`), a hex field, and
-  "Custom picker…" which clicks the cue's hidden native `<input
-  type=color>`. Intensity is never part of colour — it stays the slider
-  on the cue. Esc closes and returns focus to the swatch.
+- **Gel book + mixer.** Every cue swatch is a button that opens `#lx-gel`,
+  one shared popover: 30 named gels (Lee numbers people actually carry),
+  recent colours (`localStorage` `lxRecentGels`), **your palette**
+  (`lxPalette` — colours you mixed and named; right-click a chip to remove
+  it), a hex field, and a **"Mix a colour" RGB + HSV picker**. The two
+  spaces stay in step through `LightsEngine.rgbToHsv` / `hsvToRgb`
+  (pure, unit-tested, round-trip verified). HSV's **V is the colour's own
+  brightness, never the fixture's output** — intensity stays the slider on
+  the cue. "System picker…" still reaches the OS dialog for anyone who
+  wants it. Esc closes and returns focus to the swatch.
+- **Fade indicators.** Each cue draws a wedge on the waveform running back
+  over its fade time, tinted with the cue's own colour (warm for a look,
+  red for a blackout), so how long a look takes to arrive is visible on the
+  timeline. The selected cue's wedge is outlined and labelled with its
+  duration.
+- **Group picker.** Role chips only — All / Odd / Even / Pairs, each with a
+  mini stage diagram. A button per bar was a wall of chips that grew with
+  the rig, so a single bar is now a compact dropdown and **any** combination
+  is shift-click on the stage (`b1+b3+b6`), with a plain-language summary of
+  what is picked and a Clear control.
 - **Your looks.** "Save selected cue as look" stores up to four
   `{name,color,intensity,fade}` in `show.looks`, so they travel with the
   working copy and every library save/version. Keys `7 8 9 0` apply them;

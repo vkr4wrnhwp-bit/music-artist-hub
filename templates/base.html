@@ -260,6 +260,23 @@
           <span class="shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-[8px] font-black tracking-[0.12em] text-amber-300/90">Sample</span>
           Open, but showing example data
         </div>
+
+        {# Internal tools footer. Only rendered for a login that actually
+           holds a seat on each roster - offering everyone a link that
+           answers 403 is worse than no link at all. #}
+        {% if internal_tools %}
+        <div class="sb-hide-rail mt-3 border-t border-white/5 px-3 pt-3">
+          <div class="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-300">Internal</div>
+          <div class="mt-1.5 space-y-0.5">
+            {% for tool in internal_tools %}
+              <a href="{{ tool['href'] }}" class="flex items-center gap-2 rounded-lg px-1 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5 hover:text-white">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-[#c9a24a]/60"></span>
+                <span class="min-w-0 flex-1 truncate">{{ tool['label'] }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
       </nav>
       <script>
         /* Rail mode. Stored per browser, applied before paint by the

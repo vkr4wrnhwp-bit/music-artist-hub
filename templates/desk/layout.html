@@ -35,6 +35,12 @@
     {% if can('audit') %}
     <a class="dk-nav {{ 'is-active' if nav == 'activity' }}" href="/operator-desk/activity">Activity Log</a>
     {% endif %}
+
+    {# Signal is where most leads on this desk come from, so the two halves
+       of the workflow link both ways. A Desk seat is mirrored into Signal on
+       first visit, so anyone reading this can open it. #}
+    <a class="dk-nav" href="/signal" style="margin-top: 10px;">Signal &rarr;</a>
+
     <div class="dk-side-foot">
       <strong>{{ me.name }}</strong>
       {{ vocab.role_labels[me.role] }}

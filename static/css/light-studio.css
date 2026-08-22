@@ -202,6 +202,21 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 .lx-gel-chip:hover, .lx-gel-chip:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 2px; }
 .lx-gel-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px #0e0d0a, 0 0 0 4px var(--lx-gold); }
 .lx-gel-foot { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+/* mix a colour: RGB and HSV, kept in step with each other and the hex field */
+.lx-gel-mix { margin-top: 10px; border-top: 1px solid var(--lx-rule); padding-top: 8px; }
+.lx-gel-mix > summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-soft); font-weight: 700; padding: 4px 0; }
+.lx-gel-preview { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.lx-gel-preview i { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 0.25); display: block; }
+.lx-mix-row { display: grid; gap: 4px 10px; margin-top: 6px; }
+.lx-mix { display: grid; grid-template-columns: 1.4em 1fr 3.4em; gap: 8px; align-items: center; font-size: 11px; font-weight: 700; color: var(--lx-soft); }
+.lx-mix input[type="range"] { width: 100%; accent-color: var(--lx-gold); }
+.lx-mix b { color: var(--lx-copy); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.lx-mix-hue { accent-color: transparent; background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  height: 6px; border-radius: 3px; -webkit-appearance: none; appearance: none; }
+.lx-mix-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 1px solid #000; }
+.lx-mix-hue::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 1px solid #000; }
+.lx-input--mid { width: 12ch; min-height: 30px; padding: 2px 6px; font-size: 12px; }
+.lx-gel-chip.is-mine { border-color: rgb(201 162 74 / 0.6); }
 .lx-glyph { display: inline-grid; grid-auto-flow: column; gap: 2px; align-items: end; height: 18px; padding: 0 2px; }
 .lx-glyph i { display: block; width: 4px; height: 10px; border-radius: 1px; background: #2b271f; }
 .lx-glyph i.on { background: var(--lx-amber); box-shadow: 0 0 5px var(--lx-amber); }
@@ -227,6 +242,8 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 .lx-group svg { display: block; width: 100%; height: 34px; }
 .lx-group b { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lx-copy); margin-top: 4px; }
 .lx-group small { display: block; font-size: 11px; color: var(--lx-soft); line-height: 1.3; margin-top: 2px; }
+
+.lx-group-single { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
 
 /* looks */
 .lx-looks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

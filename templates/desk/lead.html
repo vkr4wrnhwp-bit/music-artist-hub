@@ -30,6 +30,33 @@
 </ul>
 {% endif %}
 
+{% if signal_link %}
+{# Where this lead came from, and what Signal believed at the time. The
+   snapshot is frozen at hand-off, so it is deliberately not the live score -
+   that is the point of keeping it. #}
+<div class="dk-card" style="margin: 14px 0;">
+  <div class="dk-bar" style="margin: 0 0 8px;">
+    <span class="dk-chip dk-chip--amber">From Signal</span>
+    <span class="dk-sub" style="margin: 0;">Added {{ signal_link['added_at'][:10] }} by {{ signal_link['added_by'] }}</span>
+    <a class="dk-btn dk-btn--ghost" href="/signal/artist/{{ signal_link['artist_id'] }}">Open in Signal &rarr;</a>
+  </div>
+  {% if signal_link['why_now'] %}<p class="dk-sub" style="margin: 0 0 8px;">{{ signal_link['why_now'] }}</p>{% endif %}
+  {% set snap = signal_link['snapshot'] %}
+  {% if snap and snap['scores'] %}
+    <div class="dk-bar" style="margin: 0;">
+      {% for key, label in [('sb_momentum', 'Momentum'), ('distribution_gap', 'Dist. gap'),
+                            ('rights_health', 'Rights'), ('deal_readiness', 'Deal readiness')] %}
+        {% if key in snap['scores'] %}<span class="dk-chip">{{ label }} {{ snap['scores'][key] }}</span>{% endif %}
+      {% endfor %}
+      {% if snap['recommendation'] %}<span class="dk-chip dk-chip--ink">{{ snap['recommendation'] }}</span>{% endif %}
+    </div>
+    <p class="dk-sub" style="margin: 8px 0 0;">
+      Scores as they stood at hand-off (version {{ signal_link['score_version'] }}) — not the live figures.
+    </p>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if can('stage_move') %}
 <form class="dk-bar" method="post" action="/operator-desk/leads/{{ lead.id }}/stage">
   <select class="dk-mini" name="stage">

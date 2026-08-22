@@ -308,6 +308,46 @@ def _session_is_demo():
                 and email.endswith("@streetbanker.io")))
 
 
+def _internal_tools():
+    """Which internal tools this login can actually open.
+
+    Checked against the real rosters, so the sidebar never offers a link
+    that would answer 403. Reads the session itself for the same reason
+    _session_is_demo does: build_dashboard_context feeds ~60 renders and
+    takes no user argument, and current_user() is a closure inside
+    create_app that module level cannot see.
+    """
+    try:
+        user_id = session.get("user_id")
+    except RuntimeError:                   # outside a request context (tests)
+        return []
+    if not user_id:
+        return []
+    user = store.get_user(user_id)
+    if not user:
+        return []
+    email = (user.get("email") or "").strip().lower()
+    if not email:
+        return []
+    owner = _is_owner_email(email)
+    out = []
+    try:
+        import desk_store
+        seat = desk_store.get_user_by_email(email)
+        if owner or (seat and (seat.get("status") or "active") == "active"):
+            out.append({"href": "/operator-desk/", "label": "Operator Desk"})
+    except Exception:                      # a missing table must not break every page
+        pass
+    try:
+        import signal_store as _sig
+        org = _sig.default_org()
+        if owner or _sig.get_member(org["id"], email):
+            out.append({"href": "/signal", "label": "Signal"})
+    except Exception:
+        pass
+    return out
+
+
 def build_dashboard_context():
     # royalty_data's module-level seed data is the showcase's, not the
     # signed-in artist's. Handing it to a real account produced
@@ -354,6 +394,11 @@ def build_dashboard_context():
         # rather than guessing from whichever seeded value they happen to
         # render.
         "is_showcase": demo,
+        # Internal tools (Operator Desk, Signal) are roster-gated and were
+        # reachable only by typing the URL. They get a footer group in the
+        # sidebar, shown only to people who actually hold a seat - offering
+        # everyone a link that answers 403 is worse than no link.
+        "internal_tools": _internal_tools(),
         "story": get_dashboard_story(total, missing_findings, catalog_value, smart_recommendations),
         "money_left": money_left_on_table(missing_findings),
         "recovery_summary": get_recovery_summary(catalog, songs, earnings_trend),
