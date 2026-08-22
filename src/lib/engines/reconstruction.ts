@@ -203,7 +203,24 @@ export function proposeDatums(features: Feature[]): DatumProposal[] {
  */
 export function buildTasks(features: Feature[], datumsReady: boolean, completed: string[]): MeasurementTask[] {
   const tasks: MeasurementTask[] = [];
-  const done = new Set(completed.map((c) => c.toLowerCase()));
+  // Completion is matched by label, and labels are not unique — two bores on
+  // a casting are frequently both called "Bore". A Set marked every one of
+  // them complete as soon as any one was measured, which on a reverse
+  // engineering job reports an unmeasured feature as measured. Counting
+  // occurrences means one recorded measurement satisfies one task.
+  const remaining = new Map<string, number>();
+  for (const c of completed) {
+    const key = c.toLowerCase();
+    remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  }
+  const takeCompletion = (label: string): boolean => {
+    const key = label.toLowerCase();
+    const left = remaining.get(key) ?? 0;
+    if (left <= 0) return false;
+    remaining.set(key, left - 1);
+    return true;
+  };
+
   let order = 0;
 
   const push = (t: Omit<MeasurementTask, "order" | "complete" | "id">) => {
@@ -212,7 +229,7 @@ export function buildTasks(features: Feature[], datumsReady: boolean, completed:
       ...t,
       id: `task-${order}`,
       order,
-      complete: done.has(t.label.toLowerCase()),
+      complete: takeCompletion(t.label),
     });
   };
 
@@ -269,7 +286,10 @@ export function buildTasks(features: Feature[], datumsReady: boolean, completed:
     push({
       label: `Hole pattern position (${positioned.length} holes)`,
       featureId: positioned[0].id,
-      datumLetter: "C",
+      // Was hardcoded "C" regardless of whether C existed yet, so the plan
+      // instructed a measurement from a datum nobody had established — the
+      // exact error the instruction below warns about.
+      datumLetter: datumsReady ? "C" : null,
       context: "HOLE",
       instruction:
         "Measure hole centres from datum C on a surface plate, not from the part edges. Edge-referenced hole positions are the classic reverse-engineering error: they reproduce the original's edge condition rather than its intent.",
@@ -334,14 +354,23 @@ export function buildReconstructionPlan(input: ReconstructionInput): Reconstruct
     );
   }
 
-  const totalConstraint = designDatums.reduce((sum, d) => sum + CONSTRAINS[d.geometryType], 0);
+  // This counted the PROPOSED frame, which is always a plane, an axis and a
+  // point — 3 + 2 + 1 — so it printed "constrains 6 of 6 degrees of freedom"
+  // on every part in the app, including one with no features and no datums
+  // established. A constant presented as an analysis result is worse than no
+  // result: it reads as a completeness claim about a part nobody has measured.
+  // What is actually worth knowing is how much of the frame is settled, so it
+  // counts established datums only.
+  const constrained = designDatums
+    .filter((d) => established.has(`DESIGN:${d.letter}`))
+    .reduce((sum, d) => sum + CONSTRAINS[d.geometryType], 0);
 
   const headline =
     `${tasks.length} measurements required, ${datumProposals.length} datum relationships to establish` +
     (input.inferredAwaitingReview > 0
       ? `, ${input.inferredAwaitingReview} inferred ${input.inferredAwaitingReview === 1 ? "feature requires" : "features require"} review.`
       : ".") +
-    ` The design frame constrains ${totalConstraint} of 6 degrees of freedom.`;
+    ` The established design frame constrains ${constrained} of 6 degrees of freedom.`;
 
   return {
     missingViews,
