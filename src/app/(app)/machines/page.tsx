@@ -7,7 +7,7 @@ import { summarizeCalibration } from "@/lib/engines/calibration";
 import { TELEMETRY_SOURCES } from "@/lib/telemetry";
 import { TopBar } from "@/components/nav";
 import { MachineEnvelope } from "@/components/machine-envelope";
-import { Button, EmptyState, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { Button, EmptyState, inputClass, LinkButton, Panel, SectionHeading, StatusChip } from "@/components/ui";
 import { revalidatePath } from "next/cache";
 
 export default async function MachinesPage() {
@@ -75,9 +75,16 @@ export default async function MachinesPage() {
         <span className="tech-label">Machines</span>
       </TopBar>
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <SectionHeading sub="Machine profiles are hard constraints. CANVAS validates travel, spindle limits, tool capacity and post-processor against these values — it never assumes a capability that is not recorded here.">
-          Machines
-        </SectionHeading>
+        <div className="flex items-start justify-between gap-4">
+          <SectionHeading sub="Machine profiles are hard constraints. CANVAS validates travel, spindle limits, tool capacity and post-processor against these values — it never assumes a capability that is not recorded here.">
+            Machines
+          </SectionHeading>
+          <div className="shrink-0 pt-1">
+            <LinkButton href="/machines/new" size="sm" variant="primary">
+              Add machine
+            </LinkButton>
+          </div>
+        </div>
 
         {machines.length === 0 ? (
           <EmptyState

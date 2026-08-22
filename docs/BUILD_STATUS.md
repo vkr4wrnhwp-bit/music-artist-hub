@@ -1638,3 +1638,60 @@ The difference is placement. Moving it into a left column would cost canvas
 share that is already 62.1% at 1366x768 and 57.7% at 1024x768 — both under
 the 70-75% target the brief protects — to show a fifth copy of a verdict
 already on screen. Recorded rather than quietly dropped.
+
+## Every Add button in the shop now goes somewhere
+
+Five "Add" buttons pointed at routes that did not exist: /tools/new,
+/machines/new, /materials/new, /metrology/new and /workholding/new. Nothing
+in CANVAS could write any of those records — the only create sites were the
+seed scripts — so the shop-setup pages were read-only tables with buttons
+that 404'd, in the empty states a new shop sees first.
+
+All five exist now, on a shared ShopForm. Plain form posts, no client
+JavaScript: a shop-floor terminal on a slow connection can fill in a record
+and it will submit, and validation lives on the server where it has to live
+anyway. Tools additionally have an edit route with per-field auditing.
+
+Required means an engine needs it, not that the record should look complete:
+
+  Tool       diameter, corner radius, flutes, chipload, sfm, stickout,
+             flute length, max RPM
+  Machine    travels, table, spindle limits, changer limits — a machine
+             without them cannot fail the envelope gate, so it cannot pass
+             it honestly either
+  Material   specific cutting energy, because the force model divides by it
+             and aluminium to steel is a factor of three
+  Instrument uncertainty, because it is the denominator in every
+             inspection-capability verdict the shop will see
+
+What stays optional stays optional for a reason. Vise clamp force is
+nullable so the holding margin can come back INDETERMINATE naming it as the
+missing input, rather than pushing a shop to type a catalogue figure it has
+not measured. Axis acceleration is nullable so cycle estimates stay
+distance-over-feed and say so. Material yield and tensile strength are
+nullable so CANVAS declines to size a load rather than borrowing a figure
+from a similar alloy.
+
+One bug found in the form layer itself: step="100" on maximum RPM made the
+browser reject 12000 with "the two nearest valid values are 11901 and
+12001", blocking the submit before the server saw it. HTML validates against
+min + n*step, so step is not a precision hint and is no longer used as one.
+
+Verified in the running build, all five routes: the route resolves, the
+server guard holds with native validation disabled and names every missing
+field, and a complete record saves and appears in the list.
+
+## Not built: the tool carousel
+
+Tool has a toolNumber and no machine relation; Machine has
+toolChangerCapacity as an integer count. Nothing anywhere records that T7 is
+in pocket 7 of the VF-2, so there is no carousel to add to — the machines
+page prints "20 pockets" as a spec, not as an occupancy.
+
+Adding pocket assignment is a schema change plus both migration sets, which
+is fine. What is not a small decision is what it does to the TOOL
+AVAILABILITY gate: readiness.ts:107-111 currently passes when the part has
+tools assigned from the crib. Once pockets exist, the honest gate asks
+whether those tools are loaded in the machine the setup is assigned to —
+and parts that pass today would start failing. That is a gate behaviour
+change and belongs to the shop, not to an assumption made here.

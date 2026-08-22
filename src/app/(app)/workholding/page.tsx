@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { getWorkholding } from "@/lib/data";
 import { db } from "@/lib/db";
 import { TopBar } from "@/components/nav";
-import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
 
 export default async function WorkholdingPage() {
   const user = await requireUser();
@@ -17,9 +17,16 @@ export default async function WorkholdingPage() {
         <span className="tech-label">Workholding</span>
       </TopBar>
       <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
-        <SectionHeading sub="Workholding is where most real machining failures start. CANVAS reasons about grip depth, jaw engagement, projection and cutting load per setup — but only against devices recorded here with real dimensions.">
-          Workholding
-        </SectionHeading>
+        <div className="flex items-start justify-between gap-4">
+          <SectionHeading sub="Workholding is where most real machining failures start. CANVAS reasons about grip depth, jaw engagement, projection and cutting load per setup — but only against devices recorded here with real dimensions.">
+            Workholding
+          </SectionHeading>
+          <div className="shrink-0 pt-1">
+            <LinkButton href="/workholding/new" size="sm" variant="primary">
+              Add device
+            </LinkButton>
+          </div>
+        </div>
 
         {devices.length === 0 ? (
           <EmptyState

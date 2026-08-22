@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
-import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
 import { InstrumentGlyph } from "@/components/workspace/instrument-glyph";
 
 export default async function MetrologyPage() {
@@ -15,9 +15,16 @@ export default async function MetrologyPage() {
         <span className="tech-label">Metrology</span>
       </TopBar>
       <main className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
-        <SectionHeading sub="CANVAS designs measurement instructions around the instruments you actually own. Instrument uncertainty also sets how confidently a measurement can be matched to a standard nominal value — a caliper reading cannot resolve a 40 mm bearing seat the way a bore gauge can.">
-          Metrology
-        </SectionHeading>
+        <div className="flex items-start justify-between gap-4">
+          <SectionHeading sub="CANVAS designs measurement instructions around the instruments you actually own. Instrument uncertainty also sets how confidently a measurement can be matched to a standard nominal value — a caliper reading cannot resolve a 40 mm bearing seat the way a bore gauge can.">
+            Metrology
+          </SectionHeading>
+          <div className="shrink-0 pt-1">
+            <LinkButton href="/metrology/new" size="sm" variant="primary">
+              Add instrument
+            </LinkButton>
+          </div>
+        </div>
 
         {devices.length === 0 ? (
           <EmptyState
