@@ -204,6 +204,55 @@ function findTool(tools: Tool[], toolClass: string): Tool | null {
   return tools.find((t) => t.toolClass === toolClass) ?? null;
 }
 
+/**
+ * The largest fraction of a bore diameter a mill may be and still interpolate
+ * it. A cutter the same size as the bore cannot circle inside it — it can
+ * only plunge — and one close to the same size leaves no room to ramp in.
+ *
+ * This is a planning convention rather than a physical limit, which is why it
+ * is named here and repeated in the rationale: a machinist who wants to run
+ * closer than this can see the number they are arguing with.
+ */
+const BORE_MILL_FRACTION = 0.7;
+
+/**
+ * Picks a mill to interpolate a bore.
+ *
+ * selectMill was being called with cornerRadius = diameter / 2, and
+ * fitsInternalCorner only asks that tool radius <= corner radius — which for
+ * a bore reduces to tool diameter <= bore diameter, satisfied by equality. On
+ * FASTEST_CYCLE, which takes the largest candidate, a 0.5" bore with a 0.5"
+ * end mill in the crib selected that end mill and planned a POCKET_2D at 60%
+ * stepover. That toolpath cannot exist.
+ */
+function selectBoreMill(
+  tools: Tool[],
+  boreDiameter: number,
+  depth: number,
+  prefer: "LARGEST" | "SMALLEST" | "MIDDLE",
+): { tool: Tool | null; reason: string } {
+  const ceiling = boreDiameter * BORE_MILL_FRACTION;
+  const usable = tools.filter((t) => MILL_CLASSES.includes(t.toolClass) && t.diameter <= ceiling);
+
+  if (usable.length === 0) {
+    const tooBig = tools.filter((t) => MILL_CLASSES.includes(t.toolClass) && t.diameter <= boreDiameter);
+    return {
+      tool: null,
+      reason:
+        tooBig.length > 0
+          ? `No mill in the crib is small enough to interpolate a ⌀${boreDiameter.toFixed(4)} bore. The smallest that fits inside it at all is ⌀${Math.min(...tooBig.map((t) => t.diameter)).toFixed(4)}, which leaves nothing to ramp into — a cutter has to be under ⌀${ceiling.toFixed(4)} to circle this bore rather than plunge it.`
+          : `No mill in the crib fits inside a ⌀${boreDiameter.toFixed(4)} bore.`,
+    };
+  }
+
+  const picked = selectMill(usable, null, depth, prefer);
+  if (!picked.tool) return picked;
+  return {
+    tool: picked.tool,
+    reason: `${picked.reason} Held under ${(BORE_MILL_FRACTION * 100).toFixed(0)}% of the ⌀${boreDiameter.toFixed(4)} bore so it can ramp in rather than plunge.`,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Feature classification                                              */
 /* ------------------------------------------------------------------ */
@@ -230,10 +279,19 @@ function classify(features: Feature[]): Classified {
   };
 }
 
-const depthOf = (f: Feature, stock: Stock): number => {
+/**
+ * Returns null rather than 0 when the feature does not say how deep it is.
+ *
+ * It used to fall through to 0, which produced a real planned operation with
+ * finalZ: 0 — a pass that travels the whole toolpath at the top of the stock
+ * and removes nothing. The plan then counted it in cycle time and tool
+ * changes, and the operator read a pocket in the list that would not be cut.
+ * A depth nobody recorded is a missing input, and the planner says so.
+ */
+const depthOf = (f: Feature, stock: Stock): number | null => {
   if ("through" in f && f.through) return stock.z;
   if ("depth" in f && typeof f.depth === "number") return f.depth;
-  return 0;
+  return null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -327,6 +385,10 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
   for (const f of c.pockets) {
     const cr = "cornerRadius" in f ? f.cornerRadius : null;
     const d = depthOf(f, stock);
+    if (d === null) {
+      concerns.push(`${f.label}: no depth recorded, so it cannot be planned. A pocket of unknown depth is a missing dimension, not a shallow one.`);
+      continue;
+    }
     const { tool, reason } = selectMill(tools, cr, d, prefer);
     if (!tool) {
       concerns.push(`${f.label}: ${reason}`);
@@ -367,34 +429,59 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
 
   // Holes — spot then drill, unless the approach is minimising tool changes.
   const spot = findTool(tools, "SPOT_DRILL") ?? findTool(tools, "CENTER_DRILL");
-  const drill = findTool(tools, "DRILL");
+  const drills = tools.filter((t) => t.toolClass === "DRILL").sort((a, b) => a.diameter - b.diameter);
   if (c.holes.length > 0) {
     const spotWorthIt = pattern !== "MINIMUM_TOOLING" && pattern !== "FASTEST_CYCLE";
-    if (spot && spotWorthIt) {
-      ops1.push({
-        sequence: seq++,
-        type: "DRILL",
-        label: `Spot ${c.holes.length} holes`,
-        featureId: c.holes[0].id,
-        toolId: spot.id,
-        toolNumber: spot.toolNumber,
-        topZ: 0,
-        finalZ: -0.08,
-        stepover: 0,
-        stockToLeave: 0,
-        rationale: "Spotting first stops the drill walking on entry, which is where hole position is won or lost.",
-      });
+
+    // One drill per hole diameter.
+    //
+    // This used to take findTool(tools, "DRILL") — the first drill in the
+    // crib, whatever it happened to be — and plan a single operation for
+    // every hole in the part at the DEEPEST hole's depth. A part with a
+    // 0.201 hole and a 0.500 hole came back as one op: drill both with the
+    // ⌀0.201, 0.900" deep. The 0.500 hole was never produced, the small one
+    // was drilled through the bottom of the part, and nothing was flagged.
+    const drillOps: PlannedOperation[] = [];
+    const byDiameter = new Map<number, Feature[]>();
+    for (const h of c.holes) {
+      const dia = "diameter" in h && typeof h.diameter === "number" ? h.diameter : null;
+      if (dia === null) {
+        concerns.push(`${h.label}: no diameter recorded, so no drill can be selected for it.`);
+        continue;
+      }
+      byDiameter.set(dia, [...(byDiameter.get(dia) ?? []), h]);
     }
-    if (drill) {
-      const d = Math.max(...c.holes.map((h) => depthOf(h, stock)));
-      const ratio = d / drill.diameter;
-      ops1.push({
-        sequence: seq++,
+
+    for (const [dia, holes] of [...byDiameter.entries()].sort((a, b) => a[0] - b[0])) {
+      const depths = holes.map((h) => depthOf(h, stock)).filter((v): v is number => v !== null);
+      if (depths.length !== holes.length) {
+        concerns.push(`⌀${dia.toFixed(4)} holes: not every one records a depth, so the group cannot be planned as one operation.`);
+        continue;
+      }
+      const d = Math.max(...depths);
+
+      // A drill is sized to the hole, not to whatever is first in the crib.
+      const match = drills.find((t) => Math.abs(t.diameter - dia) < 0.0005) ?? null;
+      if (!match) {
+        const nearest = drills.length > 0
+          ? drills.reduce((a, b) => (Math.abs(a.diameter - dia) < Math.abs(b.diameter - dia) ? a : b))
+          : null;
+        concerns.push(
+          nearest
+            ? `⌀${dia.toFixed(4)} ${holes.length === 1 ? "hole" : "holes"}: no drill of that size in the crib. The nearest is ⌀${nearest.diameter.toFixed(4)}, which is not the same hole.`
+            : `⌀${dia.toFixed(4)} ${holes.length === 1 ? "hole" : "holes"}: no drill in the crib — they cannot be produced.`,
+        );
+        continue;
+      }
+
+      const ratio = d / match.diameter;
+      drillOps.push({
+        sequence: 0, // assigned below, once it is known whether a spot op precedes them
         type: ratio > 4 ? "PECK_DRILL" : "DRILL",
-        label: `Drill ${c.holes.length} holes`,
-        featureId: c.holes[0].id,
-        toolId: drill.id,
-        toolNumber: drill.toolNumber,
+        label: `Drill ${holes.length} × ⌀${dia.toFixed(4)}`,
+        featureId: holes[0].id,
+        toolId: match.id,
+        toolNumber: match.toolNumber,
         topZ: 0,
         finalZ: -d,
         stepover: 0,
@@ -404,16 +491,47 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
             ? `${ratio.toFixed(1)}:1 depth to diameter — pecking to clear chips rather than packing the flutes.`
             : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`,
       });
-    } else {
-      concerns.push("No drill in the crib — the holes cannot be produced.");
     }
+
+    // Spot only if something is actually going to be drilled.
+    //
+    // The spot operation used to be emitted whenever the crib held a spot
+    // drill and the part held any hole at all, before it was known whether
+    // any of those holes had a drill to match. A part whose only hole was a
+    // ⌀0.500 with no ⌀0.500 drill in the crib came back with one operation:
+    // spot it. Centre-drilling holes nobody can then drill is a tool change
+    // and a cycle spent on nothing, and it reads as though the holes are
+    // handled.
+    const holesBeingDrilled = drillOps.reduce((sum, o) => sum + Number(/(\d+) ×/.exec(o.label)?.[1] ?? 0), 0);
+    if (spot && spotWorthIt && drillOps.length > 0) {
+      ops1.push({
+        sequence: seq++,
+        type: "DRILL",
+        label: `Spot ${holesBeingDrilled} holes`,
+        featureId: drillOps[0].featureId,
+        toolId: spot.id,
+        toolNumber: spot.toolNumber,
+        topZ: 0,
+        finalZ: -0.08,
+        stepover: 0,
+        stockToLeave: 0,
+        rationale: "Spotting first stops the drill walking on entry, which is where hole position is won or lost.",
+      });
+    }
+    for (const op of drillOps) ops1.push({ ...op, sequence: seq++ });
   }
 
   // Bores — the feature most likely to carry a real tolerance.
   for (const f of c.bores) {
     const d = depthOf(f, stock);
-    const diameter = "diameter" in f ? f.diameter : 0;
-    const { tool, reason } = selectMill(tools, diameter / 2, d, prefer);
+    const diameter = "diameter" in f ? f.diameter : null;
+    if (d === null || diameter === null) {
+      concerns.push(
+        `${f.label}: ${d === null ? "no depth" : "no diameter"} recorded, so it cannot be planned.`,
+      );
+      continue;
+    }
+    const { tool, reason } = selectBoreMill(tools, diameter, d, prefer);
     if (!tool) {
       concerns.push(`${f.label}: ${reason}`);
       continue;
@@ -529,7 +647,10 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         sequence: s2++,
         type: "FACE",
         label: "Face bottom to thickness",
-        featureId: c.faces[0]?.id ?? null,
+        // Not c.faces[0] — that is the TOP face, machined in Setup 1. Naming
+        // it here pointed SHOW ME at the wrong surface and attributed two
+        // operations on opposite sides of the part to one feature.
+        featureId: c.faces[1]?.id ?? null,
         toolId: faceMill.id,
         toolNumber: faceMill.toolNumber,
         topZ: facingAllowance / 2,
@@ -542,7 +663,7 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
 
     for (const f of c.contours) {
       const cr = "cornerRadius" in f ? f.cornerRadius : null;
-      const d = "depth" in f ? f.depth : stock.z;
+      const d = depthOf(f, stock) ?? stock.z; // a profile with no depth runs the full stock height
       const { tool, reason } = selectMill(tools, cr, d, prefer);
       if (!tool) {
         concerns.push(`${f.label}: ${reason}`);
@@ -596,6 +717,22 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
       grip < 0.14 ||
       c.contours.length > 0;
 
+    // A flip that does no work is not a plan, it is an instruction to take
+    // the part out of the vise and put it back. It used to be pushed
+    // unconditionally whenever the pattern was not MINIMUM_SETUPS, so a part
+    // with no outside profile and no face mill in the crib produced a second
+    // setup with zero operations — counted against the plan in setups and in
+    // cycle time, and carrying a soft-jaw concern about gripping for a
+    // operation that did not exist.
+    if (ops2.length === 0) {
+      concerns.push(
+        "Nothing in this part needs a second setup: there is no outside profile to cut, and no face mill in the crib to bring the bottom to thickness. The plan stays in one setup, which leaves the bottom face and the outside as supplied.",
+      );
+    } else {
+
+    // Raised here rather than alongside the grip calculation, so a setup that
+    // gets dropped does not leave a concern behind warning about how hard it
+    // grips.
     if (softJaws) {
       concerns.push(
         `Setup 2 grips ${grip.toFixed(3)}" on finished geometry. Soft jaws with a machined seat are the difference between repeatable and hopeful.`,
@@ -618,6 +755,7 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
           ? "Cutting soft jaws before this operation rather than discovering mid-cut that the grip was not enough."
           : "Second operation brings the part to thickness and cuts the finished profile.",
     });
+    }
   } else {
     concerns.push(
       "Single setup leaves the bottom face and the outside profile as supplied. That is only acceptable if the stock is already to size and square.",
