@@ -1,0 +1,1083 @@
+{% extends "base.html" %}
+
+{% block title %}The Rack - Street Banker{% endblock %}
+
+{% block content %}
+<style>
+  /* Lower companion units keep the drawn chrome */
+  .u { position: relative; margin: 9px 0; border-radius: 6px; padding: 13px 20px;
+       box-shadow: 0 3px 9px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); }
+  .u-dark { color: #d8cdb4; border: 1px solid #2b2519;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 5px),
+      linear-gradient(180deg, #1a1712, #110f0b 55%, #0c0b08); }
+  .u-silver { color: #2e2920; border: 1px solid #6b665b;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.045) 0 1px, transparent 1px 3px),
+      linear-gradient(168deg, #d3cec1, #aaa497 42%, #918b7d 72%, #b8b2a5); }
+  .sc { position: absolute; width: 11px; height: 11px; border-radius: 9999px;
+        background: radial-gradient(circle at 35% 30%, #f0d9a0, #a98832 55%, #4a3a12 88%);
+        box-shadow: inset 0 -1px 2px rgba(0,0,0,0.65), 0 1px 2px rgba(0,0,0,0.5); }
+  .sc::after { content: ''; position: absolute; left: 2px; right: 2px; top: 4.6px; height: 1.6px;
+               background: rgba(40,28,6,0.85); border-radius: 1px; transform: rotate(24deg); }
+  .sc-tl { top: 7px; left: 8px; } .sc-tr { top: 7px; right: 8px; }
+  .sc-bl { bottom: 7px; left: 8px; } .sc-br { bottom: 7px; right: 8px; }
+  .chip { display: inline-block; border: 1px solid #8a6d1f; color: #d8b25a; padding: 1px 8px;
+          border-radius: 2px; font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
+          letter-spacing: 0.14em; font-size: 10px; white-space: nowrap; }
+  .u-silver .chip { border-color: #4a4438; color: #3a3426; }
+  .sk { font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+        text-transform: uppercase; letter-spacing: 0.24em; }
+  .u-dark .sk { color: #c9bd9c; } .u-silver .sk { color: #3a3426; }
+  .sk-sub { font-size: 8px; letter-spacing: 0.2em; opacity: 0.65; }
+  .w2 { border-radius: 6px; border: 1px solid #050403; padding: 10px 12px;
+        background: linear-gradient(180deg, #0a0907, #0e0d0a);
+        box-shadow: inset 0 3px 9px rgba(0,0,0,0.72), inset 0 0 0 1px rgba(201,162,74,0.22),
+                    0 1px 0 rgba(255,255,255,0.06); }
+  .u-silver .w2 { box-shadow: inset 0 3px 9px rgba(0,0,0,0.78), inset 0 0 0 1px rgba(60,54,42,0.55),
+                              0 1px 0 rgba(255,255,255,0.25); }
+  .sw { border-radius: 3px; border: 1px solid #3a3424; background: linear-gradient(180deg, #221e15, #14120c);
+        color: #cfc6b0; font-weight: 700; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.5); }
+  .sw:hover { background: linear-gradient(180deg, #292418, #17140d); }
+  .sw-gold { border-color: #8a6d1f; background: linear-gradient(180deg, #e5c878, #c9a24a 60%, #a37c2a); color: #1c1302; }
+  .sw-gold:hover { filter: brightness(1.06); }
+  .sw-lit { border-color: #c9a24a; color: #e8c667; box-shadow: inset 0 0 8px rgba(216,178,90,0.25), 0 0 6px rgba(216,178,90,0.2); }
+  .lamp { width: 8px; height: 8px; border-radius: 9999px; background: #2a2620; box-shadow: inset 0 0 2px #000; }
+  .lamp.on { background: radial-gradient(circle at 40% 35%, #ffe9a8, #d8b25a 60%, #7a5c17); box-shadow: 0 0 8px rgba(232,198,103,0.8); }
+  .lamp.grn { background: radial-gradient(circle at 40% 35%, #d9ffc9, #7fbf5f 60%, #2e5c1d); box-shadow: 0 0 8px rgba(127,191,95,0.7); }
+  .rk-seg { position: relative; }
+  .rk-seg::after { content: ''; position: absolute; inset: 0;
+                   background: repeating-linear-gradient(90deg, rgba(6,6,5,0.7) 0 2px, transparent 2px 7px); }
+  /* Channel strips: the deck and hook rows as recessed hardware lanes,
+     matching the knob wells - lamp, engraved legend, graphite fader. */
+  .lane { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+          border-radius: 4px; border: 1px solid #241f15; padding: 7px 10px;
+          background: linear-gradient(180deg, #171410, #100e0a);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04),
+                      inset 0 -1px 2px rgba(0,0,0,0.5); }
+  .lane + .lane { margin-top: 6px; }
+  .lane.dim { opacity: 0.55; }
+  .lane .ln { font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
+              font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+              color: #d8cdb4; }
+  .lane .ld { font-size: 9px; color: #6d6450; font-variant-numeric: tabular-nums; }
+  /* ---- Narrow screens -------------------------------------------------
+     A nineteen-inch chassis is a statement about width, and a phone has
+     none. Two different problems here, so two different answers.
+
+     The photo faceplate cannot reflow. It is a background image with
+     control wells positioned absolutely against a 760px canvas, so
+     moving one thing moves everything. It gets scaled to fit instead,
+     which keeps every control working and in register with the artwork.
+     The knobs come out small - that is the honest cost, and it is
+     exactly why they now take the arrow keys.
+
+     The nine rack units below it are ordinary flow, so they stack and
+     their control rows wrap. The screw heads go: machined detail on a
+     desk, clutter on a phone. */
+  @media (max-width: 1023px) {
+    /* A scaled element keeps its original layout box, so without this
+       the page would carry 1361px of empty space under the rack. */
+    .chassis-fit { width: 100%; overflow: hidden; aspect-ratio: 800 / 1361;
+                   display: flex; justify-content: center; }
+    .chassis {
+      transform-origin: top center;
+      transform: scale(calc(100vw / 800));   /* 760 wide + a little air */
+      margin: 0;
+      flex: 0 0 auto;
+    }
+    .u { padding: 11px 12px; margin: 7px 0; }
+    .sc { display: none; }
+    /* Seven children on one line with no wrap allowed; the last three
+       were pushed off the screen. */
+    #rk-zone { flex-wrap: wrap; }
+    /* Each module's ON and A/B controls were stacked in a column pinned
+       right, which is tall and thin exactly where height is scarce. */
+    .mods { flex-direction: row; align-items: center; margin-left: 0;
+            flex-wrap: wrap; gap: 8px; }
+    /* ON and A/B measured 27x17 and 29x17, three pixels apart. A finger
+       covers both, and the neighbour is destructive: A/B swaps the module
+       to its previous snapshot with no undo, so a mis-tap while reaching
+       for bypass throws away the curve you just dialled. */
+    .mods .sw { min-height: 44px; min-width: 44px; font-size: 11px; }
+    /* The pickers - container, depth, sample rate, channels - were 46x18
+       with a 5px gutter and 8px type. That is the only way to choose an
+       export format, and FLAC and ALAC sit adjacent. */
+    .pick { gap: 8px; }
+    .pick label { min-height: 44px; justify-content: center; }
+    .pick .cap { font-size: 11px; }
+    /* The caps inside each picker went to 11px, but the legend naming the
+       group - Container, Depth, Sample rate, Channels, True peak - stayed
+       at 8px with 0.22em tracking, which is the harder read of the two and
+       the one that says what the choice below it means. */
+    .plate > .lg { font-size: 10px; letter-spacing: 0.14em; top: -7px; }
+    .u .flex.flex-wrap { row-gap: 8px; }
+  }
+
+  /* Explain mode: the tooltips, made visible.
+
+     Forty-eight controls carry a title attribute holding the only
+     explanation of what they do - real sentences, 60 to 130 characters -
+     and hover does not exist on a touch screen, so on a phone that text
+     was simply unreachable. Rather than print all of it permanently and
+     bury the instrument, one switch turns it on.
+
+     The captions are generated from the title attributes themselves, so
+     any control added later is covered without anyone remembering. */
+  .rk-explain-note {
+    display: block; margin-top: 4px; max-width: 22ch;
+    font-size: 10px; line-height: 1.4; color: #c9bd9c;
+    border-left: 2px solid rgba(201,162,74,0.5); padding-left: 6px;
+  }
+  .u-silver .rk-explain-note { color: #3a3426; }
+
+  /* Touch, rather than narrow. A touch laptop at 1400px needs the same
+     targets a phone does, and a narrow desktop window does not. */
+  @media (pointer: coarse) {
+    /* 20px tall with a 9px thumb: a fader you cannot get hold of. */
+    .fader { height: 34px; }
+    .fader::-webkit-slider-thumb { width: 16px; height: 28px; }
+    .fader::-moz-range-thumb { width: 16px; height: 28px; }
+    /* Stem lane M and S are 28px squares sitting side by side; muting the
+       wrong lane is the most common thing to do by accident here. */
+    .lane .sw { min-height: 44px; min-width: 44px; }
+  }
+
+  /* A focused knob has to be findable on a dark chassis, and the ring has
+     to sit outside the SVG rather than on it - the knob is round, so a
+     square outline reads as a mistake. */
+  .rk-knob { border-radius: 50%; outline: none; }
+  .rk-knob:focus-visible {
+    box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #e8c667, 0 0 12px 2px rgba(232,198,103,0.45);
+  }
+  /* Keyboard focus only. A click should not leave a ring behind. */
+  .rk-knob:focus:not(:focus-visible) { box-shadow: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .rk-knob:focus-visible { box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #e8c667; }
+  }
+
+  /* Dormant lane rail: the empty fader slot on an unloaded channel. */
+  .rail { height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
+          background: repeating-linear-gradient(90deg, #191512 0 6px, #0c0a08 6px 12px);
+          box-shadow: inset 0 1px 2px #000; }
+  .fader { -webkit-appearance: none; appearance: none; height: 20px;
+           background: transparent; cursor: pointer; }
+  .fader::-webkit-slider-runnable-track { height: 5px; border-radius: 3px;
+    background: linear-gradient(180deg, #060505, #141210);
+    box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255,255,255,0.05); }
+  .fader::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 17px;
+    margin-top: -6px; border-radius: 2px;
+    background: linear-gradient(to right, #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(0,0,0,0.6); }
+  .fader::-moz-range-track { height: 5px; border-radius: 3px;
+    background: linear-gradient(180deg, #060505, #141210);
+    box-shadow: inset 0 1px 2px #000; }
+  .fader::-moz-range-thumb { width: 9px; height: 17px; border: none; border-radius: 2px;
+    background: linear-gradient(to right, #3c3833 0 40%, #d8b25a 40% 60%, #322e29 60% 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(0,0,0,0.6); }
+  /* Selector caps: discrete hardware choices instead of web dropdowns.
+     The radio stays in the DOM for keyboard and screen readers; the
+     label is the visible cap and carries the lit state. */
+  .pick { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .pick label { display: flex; flex-direction: column; align-items: center; gap: 3px;
+    min-width: 46px; cursor: pointer; padding: 4px 6px 3px; border-radius: 3px;
+    border: 1px solid #3a3424; background: linear-gradient(180deg, #221e15, #14120c);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.5); }
+  .pick label:hover { background: linear-gradient(180deg, #292418, #17140d); }
+  .pick .cap { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 8px;
+    font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #8a7c5d; white-space: nowrap; }
+  .pick .gl { fill: none; stroke: #8a7c5d; stroke-width: 1.2; }
+  .pick .gl-f { fill: #8a7c5d; stroke: none; }
+  .pick input:checked + label { border-color: #c9a24a;
+    box-shadow: inset 0 0 8px rgba(216,178,90,0.25), 0 0 6px rgba(216,178,90,0.2); }
+  .pick input:checked + label .cap { color: #e8c667; }
+  .pick input:checked + label .gl { stroke: #e8c667; }
+  .pick input:checked + label .gl-f { fill: #e8c667; }
+  .pick input:focus-visible + label { outline: 2px solid #e8c667; outline-offset: 2px; }
+  /* Sub-plate: how a real faceplate fences off one function block -
+     a bordered field with its legend engraved into the border. */
+  .plate { position: relative; border-radius: 4px; border: 1px solid #2b2519;
+           padding: 10px 10px 8px; background: rgba(0,0,0,0.2); }
+  .u-silver .plate { border-color: #7b7669; background: rgba(255,255,255,0.14); }
+  .plate > .lg { position: absolute; top: -6px; left: 9px; padding: 0 5px;
+    font-family: 'Arial Narrow', Arial, sans-serif; font-size: 8px; font-weight: 800;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: #8a7c5d; background: #16130e; }
+  .u-silver .plate > .lg { color: #4c4536; background: #b1ab9e; }
+  /* Valve sockets: a glass envelope over a dark chassis cutout. The tube
+     art is inert SVG; only the filament colour and the halo opacity move,
+     and both are driven from real signal in the draw loop. */
+  .vlv { display: flex; flex-direction: column; align-items: center; gap: 5px;
+         border-radius: 4px; border: 1px solid #241f15; padding: 8px 6px 7px;
+         background: linear-gradient(180deg, #100e0b, #0a0908);
+         box-shadow: inset 0 2px 6px rgba(0,0,0,0.6),
+                     inset 0 1px 0 rgba(255,255,255,0.03); }
+  .vlv-glass { width: 100%; max-width: 54px; }
+  .vlv-glass svg { display: block; width: 100%; height: auto; }
+  .vlv-pwr { display: flex; flex-direction: column; align-items: center; gap: 1px;
+             width: 100%; padding: 3px 4px; cursor: pointer; }
+  .vlv-num { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 8px;
+             font-weight: 900; letter-spacing: 0.16em; color: #6d6450; }
+  .vlv-name { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 10px;
+              font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+              color: #a99e84; white-space: nowrap; }
+  .vlv-pwr[aria-pressed="true"] { border-color: #c9a24a;
+    box-shadow: inset 0 0 8px rgba(216,178,90,0.25), 0 0 6px rgba(216,178,90,0.2); }
+  .vlv-pwr[aria-pressed="true"] .vlv-num { color: #c9a24a; }
+  .vlv-pwr[aria-pressed="true"] .vlv-name { color: #e8c667; }
+  .vlv-pwr:focus-visible { outline: 2px solid #e8c667; outline-offset: 2px; }
+  .vlv-amt { display: block; width: 100%; }
+  .vlv-amt .fader { width: 100%; height: 16px; }
+  /* .vlv-amt .fader outranks the bare .fader rule in the coarse-pointer
+     block below, so these six sliders kept a 16px hit strip while their
+     thumb grew to 28px and hung out of it. Restore the touch height. */
+  @media (pointer: coarse) { .vlv-amt .fader { height: 34px; } }
+  .vlv-blurb { font-size: 8px; line-height: 1.35; text-align: center;
+               color: #5f5747; min-height: 22px; }
+  /* An off valve reads as cold glass, so "off" is visible at a glance. */
+  .vlv.off .vlv-glass { opacity: 0.55; }
+  .vlv.off .vlv-amt { opacity: 0.4; }
+  /* Target rows: name, target, how far off, and what happens. The delta
+     carries the colour because it is the number people scan for. */
+  .ldn-row { display: grid; align-items: baseline; gap: 6px;
+             grid-template-columns: 1fr auto auto; padding: 3px 0;
+             border-top: 1px solid rgba(60,54,42,0.35); }
+  .ldn-row:first-child { border-top: 0; }
+  .ldn-name { font-size: 11px; font-weight: 700; color: #2e2920; }
+  .ldn-t { font-size: 9px; color: #6b6659; }
+  .ldn-d { font-size: 11px; font-weight: 900; text-align: right; min-width: 58px; }
+  .ldn-d.ok { color: #2f6b2a; }
+  .ldn-d.over { color: #8a5a1f; }
+  .ldn-d.under { color: #4a4438; }
+  .ldn-v { grid-column: 1 / -1; font-size: 9px; line-height: 1.4; color: #5a5347; }
+  .ldn-v.warn { color: #9c2f1f; font-weight: 700; }
+  /* Numeric windows: tabular so a changing reading does not jitter. */
+  .val { font-family: 'Arial Narrow', Arial, sans-serif; font-weight: 800;
+         font-variant-numeric: tabular-nums; letter-spacing: 0.03em; }
+  .big { font-size: 23px; line-height: 1; color: #7a5c17; }
+  .u-dark .big { color: #e8c667; text-shadow: 0 0 10px rgba(232,198,103,0.3); }
+  .note { font-size: 10px; line-height: 1.5; }
+  .u-dark .note { color: #7d735c; } .u-silver .note { color: #4c4536; }
+  select, input[type=email] { color-scheme: dark; }
+
+  /* Photo chassis — the artist's generated faceplate; wells hold live controls */
+  .chassis { position: relative; width: 760px; margin: 0 auto;
+             aspect-ratio: 768 / 1376; border-radius: 10px;
+             background: url('/static/img/rack-chassis2.jpg') center / 100% 100% no-repeat;
+             box-shadow: 0 20px 60px rgba(0,0,0,0.75); color: #d8cdb4; }
+  .slot { position: absolute; display: flex; align-items: center; }
+  .mods { display: flex; flex-direction: column; gap: 3px; margin-left: auto; }
+  .flow-flash { outline: 2px solid #e8c667; outline-offset: 3px; border-radius: 8px;
+                transition: outline-color 1.2s; }
+  .rk-cmp.sw-lit { box-shadow: inset 0 0 8px rgba(216,178,90,0.35), 0 0 10px rgba(216,178,90,0.45); }
+  /* A/B jewel LEDs: which snapshot each unit is playing right now */
+  .rk-ledwrap { display: flex; gap: 4px; justify-content: center; }
+  .rk-ledwrap b { font-size: 7px; font-weight: 900; color: #4a4234; line-height: 1; }
+  .rk-ledwrap b.on.rk-la { color: #e8c667; text-shadow: 0 0 5px rgba(232,198,103,0.9); }
+  .rk-ledwrap b.on.rk-lb { color: #7fbf5f; text-shadow: 0 0 5px rgba(127,191,95,0.9); }
+</style>
+
+<div class="mx-auto max-w-[1150px] space-y-5">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Studio</div>
+      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
+      <p class="mt-1 max-w-2xl text-sm text-gray-300">Real DSP running in your browser — 12-band EQ, tube stage, cab &amp; mic sim, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="rk-focus" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide">Focus mode</button>
+      <button id="rk-explain" class="sw px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide" aria-pressed="false" title="Show what every control does, as text on the panel">Explain</button>
+      <span class="chip">SB-1200 SERIES</span>
+    </div>
+  </div>
+
+  <!-- Signal flow: click a node to jump to that stage of the chain -->
+  <div class="mx-auto flex w-full max-w-[760px] flex-wrap items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-300">
+    {% for target, label in [('.chassis', 'Screen'), ('.chassis', 'TS-1 Tube'), ('.chassis', 'SUB-1'), ('.chassis', 'EQ-12'), ('.chassis', 'DYN-1'), ('#sb08', 'Cab & Mic'), ('#sb09', 'FX'), ('#sb10', 'Stems')] %}
+    <button type="button" class="flow-node rounded border border-white/10 px-2 py-1 transition-colors hover:border-[#c9a24a]/50 hover:text-[#e8c667]" data-target="{{ target }}">{{ label }}</button>{% if not loop.last %}<span class="text-[#8a6d1f]">→</span>{% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Zone trim: appears when an instrument band on the screen is clicked -->
+  <div id="rk-zone" style="display:none" class="mx-auto w-full max-w-[760px] flex-wrap items-center gap-2 rounded-xl border border-[#c9a24a]/40 bg-[#141209] px-4 py-2.5 sm:gap-3">
+    <span class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-300">Zone</span>
+    <span id="rk-zone-name" class="text-sm font-black"></span>
+    <span id="rk-zone-bands" class="order-last w-full font-mono text-[11px] font-bold tabular-nums text-[#e8c667] sm:order-none sm:w-auto"></span>
+    <button id="rk-zone-minus" class="sw whitespace-nowrap px-3 py-1.5 text-sm font-black">−1 dB</button>
+    <button id="rk-zone-plus" class="sw whitespace-nowrap px-3 py-1.5 text-sm font-black">+1 dB</button>
+    <button id="rk-zone-zero" class="sw px-2.5 py-1.5 text-[10px] font-medium">Reset zone</button>
+    <button id="rk-zone-clear" class="sw px-3 py-2 text-[11px] sm:ml-auto sm:px-2 sm:py-1 sm:text-[10px] font-medium">Done</button>
+  </div>
+
+  <!-- Controls carry fixed sizes, so small screens pan the rack instead of shrinking it. -->
+  <div class="overflow-x-auto">
+  <div class="chassis-fit">
+  <div class="chassis">
+    <!-- Screen: spectrum, EQ + cab curves, clickable instrument bands -->
+    <div class="slot" style="left:13.0%; top:11.0%; width:74.0%; height:19.8%;">
+      <canvas id="rk-scope" data-screen class="h-full w-full cursor-pointer"></canvas>
+    </div>
+
+    <!-- SB-01 Harmonic Bank · tube -->
+    <div class="slot gap-2 px-4" style="left:12.5%; top:35.6%; width:75.5%; height:5.1%;">
+      <span id="tube-glow" class="pointer-events-none absolute inset-0 rounded" style="background: radial-gradient(ellipse at 50% 100%, #ff9c3f, #7a3c10 70%, transparent); opacity: 0.1; mix-blend-mode: screen;"></span>
+      <div class="relative flex flex-1 justify-around" id="tube-knobs">
+        <div data-kn="drive" data-ksize="46"></div>
+        <div data-kn="bias" data-ksize="46"></div>
+        <div data-kn="mix" data-ksize="46"></div>
+      </div>
+      <div class="mods relative">
+        <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube">ON</button>
+        <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube" title="Compare — swap with your previous tube settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="tube"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+      </div>
+    </div>
+
+    <!-- SB-02 Foundation · SUB-1 -->
+    <div class="slot gap-2 px-4" style="left:12.5%; top:44.3%; width:75.5%; height:5.1%;">
+      <div class="flex flex-1 justify-around">
+        <div data-kn="sdepth" data-ksize="46"></div>
+        <div data-kn="sgrowl" data-ksize="46"></div>
+        <div data-kn="sshake" data-ksize="46"></div>
+      </div>
+      <div class="mods">
+        <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub">ON</button>
+        <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub" title="Compare — swap with your previous SUB-1 settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="sub"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+      </div>
+    </div>
+
+    <!-- SB-03 Tone Bank · EQ-12 -->
+    <div class="slot gap-1.5 px-3" style="left:12.5%; top:53.1%; width:75.5%; height:5.1%;">
+      <div id="rk-eq" data-ksize="34" class="flex items-end gap-[2px]"></div>
+      <div id="kn-q" data-ksize="30" class="flex items-center"></div>
+      <div class="mods">
+        <button id="rk-eq-flat" class="sw px-1.5 py-0.5 text-[8px] font-black uppercase">Flat</button>
+        <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq">ON</button>
+        <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq" title="Compare — swap with your previous EQ curve">A/B</button>
+        <span class="rk-ledwrap" data-mod="eq"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+      </div>
+    </div>
+
+    <!-- SB-04 Dynamics Control · compressor -->
+    <div class="slot gap-2 px-4" style="left:12.5%; top:61.8%; width:75.5%; height:5.1%;">
+      <div class="flex flex-1 justify-around">
+        <div data-kn="thr" data-ksize="44"></div>
+        <div data-kn="ratio" data-ksize="44"></div>
+        <div data-kn="att" data-ksize="44"></div>
+        <div data-kn="rel" data-ksize="44"></div>
+        <div data-kn="makeup" data-ksize="44"></div>
+      </div>
+      <!-- Gain reduction, right on the unit: the bar is the compressor working -->
+      <div class="w-28 shrink-0">
+        <div class="flex justify-between text-[8px] font-bold uppercase tracking-wide" style="color:#b3a684;"><span>Gain Red.</span><span id="rk-grdb2" class="tabular-nums text-[#e8c667]">0.0 dB</span></div>
+        <div class="rk-seg mt-1 h-2.5 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-gr" class="h-full w-0 bg-gradient-to-r from-[#e8c667] to-red-500" style="transition: width 80ms linear;"></div></div>
+        <div class="mt-0.5 text-[7px] uppercase tracking-wide" style="color:#7d735c;">moves while audio plays</div>
+      </div>
+      <div class="mods">
+        <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp">ON</button>
+        <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp" title="Compare — swap with your previous compressor settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="comp"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+      </div>
+    </div>
+
+    <!-- SB-05 Meter Bridge -->
+    <div class="slot gap-3 px-4" style="left:12.5%; top:70.6%; width:75.5%; height:5.1%;">
+      <div class="min-w-0 flex-1">
+        <div class="text-[8px] font-bold uppercase tracking-[0.2em] text-[#6b5c3d]">Source</div>
+        <div id="rk-fileinfo" class="truncate text-[9px] leading-snug text-[#c9bd9c] font-medium">No file loaded — drop a WAV/MP3 anywhere on this page.</div>
+        <div class="mt-1 flex items-center gap-2">
+          <div class="flex min-w-0 flex-1 items-center gap-1.5">
+            <span class="text-[8px] font-bold uppercase text-[#6b5c3d]">Peak</span>
+            <div class="rk-seg h-2 min-w-0 flex-1 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+            <span id="rk-peakdb" class="text-[8px] tabular-nums text-[#c9bd9c] font-medium">−∞</span>
+          </div>
+        </div>
+      </div>
+      <!-- VU: needle driven by the compressor's real reduction value -->
+      <svg id="rk-vu" viewBox="0 0 200 112" width="120" height="67" class="shrink-0">
+        <defs>
+          <radialGradient id="vuGlow" cx="0.5" cy="1" r="1">
+            <stop offset="0" stop-color="#f6ead0"/><stop offset="0.75" stop-color="#e8d9b4"/>
+            <stop offset="1" stop-color="#d5c69e"/>
+          </radialGradient>
+        </defs>
+        <rect x="2" y="2" width="196" height="108" rx="6" fill="#0a0906" stroke="#332d20"/>
+        <rect x="8" y="8" width="184" height="96" rx="4" fill="url(#vuGlow)"/>
+        <g font-family="Arial" font-size="9" fill="#4a4234" text-anchor="middle">
+          <text x="30" y="46">0</text><text x="62" y="30">3</text>
+          <text x="100" y="24">6</text><text x="138" y="30">10</text>
+          <text x="172" y="46">20</text>
+        </g>
+        <path d="M 26 52 A 82 82 0 0 1 174 52" fill="none" stroke="#4a4234" stroke-width="1.5"/>
+        <path d="M 138 33 A 82 82 0 0 1 174 52" fill="none" stroke="#a3402e" stroke-width="2.5"/>
+        <text x="100" y="72" font-family="Arial Narrow, Arial" font-size="10" letter-spacing="3" fill="#6b5c3d" text-anchor="middle">GAIN REDUCTION</text>
+        <text id="rk-grdb" x="100" y="86" font-family="Arial" font-size="10" font-weight="bold" fill="#4a4234" text-anchor="middle">0.0 dB</text>
+        <line id="rk-vu-needle" x1="100" y1="100" x2="100" y2="26" stroke="#7a2c1e" stroke-width="2" stroke-linecap="round" transform="rotate(-52 100 100)"/>
+        <circle cx="100" cy="100" r="5" fill="#2a251c"/>
+      </svg>
+      <div class="flex shrink-0 flex-col items-center gap-1">
+        <span id="scope-lamp" class="lamp"></span>
+        <span id="rk-status" class="w-20 truncate text-center text-[8px] text-[#8a7c5d] font-medium"></span>
+      </div>
+    </div>
+
+    <!-- SB-06 Master Bus · stereo image -->
+    <div class="slot flex-wrap gap-2 px-4" style="left:12.5%; top:79.2%; width:75.5%; height:5.1%;">
+      <span class="sk text-[8px] text-[#8a7c5d] font-medium">Center (mid/side)</span>
+      <button data-center="normal" class="rk-center sw sw-lit px-2.5 py-1 text-[10px] font-medium">Normal</button>
+      <button data-center="solo" class="rk-center sw px-2.5 py-1 text-[10px] font-medium">Solo Center</button>
+      <button data-center="remove" class="rk-center sw px-2.5 py-1 text-[10px] font-medium">Remove Center</button>
+      <span class="ml-auto flex items-center gap-2">
+        <button id="rk-ab" class="sw px-2.5 py-1 text-[10px] font-medium" disabled>Bypass: OFF</button>
+        <label class="flex items-center gap-1 text-[9px] font-bold text-[#8a7c5d]"><input id="rk-loop" type="checkbox" checked class="h-3 w-3 accent-[#c9a24a]">Loop</label>
+      </span>
+    </div>
+
+    <!-- SB-07 Output Stage · transport + final trim -->
+    <div class="slot gap-1.5 px-4" style="left:12.5%; top:87.9%; width:75.5%; height:5.1%;">
+      <label class="sw sw-gold cursor-pointer px-2.5 py-1 text-[10px] font-black">
+        Load audio<input id="rk-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="rk-play" class="sw px-2.5 py-1 text-[10px] font-medium" disabled>Play</button>
+      <button id="rk-export" class="sw px-2.5 py-1 text-[10px] text-[#e8c667] font-medium" disabled>Export WAV</button>
+      <button id="rk-save" class="sw px-2 py-1 text-[9px] text-[#e8c667] font-medium">Save my rack</button>
+      <div class="ml-auto flex items-center gap-2">
+        <div data-kn="out" data-ksize="44"></div>
+        <div class="mods !ml-0">
+          <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out">ON</button>
+          <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out" title="Compare — swap with your previous trim">A/B</button>
+        <span class="rk-ledwrap" data-mod="out"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /chassis-fit -->
+  </div>
+
+  <p class="mx-auto max-w-[760px] text-center text-[10px] text-gray-300 font-medium">Click an instrument band on the screen — Kick, Vocals, Hi-Hats — then use the gold Zone bar above the rack to trim just that range in 1&nbsp;dB steps; watch its EQ knobs turn as you press. Every unit's ON/OFF kills only that module (knobs hold their positions, export matches), and A/B swaps back to the settings you had before your last tweaks.</p>
+
+  <!-- Honest silkscreen -->
+  <div class="mx-auto grid max-w-[760px] gap-x-5 gap-y-2 text-[10px] leading-relaxed text-gray-300 sm:grid-cols-2 font-medium">
+    <p><span class="text-gray-300">Screen.</span> 13 zones mark where each instrument typically lives; the glow is the energy your track has there right now. Honest energy detection — not instrument identification. Solid curve = your EQ; dashed = cab &amp; mic voicing.</p>
+    <p><span class="text-gray-300">SB-01 Harmonic Bank · Tube Stage.</span> Asymmetric waveshaping — the even-harmonic warmth tubes are loved for. An emulation, and labeled as one.</p>
+    <p><span class="text-gray-300">SB-02 Foundation · SUB-1.</span> Not a bass boost: Depth is a deep 45Hz shelf, Shake a 42Hz room resonance, Growl synthesizes sub harmonics so small speakers hear lows they can't play — psychoacoustics, not magic.</p>
+    <p><span class="text-gray-300">SB-03 Tone Bank · EQ-12 Parametric EQ · 12 Band.</span> Drag a knob, double-click resets, scroll trims; Q shapes every band.</p>
+    <p class="mt-1">Every knob in the rack takes the keyboard: <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Tab</kbd> to it or click it, then <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">↑</kbd><kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">↓</kbd> to turn it — <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Shift</kbd> for fine, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">PgUp</kbd>/<kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">PgDn</kbd> for coarse, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">Home</kbd>/<kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">End</kbd> for the ends, <kbd class="rounded border border-white/20 px-1 text-[#c9bd9c]">0</kbd> to reset. Arrow keys land on the same values the mouse can reach, so you can dial an exact setting instead of hunting for it.</p>
+    <p><span class="text-gray-300">SB-06 Master Bus · Center.</span> The classic mid/side trick on any stereo mix — center-panned vocals solo or vanish. Physics, not stem separation; mono files have no sides to keep.</p>
+    <p><span class="text-gray-300">SB-05 / SB-07.</span> The VU needle rides the compressor's real gain reduction; Final Trim is the actual output gain into the peak meter and your WAV export.</p>
+  </div>
+
+  <!-- Companion units -->
+  <div class="space-y-0">
+    <!-- SB-08 Cab & Mic -->
+    <section id="sb08" class="u u-dark">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-2.5 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-08</span>
+        <span class="sk text-[10px] font-medium">CAB-3</span>
+        <span class="sk sk-sub">Cabinet &amp; Microphone</span>
+        <span class="ml-auto flex items-center gap-2">
+          <label class="flex items-center gap-1.5 text-[10px] font-bold text-[#8a7c5d]"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
+          <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="cab" title="Compare — swap with your previous cab &amp; mic setup">A/B</button>
+        <span class="rk-ledwrap" data-mod="cab"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        </span>
+      </div>
+      <div class="w2 grid gap-3 sm:grid-cols-[196px_1fr]">
+        <!-- The signature: a schematic of the setup you've dialled in.
+             Cones, mic, angle and gap all redraw from the live settings. -->
+        <div class="flex flex-col items-center justify-center gap-1.5">
+          <svg id="rk-cabview" viewBox="0 0 196 116" class="w-full max-w-[196px]" role="img" aria-labelledby="rk-cabview-cap"></svg>
+          <span id="rk-cabview-cap" class="sk text-center text-[8px] leading-relaxed text-[#8a7c5d] font-medium"></span>
+        </div>
+        <div class="space-y-3">
+          <div class="plate">
+            <span class="lg">Cabinet</span>
+            <div class="pick" id="rk-pick-cab" role="radiogroup" aria-label="Cabinet">
+              <input type="radio" name="rk-cabpick" id="cb-direct" value="direct" checked>
+              <label for="cb-direct" title="Straight through — no cabinet or microphone in the circuit">
+                <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect class="gl" x="1.5" y="1.5" width="27" height="19" rx="2"/><circle class="gl" cx="15" cy="11" r="4.5"/><circle class="gl-f" cx="15" cy="11" r="1.6"/></svg>
+                <span class="cap">DI</span>
+              </label>
+              <input type="radio" name="rk-cabpick" id="cb-combo112" value="combo112">
+              <label for="cb-combo112" title="Single 12-inch combo — the classic small-amp voicing">
+                <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect class="gl" x="1.5" y="1.5" width="27" height="19" rx="2"/><circle class="gl" cx="15" cy="11" r="7"/><circle class="gl-f" cx="15" cy="11" r="2.4"/></svg>
+                <span class="cap">1×12</span>
+              </label>
+              <input type="radio" name="rk-cabpick" id="cb-open212" value="open212">
+              <label for="cb-open212" title="Two 12s, open back — wider and airier">
+                <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect class="gl" x="1.5" y="1.5" width="27" height="19" rx="2"/><circle class="gl" cx="9.5" cy="11" r="5.2"/><circle class="gl-f" cx="9.5" cy="11" r="1.8"/><circle class="gl" cx="20.5" cy="11" r="5.2"/><circle class="gl-f" cx="20.5" cy="11" r="1.8"/></svg>
+                <span class="cap">2×12</span>
+              </label>
+              <input type="radio" name="rk-cabpick" id="cb-closed412" value="closed412">
+              <label for="cb-closed412" title="Four 12s, closed back — tight and forward">
+                <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect class="gl" x="1.5" y="1.5" width="27" height="19" rx="2"/><circle class="gl" cx="9.8" cy="6.6" r="4"/><circle class="gl" cx="20.2" cy="6.6" r="4"/><circle class="gl" cx="9.8" cy="15.4" r="4"/><circle class="gl" cx="20.2" cy="15.4" r="4"/></svg>
+                <span class="cap">4×12</span>
+              </label>
+              <input type="radio" name="rk-cabpick" id="cb-bass810" value="bass810">
+              <label for="cb-bass810" title="Eight 10s — the big bass fridge">
+                <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect class="gl" x="1.5" y="1.5" width="27" height="19" rx="2"/><circle class="gl" cx="7.2" cy="7.4" r="2.7"/><circle class="gl" cx="12.8" cy="7.4" r="2.7"/><circle class="gl" cx="18.4" cy="7.4" r="2.7"/><circle class="gl" cx="24" cy="7.4" r="2.7"/><circle class="gl" cx="7.2" cy="14.6" r="2.7"/><circle class="gl" cx="12.8" cy="14.6" r="2.7"/><circle class="gl" cx="18.4" cy="14.6" r="2.7"/><circle class="gl" cx="24" cy="14.6" r="2.7"/></svg>
+                <span class="cap">8×10</span>
+              </label>
+            </div>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div class="plate">
+              <span class="lg">Microphone</span>
+              <div class="pick" id="rk-pick-mic" role="radiogroup" aria-label="Microphone type">
+                <input type="radio" name="rk-micpick" id="mc-dynamic" value="dynamic" checked>
+                <label for="mc-dynamic" title="Dynamic, 57-style — the reliable close-mic workhorse">
+                  <svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><circle class="gl" cx="11" cy="6.4" r="4.6"/><path class="gl" d="M7.6 4.6h6.8M7.6 8.2h6.8"/><rect class="gl" x="8" y="10.4" width="6" height="12" rx="1.4"/></svg>
+                  <span class="cap">Dyn</span>
+                </label>
+                <input type="radio" name="rk-micpick" id="mc-ribbon" value="ribbon">
+                <label for="mc-ribbon" title="Ribbon — dark and smooth, tames the top">
+                  <svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><rect class="gl" x="5.6" y="2.4" width="10.8" height="14.4" rx="5.4"/><path class="gl" d="M5.6 9.6h10.8"/><rect class="gl-f" x="10.2" y="16.8" width="1.6" height="5.4"/></svg>
+                  <span class="cap">Ribbon</span>
+                </label>
+                <input type="radio" name="rk-micpick" id="mc-condenser" value="condenser">
+                <label for="mc-condenser" title="Condenser — open top end, more detail and more room">
+                  <svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><rect class="gl" x="4.6" y="2.4" width="12.8" height="12.8" rx="1.6"/><circle class="gl" cx="11" cy="8.8" r="4.2"/><rect class="gl-f" x="10.2" y="15.2" width="1.6" height="7"/></svg>
+                  <span class="cap">Cond</span>
+                </label>
+              </div>
+              <div class="pick mt-2" id="rk-pick-axis" role="radiogroup" aria-label="Microphone angle">
+                <input type="radio" name="rk-axispick" id="ax-on" value="on" checked>
+                <label for="ax-on" title="Pointed straight at the cone — brighter, more bite">
+                  <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><path class="gl" d="M22 2v14"/><path class="gl" d="M4 9h15"/><path class="gl" d="M15.4 5.6 19 9l-3.6 3.4"/></svg>
+                  <span class="cap">On-axis</span>
+                </label>
+                <input type="radio" name="rk-axispick" id="ax-off" value="off">
+                <label for="ax-off" title="Angled off the cone — softer top end">
+                  <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><path class="gl" d="M22 2v14"/><path class="gl" d="M4 2.6 19 9"/><path class="gl" d="M13.8 3.4 19 9l-5.6 1.2"/></svg>
+                  <span class="cap">Off-axis</span>
+                </label>
+              </div>
+            </div>
+            <div class="flex items-center justify-center" data-kn="dist" data-ksize="56"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Kept as the state holders so every other control, preset and rig
+           import keeps one place to read and write. Hidden, not removed. -->
+      <select id="rk-cab-cab" hidden aria-hidden="true" tabindex="-1">
+        <option value="direct">Direct / DI (no cab)</option>
+        <option value="combo112">1×12 Combo</option>
+        <option value="open212">2×12 Open-Back</option>
+        <option value="closed412">4×12 Closed-Back</option>
+        <option value="bass810">8×10 Bass</option>
+      </select>
+      <select id="rk-cab-mic" hidden aria-hidden="true" tabindex="-1">
+        <option value="dynamic">Dynamic (57-style)</option>
+        <option value="ribbon">Ribbon (dark &amp; smooth)</option>
+        <option value="condenser">Condenser (open top)</option>
+      </select>
+      <span hidden>
+        <input type="radio" name="rk-axis" value="on" checked tabindex="-1">
+        <input type="radio" name="rk-axis" value="off" tabindex="-1">
+      </span>
+      <p class="note mt-2.5">Voicings in the style of classic cabinets and mics — modeled curves plus a synthesized room, not measurements of any specific hardware. The diagram is a schematic of the settings you picked, not a photo of a room.</p>
+    </section>
+
+    <!-- SB-09 FX -->
+    <section id="sb09" class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div>
+          <div class="mb-2.5 flex items-center gap-3">
+            <span class="chip">SB-09</span>
+            <span class="sk text-[10px] font-medium">DLY-1</span>
+            <span class="sk sk-sub">Delay</span>
+            <span class="ml-auto flex gap-1.5">
+              <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly">ON</button>
+              <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly" title="Compare — swap with your previous delay settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="dly"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+            </span>
+          </div>
+          <div class="w2 flex justify-around">
+            <div data-kn="dtime" data-ksize="50"></div>
+            <div data-kn="dfb" data-ksize="50"></div>
+            <div data-kn="dtone" data-ksize="50"></div>
+            <div data-kn="dmix" data-ksize="50"></div>
+          </div>
+          <p class="note mt-2">Feedback echo with a tone filter in the loop — darker repeats, like tape.</p>
+        </div>
+        <div>
+          <div class="mb-2.5 flex items-center gap-3">
+            <span class="chip">REV-1</span>
+            <span class="sk text-[10px] font-medium">Reverb</span>
+            <span class="ml-auto flex gap-1.5">
+              <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev">ON</button>
+              <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev" title="Compare — swap with your previous reverb settings">A/B</button>
+        <span class="rk-ledwrap" data-mod="rev"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+            </span>
+          </div>
+          <div class="w2 flex justify-around">
+            <div data-kn="rsize" data-ksize="50"></div>
+            <div data-kn="rdamp" data-ksize="50"></div>
+            <div data-kn="rpre" data-ksize="50"></div>
+            <div data-kn="rmix" data-ksize="50"></div>
+          </div>
+          <p class="note mt-2">A synthesized space through a real convolver — honestly generated, not a sampled hall.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SB-10 Stem Deck -->
+    <section id="sb10" class="u u-dark">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-10</span>
+        <span class="sk text-[10px] font-medium">STM-4</span>
+        <span class="sk sk-sub">Stem Deck · four-lane</span>
+        <label class="sw sw-gold ml-auto cursor-pointer px-3 py-1.5 text-[11px] font-black">
+          Add stems<input id="rk-stems-file" type="file" accept="audio/*" multiple class="hidden">
+        </label>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Separation</span>
+          <div class="mb-2 flex items-center gap-1.5">
+            <span id="rk-roughsplit-lamp" class="lamp" title="Lit while a split is running"></span>
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Run</span>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <button id="rk-roughsplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Split the loaded track into four rough lanes — classical DSP, right here in this tab">Rough Split</button>
+            {% if studio_split %}
+            <button id="rk-studiosplit" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled title="Demucs-class separation by StemSplit — this one uploads the track for processing">Studio Split</button>
+            <label class="sk mt-0.5 block text-[8px] text-[#6d6450] font-medium" for="rk-studiomode">How far to split</label>
+            <select id="rk-studiomode" class="w-full rounded-sm border border-[#c9a24a]/40 bg-black/70 px-2 py-1 text-[10px] font-bold text-[#e8c667]">
+              {% for m in studio_modes %}
+              <option value="{{ m.value }}"{% if m.value == 'FOUR_STEMS' %} selected{% endif %}>{{ m.label }} · {{ m.count }}</option>
+              {% endfor %}
+            </select>
+            <p id="rk-studiomode-note" class="note mt-0.5 text-[9px] leading-snug text-[#8a8069] font-medium"></p>
+            <script id="rk-studiomodes" type="application/json">{{ studio_modes|tojson }}</script>
+            {% endif %}
+          </div>
+          <div id="rk-roughsplit-wrap" class="mt-2 hidden">
+            <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-roughsplit-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
+            <p id="rk-roughsplit-status" class="note mt-1 text-[#e8c667]"></p>
+          </div>
+        </div>
+        <div>
+          <div class="mb-1 flex items-end justify-between gap-2">
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Four-lane bay</span>
+            <span class="sk text-[8px] text-[#6d6450] font-medium">Mute · Solo · Level</span>
+          </div>
+          <div class="w2">
+            <div id="rk-stems"></div>
+          </div>
+        </div>
+      </div>
+      <p class="note mt-3">Have your stems? Load them, mute or solo, and bounce the mix through the whole rack. No stems? <b>Rough Split</b> cuts the loaded track into four lanes — vocals, drums, bass, instruments — using harmonic/percussive and center separation. That's frequency-and-space math, not ML isolation: session-prep quality, expect bleed. The four lanes sum back to your record exactly, everything runs in this tab, and nothing uploads. Center (mid/side) lives on the Master Bus above.{% if studio_split %} <b>Studio Split</b> is the quality tier: Demucs-class separation processed by StemSplit — the one Deck feature that uploads your track (to their servers, for the split, billed to this site's StemSplit account). Pick how far to take it: just the vocal, vocal and instrumental, four stems, or six — six lifts guitar and piano out of the “everything else” lane. Whichever you choose, the lanes you get back add up to your record.{% endif %}</p>
+    </section>
+
+    <!-- SB-11 Snippet Finder -->
+    <section class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-11</span>
+        <span class="sk text-[10px] font-medium">SNP-1</span>
+        <span class="sk sk-sub">Snippet Finder · Reels · Shorts · TikTok</span>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Scan</span>
+          <button id="rk-hook-scan" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black">Find hooks</button>
+          <p class="note mt-2">Two passes: the loudest sustained 15-second window, then the loudest 30 — each then snapped to the nearest downbeat.</p>
+          <p id="rk-hook-note" class="note mt-1.5 text-[#4c4536]"></p>
+        </div>
+        <div>
+          <div class="mb-1 flex items-end justify-between gap-2">
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Hook map</span>
+            <span id="rk-hookmap-cap" class="sk text-[8px] text-[#4c4536] font-medium">No scan yet</span>
+          </div>
+          <div class="w2">
+            <!-- The strip is the whole track; marks sit at the real times. -->
+            <svg id="rk-hookmap" viewBox="0 0 600 40" class="block w-full" role="img" aria-labelledby="rk-hookmap-cap"></svg>
+            <div id="rk-hooks" class="mt-2.5"></div>
+          </div>
+        </div>
+      </div>
+      <p class="note mt-3">Scans your track's real energy for the loudest sustained 15- and 30-second stretches — level detection, not taste; trust your ears on the final pick. The window is then <b>snapped to the nearest downbeat</b> using the same beat grid SB-13 measures, because a clip that starts mid-beat reads as a mistake however good the audio is. It only snaps when the grid is confident and the move is under half a bar — a hook dragged most of a bar to reach a downbeat is no longer the hook it found — and the panel says which of those happened. Preview plays that window, Snippet WAV bounces it through the whole rack, and Vertical video records a 720×1280 WebM with a live spectrum ring (keep this tab visible while it records; phone editors convert WebM to MP4).</p>
+    </section>
+
+    <!-- SB-12 Format Bench -->
+    <section id="sb12" class="u u-dark">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-12</span>
+        <span class="sk text-[10px] font-medium">CNV-2</span>
+        <span class="sk sk-sub">Format Bench · convert &amp; bounce</span>
+        <span id="rk-cnv-peak" class="val sk ml-auto text-[9px] text-[#8a7c5d] font-medium">No source</span>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Source</span>
+          <div class="pick" id="rk-cnv-src" role="radiogroup" aria-label="Conversion source">
+            <input type="radio" name="rk-cnvsrc" id="cs-raw" value="raw" checked>
+            <label for="cs-raw" title="The file exactly as decoded — no rack processing at all">
+              <span class="cap">Loaded file</span>
+            </label>
+            <input type="radio" name="rk-cnvsrc" id="cs-master" value="master">
+            <label for="cs-master" title="The full rack chain applied, the same render Export WAV uses">
+              <span class="cap">Rack master</span>
+            </label>
+          </div>
+          <p class="note mt-2">Decoding is your browser's, so anything it can play it can convert. The container and the sample maths are ours.</p>
+        </div>
+        <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-[1fr_1fr]">
+            <div class="plate">
+              <span class="lg">Container</span>
+              <div class="pick" id="rk-cnv-fmt" role="radiogroup" aria-label="Output container">
+                <input type="radio" name="rk-cnvfmt" id="cf-wav" value="wav" checked>
+                <label for="cf-wav" title="RIFF/WAVE — exact PCM, what every distributor wants"><span class="cap">WAV</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-aiff" value="aiff">
+                <label for="cf-aiff" title="AIFF — exact PCM, big-endian; the Mac studio standard"><span class="cap">AIFF</span></label>
+                {% if server_convert %}
+                <input type="radio" name="rk-cnvfmt" id="cf-flac" value="flac">
+                <label for="cf-flac" title="FLAC — lossless, about half the size of WAV"><span class="cap">FLAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-alac" value="alac">
+                <label for="cf-alac" title="Apple Lossless in an M4A"><span class="cap">ALAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-mp3" value="mp3">
+                <label for="cf-mp3" title="MP3 — plays on everything"><span class="cap">MP3</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-aac" value="aac">
+                <label for="cf-aac" title="AAC in an M4A — better than MP3 at the same size"><span class="cap">AAC</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-opus" value="opus">
+                <label for="cf-opus" title="Opus — the most music per byte here"><span class="cap">Opus</span></label>
+                <input type="radio" name="rk-cnvfmt" id="cf-vorbis" value="vorbis">
+                <label for="cf-vorbis" title="OGG Vorbis"><span class="cap">OGG</span></label>
+                {% endif %}
+              </div>
+              {% if server_convert %}
+              <p id="rk-cnv-where" class="note mt-1.5 text-[9px] leading-snug font-medium"></p>
+              <script id="rk-cnv-formats" type="application/json">{{ convert_formats|tojson }}</script>
+              {% endif %}
+            </div>
+            <div class="plate">
+              <span class="lg">Depth</span>
+              <div class="pick" id="rk-cnv-bits" role="radiogroup" aria-label="Bit depth">
+                <input type="radio" name="rk-cnvbits" id="cb16" value="16" checked>
+                <label for="cb16" title="16-bit integer — CD and streaming delivery"><span class="cap">16</span></label>
+                <input type="radio" name="rk-cnvbits" id="cb24" value="24">
+                <label for="cb24" title="24-bit integer — mastering and archive"><span class="cap">24</span></label>
+                <input type="radio" name="rk-cnvbits" id="cb32" value="32">
+                <label for="cb32" title="32-bit float — no clipping, largest files"><span class="cap">32f</span></label>
+              </div>
+              <label class="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-[#8a7c5d]">
+                <input id="rk-cnv-dither" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">
+                TPDF dither
+              </label>
+            </div>
+          </div>
+          {% if server_convert %}
+          <div class="plate hidden" id="rk-cnv-brwrap">
+            <span class="lg">Bitrate</span>
+            <div class="pick" id="rk-cnv-br" role="radiogroup" aria-label="Bitrate"></div>
+            <p class="note mt-1.5">Higher is bigger and closer to the source. A lossy encode throws detail away for good — keep the WAV or FLAC as your master and treat this as a copy for sending out.</p>
+          </div>
+          {% endif %}
+          <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div class="plate">
+              <span class="lg">Sample rate</span>
+              <div class="pick" id="rk-cnv-rate" role="radiogroup" aria-label="Sample rate"></div>
+            </div>
+            <div class="plate">
+              <span class="lg">Channels</span>
+              <div class="pick" id="rk-cnv-ch" role="radiogroup" aria-label="Channel count">
+                <input type="radio" name="rk-cnvch" id="cc-2" value="2" checked>
+                <label for="cc-2"><span class="cap">Stereo</span></label>
+                <input type="radio" name="rk-cnvch" id="cc-1" value="1">
+                <label for="cc-1" title="Summed to one channel"><span class="cap">Mono</span></label>
+              </div>
+            </div>
+          </div>
+          <div class="plate">
+            <span class="lg">Loudness</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <select id="rk-cnv-lufs" class="rounded border border-white/15 bg-black/50 px-2 py-1.5 text-[11px] text-white font-medium">
+                <option value="">Leave the level alone</option>
+              </select>
+              <span id="rk-cnv-lufsnote" class="note flex-1"></span>
+            </div>
+            <p class="note mt-1.5">Measured on the actual output, after resampling, then a single clean gain change — no limiting, no compression. If the target would push the true peak past that platform's ceiling, the gain is capped so it lands exactly on the ceiling instead, and the status line says by how much it fell short. Turning a master down is lossless; only turning one up can clip.</p>
+          </div>
+          <div class="w2 flex flex-wrap items-center gap-3">
+            <span id="rk-cnv-plan" class="val flex-1 text-[10px] text-[#c9bd9c] font-medium">Load a track to convert.</span>
+            <button id="rk-cnv-go" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled>Convert</button>
+          </div>
+          <p id="rk-cnv-status" class="note text-[#e8c667]"></p>
+        </div>
+      </div>
+      <p class="note mt-3">Reads anything your browser can decode — MP3, WAV, FLAC, M4A, OGG. Resampling is your browser's own resampler; the headers and the quantising are written here, and dropping to 16-bit applies TPDF dither so the error stays uncorrelated noise instead of quiet grit.{% if server_convert %} <b>WAV and AIFF are written in this tab and never leave it.</b> The compressed formats can't be — no browser gives a web page an MP3, FLAC or AAC encoder — so those are encoded on the server, which means the audio is uploaded. The panel says which path you're on before you press Convert. Either way the rate, channel and loudness choices above are applied here first; the server only changes the container.{% else %} Everything here runs in this tab; nothing uploads.{% endif %}</p>
+    </section>
+
+    <!-- SB-13 Tempo & Key -->
+    <section id="sb13" class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-13</span>
+        <span class="sk text-[10px] font-medium">TMP-1</span>
+        <span class="sk sk-sub">Tempo &amp; Key · detect and change</span>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Analyse</span>
+          <div class="mb-2 flex items-center gap-1.5">
+            <span id="rk-tk-lamp" class="lamp" title="Lit while analysing"></span>
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Run</span>
+          </div>
+          <button id="rk-tk-detect" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black" disabled>Detect BPM &amp; key</button>
+          <div class="mt-2.5 space-y-1">
+            <div><span class="sk text-[8px] text-[#4c4536] font-medium">Tempo</span>
+              <div id="rk-tk-bpm" class="val big">—</div>
+              <div id="rk-tk-bpmsub" class="val text-[9px] text-[#4c4536] font-medium">not measured yet</div>
+            </div>
+            <div class="pt-1"><span class="sk text-[8px] text-[#4c4536] font-medium">Key</span>
+              <div id="rk-tk-key" class="val text-[15px] font-black leading-none text-[#2e2920]">—</div>
+              <div id="rk-tk-keysub" class="val text-[9px] text-[#4c4536] font-medium">not measured yet</div>
+            </div>
+          </div>
+          <div id="rk-tk-alts" class="mt-2 flex flex-wrap gap-1.5"></div>
+        </div>
+        <div class="space-y-3">
+          <div class="plate">
+            <span class="lg">Chroma</span>
+            <!-- The 12 pitch classes as measured; the detected root is lit. -->
+            <svg id="rk-tk-chroma" viewBox="0 0 480 76" class="block w-full" role="img" aria-labelledby="rk-tk-keysub"></svg>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-[1fr_1fr]">
+            <div class="plate">
+              <span class="lg">Tempo</span>
+              <div class="flex items-center gap-2">
+                <input id="rk-tk-tempo" class="fader min-w-0 flex-1" type="range" min="50" max="200" step="1" value="100" aria-label="Tempo percent">
+                <span id="rk-tk-tempoval" class="val w-12 text-right text-[11px] text-[#2e2920] font-medium">100%</span>
+              </div>
+              <label class="mt-2 flex items-center gap-2 text-[10px] font-bold text-[#4c4536]">
+                Target BPM
+                <input id="rk-tk-target" type="number" min="40" max="260" step="0.1" placeholder="—"
+                       class="val w-20 rounded border border-[#6b665b] bg-white/60 px-1.5 py-0.5 text-[11px] text-[#2e2920] font-medium">
+              </label>
+              <p class="note mt-1">Pitch stays put — WSOLA time-stretch.</p>
+            </div>
+            <div class="plate">
+              <span class="lg">Key</span>
+              <div class="flex items-center gap-2">
+                <button id="rk-tk-down" class="sw px-2.5 py-1 text-[12px] font-black" aria-label="Down one semitone">−</button>
+                <span id="rk-tk-semis" class="val w-14 text-center text-[13px] font-black text-[#2e2920]">0 st</span>
+                <button id="rk-tk-up" class="sw px-2.5 py-1 text-[12px] font-black" aria-label="Up one semitone">+</button>
+                <button id="rk-tk-zero" class="sw ml-auto px-2 py-1 text-[9px] font-medium">Reset</button>
+              </div>
+              <div class="mt-2 flex items-center gap-2">
+                <span class="sk text-[8px] text-[#4c4536] font-medium">Cents</span>
+                <input id="rk-tk-cents" class="fader min-w-0 flex-1" type="range" min="-50" max="50" step="1" value="0" aria-label="Fine tune in cents">
+                <span id="rk-tk-centsval" class="val w-8 text-right text-[10px] text-[#2e2920] font-medium">0</span>
+              </div>
+              <p class="note mt-1">Length stays put — resample plus stretch.</p>
+            </div>
+          </div>
+          <div class="w2 flex flex-wrap items-center gap-2">
+            <span id="rk-tk-plan" class="val flex-1 text-[10px] text-[#c9bd9c] font-medium">Load a track, then detect.</span>
+            <button id="rk-tk-preview" class="sw px-2.5 py-1.5 text-[10px] font-medium" disabled>Preview 12s</button>
+            <button id="rk-tk-render" class="sw sw-gold px-3 py-1.5 text-[11px] font-black" disabled>Bounce WAV</button>
+          </div>
+          <div id="rk-tk-wrap" class="hidden">
+            <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-tk-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
+          </div>
+          <p id="rk-tk-status" class="note"></p>
+        </div>
+      </div>
+      <p class="note mt-3">BPM comes from a spectral-flux onset envelope autocorrelated over 60–190 BPM; key from a 12-class chroma correlated against the Krumhansl-Schmuckler major and minor profiles. Both are <b>estimates with a score attached</b>, not readings off a tag — autocorrelation genuinely cannot tell a tempo from its half or double, so both are offered rather than guessed at. Stretching is WSOLA and pitch-shifting is resample-plus-stretch: honest time-domain DSP that holds up at the ratios people actually use, and smears transients if you push it far. Runs in this tab.</p>
+    </section>
+
+    <!-- SB-14 Valve Bank -->
+    {% set valves = [
+      ("triode",  "V1", "Triode",  "Even harmonics · warmth"),
+      ("pentode", "V2", "Pentode", "Odd harmonics · push"),
+      ("tape",    "V3", "Tape",    "Soft knee · HF loss · head bump"),
+      ("flutter", "V4", "Flutter", "Wow &amp; flutter · pitch drift"),
+      ("iron",    "V5", "Iron",    "Transformer · lows only"),
+      ("varimu",  "V6", "Vari-Mu", "Slow tube compression"),
+    ] %}
+    <section id="sb14" class="u u-dark">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-14</span>
+        <span class="sk text-[10px] font-medium">VLV-6</span>
+        <span class="sk sk-sub">Valve Bank · six colour stages</span>
+        <span class="ml-auto flex items-center gap-2">
+          <button id="rk-vlv-all" class="sw px-2.5 py-1 text-[9px] font-black">All off</button>
+          <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="vlv" title="Compare — swap with your previous valve setup">A/B</button>
+          <span class="rk-ledwrap" data-mod="vlv"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        </span>
+      </div>
+      <div class="w2">
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+          {% for key, tube, name, blurb in valves %}
+          <div class="vlv" id="rk-vlv-{{ key }}" data-valve="{{ key }}">
+            <div class="vlv-glass">
+              <svg viewBox="0 0 44 76" aria-hidden="true">
+                <defs>
+                  <radialGradient id="vh-{{ key }}" cx="50%" cy="46%" r="50%">
+                    <stop offset="0%" stop-color="#ffd98a" stop-opacity="0.95"/>
+                    <stop offset="55%" stop-color="#e08a1e" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#e08a1e" stop-opacity="0"/>
+                  </radialGradient>
+                  <linearGradient id="vg-{{ key }}" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#2b2620" stop-opacity="0.9"/>
+                    <stop offset="38%" stop-color="#6b6455" stop-opacity="0.5"/>
+                    <stop offset="60%" stop-color="#3a352c" stop-opacity="0.7"/>
+                    <stop offset="100%" stop-color="#22201a" stop-opacity="0.9"/>
+                  </linearGradient>
+                </defs>
+                <!-- halo first so it sits behind the glass -->
+                <circle class="vlv-halo" cx="22" cy="27" r="21" fill="url(#vh-{{ key }})" opacity="0"/>
+                <!-- envelope -->
+                <rect x="7" y="3" width="30" height="50" rx="15" fill="#12100c" stroke="#5d5749" stroke-width="1"/>
+                <rect x="7" y="3" width="30" height="50" rx="15" fill="url(#vg-{{ key }})"/>
+                <!-- getter flash: the silvered mirror at the crown -->
+                <ellipse cx="22" cy="10" rx="9" ry="4.4" fill="#4d4740" opacity="0.75"/>
+                <!-- plate structure -->
+                <rect class="vlv-plate" x="14" y="17" width="16" height="24" rx="1.5"
+                      fill="#0d0c09" stroke="#4a4438" stroke-width="0.9"/>
+                <!-- filament: this is what lights -->
+                <path class="vlv-fil" d="M18 20v18M22 20v18M26 20v18"
+                      stroke="#3a3424" stroke-width="1.5" stroke-linecap="round"/>
+                <!-- base and pins -->
+                <rect x="10" y="53" width="24" height="11" rx="2" fill="#191610" stroke="#4a4438" stroke-width="0.9"/>
+                <path d="M15 64v8M22 64v9M29 64v8" stroke="#8a7c5d" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <button class="vlv-pwr sw" data-valve="{{ key }}"
+                    aria-pressed="false" title="{{ name }} — {{ blurb|safe }}">
+              <span class="vlv-num">{{ tube }}</span>
+              <span class="vlv-name">{{ name }}</span>
+            </button>
+            <label class="vlv-amt">
+              <span class="sr-only">{{ name }} amount</span>
+              <input class="fader" type="range" min="0" max="100" step="1" value="45"
+                     data-valve="{{ key }}" aria-label="{{ name }} amount">
+            </label>
+            <span class="vlv-blurb">{{ blurb|safe }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="note mt-3">Six separate processes, not one effect with six names — and the glow is a meter, not decoration: each tube lights by how hard that stage is <b>actually</b> being driven right now, and V6 lights by its real gain reduction. A stage doing nothing stays dark, and at zero every stage is mathematically the identity, so off is genuinely off. <b>V1</b> adds even harmonics via a squaring term (measured: 3× more 2nd harmonic than 3rd) with a DC blocker after it, because asymmetry makes DC. <b>V2</b> is odd-symmetric, so it can only make odd harmonics. <b>V3</b> is a soft-knee curve plus the two filter moves that make tape sound like tape. <b>V4</b> is two LFOs on a delay line — real pitch movement. <b>V5</b> saturates the low band only, where a transformer core actually saturates. <b>V6</b> is slow program-dependent compression. They sit after the tube stage and before the cab, so the compressor downstream hears the colour.</p>
+    </section>
+
+    <!-- SB-15 Loudness -->
+    <section id="sb15" class="u u-silver">
+      <span class="sc sc-tl"></span><span class="sc sc-tr"></span><span class="sc sc-bl"></span><span class="sc sc-br"></span>
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <span class="chip">SB-15</span>
+        <span class="sk text-[10px] font-medium">LDN-1</span>
+        <span class="sk sk-sub">Loudness · ITU-R BS.1770-4</span>
+        <span id="rk-ldn-src" class="val sk ml-auto text-[9px] text-[#4c4536] font-medium">No source</span>
+      </div>
+      <div class="grid gap-3 lg:grid-cols-[208px_1fr]">
+        <div class="plate">
+          <span class="lg">Measure</span>
+          <div class="mb-2 flex items-center gap-1.5">
+            <span id="rk-ldn-lamp" class="lamp" title="Lit while measuring"></span>
+            <span class="sk text-[8px] text-[#4c4536] font-medium">Run</span>
+          </div>
+          <div class="pick mb-2" id="rk-ldn-source" role="radiogroup" aria-label="What to measure">
+            <input type="radio" name="rk-ldnsrc" id="ld-raw" value="raw" checked>
+            <label for="ld-raw" title="The file as decoded, before the rack touches it"><span class="cap">File</span></label>
+            <input type="radio" name="rk-ldnsrc" id="ld-master" value="master">
+            <label for="ld-master" title="The full rack chain — what you would actually bounce"><span class="cap">Master</span></label>
+          </div>
+          <button id="rk-ldn-go" class="sw sw-gold w-full px-3 py-1.5 text-[11px] font-black" disabled>Measure loudness</button>
+          <div id="rk-ldn-wrap" class="mt-2 hidden">
+            <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-ldn-fill" class="h-full w-0 bg-gradient-to-r from-[#7a5c17] via-[#c9a24a] to-[#e8c667]"></div></div>
+          </div>
+          <p id="rk-ldn-status" class="note mt-1.5"></p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-[1fr_1fr_1fr]">
+            <div class="plate">
+              <span class="lg">Integrated</span>
+              <div id="rk-ldn-i" class="val big">—</div>
+              <div class="val text-[9px] text-[#4c4536] font-medium">LUFS · gated</div>
+            </div>
+            <div class="plate">
+              <span class="lg">True peak</span>
+              <div id="rk-ldn-tp" class="val big">—</div>
+              <div id="rk-ldn-tpsub" class="val text-[9px] text-[#4c4536] font-medium">dBTP · 4× oversampled</div>
+            </div>
+            <div class="plate">
+              <span class="lg">Range</span>
+              <div id="rk-ldn-lra" class="val big">—</div>
+              <div id="rk-ldn-lrasub" class="val text-[9px] text-[#4c4536] font-medium">LU · EBU 3342</div>
+            </div>
+          </div>
+
+          <div class="plate">
+            <span class="lg">Short-term</span>
+            <!-- Real 3-second-block loudness over the length of the track. -->
+            <svg id="rk-ldn-graph" viewBox="0 0 600 90" class="block w-full" role="img" aria-labelledby="rk-ldn-status"></svg>
+          </div>
+
+          <div class="plate">
+            <span class="lg">Against published targets</span>
+            <div id="rk-ldn-targets" class="mt-1 space-y-1"></div>
+            <p class="note mt-2">These are the figures the platforms publish, not something this app checks with them, and they do move. Every service turns a loud master <b>down</b> — that costs nothing. Turning a quiet one <b>up</b> is where the true peak comes up with it, which is the only case that can clip.</p>
+          </div>
+        </div>
+      </div>
+      <p class="note mt-3">Peak metering tells you about clipping and nothing about how loud you'll actually sound — this is the number every platform normalises by. Measured to the standard, not approximated: K-weighting derived for <b>your file's</b> sample rate rather than the 48 kHz coefficients printed in the spec, 400 ms blocks with both required gates (absolute at −70 LUFS, relative at −10 LU) so silence and quiet passages can't drag the average down, loudness range per EBU 3342, and a true peak found by 4× oversampling because the peak <i>between</i> samples is what converters and lossy encoders actually see. That method under-reads by up to about 0.7 dB in the worst case, which is why mastering ceilings sit at −1 dBTP rather than 0. Verified against the published EBU Tech 3341 compliance cases.</p>
+    </section>
+
+    <!-- Presets -->
+    <section class="u u-dark flex flex-wrap items-center gap-2 py-2.5">
+      <span class="sk text-[9px] text-[#8a7c5d] font-medium">Presets</span>
+      <button data-preset="flat" class="rk-preset sw px-3 py-1.5 text-[11px] font-medium">Flat</button>
+      <button data-preset="warm" class="rk-preset sw px-3 py-1.5 text-[11px] font-medium">Warm Master</button>
+      <button data-preset="vocal" class="rk-preset sw px-3 py-1.5 text-[11px] font-medium">Vocal Forward</button>
+      <button data-preset="bass" class="rk-preset sw px-3 py-1.5 text-[11px] font-medium">Bass Tight</button>
+      <button data-preset="guitar" class="rk-preset sw px-3 py-1.5 text-[11px] font-medium">Guitar Rig</button>
+      <span class="ml-auto flex gap-1.5">
+        <button id="rk-rig-export" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] font-medium" title="Download this whole chain as a JSON rig file to share">Export rig</button>
+        <label class="sw cursor-pointer px-3 py-1.5 text-[11px] font-medium" title="Load a rig file from a collaborator">Import rig<input id="rk-rig-import" type="file" accept="application/json,.json" class="hidden"></label>
+      </span>
+    </section>
+  </div>
+  <!-- Sticky transport dock: play, scrub, bypass, level — always in reach -->
+  <div id="rk-dock" class="fixed inset-x-0 bottom-0 z-40 border-t border-[#c9a24a]/30 bg-[#0c0b09]/95 px-4 py-2 backdrop-blur">
+    <div class="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+      <button id="rk-play2" class="sw px-4 py-1.5 text-xs font-black" disabled>Play</button>
+      <canvas id="rk-wave" class="order-last h-10 w-full min-w-0 cursor-pointer rounded border border-white/10 bg-black/50 sm:order-none sm:w-auto sm:flex-1" title="Click to jump anywhere in the track"></canvas>
+      <span id="rk-time" class="shrink-0 text-center font-mono text-[10px] tabular-nums text-[#c9bd9c] sm:w-24 font-medium">0:00 / 0:00</span>
+      <div class="hidden w-28 shrink-0 sm:block">
+        <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak2" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
+      </div>
+      <button id="rk-ab2" class="sw px-3 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" disabled>Bypass: OFF</button>
+      <button id="rk-export2" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] sm:text-[10px] font-medium" disabled>Export</button>
+      <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block font-medium" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
+      <label class="sw hidden cursor-pointer px-2.5 py-1.5 text-[10px] md:block font-medium" title="Load a commercial reference track to A/B against — it plays untouched">
+        Load ref<input id="rk-ref-file" type="file" accept="audio/*" class="hidden">
+      </label>
+      <button id="rk-ref" class="sw hidden px-2.5 py-1.5 text-[10px] md:block font-medium" title="Toggle between your chain and the untouched reference — the dashed cyan trace on the screen is the reference's accumulated spectrum" disabled>REF</button>
+      <button id="rk-vault" class="sw hidden px-2.5 py-1.5 text-[10px] text-[#e8c667] lg:block font-medium" title="Render the processed master and archive it in your Asset Vault" disabled>→ Vault</button>
+    </div>
+  </div>
+  <div class="h-14"></div>
+</div>
+
+<script src="/static/js/roughsplit.js?v=1"></script>
+<script src="/static/js/audioconv.js?v=1"></script>
+<script src="/static/js/tempokey.js?v=3"></script>
+<script src="/static/js/tubes.js?v=3"></script>
+<script src="/static/js/loudness.js?v=1"></script>
+{# The rack reads window.__savedRack once, at load. It has to be set
+   BEFORE the script that reads it — the other way round it was always
+   undefined, so no saved rack ever came back. #}
+{% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
+<script src="/static/js/rackdsp.js?v=35"></script>
+{% endblock %}

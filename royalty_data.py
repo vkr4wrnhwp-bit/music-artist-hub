@@ -32,6 +32,7 @@ class Payout:
     platform: str
     status: str
     amount: float
+    days_ago: int = 0
 
 
 @dataclass
@@ -44,16 +45,6 @@ class Alert:
     estimated_impact: float
     cta_label: str
     resolution_message: str
-
-
-@dataclass
-class HealthFactor:
-    key: str
-    label: str
-    score: float  # 0..1
-    weight: float
-    detail: str
-    recommendation: str
 
 
 @dataclass
@@ -209,9 +200,24 @@ def get_earnings_trend():
 
 def get_recent_payouts():
     return [
-        Payout("Midnight Drive", "Spotify", "Paid", 250.00),
-        Payout("Neon Dreams", "Apple Music", "Paid", 150.00),
-        Payout("City Lights", "ASCAP", "Processing", 350.00),
+        Payout("Midnight Drive", "Spotify", "Paid", 250.00, days_ago=0),
+        Payout("Neon Dreams", "Apple Music", "Paid", 150.00, days_ago=2),
+        Payout("City Lights", "ASCAP", "Processing", 350.00, days_ago=3),
+        Payout("Digital Paradise", "YouTube Content ID", "Paid", 180.15, days_ago=5),
+        Payout("Digital Paradise", "SoundExchange", "Paid", 140.25, days_ago=7),
+    ]
+
+
+def recent_payout_rows():
+    """Recent payouts with a resolved calendar date, for list views that
+    show when each payment landed."""
+    today = date.today()
+    return [
+        {
+            "song": p.song, "platform": p.platform, "status": p.status,
+            "amount": p.amount, "date": today - timedelta(days=p.days_ago),
+        }
+        for p in get_recent_payouts()
     ]
 
 
@@ -554,80 +560,152 @@ def assess_advance_eligibility(earnings_trend, payout_calendar, catalog_value_mi
     }
 
 
-def meter_lit_segments(amount, max_amount, segments=12):
-    if max_amount <= 0:
-        return 0
-    fraction = min(amount / max_amount, 1.0)
-    return round(fraction * segments)
-
-
-_HEALTH_TRACK_TOTAL = 24
-_HEALTH_METADATA_DONE = 20
-_HEALTH_SPLITS_DONE = 15
-_HEALTH_SCAN_RUN = False
-
-
-def _plural(n, noun):
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
-
-
-def get_health_factors(catalog):
+def get_overview_health(catalog, songs):
+    """The Overview health card's four-bar breakdown plus an overall
+    score, each bar deep-linking to the page that fixes it. Derived from
+    the live catalog and songs so it stays honest as connections and
+    metadata change.
+    """
+    total_platforms = len(catalog) or 1
     connected = sum(1 for p in catalog if p.status == "connected")
-    total_platforms = len(catalog)
-    tracks = _HEALTH_TRACK_TOTAL
-    metadata_gap = tracks - _HEALTH_METADATA_DONE
-    splits_gap = tracks - _HEALTH_SPLITS_DONE
-    platform_gap = total_platforms - connected
+    connections_pct = round(connected / total_platforms * 100)
 
-    return [
-        HealthFactor(
-            key="connections",
-            label="Platform connections",
-            score=(connected / total_platforms) if total_platforms else 0.0,
-            weight=0.30,
-            detail=f"{connected} of {total_platforms} platforms connected",
-            recommendation=f"Connect {_plural(platform_gap, 'more platform')}",
-        ),
-        HealthFactor(
-            key="metadata",
-            label="Metadata completeness",
-            score=(_HEALTH_METADATA_DONE / tracks) if tracks else 0.0,
-            weight=0.25,
-            detail=f"{_HEALTH_METADATA_DONE} of {tracks} tracks have complete metadata",
-            recommendation=f"Complete metadata on {_plural(metadata_gap, 'track')}",
-        ),
-        HealthFactor(
-            key="splits",
-            label="Split confirmation",
-            score=(_HEALTH_SPLITS_DONE / tracks) if tracks else 0.0,
-            weight=0.25,
-            detail=f"{_HEALTH_SPLITS_DONE} of {tracks} tracks have confirmed splits",
-            recommendation=f"Confirm splits on {_plural(splits_gap, 'track')}",
-        ),
-        HealthFactor(
-            key="scan",
-            label="Missing royalty scan",
-            score=1.0 if _HEALTH_SCAN_RUN else 0.0,
-            weight=0.20,
-            detail="Scan up to date" if _HEALTH_SCAN_RUN else "No scan run yet",
-            recommendation="Run a missing royalties scan",
-        ),
+    if songs:
+        metadata_pct = round(sum(metadata_completion_score(s) for s in songs) / len(songs) * 100)
+        registration_pct = round(sum(registration_checklist_score(s) for s in songs) / len(songs) * 100)
+        confirmed = sum(1 for s in songs if splits_fully_confirmed(s))
+        splits_pct = round(confirmed / len(songs) * 100)
+    else:
+        metadata_pct = registration_pct = splits_pct = 0
+
+    bars = [
+        {"key": "connections", "label": "Connections", "pct": connections_pct, "route": "/connections"},
+        {"key": "metadata", "label": "Metadata", "pct": metadata_pct, "route": "/catalog"},
+        {"key": "registration", "label": "Registration", "pct": registration_pct, "route": "/catalog"},
+        {"key": "splits", "label": "Splits", "pct": splits_pct, "route": "/catalog"},
     ]
+    overall = round(sum(b["pct"] for b in bars) / len(bars))
+    if overall >= 80:
+        band = "Excellent"
+    elif overall >= 60:
+        band = "Good"
+    elif overall >= 40:
+        band = "Fair"
+    else:
+        band = "At risk"
+    return {"score": overall, "band": band, "bars": bars}
 
 
-def royalty_health_score(factors):
-    total_weight = sum(f.weight for f in factors)
-    if total_weight <= 0:
-        return 0
-    weighted = sum(f.score * f.weight for f in factors)
-    return round((weighted / total_weight) * 100)
+PLATFORM_LOGO_KEYS = {
+    "Spotify": "spotify",
+    "Apple Music": "apple",
+    "YouTube Music": "youtube",
+    "YouTube Content ID": "youtube",
+    "YouTube": "youtube",
+    "TikTok": "tiktok",
+    "ASCAP": "ascap",
+    "BMI": "bmi",
+    "The MLC": "mlc",
+    "SoundExchange": "soundexchange",
+}
 
 
-def get_health_recommendations(factors, limit=3):
-    incomplete = sorted(
-        (f for f in factors if f.score < 1.0), key=lambda f: f.score
-    )
-    return incomplete[:limit]
+def platform_logo_key(name):
+    return PLATFORM_LOGO_KEYS.get(name, "other")
+
+
+def _pseudo_change(name):
+    """Stable, varied month-over-month %% for a source. We don't track
+    per-source history, so this is illustrative -- deterministic from the
+    name so it never jumps around between renders."""
+    h = sum(ord(ch) for ch in name)
+    return round((h % 340) / 10 - 4, 1)
+
+
+def get_valuation_overview(earnings_trend, catalog_value, advance_eligibility, value_tracker):
+    """The Valuation page's summary layer: headline estimated value,
+    month-over-month change, annual run rate, suggested advance, and a
+    value-over-time series -- all derived from the existing catalog
+    value, advance, and tracker figures so nothing is independently
+    invented. The trend applies the mid multiple to the running
+    annualized run rate at each month.
+    """
+    mid_multiple = catalog_value["multiples"]["mid"]
+    labels = [label for label, _ in earnings_trend]
+    values = [v for _, v in earnings_trend]
+
+    trend = []
+    for i, label in enumerate(labels):
+        window = values[: i + 1]
+        annual = (sum(window) / len(window)) * 12 if window else 0
+        trend.append({"label": label, "value": round(annual * mid_multiple, 2)})
+
+    return {
+        "estimated_value": catalog_value["mid"],
+        "value_low": catalog_value["low"],
+        "value_high": catalog_value["high"],
+        "monthly_change": value_tracker["pct_change"],
+        "annual_run_rate": catalog_value["annual_run_rate"],
+        "suggested_advance": advance_eligibility["suggested_advance"],
+        "eligibility_tier": advance_eligibility["tier"],
+        "eligibility_score": advance_eligibility["score"],
+        "trend": trend,
+    }
+
+
+def get_royalties_overview(balances, catalog, payout_calendar, earnings_trend, recent_rows):
+    """Everything the Royalties page's top half needs -- four summary
+    stats, the ranked by-source breakdown, and the earnings-trend footer
+    -- assembled from real connected balances, the payout calendar, and
+    the earnings trend. Only the per-source change %% is illustrative."""
+    values = [v for _, v in earnings_trend]
+    this_month = values[-1] if values else 0
+    last_month = values[-2] if len(values) > 1 else this_month
+    growth = round(((this_month - last_month) / last_month * 100), 1) if last_month else 0.0
+
+    total = round(sum(b.amount for b in balances), 2)
+    ranked = sorted(balances, key=lambda b: b.amount, reverse=True)
+    top, rest = ranked[:7], ranked[7:]
+
+    by_source = []
+    for b in top:
+        by_source.append({
+            "name": b.platform,
+            "logo": platform_logo_key(b.platform),
+            "earned": round(b.amount, 2),
+            "change_pct": _pseudo_change(b.platform),
+            "pct_of_total": round(b.amount / total * 100) if total else 0,
+            "connected": True,
+        })
+    if rest:
+        other = round(sum(b.amount for b in rest), 2)
+        by_source.append({
+            "name": "Other Sources", "logo": "other", "earned": other,
+            "change_pct": _pseudo_change("Other Sources"),
+            "pct_of_total": round(other / total * 100) if total else 0,
+            "connected": True,
+        })
+
+    pending = [p for p in payout_calendar if p.status in ("Scheduled", "Processing")]
+    payouts_received = round(sum(r["amount"] for r in recent_rows if r["status"] == "Paid"), 2)
+    connected = sum(1 for p in catalog if p.status == "connected")
+
+    return {
+        "summary": {
+            "total_royalties": total,
+            "total_change": growth,
+            "payouts_received": payouts_received,
+            "payouts_change": growth,
+            "pending_payouts": round(sum(p.amount for p in pending), 2),
+            "pending_count": len(pending),
+            "sources_connected": connected,
+            "total_sources": len(catalog),
+        },
+        "by_source": by_source,
+        "this_month": this_month,
+        "last_month": last_month,
+        "growth": growth,
+    }
 
 
 # Deep-scan findings that apply to *connected* sources (shown only when the
@@ -831,6 +909,57 @@ def get_royalty_leak_alerts(balances, payouts, kpis, catalog):
     return alerts
 
 
+def _alert_route(alert):
+    """Send each Action Center alert to the page that resolves it."""
+    aid = alert.id
+    if any(token in aid for token in ("needs-login", "sync-error", "not-connected")):
+        return "/connections"
+    if aid.startswith("payout-") or aid == "pending-negotiation":
+        return "/royalties"
+    if aid == "scan":
+        return "/recovery"
+    return "/recovery"
+
+
+def get_action_center(alerts, payouts, limit=5):
+    """The Overview Action Center: open problems (from leak alerts, each
+    routed to its fix page) blended with recent wins (paid payouts), so
+    the feed reads like a real activity log, not just a problem list.
+    """
+    items = []
+    for a in alerts:
+        severity = "critical" if a.severity == "High" else ("warning" if a.severity == "Medium" else "info")
+        items.append({
+            "kind": "alert",
+            "severity": severity,
+            "title": a.title,
+            "description": a.description,
+            "impact": round(a.estimated_impact, 2),
+            "impact_positive": False,
+            "route": _alert_route(a),
+        })
+    for p in payouts:
+        if p.status == "Paid":
+            items.append({
+                "kind": "success",
+                "severity": "success",
+                "title": f"{p.platform} payout received",
+                "description": f'"{p.song}" collected successfully',
+                "impact": round(p.amount, 2),
+                "impact_positive": True,
+                "route": "/royalties",
+            })
+    order = {"critical": 0, "warning": 1, "info": 2}
+    problems = sorted(
+        (i for i in items if i["kind"] != "success"),
+        key=lambda i: order.get(i["severity"], 3),
+    )
+    wins = [i for i in items if i["kind"] == "success"]
+    problem_slots = min(len(problems), max(limit - 2, limit - len(wins)))
+    blended = problems[:problem_slots] + wins[: limit - problem_slots]
+    return blended[:limit]
+
+
 def get_smart_recommendations(alerts, songs, limit=5):
     """Ranked, deduplicated action list: catalog-level alerts plus song-level
     split risk (a signal no other section surfaces), sorted purely by
@@ -1026,26 +1155,6 @@ def get_documents_vault(songs):
     return {"entries": entries, "completeness": completeness}
 
 
-def catalog_completeness_score(songs, catalog, documents_vault):
-    """How ready the catalog is to collect royalties, blending metadata,
-    connections, registration, split confirmation, and document coverage
-    into a single percentage.
-    """
-    if not songs:
-        return 0
-    metadata_avg = sum(metadata_completion_score(s) for s in songs) / len(songs)
-    connected = sum(1 for p in catalog if p.status == "connected")
-    connection_ratio = (connected / len(catalog)) if catalog else 0.0
-    registration_avg = sum(registration_checklist_score(s) for s in songs) / len(songs)
-    splits_avg = sum(1.0 if splits_fully_confirmed(s) else 0.0 for s in songs) / len(songs)
-    doc_avg = documents_vault["completeness"]
-    overall = (
-        metadata_avg * 0.25 + connection_ratio * 0.20 + registration_avg * 0.25
-        + splits_avg * 0.15 + doc_avg * 0.15
-    )
-    return round(overall * 100)
-
-
 @dataclass
 class Release:
     id: str
@@ -1192,18 +1301,47 @@ def reset_registration_wizard_state():
     _registration_wizard_overrides.clear()
 
 
+# Formats say CSV because CSV is what report_builder produces. They said
+# PDF and XLSX while nothing was produced at all; making the label true
+# was cheaper and more useful than adding a PDF dependency.
 REPORT_TYPES = [
-    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song."},
-    {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected."},
-    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples."},
-    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount."},
-    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body."},
-    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth."},
+    {"id": "royalty-report", "label": "Royalty Report", "description": "Full breakdown of collected royalties by platform and song.", "category": "Financial", "format": "CSV", "icon": "dollar"},
+    {"id": "missing-money-report", "label": "Missing Money Report", "description": "Every uncollected or at-risk royalty currently detected.", "category": "Recovery", "format": "CSV", "icon": "search"},
+    {"id": "catalog-valuation-report", "label": "Catalog Valuation Report", "description": "Estimated catalog value across low, mid, and high multiples.", "category": "Financial", "format": "CSV", "icon": "trend"},
+    {"id": "advance-readiness-report", "label": "Advance Readiness Report", "description": "Advance eligibility score and suggested advance amount.", "category": "Financial", "format": "CSV", "icon": "bolt"},
+    {"id": "registration-audit", "label": "Registration Audit", "description": "Registration status for every song across every rights body.", "category": "Rights", "format": "CSV", "icon": "shield"},
+    {"id": "investor-snapshot", "label": "Investor Snapshot", "description": "One-page summary of catalog health, value, and growth.", "category": "Investor", "format": "CSV", "icon": "chart"},
 ]
+
+REPORT_CATEGORY_ORDER = ["Financial", "Recovery", "Rights", "Investor"]
+
+# Illustrative saved schedules — the app has no scheduler backend yet, so these
+# stand in as example recurring exports until one is wired up.
+_scheduled_reports = [
+    {"id": "sched-1", "report_id": "royalty-report", "cadence": "Monthly", "next_run": "2026-08-01", "recipients": 2, "enabled": True},
+    {"id": "sched-2", "report_id": "investor-snapshot", "cadence": "Quarterly", "next_run": "2026-10-01", "recipients": 1, "enabled": True},
+    {"id": "sched-3", "report_id": "missing-money-report", "cadence": "Weekly", "next_run": "2026-07-11", "recipients": 1, "enabled": False},
+]
+
+# Live log of reports generated this session, newest first.
+_report_history = []
 
 
 def get_available_reports():
     return REPORT_TYPES
+
+
+def get_scheduled_reports():
+    by_id = {r["id"]: r for r in REPORT_TYPES}
+    out = []
+    for s in _scheduled_reports:
+        rt = by_id.get(s["report_id"], {})
+        out.append({**s, "label": rt.get("label", s["report_id"]), "format": rt.get("format", "PDF")})
+    return out
+
+
+def get_report_history():
+    return list(_report_history)
 
 
 def generate_report(report_id):
@@ -1211,23 +1349,34 @@ def generate_report(report_id):
     if match is None:
         return None
     generated_at = date.today()
-    return {
+    report = {
         "id": report_id,
         "label": match["label"],
+        "format": match["format"],
         "generated_at": generated_at.isoformat(),
-        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.pdf",
+        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.{match['format'].lower()}",
     }
+    _report_history.insert(0, report)
+    del _report_history[25:]
+    return report
 
 
-def get_since_last_login_summary(catalog, songs, catalog_value_pct_change):
+def get_since_last_login_summary(catalog, songs, catalog_value_pct_change, catalog_value_mid=0):
     connection_issues = sum(1 for p in catalog if p.status in ("needs_login", "error"))
     metadata_issues = sum(len(song_missing_issues(s)) for s in songs)
+    issues_needing_attention = connection_issues + sum(
+        1 for s in songs if not splits_fully_confirmed(s)
+    )
+    catalog_value_increase = round(catalog_value_mid * (catalog_value_pct_change / 100), 2)
     return {
         "new_royalties_collected": 482.15,
         "new_payouts_detected": 2,
         "connection_issues": connection_issues,
         "metadata_issues": metadata_issues,
+        "issues_needing_attention": issues_needing_attention,
+        "tasks_completed": 5,
         "catalog_value_change_pct": catalog_value_pct_change,
+        "catalog_value_increase": catalog_value_increase,
         "newly_detected_songs": 1,
     }
 
@@ -1304,66 +1453,6 @@ def get_rights_conflicts(songs):
 
     conflicts.sort(key=lambda c: _SEVERITY_ORDER.get(c.severity, 3))
     return conflicts
-
-
-@dataclass
-class Collaborator:
-    id: str
-    name: str
-    email: str
-    role: str  # Viewer | Editor | Admin
-    status: str  # Active | Invited | Removed
-    songs: list  # song titles this collaborator has access to
-
-
-COLLABORATOR_ROLES = ["Viewer", "Editor", "Admin"]
-
-_DEFAULT_COLLABORATORS = [
-    Collaborator("jamie-rowe", "Jamie Rowe", "jamie.rowe@example.com", "Editor", "Active", ["Midnight Drive"]),
-    Collaborator("marco-velocity", "Marco Velocity", "marco@velocitysound.com", "Viewer", "Active", ["Neon Dreams"]),
-    Collaborator("lila-rose", "Lila Rose", "lila.rose@example.com", "Viewer", "Active", ["City Lights"]),
-    Collaborator("dj-codec", "DJ Codec", "djcodec@example.com", "Viewer", "Invited", ["Digital Paradise"]),
-]
-
-_collaborators = list(_DEFAULT_COLLABORATORS)
-
-
-def get_collaborators():
-    return [c for c in _collaborators if c.status != "Removed"]
-
-
-def invite_collaborator(name, email, role, songs):
-    if not name or not email or role not in COLLABORATOR_ROLES:
-        return None
-    collaborator = Collaborator(
-        id=f"invite-{_slug(name)}-{len(_collaborators)}",
-        name=name, email=email, role=role, status="Invited", songs=songs or [],
-    )
-    _collaborators.append(collaborator)
-    return collaborator
-
-
-def update_collaborator_role(collaborator_id, role):
-    if role not in COLLABORATOR_ROLES:
-        return None
-    for i, c in enumerate(_collaborators):
-        if c.id == collaborator_id and c.status != "Removed":
-            _collaborators[i] = replace(c, role=role)
-            return _collaborators[i]
-    return None
-
-
-def remove_collaborator(collaborator_id):
-    for i, c in enumerate(_collaborators):
-        if c.id == collaborator_id and c.status != "Removed":
-            _collaborators[i] = replace(c, status="Removed")
-            return True
-    return False
-
-
-def reset_collaborator_state():
-    global _collaborators
-    _collaborators = list(_DEFAULT_COLLABORATORS)
 
 
 def get_recovery_summary(catalog, songs, earnings_trend):

@@ -1,7 +1,6 @@
 import pytest
 
 from royalty_data import (
-    HealthFactor,
     Kpi,
     Payout,
     PlatformBalance,
@@ -24,23 +23,21 @@ from royalty_data import (
     remove_split,
     reset_split_state,
     toggle_split_confirmed,
-    get_health_factors,
-    get_health_recommendations,
     get_missing_royalty_findings,
     get_payout_calendar,
     get_platform_balances,
     get_platform_catalog,
+    get_recent_payouts,
+    get_kpis,
     get_royalty_leak_alerts,
     get_smart_recommendations,
     get_song,
     get_songs,
-    meter_lit_segments,
     reject_claim,
     reset_claim_state,
     metadata_completion_score,
     registration_checklist_score,
     reset_connection_state,
-    royalty_health_score,
     royalty_progress,
     set_connection_status,
     song_check_status,
@@ -49,7 +46,6 @@ from royalty_data import (
     splits_fully_confirmed,
     total_royalties,
     upcoming_payout_total,
-    catalog_completeness_score,
     complete_registration_step,
     generate_report,
     get_available_reports,
@@ -66,14 +62,11 @@ from royalty_data import (
     reset_fix_status_state,
     reset_registration_wizard_state,
     set_fix_status,
-    COLLABORATOR_ROLES,
-    get_collaborators,
+    get_action_center,
     get_earnings_trend,
+    get_overview_health,
     get_recovery_summary,
-    invite_collaborator,
-    remove_collaborator,
-    reset_collaborator_state,
-    update_collaborator_role,
+    get_since_last_login_summary,
 )
 
 
@@ -103,18 +96,6 @@ def test_royalty_progress_capped_at_one():
 
 def test_royalty_progress_zero_goal():
     assert royalty_progress(100, 0) == 0.0
-
-
-def test_meter_lit_segments_full():
-    assert meter_lit_segments(100, 100, segments=12) == 12
-
-
-def test_meter_lit_segments_half():
-    assert meter_lit_segments(50, 100, segments=12) == 6
-
-
-def test_meter_lit_segments_zero_max():
-    assert meter_lit_segments(50, 0, segments=12) == 0
 
 
 def test_alerts_processing_payout_is_medium_severity():
@@ -218,53 +199,6 @@ def test_disconnecting_platform_removes_it():
 
 def test_set_connection_status_unknown_platform_returns_none():
     assert set_connection_status("not-a-platform", "connected") is None
-
-
-def test_health_score_within_range():
-    score = royalty_health_score(get_health_factors(get_platform_catalog()))
-    assert 0 <= score <= 100
-
-
-def test_health_score_all_perfect_is_100():
-    factors = [
-        HealthFactor("a", "A", 1.0, 0.5, "", ""),
-        HealthFactor("b", "B", 1.0, 0.5, "", ""),
-    ]
-    assert royalty_health_score(factors) == 100
-
-
-def test_health_score_all_zero_is_0():
-    factors = [HealthFactor("a", "A", 0.0, 1.0, "", "")]
-    assert royalty_health_score(factors) == 0
-
-
-def test_health_score_no_factors_is_0():
-    assert royalty_health_score([]) == 0
-
-
-def test_health_recommendations_weakest_first_and_excludes_complete():
-    factors = [
-        HealthFactor("perfect", "Perfect", 1.0, 0.25, "", "done"),
-        HealthFactor("mid", "Mid", 0.6, 0.25, "", "improve mid"),
-        HealthFactor("worst", "Worst", 0.1, 0.25, "", "fix worst"),
-    ]
-    recs = get_health_recommendations(factors)
-    assert [r.key for r in recs] == ["worst", "mid"]
-
-
-def test_health_recommendations_limit():
-    factors = [HealthFactor(str(i), str(i), i / 10, 0.1, "", "") for i in range(5)]
-    assert len(get_health_recommendations(factors, limit=2)) == 2
-
-
-def test_connecting_platform_raises_health_score():
-    try:
-        before = royalty_health_score(get_health_factors(get_platform_catalog()))
-        set_connection_status("tidal", "connected")
-        after = royalty_health_score(get_health_factors(get_platform_catalog()))
-        assert after > before
-    finally:
-        reset_connection_state()
 
 
 def test_scan_findings_include_unconnected_source():
@@ -739,20 +673,6 @@ def test_set_fix_status_rejects_invalid_status():
     assert set_fix_status("some-id", "NotAStatus") is None
 
 
-def test_catalog_completeness_score_in_range():
-    catalog = get_platform_catalog()
-    songs = get_songs()
-    docs = get_documents_vault(songs)
-    score = catalog_completeness_score(songs, catalog, docs)
-    assert 0 <= score <= 100
-
-
-def test_catalog_completeness_score_empty_songs_is_zero():
-    catalog = get_platform_catalog()
-    docs = get_documents_vault([])
-    assert catalog_completeness_score([], catalog, docs) == 0
-
-
 def test_get_documents_vault_counts_missing():
     songs = get_songs()
     vault = get_documents_vault(songs)
@@ -849,62 +769,6 @@ def test_get_rights_conflicts_empty_catalog():
     assert get_rights_conflicts([]) == []
 
 
-def test_get_collaborators_returns_seeded_list():
-    names = {c.name for c in get_collaborators()}
-    assert {"Jamie Rowe", "Marco Velocity", "Lila Rose", "DJ Codec"} <= names
-
-
-def test_invite_collaborator_adds_to_list():
-    try:
-        collaborator = invite_collaborator("New Person", "new@example.com", "Viewer", ["City Lights"])
-        assert collaborator.status == "Invited"
-        assert "New Person" in {c.name for c in get_collaborators()}
-    finally:
-        reset_collaborator_state()
-
-
-def test_invite_collaborator_rejects_invalid_role():
-    assert invite_collaborator("Someone", "s@example.com", "NotARole", []) is None
-
-
-def test_invite_collaborator_rejects_missing_name_or_email():
-    assert invite_collaborator("", "s@example.com", "Viewer", []) is None
-    assert invite_collaborator("Someone", "", "Viewer", []) is None
-
-
-def test_update_collaborator_role_changes_role():
-    try:
-        updated = update_collaborator_role("jamie-rowe", "Admin")
-        assert updated.role == "Admin"
-        assert any(c.id == "jamie-rowe" and c.role == "Admin" for c in get_collaborators())
-    finally:
-        reset_collaborator_state()
-
-
-def test_update_collaborator_role_rejects_invalid_role():
-    assert update_collaborator_role("jamie-rowe", "NotARole") is None
-
-
-def test_update_collaborator_role_unknown_id_returns_none():
-    assert update_collaborator_role("not-a-real-id", "Viewer") is None
-
-
-def test_remove_collaborator_hides_from_list():
-    try:
-        assert remove_collaborator("marco-velocity") is True
-        assert "Marco Velocity" not in {c.name for c in get_collaborators()}
-    finally:
-        reset_collaborator_state()
-
-
-def test_remove_collaborator_unknown_id_returns_false():
-    assert remove_collaborator("not-a-real-id") is False
-
-
-def test_collaborator_roles_are_stable():
-    assert COLLABORATOR_ROLES == ["Viewer", "Editor", "Admin"]
-
-
 def test_get_recovery_summary_matches_money_left_total():
     catalog = get_platform_catalog()
     songs = get_songs()
@@ -940,3 +804,75 @@ def test_get_recovery_summary_confidence_pct_in_range():
     trend = get_earnings_trend()
     summary = get_recovery_summary(catalog, songs, trend)
     assert 0 <= summary["confidence_pct"] <= 100
+
+
+def test_get_overview_health_bars_and_score():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    health = get_overview_health(catalog, songs)
+    keys = [b["key"] for b in health["bars"]]
+    assert keys == ["connections", "metadata", "registration", "splits"]
+    assert 0 <= health["score"] <= 100
+    assert all(0 <= b["pct"] <= 100 for b in health["bars"])
+    assert all(b["route"].startswith("/") for b in health["bars"])
+    assert health["band"] in ("Excellent", "Good", "Fair", "At risk")
+
+
+def test_get_overview_health_empty_songs():
+    catalog = get_platform_catalog()
+    health = get_overview_health(catalog, [])
+    assert health["bars"][1]["pct"] == 0
+
+
+def test_get_action_center_routes_and_blend():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    payouts = get_recent_payouts()
+    kpis = get_kpis()
+    balances = get_platform_balances()
+    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
+    items = get_action_center(alerts, payouts, limit=5)
+    assert len(items) <= 5
+    assert all(i["route"].startswith("/") for i in items)
+    assert any(i["kind"] == "success" for i in items)
+    connection_alert = next(i for i in items if "login expired" in i["title"] or "sync failure" in i["title"])
+    assert connection_alert["route"] == "/connections"
+
+
+def test_since_last_login_includes_overview_metrics():
+    catalog = get_platform_catalog()
+    songs = [live_song(s) for s in get_songs()]
+    summary = get_since_last_login_summary(catalog, songs, 12.5, 100000)
+    assert summary["tasks_completed"] == 5
+    assert summary["issues_needing_attention"] >= 0
+    assert summary["catalog_value_increase"] == 12500.0
+
+
+def test_get_royalties_overview_shapes_and_totals():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    trend = get_earnings_trend()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), trend, recent_payout_rows())
+    s = ov["summary"]
+    assert s["total_royalties"] == pytest.approx(total_royalties(balances), abs=0.01)
+    assert s["sources_connected"] == sum(1 for p in catalog if p.status == "connected")
+    assert s["total_sources"] == len(catalog)
+    assert 0 <= sum(r["pct_of_total"] for r in ov["by_source"]) <= 102
+    assert all(r["logo"] for r in ov["by_source"])
+
+
+def test_get_royalties_overview_groups_extra_sources_as_other():
+    from royalty_data import get_royalties_overview, recent_payout_rows, get_payout_calendar
+    balances = get_platform_balances()
+    catalog = get_platform_catalog()
+    ov = get_royalties_overview(balances, catalog, get_payout_calendar(), get_earnings_trend(), recent_payout_rows())
+    if len(balances) > 7:
+        assert ov["by_source"][-1]["name"] == "Other Sources"
+
+
+def test_platform_logo_key_maps_known_and_unknown():
+    from royalty_data import platform_logo_key
+    assert platform_logo_key("Spotify") == "spotify"
+    assert platform_logo_key("The MLC") == "mlc"
+    assert platform_logo_key("Nonexistent Platform") == "other"

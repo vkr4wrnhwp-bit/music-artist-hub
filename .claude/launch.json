@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "flask-dev",
+      "name": "sb-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["app.py"],
-      "port": 5000
+      "runtimeArgs": ["tools/dev_preview.py"],
+      "port": 5055
     }
   ]
 }

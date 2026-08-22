@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Command Center - Street Banker{% endblock %}
+
+{% block content %}
+{% if tutor %}
+<!-- Tutor mode: the whole product as an ordered walkthrough. Opt-in,
+     never gates anything, and every tick is a real query - a step is
+     done when the thing exists in the account, and comes back if the
+     thing is deleted. -->
+<section class="mb-5 rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-5">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Tutor mode</h2>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">
+        {% if tutor.complete %}
+          Every step is done. Nothing left to walk through — turn this off whenever you like.
+        {% elif tutor.next %}
+          Next up, in <span class="font-semibold text-gray-100">{{ tutor.next.stage }}</span>: {{ tutor.next.why }}
+        {% endif %}
+      </p>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-black tabular-nums text-[#e8c667]">{{ tutor.done }}<span class="text-sm text-gray-300">/{{ tutor.total }}</span></div>
+      <div class="text-[9px] uppercase tracking-[0.2em] text-gray-300 font-medium">done</div>
+    </div>
+  </div>
+
+  {% if tutor.next %}
+  <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#c9a24a]/40 bg-black/30 px-4 py-3">
+    <div class="min-w-0">
+      <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-[#e8c667]">Your next step</div>
+      <div class="mt-0.5 text-sm font-semibold text-gray-100">{{ tutor.next.title }}</div>
+    </div>
+    <a href="{{ tutor.next.href }}" class="shrink-0 rounded-lg bg-[#c9a24a] px-4 py-2 text-[11px] font-black uppercase tracking-wide text-black hover:brightness-110">{{ tutor.next.cta }}</a>
+  </div>
+  {% endif %}
+
+  <div class="mt-4 space-y-3">
+    {% for stage in tutor.stages %}
+    <details {{ 'open' if not stage.complete and tutor.next and tutor.next.stage == stage.name }}>
+      <summary class="flex cursor-pointer items-center gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border {{ 'border-green-500/60 bg-green-500/20' if stage.complete else 'border-white/20' }}">
+          {% if stage.complete %}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4ade80" stroke-width="2.5"><path d="M2 6l3 3 5-6"/></svg>{% endif %}
+        </span>
+        <span class="min-w-0 flex-1 text-sm font-semibold {{ 'text-gray-300' if stage.complete else 'text-gray-100' }}">{{ stage.name }}</span>
+        <span class="text-[10px] text-gray-300 font-medium">{{ stage.purpose }}</span>
+        <span class="shrink-0 text-[11px] font-bold tabular-nums text-[#e8c667]">{{ stage.done }}/{{ stage.total }}</span>
+      </summary>
+      <ol class="mt-1.5 space-y-1.5 pl-2">
+        {% for step in stage.steps %}
+        <li class="flex items-start gap-3 rounded-lg border px-3 py-2.5
+                   {{ 'border-white/5 bg-black/20' if step.done
+                      else ('border-[#c9a24a]/30 bg-black/30' if tutor.next and step.key == tutor.next.key
+                            else 'border-white/10 bg-black/20') }}">
+          <span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border
+                       {{ 'border-green-500/60 bg-green-500/20' if step.done else 'border-white/20' }}">
+            {% if step.done %}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4ade80" stroke-width="2.5"><path d="M2 6l3 3 5-6"/></svg>{% endif %}
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if step.done else 'text-gray-100' }}">{{ step.title }}</div>
+            {% if not step.done %}<div class="mt-0.5 text-[11px] leading-relaxed text-gray-300 font-medium">{{ step.why }}</div>{% endif %}
+          </div>
+          {% if not step.done %}
+          <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black
+             {{ 'bg-[#c9a24a] text-black hover:brightness-110' if tutor.next and step.key == tutor.next.key
+                else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </details>
+    {% endfor %}
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+    <p class="text-[10px] text-gray-300 font-medium">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back. Nothing here is locked; this panel only suggests.</p>
+    <form method="post" action="/tutor/toggle">
+      <input type="hidden" name="on" value="0">
+      <input type="hidden" name="back" value="/command-center">
+      <button type="submit" class="rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-300 hover:text-white">Turn off tutor mode</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% if firstrun %}
+<!-- Start here: derived from what the account actually has, and gone for
+     good once enough of it exists. -->
+<section class="mb-5 rounded-2xl border border-[#c9a24a]/30 bg-gradient-to-b from-[#141209] to-[#0c0b08] p-5">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#e8c667]">Start here</h2>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">
+        {% if firstrun.fresh %}
+          This is a big app and it is completely empty, which makes it hard to know where to start. Five things, in the order that makes each one useful.
+        {% else %}
+          {{ firstrun.remaining }} to go. This panel disappears on its own once the essentials are in — it is not something you have to dismiss.
+        {% endif %}
+      </p>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-black tabular-nums text-[#e8c667]">{{ firstrun.done }}<span class="text-sm text-gray-300">/{{ firstrun.total }}</span></div>
+      <div class="text-[9px] uppercase tracking-[0.2em] text-gray-300 font-medium">done</div>
+    </div>
+  </div>
+
+  <ol class="mt-4 space-y-1.5">
+    {% for step in firstrun.steps %}
+    <li class="flex items-start gap-3 rounded-lg border px-3 py-2.5
+               {{ 'border-white/5 bg-black/20' if step.done
+                  else ('border-[#c9a24a]/30 bg-black/30' if step.key == firstrun.next.key
+                        else 'border-white/10 bg-black/20') }}">
+      <span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border
+                   {{ 'border-green-500/60 bg-green-500/20' if step.done else 'border-white/20' }}">
+        {% if step.done %}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#4ade80" stroke-width="2.5"><path d="M2 6l3 3 5-6"/></svg>{% endif %}
+      </span>
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if step.done else 'text-gray-100' }}">{{ step.title }}</div>
+        {% if not step.done %}<div class="mt-0.5 text-[11px] leading-relaxed text-gray-300 font-medium">{{ step.why }}</div>{% endif %}
+      </div>
+      {% if not step.done %}
+      <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black
+         {{ 'bg-[#c9a24a] text-black hover:brightness-110' if step.key == firstrun.next.key
+            else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  <p class="mt-3 text-[10px] text-gray-300 font-medium">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back. Press <kbd class="rounded border border-white/15 px-1 text-gray-300">Ctrl</kbd>+<kbd class="rounded border border-white/15 px-1 text-gray-300">K</kbd> any time to jump straight to a page.</p>
+</section>
+{% endif %}
+
+<div class="mx-auto max-w-[1300px] space-y-5">
+  <div>
+    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker</div>
+    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Command Center</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">Everything that matters today — every card links to the move that fixes it.</p>
+    <a href="/walkthrough" class="mt-2 inline-block text-[11px] font-bold text-[#e8c667] hover:underline">New here? Take the walkthrough →</a>
+    {% if not tutor %}
+    <form method="post" action="/tutor/toggle" class="mt-1">
+      <input type="hidden" name="on" value="1">
+      <input type="hidden" name="back" value="/command-center">
+      <button type="submit" class="text-[11px] font-bold text-[#e8c667] hover:underline">Or turn on tutor mode — a step-by-step guide through the whole desk →</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% include "partials/signal_profile_card.html" %}
+
+  <!-- Unified scores -->
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    <a href="/links" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Smart Link Score</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.links_score >= 70 else 'text-[#e8c667]' }}">{{ summary.links_score }}</div>
+      <div class="text-[10px] text-gray-300 font-medium">{{ summary.campaign_count }} campaign{{ 's' if summary.campaign_count != 1 }}</div>
+    </a>
+    <a href="/releases/clean-release" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Release Readiness</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.next_release and summary.next_release.score >= 70 else 'text-[#e8c667]' }}">{{ summary.next_release.score if summary.next_release else '—' }}</div>
+      <div class="truncate text-[10px] text-gray-300 font-medium">{{ summary.next_release.title if summary.next_release else 'No upcoming release' }}</div>
+    </a>
+    <a href="/catalog" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Catalog Health</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-green-400' if summary.catalog_health >= 70 else 'text-[#e8c667]' }}">{{ summary.catalog_health }}%</div>
+      <div class="text-[10px] text-gray-300 font-medium">{{ summary.catalog_count }} tracks · ISRC coverage</div>
+    </a>
+    <a href="/links/fans" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Fans Owned</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums text-[#e8c667]">{{ summary.fan_count }}</div>
+      <div class="text-[10px] text-gray-300 font-medium">{{ summary.hot_fans }} hot / superfan</div>
+    </a>
+    <a href="/links" class="rounded-2xl border border-white/5 bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Link Traffic</div>
+      <div class="mt-2 text-2xl font-bold tabular-nums">{{ summary.visits }}</div>
+      <div class="text-[10px] text-gray-300 font-medium">{{ summary.clicks }} service clicks</div>
+    </a>
+    <a href="/qualification" class="rounded-2xl border border-[#c9a24a]/30 bg-[#141210] p-4 transition-colors hover:border-[#c9a24a]/60">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#e8c667]">SB Qualification</div>
+      <div class="mt-2 text-2xl font-black tabular-nums {{ 'text-green-400' if summary.qualification >= 75 else 'text-[#e8c667]' }}">{{ summary.qualification }}</div>
+      <div class="text-[10px] text-gray-300 font-medium">Growth score — unlocks reach</div>
+    </a>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <!-- Today's priorities: derived alerts -->
+    <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141210] p-5">
+      <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-[#e8c667]">Today's Priorities</h2>
+      {% if cc_alerts %}
+      <div class="mt-3 space-y-2.5">
+        {% for severity, title, rec, link, category in cc_alerts %}
+        <div class="rounded-xl border border-white/10 bg-black/30 p-3.5">
+          <div class="flex items-start gap-2">
+            <span class="mt-1 h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if severity == 'high' else 'bg-amber-500' }}"></span>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-gray-100">{{ title }}</div>
+              <div class="mt-0.5 text-xs text-gray-300">{{ rec }}</div>
+              <div class="mt-2 flex gap-2">
+                <a href="{{ link }}" class="rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Fix now →</a>
+                <form method="post" action="/actions/from-alert">
+                  <input type="hidden" name="title" value="{{ title }}">
+                  <input type="hidden" name="description" value="{{ rec }}">
+                  <input type="hidden" name="category" value="{{ category }}">
+                  <button class="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-semibold text-gray-200 hover:bg-white/5">Create action</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-xs text-green-400">Nothing on fire — every live campaign is capturing fans and fully set up.</p>
+      {% endif %}
+    </section>
+
+    <!-- Open actions + upcoming releases -->
+    <div class="space-y-5">
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Open Actions</h2>
+          <a href="/actions" class="text-[11px] font-semibold text-[#e8c667] hover:underline">All actions →</a>
+        </div>
+        {% if cc_actions %}
+        <div class="mt-3 space-y-2">
+          {% for a in cc_actions %}
+          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
+            <span class="min-w-0 flex-1 truncate font-semibold text-gray-200">{{ a.title }}</span>
+            <span class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-300">{{ a.category }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="mt-3 text-xs text-gray-300">No open actions. Alerts and checklists can create them.</p>
+        {% endif %}
+      </section>
+
+      <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
+        <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">Upcoming Releases</h2>
+        {% if summary.upcoming %}
+        <div class="mt-3 space-y-2">
+          {% for u in summary.upcoming %}
+          <a href="/releases/autopilot?campaign={{ u.id }}" class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs transition-colors hover:border-[#c9a24a]/40">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#c9a24a]/15 text-sm font-black tabular-nums text-[#e8c667]">{{ u.days }}<span class="sr-only"> days</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold text-gray-200">{{ u.title }}</span>
+              <span class="text-[10px] text-gray-300 font-medium">{{ u.days }} day{{ 's' if u.days != 1 }} out · readiness {{ u.score }}/100</span>
+            </span>
+            <span class="shrink-0 text-[11px] font-bold text-[#e8c667]">Autopilot →</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="mt-3 text-xs text-gray-300">No dated releases. Set a release date on a Links campaign to activate countdowns and autopilot.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+
+  <!-- Module grid -->
+  <section>
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-300">The Operating System</h2>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for route, name, blurb, status, disc in modules %}
+      <a href="{{ route }}" class="rounded-xl border {{ 'border-white/10' if status == 'live' else 'border-white/5' }} bg-[#111113] p-4 transition-colors hover:border-[#c9a24a]/40">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-sm font-bold {{ 'text-gray-100' if status == 'live' else 'text-gray-300' }}">{{ name }}</span>
+          <span class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'live' else 'bg-white/10 text-gray-300' }}">{{ status }}</span>
+        </div>
+        <p class="mt-1 line-clamp-2 text-[11px] text-gray-300 font-medium">{{ blurb }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

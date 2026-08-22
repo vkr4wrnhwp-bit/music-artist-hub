@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if mode == 'pin' %}{{ gate_title or 'Private One-Sheet' }}{% else %}{{ owner.name or 'Artist' }} — One-Sheet · Street Banker{% endif %}</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/css/tailwind.css?v=24">
+<style>
+  body { background:#0a0a09; color:#e8e6e1; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .gold { color:#e8c667; }
+</style>
+</head>
+<body class="p-4 sm:p-8">
+
+{% if mode == 'pin' %}
+<main class="mx-auto mt-16 w-full max-w-sm rounded-2xl border border-[#c9a24a]/30 bg-[#0f0e0c] p-8 text-center">
+  <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">{{ gate_title or "Private One-Sheet" }}</div>
+  <h1 class="mt-2 text-xl font-black">{{ artist or 'This artist' }}</h1>
+  <p class="mt-2 text-sm text-gray-300">This page is PIN-protected. Enter the PIN the artist shared with you.</p>
+  {% if bad_pin %}<p class="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">That PIN didn't match. Check it and try again.</p>{% endif %}
+  <form method="post" action="{{ request.path }}" class="mt-4 flex gap-2">
+    <input name="pin" inputmode="numeric" autocomplete="one-time-code" required placeholder="PIN"
+           class="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-center text-lg font-black tracking-[0.4em] text-white placeholder-gray-300 focus:border-[#c9a24a] focus:outline-none">
+    <button class="rounded-lg bg-[#d8b25a] px-5 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Open</button>
+  </form>
+</main>
+
+{% else %}
+<main class="mx-auto w-full max-w-[820px] rounded-2xl border border-[#c9a24a]/30 bg-[#0f0e0c] overflow-hidden">
+
+  {% if share.banner %}
+  <div class="h-52 w-full bg-black/40 sm:h-64">
+    <img src="{{ share.banner }}" alt="" class="h-full w-full object-cover">
+  </div>
+  {% endif %}
+
+  <div class="p-6 sm:p-10">
+    <div class="flex flex-wrap items-end justify-between gap-3 border-b border-[#c9a24a]/30 pb-5">
+      <div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Artist One-Sheet</div>
+        <h1 class="mt-1 text-3xl font-black uppercase tracking-tight">{{ owner.name or 'Artist' }}</h1>
+        <p class="mt-1 text-xs text-gray-300">Live as of {{ today }} · every figure on this page is computed from this artist's real catalog records on Street Banker.</p>
+      </div>
+      <div class="text-right">
+        <div class="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-300">Certification</div>
+        <div class="text-xl font-black text-[#e8c667]">{{ cert.level }}</div>
+      </div>
+    </div>
+
+    <!-- Catalog readiness -->
+    <div class="mt-5 grid grid-cols-3 gap-3">
+      <div class="rounded-xl border border-[#c9a24a]/30 bg-[#141209] p-3.5 text-center">
+        <div class="text-2xl font-black tabular-nums">{{ summary.tracks }}</div>
+        <div class="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">Tracks on file</div>
+      </div>
+      <div class="rounded-xl border border-[#c9a24a]/30 bg-[#141209] p-3.5 text-center">
+        <div class="text-2xl font-black tabular-nums">{{ summary.passport_avg }}%</div>
+        <div class="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">Passport complete</div>
+      </div>
+      <div class="rounded-xl border border-[#c9a24a]/30 bg-[#141209] p-3.5 text-center">
+        <div class="text-2xl font-black tabular-nums">{{ summary.clean_avg }}</div>
+        <div class="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300">Clean Release avg</div>
+      </div>
+    </div>
+
+    {% if share.audio %}
+    <div class="mt-6">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Listen</h2>
+      <div class="mt-2 space-y-3">
+        {% for a in share.audio %}
+        <div class="rounded-xl border border-white/10 bg-black/30 p-3">
+          <div class="mb-1.5 text-sm font-bold">{{ a.label }}</div>
+          <audio controls preload="none" src="{{ a.path }}" class="w-full"></audio>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if reports %}
+    <div class="mt-6">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Release-ready catalog</h2>
+      <div class="mt-2 divide-y divide-white/5">
+        {% for r in reports %}
+        <div class="flex items-center gap-3 py-2">
+          <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ 'bg-green-500' if not r.clean.blocked and r.clean.score >= 80 else 'bg-amber-400' }}"></span>
+          <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.t.title }}</span>
+          <span class="text-[11px] tabular-nums text-gray-300 font-medium">Clean Release {{ r.clean.score }}/100</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if upcoming %}
+    <div class="mt-6">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Scheduled releases</h2>
+      <div class="mt-2 divide-y divide-white/5">
+        {% for c in upcoming %}
+        <div class="flex items-baseline gap-3 py-1.5">
+          <span class="w-24 shrink-0 text-sm font-black tabular-nums">{{ c.release_date }}</span>
+          <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ c.title }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Pitch -->
+    <div class="mt-8 rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-5">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Reach out</h2>
+      {% if sent %}
+      <p class="mt-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-sm font-bold text-green-400">Sent. Your message is in {{ owner.name or 'the artist' }}'s Street Banker inbox.</p>
+      {% else %}
+      <p class="mt-1 text-xs text-gray-300">Goes straight to {{ owner.name or 'the artist' }}'s inbox on Street Banker — no address book required.</p>
+      <form method="post" action="/sheet/{{ token }}/pitch" class="mt-3 space-y-3">
+        <input type="text" name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <input name="name" placeholder="Your name" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-[#c9a24a] focus:outline-none">
+          <input name="email" type="email" required placeholder="Your email" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-[#c9a24a] focus:outline-none">
+        </div>
+        <textarea name="message" required rows="3" placeholder="What do you want to discuss?" class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-[#c9a24a] focus:outline-none"></textarea>
+        <button class="rounded-lg bg-[#d8b25a] px-5 py-2.5 text-sm font-black text-[#1c1302] hover:bg-[#e5c878]">Send message</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <p class="mt-6 border-t border-white/10 pt-4 text-center text-[9px] uppercase tracking-[0.25em] text-gray-300 font-medium">Powered by Street Banker · Royalty Sweep</p>
+  </div>
+</main>
+{% endif %}
+
+</body>
+</html>
