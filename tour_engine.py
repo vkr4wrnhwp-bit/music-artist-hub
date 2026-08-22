@@ -867,6 +867,7 @@ CSV_ALIASES = {
     "fee": ("fee", "guarantee", "money", "artist fee", "devora $$", "support $$", "$$"),
     "merch": ("merch rate", "merch", "merch split", "merchandise"),
     "ticket_url": ("ticket link", "tickets", "ticket url", "on sale link"),
+    "support": ("support", "bill", "lineup", "line-up", "with", "special guests"),
 }
 
 
@@ -922,6 +923,7 @@ def parse_csv_rows(text):
                      "promoter": pick(raw, "promoter"), "capacity": pick(raw, "capacity"),
                      "status": pick(raw, "status"), "fee": pick(raw, "fee"),
                      "merch": pick(raw, "merch"), "ticket_url": pick(raw, "ticket_url"),
+                     "support": pick(raw, "support"),
                      "line": i})
     return rows, problems
 
@@ -1097,7 +1099,8 @@ def dedupe_against(rows, existing_shows, existing_days):
     different venue/city."""
     by_date = {}
     for s in existing_shows:
-        by_date.setdefault(s["date"], []).append({"venue": s["venue"], "city": s.get("city") or "", "kind": "show"})
+        by_date.setdefault(s["date"], []).append({"venue": s["venue"], "city": s.get("city") or "",
+                                                  "kind": "show", "id": s["id"]})
     for d in existing_days:
         if not d.get("show_id"):
             by_date.setdefault(d["date"], []).append({"venue": "", "city": d.get("city") or "", "kind": d["kind"]})
@@ -1107,6 +1110,10 @@ def dedupe_against(rows, existing_shows, existing_days):
             if r["kind"] == "show" and e["kind"] == "show":
                 if (e["venue"] or "").strip().lower() == (r["venue"] or "").strip().lower():
                     r["verdict"] = "duplicate"
+                    # A re-sent deal sheet is the normal way a hold becomes
+                    # a confirmation. Carrying the id lets the import fill
+                    # the date in rather than only skipping it.
+                    r["match_id"] = e.get("id") or ""
                     break
                 r["verdict"] = "conflict"
                 r["conflict_with"] = e

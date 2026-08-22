@@ -2003,6 +2003,100 @@ def _urlq(s):
 
 # --- import -----------------------------------------------------------------
 
+# Forward only. A sheet that still says "hold" must not walk a show that
+# has since been advanced or played back down the list.
+_STATUS_ORDER = ["hold", "confirmed", "advanced", "played", "settled"]
+
+
+def _fill_existing_show(tour, tour_id, row):
+    """Fill the fields this show has NOT got from an imported row.
+
+    Returns how many fields were filled. Existing values are left alone —
+    a deal sheet can be weeks old, and whatever is on the show now was
+    either typed by a person or imported from something newer.
+    """
+    show = ts.get_show(tour_id, row["match_id"])
+    if show is None:
+        return 0
+    want = _import_ext(row)
+    patch = {k: v for k, v in want.items() if v and not (show.get(k) or "").strip()}
+    n = 0
+    if patch:
+        ts.update_show_ext(tour_id, row["match_id"], patch)
+        n += len(patch)
+    status = _import_status(row.get("status"))
+    if status:
+        now = (show.get("status") or "hold").strip()
+        try:
+            ahead = _STATUS_ORDER.index(status) > _STATUS_ORDER.index(now)
+        except ValueError:
+            ahead = False
+        if ahead:
+            store.update_tour_show_status(tour["user_id"], row["match_id"], status)
+            n += 1
+    return n
+
+
+_MONEY_ONLY = re.compile(r"^\$?\s*([\d,]+(?:\.\d{1,2})?)\s*$")
+
+
+def _import_ext(row):
+    """The deal a routing sheet carries, filed where it stays readable.
+
+    A fee is often a sentence, not a number — "15% NBOR capped at $500",
+    "TBC". A merch rate almost always is: "90/10, 100% CD/DVD, Artist
+    Sells". Forcing either into a numeric column loses the deal, so a
+    plain amount goes to `guarantee` and anything else is kept verbatim
+    in a text field beside it. Nothing is dropped and nothing is guessed.
+    """
+    out = {}
+    for key in ("promoter", "capacity", "support"):
+        if row.get(key):
+            out[key] = row[key]
+    url = (row.get("ticket_url") or "").strip()
+    if re.match(r"^https?://", url, re.I):
+        out["ticket_url"] = url
+    fee = (row.get("fee") or "").strip()
+    if fee:
+        m = _MONEY_ONLY.match(fee)
+        if m:
+            out["guarantee"] = m.group(1).replace(",", "")
+        else:
+            out["fee_note"] = fee          # a percentage, a cap, or "TBC"
+    if row.get("merch"):
+        out["merch_rate"] = row["merch"]
+    # Where a sheet said something the status vocabulary cannot hold — a
+    # hold level, a challenge — keep the words so nobody has to go back to
+    # the spreadsheet to find out what "hold" meant.
+    status = (row.get("status") or "").strip()
+    if status and _import_status(status) == "hold":
+        out["source_note"] = status
+    return out
+
+
+def _import_status(raw):
+    """A show status from what a deal sheet actually writes. Returns None
+    when the sheet said nothing, so an import never overrides a status
+    somebody set by hand with a guess."""
+    s = (raw or "").strip().lower()
+    if not s:
+        return None
+    if "confirm" in s:
+        return "confirmed"
+    if "cancel" in s or "dead" in s or "pass" in s:
+        return None                        # not a status this module has
+    if "settle" in s:
+        return "settled"
+    if "played" in s:
+        return "played"
+    if "advanc" in s:
+        return "advanced"
+    # "3H Challenged", "2H", "1H", "HOLD", "OPTION" — all still a hold.
+    if re.search(r"\b\d\s*h\b|hold|challeng|option|pencil", s):
+        return "hold"
+    return None
+
+
 @bp.route("/tours/<tour_id>/import", methods=["GET", "POST"])
 @require_tour("edit")
 def import_dates(user, tour, viewer, tour_id):
@@ -2035,16 +2129,38 @@ def import_dates(user, tour, viewer, tour_id):
     rows = eng.dedupe_against(rows, shows, days)
     if request.form.get("action") == "confirm":
         picked = set(request.form.getlist("pick"))
-        created = {"shows": 0, "days": 0, "skipped": 0}
+        created = {"shows": 0, "days": 0, "skipped": 0, "updated": 0, "filled": 0}
+        fill_existing = request.form.get("fill_existing") == "1"
         for i, r in enumerate(rows):
-            if str(i) not in picked or r["verdict"] == "duplicate":
+            if str(i) not in picked:
+                created["skipped"] += 1
+                continue
+            if r["verdict"] == "duplicate":
+                # The date is already here. A re-sent deal sheet is how a
+                # hold becomes a confirmation, so rather than only skipping
+                # it, fill in what the show is MISSING. Never overwrite a
+                # value somebody typed: a sheet can be stale, and a hand
+                # edit is a decision.
+                if fill_existing and r.get("match_id") and r["kind"] == "show":
+                    filled = _fill_existing_show(tour, tour_id, r)
+                    created["filled"] += filled
+                    if filled:
+                        created["updated"] += 1
+                        continue
                 created["skipped"] += 1
                 continue
             if r["kind"] == "show":
                 sid = store.add_tour_show(tour["user_id"], r["date"], r["venue"] or "TBA", r["city"], r["notes"])
                 ts.attach_show(tour_id, sid, r["tz"] if eng.valid_tz(r["tz"]) else "")
-                if r.get("promoter") or r.get("capacity"):
-                    ts.update_show_ext(tour_id, sid, {"promoter": r.get("promoter", ""), "capacity": r.get("capacity", "")})
+                ext = _import_ext(r)
+                if ext:
+                    ts.update_show_ext(tour_id, sid, ext)
+                # A deal sheet says which dates are actually confirmed. It
+                # used to be read and thrown away, so every imported show
+                # started as a hold no matter what the sheet said.
+                status = _import_status(r.get("status"))
+                if status:
+                    store.update_tour_show_status(tour["user_id"], sid, status)
                 created["shows"] += 1
             else:
                 ts.add_day(tour_id, tour["user_id"], r["date"], r["kind"], r["venue"] or r["kind"].title(),
@@ -2053,7 +2169,9 @@ def import_dates(user, tour, viewer, tour_id):
         ts.record_import(tour_id, tour["user_id"], source, filename, text,
                          {"created": created, "problems": problems[:20], "rows": len(rows)})
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "import", "", filename or source, "imported", "",
-                      "%d shows, %d days" % (created["shows"], created["days"]), "info", "import")
+                      "%d shows, %d days, %d dates filled in (%d fields)"
+                      % (created["shows"], created["days"], created["updated"], created["filled"]),
+                      "info", "import")
         return redirect("/tours/%s/calendar" % tour_id)
     return render_template("tour/import.html", **_ctx(
         user, tour, viewer, "import", shows=shows, history=history, preview=rows, problems=problems,

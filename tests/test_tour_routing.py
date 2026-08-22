@@ -304,3 +304,133 @@ def test_every_writable_show_field_can_be_read_back(flask_app):
     got = ts.get_show(tid, sid)
     missing = [f for f in probe if f not in got or got.get(f) is None]
     assert not missing, "written but unreadable: %s" % missing
+
+
+# --- the import has to keep the deal, not just the dates --------------------
+
+def test_importing_a_deal_sheet_keeps_the_deal(flask_app):
+    """The confirm step used to apply promoter and capacity and throw the
+    rest away — so a sheet carrying fees, merch rates, ticket links and
+    hold statuses imported as 36 bare holds."""
+    import tour_os
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    sheet = ("DATE\tCITY\tVENUE\tCAPACITY\tSTATUS\tFEE\tMERCH RATE\tSUPPORT\tTICKET LINK\n"
+             "2030-05-02\tChicago, IL\tBottom Lounge\t700\tCONFIRMED\t$500\t"
+             "100%, Artist Sells\tDEVORA, CHRIZ AMAYA\thttps://example.com/tix\n"
+             "2030-05-03\tColumbus, OH\tSkully's\t500\tCONFIRMED\t15% NBOR capped at $500\t"
+             "90/10, 100% CD/DVD\tDEVORA\t\n"
+             "2030-05-04\tSt. Paul, MN\tTurf Club\t350\t3H Challenged\tTBC\t\t\t\n")
+    r = client.post("/tours/%s/import" % tid,
+                    data={"source": "csv", "text": sheet, "action": "confirm",
+                          "pick": ["0", "1", "2"]})
+    assert r.status_code == 302
+    shows = {s["venue"]: s for s in ts.list_shows(tid)}
+    assert len(shows) == 3
+
+    # A plain amount is a number; a sentence is kept verbatim beside it.
+    assert shows["Bottom Lounge"]["guarantee"] == "500"
+    assert shows["Skully's"]["fee_note"] == "15% NBOR capped at $500"
+    assert not shows["Skully's"]["guarantee"]
+    assert shows["Turf Club"]["fee_note"] == "TBC"
+
+    # A merch rate is a sentence on every real sheet.
+    assert shows["Bottom Lounge"]["merch_rate"] == "100%, Artist Sells"
+    assert shows["Skully's"]["merch_rate"] == "90/10, 100% CD/DVD"
+
+    assert shows["Bottom Lounge"]["support"] == "DEVORA, CHRIZ AMAYA"
+    assert shows["Bottom Lounge"]["ticket_url"] == "https://example.com/tix"
+    assert shows["Bottom Lounge"]["capacity"] == "700"
+
+    # The sheet says which dates are real. A confirmed show must not
+    # import as a hold, and a hold must keep the level it was written at.
+    assert shows["Bottom Lounge"]["status"] == "confirmed"
+    assert shows["Turf Club"]["status"] == "hold"
+    assert shows["Turf Club"]["source_note"] == "3H Challenged"
+
+
+def test_the_import_never_stores_a_dangerous_ticket_link(flask_app):
+    import tour_os
+    assert tour_os._import_ext({"ticket_url": "javascript:alert(1)"}) == {}
+    assert tour_os._import_ext({"ticket_url": "data:text/html,<script>"}) == {}
+    assert tour_os._import_ext({"ticket_url": "https://ok.example/x"})["ticket_url"]
+
+
+def test_hold_levels_a_real_sheet_writes(flask_app):
+    import tour_os
+    for raw, want in [("CONFIRMED", "confirmed"), ("confirmed", "confirmed"),
+                      ("3H Challenged", "hold"), ("2H Challenged", "hold"),
+                      ("1H", "hold"), ("HOLD", "hold"), ("Pencilled", "hold"),
+                      ("Option", "hold"), ("Advanced", "advanced"),
+                      ("Played", "played"), ("Settled", "settled"),
+                      ("", None), (None, None), ("Cancelled", None)]:
+        assert tour_os._import_status(raw) == want, raw
+
+
+def test_a_re_sent_deal_sheet_fills_in_dates_you_already_have(flask_app):
+    """Importing the same sheet twice used to be pointless: dedupe marked
+    every row a duplicate and the confirm step skipped it. But a re-sent
+    sheet is exactly how a hold becomes a confirmation — and it is how you
+    recover when the first import predated the columns it carries."""
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+
+    # First pass: dates only, the way an early import lands.
+    bare = ("DATE\tCITY\tVENUE\n"
+            "2030-05-02\tChicago, IL\tBottom Lounge\n"
+            "2030-05-03\tColumbus, OH\tSkully's\n")
+    client.post("/tours/%s/import" % tid,
+                data={"source": "csv", "text": bare, "action": "confirm", "pick": ["0", "1"]})
+    shows = {s["venue"]: s for s in ts.list_shows(tid)}
+    assert len(shows) == 2
+    assert not shows["Bottom Lounge"]["guarantee"] and not shows["Bottom Lounge"]["merch_rate"]
+
+    # Somebody then types a fee by hand on one of them, and advances it.
+    ts.update_show_ext(tid, shows["Bottom Lounge"]["id"], {"guarantee": "750"})
+    store.update_tour_show_status(owner["id"], shows["Bottom Lounge"]["id"], "advanced")
+
+    # Second pass: the full sheet, same dates and venues.
+    full = ("DATE\tCITY\tVENUE\tCAPACITY\tSTATUS\tFEE\tMERCH RATE\tSUPPORT\tTICKET LINK\n"
+            "2030-05-02\tChicago, IL\tBottom Lounge\t700\tCONFIRMED\t$500\t"
+            "100%, Artist Sells\tDEVORA\thttps://example.com/a\n"
+            "2030-05-03\tColumbus, OH\tSkully's\t500\tCONFIRMED\t$350\t90/10\tDEVORA\t"
+            "https://example.com/b\n")
+    r = client.post("/tours/%s/import" % tid,
+                    data={"source": "csv", "text": full, "action": "confirm",
+                          "pick": ["0", "1"], "fill_existing": "1"})
+    assert r.status_code == 302
+    after = {s["venue"]: s for s in ts.list_shows(tid)}
+    # No duplicates created.
+    assert len(after) == 2
+
+    # Empty fields filled on both.
+    assert after["Skully's"]["guarantee"] == "350"
+    assert after["Skully's"]["merch_rate"] == "90/10"
+    assert after["Skully's"]["ticket_url"] == "https://example.com/b"
+    assert after["Skully's"]["support"] == "DEVORA"
+    assert after["Skully's"]["capacity"] == "500"
+    assert after["Skully's"]["status"] == "confirmed"
+
+    # The hand-typed fee is NOT overwritten by the sheet.
+    assert after["Bottom Lounge"]["guarantee"] == "750"
+    # ...but the fields it did not have are filled.
+    assert after["Bottom Lounge"]["merch_rate"] == "100%, Artist Sells"
+    assert after["Bottom Lounge"]["capacity"] == "700"
+    # ...and a status never walks backwards: advanced stays advanced even
+    # though the sheet says confirmed.
+    assert after["Bottom Lounge"]["status"] == "advanced"
+
+
+def test_filling_in_is_opt_in(flask_app):
+    """Without the box ticked the old behaviour stands, so an import can
+    never quietly rewrite dates somebody did not mean to touch."""
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    bare = "DATE\tCITY\tVENUE\n2030-05-02\tChicago, IL\tBottom Lounge\n"
+    client.post("/tours/%s/import" % tid,
+                data={"source": "csv", "text": bare, "action": "confirm", "pick": ["0"]})
+    full = ("DATE\tCITY\tVENUE\tFEE\n2030-05-02\tChicago, IL\tBottom Lounge\t$500\n")
+    client.post("/tours/%s/import" % tid,
+                data={"source": "csv", "text": full, "action": "confirm", "pick": ["0"]})
+    shows = ts.list_shows(tid)
+    assert len(shows) == 1 and not shows[0]["guarantee"]

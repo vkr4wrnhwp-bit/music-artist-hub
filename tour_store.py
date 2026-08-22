@@ -644,7 +644,9 @@ def init_tour():
         # Added after the first release; ALTER is the migration.
         for col in ("support TEXT NOT NULL DEFAULT ''",
                     "source_note TEXT NOT NULL DEFAULT ''",
-                    "vip_ticket_url TEXT NOT NULL DEFAULT ''"):
+                    "vip_ticket_url TEXT NOT NULL DEFAULT ''",
+                    "merch_rate TEXT NOT NULL DEFAULT ''",
+                    "fee_note TEXT NOT NULL DEFAULT ''"):
             try:
                 db.execute("ALTER TABLE tour_show_ext ADD COLUMN %s" % col)
             except Exception:
@@ -967,7 +969,7 @@ def list_shows(tour_id):
             # here on purpose. That is a good rule and it has a cost: a
             # field written by update_show_ext but missed here reads back
             # as None forever, which is how `support` first behaved.
-            "e.support, e.source_note, e.vip_ticket_url, "
+            "e.support, e.source_note, e.vip_ticket_url, e.merch_rate, e.fee_note, "
             "e.ticket_status, e.tickets_sold, e.guest_allocation, e.guest_cutoff, "
             "e.deal_type, e.guarantee, e.backend_pct, e.bonus, e.deposit_required, "
             "e.deposit_received, e.deposit_date, e.ticket_gross, e.adjusted_gross, "
@@ -1008,7 +1010,7 @@ def show_tour_id(show_id):
 # cannot live on the tour.  `source_note` records where a value came from
 # when two sheets disagreed, so nobody has to re-litigate it later.
 EXT_FIELDS = ["venue_id", "promoter", "capacity", "ticket_url", "ticket_status",
-              "support", "source_note", "vip_ticket_url",
+              "support", "source_note", "vip_ticket_url", "merch_rate", "fee_note",
               "tickets_sold", "guest_allocation", "guest_cutoff", "deal_type",
               "guarantee", "backend_pct", "bonus", "deposit_required",
               "deposit_received", "deposit_date", "ticket_gross", "adjusted_gross",
