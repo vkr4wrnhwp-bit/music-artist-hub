@@ -218,7 +218,16 @@ def save(fname, data, content_type=None, uploads_dir=None):
                         fname, type(exc).__name__)
 
     if uploads_dir:
-        with open(os.path.join(uploads_dir, fname), "wb") as fh:
+        # A key may be a path ("beats/<user>/<id>.wav") because that is
+        # how it wants to live in a bucket. On disk those segments are
+        # real directories, and open() will not make them: without this,
+        # every nested key raised FileNotFoundError while the R2 path
+        # accepted the same key happily.
+        dest = os.path.join(uploads_dir, *fname.split("/"))
+        parent = os.path.dirname(dest)
+        if parent and parent != uploads_dir:
+            os.makedirs(parent, exist_ok=True)
+        with open(dest, "wb") as fh:
             fh.write(data)
         return "/uploads/" + fname
 
@@ -390,8 +399,26 @@ def remove(path, uploads_dir=None):
             return False
     if uploads_dir and path and path.startswith("/uploads/"):
         try:
-            os.remove(os.path.join(uploads_dir, os.path.basename(path)))
+            # basename() would miss a nested key entirely and delete
+            # nothing while reporting success. relpath() also refuses to
+            # escape the uploads directory.
+            os.remove(safe_local_path(path, uploads_dir))
             return True
-        except OSError:
+        except (OSError, ValueError):
             return False
     return False
+
+
+def safe_local_path(path, uploads_dir):
+    """The on-disk location for a "/uploads/..." path, or ValueError.
+
+    The key may be nested, so this joins every segment — and then checks
+    the result is still inside uploads_dir, so a stored path that somehow
+    contains ".." cannot reach the rest of the filesystem.
+    """
+    rel = path[len("/uploads/"):]
+    dest = os.path.abspath(os.path.join(uploads_dir, *rel.split("/")))
+    root = os.path.abspath(uploads_dir)
+    if not (dest == root or dest.startswith(root + os.sep)):
+        raise ValueError("path escapes the uploads directory")
+    return dest

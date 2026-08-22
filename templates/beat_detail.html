@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}{{ beat.title }} - Beats{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/beats.css?v=1">{% endblock %}
 
 {% block content %}
+<div class="bt" id="bt-detail-root"><div id="bt-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div></div>
 <div class="mx-auto max-w-[1100px] space-y-5">
 
   <div class="flex flex-wrap items-end justify-between gap-4">
@@ -23,6 +25,54 @@
     <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-200">The link a label checks</div>
     <div class="mt-1 break-all font-mono text-xs text-[#e8c667]">{{ public_base }}/cleared/{{ beat.id }}</div>
     <p class="mt-1 text-[11px] text-gray-200">Anyone can open it without an account. It shows what you listed and whether the licence behind it is signed — never the fee, the terms text, or your licensee's email.</p>
+  </div>
+
+  {# The audio, and the private links that carry it. #}
+  <div class="bt">
+    <section class="bt-glass" style="padding:16px">
+      <h2 class="bt-h2">The audio</h2>
+      {% if audio %}
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px">
+        <button id="bt-d-play" class="bts-big" type="button" aria-pressed="false" aria-label="Play {{ beat.title }}">&#9654;</button>
+        <span class="bts-clock" id="bt-d-clock">0:00</span>
+        <div style="flex:1 1 240px;min-width:0">
+          <canvas id="bt-d-wave" class="bt-wave" height="52" style="height:52px" aria-label="Waveform — click to seek"></canvas>
+        </div>
+        <form method="post" action="/beats/{{ beat.id }}/audio/delete" id="bt-d-drop-form">
+          <button class="bt-btn bt-btn--ghost bt-btn--small" type="button" id="bt-d-remove">Remove audio</button>
+        </form>
+      </div>
+      <p class="bt-hint" style="margin-top:11px">
+        {{ audio.filename }} · {{ (audio.bytes / 1048576) | round(1) }} MB
+        {% if audio.bpm %} · measured {{ audio.bpm | round | int }} BPM (confidence {{ audio.bpm_confidence | round(2) }}{% if audio.bpm_alternates %}, could also be {{ audio.bpm_alternates }}{% endif %}){% endif %}
+        {% if audio.song_key %} · key {{ audio.song_key }}{% if audio.key_fit %} (fit {{ audio.key_fit | round(2) }}){% endif %}{% endif %}
+      </p>
+      <p class="bt-hint">Tempo and key were measured in your browser when you uploaded it. They are a guess with a number attached — the fields at the top of this page are yours, and nothing here overwrites what you typed.</p>
+      {% else %}
+      <p class="bt-hint" style="margin:0">No audio on this beat. Drop a file on the <a href="/beats" style="color:var(--bt-amber)">Beats page</a> to attach one, and its tempo and key are measured as it uploads.</p>
+      {% endif %}
+    </section>
+
+    <section class="bt-glass" style="padding:16px;margin-top:12px">
+      <h2 class="bt-h2">Private links</h2>
+      <p class="bt-hint">Send this one beat to one artist. They need no account, they see this beat and nothing else about your catalogue, and you can switch the link off. A link is a courtesy, not a lock — anyone who can play a file can record it.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:11px">
+        <label class="bt-field" style="flex:1 1 180px"><span>Who is it for?</span>
+          <input id="bt-share-label" class="bt-input" type="text" maxlength="80" placeholder="e.g. Rina (A&amp;R)">
+        </label>
+        <label class="bt-field" style="flex:0 0 140px"><span>Lapses after</span>
+          <select id="bt-share-days" class="bt-select">
+            <option value="0">never</option>
+            <option value="7">7 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </label>
+        <button id="bt-share-new" class="bt-btn bt-btn--fill" type="button">Make a link</button>
+        <span id="bt-share-status" class="bt-hint" role="status" aria-live="polite"></span>
+      </div>
+      <ul id="bt-share-list" class="bt-links" role="list"></ul>
+    </section>
   </div>
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -61,22 +111,10 @@
         {% endif %}
       </div>
 
-      <form method="post" class="mt-4 space-y-2 border-t border-white/10 pt-4">
-        <input type="hidden" name="action" value="licence">
-        <div class="grid gap-2 sm:grid-cols-2">
-          <input name="licensee_name" placeholder="Licensee name" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-          <input name="licensee_email" type="email" placeholder="Licensee email" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-          <select name="licence_type" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
-            {% for key, label in licence_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-          </select>
-          <input name="territory" placeholder="Territory (Worldwide)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-          <input name="term" placeholder="Term (e.g. 2 years)" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-          <input name="fee" type="number" step="0.01" min="0" placeholder="Fee" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-          <input name="producer_split" type="number" step="1" min="0" max="100" value="50" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none">
-          <button class="rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Issue licence</button>
-        </div>
-        <textarea name="terms" rows="2" placeholder="Terms in your own words — what the licensee may and may not do." class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none"></textarea>
-      </form>
+      <div class="bt mt-4 border-t border-white/10 pt-4">
+        <button id="bt-lic-open" class="bt-btn bt-btn--fill" type="button" aria-haspopup="dialog">Generate a licence →</button>
+        <p class="bt-hint" style="margin-top:8px">Pick a shape, adjust it, and it becomes a link the licensee reads and signs in a browser.</p>
+      </div>
     </section>
 
     <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
@@ -158,4 +196,59 @@
     <button class="text-[11px] font-semibold text-gray-200 hover:text-red-400">Delete this beat and everything filed under it</button>
   </form>
 </div>
+
+{# --- licence generator ------------------------------------------------ #}
+<div id="bt-scrim" class="bt-scrim" hidden></div>
+<div id="bt-lic" class="bt bt-glass bt-modal" role="dialog" aria-modal="true" aria-labelledby="bt-lic-title" hidden>
+  <div class="bt-drawer-head">
+    <div>
+      <p class="bt-eyebrow">{{ beat.title }}</p>
+      <h2 class="bt-h1" style="font-size:17px" id="bt-lic-title">Generate a licence</h2>
+    </div>
+    <button id="bt-lic-close" class="bt-x" type="button" aria-label="Close">&#10005;</button>
+  </div>
+
+  {% if summary.exclusive %}
+  <p class="bt-hint" style="border-left:3px solid var(--bt-live);padding-left:11px;margin:12px 0">
+    An exclusive has already been signed on this beat. Issuing another licence is your call, but read the exclusive first — you may have promised not to.
+  </p>
+  {% endif %}
+
+  <p class="bt-hint" style="margin-top:12px">Start from a shape, then change anything. These prefill the form below; nothing is sent until you press Issue.</p>
+  <div class="bt-preset" style="margin-top:9px" role="group" aria-label="Licence shapes">
+    <button class="bt-btn bt-btn--small" type="button" data-preset="lease" aria-pressed="false">Standard lease</button>
+    <button class="bt-btn bt-btn--small" type="button" data-preset="premium" aria-pressed="false">Premium lease</button>
+    <button class="bt-btn bt-btn--small" type="button" data-preset="exclusive" aria-pressed="false">Exclusive</button>
+    <button class="bt-btn bt-btn--small" type="button" data-preset="work_for_hire" aria-pressed="false">Work for hire</button>
+    <button class="bt-btn bt-btn--small" type="button" data-preset="free" aria-pressed="false">Free / promo</button>
+  </div>
+
+  <form method="post" id="bt-lic-form" style="display:flex;flex-direction:column;gap:11px;margin-top:16px">
+    <input type="hidden" name="action" value="licence">
+    <div class="bt-grid2">
+      <label class="bt-field"><span>Licensee name</span><input name="licensee_name" class="bt-input" maxlength="120" placeholder="Who is signing"></label>
+      <label class="bt-field"><span>Licensee email</span><input name="licensee_email" type="email" class="bt-input" maxlength="200" placeholder="Where the signing link goes"></label>
+      <label class="bt-field"><span>Licence type</span>
+        <select name="licence_type" id="bt-lic-type" class="bt-select">
+          {% for key, label in licence_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="bt-field"><span>Territory</span><input name="territory" id="bt-lic-territory" class="bt-input" maxlength="120" placeholder="Worldwide"></label>
+      <label class="bt-field"><span>Term</span><input name="term" id="bt-lic-term" class="bt-input" maxlength="120" placeholder="e.g. 2 years"></label>
+      <label class="bt-field"><span>Fee (USD)</span><input name="fee" id="bt-lic-fee" type="number" step="0.01" min="0" class="bt-input" placeholder="0.00"></label>
+      <label class="bt-field"><span>Your split (%)</span><input name="producer_split" id="bt-lic-split" type="number" step="1" min="0" max="100" value="50" class="bt-input"></label>
+    </div>
+    <label class="bt-field"><span>Terms</span>
+      <textarea name="terms" id="bt-lic-terms" class="bt-area bt-terms" rows="7" maxlength="6000" placeholder="What the licensee may and may not do, in your own words."></textarea>
+    </label>
+    <p class="bt-hint">This is your agreement, not legal advice from Street Banker. The preset wording is a starting point somebody who knows your situation should read before you send it on anything that matters.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="bt-btn bt-btn--fill" type="submit">Issue licence</button>
+      <button class="bt-btn bt-btn--ghost" type="button" id="bt-lic-cancel">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<script>window.__btDetail = {{ {'beatId': beat.id, 'title': beat.title, 'audio': audio, 'shares': shares, 'origin': share_origin} | js_json }};</script>
+<script src="/static/js/beat-detail.js?v=1"></script>
 {% endblock %}

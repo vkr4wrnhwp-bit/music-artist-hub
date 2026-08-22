@@ -15,7 +15,7 @@ import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 def db_path():
@@ -285,6 +285,43 @@ def init_db():
                 note TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            -- The audio itself, plus what the browser measured from it.
+            -- One row per beat: re-uploading replaces it rather than
+            -- stacking, because a beat is one recording with one BPM.
+            -- `peaks` is the pre-computed waveform so the list can draw
+            -- 40 beats without decoding 40 files.
+            CREATE TABLE IF NOT EXISTS beat_audio (
+                beat_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                filename TEXT NOT NULL DEFAULT '',
+                path TEXT NOT NULL DEFAULT '',
+                mime TEXT NOT NULL DEFAULT '',
+                bytes INTEGER NOT NULL DEFAULT 0,
+                duration REAL,
+                peaks TEXT NOT NULL DEFAULT '[]',
+                bpm REAL,
+                bpm_confidence REAL,
+                bpm_alternates TEXT NOT NULL DEFAULT '',
+                song_key TEXT NOT NULL DEFAULT '',
+                key_fit REAL,
+                key_runner_up TEXT NOT NULL DEFAULT '',
+                sample_rate REAL,
+                created TEXT NOT NULL
+            );
+            -- A private link to one beat. The unguessable token is the
+            -- authorisation; the producer can revoke it or let it lapse.
+            CREATE TABLE IF NOT EXISTS beat_shares (
+                token TEXT PRIMARY KEY,
+                beat_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                expires TEXT NOT NULL DEFAULT '',
+                plays INTEGER NOT NULL DEFAULT 0,
+                last_played TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL,
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_beat_shares ON beat_shares(beat_id, revoked);
             CREATE TABLE IF NOT EXISTS beat_licences (
                 id TEXT PRIMARY KEY,
                 beat_id TEXT NOT NULL,
@@ -2093,6 +2130,23 @@ def get_beat(beat_id, user_id=None):
     return dict(row) if row else None
 
 
+def update_beat(user_id, beat_id, fields):
+    """Edit the registry row. Only the columns a producer types."""
+    allowed = ("title", "bpm", "song_key", "tags", "note")
+    sets, args = [], []
+    for k in allowed:
+        if k in fields:
+            sets.append("%s = ?" % k)
+            args.append(str(fields[k] or "")[:600])
+    if not sets:
+        return False
+    args += [beat_id, user_id]
+    with get_db() as db:
+        cur = db.execute("UPDATE beats SET %s WHERE id = ? AND user_id = ?"
+                         % ", ".join(sets), args)
+    return cur.rowcount > 0
+
+
 def delete_beat(user_id, beat_id):
     with get_db() as db:
         cur = db.execute("DELETE FROM beats WHERE id = ? AND user_id = ?",
@@ -2101,7 +2155,158 @@ def delete_beat(user_id, beat_id):
             db.execute("DELETE FROM beat_licences WHERE beat_id = ?", (beat_id,))
             db.execute("DELETE FROM beat_clearances WHERE beat_id = ?", (beat_id,))
             db.execute("DELETE FROM beat_uses WHERE beat_id = ?", (beat_id,))
+            # A live link to a deleted beat would still play it.
+            db.execute("DELETE FROM beat_audio WHERE beat_id = ?", (beat_id,))
+            db.execute("DELETE FROM beat_shares WHERE beat_id = ?", (beat_id,))
         return bool(cur.rowcount)
+
+
+# --- Beat audio: the file, and what the browser measured from it -------------
+# Analysis runs in the browser (static/js/tempokey.js — the same detector
+# the Rack uses), so no audio is decoded server-side and no third party
+# hears the beat. What lands here is a measurement the producer can see
+# and override, never a claim the server made on its own.
+
+# Must stay UNDER app.config["MAX_CONTENT_LENGTH"] (25 MB). Flask rejects
+# an oversize request before routing, so a ceiling above that one would be
+# a number this code prints and never enforces: the producer would get a
+# bare 413 instead of a sentence telling them what to do. A 3-minute 24/48
+# stereo WAV is ~50 MB, so beats of that size have to be bounced to MP3 or
+# FLAC first — which the drop zone says out loud.
+MAX_BEAT_BYTES = 24 * 1024 * 1024
+
+
+def save_beat_audio(user_id, beat_id, row):
+    """Upsert. One recording per beat: a re-upload replaces the old row,
+    because a beat is one file with one tempo, not a version history."""
+    if get_beat(beat_id, user_id) is None:
+        return None
+    with get_db() as db:
+        db.execute("DELETE FROM beat_audio WHERE beat_id = ?", (beat_id,))
+        db.execute(
+            "INSERT INTO beat_audio (beat_id, user_id, filename, path, mime, bytes,"
+            " duration, peaks, bpm, bpm_confidence, bpm_alternates, song_key, key_fit,"
+            " key_runner_up, sample_rate, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (beat_id, user_id, (row.get("filename") or "")[:200],
+             (row.get("path") or "")[:400], (row.get("mime") or "")[:80],
+             int(row.get("bytes") or 0), row.get("duration"),
+             json.dumps(row.get("peaks") or [])[:60000],
+             row.get("bpm"), row.get("bpm_confidence"),
+             (row.get("bpm_alternates") or "")[:60],
+             (row.get("song_key") or "")[:40], row.get("key_fit"),
+             (row.get("key_runner_up") or "")[:40], row.get("sample_rate"), _now()))
+    return beat_id
+
+
+def get_beat_audio(beat_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM beat_audio WHERE beat_id = ?", (beat_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    try:
+        d["peaks"] = json.loads(d.get("peaks") or "[]")
+    except ValueError:
+        d["peaks"] = []
+    return d
+
+
+def beat_audio_for(user_id):
+    """Every beat's audio in one read, so the list page does not fire one
+    query per row."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM beat_audio WHERE user_id = ?", (user_id,)).fetchall()
+    out = {}
+    for r in rows:
+        d = dict(r)
+        try:
+            d["peaks"] = json.loads(d.get("peaks") or "[]")
+        except ValueError:
+            d["peaks"] = []
+        out[d["beat_id"]] = d
+    return out
+
+
+def delete_beat_audio(user_id, beat_id):
+    with get_db() as db:
+        row = db.execute("SELECT path FROM beat_audio WHERE beat_id=? AND user_id=?",
+                         (beat_id, user_id)).fetchone()
+        if row is None:
+            return None
+        db.execute("DELETE FROM beat_audio WHERE beat_id=? AND user_id=?", (beat_id, user_id))
+    return row["path"]
+
+
+# --- Private beat links -------------------------------------------------------
+# A producer sends one beat to one artist. The link carries that beat and
+# nothing else about the catalogue, it can be revoked, and it can lapse.
+
+def create_beat_share(user_id, beat_id, label="", days=0):
+    if get_beat(beat_id, user_id) is None:
+        return None
+    token = uuid.uuid4().hex
+    expires = ""
+    try:
+        days = int(days or 0)
+    except (TypeError, ValueError):
+        days = 0
+    if days > 0:
+        expires = (datetime.now(timezone.utc) + timedelta(days=min(days, 365))).isoformat()
+    with get_db() as db:
+        db.execute("INSERT INTO beat_shares (token, beat_id, user_id, label, expires,"
+                   " plays, last_played, created, revoked) VALUES (?,?,?,?,?,0,'',?,0)",
+                   (token, beat_id, user_id, (label or "").strip()[:80], expires, _now()))
+    return token
+
+
+def list_beat_shares(user_id, beat_id):
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM beat_shares WHERE user_id=? AND beat_id=? AND revoked=0"
+                          " ORDER BY created DESC", (user_id, beat_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_beat_share(token):
+    """No user argument on purpose: the token is the authorisation. A
+    revoked link, a lapsed one, or one whose beat was deleted is dead."""
+    if not token:
+        return None
+    with get_db() as db:
+        row = db.execute("SELECT * FROM beat_shares WHERE token=? AND revoked=0",
+                         (token,)).fetchone()
+        if row is None:
+            return None
+        beat = db.execute("SELECT * FROM beats WHERE id=?", (row["beat_id"],)).fetchone()
+    if beat is None:
+        return None
+    if row["expires"]:
+        try:
+            when = datetime.fromisoformat(row["expires"].replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > when:
+                return None
+        except (ValueError, AttributeError):
+            return None
+    d = dict(row)
+    d["beat"] = dict(beat)
+    return d
+
+
+def revoke_beat_share(user_id, token):
+    with get_db() as db:
+        cur = db.execute("UPDATE beat_shares SET revoked=1 WHERE token=? AND user_id=?",
+                         (token, user_id))
+    return cur.rowcount > 0
+
+
+def count_beat_share_play(token):
+    """The producer's one honest signal that the link was opened. It
+    counts plays, not opens, because a page load is not interest."""
+    with get_db() as db:
+        db.execute("UPDATE beat_shares SET plays = plays + 1, last_played = ?"
+                   " WHERE token = ? AND revoked = 0", (_now(), token))
 
 
 def add_beat_licence(beat_id, producer_id, fields):

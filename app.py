@@ -2726,6 +2726,12 @@ def create_app():
                         # and no audio; the trailing slash keeps it from
                         # swallowing anything else under /lights.
                         "/lights/show/",
+                        # A beat sent to one artist. One beat, no
+                        # catalogue. The trailing slash matters: "/beats"
+                        # and "/beats/<id>" stay behind the wall, and so
+                        # does "/beat-link/<token>/revoke", which is the
+                        # producer's control and not the recipient's.
+                        "/beat/",
                         # A beat licence is read and signed by somebody who
                         # has no account here, and the cleared list exists to
                         # be checked by a label that never will.
@@ -5303,7 +5309,27 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["desk"] = producers.desk(user["id"])
         ctx["monitoring"] = acr_provider.status()
+        rows = store.beat_audio_for(user["id"])
+        ctx["audio"] = rows
+        # The script needs peaks and durations; it must not need the
+        # storage path, which is an R2 key or a disk location.
+        ctx["audio_public"] = {k: _beat_audio_public(v) for k, v in rows.items()}
+        ctx["max_beat_mb"] = store.MAX_BEAT_BYTES // (1024 * 1024)
         return render_template("beats.html", active_page="beats", **ctx)
+
+    @app.route("/beats/register", methods=["POST"])
+    def beat_register():
+        """Create the registry row a dropped file hangs off. Separate from
+        the form POST above because a bulk drop needs an id back, not a
+        redirect."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        title = (body.get("title") or "").strip()[:200]
+        if not title:
+            return jsonify({"ok": False, "error": "a beat needs a title"}), 400
+        return jsonify({"ok": True, "id": store.add_beat(user["id"], title)})
 
     @app.route("/beats/<beat_id>", methods=["GET", "POST"])
     def beat_detail(beat_id):
@@ -5368,8 +5394,224 @@ def create_app():
             "use_statuses": producers.USE_STATUSES,
             "monitoring": acr_provider.status(),
             "public_base": request.host_url.rstrip("/"),
+            "audio": _beat_audio_public(store.get_beat_audio(beat_id)),
+            "shares": store.list_beat_shares(user["id"], beat_id),
+            "share_origin": _remote_origin(),
         })
         return render_template("beat_detail.html", active_page="beats", **ctx)
+
+    # --- Beat audio, analysis, and private links -------------------------
+    # The browser decodes the file, measures tempo and key with the same
+    # detector the Rack uses (static/js/tempokey.js) and sends the numbers
+    # up with the bytes. Nothing here listens to audio server-side, and no
+    # third party is handed the beat to analyse it.
+
+    _BEAT_AUDIO_TYPES = ("audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                         "audio/wave", "audio/aiff", "audio/x-aiff", "audio/flac",
+                         "audio/x-flac", "audio/mp4", "audio/aac", "audio/ogg",
+                         "audio/webm", "application/octet-stream")
+
+    def _beat_num(value, lo=None, hi=None):
+        """A measurement or nothing. NaN and infinity are neither."""
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        if f != f or abs(f) == float("inf"):
+            return None
+        if lo is not None and f < lo:
+            return None
+        if hi is not None and f > hi:
+            return None
+        return f
+
+    @app.route("/beats/<beat_id>/audio", methods=["POST"])
+    def beat_audio_upload(beat_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if store.get_beat(beat_id, user["id"]) is None:
+            return jsonify({"ok": False}), 404
+        f = request.files.get("file")
+        if f is None or not f.filename:
+            return jsonify({"ok": False, "error": "no file"}), 400
+        data = f.read()
+        if not data:
+            return jsonify({"ok": False, "error": "empty file"}), 400
+        if len(data) > store.MAX_BEAT_BYTES:
+            return jsonify({"ok": False,
+                            "error": "that file is %d MB; the ceiling is %d MB"
+                                     % (len(data) // (1024 * 1024),
+                                        store.MAX_BEAT_BYTES // (1024 * 1024))}), 413
+        mime = (f.mimetype or "application/octet-stream")[:80]
+        if mime not in _BEAT_AUDIO_TYPES:
+            return jsonify({"ok": False, "error": "that is not an audio file"}), 415
+
+        ext = os.path.splitext(f.filename)[1][:10] or ".audio"
+        key = "beats/%s/%s%s" % (user["id"], uuid.uuid4().hex, ext)
+        try:
+            path = blob_store.save(key, data, mime, uploads_dir=UPLOADS_DIR)
+        except RuntimeError:
+            return jsonify({"ok": False, "error": "nowhere to store the file"}), 503
+
+        # Replacing audio orphans the old object; drop it rather than pay
+        # to keep a file nothing can reach.
+        old = store.delete_beat_audio(user["id"], beat_id)
+        if old and old != path:
+            try:
+                blob_store.remove(old, uploads_dir=UPLOADS_DIR)
+            except Exception:
+                pass
+
+        peaks = request.form.get("peaks") or "[]"
+        try:
+            peaks = [max(0.0, min(1.0, float(x))) for x in json.loads(peaks)][:900]
+        except (ValueError, TypeError):
+            peaks = []
+        store.save_beat_audio(user["id"], beat_id, {
+            "filename": f.filename, "path": path, "mime": mime, "bytes": len(data),
+            "duration": _beat_num(request.form.get("duration"), 0, 60 * 60 * 6),
+            "peaks": peaks,
+            "bpm": _beat_num(request.form.get("bpm"), 20, 400),
+            "bpm_confidence": _beat_num(request.form.get("bpm_confidence"), 0, 1),
+            "bpm_alternates": (request.form.get("bpm_alternates") or "")[:60],
+            "song_key": (request.form.get("song_key") or "")[:40],
+            "key_fit": _beat_num(request.form.get("key_fit"), -1, 1),
+            "key_runner_up": (request.form.get("key_runner_up") or "")[:40],
+            "sample_rate": _beat_num(request.form.get("sample_rate"), 1000, 400000),
+        })
+        # The measurement fills the registry fields only where the producer
+        # left them empty. A number they typed is a decision; a number we
+        # measured is a guess, and a guess must not overwrite a decision.
+        beat = store.get_beat(beat_id, user["id"])
+        audio = store.get_beat_audio(beat_id)
+        fills = {}
+        if not (beat["bpm"] or "").strip() and audio.get("bpm"):
+            fills["bpm"] = str(int(round(audio["bpm"])))
+        if not (beat["song_key"] or "").strip() and audio.get("song_key"):
+            fills["song_key"] = audio["song_key"]
+        if fills:
+            store.update_beat(user["id"], beat_id, fills)
+        return jsonify({"ok": True, "audio": _beat_audio_public(audio),
+                        "filled": fills})
+
+    def _beat_audio_public(audio):
+        """What the page is allowed to know about a stored file. The
+        storage path never travels — it is an R2 key or a disk location,
+        and the browser reaches audio through /beats/<id>/stream."""
+        if not audio:
+            return None
+        return {"filename": audio["filename"], "bytes": audio["bytes"],
+                "duration": audio["duration"], "peaks": audio["peaks"],
+                "bpm": audio["bpm"], "bpm_confidence": audio["bpm_confidence"],
+                "bpm_alternates": audio["bpm_alternates"],
+                "song_key": audio["song_key"], "key_fit": audio["key_fit"],
+                "key_runner_up": audio["key_runner_up"],
+                "sample_rate": audio["sample_rate"], "created": audio["created"]}
+
+    def _stream_beat(audio):
+        """Serve the stored bytes. R2 objects are handed over as a signed
+        redirect so the file does not travel through this process twice."""
+        path = audio["path"]
+        if blob_store.is_remote(path):
+            return redirect(blob_store.url_for(path))
+        # The key is nested ("beats/<user>/<id>.wav"), so basename() would
+        # look in the wrong place. send_from_directory takes the relative
+        # path and refuses to leave UPLOADS_DIR itself.
+        from flask import send_from_directory
+        return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):],
+                                   mimetype=audio["mime"] or "audio/mpeg",
+                                   conditional=True)
+
+    @app.route("/beats/<beat_id>/stream")
+    def beat_stream(beat_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if store.get_beat(beat_id, user["id"]) is None:
+            abort(404)
+        audio = store.get_beat_audio(beat_id)
+        if audio is None or not audio["path"]:
+            abort(404)
+        return _stream_beat(audio)
+
+    @app.route("/beats/<beat_id>/audio/delete", methods=["POST"])
+    def beat_audio_delete(beat_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        path = store.delete_beat_audio(user["id"], beat_id)
+        if path is None:
+            return jsonify({"ok": False}), 404
+        try:
+            blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        except Exception:
+            pass
+        return jsonify({"ok": True})
+
+    @app.route("/beats/<beat_id>/share", methods=["POST"])
+    def beat_share_create(beat_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        token = store.create_beat_share(user["id"], beat_id,
+                                        label=body.get("label") or "",
+                                        days=body.get("days") or 0)
+        if token is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "token": token,
+                        "url": "%s/beat/%s" % (_remote_origin(), token),
+                        "shares": store.list_beat_shares(user["id"], beat_id)})
+
+    @app.route("/beats/<beat_id>/shares")
+    def beat_share_list(beat_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if store.get_beat(beat_id, user["id"]) is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "shares": store.list_beat_shares(user["id"], beat_id),
+                        "origin": _remote_origin()})
+
+    @app.route("/beat-link/<token>/revoke", methods=["POST"])
+    def beat_share_revoke(token):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if not store.revoke_beat_share(user["id"], token):
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
+
+    @app.route("/beat/<token>")
+    def beat_share_page(token):
+        """Public on purpose: an artist listens to a beat somebody sent
+        them without making an account. Standalone template, one beat,
+        no catalogue."""
+        share = store.get_beat_share(token)
+        if share is None:
+            return render_template("beat_share.html", gone=True), 404
+        beat = share["beat"]
+        audio = store.get_beat_audio(beat["id"])
+        producer = store.get_user(beat["user_id"]) or {}
+        return render_template(
+            "beat_share.html", gone=False, token=token, beat=beat,
+            audio=_beat_audio_public(audio), has_audio=bool(audio and audio["path"]),
+            producer_name=producer.get("name") or "the producer",
+            licence_types=producers.LICENCE_TYPES)
+
+    @app.route("/beat/<token>/stream")
+    def beat_share_stream(token):
+        share = store.get_beat_share(token)
+        if share is None:
+            abort(404)
+        audio = store.get_beat_audio(share["beat_id"])
+        if audio is None or not audio["path"]:
+            abort(404)
+        # Count the play, not the page load: opening a link is not interest.
+        if request.headers.get("Range", "").strip() in ("", "bytes=0-"):
+            store.count_beat_share_play(token)
+        return _stream_beat(audio)
 
     @app.route("/beats/<beat_id>/delete", methods=["POST"])
     def beat_delete(beat_id):
