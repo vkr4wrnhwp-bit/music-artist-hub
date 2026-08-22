@@ -26,7 +26,9 @@ export interface TurnReadinessInput {
   workholdingSelected: boolean;
   grip: TurnAnalysis | null;
   stickout: TurnAnalysis | null;
-  boringBar: TurnAnalysis | null; // null when the plan has no boring
+  boringBar: TurnAnalysis | null; // null when the plan has no boring, or no bar is recorded
+  /** The plan bores and the crib records no usable boring bar. */
+  boringBarUnrecorded?: boolean;
   partOff: TurnAnalysis | null; // null when the plan has no cutoff
   toolsAssigned: number;
   toolsRequired: number;
@@ -70,6 +72,16 @@ export function evaluateTurnReadiness(input: TurnReadinessInput): {
   if (input.boringBar !== null) {
     const bb = fromAnalysis(input.boringBar, "");
     g("boring-bar", "Boring bar reach", bb.status, bb.detail);
+  } else if (input.boringBarUnrecorded) {
+    // A plan that bores with no bar on file is not a plan without boring.
+    g(
+      "boring-bar",
+      "Boring bar reach",
+      // NOT_ATTEMPTED is this vocabulary's word for "could not be checked",
+      // and it already blocks — see the aggregation below.
+      "NOT_ATTEMPTED",
+      "This plan bores, and no boring bar with a recorded diameter and stickout is in the crib. Length-to-diameter cannot be checked against a bar that is not on file.",
+    );
   }
   if (input.partOff !== null) {
     const po = fromAnalysis(input.partOff, "");

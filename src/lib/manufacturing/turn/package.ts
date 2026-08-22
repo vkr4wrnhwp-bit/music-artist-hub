@@ -83,15 +83,36 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     diameter: profile.stockDiameter,
     tailstock: rot.tailstockActive,
   });
+  /*
+   * Boring bar reach.
+   *
+   * The bar's diameter and stickout used to fall back to 0.625" and 3" when
+   * the crib held no boring bar, and its material was passed as "STEEL"
+   * unconditionally — there is no column recording it. So a shop with no bar
+   * on file got a confident length-to-diameter verdict computed from a bar
+   * that does not exist, and assessBoringBar's own message for an unrecorded
+   * material ("steel guideline 4xD assumed, carbide reaches 6xD") could never
+   * fire, because it was never told the material was unknown.
+   *
+   * Now the assessment runs only against a bar the shop actually recorded,
+   * and a plan that bores with no bar on file is reported as an unassessed
+   * gate rather than as a silent absence — boringBar: null already means
+   * "this plan does not bore", and those are different facts.
+   */
   const boringOps = plan.filter((o) => o.type.startsWith("ID_BORE"));
-  const boringBar = boringOps.length
-    ? assessBoringBar({
-        barDiameter: tools.find((t) => t.toolClass === "BORING_BAR")?.barDiameter ?? 0.625,
-        stickout: tools.find((t) => t.toolClass === "BORING_BAR")?.stickout ?? 3,
-        boreDepth: Math.max(...boringOps.map((o) => Math.abs(o.endZ - o.startZ))),
-        barMaterial: "STEEL",
-      })
-    : null;
+  const bar = tools.find((t) => t.toolClass === "BORING_BAR") ?? null;
+  const barUsable = bar && bar.barDiameter != null && bar.stickout != null;
+  const boringBar =
+    boringOps.length && barUsable
+      ? assessBoringBar({
+          barDiameter: bar.barDiameter!,
+          stickout: bar.stickout!,
+          boreDepth: Math.max(...boringOps.map((o) => Math.abs(o.endZ - o.startZ))),
+          // No column records this. assessBoringBar says so in its own words.
+          barMaterial: null,
+        })
+      : null;
+  const boringBarUnrecorded = boringOps.length > 0 && !barUsable;
   const cutoff = plan.find((o) => o.type === "PART_OFF");
   const partOff = cutoff
     ? assessPartOff({
@@ -118,9 +139,26 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
 
   /* ---- readiness, worst-gate ---- */
   const cssUsed = plan.some((o) => o.params.cssEnabled);
+  /*
+   * The material gate used to be handed a literal `true`, and it is a
+   * PASS/FAIL gate — so the material gate on every turned part could not
+   * fail. It reads the part's own intent now, exactly as the milling side
+   * does.
+   */
+  const intentMaterial = (() => {
+    try {
+      const intent = JSON.parse(revision.intentJson ?? "{}") as { material?: { value?: unknown } };
+      const v = intent.material?.value;
+      return typeof v === "string" && v.trim() !== "" ? v : null;
+    } catch {
+      return null;
+    }
+  })();
+
   const readiness = evaluateTurnReadiness({
     profile,
-    materialKnown: true,
+    materialKnown: intentMaterial !== null,
+    boringBarUnrecorded,
     latheSelected: Boolean(lathe),
     workholdingSelected: Boolean(holding),
     grip,
