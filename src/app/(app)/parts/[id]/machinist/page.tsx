@@ -291,7 +291,7 @@ export default async function MachinistPage(props: {
                                 {sc.cycleMinutes > 0 ? `${sc.cycleMinutes.toFixed(1)} min` : "—"}
                               </p>
                               <p className="tech-label mt-0.5">
-                                {sc.setupCount} setup{sc.setupCount === 1 ? "" : "s"} · {sc.toolChanges} tools · {sc.operationCount} ops
+                                {sc.setupCount} setup{sc.setupCount === 1 ? "" : "s"} · {sc.distinctTools} tools · {sc.operationCount} ops
                               </p>
                             </div>
                             <div className="space-y-2 px-4 py-3">
@@ -353,7 +353,7 @@ export default async function MachinistPage(props: {
                               <tr key={sc.plan.pattern} className="hover:bg-raised">
                                 <td className="border-b border-line/50 px-3 py-2 text-platinum">{sc.plan.philosophy.name}</td>
                                 <td className="border-b border-line/50 px-3 py-2">{sc.setupCount}</td>
-                                <td className="border-b border-line/50 px-3 py-2">{sc.toolChanges}</td>
+                                <td className="border-b border-line/50 px-3 py-2">{sc.distinctTools}</td>
                                 <td className="border-b border-line/50 px-3 py-2">{sc.operationCount}</td>
                                 <td className="border-b border-line/50 px-3 py-2">{sc.cycleMinutes > 0 ? `${sc.cycleMinutes.toFixed(1)} min` : "—"}</td>
                                 <td className="border-b border-line/50 px-3 py-2 text-muted">{RISK_LABEL[sc.risk]}</td>

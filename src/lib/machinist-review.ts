@@ -19,7 +19,8 @@ import { computeCost, type CostAssumptions } from "./engines/cost";
 export interface ScoredPlan {
   plan: MachinistPlan;
   setupCount: number;
-  toolChanges: number;
+  /** Distinct tools the plan needs. See ScoredPlanSummary.distinctTools. */
+  distinctTools: number;
   operationCount: number;
   cycleMinutes: number;
   /** Worst workholding risk across the plan's setups. */
@@ -155,14 +156,16 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
   };
   const cost = computeCost(input.quantity, assumptions);
 
-  const toolChanges = new Set(
+  // Distinct tools, not tool changes — the two differ whenever a tool is
+  // used, put away and picked up again. Named for what it counts.
+  const distinctTools = new Set(
     plan.setups.flatMap((s) => s.operations.map((o) => o.toolNumber)).filter((n) => n !== null),
   ).size;
 
   return {
     plan,
     setupCount: plan.setups.length,
-    toolChanges,
+    distinctTools,
     operationCount: plan.setups.reduce((n, s) => n + s.operations.length, 0),
     cycleMinutes,
     risk: worst,
@@ -175,30 +178,4 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
   };
 }
 
-/**
- * Names the plan that wins on each axis. Deliberately does not declare an
- * overall winner: which axis matters is a business decision about this job,
- * and that belongs to the person who owns the shop, not to the software.
- */
-export function comparePlans(scored: ScoredPlan[]): {
-  fastest: string | null;
-  cheapest: string | null;
-  safest: string | null;
-  fewestSetups: string | null;
-  fewestTools: string | null;
-} {
-  const usable = scored.filter((s) => s.errors.length === 0 && s.cycleMinutes > 0);
-  if (usable.length === 0) {
-    return { fastest: null, cheapest: null, safest: null, fewestSetups: null, fewestTools: null };
-  }
-  const best = <T>(list: ScoredPlan[], by: (s: ScoredPlan) => T, cmp: (a: T, b: T) => number) =>
-    list.reduce((a, b) => (cmp(by(a), by(b)) <= 0 ? a : b)).plan.philosophy.name;
-
-  return {
-    fastest: best(usable, (s) => s.cycleMinutes, (a, b) => a - b),
-    cheapest: best(usable, (s) => s.unitCost, (a, b) => a - b),
-    safest: best(usable, (s) => RISK_ORDER[s.risk], (a, b) => a - b),
-    fewestSetups: best(usable, (s) => s.setupCount, (a, b) => a - b),
-    fewestTools: best(usable, (s) => s.toolChanges, (a, b) => a - b),
-  };
-}
+export { comparePlans, type PlanComparison } from "./plan-comparison";
