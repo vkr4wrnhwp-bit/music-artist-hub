@@ -110,13 +110,25 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
     if (!margin) continue;
     if (margin.verdict === "ADEQUATE") continue;
 
+    // An INDETERMINATE margin carries margin, appliedLoad and resistingForce
+    // as null, and these strings interpolated them raw: the operator was
+    // shown "it comes out at undefined×" and "null lbf". Beyond reading as a
+    // bug, it dressed a missing calculation as a computed mid-level result.
+    // Not established is its own statement and gets made in those words.
+    const established = margin.margin != null;
+    const lbf = (v: number | null) => (v != null ? `${v} lbf` : "not established");
+
     findings.push({
       id: id(),
       severity: margin.verdict === "INSUFFICIENT" ? "HIGH" : "MEDIUM",
-      title: `Grip margin ${margin.verdict.toLowerCase()} in ${setup.name}`,
+      title: established
+        ? `Grip margin ${margin.verdict.toLowerCase()} in ${setup.name}`
+        : `Grip margin could not be established in ${setup.name}`,
       detail:
         margin.primaryRisk ??
-        `The setup does not reach the target holding margin of 2.00×; it comes out at ${margin.margin?.toFixed(2)}×.`,
+        (established
+          ? `The setup does not reach the target holding margin of 2.00×; it comes out at ${margin.margin!.toFixed(2)}×.`
+          : "The holding margin for this setup could not be calculated, so there is no basis for saying the part will stay in the vise under the peak cut. Nothing has been shown to be wrong — nothing has been shown to be right either."),
       recommendation: margin.recommendations[0] ?? "Review the workholding for this setup.",
       location: {
         setupId: setup.id,
@@ -126,10 +138,13 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
         context: "HOLD",
       },
       evidence: [
-        { label: "Margin", value: `${margin.margin?.toFixed(2)}× against 2.00× target` },
+        {
+          label: "Margin",
+          value: established ? `${margin.margin!.toFixed(2)}× against 2.00× target` : "not established",
+        },
         { label: "Governing mode", value: margin.governingMode === "TIPPING" ? "Rolling out of the jaws" : "Sliding in the jaws" },
-        { label: "Applied at peak", value: `${margin.appliedLoad} lbf` },
-        { label: "Resisting", value: `${margin.resistingForce} lbf` },
+        { label: "Applied at peak", value: lbf(margin.appliedLoad) },
+        { label: "Resisting", value: lbf(margin.resistingForce) },
       ],
       method: margin.method,
     });
@@ -137,18 +152,50 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
 
   /* ---------------- Rapid clearance near the jaws ---------------- */
 
-  // The classic way to wreck a vise: a rapid across the part at a Z that is
-  // above the stock but below the top of the jaws. It clears the workpiece and
-  // takes the jaw off. This is arithmetic over real toolpath moves, not a
-  // simulation — it checks Z against the jaw height and nothing else.
+  // The classic way to wreck a vise: a clearance plane set below the top of
+  // the jaws, so the tool rapids sideways at a height that clears whatever it
+  // just cut and does not clear the vise. This is arithmetic over real
+  // toolpath moves, not a simulation — it compares rapid Z against the jaw
+  // line and checks nothing else, in particular not where the jaws are in XY.
   if (input.device && input.stockZ != null) {
     checksRun.push("Rapid moves below the top of the jaws");
-    const jawTop = input.device.jawHeight;
+    // The device is required for this check to mean anything — without one
+    // there is no vise to hit — but the jaw line in part coordinates comes
+    // from how the part is seated, not from the jaw's own height. Whether the
+    // recorded jaw height can accommodate the stock is workholding.ts's job.
 
     for (const setup of input.setups) {
-      const grip = setup.gripDepth ?? 0;
-      // Height of the jaw top above the bottom of the part.
-      const jawTopInPart = jawTop - (jawTop - grip);
+      // Where the top of the jaws sits in PART coordinates, in which Z=0 is
+      // the top of the stock and cuts run negative.
+      //
+      // This used to read `jawTop - (jawTop - grip)`, which cancels to `grip`
+      // — the device's jaw height dropped out of the arithmetic entirely, and
+      // the result was a positive number in the air ABOVE the part. Combined
+      // with the `m.z <= 0` guard below, the check could only ever fire on
+      // rapids in clear air, and could never fire on a rapid down at jaw
+      // level. It was the exact inverse of the hazard its own comment
+      // describes, which is worse than not making the check: the pre-flight
+      // reported a clean result on a program that would take the jaw off.
+      //
+      // The part is seated on parallels, so grip depth plus what stands proud
+      // of the jaws is the stock height. Either recorded value gives the same
+      // answer; stockProjection is preferred because it is measured directly.
+      const jawTopInPart =
+        setup.stockProjection != null
+          ? -setup.stockProjection
+          : setup.gripDepth != null
+            ? setup.gripDepth - input.stockZ
+            : null;
+
+      if (jawTopInPart == null) {
+        checksSkipped.push({
+          check: `Rapid clearance near the jaws in ${setup.name}`,
+          reason:
+            "Neither grip depth nor stock projection is recorded for this setup, so where the jaw top sits relative to the part is unknown. Assuming zero would put the jaw line at the top of the stock and silently pass every program.",
+        });
+        continue;
+      }
+
       for (const op of setup.operations) {
         const moves = input.movesByOperation[op.id] ?? [];
 
@@ -161,7 +208,9 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
         // dismiss in ten seconds, which is worse than making no check at all.
         const LATERAL = 0.05;
         const offending = moves.filter((m, i) => {
-          if (m.feed !== null || m.z >= jawTopInPart || m.z <= 0) return false;
+          // `m.z <= 0` was also here, excluding everything at or below the
+          // top of the stock — which is the entire region the jaws occupy.
+          if (m.feed !== null || m.z >= jawTopInPart) return false;
           const prev = moves[i - 1];
           if (!prev) return false;
           return Math.hypot(m.x - prev.x, m.y - prev.y) > LATERAL;
@@ -185,7 +234,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
           },
           evidence: [
             { label: "Lowest rapid Z", value: `${lowest.z.toFixed(3)}"` },
-            { label: "Jaw top", value: `${jawTopInPart.toFixed(3)}"` },
+            { label: "Jaw top, from top of stock", value: `${jawTopInPart.toFixed(3)}"` },
             { label: "Lateral rapids below jaw top", value: String(offending.length) },
           ],
           method: "Toolpath move inspection — lateral rapids below jaw height, no jaw footprint check",
@@ -235,14 +284,26 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
 
       // Holder clearance: the holder body arrives before the tool does if the
       // stickout is not longer than the depth it has to reach into.
+      //
+      // This branch was unreachable. canReach() demands
+      // stickout >= depth + REACH_MINIMUM, and the warning then asked for
+      // stickout - depth < REACH_MINIMUM — precisely the band canReach had
+      // already sent down the HIGH path above. Every tool that got here had
+      // at least REACH_MINIMUM of clearance by definition, so the check never
+      // fired once. The two thresholds are now named and ordered so the
+      // relationship between them is visible: REACH_MINIMUM is the hard gate
+      // canReach enforces, and REACH_COMFORT is the band above it where the
+      // tool reaches but nothing is left for a re-measured offset.
+      const REACH_MINIMUM = 0.1; // must match canReach's default clearance
+      const REACH_COMFORT = 0.25;
       const clearance = tool.stickout - depth;
-      if (clearance < 0.1 && clearance >= 0) {
+      if (clearance >= REACH_MINIMUM && clearance < REACH_COMFORT) {
         findings.push({
           id: id(),
           severity: "MEDIUM",
           title: `Tool reach close to holder collision in ${op.label}`,
           detail: `T${tool.toolNumber} leaves only ${clearance.toFixed(3)}" between the holder nose and the top of the cut. Any variation in stickout or work offset closes that.`,
-          recommendation: `Set stickout to at least ${(depth + 0.15).toFixed(3)}" and re-measure the tool length offset.`,
+          recommendation: `Set stickout to at least ${(depth + REACH_COMFORT).toFixed(3)}" and re-measure the tool length offset.`,
           location: { setupId: setup.id, operationId: op.id, featureId: null, point: null, context: "CUT" },
           evidence: [
             { label: "Stickout", value: `${tool.stickout.toFixed(3)}"` },
