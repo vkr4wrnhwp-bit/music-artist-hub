@@ -1011,6 +1011,7 @@
   }
   function renderCues(full) {
     ensureIds();
+    if (typeof paintTrackShip === "function") paintTrackShip();
     $("lx-cues-count").textContent = show.cues.length ? show.cues.length + (show.cues.length === 1 ? " cue" : " cues") : "";
     var sorted = sortedCues();
     if (!sorted.length) {
@@ -1658,12 +1659,13 @@
     lib.shows.forEach(function (s) { var op = document.createElement("option"); op.value = s.id; op.textContent = s.name + " · " + s.cue_count + " cues"; op.selected = s.id === show.libraryId; sel.appendChild(op); });
     $("lx-show-name").value = show.name || "";
     $("lx-track").value = show.trackId || ""; $("lx-tourshow").value = show.tourShowId || "";
+    paintTrackShip();
     $("lx-lib-delete").disabled = !show.libraryId;
     paintLibDirty();
     loadVersions();
   }
   $("lx-show-name").addEventListener("input", function () { show.name = $("lx-show-name").value.slice(0, 120); markDirty(); });
-  $("lx-track").addEventListener("change", function () { show.trackId = $("lx-track").value; markDirty(); });
+  $("lx-track").addEventListener("change", function () { show.trackId = $("lx-track").value; markDirty(); paintTrackShip(); });
   $("lx-tourshow").addEventListener("change", function () { show.tourShowId = $("lx-tourshow").value; markDirty(); offerVenueRig(); });
   $("lx-lib-save").addEventListener("click", function () {
     paintSaved("", "Saving…");
@@ -1784,6 +1786,58 @@
       });
     });
   }
+
+  // ---------- the show ships with the song (epic 6) ----------
+  // Cues store looks and group ROLES, not channel numbers, so a show
+  // attached to a track renders on whatever rig the puller has.
+  var trackShows = (lib.track_shows && typeof lib.track_shows === "object") ? lib.track_shows : {};
+
+  function paintTrackShip() {
+    var tid = $("lx-track").value;
+    var attach = $("lx-attach"), pull = $("lx-pull");
+    attach.disabled = !tid || !show.cues.length;
+    attach.title = !tid ? "Pick the track this show belongs to first"
+      : (!show.cues.length ? "Nothing to ship yet — add some cues" : "Attach this show to the track");
+    var has = tid && trackShows[tid];
+    pull.hidden = !has;
+    if (has) pull.title = "“" + has.name + "” — " + has.cue_count + " cues, attached " + String(has.saved_at).slice(0, 10);
+  }
+  $("lx-attach").addEventListener("click", function () {
+    var tid = $("lx-track").value;
+    if (!tid) return;
+    post("/lights/track/" + tid + "/attach",
+         {name: show.name || "Untitled show", data: payload(), show_id: show.libraryId || ""})
+      .then(function (d) {
+        if (!d.ok) { $("lx-io-status").textContent = "Could not attach to that track."; return; }
+        trackShows = d.tracks || trackShows;
+        paintTrackShip();
+        $("lx-io-status").textContent = "Attached to the track.";
+        announce("This show now travels with the track — " + d.attached.cue_count + " cues.");
+      });
+  });
+  $("lx-pull").addEventListener("click", function () {
+    var tid = $("lx-track").value;
+    if (!tid) return;
+    if (show.cues.length && !window.confirm("Replace the working copy with the show attached to this track? Your library saves are untouched.")) return;
+    fetch("/lights/track/" + tid + "/show").then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { $("lx-io-status").textContent = "That track has no show attached."; return; }
+      // Keep THIS rig: the point is the same looks on different fixtures.
+      var mine = {bars: show.bars, chans: show.chans, pos: show.pos, rot: show.rot,
+                  dmxStart: show.dmxStart, dmxAddr: show.dmxAddr, dmxUniverse: show.dmxUniverse,
+                  rigKey: show.rigKey, rigName: show.rigName};
+      var incoming = JSON.parse(JSON.stringify(d.show.data || {}));
+      var fromBars = incoming.bars || mine.bars;
+      incoming.cues = E.remapCues(incoming.cues || [], fromBars, mine.bars);
+      Object.keys(mine).forEach(function (k) { incoming[k] = mine[k]; });
+      incoming.name = d.show.name || incoming.name || "";
+      loadShowData(incoming, null);
+      show.libraryId = null; libraryDirty = false; paintLibrary(); markDirty(false);
+      $("lx-track").value = tid; show.trackId = tid; markDirty();
+      $("lx-io-status").textContent = "Pulled onto your rig.";
+      announce("Pulled “" + (d.show.name || "the track's show") + "” onto your own rig — " +
+               show.cues.length + " cues on " + show.bars + " bars.");
+    });
+  });
 
   // ---------- setlists (epic 7) ----------
   // Chain saved shows in order. Between songs the rig holds a gap look
@@ -2106,6 +2160,7 @@
     wheelHex: function () { return $("lx-gel-hex").value; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
+    trackShows: function () { return trackShows; }, paintTrackShip: paintTrackShip,
     setlist: function () { return setlist; }, setIndex: function () { return setIndex; },
     loadSetlistItem: loadSetlistItem, songEnded: songEnded, gapLooks: gapLooks,
     inGap: function (v) { if (v !== undefined) inGap = v; return inGap; },

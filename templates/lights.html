@@ -52,6 +52,8 @@
       <button id="lx-lib-delete" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Delete this show from the library">Delete</button>
       <button id="lx-export" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Export this show as a JSON file (cues, rig, looks, patch)">Export JSON</button>
       <label class="lx-btn lx-btn--ghost lx-btn--small" style="cursor:pointer">Import JSON<input id="lx-import" type="file" accept="application/json,.json" class="sr-only" aria-label="Import a show from a JSON file — it becomes the working copy; library saves are untouched"></label>
+      <button id="lx-attach" class="lx-btn lx-btn--ghost lx-btn--small" type="button" disabled aria-label="Attach this show to the selected track so it travels with the song">Ship with the track</button>
+      <button id="lx-pull" class="lx-btn lx-btn--ghost lx-btn--small" type="button" hidden aria-label="Load the show attached to the selected track onto your own rig">Pull the track's show</button>
       <span id="lx-io-status" class="sr-only" role="status" aria-live="polite"></span>
       <span id="lx-saved" class="lx-saved" role="status" aria-live="polite"></span>
       <button id="lx-focus" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="false" aria-label="Toggle focus mode">Focus mode</button>
@@ -304,5 +306,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=7"></script>
-<script src="/static/js/lights.js?v=18"></script>
+<script src="/static/js/lights.js?v=19"></script>
 {% endblock %}

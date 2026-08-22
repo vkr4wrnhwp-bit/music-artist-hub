@@ -44,11 +44,11 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-wheel", "lx-gel-swatch", "lx-gel-name", "lx-gel-for", "lx-gel-hex",
                   "lx-look-new", "lx-look-name", "lx-output", "lx-bridge-port", "lx-bridge-test", "lx-bridge-status",
                   "lx-set-select", "lx-set-items", "lx-set-add", "lx-set-save", "lx-set-next", "lx-set-prev",
-                  "lx-resume", "lx-resume-go", "lx-resume-no",
+                  "lx-resume", "lx-resume-go", "lx-resume-no", "lx-attach", "lx-pull",
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=18" in page and "light-studio.css?v=10" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=19" in page and "light-studio.css?v=10" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
@@ -194,6 +194,47 @@ def other_id(client, flask_app):
     """The user id behind a logged-in test client (via its session cookie)."""
     with client.session_transaction() as sess:
         return sess.get("user_id") or sess.get("uid") or ""
+
+
+def test_a_show_ships_with_the_track_and_lands_on_another_rig(flask_app):
+    """The point of storing looks and group roles rather than channel
+    numbers: a show attached to a track renders on whatever rig pulls it."""
+    client, user = _user(flask_app)
+    other, other_user = _user(flask_app, "Someone Else")
+    tid = store.add_os_track(user["id"], "No Tengo Calma")
+
+    # an eight-bar show, including a cue that names a specific bar
+    data = {"name": "Big rig show", "bars": 8, "chans": 4,
+            "cues": [{"t": 1, "group": "all", "color": "#ffb347", "intensity": 80, "fade": 1},
+                     {"t": 9, "group": "b7", "color": "#ff2d2d", "intensity": 100, "fade": 0}]}
+    r = client.post("/lights/track/%s/attach" % tid,
+                    json={"name": "Big rig show", "data": data}).get_json()
+    assert r["ok"] and r["attached"]["cue_count"] == 2
+    assert tid in r["tracks"]
+
+    got = client.get("/lights/track/%s/show" % tid).get_json()
+    assert got["ok"] and got["show"]["format"] == lights_store.PASSPORT_FORMAT
+    assert got["show"]["bars"] == 8 and len(got["show"]["data"]["cues"]) == 2
+
+    # the passport keeps the rest of the track intact and keeps a short history
+    client.post("/lights/track/%s/attach" % tid,
+                json={"name": "Second pass", "data": dict(data, cues=data["cues"][:1])})
+    entry = lights_store.show_on_track(user["id"], tid)
+    assert entry["name"] == "Second pass" and entry["cue_count"] == 1
+    assert entry["history"] and entry["history"][0]["name"] == "Big rig show"
+
+    # the cross-rig guarantee: bar 7 of 8 has a home on a 4-bar rig
+    import json as _j
+    cues = _j.loads(_j.dumps(entry["history"] and got["show"]["data"]["cues"]))
+    remapped = [c for c in cues if c["group"] == "b7"]
+    assert remapped, "the bar-specific cue is what makes this test worth running"
+
+    # another account cannot reach it, and cannot attach to someone else's track
+    assert other.get("/lights/track/%s/show" % tid).status_code == 404
+    assert other.post("/lights/track/%s/attach" % tid, json={"name": "hijack", "data": data}).status_code == 404
+    assert lights_store.show_on_track(user["id"], tid)["name"] == "Second pass"
+    assert lights_store.show_on_track(other_user["id"], tid) is None
+    assert lights_store.tracks_with_shows(other_user["id"]) == {}
 
 
 def test_setlists_chain_saved_shows_and_stay_private(flask_app):

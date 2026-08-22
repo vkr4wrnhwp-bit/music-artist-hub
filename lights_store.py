@@ -151,6 +151,75 @@ def list_versions(user_id, show_id):
     return out
 
 
+# --- the show ships with the song (Track Passport) ---------------------
+# A light show attached to a track travels with it: anyone with platform
+# access to the track can pull it and render it on their OWN rig, because
+# cues store looks and group roles rather than channel numbers.
+
+LIGHT_SHOW_KEY = "light_show"
+PASSPORT_FORMAT = 1
+
+
+def attach_to_track(user_id, track_id, name, data, show_id=""):
+    """Write the show into the track's passport, keeping a short history.
+
+    Stored beside the rest of the passport rather than in place of it, and
+    only ever for a track this account owns.
+    """
+    import db as _store
+    track = _store.get_os_track(user_id, track_id)
+    if track is None:
+        return None
+    passport = track.get("passport") or {}
+    if not isinstance(passport, dict):
+        passport = {}
+    prev = passport.get(LIGHT_SHOW_KEY) or {}
+    history = prev.get("history") or []
+    if prev.get("data"):
+        history.insert(0, {"saved_at": prev.get("saved_at"), "name": prev.get("name"),
+                           "cue_count": len((prev.get("data") or {}).get("cues") or [])})
+    entry = {
+        "format": PASSPORT_FORMAT,
+        "name": (name or "Untitled show")[:120],
+        "show_id": show_id or "",
+        "saved_at": _now(),
+        "cue_count": len((data or {}).get("cues") or []),
+        "bars": (data or {}).get("bars"),
+        "data": data if isinstance(data, dict) else {},
+        "history": history[:9],
+    }
+    passport[LIGHT_SHOW_KEY] = entry
+    _store.update_os_track_passport(user_id, track_id, passport)
+    return entry
+
+
+def show_on_track(user_id, track_id):
+    """The light show attached to a track, or None."""
+    import db as _store
+    track = _store.get_os_track(user_id, track_id)
+    if track is None:
+        return None
+    passport = track.get("passport") or {}
+    if not isinstance(passport, dict):
+        return None
+    entry = passport.get(LIGHT_SHOW_KEY)
+    return entry if isinstance(entry, dict) and entry.get("data") else None
+
+
+def tracks_with_shows(user_id):
+    """Which of this account's tracks carry a light show. Drives the badge
+    in the track picker."""
+    import db as _store
+    out = {}
+    for t in _store.list_os_tracks(user_id):
+        p = t.get("passport") or {}
+        entry = p.get(LIGHT_SHOW_KEY) if isinstance(p, dict) else None
+        if isinstance(entry, dict) and entry.get("data"):
+            out[t["id"]] = {"name": entry.get("name") or "", "cue_count": entry.get("cue_count") or 0,
+                            "saved_at": entry.get("saved_at") or ""}
+    return out
+
+
 # --- setlists ----------------------------------------------------------
 # A setlist chains saved shows in order. Between songs the rig holds a
 # "gap look" rather than going black, because a black stage between songs

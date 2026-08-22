@@ -4403,6 +4403,7 @@ def create_app():
                        "updated": s["updated"]} for s in lights_store.list_shows(user["id"])],
             "rigs": _lights_rigs(user["id"]),
             "setlists": lights_store.list_setlists(user["id"]),
+            "track_shows": lights_store.tracks_with_shows(user["id"]),
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
         # venue_key lets the page pick the rig bound to the room without a
@@ -4498,6 +4499,35 @@ def create_app():
             return jsonify({"ok": False}), 401
         lights_store.delete_show(user["id"], show_id)
         return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
+
+    @app.route("/lights/track/<track_id>/attach", methods=["POST"])
+    def lights_track_attach(track_id):
+        """Make the show travel with the song. Only the caller's own track."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        data = body.get("data") if isinstance(body.get("data"), dict) else {}
+        entry = lights_store.attach_to_track(user["id"], track_id,
+                                             body.get("name") or data.get("name") or "Untitled show",
+                                             data, body.get("show_id") or "")
+        if entry is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "attached": {"name": entry["name"], "cue_count": entry["cue_count"],
+                                                 "saved_at": entry["saved_at"]},
+                        "tracks": lights_store.tracks_with_shows(user["id"])})
+
+    @app.route("/lights/track/<track_id>/show")
+    def lights_track_show(track_id):
+        """Pull the show attached to a track so it can be rendered on this
+        account's own rig."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        entry = lights_store.show_on_track(user["id"], track_id)
+        if entry is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "show": entry})
 
     @app.route("/lights/setlists")
     def lights_setlists():
