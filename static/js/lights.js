@@ -1005,7 +1005,7 @@
     var t = Math.round(now() * 100) / 100;
     if (show.snap && show.bpm) t = E.snapToBeat(t, show.bpm, show.beatOffset);
     var c = {t: t, group: defaultGroup, color: "#d8b25a", intensity: 80, fade: 0.5, note: "", move: ""};
-    if (look) { c.color = look.color; c.intensity = look.intensity; c.fade = look.fade; c.note = look.name; c.look = look.key || ""; }
+    if (look) { c.color = look.color; c.intensity = look.intensity; c.fade = look.fade; c.note = look.name; c.look = look.key || ""; c.move = look.move || ""; }
     record("add");
     show.cues.push(c); markDirty(); ensureIds(); renderCues(); selectCue(c, true);
     announce((look ? look.name : "Cue") + " added at " + E.fmtTimecode(t));
@@ -1102,6 +1102,18 @@
       b.addEventListener("click", function () { applyLook(l); });
       box.appendChild(b);
     });
+    // the rest of the stock palette - no shortcut, but on the page from the
+    // first load so the studio never looks like a six-colour tool
+    (E.PALETTE || []).forEach(function (l) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "lx-look";
+      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + esc(l.name) +
+        (l.move ? ' <span class="lx-kbd" aria-hidden="true">' + l.move.charAt(0).toUpperCase() + '</span>' : "");
+      b.setAttribute("aria-label", l.name + " — " + l.intensity + "%, fade " + l.fade + " s" +
+        (l.move ? ", " + l.move : "") + ". Apply to the selected cue or add a cue at the playhead.");
+      b.title = selectedCue ? "Apply to the selected cue" : "Add a cue at the playhead with this look";
+      b.addEventListener("click", function () { applyLook(l); });
+      box.appendChild(b);
+    });
     (show.looks || []).forEach(function (l, i) {
       var wrap = document.createElement("span"); wrap.className = "lx-look is-user";
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-look-apply";
@@ -1116,7 +1128,14 @@
     });
   }
   function applyLook(l) {
-    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; selectedCue.look = l.key || ""; if (!selectedCue.note) selectedCue.note = l.name; own(selectedCue); markDirty(); renderCues(); announce(l.name + " applied"); }
+    if (selectedCue) {
+      record("look:" + selectedCue._id);
+      selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade;
+      selectedCue.look = l.key || "";
+      selectedCue.move = l.move || "";        // a look may carry movement (strobe, chase)
+      if (!selectedCue.note) selectedCue.note = l.name;
+      own(selectedCue); markDirty(); renderCues(); announce(l.name + " applied");
+    }
     else if (buffer || runStart !== null) addCue(l);
   }
   $("lx-look-save").addEventListener("click", function () {

@@ -615,6 +615,7 @@
     };
   }
 
+  // The six that hold keys 1-6. Blackout stays distinct on 6.
   var LOOKS = [
     {key: "amber", name: "Amber wash", color: "#ffb347", intensity: 85, fade: 1.0},
     {key: "blue", name: "Cold blue", color: "#3b82f6", intensity: 80, fade: 1.0},
@@ -622,6 +623,32 @@
     {key: "white", name: "White full", color: "#ffffff", intensity: 100, fade: 0.2},
     {key: "violet", name: "Violet haze", color: "#8b5cf6", intensity: 70, fade: 1.5},
     {key: "blackout", name: "Blackout", color: "#000000", intensity: 0, fade: 0.1}
+  ];
+
+  // The rest of the stock palette. These have no keyboard shortcut - there
+  // are only ten number keys - but they are on the page from the first load,
+  // so the studio opens with a palette rather than six swatches and a
+  // "make your own" button. Named and dialled like real gels: intensity and
+  // fade are part of a look, not just a colour.
+  var PALETTE = [
+    {key: "deepblue", name: "Deep blue", color: "#1d4ed8", intensity: 75, fade: 1.4},
+    {key: "congo", name: "Congo night", color: "#2b0e8a", intensity: 65, fade: 2.0},
+    {key: "teal", name: "Teal wash", color: "#00b3a4", intensity: 78, fade: 1.2},
+    {key: "cyan", name: "Ice cyan", color: "#57b8ff", intensity: 82, fade: 0.8},
+    {key: "seagreen", name: "Sea green", color: "#00a651", intensity: 75, fade: 1.2},
+    {key: "lime", name: "Lime punch", color: "#b9f3b0", intensity: 85, fade: 0.5},
+    {key: "gold", name: "Pale gold", color: "#fff1c9", intensity: 80, fade: 1.6},
+    {key: "sunrise", name: "Sunrise", color: "#ff7a00", intensity: 88, fade: 1.0},
+    {key: "flame", name: "Flame", color: "#ff4a1c", intensity: 92, fade: 0.4},
+    {key: "magenta", name: "Magenta", color: "#ff3fa4", intensity: 85, fade: 0.6},
+    {key: "rose", name: "Rose", color: "#ff6fb5", intensity: 78, fade: 1.1},
+    {key: "mauve", name: "Mauve", color: "#b63fa0", intensity: 72, fade: 1.3},
+    {key: "lavender", name: "Lavender", color: "#b9a7ff", intensity: 70, fade: 1.5},
+    {key: "ctb", name: "Cold white", color: "#cfe6ff", intensity: 95, fade: 0.5},
+    {key: "bastard", name: "Bastard amber", color: "#ffd7a8", intensity: 70, fade: 1.8},
+    {key: "chocolate", name: "Chocolate", color: "#8a5a2b", intensity: 55, fade: 2.2},
+    {key: "strobe", name: "White strobe", color: "#ffffff", intensity: 100, fade: 0.0, move: "strobe"},
+    {key: "chase", name: "Amber chase", color: "#ffb347", intensity: 95, fade: 0.0, move: "chase"}
   ];
 
   return {
@@ -634,7 +661,7 @@
     remapGroup: remapGroup, remapCues: remapCues,
     fmtClock: fmtClock, fmtTimecode: fmtTimecode, peaks: peaks,
     onsetEnvelope: onsetEnvelope, detectBeats: detectBeats, snapToBeat: snapToBeat,
-    tapTempo: tapTempo, nearestCue: nearestCue, LOOKS: LOOKS,
+    tapTempo: tapTempo, nearestCue: nearestCue, LOOKS: LOOKS, PALETTE: PALETTE,
     frameFeatures: frameFeatures, detectSections: detectSections, analyzeTrack: analyzeTrack,
     generateCues: generateCues, SECTION_LOOKS: SECTION_LOOKS, makeHistory: makeHistory
   };

@@ -71,7 +71,24 @@ ok("tap tempo from 8 taps at 0.5s = 120", E.tapTempo([0, 0.5, 1, 1.5, 2, 2.5, 3,
 ok("tap tempo ignores a long gap", E.tapTempo([0, 0.5, 10, 10.5, 11]) === 120);
 ok("nearestCue within tolerance", E.nearestCue([{t: 1}, {t: 5}], 5.2, 0.5).t === 5 && E.nearestCue([{t: 1}], 5, 0.5) === null);
 ok("isBlackout", E.isBlackout({color: "#000000", intensity: 80}) && E.isBlackout({color: "#ff0000", intensity: 0}) && !E.isBlackout({color: "#ff0000", intensity: 1}));
-ok("six looks, last is blackout", E.LOOKS.length === 6 && E.LOOKS[5].key === "blackout");
+ok("six keyed looks, last is blackout", E.LOOKS.length === 6 && E.LOOKS[5].key === "blackout");
+// the stock palette on top of the keyed six - the studio must not open as a
+// six-colour tool
+ok("the stock palette ships more than a handful", E.PALETTE.length >= 12, "palette=" + E.PALETTE.length);
+ok("every stock look is a valid, distinct colour", (() => {
+  const all = E.LOOKS.concat(E.PALETTE);
+  const hex = /^#[0-9a-f]{6}$/i;
+  const keys = new Set(), colours = new Set();
+  for (const l of all) {
+    if (!hex.test(l.color) || !l.name) return false;
+    if (l.intensity < 0 || l.intensity > 100 || l.fade < 0) return false;
+    if (keys.has(l.key)) return false;
+    keys.add(l.key);
+    colours.add(l.color.toLowerCase() + "/" + l.intensity + "/" + (l.move || ""));
+  }
+  return colours.size === all.length;
+})());
+ok("a look may carry movement, and it is a real move", E.PALETTE.filter(l => l.move).every(l => E.MOVES.some(m => m[0] === l.move)));
 
 // a cue interrupting a fade starts from what is ON STAGE, not from the
 // previous cue's target - otherwise the rig pops to full then fades down
