@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
@@ -34,7 +35,7 @@ export default async function MetrologyPage() {
           />
         ) : (
           <Panel title={`${devices.length} instruments`} dense>
-            <Table head={["", "Instrument", "Range", "Resolution", "Uncertainty", "Calibration"]}>
+            <Table head={["", "Instrument", "Range", "Resolution", "Uncertainty", "Calibration", ""]}>
               {devices.map((d) => (
                 <tr key={d.id} className="hover:bg-raised">
                   {/* The same schematic the feature panel draws, so an
@@ -53,6 +54,14 @@ export default async function MetrologyPage() {
                     <StatusChip tone={d.calibrated ? "pass" : "review"}>
                       {d.calibrated ? "Calibrated" : "Not calibrated"}
                     </StatusChip>
+                  </Td>
+                  <Td>
+                    <Link
+                      href={`/metrology/${d.id}/edit`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
+                    >
+                      Edit
+                    </Link>
                   </Td>
                 </tr>
               ))}

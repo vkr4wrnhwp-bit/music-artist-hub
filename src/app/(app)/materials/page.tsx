@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getMaterials } from "@/lib/data";
 import { TopBar } from "@/components/nav";
@@ -32,7 +33,7 @@ export default async function MaterialsPage() {
           />
         ) : (
           <Panel title={`${materials.length} materials`} dense>
-            <Table head={["Material", "Condition", "Family", "Density", "Machinability", "SFM (carbide)", "Spec. energy", "$/lb", "Castable"]}>
+            <Table head={["Material", "Condition", "Family", "Density", "Machinability", "SFM (carbide)", "Spec. energy", "$/lb", "Castable", ""]}>
               {materials.map((m) => (
                 <tr key={m.id} className="hover:bg-raised">
                   <Td className="text-platinum">{m.name}</Td>
@@ -46,6 +47,14 @@ export default async function MaterialsPage() {
                   <Td>{m.specificEnergy.toFixed(2)}</Td>
                   <Td>${m.costPerPound.toFixed(2)}</Td>
                   <Td muted>{m.castable ? "Yes" : "No"}</Td>
+                  <Td>
+                    <Link
+                      href={`/materials/${m.id}/edit`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
+                    >
+                      Edit
+                    </Link>
+                  </Td>
                 </tr>
               ))}
             </Table>

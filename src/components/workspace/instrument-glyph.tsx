@@ -59,6 +59,14 @@ export const DEVICE_TYPE_LABEL: Record<string, string> = {
   OPTICAL_COMPARATOR: "Optical comparator",
   CMM: "Coordinate measuring machine",
   MACHINE_PROBE: "Spindle probe",
+  TAPE_RULE: "Steel rule",
+  VERNIER_CALIPER: "Vernier caliper",
+  GAUGE_BLOCK: "Gauge blocks",
+  TEST_INDICATOR: "Test indicator",
+  SINE_BAR: "Sine bar",
+  PORTABLE_CMM: "Portable CMM arm",
+  STRUCTURED_LIGHT_SCANNER: "Structured light scanner",
+  LASER_SCANNER: "Laser scanner",
 };
 
 /* ------------------------------------------------------------------ */
@@ -273,6 +281,136 @@ const GLYPHS: Record<string, React.ReactNode> = {
       <g {...detail}>
         <line x1="26" y1="45" x2="26" y2="40" />
         <line x1="70" y1="45" x2="70" y2="40" />
+      </g>
+    </>
+  ),
+
+  /* Hooked steel rule. Graduations along the measuring edge, no numerals —
+     numerals at this size would be unreadable, and a wrong one would be a
+     scale that lies. */
+  TAPE_RULE: (
+    <>
+      <path {...body} d="M14 20 H84 V30 H14 Z" />
+      <path {...body} d="M14 17 H18 V20" />
+      <line {...contact} x1="14" y1="17" x2="14" y2="30" />
+      <g {...detail}>
+        {[22, 28, 34, 40, 46, 52, 58, 64, 70, 76, 82].map((x, i) => (
+          <line key={x} x1={x} y1="20" x2={x} y2={i % 2 === 0 ? 26 : 23} />
+        ))}
+      </g>
+    </>
+  ),
+
+  /* Beam, jaws, and a vernier scale block. The scale is the whole point of
+     the instrument, so it is drawn — as graduations, not as a value. */
+  VERNIER_CALIPER: (
+    <>
+      <path {...body} d="M12 22 H84 V28 H12 Z" />
+      <path {...body} d="M16 8 V22" />
+      <path {...body} d="M16 28 V40" />
+      <line {...contact} x1="16" y1="8" x2="16" y2="20" />
+      <line {...contact} x1="16" y1="30" x2="16" y2="40" />
+      <path {...body} d="M42 10 V22" />
+      <path {...body} d="M42 28 V38" />
+      <line {...contact} x1="42" y1="10" x2="42" y2="20" />
+      <line {...contact} x1="42" y1="30" x2="42" y2="38" />
+      <path {...body} d="M46 13 H72 V22 H46 Z" />
+      <g {...detail}>
+        {[50, 54, 58, 62, 66, 70].map((x) => (
+          <line key={x} x1={x} y1="16" x2={x} y2="22" />
+        ))}
+        {[20, 28, 36, 44, 52, 60, 68, 76].map((x) => (
+          <line key={`t${x}`} x1={x} y1="22" x2={x} y2="25" />
+        ))}
+      </g>
+    </>
+  ),
+
+  /* A wrung stack. The lapped faces are the standard, so they are the blue
+     ones — a gauge block is a length, not an instrument that reads. */
+  GAUGE_BLOCK: (
+    <>
+      <path {...body} d="M24 14 H72 V22 H24 Z" />
+      <path {...body} d="M28 22 H68 V30 H28 Z" />
+      <path {...body} d="M32 30 H64 V38 H32 Z" />
+      <line {...contact} x1="24" y1="22" x2="72" y2="22" />
+      <line {...contact} x1="28" y1="30" x2="68" y2="30" />
+    </>
+  ),
+
+  /* Lever type, not plunger — that is what separates it from the dial
+     indicator above, and a machinist picks between them by exactly that. */
+  TEST_INDICATOR: (
+    <>
+      <circle {...body} cx="58" cy="18" r="13" />
+      {graduations(58, 18, 13)}
+      <circle {...detail} cx="58" cy="18" r="1.6" />
+      <path {...body} d="M45 22 L36 30" />
+      <path {...body} d="M36 30 L20 38" />
+      <circle {...contact} cx="17" cy="40" r="2.6" />
+    </>
+  ),
+
+  /* Bar on two rolls, with the stack that sets it. Drawn tilted because a
+     sine bar tilted is what a sine bar is; no angle is annotated, which is
+     the same rule as not dimensioning a caliper's opening. */
+  SINE_BAR: (
+    <>
+      <line {...contact} x1="10" y1="42" x2="88" y2="42" />
+      <path {...body} d="M18 30 L74 14 L78 25 L22 41 Z" />
+      <circle {...body} cx="22" cy="38" r="4" />
+      <circle {...body} cx="72" cy="24" r="4" />
+      <path {...body} d="M62 30 H82 V38 H62 Z" />
+      <path {...detail} d="M64 34 H80" />
+      <path {...body} d="M64 38 H80 V42 H64 Z" />
+    </>
+  ),
+
+  /* Articulated arm on a base, probe at the end. The joints are the point. */
+  PORTABLE_CMM: (
+    <>
+      <path {...body} d="M12 38 H34 V44 H12 Z" />
+      <path {...body} d="M23 38 V28" />
+      <circle {...body} cx="23" cy="26" r="3" />
+      <path {...body} d="M25 24 L48 14" />
+      <circle {...body} cx="50" cy="13" r="3" />
+      <path {...body} d="M53 14 L72 26" />
+      <circle {...body} cx="74" cy="27" r="3" />
+      <path {...body} d="M75 30 V36" />
+      <circle {...contact} cx="75" cy="39" r="2.6" />
+    </>
+  ),
+
+  /* Projector and camera on one head — the two apertures and the triangle
+     between them are what makes it structured light rather than a laser. */
+  STRUCTURED_LIGHT_SCANNER: (
+    <>
+      <path {...body} d="M26 8 H70 V22 H26 Z" />
+      <path {...detail} d="M32 12 H40 V18 H32 Z" />
+      <path {...detail} d="M56 12 H64 V18 H56 Z" />
+      <path {...detail} d="M36 22 L28 38" />
+      <path {...detail} d="M60 22 L68 38" />
+      <g {...contact}>
+        <line x1="26" y1="40" x2="70" y2="40" />
+      </g>
+      <g {...detail}>
+        {[34, 42, 50, 58, 64].map((x) => (
+          <line key={x} x1={x} y1="34" x2={x} y2="40" />
+        ))}
+      </g>
+    </>
+  ),
+
+  /* One head, one fan of light, one return path. A single blade of light is
+     what distinguishes it from the structured-light head above. */
+  LASER_SCANNER: (
+    <>
+      <path {...body} d="M30 8 H66 V22 H30 Z" />
+      <path {...detail} d="M44 22 V26" />
+      <path {...body} d="M44 26 L30 40 H62 Z" fill="none" />
+      <line {...contact} x1="24" y1="42" x2="76" y2="42" />
+      <g {...detail}>
+        <line x1="62" y1="26" x2="70" y2="38" />
       </g>
     </>
   ),

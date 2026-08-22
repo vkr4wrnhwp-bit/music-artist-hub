@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getWorkholding } from "@/lib/data";
 import { db } from "@/lib/db";
@@ -36,7 +37,7 @@ export default async function WorkholdingPage() {
           />
         ) : (
           <Panel title="Devices" dense>
-            <Table head={["Type", "Description", "Jaw width", "Jaw height", "Max opening", "Clamp force", "Fixture height", "CAD"]}>
+            <Table head={["Type", "Description", "Jaw width", "Jaw height", "Max opening", "Clamp force", "Fixture height", "CAD", ""]}>
               {devices.map((d) => (
                 <tr key={d.id} className="hover:bg-raised">
                   <Td className="text-precision">{d.type.replace(/_/g, " ")}</Td>
@@ -50,6 +51,14 @@ export default async function WorkholdingPage() {
                     <StatusChip tone={d.hasCadRepresentation ? "pass" : "unknown"}>
                       {d.hasCadRepresentation ? "Yes" : "None"}
                     </StatusChip>
+                  </Td>
+                                  <Td>
+                    <Link
+                      href={`/workholding/${d.id}/edit`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
+                    >
+                      Edit
+                    </Link>
                   </Td>
                 </tr>
               ))}

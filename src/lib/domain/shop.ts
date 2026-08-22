@@ -288,6 +288,13 @@ export const METROLOGY_DEVICES = [
   "VERNIER_CALIPER",
   "MICROMETER",
   "DEPTH_MICROMETER",
+  // Added because inspection-capability.ts already reasoned about one.
+  // INSIDE_MICROMETER sat in both MEASURES_INTERNAL_ROUND and
+  // MEASURES_INTERNAL_FLAT while being absent from this list, so no shop
+  // could ever record one and those two entries could never match anything.
+  // The engine was reasoning about an instrument the data model could not
+  // hold — which reads as support for inside mics and delivers none.
+  "INSIDE_MICROMETER",
   "BORE_GAUGE",
   "TELESCOPING_GAUGE",
   "PIN_GAUGE",
@@ -326,6 +333,7 @@ export const METROLOGY_LABELS: Record<MetrologyDeviceType, string> = {
   VERNIER_CALIPER: "Vernier calipers",
   MICROMETER: "Micrometer",
   DEPTH_MICROMETER: "Depth micrometer",
+  INSIDE_MICROMETER: "Inside micrometer",
   BORE_GAUGE: "Bore gauge",
   TELESCOPING_GAUGE: "Telescoping gauge",
   PIN_GAUGE: "Pin gauges",
@@ -350,6 +358,7 @@ export const DEVICE_UNCERTAINTY: Record<MetrologyDeviceType, number> = {
   VERNIER_CALIPER: 0.003,
   MICROMETER: 0.0002,
   DEPTH_MICROMETER: 0.0005,
+  INSIDE_MICROMETER: 0.0003,
   BORE_GAUGE: 0.0002,
   TELESCOPING_GAUGE: 0.001,
   PIN_GAUGE: 0.0002,

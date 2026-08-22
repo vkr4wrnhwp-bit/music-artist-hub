@@ -121,6 +121,12 @@ export default async function MachinesPage() {
                     >
                       Carousel
                     </Link>
+                    <Link
+                      href={`/machines/${m.id}/edit`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
+                    >
+                      Edit
+                    </Link>
                   </span>
                 }
                 dense
