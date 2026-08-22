@@ -45,6 +45,36 @@ const NUMBER_WORDS: Record<string, number> = {
   nine: 9, ten: 10, eleven: 11, twelve: 12, sixteen: 16, twenty: 20,
 };
 
+/**
+ * Everything stored inside CANVAS is inches.
+ *
+ * The STEP importer scales millimetre files to inches and records what the
+ * file said; the NC parser does the same for a G21 program. This parser was
+ * the one import path that did neither: "150 x 100 x 25 mm" was stored as
+ * 150 x 100 x 25 and every engine downstream — envelope banding, machine
+ * travel, cutting force, cost — read it as a 150 INCH part.
+ *
+ * `units` remains a record of what the operator typed, exactly as the STEP
+ * importer keeps the file's declared unit. The numbers beside it are inches.
+ */
+const MM_PER_INCH = 25.4;
+
+/** Conventional facing and profile allowance, per axis, in inches. */
+const STOCK_ALLOWANCE_IN = 0.125;
+
+/**
+ * Whether a measurement is metric is decided AT THE MEASUREMENT, not for the
+ * whole sentence.
+ *
+ * "6 x 4 x 1 with a 40mm bearing bore" is an ordinary thing for a shop to
+ * type — inch plate, metric bearing — and a document-wide flag gets it wrong
+ * whichever way it falls. Each parsed value carries its own unit, and the
+ * sentence-level reading is only the fallback for a number that states none.
+ */
+function isMetricAt(text: string, matchEnd: number): boolean {
+  return /^\s*(?:mm\b|millimet(?:er|re)s?\b)/i.test(text.slice(matchEnd));
+}
+
 function parseNum(raw: string): number {
   const s = raw.trim();
   const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(s);
@@ -53,6 +83,8 @@ function parseNum(raw: string): number {
   if (frac) return Number(frac[1]) / Number(frac[2]);
   return Number(s);
 }
+
+const round4 = (v: number): number => Number(v.toFixed(4));
 
 export class DeterministicProvider implements AiProvider {
   readonly id = "deterministic";
@@ -67,6 +99,8 @@ export class DeterministicProvider implements AiProvider {
     /* ---- Units ---- */
     const metric = /\bmm\b|\bmillimet(?:er|re)s?\b/i.test(text);
     out.units = metric ? "MM" : "IN";
+    /** Converts one parsed value, using the unit written beside it. */
+    const at = (v: number, matchEnd: number): number => (isMetricAt(text, matchEnd) ? v / MM_PER_INCH : v);
 
     /* ---- Material ---- */
     const mat = MATERIALS.find((m) => m.pattern.test(text));
@@ -84,14 +118,20 @@ export class DeterministicProvider implements AiProvider {
     );
     const env = envRe.exec(text);
     if (env) {
-      const [x, y, z] = [parseNum(env[1]), parseNum(env[2]), parseNum(env[3])];
-      out.finishedEnvelope = { x, y, z };
-      // Stock gets a conventional facing and profile allowance.
+      // The unit sits after the last of the three, so it governs all three.
+      const envMetric = isMetricAt(text, env.index + env[0].length);
+      const scale = (v: number) => (envMetric ? v / MM_PER_INCH : v);
+      const [x, y, z] = [scale(parseNum(env[1])), scale(parseNum(env[2])), scale(parseNum(env[3]))];
+      out.finishedEnvelope = { x: round4(x), y: round4(y), z: round4(z) };
+      // Stock gets a conventional facing and profile allowance. The allowance
+      // is an inch figure, and it was being added to whatever unit the text
+      // used — so a metric part got 0.125 MILLIMETRES of stock to face, which
+      // is two thou per side and not a facing allowance at all.
       out.stock = {
         form: "RECTANGULAR",
-        x: Number((x + 0.125).toFixed(3)),
-        y: Number((y + 0.125).toFixed(3)),
-        z: Number((z + 0.125).toFixed(3)),
+        x: round4(x + STOCK_ALLOWANCE_IN),
+        y: round4(y + STOCK_ALLOWANCE_IN),
+        z: round4(z + STOCK_ALLOWANCE_IN),
       };
     } else {
       unknowns.push("Finished envelope not stated");
@@ -104,7 +144,7 @@ export class DeterministicProvider implements AiProvider {
 
     /* ---- Tolerance ---- */
     const tol = /(?:±|\+\/-|plus\/minus)\s*(\.\d+|\d*\.\d+|\d+)/i.exec(text);
-    if (tol) out.generalTolerance = parseNum(tol[1]);
+    if (tol) out.generalTolerance = round4(at(parseNum(tol[1]), tol.index + tol[0].length));
     else unknowns.push("General tolerance not stated");
 
     /* ---- Surface finish ---- */
@@ -143,6 +183,7 @@ export class DeterministicProvider implements AiProvider {
 
   private describeFeatures(text: string): string[] {
     const found: string[] = [];
+    const at = (v: number, end: number) => (isMetricAt(text, end) ? v / MM_PER_INCH : v);
 
     // "four 1/4-20 holes", "4x M6 tapped holes"
     const tapRe = new RegExp(
@@ -161,27 +202,46 @@ export class DeterministicProvider implements AiProvider {
     );
     for (const m of text.matchAll(holeRe)) {
       const count = NUMBER_WORDS[m[1].toLowerCase()] ?? Number(m[1]);
-      const d = parseNum(m[2]);
+      const d = at(parseNum(m[2]), m.index + m[0].length);
       if (d > 0 && d < 6) found.push(`${count} × ⌀${d.toFixed(4)} holes`);
     }
 
     // pockets
     const pocketRe = new RegExp(String.raw`(${FRACTION})\s*(?:in|")?\s*deep\s*(?:center\s*)?pocket`, "gi");
-    for (const m of text.matchAll(pocketRe)) found.push(`Pocket ${parseNum(m[1]).toFixed(4)} deep`);
+    for (const m of text.matchAll(pocketRe)) found.push(`Pocket ${at(parseNum(m[1]), m.index + m[1].length + (m[0].indexOf(m[1]))).toFixed(4)} deep`);
     if (found.every((f) => !f.includes("Pocket")) && /\bpocket\b/i.test(text)) found.push("Pocket (depth not stated)");
 
     // bore
-    const boreRe = new RegExp(String.raw`(${FRACTION})\s*(?:in|"|mm)?\s*(?:dia\.?\s*)?bore`, "gi");
-    for (const m of text.matchAll(boreRe)) found.push(`⌀${parseNum(m[1]).toFixed(4)} bore`);
+    // "40mm bearing bore" and "bore 40 mm" are both ordinary phrasings and
+    // neither matched: the pattern wanted the number immediately before the
+    // word "bore". "40 mm bearing bore" is the phrasing this application's
+    // own seed part uses for its headline feature, so the parser could not
+    // read the example the rest of the codebase is written around.
+    //
+    // The qualifiers allowed between the number and the word are a closed
+    // list rather than \w+, because "2 inch thick plate with a bore" would
+    // otherwise be read as a two inch bore.
+    const BORE_QUALIFIER = String.raw`(?:bearing|seal|journal|blind|thru|through|finished|reamed|dia\.?|diameter)`;
+    const boreBefore = new RegExp(
+      String.raw`(${FRACTION})\s*(?:in|"|mm)?\s*(?:${BORE_QUALIFIER}\s*){0,2}bore`,
+      "gi",
+    );
+    const boreAfter = new RegExp(String.raw`bore\s*(?:of\s*)?(?:⌀|dia\.?\s*)?(${FRACTION})\s*(?:in|"|mm)?`, "gi");
+    for (const m of text.matchAll(boreBefore)) {
+      found.push(`⌀${at(parseNum(m[1]), m.index + m[0].indexOf(m[1]) + m[1].length).toFixed(4)} bore`);
+    }
+    for (const m of text.matchAll(boreAfter)) {
+      found.push(`⌀${at(parseNum(m[1]), m.index + m[0].indexOf(m[1]) + m[1].length).toFixed(4)} bore`);
+    }
     if (found.every((f) => !f.includes("bore")) && /\bbore\b/i.test(text)) found.push("Bore (diameter not stated)");
 
     // corners / chamfers / engraving
     const radRe = new RegExp(String.raw`(?:r|radius\s*)(${FRACTION})\s*(?:in|")?\s*(?:corners?|rounded)`, "gi");
-    for (const m of text.matchAll(radRe)) found.push(`R${parseNum(m[1]).toFixed(3)} corners`);
+    for (const m of text.matchAll(radRe)) found.push(`R${at(parseNum(m[1]), m.index + m[0].indexOf(m[1]) + m[1].length).toFixed(3)} corners`);
     if (/rounded corners/i.test(text) && !found.some((f) => f.startsWith("R"))) found.push("Rounded corners (radius not stated)");
 
     const chamRe = new RegExp(String.raw`(${FRACTION})\s*(?:in|")?\s*(?:x\s*45\s*°?|chamfer)`, "gi");
-    for (const m of text.matchAll(chamRe)) found.push(`${parseNum(m[1]).toFixed(3)} × 45° chamfer`);
+    for (const m of text.matchAll(chamRe)) found.push(`${at(parseNum(m[1]), m.index + m[1].length).toFixed(3)} × 45° chamfer`);
     if (/\bchamfer\b/i.test(text) && !found.some((f) => f.includes("chamfer"))) {
       found.push("Chamfer (size not stated)");
     }
