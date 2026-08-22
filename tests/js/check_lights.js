@@ -73,5 +73,36 @@ ok("nearestCue within tolerance", E.nearestCue([{t: 1}, {t: 5}], 5.2, 0.5).t ===
 ok("isBlackout", E.isBlackout({color: "#000000", intensity: 80}) && E.isBlackout({color: "#ff0000", intensity: 0}) && !E.isBlackout({color: "#ff0000", intensity: 1}));
 ok("six looks, last is blackout", E.LOOKS.length === 6 && E.LOOKS[5].key === "blackout");
 
+// custom (hand-picked) groups
+ok("custom group members, sorted and deduped", E.membersOf("b3+b1+b3", 6).join() === "1,3");
+ok("custom group ignores bars beyond the rig", E.membersOf("b1+b9", 6).join() === "1");
+ok("customGroup canonical keys", E.customGroup([3, 1]) === "b1+b3" && E.customGroup([2]) === "b2" && E.customGroup([]) === "all");
+ok("toggleInGroup adds and removes", E.toggleInGroup("b1", 3, 6) === "b1+b3" && E.toggleInGroup("b1+b3", 1, 6) === "b3" && E.toggleInGroup("all", 2, 3) === "b1+b3");
+ok("custom group label", E.groupLabel("b2+b5", 6) === "Bars 2 + 5");
+// two cues at the same timecode on different groups both land (per-fixture merge)
+const merge = {bars: 4, chans: 4, cues: [
+  {t: 2, group: "odd", color: "#ff0000", intensity: 100, fade: 0},
+  {t: 2, group: "even", color: "#0000ff", intensity: 50, fade: 0},
+  {t: 2, group: "b4", color: "#00ff00", intensity: 100, fade: 0}]};
+const M = E.lightingAt(merge, 3);
+ok("same-timecode cues merge per bar (odd red, even blue, b4 overrides)",
+   M[0].rgb.join() === "255,0,0" && M[1].rgb.join() === "0,0,255" && M[1].inten === 0.5 && M[3].rgb.join() === "0,255,0" && M[3].inten === 1, JSON.stringify(M));
+
+// grand master / panic
+const SL = E.scaleLooks([{rgb: [255, 0, 0], inten: 1}, {rgb: [0, 0, 255], inten: 0.5}], 0.5, false);
+ok("master halves every intensity, keeps colour", SL[0].inten === 0.5 && SL[1].inten === 0.25 && SL[0].rgb.join() === "255,0,0");
+ok("panic forces everything off", E.scaleLooks([{rgb: [255, 0, 0], inten: 1}], 1, true)[0].inten === 0);
+ok("master defaults to 1 and clamps", E.scaleLooks([{rgb: [1, 2, 3], inten: 1}])[0].inten === 1 && E.scaleLooks([{rgb: [1, 2, 3], inten: 1}], 7)[0].inten === 1);
+
+// DMX patch: first address, per-bar overrides, overlaps, off-the-end
+ok("default patch runs from 1 in fixture-sized steps", E.fixtureAddress({bars: 3, chans: 4}, 1) === 1 && E.fixtureAddress({bars: 3, chans: 4}, 3) === 9 && E.fixtureAddress({bars: 3, chans: 3}, 3) === 7);
+ok("first address shifts the run", E.fixtureAddress({bars: 3, chans: 4, dmxStart: 101}, 2) === 105);
+ok("per-bar address wins", E.fixtureAddress({bars: 3, chans: 4, dmxStart: 1, dmxAddr: {"2": 200}}, 2) === 200 && E.fixtureAddress({bars: 3, chans: 4, dmxAddr: {"2": "x"}}, 2) === 5);
+ok("overlaps are reported as bar pairs", JSON.stringify(E.patchOverlaps({bars: 3, chans: 4, dmxAddr: {"2": 3}})) === "[[1,2]]" && E.patchOverlaps({bars: 3, chans: 4}).length === 0);
+const patched = E.dmxFrame({bars: 2, chans: 4, dmxStart: 10, dmxAddr: {"2": 100}}, [{rgb: [1, 2, 3], inten: 1}, {rgb: [4, 5, 6], inten: 1}]);
+ok("frame writes each bar at its own address", patched[4 + 10] === 255 && patched[4 + 11] === 1 && patched[4 + 100] === 255 && patched[4 + 103] === 6 && patched[4 + 5] === 0);
+const offEnd = E.dmxFrame({bars: 1, chans: 4, dmxAddr: {"1": 511}}, [{rgb: [9, 9, 9], inten: 1}]);
+ok("a fixture patched off the end of the universe is skipped, never wrapped", offEnd.length === 518 && offEnd[4 + 511] === 0 && offEnd[4 + 1] === 0);
+
 console.log(fails ? ("\n" + fails + " FAILED") : "\nall passed");
 process.exit(fails ? 1 : 0);

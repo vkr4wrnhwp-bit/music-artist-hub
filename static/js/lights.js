@@ -13,9 +13,14 @@
   show.bars = Math.max(2, Math.min(10, show.bars || 6));
   show.chans = show.chans === 3 ? 3 : 4;
   show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
+  show.looks = Array.isArray(show.looks) ? show.looks.slice(0, 4) : [];   // user looks (keys 7 8 9 0), saved with the show
 
   // ---------- state ----------
   var ctx = null, buffer = null, playing = false, startAt = 0, playOffset = 0, runStart = null, scrubT = 0, src = null;
+  // Output scaling is live state, not part of the show: the grand master
+  // multiplies every intensity, panic forces everything off. Volume and
+  // rate only touch the preview audio; the clock always reads song time.
+  var master = 1, panic = false, volume = 1, rate = 1, gainNode = null;
   var port = null, writer = null, lastDmx = 0, dmxWrites = 0, dmxFps = 0, dmxSec = 0;
   var selectedCue = null, selectedBar = null, hoverBar = null, hoverGroup = null, defaultGroup = "all";
   var dirty = false, saveTimer = null, beatGrid = true, taps = [];
@@ -27,7 +32,10 @@
   function announce(msg) { var el = $("lx-live"); if (!el) return; el.textContent = ""; setTimeout(function () { el.textContent = msg; }, 30); }
 
   function ensureCtx() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      gainNode = ctx.createGain(); gainNode.gain.value = volume; gainNode.connect(ctx.destination);
+    }
     return ctx;
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -40,7 +48,7 @@
   // ---------- transport ----------
   var playBtn = $("lx-play"), clockEl = $("lx-clock"), totalEl = $("lx-clock-total"), infoEl = $("lx-fileinfo");
   function now() {
-    if (buffer && playing) return Math.min(buffer.duration, ctx.currentTime - startAt + playOffset);
+    if (buffer && playing) return Math.min(buffer.duration, (ctx.currentTime - startAt) * rate + playOffset);
     if (runStart !== null) return (performance.now() - runStart) / 1000;
     return scrubT;
   }
@@ -51,7 +59,7 @@
     ensureCtx().resume();
     stopSource();
     var s = ctx.createBufferSource();
-    s.buffer = buffer; s.connect(ctx.destination);
+    s.buffer = buffer; s.playbackRate.value = rate; s.connect(gainNode || ctx.destination);
     s.onended = function () { if (src === s) { playing = false; src = null; scrubT = buffer.duration; paintTransport(); } };
     src = s;
     s.start(0, clamp(offset, 0, Math.max(0, buffer.duration - 0.01)));
@@ -100,6 +108,26 @@
     runStart = performance.now() - scrubT * 1000;
     paintTransport();
   });
+
+  // ---------- audio controls: volume, rate, scrub ----------
+  var volEl = $("lx-vol"), rateEl = $("lx-rate"), scrubEl = $("lx-scrub");
+  volEl.addEventListener("input", function () {
+    volume = clamp(parseInt(volEl.value, 10) / 100, 0, 1);
+    if (gainNode) gainNode.gain.value = volume;
+    $("lx-vol-val").textContent = Math.round(volume * 100) + "%";
+  });
+  rateEl.addEventListener("change", function () {
+    var t = now();
+    rate = parseFloat(rateEl.value) || 1;
+    if (playing) startPlayback(t);
+    announce("Playback " + rateEl.options[rateEl.selectedIndex].textContent + (rate !== 1 ? " — the clock still reads song time" : ""));
+  });
+  scrubEl.addEventListener("input", function () { if (buffer) seek(parseInt(scrubEl.value, 10) / 1000 * buffer.duration); });
+  function paintScrub(t) {
+    if (!buffer || document.activeElement === scrubEl) return;
+    var v = String(Math.round(t / buffer.duration * 1000));
+    if (scrubEl.value !== v) { scrubEl.value = v; scrubEl.setAttribute("aria-valuetext", E.fmtTimecode(t)); }
+  }
   function loadBuffer(buf, name) {
     buffer = buf; scrubT = 0; stopSource(); playing = false; runStart = null;
     show.name = show.name || String(name || "").replace(/\.[^.]+$/, "");
@@ -107,7 +135,7 @@
     infoEl.innerHTML = "<b>" + esc(name || "song") + "</b> — " + E.fmtClock(buf.duration) + ", " +
       buf.numberOfChannels + " ch · stays on this machine";
     totalEl.textContent = "of " + E.fmtTimecode(buf.duration);
-    playBtn.disabled = false;
+    playBtn.disabled = false; scrubEl.disabled = false; scrubEl.value = "0";
     view.start = 0; view.end = buf.duration; invalidatePeaks();
     paintTransport(); paintWaveAria();
     announce("Song loaded: " + E.fmtClock(buf.duration));
@@ -131,19 +159,21 @@
   // orientation, bar count and fixture type. Library metadata (name,
   // track, tour date) is not part of the stack.
   function snapshot() {
-    return JSON.stringify({cues: show.cues, pos: show.pos || {}, rot: show.rot || {}, bars: show.bars, chans: show.chans});
+    return JSON.stringify({cues: show.cues, pos: show.pos || {}, rot: show.rot || {}, bars: show.bars, chans: show.chans,
+                           looks: show.looks || [], dmxStart: show.dmxStart || 1, dmxAddr: show.dmxAddr || {}});
   }
   function record(key) { var pushed = H.push(snapshot(), key, performance.now()); paintHistory(); return pushed; }
   function applySnapshot(json) {
     var s = JSON.parse(json), selId = selectedCue ? selectedCue._id : null, selBar = selectedBar;
     show.cues = s.cues || []; show.pos = s.pos || {}; show.rot = s.rot || {};
     show.bars = Math.max(2, Math.min(10, s.bars || 6)); show.chans = s.chans === 3 ? 3 : 4;
+    show.looks = Array.isArray(s.looks) ? s.looks : []; show.dmxStart = s.dmxStart || 1; show.dmxAddr = s.dmxAddr || {};
     ensureIds();
     selectedCue = null;
     show.cues.forEach(function (c) { if (selId && c._id === selId) selectedCue = c; });
     if (selBar > show.bars) selectedBar = null;
     barsSel.value = String(show.bars); chansSel.value = String(show.chans);
-    renderCues(); paintGroups(); paintBarCtl(); markDirty();
+    renderCues(); paintGroups(); paintLooks(); paintRig(); paintBarCtl(); markDirty();
   }
   function undo() { var s = H.undo(snapshot()); if (s) { applySnapshot(s); announce("Undone"); } paintHistory(); }
   function redo() { var s = H.redo(snapshot()); if (s) { applySnapshot(s); announce("Redone"); } paintHistory(); }
@@ -379,7 +409,13 @@
   var stage = $("lx-stage"), g = stage.getContext("2d"), stageWrap = $("lx-stage-wrap");
   var barRects = [], stageCss = {w: 0, h: 0};
   var bgImg = new Image();
-  bgImg.src = "/static/img/stage-bg.jpg";
+  bgImg.src = "/static/img/stage-bg-2.jpg";
+  // The fixture sprite: an 8-lens LED bar photographed head-on. Lens
+  // centres as fractions of the sprite width, the lens row as a fraction
+  // of its height, lens radius as a fraction of width (measured once).
+  var barImg = new Image();
+  barImg.src = "/static/img/light-bar.png";
+  var LENS_X = [0.127, 0.233, 0.339, 0.446, 0.553, 0.66, 0.766, 0.874], LENS_CY = 0.399, LENS_R = 0.019, SPRITE_RATIO = 372 / 1200;
   function hz(n) { var x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
   function stageSize() {
     var w = stageWrap.clientWidth, d = DPR();
@@ -423,11 +459,12 @@
       g.moveTo(w * 0.13, h * 0.58); g.lineTo(w * 0.87, h * 0.58); g.lineTo(w * 0.97, h * 0.9); g.lineTo(w * 0.03, h * 0.9);
       g.closePath(); g.fill(); g.strokeStyle = "#2c2820"; g.stroke();
     }
-    g.fillStyle = "rgba(239,230,205,0.55)";
-    g.font = "bold " + Math.round(h * 0.06) + "px 'Arial Narrow', Arial";
-    g.textAlign = "center"; g.fillText((show.name || "YOUR SET").toUpperCase(), w / 2, h * 0.1); g.textAlign = "left";
+    // show name: bottom-left, clear of the truss row of bars
+    g.fillStyle = "rgba(239,230,205,0.5)";
+    g.font = "bold " + Math.max(10, Math.round(h * 0.04)) + "px 'Arial Narrow', Arial";
+    g.textAlign = "left"; g.fillText((show.name || "YOUR SET").toUpperCase().slice(0, 48), 12, h - 10);
 
-    var looks = E.lightingAt(show, t), bars = show.bars, sc = w / 798;
+    var looks = outLooks(t), bars = show.bars, sc = w / 798;
     barRects = [];
     g.save(); g.globalCompositeOperation = "lighter";
     var WIDTHS = [1, 0.62, 0.3], ALPHAS = [0.16, 0.24, 0.4];
@@ -481,11 +518,12 @@
     // Fixtures on top, with hover / selected / mirror / group states
     var hoverMembers = hoverGroup ? E.membersOf(hoverGroup, bars) : [];
     var mirror = hoverBar ? E.mirrorOf(hoverBar, bars) : null;
+    var spriteReady = barImg.complete && barImg.naturalWidth > 0;
     for (var j = 1; j <= bars; j++) {
       var p2 = barPos(j, bars), x2 = p2[0] * w, y2 = p2[1] * h, lk = looks[j - 1];
       var vert2 = (show.rot || {})[String(j)] === 90;
-      var bw = (vert2 ? 10 : 54) * sc, bh = (vert2 ? 54 : 10) * sc;
-      bw = Math.max(bw, vert2 ? 8 : 36); bh = Math.max(bh, vert2 ? 36 : 8);
+      var barLen = Math.max(44, 66 * sc), barThick = barLen * SPRITE_RATIO;
+      var bw = vert2 ? barThick : barLen, bh = vert2 ? barLen : barThick;
       var isSel = selectedBar === j, isHov = hoverBar === j, isMir = mirror === j, inGroup = hoverMembers.indexOf(j) >= 0;
       if (isSel || isHov || isMir || inGroup) {
         g.save();
@@ -496,26 +534,44 @@
         g.strokeRect(x2 - bw / 2 - 7, y2 - bh / 2 - 7, bw + 14, bh + 14);
         g.restore();
       }
+      // The bar itself: the product sprite (rotated for a side stick), its
+      // eight lenses lit in the look's colour. Falls back to a drawn
+      // housing until the sprite has loaded.
       g.save();
-      g.shadowColor = "rgb(" + lk.rgb.join(",") + ")"; g.shadowBlur = 26 * lk.inten;
-      g.fillStyle = "#1a1712"; g.fillRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
-      g.restore();
-      g.lineWidth = 4; g.strokeStyle = "rgba(0,0,0,0.85)"; g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
-      g.lineWidth = 1.5; g.strokeStyle = isSel ? "#ffffff" : "#d8b25a"; g.strokeRect(x2 - bw / 2, y2 - bh / 2, bw, bh);
-      g.lineWidth = 1;
-      var cells = 6, step = (vert2 ? bh : bw) / cells;
-      for (var s2 = 0; s2 < cells; s2++) {
-        g.fillStyle = lk.inten > 0.02 ? "rgba(" + lk.rgb.join(",") + "," + (0.25 + 0.75 * lk.inten).toFixed(2) + ")" : "#26221a";
-        g.beginPath();
-        if (vert2) g.arc(x2, y2 - bh / 2 + step * (s2 + 0.5), Math.min(2.6, step * 0.3), 0, 7);
-        else g.arc(x2 - bw / 2 + step * (s2 + 0.5), y2, Math.min(2.6, step * 0.3), 0, 7);
-        g.fill();
+      g.translate(x2, y2);
+      if (vert2) g.rotate(-Math.PI / 2);
+      var L = barLen, T = barThick, lensY = -T / 2 + T * LENS_CY;
+      if (spriteReady) {
+        g.shadowColor = "rgba(0,0,0,0.75)"; g.shadowBlur = 8;
+        g.drawImage(barImg, -L / 2, -T / 2, L, T);
+        g.shadowBlur = 0;
+      } else {
+        g.fillStyle = "#1a1712"; g.fillRect(-L / 2, -T / 2, L, T);
+        g.lineWidth = 1.5; g.strokeStyle = isSel ? "#ffffff" : "#d8b25a"; g.strokeRect(-L / 2, -T / 2, L, T);
+        lensY = 0;
       }
+      var rr = Math.max(1.8, L * LENS_R);
+      for (var s2 = 0; s2 < LENS_X.length; s2++) {
+        var lensX = -L / 2 + L * LENS_X[s2];
+        if (lk.inten > 0.02) {
+          g.save(); g.globalCompositeOperation = "lighter";
+          var lg = g.createRadialGradient(lensX, lensY, 0, lensX, lensY, rr * 2.4);
+          lg.addColorStop(0, "rgba(" + lk.rgb.join(",") + "," + (0.9 * lk.inten).toFixed(3) + ")");
+          lg.addColorStop(0.45, "rgba(" + lk.rgb.join(",") + "," + (0.5 * lk.inten).toFixed(3) + ")");
+          lg.addColorStop(1, "rgba(" + lk.rgb.join(",") + ",0)");
+          g.fillStyle = lg; g.beginPath(); g.arc(lensX, lensY, rr * 2.4, 0, 7); g.fill();
+          g.restore();
+          g.fillStyle = "rgba(" + lk.rgb.join(",") + "," + (0.45 + 0.55 * lk.inten).toFixed(2) + ")";
+        } else g.fillStyle = spriteReady ? "rgba(26,24,20,0.55)" : "#26221a";
+        g.beginPath(); g.arc(lensX, lensY, rr, 0, 7); g.fill();
+        if (lk.inten > 0.3) { g.fillStyle = "rgba(255,255,255," + (0.35 * lk.inten).toFixed(2) + ")"; g.beginPath(); g.arc(lensX, lensY, rr * 0.35, 0, 7); g.fill(); }
+      }
+      g.restore();
       if (lk.inten > 0.02) {
         g.save(); g.globalCompositeOperation = "lighter";
         var bloom = g.createRadialGradient(x2, y2, 1, x2, y2, (30 + 26 * lk.inten) * sc);
-        bloom.addColorStop(0, "rgba(" + lk.rgb.join(",") + "," + (0.5 * lk.inten).toFixed(3) + ")"); bloom.addColorStop(1, "rgba(" + lk.rgb.join(",") + ",0)");
-        g.fillStyle = bloom; g.beginPath(); g.arc(x2, y2, (30 + 26 * lk.inten) * sc, 0, 7); g.fill(); g.restore();
+        bloom.addColorStop(0, "rgba(" + lk.rgb.join(",") + "," + (0.4 * lk.inten).toFixed(3) + ")"); bloom.addColorStop(1, "rgba(" + lk.rgb.join(",") + ",0)");
+        g.fillStyle = bloom; g.beginPath(); g.ellipse(x2, y2, (vert2 ? 18 : 40) * sc + 20 * lk.inten, (vert2 ? 40 : 18) * sc + 20 * lk.inten, 0, 0, 7); g.fill(); g.restore();
       }
       g.fillStyle = isSel ? "#e8c667" : "rgba(0,0,0,0.75)";
       g.fillRect(x2 - bw / 2 - 4, y2 - bh / 2 - 17, 15, 13);
@@ -536,9 +592,19 @@
   var dragBar = null, dragMoved = false;
   stage.addEventListener("pointerdown", function (e) {
     var r = stage.getBoundingClientRect(), b = barAt(e.clientX - r.left, e.clientY - r.top);
+    if (b && e.shiftKey) { pickBar(b); e.preventDefault(); return; }
     if (b) { record("pos:" + b); dragBar = b; dragMoved = false; stage.setPointerCapture(e.pointerId); e.preventDefault(); }
     else { selectBar(null); }
   });
+  // Shift-click on the stage hand-picks bars into a custom group ("b1+b3")
+  // for the selected cue, or for the group new cues start with.
+  function pickBar(b) {
+    var cur = selectedCue ? selectedCue.group : defaultGroup, next = E.toggleInGroup(cur, b, show.bars);
+    if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = next; markDirty(); renderCues(); }
+    else defaultGroup = next;
+    paintGroups();
+    announce(E.groupLabel(next, show.bars) + (selectedCue ? " set on the selected cue" : " set for new cues"));
+  }
   stage.addEventListener("pointermove", function (e) {
     var r = stage.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     if (dragBar === null) {
@@ -559,19 +625,52 @@
     if (b) { setRot(b, (show.rot || {})[String(b)] === 90 ? 0 : 90); selectBar(b); }
   });
   function setRot(bar, deg) { record("rot:" + bar); show.rot = show.rot || {}; show.rot[String(bar)] = deg; markDirty(); paintBarCtl(); announce("Bar " + bar + (deg === 90 ? " stood up as a side stick" : " hung")); }
-  function selectBar(b) { selectedBar = b; paintBarCtl(); }
+  function selectBar(b) { selectedBar = b; paintBarCtl(); paintBarsList(now()); }
+  // The bar drawer: orientation, position, DMX start address, look now,
+  // mirror partner, prev/next. Opens on click (canvas or list row).
   function paintBarCtl() {
     var box = $("lx-barctl");
     if (!selectedBar) { box.hidden = true; return; }
     box.hidden = false;
-    var rot = (show.rot || {})[String(selectedBar)] === 90;
-    $("lx-barctl-name").textContent = "Bar " + selectedBar + (E.mirrorOf(selectedBar, show.bars) ? " · mirror of bar " + E.mirrorOf(selectedBar, show.bars) : " · centre");
+    var rot = (show.rot || {})[String(selectedBar)] === 90, mir = E.mirrorOf(selectedBar, show.bars);
+    $("lx-barctl-name").textContent = "Bar " + selectedBar + " of " + show.bars;
     $("lx-or-hung").setAttribute("aria-pressed", rot ? "false" : "true");
     $("lx-or-side").setAttribute("aria-pressed", rot ? "true" : "false");
+    var p = barPos(selectedBar, show.bars), ax = $("lx-bar-x"), ay = $("lx-bar-y"), ad = $("lx-bar-addr");
+    if (document.activeElement !== ax) ax.value = Math.round(p[0] * 100);
+    if (document.activeElement !== ay) ay.value = Math.round(p[1] * 100);
+    var own = (show.dmxAddr || {})[String(selectedBar)];
+    if (document.activeElement !== ad) ad.value = own ? own : "";
+    ad.placeholder = "auto · " + E.fixtureAddress(show, selectedBar);
+    $("lx-bar-mirror").textContent = mir ? "Mirror partner: bar " + mir + " (pairs move as a look)." : "Centre bar — no mirror partner.";
+    $("lx-bar-prev").disabled = selectedBar <= 1; $("lx-bar-next").disabled = selectedBar >= show.bars;
+    paintPatchWarn();
+  }
+  function paintPatchWarn() {
+    var el = $("lx-patch-warn"), hits = E.patchOverlaps(show);
+    el.hidden = !hits.length;
+    el.textContent = hits.length ? "Patch overlap: bars " + hits.map(function (h) { return h[0] + " & " + h[1]; }).join(", ") + " share DMX channels — give one its own start address." : "";
   }
   $("lx-or-hung").addEventListener("click", function () { if (selectedBar) setRot(selectedBar, 0); });
   $("lx-or-side").addEventListener("click", function () { if (selectedBar) setRot(selectedBar, 90); });
-  $("lx-bar-deselect").addEventListener("click", function () { selectBar(null); });
+  $("lx-bar-deselect").addEventListener("click", function () { selectBar(null); stage.focus(); });
+  $("lx-bar-prev").addEventListener("click", function () { if (selectedBar > 1) selectBar(selectedBar - 1); });
+  $("lx-bar-next").addEventListener("click", function () { if (selectedBar < show.bars) selectBar(selectedBar + 1); });
+  function placeFromFields() {
+    if (!selectedBar) return;
+    var x = clamp((parseFloat($("lx-bar-x").value) || 0) / 100, 0.03, 0.97), y = clamp((parseFloat($("lx-bar-y").value) || 0) / 100, 0.04, 0.92);
+    record("pos:" + selectedBar); show.pos = show.pos || {}; show.pos[String(selectedBar)] = [x, y]; markDirty();
+  }
+  $("lx-bar-x").addEventListener("change", placeFromFields);
+  $("lx-bar-y").addEventListener("change", placeFromFields);
+  $("lx-bar-addr").addEventListener("change", function () {
+    if (!selectedBar) return;
+    var v = parseInt($("lx-bar-addr").value, 10);
+    record("addr:" + selectedBar); show.dmxAddr = show.dmxAddr || {};
+    if (v >= 1 && v <= 512) show.dmxAddr[String(selectedBar)] = v; else { delete show.dmxAddr[String(selectedBar)]; $("lx-bar-addr").value = ""; }
+    markDirty(); paintBarCtl(); paintBarsList(now());
+    announce("Bar " + selectedBar + " starts at DMX " + E.fixtureAddress(show, selectedBar));
+  });
   function nudge(dx, dy) {
     if (!selectedBar) return;
     record("nudge:" + selectedBar);
@@ -592,34 +691,59 @@
     else if (/^[0-9]$/.test(e.key) && e.key !== "0") { var n = parseInt(e.key, 10); if (n <= show.bars) selectBar(n); }
   });
 
-  // bars table: the screen-reader-accessible twin of the canvas. Rows are
-  // built once per bar count and updated in place, so a focused "Select"
-  // button is never torn out from under the keyboard.
-  function paintBarsTable(t) {
-    var tb = $("lx-bars-tbody"); if (!tb) return;
-    var looks = E.lightingAt(show, t);
-    if (tb.children.length !== show.bars) {
-      tb.innerHTML = "";
+  // All-bars list: the screen-reader-accessible twin of the canvas. Rows
+  // are built once per bar count and updated in place, so a focused row
+  // is never torn out from under the keyboard. Activating a row opens
+  // the drawer for that bar.
+  function paintBarsList(t) {
+    var ul = $("lx-bars-list"); if (!ul) return;
+    var looks = outLooks(t);
+    if (ul.children.length !== show.bars) {
+      ul.innerHTML = "";
       for (var n = 1; n <= show.bars; n++) {
-        var tr = document.createElement("tr");
-        tr.innerHTML = '<th scope="row">Bar ' + n + '</th><td class="c-x"></td><td class="c-row"></td><td class="c-or"></td><td class="c-look"><span class="lx-sw"></span> <span class="c-pct"></span></td><td class="c-mir"></td>' +
-          '<td><button type="button" class="lx-btn lx-btn--ghost lx-btn--small" data-bar="' + n + '" aria-label="Select bar ' + n + ' for keyboard nudging">Select</button></td>';
-        tr.querySelector("button").addEventListener("click", function (e) { selectBar(parseInt(e.currentTarget.getAttribute("data-bar"), 10)); stage.focus(); });
-        tb.appendChild(tr);
+        var li = document.createElement("li");
+        li.innerHTML = '<button type="button" class="lx-barrow" data-bar="' + n + '" aria-pressed="false"><b>Bar ' + n + '</b><span class="lx-sw" aria-hidden="true"></span><span class="c-pct"></span><span class="c-pos"></span><span class="c-addr"></span><span class="c-mir"></span></button>';
+        li.querySelector("button").addEventListener("click", function (e) {
+          var b = parseInt(e.currentTarget.getAttribute("data-bar"), 10);
+          selectBar(selectedBar === b ? null : b);
+        });
+        ul.appendChild(li);
       }
     }
     for (var i = 1; i <= show.bars; i++) {
-      var row = tb.children[i - 1], p = barPos(i, show.bars), lk = looks[i - 1], rot = (show.rot || {})[String(i)] === 90;
-      row.classList.toggle("is-sel", selectedBar === i);
-      row.querySelector(".c-x").textContent = Math.round(p[0] * 100) + "% across";
-      row.querySelector(".c-row").textContent = (p[1] < 0.5 ? "truss" : "floor") + " · " + Math.round(p[1] * 100) + "%";
-      row.querySelector(".c-or").textContent = rot ? "side stick" : "hung";
+      var row = ul.children[i - 1].firstChild, p = barPos(i, show.bars), lk = looks[i - 1], rot = (show.rot || {})[String(i)] === 90, mir = E.mirrorOf(i, show.bars);
+      row.setAttribute("aria-pressed", selectedBar === i ? "true" : "false");
       row.querySelector(".lx-sw").style.background = "rgb(" + lk.rgb.join(",") + ")";
-      row.querySelector(".c-pct").textContent = Math.round(lk.inten * 100) + "%";
-      row.querySelector(".c-mir").textContent = E.mirrorOf(i, show.bars) || "—";
-      row.querySelector("button").setAttribute("aria-pressed", selectedBar === i ? "true" : "false");
+      row.querySelector(".c-pct").textContent = "look " + Math.round(lk.inten * 100) + "%";
+      row.querySelector(".c-pos").textContent = Math.round(p[0] * 100) + "% across · " + (p[1] < 0.5 ? "truss" : "floor") + " · " + (rot ? "side stick" : "hung");
+      row.querySelector(".c-addr").textContent = "DMX " + E.fixtureAddress(show, i);
+      row.querySelector(".c-mir").textContent = mir ? "mirror " + mir : "centre";
+    }
+    if (selectedBar && looks[selectedBar - 1]) {
+      var sl = looks[selectedBar - 1];
+      $("lx-bar-look").style.background = "rgb(" + sl.rgb.join(",") + ")"; $("lx-bar-pct").textContent = Math.round(sl.inten * 100) + "%";
     }
   }
+
+  // ---------- grand master / panic ----------
+  // outLooks() is what the stage, the list and the DMX frame all read:
+  // the resolved cues scaled by the master, or nothing at all on panic.
+  function outLooks(t) { return E.scaleLooks(E.lightingAt(show, t), master, panic); }
+  var masterEl = $("lx-master"), panicEl = $("lx-panic");
+  function paintMaster() {
+    $("lx-master-val").textContent = Math.round(master * 100) + "%";
+    panicEl.setAttribute("aria-pressed", panic ? "true" : "false");
+    panicEl.textContent = panic ? "ALL OFF — restore" : "All off";
+    document.body.classList.toggle("lx-panic", panic);
+    if (writer) paintDmxLive();
+  }
+  masterEl.addEventListener("input", function () { master = clamp(parseInt(masterEl.value, 10) / 100, 0, 1); paintMaster(); });
+  function togglePanic() {
+    panic = !panic; paintMaster();
+    if (writer) sendDmx(now());
+    announce(panic ? "All lights off — preview and DMX. Press All off again to restore." : "Restored — master " + Math.round(master * 100) + "%");
+  }
+  panicEl.addEventListener("click", togglePanic);
 
   // ---------- DMX (ENTTEC USB Pro over Web Serial) ----------
   function paintDmx(state, text) {
@@ -627,6 +751,11 @@
     chip.className = "lx-chip" + (state === "on" ? " is-on" : (state === "err" ? " is-err" : ""));
     $("lx-dmx-text").textContent = text;
   }
+  function paintDmxLive() {
+    var live = playing || runStart !== null;
+    paintDmx("on", "Connected · universe " + (show.dmxUniverse || 1) + " · " + (panic ? "ALL OFF" : (live ? dmxFps + " fps" : "idle · holding")));
+  }
+  function sendDmx(t) { writer.write(E.dmxFrame(show, outLooks(t))).catch(function () {}); dmxWrites++; }
   $("lx-dmx").addEventListener("click", function () {
     if (!("serial" in navigator)) { paintDmx("err", "No Web Serial in this browser — use Chrome or Edge on desktop"); return; }
     if (port) {
@@ -638,7 +767,7 @@
     navigator.serial.requestPort().then(function (p) { port = p; return port.open({baudRate: 57600}); })
       .then(function () {
         writer = port.writable.getWriter(); dmxWrites = 0; dmxFps = 0;
-        paintDmx("on", "Connected · universe 1 · — fps"); $("lx-dmx").textContent = "Disconnect DMX";
+        paintDmxLive(); $("lx-dmx").textContent = "Disconnect DMX";
       }).catch(function () { port = null; paintDmx("", "Preview only · no hardware"); });
   });
 
@@ -693,17 +822,21 @@
       tin.addEventListener("input", function () { record("time:" + c._id); c.t = Math.max(0, parseFloat(tin.value) || 0); markDirty(); });
       tin.addEventListener("change", function () { renderCues(false); });
       tc.appendChild(tin); row.appendChild(tc);
-      // swatch
-      var sw = document.createElement("label"); sw.className = "lx-swatch" + (E.isBlackout(c) ? " is-black" : ""); sw.style.background = c.color; sw.title = "Colour";
-      var cin = document.createElement("input"); cin.type = "color"; cin.value = /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : "#000000"; cin.setAttribute("aria-label", "Cue colour");
-      cin.addEventListener("input", function () { record("color:" + c._id); c.color = cin.value; sw.style.background = c.color; sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
-      sw.appendChild(cin); row.appendChild(sw);
+      // swatch: opens the gel book; the native picker sits behind it as "Custom…"
+      var sw = document.createElement("button"); sw.type = "button"; sw.className = "lx-swatch" + (E.isBlackout(c) ? " is-black" : ""); sw.style.background = c.color;
+      sw.title = "Colour — gel book, recent, or custom"; sw.setAttribute("aria-label", "Cue colour " + (gelName(c.color) || c.color) + " — open the gel book"); sw.setAttribute("aria-haspopup", "dialog");
+      var cin = document.createElement("input"); cin.type = "color"; cin.className = "sr-only"; cin.tabIndex = -1; cin.value = /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : "#000000"; cin.setAttribute("aria-label", "Custom cue colour");
+      cin.addEventListener("input", function () { setCueColor(c, cin.value, sw); });
+      sw.addEventListener("click", function (e) { e.stopPropagation(); if (!gel.hidden && gelFor === c) closeGel(true); else openGel(c, sw, cin); });
+      row.appendChild(sw); row.appendChild(cin);
       // glyph
       var gl = document.createElement("span"); gl.innerHTML = glyphHtml(c.group); gl.title = E.groupLabel(c.group, show.bars); row.appendChild(gl.firstChild);
       // middle controls
       var mid = document.createElement("div"); mid.className = "lx-cue-mid";
       var sel = document.createElement("select"); sel.className = "lx-select"; sel.setAttribute("aria-label", "Group");
-      E.groupOptions(show.bars).forEach(function (o) { var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; op.selected = c.group === o[0]; sel.appendChild(op); });
+      var gopts = E.groupOptions(show.bars), known = false;
+      gopts.forEach(function (o) { var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; op.selected = c.group === o[0]; if (op.selected) known = true; sel.appendChild(op); });
+      if (!known && c.group) { var cop = document.createElement("option"); cop.value = c.group; cop.textContent = E.groupLabel(c.group, show.bars) + " (picked)"; cop.selected = true; sel.appendChild(cop); }
       sel.addEventListener("change", function () { record("group:" + c._id); c.group = sel.value; markDirty(); renderCues(); paintGroups(); });
       mid.appendChild(sel);
       var inten = document.createElement("input"); inten.type = "range"; inten.min = 0; inten.max = 100; inten.value = c.intensity; inten.setAttribute("aria-label", "Intensity");
@@ -777,29 +910,132 @@
     $("lx-groups-for").textContent = selectedCue ? "Sets the group of the selected cue (" + E.fmtTimecode(selectedCue.t) + ")." : "No cue selected — sets the group new cues start with.";
   }
 
-  // ---------- looks ----------
+  // ---------- looks: six house looks (keys 1-6) + up to four of yours (7 8 9 0) ----------
+  var USER_KEYS = ["7", "8", "9", "0"];
   function paintLooks() {
     var box = $("lx-looks"); box.innerHTML = "";
     E.LOOKS.forEach(function (l, i) {
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-look";
-      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + l.name + ' <span class="lx-kbd" aria-hidden="true">' + (i + 1) + '</span>';
+      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + esc(l.name) + ' <span class="lx-kbd" aria-hidden="true">' + (i + 1) + '</span>';
       b.setAttribute("aria-label", l.name + " — apply this look to the selected cue or add a cue at the playhead (key " + (i + 1) + ")");
       b.title = (selectedCue ? "Apply to the selected cue" : "Add a cue at the playhead with this look") + " — key " + (i + 1);
       b.addEventListener("click", function () { applyLook(l); });
       box.appendChild(b);
+    });
+    (show.looks || []).forEach(function (l, i) {
+      var wrap = document.createElement("span"); wrap.className = "lx-look is-user";
+      var b = document.createElement("button"); b.type = "button"; b.className = "lx-look-apply";
+      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + esc(l.name) + ' <span class="lx-kbd" aria-hidden="true">' + USER_KEYS[i] + '</span>';
+      b.setAttribute("aria-label", l.name + " (your look, " + l.intensity + "%, fade " + l.fade + " s) — apply to the selected cue or add a cue at the playhead (key " + USER_KEYS[i] + ")");
+      b.addEventListener("click", function () { applyLook(l); });
+      var x = document.createElement("button"); x.type = "button"; x.className = "lx-look-x"; x.textContent = "×"; x.setAttribute("aria-label", "Remove the look " + l.name);
+      x.addEventListener("click", function () { record("look-remove"); show.looks.splice(i, 1); markDirty(); paintLooks(); announce("Look " + l.name + " removed"); });
+      wrap.appendChild(b); wrap.appendChild(x); box.appendChild(wrap);
     });
   }
   function applyLook(l) {
     if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; markDirty(); renderCues(); announce(l.name + " applied"); }
     else if (buffer || runStart !== null) addCue(l);
   }
+  $("lx-look-save").addEventListener("click", function () {
+    var hint = $("lx-look-form-hint");
+    if (!selectedCue) { hint.textContent = "Select a cue first — its colour, intensity and fade become the look."; announce(hint.textContent); return; }
+    show.looks = show.looks || [];
+    if (show.looks.length >= 4) { hint.textContent = "Four of your own looks max (keys 7, 8, 9, 0) — remove one first."; announce(hint.textContent); return; }
+    var name = ($("lx-look-name").value || "").trim() || selectedCue.note || ("Look " + (show.looks.length + 1));
+    record("look-save");
+    show.looks.push({key: "user-" + Date.now().toString(36), name: name.slice(0, 24), color: selectedCue.color, intensity: selectedCue.intensity, fade: selectedCue.fade, user: true});
+    $("lx-look-name").value = ""; hint.textContent = "Saved as key " + USER_KEYS[show.looks.length - 1] + ". It travels with the show (working copy and library).";
+    markDirty(); paintLooks(); announce("Look " + name + " saved — key " + USER_KEYS[show.looks.length - 1]);
+  });
+
+  // ---------- gel book: the colour popover behind every cue swatch ----------
+  // Named after the gels people actually carry; the native picker is one
+  // tap away for anything else. Intensity never lives here.
+  var GELS = [
+    ["L106 Primary Red", "#e3001b"], ["L026 Bright Red", "#ff2d2d"], ["L164 Flame Red", "#ff4a1c"], ["L158 Deep Orange", "#ff7a00"], ["L204 Full CTO", "#ffb347"], ["L147 Apricot", "#ffc27a"],
+    ["L010 Medium Yellow", "#ffd400"], ["L101 Yellow", "#fff200"], ["L139 Primary Green", "#00a651"], ["L124 Dark Green", "#0c7a3e"], ["L116 Medium Blue-Green", "#00b3a4"], ["L115 Peacock Blue", "#00aeef"],
+    ["L118 Light Blue", "#3b82f6"], ["L132 Medium Blue", "#1d4ed8"], ["L119 Dark Blue", "#1a33c9"], ["L181 Congo Blue", "#2b0e8a"], ["L058 Lavender", "#b9a7ff"], ["L180 Dark Lavender", "#8b5cf6"],
+    ["L126 Mauve", "#b63fa0"], ["L128 Bright Pink", "#ff3fa4"], ["L111 Dark Pink", "#ff6fb5"], ["L201 Full CTB", "#cfe6ff"], ["L202 Half CTB", "#e8f1ff"], ["Open white", "#ffffff"],
+    ["L003 Lavender Tint", "#f3e9ff"], ["L004 Medium Bastard Amber", "#ffd7a8"], ["L152 Pale Gold", "#fff1c9"], ["L156 Chocolate", "#8a5a2b"], ["L322 Soft Green", "#b9f3b0"], ["L068 Sky Blue", "#57b8ff"]
+  ];
+  var RECENT_KEY = "lxRecentGels";
+  function gelName(hex) { for (var i = 0; i < GELS.length; i++) if (GELS[i][1].toLowerCase() === String(hex || "").toLowerCase()) return GELS[i][0]; return null; }
+  function recentColors() { try { return JSON.parse(safeGet(RECENT_KEY) || "[]").filter(function (h) { return /^#[0-9a-f]{6}$/i.test(h); }).slice(0, 8); } catch (e) { return []; } }
+  function pushRecent(hex) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+    var r = recentColors().filter(function (h) { return h.toLowerCase() !== hex.toLowerCase(); });
+    r.unshift(hex.toLowerCase()); safeSet(RECENT_KEY, JSON.stringify(r.slice(0, 8)));
+  }
+  function setCueColor(c, hex, sw) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+    record("color:" + c._id); c.color = hex;
+    if (sw) { sw.style.background = hex; sw.classList.toggle("is-black", E.isBlackout(c)); sw.setAttribute("aria-label", "Cue colour " + (gelName(hex) || hex) + " — open the gel book"); }
+    markDirty(); pushRecent(hex);
+  }
+  var gel = $("lx-gel"), gelFor = null, gelReturn = null;
+  function gelChip(hex, name) {
+    var b = document.createElement("button"); b.type = "button"; b.className = "lx-gel-chip"; b.style.background = hex; b.title = name; b.setAttribute("data-hex", hex.toLowerCase());
+    b.setAttribute("aria-label", name + (name.toLowerCase() === hex.toLowerCase() ? "" : " (" + hex + ")"));
+    b.setAttribute("aria-pressed", gelFor && gelFor.color.toLowerCase() === hex.toLowerCase() ? "true" : "false");
+    b.addEventListener("click", function () { pickGel(hex, name); });
+    return b;
+  }
+  function gelSummary() { return "Cue at " + E.fmtTimecode(gelFor.t) + " · " + (gelName(gelFor.color) || gelFor.color) + " · intensity stays " + gelFor.intensity + "%"; }
+  function openGel(cue, anchor, nativeInput) {
+    gelFor = cue; gelReturn = anchor;
+    var grid = $("lx-gel-grid"); grid.innerHTML = "";
+    GELS.forEach(function (gl) { grid.appendChild(gelChip(gl[1], gl[0])); });
+    var rec = recentColors(), rbox = $("lx-gel-recent"); rbox.innerHTML = "";
+    rec.forEach(function (h) { rbox.appendChild(gelChip(h, gelName(h) || h)); });
+    $("lx-gel-recent-wrap").hidden = !rec.length;
+    $("lx-gel-hex").value = cue.color;
+    $("lx-gel-custom").onclick = function () { if (nativeInput) nativeInput.click(); };
+    $("lx-gel-for").textContent = gelSummary();
+    gel.hidden = false;
+    var r = anchor.getBoundingClientRect(), gw = Math.min(330, window.innerWidth - 16);
+    gel.style.width = gw + "px";
+    gel.style.left = Math.max(8, Math.min(window.innerWidth - gw - 8, r.left)) + "px";
+    var top = r.bottom + 6;
+    if (top + gel.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - gel.offsetHeight - 6);
+    gel.style.top = (top + window.scrollY) + "px";
+    var first = grid.querySelector('[aria-pressed="true"]') || grid.querySelector("button"); if (first) first.focus();
+  }
+  function pickGel(hex, name) {
+    if (!gelFor) return;
+    var row = cuesWrap.querySelector('[data-id="' + gelFor._id + '"]'), sw = row ? row.querySelector(".lx-swatch") : null;
+    setCueColor(gelFor, hex, sw);
+    $("lx-gel-hex").value = hex; $("lx-gel-for").textContent = gelSummary();
+    Array.prototype.forEach.call(gel.querySelectorAll(".lx-gel-chip"), function (ch) { ch.setAttribute("aria-pressed", ch.getAttribute("data-hex") === hex.toLowerCase() ? "true" : "false"); });
+    announce((name || hex) + " set");
+  }
+  function closeGel(refocus) { if (gel.hidden) return; gel.hidden = true; if (refocus && gelReturn && gelReturn.isConnected) gelReturn.focus(); gelFor = null; }
+  $("lx-gel-close").addEventListener("click", function () { closeGel(true); });
+  $("lx-gel-hex").addEventListener("change", function () { var v = $("lx-gel-hex").value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) pickGel(v[0] === "#" ? v : "#" + v, null); });
+  gel.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); closeGel(true); } });
+  document.addEventListener("pointerdown", function (e) { if (!gel.hidden && !gel.contains(e.target) && e.target !== gelReturn) closeGel(false); });
 
   // ---------- rig ----------
   var barsSel = $("lx-bars");
   for (var b = 2; b <= 10; b++) { var o = document.createElement("option"); o.value = b; o.textContent = b + " bars"; o.selected = b === show.bars; barsSel.appendChild(o); }
-  barsSel.addEventListener("change", function () { record("bars"); show.bars = parseInt(barsSel.value, 10); if (selectedBar > show.bars) selectBar(null); markDirty(); renderCues(); paintGroups(); });
+  barsSel.addEventListener("change", function () { record("bars"); show.bars = parseInt(barsSel.value, 10); if (selectedBar > show.bars) selectBar(null); markDirty(); renderCues(); paintGroups(); paintBarCtl(); });
   var chansSel = $("lx-chans"); chansSel.value = String(show.chans || 4);
-  chansSel.addEventListener("change", function () { record("chans"); show.chans = parseInt(chansSel.value, 10); markDirty(); });
+  chansSel.addEventListener("change", function () { record("chans"); show.chans = parseInt(chansSel.value, 10); markDirty(); paintBarCtl(); paintBarsList(now()); });
+  // DMX patch: first address (the run) and the universe label
+  var dmxStartEl = $("lx-dmx-start"), dmxUniEl = $("lx-dmx-universe");
+  function paintRig() {
+    barsSel.value = String(show.bars); chansSel.value = String(show.chans);
+    dmxStartEl.value = String(show.dmxStart || 1); dmxUniEl.value = String(show.dmxUniverse || 1);
+  }
+  dmxStartEl.addEventListener("change", function () {
+    var v = parseInt(dmxStartEl.value, 10); if (!(v >= 1 && v <= 512)) v = 1;
+    record("dmx"); show.dmxStart = v; dmxStartEl.value = String(v); markDirty(); paintBarCtl(); paintBarsList(now());
+    announce("Bar 1 starts at DMX " + v + "; the rest follow");
+  });
+  dmxUniEl.addEventListener("change", function () {
+    var v = parseInt(dmxUniEl.value, 10); if (!(v >= 1 && v <= 64)) v = 1;
+    show.dmxUniverse = v; dmxUniEl.value = String(v); markDirty(); if (writer) paintDmxLive();
+  });
 
   // ---------- draft autosave, library, unsaved-work protection ----------
   // Two layers. The DRAFT is the working copy (POST /lights/save): every
@@ -901,13 +1137,61 @@
     show = data && data.cues ? data : {name: meta ? meta.name : "", bars: 6, chans: 4, cues: []};
     show.bars = Math.max(2, Math.min(10, show.bars || keep.bars || 6)); show.chans = show.chans === 3 ? 3 : 4;
     show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
+    show.looks = Array.isArray(show.looks) ? show.looks.slice(0, 4) : [];
+    show.dmxStart = parseInt(show.dmxStart, 10) || 1; show.dmxUniverse = parseInt(show.dmxUniverse, 10) || 1; show.dmxAddr = show.dmxAddr || {};
     delete show.draftDirty; delete show.draftSavedAt;
     if (meta) { show.libraryId = meta.id; show.name = meta.name; show.trackId = meta.track_id || ""; show.tourShowId = meta.tour_show_id || ""; }
-    selectedCue = null; selectedBar = null;
+    selectedCue = null; selectedBar = null; closeGel(false);
     H.reset(); paintHistory();
-    barsSel.value = String(show.bars); chansSel.value = String(show.chans);
-    renderCues(); paintGroups(); paintLibrary(); paintBeats(); paintBarCtl();
+    paintRig();
+    renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintBarCtl();
   }
+
+  // ---------- import / export (JSON) ----------
+  // A portable copy of the working copy: cues, rig, looks, patch, tempo.
+  // Import replaces the working copy only — library saves stay put.
+  function exportJson() {
+    var data = payload(); delete data.libraryId;
+    return {format: "street-banker-lights", version: 1, exported: new Date().toISOString(), show: data};
+  }
+  $("lx-export").addEventListener("click", function () {
+    var blob = new Blob([JSON.stringify(exportJson(), null, 2)], {type: "application/json"});
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = ((show.name || "light-show").replace(/[^\w\- ]+/g, "").trim() || "light-show") + ".lights.json";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    $("lx-io-status").textContent = "Exported " + a.download; announce("Show exported as JSON");
+  });
+  function importShow(obj) {
+    var s = obj && obj.show && Array.isArray(obj.show.cues) ? obj.show : (obj && Array.isArray(obj.cues) ? obj : null);
+    if (!s) return "Not a Light Studio show file (no cues array).";
+    var hex = /^#[0-9a-f]{6}$/i;
+    var clean = {name: String(s.name || "").slice(0, 120), bars: Math.max(2, Math.min(10, parseInt(s.bars, 10) || 6)), chans: s.chans === 3 ? 3 : 4,
+                 bpm: +s.bpm || 0, beatOffset: +s.beatOffset || 0, snap: !!s.snap, pos: {}, rot: {}, dmxAddr: {}, looks: [], cues: [],
+                 dmxStart: Math.max(1, Math.min(512, parseInt(s.dmxStart, 10) || 1)), dmxUniverse: Math.max(1, Math.min(64, parseInt(s.dmxUniverse, 10) || 1))};
+    Object.keys(s.pos || {}).forEach(function (k) { var p = s.pos[k]; if (Array.isArray(p) && p.length === 2) clean.pos[k] = [clamp(+p[0] || 0, 0.03, 0.97), clamp(+p[1] || 0, 0.04, 0.92)]; });
+    Object.keys(s.rot || {}).forEach(function (k) { clean.rot[k] = s.rot[k] === 90 ? 90 : 0; });
+    Object.keys(s.dmxAddr || {}).forEach(function (k) { var a = parseInt(s.dmxAddr[k], 10); if (a >= 1 && a <= 512) clean.dmxAddr[k] = a; });
+    (Array.isArray(s.looks) ? s.looks : []).slice(0, 4).forEach(function (l) {
+      if (l && hex.test(l.color || "")) clean.looks.push({key: String(l.key || "user"), name: String(l.name || "Look").slice(0, 24), color: l.color, intensity: clamp(parseInt(l.intensity, 10) || 0, 0, 100), fade: Math.max(0, +l.fade || 0), user: true});
+    });
+    s.cues.forEach(function (c) {
+      if (!c || typeof c !== "object") return;
+      clean.cues.push({t: Math.max(0, +c.t || 0), group: typeof c.group === "string" ? c.group.slice(0, 40) : "all", color: hex.test(c.color || "") ? c.color : "#d8b25a",
+                       intensity: clamp(parseInt(c.intensity, 10) || 0, 0, 100), fade: Math.max(0, +c.fade || 0), note: String(c.note || "").slice(0, 80), auto: !!c.auto});
+    });
+    loadShowData(clean, null); show.libraryId = null; libraryDirty = false; paintLibrary(); markDirty(false);
+    return null;
+  }
+  $("lx-import").addEventListener("change", function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    if (show.cues.length && !window.confirm("Replace the current working copy with the imported show? Your library saves are untouched.")) { e.target.value = ""; return; }
+    f.text().then(function (txt) {
+      var err; try { err = importShow(JSON.parse(txt)); } catch (ex) { err = "That file is not valid JSON."; }
+      $("lx-io-status").textContent = err || ("Imported " + f.name + " — " + show.cues.length + " cues. It's a new working copy, not in the library yet.");
+      announce(err || "Show imported — " + show.cues.length + " cues"); e.target.value = "";
+    });
+  });
   $("lx-lib-new").addEventListener("click", function () {
     loadShowData({name: "", bars: show.bars, chans: show.chans, cues: []}, null);
     show.libraryId = null; show.name = ""; libraryDirty = false; paintLibrary(); markDirty(false);
@@ -976,8 +1260,10 @@
     if (e.key === " " || e.code === "Space") { e.preventDefault(); togglePlay(); }
     else if (e.key === "c" || e.key === "C") { if (!$("lx-add").disabled) addCue(); }
     else if (e.key === "b" || e.key === "B") { if (!$("lx-blackout").disabled) addCue(E.LOOKS[5]); }
+    else if (e.key === "x" || e.key === "X") { togglePanic(); }
     else if (/^[1-6]$/.test(e.key) && e.target !== stage) { applyLook(E.LOOKS[parseInt(e.key, 10) - 1]); }
-    else if (e.key === "Escape") { selectCue(null); selectBar(null); }
+    else if (USER_KEYS.indexOf(e.key) >= 0 && e.target !== stage) { var ul = (show.looks || [])[USER_KEYS.indexOf(e.key)]; if (ul) applyLook(ul); }
+    else if (e.key === "Escape") { if (!gel.hidden) closeGel(true); else { selectCue(null); selectBar(null); } }
     else if (e.key === "ArrowLeft" && e.target !== stage && e.target !== wave && buffer) { seek(now() - (e.shiftKey ? 5 : 1)); }
     else if (e.key === "ArrowRight" && e.target !== stage && e.target !== wave && buffer) { seek(now() + (e.shiftKey ? 5 : 1)); }
   });
@@ -996,18 +1282,16 @@
     if (dockClock) dockClock.textContent = clockEl.textContent;
     drawStage(t);
     drawWave(t);
+    paintScrub(t);
     var ts = performance.now();
-    if (ts - lastTable > 500) { lastTable = ts; paintBarsTable(t); }
+    if (ts - lastTable > 500) { lastTable = ts; paintBarsList(t); }
     if (ts - lastAria > 400) { lastAria = ts; paintWaveAria(); }
-    if (writer && (playing || runStart !== null)) {
-      if (ts - lastDmx > 33) {
-        lastDmx = ts; dmxWrites++;
-        writer.write(E.dmxFrame(show, E.lightingAt(show, t))).catch(function () {});
-      }
-    }
-    if (writer && ts - dmxSec > 1000) {
-      dmxSec = ts; dmxFps = dmxWrites; dmxWrites = 0;
-      paintDmx("on", "Connected · universe 1 · " + (playing || runStart !== null ? dmxFps + " fps" : "idle"));
+    // DMX: 30 fps while the show runs; a slow heartbeat when idle so the
+    // rig holds whatever the stage shows (master, panic, a selected cue).
+    if (writer) {
+      var live = playing || runStart !== null;
+      if (ts - lastDmx > (live ? 33 : 500)) { lastDmx = ts; sendDmx(t); }
+      if (ts - dmxSec > 1000) { dmxSec = ts; dmxFps = dmxWrites; dmxWrites = 0; paintDmxLive(); }
     }
   }
 
@@ -1017,13 +1301,17 @@
     seek: seek, now: now, addCue: addCue, selectCue: selectCue, selectBar: selectBar, view: function () { return view; },
     zoomTo: zoomTo, setFocus: setFocus, stageSize: function () { return stageCss; }, barRects: function () { return barRects; },
     loadShowData: loadShowData, loadBuffer: loadBuffer, ensureCtx: ensureCtx, detectBeats: detectBeats,
-    drawWave: drawWave, tick: function () { var t = now(); clockEl.textContent = E.fmtTimecode(t); if (dockClock) dockClock.textContent = clockEl.textContent; drawStage(t); drawWave(t); paintBarsTable(t); paintWaveAria(); return t; },
-    setHover: function (b, grp) { hoverBar = b; hoverGroup = grp; }, state: function () { return {playing: playing, buffer: !!buffer, selectedBar: selectedBar, selectedCue: selectedCue, dirty: dirty, libraryDirty: libraryDirty}; },
+    drawWave: drawWave, tick: function () { var t = now(); clockEl.textContent = E.fmtTimecode(t); if (dockClock) dockClock.textContent = clockEl.textContent; drawStage(t); drawWave(t); paintBarsList(t); paintScrub(t); paintWaveAria(); return t; },
+    setHover: function (b, grp) { hoverBar = b; hoverGroup = grp; }, state: function () { return {playing: playing, buffer: !!buffer, selectedBar: selectedBar, selectedCue: selectedCue, dirty: dirty, libraryDirty: libraryDirty, master: master, panic: panic, rate: rate, volume: volume}; },
     undo: undo, redo: redo, historySize: function () { return H.size(); }, canRedo: function () { return H.canRedo(); },
     waveMetrics: function () { return {view: {start: view.start, end: view.end}, w: waveCss.w, tToX: tToX, xToT: xToT}; },
-    draftPayload: draftPayload, maybeOfferDraft: maybeOfferDraft, announce: announce
+    draftPayload: draftPayload, maybeOfferDraft: maybeOfferDraft, announce: announce,
+    outLooks: outLooks, setMaster: function (v) { masterEl.value = String(Math.round(v * 100)); master = clamp(v, 0, 1); paintMaster(); }, togglePanic: togglePanic,
+    openGel: openGel, pickGel: pickGel, closeGel: closeGel, gels: function () { return GELS.slice(); }, gelOpen: function () { return !gel.hidden; },
+    pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
+    spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
-  ensureIds(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintDmx("", "Preview only · no hardware");
+  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintDmx("", "Preview only · no hardware");
   paintHistory(); paintWaveAria(); maybeOfferDraft();
   loop();
 })();

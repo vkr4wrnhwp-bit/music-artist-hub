@@ -20,11 +20,31 @@
       var k = parseInt(group.slice(4), 10);
       if (k >= 1 && k <= Math.floor(bars / 2)) out.push(k, bars + 1 - k);
       if (bars % 2 && k === Math.ceil(bars / 2)) out.push(k);
+    } else if (group.indexOf("+") > 0) {
+      // custom pick: "b1+b3+b6" — built by shift-clicking bars on the stage
+      group.split("+").forEach(function (part) {
+        var m = parseInt(part.replace(/^b/, ""), 10);
+        if (m >= 1 && m <= bars && out.indexOf(m) < 0) out.push(m);
+      });
+      out.sort(function (a, b) { return a - b; });
     } else if (group.indexOf("b") === 0) {
       var n = parseInt(group.slice(1), 10);
       if (n >= 1 && n <= bars) out.push(n);
     }
     return out;
+  }
+  function customGroup(members) {
+    // Canonical key for a hand-picked set of bars; one bar collapses to
+    // its plain "bN" group, an empty pick to "all".
+    var m = (members || []).filter(function (n, i, a) { return n >= 1 && a.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
+    if (!m.length) return "all";
+    if (m.length === 1) return "b" + m[0];
+    return m.map(function (n) { return "b" + n; }).join("+");
+  }
+  function toggleInGroup(group, bar, bars) {
+    var mem = membersOf(group, bars), i = mem.indexOf(bar);
+    if (i >= 0) mem.splice(i, 1); else mem.push(bar);
+    return customGroup(mem);
   }
   function groupOptions(bars) {
     var opts = [["all", "All bars", "Every bar together"],
@@ -41,6 +61,7 @@
   function groupLabel(group, bars) {
     var opts = groupOptions(bars);
     for (var i = 0; i < opts.length; i++) if (opts[i][0] === group) return opts[i][1];
+    if ((group || "").indexOf("+") > 0) return "Bars " + membersOf(group, bars).join(" + ");
     return group;
   }
   function mirrorOf(bar, bars) {
@@ -87,12 +108,42 @@
     return out;
   }
 
+  // ---------- output scaling: grand master + panic ----------
+  function scaleLooks(looks, master, panic) {
+    // master 0..1 multiplies every intensity; panic forces everything off.
+    // Pure: returns new look objects, never touches the resolver output.
+    var m = panic ? 0 : Math.max(0, Math.min(1, master == null ? 1 : master));
+    return looks.map(function (l) { return {rgb: l.rgb.slice(), inten: l.inten * m}; });
+  }
+
+  // ---------- DMX patch ----------
+  function fixtureAddress(show, bar) {
+    // Start address of a bar: an explicit per-bar patch wins, otherwise
+    // fixtures run from the first address one after another.
+    var chans = show.chans === 3 ? 3 : 4, first = parseInt(show.dmxStart, 10) || 1;
+    var own = show.dmxAddr && show.dmxAddr[String(bar)];
+    var a = parseInt(own, 10);
+    if (!(a >= 1)) a = first + (bar - 1) * chans;
+    return Math.max(1, Math.min(512, a));
+  }
+  function patchOverlaps(show) {
+    // Pairs of bars whose channel ranges collide — worth a warning, not a block.
+    var chans = show.chans === 3 ? 3 : 4, ranges = [], hits = [];
+    for (var i = 1; i <= show.bars; i++) { var a = fixtureAddress(show, i); ranges.push([i, a, a + chans - 1]); }
+    for (var x = 0; x < ranges.length; x++) for (var y = x + 1; y < ranges.length; y++) {
+      if (ranges[x][1] <= ranges[y][2] && ranges[y][1] <= ranges[x][2]) hits.push([ranges[x][0], ranges[y][0]]);
+    }
+    return hits;
+  }
+
   // ---------- ENTTEC USB Pro framing ----------
   function dmxFrame(show, looks) {
     var data = new Uint8Array(513);        // start code + 512 channels
-    var ch = 1;
-    looks.forEach(function (look) {
-      if (show.chans === 4) {
+    var chans = show.chans === 3 ? 3 : 4;
+    looks.forEach(function (look, idx) {
+      var ch = fixtureAddress(show, idx + 1);
+      if (ch + chans - 1 > 512) return;     // patched off the end of the universe: skip, never wrap
+      if (chans === 4) {
         data[ch++] = Math.round(look.inten * 255);
         data[ch++] = look.rgb[0]; data[ch++] = look.rgb[1]; data[ch++] = look.rgb[2];
       } else {
@@ -453,7 +504,9 @@
 
   return {
     membersOf: membersOf, groupOptions: groupOptions, groupLabel: groupLabel, mirrorOf: mirrorOf,
+    customGroup: customGroup, toggleInGroup: toggleInGroup,
     hexRgb: hexRgb, isBlackout: isBlackout, lightingAt: lightingAt, dmxFrame: dmxFrame,
+    scaleLooks: scaleLooks, fixtureAddress: fixtureAddress, patchOverlaps: patchOverlaps,
     fmtClock: fmtClock, fmtTimecode: fmtTimecode, peaks: peaks,
     onsetEnvelope: onsetEnvelope, detectBeats: detectBeats, snapToBeat: snapToBeat,
     tapTempo: tapTempo, nearestCue: nearestCue, LOOKS: LOOKS,

@@ -48,8 +48,9 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
 - **Library**: named shows, autosave (1.5 s debounce) to the working
   copy + the active library entry, “Saved ✓ hh:mm”, version history with
   restore, link to a track and a tour date (validated server-side).
-- **Keyboard**: Space play/pause, C cue, B blackout, 1–6 looks, ←/→ seek,
-  Esc deselect; visible focus rings; helper text ≥12 px.
+- **Keyboard**: Space play/pause, C cue, B blackout, 1–6 looks, 7–0 your
+  looks, X all off, ←/→ seek, Esc closes the gel book / deselects;
+  visible focus rings; helper text ≥12 px.
 
 ## Unsaved work, undo, accessibility (polish pass)
 
@@ -73,6 +74,56 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
 - **Known-good interactions (self-tested with a real WAV through the
   file input):** click-seek, flag drag at any zoom, zoom anchoring, pan,
   pinch, Fit song, Detect beats, Snap to beat.
+
+## Colour, looks, output, patch (audit pass)
+
+- **Stage art.** Background is `static/img/stage-bg-2.jpg` (the supplied
+  stage photo); fixtures are `static/img/light-bar.png`, an 8-lens LED bar
+  sprite drawn to scale (rotated for a side stick) with its lenses lit in
+  the look's colour. Lens geometry lives in `LENS_X` / `LENS_CY` /
+  `LENS_R` in `lights.js` (measured from the sprite once). A drawn housing
+  is the fallback until the sprite loads.
+- **Gel book.** Every cue swatch is a button that opens `#lx-gel`, one
+  shared popover: 30 named gels (Lee numbers people actually carry),
+  recent colours (`localStorage` `lxRecentGels`), a hex field, and
+  "Custom picker…" which clicks the cue's hidden native `<input
+  type=color>`. Intensity is never part of colour — it stays the slider
+  on the cue. Esc closes and returns focus to the swatch.
+- **Your looks.** "Save selected cue as look" stores up to four
+  `{name,color,intensity,fade}` in `show.looks`, so they travel with the
+  working copy and every library save/version. Keys `7 8 9 0` apply them;
+  `1–6` stay the house looks, `B` blackout. Removable with ×. Covered by
+  undo.
+- **Per-group colour at one timecode.** Not a per-cue field — instead two
+  cues at the same time on different groups resolve per fixture
+  (`lightingAt` is per bar; later cue wins for a bar in both). Proved in
+  `check_lights.js` ("same-timecode cues merge per bar").
+- **Hand-picked groups.** `shift-click` bars on the stage toggles them in
+  a custom group key `b1+b3+b6` (`LightsEngine.customGroup` /
+  `toggleInGroup`); the cue row's dropdown shows it as "Bars 1 + 3 + 6
+  (picked)". The visual group picker is folded by default.
+- **Grand master + All off.** Live state, not part of the show:
+  `LightsEngine.scaleLooks(looks, master, panic)` feeds the stage, the
+  bar list and the DMX frame (`outLooks(t)`). `X` toggles All off; the
+  button goes red and `body.lx-panic` outlines the stage. When a DMX
+  interface is connected the rig is also fed a slow heartbeat while idle
+  so it holds what the stage shows.
+- **DMX patch.** `show.dmxStart` (first address), `show.dmxAddr[bar]`
+  (per-bar override, from the bar drawer), `show.dmxUniverse` (label on
+  the chip; the USB Pro drives one universe).
+  `LightsEngine.fixtureAddress(show, bar)` resolves; `patchOverlaps` warns
+  in the drawer; a fixture patched past 512 is skipped, never wrapped.
+- **Bar drawer.** Clicking a bar (canvas or the All-bars list) opens
+  `#lx-barctl`: orientation, across/down %, DMX start, look now, mirror
+  partner, prev/next. The All-bars list (`#lx-bars-list`) replaced the
+  table as the screen-reader twin.
+- **Audio controls.** Volume (gain node), rate (½× … 1½× —
+  `now()` scales elapsed context time by the rate so the clock and cues
+  stay in song time), and a scrub slider mirroring the playhead.
+- **Import / export.** `Export JSON` downloads
+  `{format:"street-banker-lights", version:1, show}`; `Import JSON`
+  sanitises every field (`importShow`) and replaces the working copy only
+  (confirm first when cues exist) — library saves are untouched.
 
 ## Endpoints
 
