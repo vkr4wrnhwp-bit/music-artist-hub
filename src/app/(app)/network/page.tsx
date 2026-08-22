@@ -148,7 +148,9 @@ export default async function NetworkPage() {
                       <Td className="text-platinum">{d.field}</Td>
                       <Td muted>{d.value}</Td>
                       <Td>
-                        <StatusChip tone={d.risk === "NONE" ? "pass" : "review"}>{d.risk}</StatusChip>
+                        <StatusChip tone={d.risk === "NONE" ? "pass" : d.risk === "LOW" ? "review" : "risk"}>
+                          {d.risk}
+                        </StatusChip>
                       </Td>
                     </tr>
                   ))}
