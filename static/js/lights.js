@@ -64,7 +64,11 @@
     stopSource();
     var s = ctx.createBufferSource();
     s.buffer = buffer; s.playbackRate.value = rate; s.connect(gainNode || ctx.destination);
-    s.onended = function () { if (src === s) { playing = false; src = null; scrubT = buffer.duration; paintTransport(); } };
+    s.onended = function () {
+      if (src !== s) return;
+      playing = false; src = null; scrubT = buffer.duration; paintTransport();
+      songEnded();
+    };
     src = s;
     s.start(0, clamp(offset, 0, Math.max(0, buffer.duration - 0.01)));
     startAt = ctx.currentTime; playOffset = offset; playing = true; runStart = null;
@@ -855,7 +859,12 @@
   // ---------- grand master / panic ----------
   // outLooks() is what the stage, the list and the DMX frame all read:
   // the resolved cues scaled by the master, or nothing at all on panic.
-  function outLooks(t) { return E.scaleLooks(E.lightingAt(show, t), master, panic); }
+  function outLooks(t) {
+    // Between songs the rig holds the gap look. A black stage between
+    // songs reads as a fault rather than a choice.
+    if (inGap) return E.scaleLooks(gapLooks(), master, panic);
+    return E.scaleLooks(E.lightingAt(show, t), master, panic);
+  }
   var masterEl = $("lx-master"), panicEl = $("lx-panic");
   function paintMaster() {
     $("lx-master-val").textContent = Math.round(master * 100) + "%";
@@ -1776,6 +1785,236 @@
     });
   }
 
+  // ---------- setlists (epic 7) ----------
+  // Chain saved shows in order. Between songs the rig holds a gap look
+  // rather than going black, because a black stage between songs reads as
+  // a fault rather than a choice.
+  var setlists = Array.isArray(lib.setlists) ? lib.setlists : [];
+  var setlist = null, setIndex = -1;
+
+  function paintSetlists() {
+    var sel = $("lx-set-select"), cur = setlist ? setlist.id : "";
+    sel.innerHTML = '<option value="">— none —</option>';
+    setlists.forEach(function (s) {
+      var o = document.createElement("option"); o.value = s.id;
+      o.textContent = s.name + " · " + s.item_count + (s.item_count === 1 ? " song" : " songs");
+      sel.appendChild(o);
+    });
+    sel.value = cur;
+    $("lx-set-delete").disabled = !setlist;
+    $("lx-set-name").value = setlist ? setlist.name : "";
+    if (setlist) {
+      $("lx-set-gap-color").value = setlist.gap_color || "#1a1712";
+      $("lx-set-gap-int").value = setlist.gap_intensity == null ? 12 : setlist.gap_intensity;
+    }
+    $("lx-set-now").textContent = setlist
+      ? "· " + setlist.name + (setIndex >= 0 ? " — song " + (setIndex + 1) + " of " + setlist.items.length : "")
+      : "";
+    paintSetItems();
+    $("lx-set-prev").disabled = !setlist || setIndex <= 0;
+    $("lx-set-next").disabled = !setlist || setIndex >= (setlist ? setlist.items.length - 1 : 0);
+  }
+
+  function paintSetItems() {
+    var box = $("lx-set-items");
+    box.innerHTML = "";
+    if (!setlist) return;
+    setlist.items.forEach(function (it, i) {
+      var li = document.createElement("li");
+      li.className = "lx-set-item" + (i === setIndex ? " is-current" : "");
+      var name = document.createElement("b"); name.textContent = it.show_name || "(deleted show)";
+      li.appendChild(name);
+
+      var adv = document.createElement("select"); adv.className = "lx-select";
+      adv.setAttribute("aria-label", "What happens when this song ends");
+      [["manual", "wait for me"], ["auto", "auto-advance"]].forEach(function (o) {
+        var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1];
+        op.selected = it.advance === o[0]; adv.appendChild(op);
+      });
+      adv.addEventListener("change", function () { it.advance = adv.value; });
+      li.appendChild(adv);
+
+      var gapWrap = document.createElement("label"); gapWrap.className = "lx-field";
+      var gapLabel = document.createElement("span"); gapLabel.textContent = "gap";
+      var gap = document.createElement("input"); gap.type = "number"; gap.min = "0"; gap.step = "1";
+      gap.className = "lx-input"; gap.value = it.gap_seconds || 0;
+      gap.setAttribute("aria-label", "Seconds of gap look after this song");
+      gap.addEventListener("change", function () { it.gap_seconds = Math.max(0, parseFloat(gap.value) || 0); });
+      gapWrap.appendChild(gapLabel); gapWrap.appendChild(gap); li.appendChild(gapWrap);
+
+      var open = document.createElement("button"); open.type = "button";
+      open.className = "lx-btn lx-btn--ghost lx-btn--small"; open.textContent = "Open";
+      open.setAttribute("aria-label", "Load " + (it.show_name || "this song"));
+      open.addEventListener("click", function () { loadSetlistItem(i); });
+      li.appendChild(open);
+
+      var up = document.createElement("button"); up.type = "button";
+      up.className = "lx-btn lx-btn--ghost lx-btn--small"; up.textContent = "↑";
+      up.disabled = i === 0; up.setAttribute("aria-label", "Move earlier");
+      up.addEventListener("click", function () { moveSetItem(i, -1); });
+      var down = document.createElement("button"); down.type = "button";
+      down.className = "lx-btn lx-btn--ghost lx-btn--small"; down.textContent = "↓";
+      down.disabled = i === setlist.items.length - 1; down.setAttribute("aria-label", "Move later");
+      down.addEventListener("click", function () { moveSetItem(i, 1); });
+      var rm = document.createElement("button"); rm.type = "button";
+      rm.className = "lx-cue-x"; rm.textContent = "×";
+      rm.setAttribute("aria-label", "Remove " + (it.show_name || "this song") + " from the setlist");
+      rm.addEventListener("click", function () {
+        setlist.items.splice(i, 1);
+        if (setIndex >= setlist.items.length) setIndex = setlist.items.length - 1;
+        paintSetlists();
+      });
+      li.appendChild(up); li.appendChild(down); li.appendChild(rm);
+      box.appendChild(li);
+    });
+  }
+
+  function moveSetItem(i, d) {
+    var j = i + d;
+    if (!setlist || j < 0 || j >= setlist.items.length) return;
+    var tmp = setlist.items[i]; setlist.items[i] = setlist.items[j]; setlist.items[j] = tmp;
+    if (setIndex === i) setIndex = j; else if (setIndex === j) setIndex = i;
+    paintSetlists();
+  }
+
+  function loadSetlistItem(i) {
+    if (!setlist || i < 0 || i >= setlist.items.length) return;
+    var it = setlist.items[i];
+    // Never lose the song you were on: flush the working copy first.
+    if (dirty) autosave();
+    fetch("/lights/library/" + it.show_id).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { $("lx-set-status").textContent = "That show is no longer in the library."; return; }
+      loadShowData(d.show.data, d.show);
+      libraryDirty = false; paintLibDirty(); markDirty(false);
+      setIndex = i; paintSetlists();
+      $("lx-set-status").textContent = "Song " + (i + 1) + " of " + setlist.items.length + ": " + (it.show_name || "");
+      announce("Loaded " + (it.show_name || "song " + (i + 1)));
+      saveLive();
+    });
+  }
+
+  $("lx-set-select").addEventListener("change", function () {
+    var id = $("lx-set-select").value;
+    if (!id) { setlist = null; setIndex = -1; paintSetlists(); return; }
+    fetch("/lights/setlists/" + id).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      setlist = d.setlist; setIndex = -1; paintSetlists();
+    });
+  });
+  $("lx-set-add").addEventListener("click", function () {
+    if (!show.libraryId) {
+      $("lx-set-status").textContent = "Save this show to the library first — a setlist chains saved shows.";
+      announce($("lx-set-status").textContent);
+      return;
+    }
+    if (!setlist) setlist = {id: "", name: $("lx-set-name").value || "Setlist", items: [],
+                             gap_color: $("lx-set-gap-color").value, gap_intensity: +$("lx-set-gap-int").value};
+    setlist.items.push({show_id: show.libraryId, show_name: show.name || "Untitled show",
+                        advance: "manual", gap_seconds: 0});
+    paintSetlists();
+    $("lx-set-status").textContent = "Added. Save the setlist to keep it.";
+  });
+  $("lx-set-save").addEventListener("click", function () {
+    var body = {
+      id: setlist && setlist.id ? setlist.id : "",
+      name: $("lx-set-name").value || (setlist && setlist.name) || "Setlist",
+      gap_color: $("lx-set-gap-color").value || "#1a1712",
+      gap_intensity: +$("lx-set-gap-int").value || 0,
+      items: (setlist ? setlist.items : []).map(function (it) {
+        return {show_id: it.show_id, advance: it.advance, gap_seconds: it.gap_seconds};
+      })
+    };
+    post("/lights/setlists/save", body).then(function (d) {
+      if (!d.ok) return;
+      setlists = d.setlists || setlists; setlist = d.setlist;
+      paintSetlists();
+      $("lx-set-status").textContent = "Setlist saved.";
+      announce("Setlist saved");
+    });
+  });
+  $("lx-set-delete").addEventListener("click", function () {
+    if (!setlist || !setlist.id || !window.confirm("Delete the setlist “" + setlist.name + "”? The shows themselves are untouched.")) return;
+    post("/lights/setlists/" + setlist.id + "/delete", {}).then(function (d) {
+      if (!d.ok) return;
+      setlists = d.setlists || []; setlist = null; setIndex = -1; paintSetlists();
+      $("lx-set-status").textContent = "Setlist deleted.";
+    });
+  });
+  $("lx-set-next").addEventListener("click", function () { loadSetlistItem(setIndex + 1); });
+  $("lx-set-prev").addEventListener("click", function () { loadSetlistItem(setIndex - 1); });
+
+  // The gap look: what the rig holds between songs.
+  function gapLooks() {
+    var col = E.hexRgb((setlist && setlist.gap_color) || "#1a1712");
+    var inten = ((setlist && setlist.gap_intensity) || 0) / 100;
+    var out = [];
+    for (var i = 0; i < show.bars; i++) out.push({rgb: col.slice(), inten: inten});
+    return out;
+  }
+  var inGap = false;
+
+  function songEnded() {
+    /* Called when playback runs off the end of a song. */
+    if (!setlist || setIndex < 0) return;
+    var it = setlist.items[setIndex];
+    if (!it || it.advance !== "auto") return;
+    var wait = Math.max(0, it.gap_seconds || 0);
+    inGap = true;
+    $("lx-set-status").textContent = wait
+      ? "Holding the gap look for " + wait + "s, then the next song."
+      : "Advancing to the next song.";
+    setTimeout(function () { inGap = false; loadSetlistItem(setIndex + 1); }, wait * 1000);
+  }
+
+  // ---------- crash safety (epic 7) ----------
+  // A page reload mid-gig must not cost the show. The live position is
+  // written to this browser roughly once a second; on load, a recent one
+  // offers to pick up where it stopped. Cue edits already autosave.
+  var LIVE_KEY = "lxLive", lastLiveSave = 0;
+  function saveLive() {
+    try {
+      safeSet(LIVE_KEY, JSON.stringify({
+        at: Date.now(), t: now(), running: playing || runStart !== null,
+        libraryId: show.libraryId || "", name: show.name || "",
+        setlistId: setlist ? setlist.id : "", setIndex: setIndex, output: output
+      }));
+    } catch (e) {}
+  }
+  function readLive() {
+    try {
+      var d = JSON.parse(safeGet(LIVE_KEY) || "null");
+      if (!d || !d.at || Date.now() - d.at > 2 * 60 * 60 * 1000) return null;   // stale after 2h
+      return d;
+    } catch (e) { return null; }
+  }
+  function maybeOfferResume() {
+    var d = readLive(), bar = $("lx-resume");
+    if (!d || (!d.libraryId && !d.setlistId) || !(d.t > 1)) return;
+    var mins = Math.round((Date.now() - d.at) / 60000);
+    $("lx-resume-text").textContent = "The show was at " + E.fmtTimecode(d.t) +
+      (d.name ? " in “" + d.name + "”" : "") + " " + (mins < 1 ? "less than a minute" : mins + " min") + " ago.";
+    bar.hidden = false;
+    $("lx-resume-no").onclick = function () { bar.hidden = true; try { safeSet(LIVE_KEY, ""); } catch (e) {} };
+    $("lx-resume-go").onclick = function () {
+      bar.hidden = true;
+      var go = function () { seek(d.t); announce("Picked up at " + E.fmtTimecode(d.t)); };
+      if (d.setlistId) {
+        fetch("/lights/setlists/" + d.setlistId).then(function (r) { return r.json(); }).then(function (s) {
+          if (s.ok) {
+            setlist = s.setlist; setIndex = d.setIndex; paintSetlists();
+            if (d.setIndex >= 0) { loadSetlistItem(d.setIndex); setTimeout(go, 400); return; }
+          }
+          go();
+        });
+      } else if (d.libraryId) {
+        fetch("/lights/library/" + d.libraryId).then(function (r) { return r.json(); }).then(function (l) {
+          if (l.ok) { loadShowData(l.show.data, l.show); libraryDirty = false; paintLibDirty(); markDirty(false); }
+          setTimeout(go, 200);
+        });
+      } else go();
+    };
+  }
+
   // ---------- focus mode ----------
   // Focus mode hides the app sidebar entirely on desktop and shows the
   // slim studio rail (#lx-rail: four icon links + an expand control) in
@@ -1838,6 +2077,7 @@
     var ts = performance.now();
     if (ts - lastTable > 500) { lastTable = ts; paintBarsList(t); }
     if (ts - lastAria > 400) { lastAria = ts; paintWaveAria(); }
+    if (ts - lastLiveSave > 1000) { lastLiveSave = ts; saveLive(); }
     // DMX: 30 fps while the show runs; a slow heartbeat when idle so the
     // rig holds whatever the stage shows (master, panic, a selected cue).
     // Whichever sink is active gets the same 30 fps loop, and the same slow
@@ -1866,6 +2106,10 @@
     wheelHex: function () { return $("lx-gel-hex").value; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
+    setlist: function () { return setlist; }, setIndex: function () { return setIndex; },
+    loadSetlistItem: loadSetlistItem, songEnded: songEnded, gapLooks: gapLooks,
+    inGap: function (v) { if (v !== undefined) inGap = v; return inGap; },
+    saveLive: saveLive, readLive: readLive, maybeOfferResume: maybeOfferResume,
     setOutput: function (o) { $("lx-output").value = o; $("lx-output").dispatchEvent(new Event("change")); },
     output: function () { return output; }, checkBridge: checkBridge, sendDmx: sendDmx,
     rigs: function () { return rigs; }, applyRigNow: function (r) { record("rig"); E.applyRig(show, r); selectedCue = null; selectedBar = null; ensureIds(); markDirty(); paintRig(); renderCues(); paintGroups(); paintBarCtl(); },
@@ -1873,6 +2117,6 @@
     spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
   ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintOutputs();
-  paintHistory(); paintWaveAria(); maybeOfferDraft();
+  paintHistory(); paintWaveAria(); paintSetlists(); maybeOfferDraft(); maybeOfferResume();
   loop();
 })();

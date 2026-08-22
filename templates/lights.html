@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=9">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=10">{% endblock %}
 
 {% block content %}
 <script>
@@ -24,6 +24,11 @@
 </nav>
 <div class="lx" id="lx-root">
   <div id="lx-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="lx-resume" class="lx-resume" role="region" aria-label="Resume the show" hidden>
+    <span id="lx-resume-text"></span>
+    <button id="lx-resume-go" class="lx-btn lx-btn--small" type="button">Pick up where it stopped</button>
+    <button id="lx-resume-no" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Start fresh</button>
+  </div>
   <div id="lx-draft-prompt" class="lx-draft" role="region" aria-label="Unsaved draft" hidden>
     <span id="lx-draft-text"></span>
     <button id="lx-draft-keep" class="lx-btn lx-btn--small" type="button">Keep working on the draft</button>
@@ -252,6 +257,33 @@
         <p class="lx-hint"><b>Shift-click bars on the stage</b> to hand-pick any set — that is the multi-select. Hover a group to see which bars it fires. Fade is seconds from the previous look into this one.</p>
       </details>
 
+      {# A setlist chains saved shows. Between songs the rig holds a gap
+         look rather than going black - a black stage between songs reads
+         as a fault. #}
+      <details class="lx-more" id="lx-set-fold">
+        <summary>Setlist <span id="lx-set-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
+        <div class="lx-rig-row">
+          <label class="lx-field lx-field--wide"><span>Setlist</span>
+            <select id="lx-set-select" class="lx-select" aria-label="Open a setlist"><option value="">— none —</option></select>
+          </label>
+          <input id="lx-set-name" class="lx-input lx-input--mid" type="text" maxlength="120" placeholder="setlist name" aria-label="Setlist name">
+          <button id="lx-set-save" class="lx-btn lx-btn--small" type="button" aria-label="Save this setlist">Save</button>
+          <button id="lx-set-delete" class="lx-btn lx-btn--ghost lx-btn--small" type="button" disabled aria-label="Delete this setlist">Delete</button>
+        </div>
+        <div class="lx-rig-row">
+          <button id="lx-set-add" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Add the open show to the end of this setlist">+ Add the open show</button>
+          <label class="lx-field"><span>Gap look</span><input id="lx-set-gap-color" class="lx-input lx-input--tiny" type="text" maxlength="7" value="#1a1712" aria-label="Colour the rig holds between songs"></label>
+          <label class="lx-field"><span>Gap %</span><input id="lx-set-gap-int" class="lx-input lx-input--tiny" type="number" min="0" max="100" value="12" aria-label="Intensity the rig holds between songs, percent"></label>
+        </div>
+        <ol id="lx-set-items" class="lx-set-items" aria-label="Songs in this setlist"></ol>
+        <div class="lx-rig-row">
+          <button id="lx-set-prev" class="lx-btn lx-btn--ghost lx-btn--small" type="button" disabled aria-label="Load the previous song in the setlist">‹ Previous song</button>
+          <button id="lx-set-next" class="lx-btn lx-btn--small" type="button" disabled aria-label="Load the next song in the setlist">Next song ›</button>
+          <span id="lx-set-status" class="lx-hint" role="status" aria-live="polite"></span>
+        </div>
+        <p class="lx-hint">Auto-advance loads the next song when this one ends; manual waits for you. Loading a song from the setlist saves the one you were on first.</p>
+      </details>
+
       <details class="lx-more">
         <summary>Version history</summary>
         <div id="lx-versions" class="lx-versions"></div>
@@ -272,5 +304,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=7"></script>
-<script src="/static/js/lights.js?v=17"></script>
+<script src="/static/js/lights.js?v=18"></script>
 {% endblock %}

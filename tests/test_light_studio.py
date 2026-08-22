@@ -43,10 +43,12 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-group-one", "lx-group-clear", "lx-group-picked",
                   "lx-wheel", "lx-gel-swatch", "lx-gel-name", "lx-gel-for", "lx-gel-hex",
                   "lx-look-new", "lx-look-name", "lx-output", "lx-bridge-port", "lx-bridge-test", "lx-bridge-status",
+                  "lx-set-select", "lx-set-items", "lx-set-add", "lx-set-save", "lx-set-next", "lx-set-prev",
+                  "lx-resume", "lx-resume-go", "lx-resume-no",
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=17" in page and "light-studio.css?v=9" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=18" in page and "light-studio.css?v=10" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
@@ -192,6 +194,62 @@ def other_id(client, flask_app):
     """The user id behind a logged-in test client (via its session cookie)."""
     with client.session_transaction() as sess:
         return sess.get("user_id") or sess.get("uid") or ""
+
+
+def test_setlists_chain_saved_shows_and_stay_private(flask_app):
+    """A setlist chains shows from YOUR library. An item pointing at another
+    account's show is dropped rather than stored."""
+    client, user = _user(flask_app)
+    other, other_user = _user(flask_app, "Rival LD")
+
+    def save_show(c, name):
+        return c.post("/lights/library/save",
+                      json={"name": name, "data": {"name": name, "bars": 4, "chans": 4, "cues": []}}).get_json()["id"]
+
+    a, b = save_show(client, "Opener"), save_show(client, "Closer")
+    theirs = save_show(other, "Not yours")
+
+    assert flask_app.test_client().get("/lights/setlists").status_code in (302, 401)
+    assert client.get("/lights/setlists").get_json()["setlists"] == []
+
+    r = client.post("/lights/setlists/save", json={
+        "name": "Friday night", "gap_color": "#221a10", "gap_intensity": 15,
+        "items": [{"show_id": a, "advance": "auto", "gap_seconds": 4},
+                  {"show_id": theirs, "advance": "auto"},          # another account's show
+                  {"show_id": b, "advance": "manual", "gap_seconds": 0}]}).get_json()
+    assert r["ok"]
+    sl = r["setlist"]
+    assert sl["name"] == "Friday night" and sl["gap_intensity"] == 15
+    names = [i["show_name"] for i in sl["items"]]
+    assert names == ["Opener", "Closer"], "another account's show was stored: %s" % names
+    assert [i["position"] for i in sl["items"]] == [0, 1]
+    assert sl["items"][0]["advance"] == "auto" and sl["items"][0]["gap_seconds"] == 4
+
+    # values outside the allowed range are clamped, not stored raw
+    r2 = client.post("/lights/setlists/save", json={
+        "id": sl["id"], "name": "Friday night",
+        "items": [{"show_id": a, "advance": "nonsense", "gap_seconds": 99999}]}).get_json()
+    it = r2["setlist"]["items"][0]
+    assert it["advance"] == "manual" and it["gap_seconds"] == 600
+
+    # another account cannot read or delete it
+    assert other.get("/lights/setlists/%s" % sl["id"]).status_code == 404
+    assert other.get("/lights/setlists").get_json()["setlists"] == []
+    other.post("/lights/setlists/%s/delete" % sl["id"], json={})
+    assert lights_store.get_setlist(user["id"], sl["id"]) is not None
+    assert client.post("/lights/setlists/%s/delete" % sl["id"], json={}).get_json()["ok"]
+    assert lights_store.get_setlist(user["id"], sl["id"]) is None
+    # deleting the setlist leaves the shows alone
+    assert lights_store.get_show(user["id"], a) is not None
+
+
+def test_the_page_ships_the_setlists(flask_app):
+    client, user = _user(flask_app)
+    sid = client.post("/lights/library/save",
+                      json={"name": "In a set", "data": {"cues": [], "bars": 4, "chans": 4}}).get_json()["id"]
+    client.post("/lights/setlists/save", json={"name": "Tour set", "items": [{"show_id": sid}]})
+    page = client.get("/lights").get_data(as_text=True)
+    assert "Tour set" in page and "setlists" in page
 
 
 def test_rig_count_is_capped(flask_app):

@@ -258,6 +258,21 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 
 .lx-group-single { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
 
+/* setlist */
+.lx-set-items { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; counter-reset: song; }
+.lx-set-item { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 7px 9px;
+  border: 1px solid var(--lx-rule); border-radius: 8px; background: rgb(0 0 0 / 0.3); font-size: 12.5px; }
+.lx-set-item.is-current { border-color: var(--lx-gold); background: rgb(201 162 74 / 0.10); }
+.lx-set-item b { color: var(--lx-copy); min-width: 0; flex: 1 1 140px; }
+.lx-set-item::before { counter-increment: song; content: counter(song); font-variant-numeric: tabular-nums;
+  color: var(--lx-amber); font-weight: 800; min-width: 2ch; }
+.lx-set-item select, .lx-set-item input { min-height: 28px; padding: 2px 6px; font-size: 12px; }
+.lx-set-item input[type="number"] { width: 6ch; }
+.lx-resume { border: 1px solid var(--lx-line); border-left-width: 3px; border-radius: 10px;
+  background: rgb(201 162 74 / 0.08); padding: 9px 12px; font-size: 12.5px; display: flex;
+  flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.lx-resume[hidden] { display: none; }
+
 /* looks */
 .lx-looks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .lx-look { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--lx-rule); background: rgb(0 0 0 / 0.3); color: var(--lx-copy); font-size: 11.5px; font-weight: 700; cursor: pointer; }

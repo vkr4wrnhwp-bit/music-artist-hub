@@ -44,6 +44,26 @@ def init_lights():
                 created TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS light_setlists (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                gap_color TEXT NOT NULL DEFAULT '#1a1712',
+                gap_intensity INTEGER NOT NULL DEFAULT 12,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS light_setlist_items (
+                id TEXT PRIMARY KEY,
+                setlist_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                advance TEXT NOT NULL DEFAULT 'manual',
+                gap_seconds REAL NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_lset_user ON light_setlists(user_id, updated);
+            CREATE INDEX IF NOT EXISTS idx_lseti ON light_setlist_items(setlist_id, position);
             CREATE INDEX IF NOT EXISTS idx_lsl_user ON light_show_library(user_id, updated);
             CREATE INDEX IF NOT EXISTS idx_lsv_show ON light_show_versions(show_id, saved_at);
             CREATE INDEX IF NOT EXISTS idx_lr_user ON light_rigs(user_id, updated);
@@ -129,6 +149,85 @@ def list_versions(user_id, show_id):
             cues = 0
         out.append({"id": r["id"], "note": r["note"], "saved_at": r["saved_at"], "cue_count": cues})
     return out
+
+
+# --- setlists ----------------------------------------------------------
+# A setlist chains saved shows in order. Between songs the rig holds a
+# "gap look" rather than going black, because a black stage between songs
+# reads as a fault.
+
+MAX_SETLIST_ITEMS = 60
+ADVANCE_MODES = ("manual", "auto")
+
+
+def list_setlists(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT s.*, (SELECT COUNT(*) FROM light_setlist_items i WHERE i.setlist_id = s.id) AS item_count "
+            "FROM light_setlists s WHERE s.user_id = ? ORDER BY s.updated DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_setlist(user_id, setlist_id):
+    """The setlist with its items resolved to library shows, in order."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM light_setlists WHERE id=? AND user_id=?",
+                         (setlist_id, user_id)).fetchone()
+        if row is None:
+            return None
+        items = db.execute(
+            "SELECT i.*, l.name AS show_name FROM light_setlist_items i "
+            "LEFT JOIN light_show_library l ON l.id = i.show_id "
+            "WHERE i.setlist_id=? AND i.user_id=? ORDER BY i.position", (setlist_id, user_id)).fetchall()
+    out = dict(row)
+    out["items"] = [dict(i) for i in items]
+    return out
+
+
+def save_setlist(user_id, setlist_id, name, items, gap_color="#1a1712", gap_intensity=12):
+    """Upsert a setlist and replace its items.
+
+    Every show id is checked against this user's own library, so a setlist
+    can never reference another account's show.
+    """
+    name = (name or "Setlist").strip()[:120]
+    now = _now()
+    with get_db() as db:
+        if setlist_id and db.execute("SELECT 1 FROM light_setlists WHERE id=? AND user_id=?",
+                                     (setlist_id, user_id)).fetchone():
+            db.execute("UPDATE light_setlists SET name=?, gap_color=?, gap_intensity=?, updated=? "
+                       "WHERE id=? AND user_id=?",
+                       (name, gap_color, int(gap_intensity or 0), now, setlist_id, user_id))
+        else:
+            setlist_id = uuid.uuid4().hex
+            db.execute("INSERT INTO light_setlists (id, user_id, name, gap_color, gap_intensity, created, updated) "
+                       "VALUES (?,?,?,?,?,?,?)",
+                       (setlist_id, user_id, name, gap_color, int(gap_intensity or 0), now, now))
+        mine = {r["id"] for r in db.execute("SELECT id FROM light_show_library WHERE user_id=?",
+                                            (user_id,)).fetchall()}
+        db.execute("DELETE FROM light_setlist_items WHERE setlist_id=? AND user_id=?", (setlist_id, user_id))
+        pos = 0
+        for it in (items or [])[:MAX_SETLIST_ITEMS]:
+            show_id = (it or {}).get("show_id") or ""
+            if show_id not in mine:            # not this user's show: drop it
+                continue
+            advance = it.get("advance") if it.get("advance") in ADVANCE_MODES else "manual"
+            try:
+                gap = max(0.0, min(600.0, float(it.get("gap_seconds") or 0)))
+            except (TypeError, ValueError):
+                gap = 0.0
+            db.execute("INSERT INTO light_setlist_items (id, setlist_id, user_id, show_id, position, advance, "
+                       "gap_seconds) VALUES (?,?,?,?,?,?,?)",
+                       (uuid.uuid4().hex, setlist_id, user_id, show_id, pos, advance, gap))
+            pos += 1
+    return setlist_id
+
+
+def delete_setlist(user_id, setlist_id):
+    with get_db() as db:
+        db.execute("DELETE FROM light_setlist_items WHERE setlist_id=? AND user_id=?", (setlist_id, user_id))
+        cur = db.execute("DELETE FROM light_setlists WHERE id=? AND user_id=?", (setlist_id, user_id))
+    return cur.rowcount > 0
 
 
 # --- rig profiles ------------------------------------------------------

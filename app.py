@@ -4402,6 +4402,7 @@ def create_app():
                        "track_id": s["track_id"], "tour_show_id": s["tour_show_id"],
                        "updated": s["updated"]} for s in lights_store.list_shows(user["id"])],
             "rigs": _lights_rigs(user["id"]),
+            "setlists": lights_store.list_setlists(user["id"]),
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
         # venue_key lets the page pick the rig bound to the room without a
@@ -4497,6 +4498,46 @@ def create_app():
             return jsonify({"ok": False}), 401
         lights_store.delete_show(user["id"], show_id)
         return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
+
+    @app.route("/lights/setlists")
+    def lights_setlists():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": True, "setlists": lights_store.list_setlists(user["id"])})
+
+    @app.route("/lights/setlists/<setlist_id>")
+    def lights_setlist_get(setlist_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        s = lights_store.get_setlist(user["id"], setlist_id)
+        if s is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "setlist": s})
+
+    @app.route("/lights/setlists/save", methods=["POST"])
+    def lights_setlist_save():
+        """Items referencing another account's show are dropped, not stored."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        items = body.get("items") if isinstance(body.get("items"), list) else []
+        sid = lights_store.save_setlist(
+            user["id"], body.get("id") or None, body.get("name") or "Setlist", items,
+            gap_color=(body.get("gap_color") or "#1a1712")[:7],
+            gap_intensity=body.get("gap_intensity") or 0)
+        return jsonify({"ok": True, "id": sid, "setlists": lights_store.list_setlists(user["id"]),
+                        "setlist": lights_store.get_setlist(user["id"], sid)})
+
+    @app.route("/lights/setlists/<setlist_id>/delete", methods=["POST"])
+    def lights_setlist_delete(setlist_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        lights_store.delete_setlist(user["id"], setlist_id)
+        return jsonify({"ok": True, "setlists": lights_store.list_setlists(user["id"])})
 
     def _lights_rigs(user_id):
         return [{"id": r["id"], "name": r["name"], "venue_key": r["venue_key"], "data": r["data"]}
