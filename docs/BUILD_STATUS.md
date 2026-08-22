@@ -1466,3 +1466,21 @@ features/[fid]/page.tsx stores an accepted fit as
 `toleranceMinus = Math.abs(fit.lowerIn)`, which loses the sign for
 interference classes where both deviations are positive (k6). The limits
 readout inherits it.
+
+## Visual parity audit (brief §30/§45)
+
+Measured on the running production build at 1366×768, 1440×900,
+1920×1080 and 1024×768: zero horizontal and zero page scroll at every
+size; canvas share 62 / 67 / 74 / 58%; drawer, feature panel and view
+environment collapsed/closed and the runway minimized by default;
+readiness, blocker count and next action visible in every state.
+Viewport ground sampled at rgb(243,243,241) — Studio White as designed.
+
+Differences from the approved reference are recorded in
+docs/VISUAL_PARITY_AUDIT.md, split into deliberate (operation execution
+status and SEND TO MACHINE do not exist and will not be faked; the
+banner shows the top blocker per brief §9; the reference's own FAIL
+contradicts its numbers and ours computes the verdict) and real gaps
+(part rendering fidelity, grid-vs-gradient ground, header chrome,
+bottom action bar placement, next-action card, setup cards, orientation
+controls, instrument illustration, analytics route).
