@@ -1695,3 +1695,53 @@ tools assigned from the crib. Once pockets exist, the honest gate asks
 whether those tools are loaded in the machine the setup is assigned to —
 and parts that pass today would start failing. That is a gate behaviour
 change and belongs to the shop, not to an assumption made here.
+
+## The tool carousel
+
+Built as data, with the readiness gate deliberately untouched.
+
+Before this, `Machine.toolChangerCapacity` was an integer and the machines
+page printed "20 pockets" as a specification. Nothing anywhere recorded that
+T3 is in pocket 3 of the VF-2, so "is the tooling for this job actually in
+the machine" was a question CANVAS could not answer and did not admit it
+could not answer.
+
+Schema: `Tool.machineId` and `Tool.pocket`, both nullable, unique on
+(machineId, pocket). Nullable because "in the crib" is the honest state for
+most tools and is not the same as pocket zero; NULLs compare distinct in both
+SQLite and Postgres, so any number of unassigned tools coexist while two
+tools can never claim one pocket. Deleting a machine sets the tools back to
+the crib rather than deleting the tools with it. Migrations written for both
+engines.
+
+/machines/[id]/carousel maps the pockets. A pocket is empty until a human
+says otherwise — no inference from the operation plan, no "probably still
+loaded from last time". A carousel map that guesses is worse than none,
+because a machinist would walk to the machine expecting to find the tool.
+Loading is refused when the pocket is outside the changer, when the pocket is
+already occupied, and when the tool physically will not fit: the guard
+compares the tool's own recorded diameter and overall length against the
+machine's own recorded maxima and names both figures. Every load and unload
+is audited with actorType HUMAN.
+
+The machines page now reads "7 of 20 pockets loaded" rather than "20
+pockets" — capacity is a spec, occupancy is a fact about this shop. The tool
+crib gained a LOADED IN column showing machine and pocket, or "Crib", which
+is a real location rather than a blank.
+
+WHAT THIS DOES NOT DO: change TOOL AVAILABILITY. readiness.ts:107-111 still
+passes when a part has tools assigned from the crib. Making the gate require
+the tooling to be loaded in the assigned machine is the obviously correct
+next step and would start failing parts that pass today — a decision about
+how a shop works, not one to slip in behind a schema change. The carousel
+page says so on the page itself rather than only here.
+
+Verified in the running build: 20 pockets render, load and unload round-trip,
+occupancy agrees across the carousel, the machines page and the crib, an
+oversize tool is refused naming both the diameter and the length it exceeds,
+and there is no horizontal scroll at 1024, 1366, 1440 or 1920.
+
+The seed loads seven of ten tools into pockets and leaves three in the crib —
+the boring head and the tap among them — because that is what a changer looks
+like on a Tuesday, and a demo where everything happens to be loaded would
+teach the opposite of what the carousel exists to show.

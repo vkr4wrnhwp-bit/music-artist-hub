@@ -169,6 +169,8 @@ model Machine {
   setups       Setup[]
   ncPrograms   NCProgram[]
   shopKnowledge ShopKnowledge[]
+  /** What is loaded in this machine's tool changer. */
+  loadedTools  Tool[]
 
   @@index([organizationId])
 }
@@ -193,6 +195,17 @@ model Tool {
 
   holderId String?
   holder   ToolHolder? @relation(fields: [holderId], references: [id], onDelete: SetNull)
+
+  // Where the tool physically is. A tool sits in one pocket of one machine
+  // or it sits in the crib — both nullable, because "in the crib" is the
+  // honest state for most of them and is not the same as pocket zero.
+  // Unique on (machineId, pocket) so two tools cannot claim one pocket;
+  // NULLs compare distinct in both engines, so any number of unassigned
+  // tools coexist. Setting the machine to null on delete leaves the tool in
+  // the crib rather than deleting the tool with the machine.
+  machineId String?
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  pocket    Int?
 
   maxRPM               Int
   recommendedMaterials String // JSON array
@@ -223,7 +236,9 @@ model Tool {
   shopKnowledge ShopKnowledge[]
 
   @@unique([organizationId, toolNumber])
+  @@unique([machineId, pocket])
   @@index([organizationId])
+  @@index([machineId])
 }
 
 model ToolHolder {

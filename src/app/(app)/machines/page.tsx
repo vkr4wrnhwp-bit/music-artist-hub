@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -13,11 +14,19 @@ import { revalidatePath } from "next/cache";
 export default async function MachinesPage() {
   const user = await requireUser();
   const machines = await getMachines(user.organizationId);
-  const [calRecords, referenceCuts, tools] = await Promise.all([
+  const [calRecords, referenceCuts, tools, pocketCounts] = await Promise.all([
     db.machineCalibrationRecord.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" } }),
     db.referenceCut.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 20 }),
     db.tool.findMany({ where: { organizationId: user.organizationId }, orderBy: { toolNumber: "asc" } }),
+    // Carousel occupancy per machine. Counted, not inferred — a tool is in a
+    // pocket because somebody recorded putting it there.
+    db.tool.groupBy({
+      by: ["machineId"],
+      where: { organizationId: user.organizationId, machineId: { not: null }, pocket: { not: null } },
+      _count: { _all: true },
+    }),
   ]);
+  const loadedByMachine = new Map(pocketCounts.map((r) => [r.machineId as string, r._count._all]));
 
   async function recordCycle(formData: FormData) {
     "use server";
@@ -106,6 +115,12 @@ export default async function MachinesPage() {
                     <StatusChip tone="neutral">{m.machineType.replace(/_/g, " ")}</StatusChip>
                     <StatusChip tone="neutral">{m.controller.replace(/_/g, " ")}</StatusChip>
                     {m.isReferenceProfile && <StatusChip tone="review">Reference profile</StatusChip>}
+                    <Link
+                      href={`/machines/${m.id}/carousel`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
+                    >
+                      Carousel
+                    </Link>
                   </span>
                 }
                 dense
@@ -168,7 +183,13 @@ export default async function MachinesPage() {
                   <Spec
                     label="Tooling & options"
                     rows={[
-                      ["Changer", `${m.toolChangerCapacity} pockets`],
+                      // Capacity is a spec; occupancy is a fact about this
+                      // shop. Both, so "20 pockets" stops reading as though
+                      // CANVAS knows what is in them.
+                      [
+                        "Changer",
+                        `${loadedByMachine.get(m.id) ?? 0} of ${m.toolChangerCapacity} pockets loaded`,
+                      ],
                       ["Max tool ⌀", `${m.maxToolDiameter}″`],
                       ["Max tool length", `${m.maxToolLength}″`],
                       ["Probe", m.probe ? "Yes" : "No"],

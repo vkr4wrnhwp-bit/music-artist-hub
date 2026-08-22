@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getTools } from "@/lib/data";
+import { db } from "@/lib/db";
 import { fmt } from "@/lib/domain/features";
 import { TopBar } from "@/components/nav";
 import Link from "next/link";
@@ -8,6 +9,20 @@ import { EmptyState, LinkButton, Panel, SectionHeading, StatusChip, Table, Td } 
 export default async function ToolCribPage() {
   const user = await requireUser();
   const tools = await getTools(user.organizationId);
+
+  // Where each tool physically is. Queried separately rather than widened
+  // into the domain Tool type — location is a fact about this shop's
+  // machines, not a property of the cutter.
+  const placements = await db.tool.findMany({
+    where: { organizationId: user.organizationId },
+    select: { id: true, pocket: true, machine: { select: { manufacturer: true, model: true } } },
+  });
+  const locationOf = new Map(
+    placements.map((p) => [
+      p.id,
+      p.machine && p.pocket !== null ? `${p.machine.manufacturer} ${p.machine.model} · P${String(p.pocket).padStart(2, "0")}` : null,
+    ]),
+  );
 
   return (
     <>
@@ -35,7 +50,7 @@ export default async function ToolCribPage() {
         ) : (
           <div data-guide-target="tool-crib">
           <Panel title={`${tools.length} tools`} dense>
-            <Table head={["T#", "Class", "Description", "⌀", "Flutes", "Reach", "Chipload", "SFM", "Holder", "Life", ""]}>
+            <Table head={["T#", "Class", "Description", "⌀", "Flutes", "Reach", "Chipload", "SFM", "Holder", "Loaded in", "Life", ""]}>
               {tools.map((t) => (
                 <tr key={t.id} className="hover:bg-raised">
                   <Td className="text-precision">T{t.toolNumber}</Td>
@@ -51,6 +66,8 @@ export default async function ToolCribPage() {
                     {t.sfmMin}–{t.sfmMax}
                   </Td>
                   <Td muted>{t.holder}</Td>
+                  {/* "In the crib" is a real location, not a blank. */}
+                  <Td muted={locationOf.get(t.id) == null}>{locationOf.get(t.id) ?? "Crib"}</Td>
                   <Td>
                     <StatusChip tone={t.lifeRemaining > 0.4 ? "pass" : t.lifeRemaining > 0.15 ? "review" : "risk"}>
                       {(t.lifeRemaining * 100).toFixed(0)}%

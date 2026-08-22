@@ -148,7 +148,20 @@ async function main() {
     { toolNumber: 10, toolClass: "TAP", description: "1/4-20 spiral point tap", diameter: 0.25, flutes: 3, material: "HSS", coating: "TiN", fluteLength: 1, overallLength: 2.5, stickout: 1.5, holderId: cat40.id, maxRPM: 4000, chiploadMin: 0.001, chiploadMax: 0.002, sfmMin: 30, sfmMax: 60, costPerTool: 14, expectedLifeMinutes: 500 },
   ];
 
+  /**
+   * Which tools are loaded in the VF-2's changer, by tool number.
+   *
+   * Deliberately partial. Seven of the ten are in the machine and three are
+   * in the crib, because that is what a real changer looks like on a Tuesday
+   * — and a demo where every tool happens to be loaded would teach the
+   * opposite of what the carousel exists to show. Tool 9 (the boring head)
+   * and tool 10 (the tap) are the ones a shop swaps in for the job, so they
+   * are the ones left out.
+   */
+  const POCKETS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7 };
+
   for (const t of tools) {
+    const pocket = POCKETS[t.toolNumber] ?? null;
     await db.tool.create({
       data: {
         organizationId: org.id,
@@ -156,6 +169,8 @@ async function main() {
         recommendedMaterials: json(["Aluminum 6061", "Aluminum 7075", "Brass 360"]),
         coolant: "FLOOD",
         lifeRemaining: 1,
+        machineId: pocket === null ? null : machine.id,
+        pocket,
         ...t,
       },
     });
