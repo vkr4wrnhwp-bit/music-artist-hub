@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=8">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=9">{% endblock %}
 
 {% block content %}
 <script>
@@ -177,16 +177,48 @@
       </div>
       <div id="lx-cues" class="lx-cues" role="list" aria-label="Cues, in time order"></div>
 
+      {# Two ways to set a colour and no more: click a ready-made look, or
+         drag the wheel. Everything else (a gel book, a recents strip, a
+         separate saved-swatch list) was another colour list to learn. #}
       <details class="lx-more" open>
-        <summary>Looks</summary>
-        <div id="lx-looks" class="lx-looks"></div>
-        <div class="lx-look-form">
-          <input id="lx-look-name" class="lx-input" type="text" maxlength="24" placeholder="name it — e.g. Verse teal" aria-label="Name for the new look">
-          <button id="lx-look-new" class="lx-btn lx-btn--small" type="button" aria-haspopup="dialog" aria-label="Mix any colour and add it as a look — opens the gel book and colour mixer">+ Mix a new look</button>
-          <button id="lx-look-save" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Save the selected cue's colour, intensity and fade as a look">Save selected cue</button>
-          <span id="lx-look-form-hint" class="lx-hint"></span>
+        <summary>Colour</summary>
+
+        <div class="lx-colour">
+          <canvas id="lx-wheel" class="lx-wheel" width="200" height="200" tabindex="0" role="application"
+                  aria-label="Colour wheel. Drag to pick — around the wheel is hue, out from the centre is saturation. Arrow keys move the handle, shift for bigger steps."></canvas>
+          <label class="lx-wheel-v" title="Brightness of the colour itself — not the fixture's output">
+            <span>V</span>
+            <input id="lx-mix-v" type="range" min="0" max="100" aria-label="Value: brightness of the colour, percent — not the cue's intensity">
+            <b id="lx-mix-v-v">0</b>
+          </label>
+          <div class="lx-colour-side">
+            <div class="lx-gel-preview"><i id="lx-gel-swatch" aria-hidden="true"></i><span id="lx-gel-name" class="lx-hint"></span></div>
+            <p id="lx-gel-for" class="lx-hint"></p>
+            <label class="lx-field"><span>Hex</span><input id="lx-gel-hex" class="lx-input lx-input--tiny" type="text" maxlength="7" spellcheck="false" aria-label="Colour as hex, for example #ff7a00"></label>
+            <div class="lx-inline">
+              <input id="lx-look-name" class="lx-input lx-input--mid" type="text" maxlength="24" placeholder="name it" aria-label="Name for the saved look">
+              <button id="lx-look-new" class="lx-btn lx-btn--small" type="button" aria-label="Save the wheel's colour as a look you can click again">Save as look</button>
+            </div>
+            <span id="lx-look-form-hint" class="lx-hint"></span>
+            <details class="lx-fine">
+              <summary>By number</summary>
+              <div class="lx-mix-row">
+                <label class="lx-mix"><span>R</span><input id="lx-mix-r" type="range" min="0" max="255" aria-label="Red, 0 to 255"><b id="lx-mix-r-v">0</b></label>
+                <label class="lx-mix"><span>G</span><input id="lx-mix-g" type="range" min="0" max="255" aria-label="Green, 0 to 255"><b id="lx-mix-g-v">0</b></label>
+                <label class="lx-mix"><span>B</span><input id="lx-mix-b" type="range" min="0" max="255" aria-label="Blue, 0 to 255"><b id="lx-mix-b-v">0</b></label>
+                <label class="lx-mix"><span>H</span><input id="lx-mix-h" type="range" min="0" max="360" class="lx-mix-hue" aria-label="Hue, 0 to 360 degrees"><b id="lx-mix-h-v">0</b></label>
+                <label class="lx-mix"><span>S</span><input id="lx-mix-s" type="range" min="0" max="100" aria-label="Saturation, percent"><b id="lx-mix-s-v">0</b></label>
+              </div>
+            </details>
+          </div>
         </div>
-        <p class="lx-hint">One tap applies the look to the selected cue, or drops a new cue at the playhead. The six house looks take keys <span class="lx-kbd">1</span>–<span class="lx-kbd">6</span> and your first four take <span class="lx-kbd">7</span> <span class="lx-kbd">8</span> <span class="lx-kbd">9</span> <span class="lx-kbd">0</span> — you can keep more than that, they just have no shortcut. <b>+ Mix a new look</b> opens the full gel book and RGB/HSV mixer; you do not need a cue selected. A cue's own colour is its swatch in the list.</p>
+        <p class="lx-hint">Select a cue and the wheel recolours it live. With nothing selected the wheel is just a mixer — name it and <b>Save as look</b> to keep it.</p>
+
+        <p class="lx-gel-lab">Looks — colour, intensity and fade together</p>
+        <div id="lx-looks" class="lx-looks"></div>
+        <p class="lx-hint">One tap applies a look to the selected cue, or drops a new cue at the playhead. Keys <span class="lx-kbd">1</span>–<span class="lx-kbd">6</span> are the first six; your saved ones take <span class="lx-kbd">7</span> <span class="lx-kbd">8</span> <span class="lx-kbd">9</span> <span class="lx-kbd">0</span>.
+          <button id="lx-look-save" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Save the selected cue's colour, intensity and fade as a look">Save the selected cue as a look</button>
+        </p>
       </details>
 
       <details class="lx-more" open>
@@ -212,44 +244,6 @@
   </div>
 </div>
 
-<div id="lx-gel" class="lx-gel" role="dialog" aria-label="Colour" hidden>
-  <div class="lx-gel-head"><span id="lx-gel-for" class="lx-hint"></span><button id="lx-gel-close" class="lx-cue-x" type="button" aria-label="Close the colour picker">×</button></div>
-  <div id="lx-gel-make" class="lx-gel-foot" hidden>
-    <input id="lx-gel-look-name" class="lx-input lx-input--mid" type="text" maxlength="24" placeholder="look name" aria-label="Name for the new look">
-    <button id="lx-gel-look-add" class="lx-btn lx-btn--small" type="button" aria-label="Add this colour to the Looks row as a new look">Add as look</button>
-  </div>
-  <div id="lx-gel-recent-wrap" hidden><p class="lx-gel-lab">Recent</p><div id="lx-gel-recent" class="lx-gel-grid"></div></div>
-  <p class="lx-gel-lab">Gel book</p>
-  <div id="lx-gel-grid" class="lx-gel-grid"></div>
-
-  <details id="lx-gel-mix" class="lx-gel-mix">
-    <summary>Mix a colour</summary>
-    <div class="lx-gel-preview"><i id="lx-gel-swatch" aria-hidden="true"></i><span id="lx-gel-name" class="lx-hint"></span></div>
-    <div class="lx-mix-row">
-      <label class="lx-mix"><span>R</span><input id="lx-mix-r" type="range" min="0" max="255" aria-label="Red, 0 to 255"><b id="lx-mix-r-v">0</b></label>
-      <label class="lx-mix"><span>G</span><input id="lx-mix-g" type="range" min="0" max="255" aria-label="Green, 0 to 255"><b id="lx-mix-g-v">0</b></label>
-      <label class="lx-mix"><span>B</span><input id="lx-mix-b" type="range" min="0" max="255" aria-label="Blue, 0 to 255"><b id="lx-mix-b-v">0</b></label>
-    </div>
-    <div class="lx-mix-row">
-      <label class="lx-mix"><span>H</span><input id="lx-mix-h" type="range" min="0" max="360" class="lx-mix-hue" aria-label="Hue, 0 to 360 degrees"><b id="lx-mix-h-v">0</b></label>
-      <label class="lx-mix"><span>S</span><input id="lx-mix-s" type="range" min="0" max="100" aria-label="Saturation, percent"><b id="lx-mix-s-v">0</b></label>
-      <label class="lx-mix"><span>V</span><input id="lx-mix-v" type="range" min="0" max="100" aria-label="Value or brightness of the colour, percent — not the cue's intensity"><b id="lx-mix-v-v">0</b></label>
-    </div>
-    <p class="lx-hint">V is the colour's own brightness, not the fixture's output — the cue's intensity slider stays separate.</p>
-    <div class="lx-gel-foot">
-      <input id="lx-gel-save-name" class="lx-input lx-input--mid" type="text" maxlength="24" placeholder="name this gel" aria-label="Name for the saved gel">
-      <button id="lx-gel-save" class="lx-btn lx-btn--small" type="button" aria-label="Save the mixed colour to your palette">Save to palette</button>
-    </div>
-  </details>
-
-  <div id="lx-gel-mine-wrap" hidden><p class="lx-gel-lab">Your palette</p><div id="lx-gel-mine" class="lx-gel-grid"></div></div>
-
-  <div class="lx-gel-foot">
-    <label class="lx-field"><span>Hex</span><input id="lx-gel-hex" class="lx-input lx-input--tiny" type="text" maxlength="7" spellcheck="false" aria-label="Colour as hex, for example #ff7a00"></label>
-    <button id="lx-gel-custom" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Open the operating system colour picker">System picker…</button>
-    <span class="lx-hint">Intensity is the slider on the cue — colour never changes it.</span>
-  </div>
-</div>
 
 <div class="lx-dock" id="lx-dock" role="toolbar" aria-label="Transport (phone)">
   <button id="lx-dock-play" class="lx-btn" type="button" disabled aria-label="Play or stop the song">Play</button>
@@ -261,5 +255,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=7"></script>
-<script src="/static/js/lights.js?v=15"></script>
+<script src="/static/js/lights.js?v=16"></script>
 {% endblock %}

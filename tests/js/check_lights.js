@@ -193,5 +193,45 @@ const rf = E.rigFromShow({bars: 5, chans: 3, pos: {"2": [0.1, 0.2]}, rot: {}, dm
 ok("rigFromShow captures the current rig", rf.name === "My rig" && rf.bars === 5 && rf.chans === 3 && rf.pos["2"][1] === 0.2 && rf.dmxStart === 33);
 ok("venueKey normalises", E.venueKey("The Vault, Charlotte!") === "the vault charlotte" && E.venueKey("") === "");
 
+// --- network DMX: checked against the published packet layouts -------------
+const netShow = {bars: 2, chans: 4, dmxStart: 1};
+const netLooks = [{rgb: [10, 20, 30], inten: 1}, {rgb: [40, 50, 60], inten: 0.5}];
+
+const universe = E.dmxData(netShow, netLooks);
+ok("universe is 512 slots with NO start code", universe.length === 512);
+ok("first fixture lands at slot 1 (index 0)", universe[0] === 255 && universe[1] === 10 && universe[2] === 20 && universe[3] === 30);
+ok("second fixture follows it", universe[4] === 128 && universe[5] === 40);
+ok("a fixture patched past 512 is skipped, not wrapped",
+   E.dmxData({bars: 1, chans: 4, dmxAddr: {"1": 511}}, [{rgb: [9, 9, 9], inten: 1}]).slice(0, 8).every(v => v === 0));
+
+const art = E.artnetPacket(netShow, netLooks, {universe: 0});
+ok("Art-Net header is 'Art-Net\\0'", Buffer.from(art.slice(0, 8)).toString("latin1") === "Art-Net\0");
+ok("Art-Net opcode 0x5000 is little endian", art[8] === 0x00 && art[9] === 0x50);
+ok("Art-Net protocol version 14 is big endian", art[10] === 0 && art[11] === 14);
+ok("Art-Net length is big endian 512", art[16] === 0x02 && art[17] === 0x00);
+ok("Art-Net packet is 18 + 512", art.length === 530);
+ok("Art-Net carries the universe with no start code", art[18] === 255 && art[19] === 10);
+const art15 = E.artnetPacket(netShow, netLooks, {universe: 0x0102});
+ok("Art-Net splits universe into SubUni and Net", art15[14] === 0x02 && art15[15] === 0x01);
+
+const sacn = E.sacnPacket(netShow, netLooks, {universe: 1, cid: new Uint8Array(16).fill(7)});
+ok("sACN preamble and postamble", (sacn[0] << 8 | sacn[1]) === 0x0010 && (sacn[2] << 8 | sacn[3]) === 0x0000);
+ok("sACN ACN packet identifier", Buffer.from(sacn.slice(4, 16)).toString("latin1") === "ASC-E1.17\0\0\0");
+ok("sACN packet length is 126 + 512", sacn.length === 638);
+const dv = new DataView(sacn.buffer, sacn.byteOffset, sacn.byteLength);
+ok("sACN root vector is 0x04", dv.getUint32(18) === 4);
+ok("sACN root flags+length", dv.getUint16(16) === (0x7000 | (638 - 16)));
+ok("sACN framing vector is 0x02", dv.getUint32(40) === 2);
+ok("sACN framing flags+length", dv.getUint16(38) === (0x7000 | (638 - 38)));
+ok("sACN default priority is 100", sacn[108] === 100);
+ok("sACN universe is big endian", dv.getUint16(113) === 1);
+ok("sACN DMP vector and address type", sacn[117] === 0x02 && sacn[118] === 0xA1);
+ok("sACN property count is 513 (start code + 512)", dv.getUint16(123) === 513);
+ok("sACN start code is 0 and slots follow", sacn[125] === 0x00 && sacn[126] === 255 && sacn[127] === 10);
+ok("sACN CID is carried verbatim", Array.from(sacn.slice(22, 38)).every(v => v === 7));
+ok("sACN priority clamps", E.sacnPacket(netShow, netLooks, {priority: 9999})[108] === 200);
+ok("sACN source name is ASCII and null padded", sacn[44] === "S".charCodeAt(0) && sacn[107] === 0);
+ok("four output sinks are declared", E.OUTPUTS.length === 4 && E.OUTPUTS[0][0] === "preview");
+
 console.log(fails ? ("\n" + fails + " FAILED") : "\nall passed");
 process.exit(fails ? 1 : 0);

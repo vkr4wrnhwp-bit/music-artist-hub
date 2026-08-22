@@ -182,9 +182,8 @@
     show.sections = s.sections || []; show.stops = s.stops || [];
     show.rigKey = s.rigKey || null; show.rigName = s.rigName || "";
     show.bpm = s.bpm || 0; show.beatOffset = s.beatOffset || 0; show.snap = !!s.snap;
-    // The gel book holds a reference to a cue object this restore is about
-    // to throw away; leaving it open would write colours into nothing.
-    closeGel(false);
+    // Point the wheel back at nothing: the cue it was editing is about to
+    // be thrown away by this restore.
     ensureIds();
     selectedCue = null;
     show.cues.forEach(function (c) { if (selId && c._id === selId) selectedCue = c; });
@@ -904,6 +903,7 @@
   function sortedCues() { return show.cues.slice().sort(function (a, b) { return a.t - b.t; }); }
   function selectCue(c, scroll) {
     selectedCue = c;
+    aimWheelAt(c);
     if (c && !playing) scrubT = c.t;
     renderCues(false);
     paintGroups();
@@ -950,12 +950,13 @@
       tin.addEventListener("input", function () { record("time:" + c._id); c.t = Math.max(0, parseFloat(tin.value) || 0); own(c); markDirty(); });
       tin.addEventListener("change", function () { renderCues(false); });
       tc.appendChild(tin); row.appendChild(tc);
-      // swatch: opens the gel book; the native picker sits behind it as "Custom…"
+      // swatch: shows the cue's colour and aims the wheel at it
       var sw = document.createElement("button"); sw.type = "button"; sw.className = "lx-swatch" + (E.isBlackout(c) ? " is-black" : ""); sw.style.background = c.color;
       sw.title = "Colour — gel book, recent, or custom"; sw.setAttribute("aria-label", "Cue colour " + (gelName(c.color) || c.color) + " — open the gel book"); sw.setAttribute("aria-haspopup", "dialog");
       var cin = document.createElement("input"); cin.type = "color"; cin.className = "sr-only"; cin.tabIndex = -1; cin.value = /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : "#000000"; cin.setAttribute("aria-label", "Custom cue colour");
       cin.addEventListener("input", function () { setCueColor(c, cin.value, sw); });
-      sw.addEventListener("click", function (e) { e.stopPropagation(); if (!gel.hidden && gelFor === c) closeGel(true); else openGel(c, sw, cin); });
+      // Clicking a swatch points the always-visible wheel at that cue.
+      sw.addEventListener("click", function (e) { e.stopPropagation(); selectCue(c); aimWheelAt(c); $("lx-wheel").focus(); });
       row.appendChild(sw); row.appendChild(cin);
       // glyph
       var gl = document.createElement("span"); gl.innerHTML = glyphHtml(c.group); gl.title = E.groupLabel(c.group, show.bars); row.appendChild(gl.firstChild);
@@ -1165,10 +1166,9 @@
   // only be reached through a cue's swatch - so with no song loaded there
   // were no cues, and no way to reach it at all.
   $("lx-look-new").addEventListener("click", function () {
-    openGelForNewLook($("lx-look-new"));
   });
 
-  // ---------- gel book: the colour popover behind every cue swatch ----------
+  // ---------- colour: one wheel, always on the page ----------
   // Named after the gels people actually carry; the native picker is one
   // tap away for anything else. Intensity never lives here.
   var GELS = [
@@ -1178,54 +1178,33 @@
     ["L126 Mauve", "#b63fa0"], ["L128 Bright Pink", "#ff3fa4"], ["L111 Dark Pink", "#ff6fb5"], ["L201 Full CTB", "#cfe6ff"], ["L202 Half CTB", "#e8f1ff"], ["Open white", "#ffffff"],
     ["L003 Lavender Tint", "#f3e9ff"], ["L004 Medium Bastard Amber", "#ffd7a8"], ["L152 Pale Gold", "#fff1c9"], ["L156 Chocolate", "#8a5a2b"], ["L322 Soft Green", "#b9f3b0"], ["L068 Sky Blue", "#57b8ff"]
   ];
-  var RECENT_KEY = "lxRecentGels";
+  // Gel names are kept only to LABEL a colour ("Flame red" reads better
+  // than "#ff4a1c"). They are no longer a browsable list - one wheel and
+  // one row of looks replaced five overlapping colour lists.
   function gelName(hex) { for (var i = 0; i < GELS.length; i++) if (GELS[i][1].toLowerCase() === String(hex || "").toLowerCase()) return GELS[i][0]; return null; }
-  function recentColors() { try { return JSON.parse(safeGet(RECENT_KEY) || "[]").filter(function (h) { return /^#[0-9a-f]{6}$/i.test(h); }).slice(0, 8); } catch (e) { return []; } }
-  function pushRecent(hex) {
-    if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
-    var r = recentColors().filter(function (h) { return h.toLowerCase() !== hex.toLowerCase(); });
-    r.unshift(hex.toLowerCase()); safeSet(RECENT_KEY, JSON.stringify(r.slice(0, 8)));
-  }
   function setCueColor(c, hex, sw) {
     if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
     record("color:" + c._id); c.color = hex; own(c);
-    if (sw) { sw.style.background = hex; sw.classList.toggle("is-black", E.isBlackout(c)); sw.setAttribute("aria-label", "Cue colour " + (gelName(hex) || hex) + " — open the gel book"); }
-    markDirty(); pushRecent(hex);
-  }
-  // Your palette: gels you mixed yourself, kept per browser alongside the
-  // recent list. Saved gels are named, so a show can be talked about.
-  var PALETTE_KEY = "lxPalette";
-  function myPalette() {
-    try {
-      var raw = JSON.parse(safeGet(PALETTE_KEY) || "[]");
-      return raw.filter(function (p) { return p && /^#[0-9a-f]{6}$/i.test(p.hex); }).slice(0, 24);
-    } catch (e) { return []; }
-  }
-  function savePaletteEntry(hex, name) {
-    var list = myPalette().filter(function (p) { return p.hex.toLowerCase() !== hex.toLowerCase(); });
-    list.unshift({hex: hex.toLowerCase(), name: (name || "").slice(0, 24) || hex.toLowerCase()});
-    safeSet(PALETTE_KEY, JSON.stringify(list.slice(0, 24)));
-  }
-  function removePaletteEntry(hex) {
-    safeSet(PALETTE_KEY, JSON.stringify(myPalette().filter(function (p) {
-      return p.hex.toLowerCase() !== hex.toLowerCase();
-    })));
+    if (sw) { sw.style.background = hex; sw.classList.toggle("is-black", E.isBlackout(c)); sw.setAttribute("aria-label", "Cue colour " + (gelName(hex) || hex) + " — edit it on the colour wheel"); }
+    markDirty();
   }
 
-  // gelMode: "cue" writes the colour straight onto the selected cue;
-  // "look" mixes a standalone colour that becomes a new entry in Looks.
-  var gel = $("lx-gel"), gelFor = null, gelReturn = null, gelMode = "cue";
-  function gelChip(hex, name) {
-    var b = document.createElement("button"); b.type = "button"; b.className = "lx-gel-chip"; b.style.background = hex; b.title = name; b.setAttribute("data-hex", hex.toLowerCase());
-    b.setAttribute("aria-label", name + (name.toLowerCase() === hex.toLowerCase() ? "" : " (" + hex + ")"));
-    b.setAttribute("aria-pressed", gelFor && gelFor.color.toLowerCase() === hex.toLowerCase() ? "true" : "false");
-    b.addEventListener("click", function () { pickGel(hex, name); });
-    return b;
-  }
+  // The wheel edits whatever is selected. gelFor is the cue it is pointed
+  // at, or a scratch colour when nothing is selected.
+  var gelFor = {color: "#ffb347", intensity: 85, fade: 1.0, t: 0, _id: "__scratch__"};
+  var gelMode = "look";
   function gelSummary() {
     var what = gelName(gelFor.color) || gelFor.color;
-    if (gelMode === "look") return "New look · " + what + " · name it below and add it to Looks";
-    return "Cue at " + E.fmtTimecode(gelFor.t) + " · " + what + " · intensity stays " + gelFor.intensity + "%";
+    if (gelMode === "look") return what + " — no cue selected, so this is just a mixer.";
+    return "Recolouring the cue at " + E.fmtTimecode(gelFor.t) + " · intensity stays " + gelFor.intensity + "%";
+  }
+  function aimWheelAt(cue) {
+    // Point the wheel at the selected cue, or back at the scratch colour.
+    if (cue) { gelMode = "cue"; gelFor = cue; }
+    else { gelMode = "look"; gelFor = {color: gelFor.color, intensity: 85, fade: 1.0, t: 0, _id: "__scratch__"}; }
+    paintMix(/^#[0-9a-f]{6}$/i.test(gelFor.color) ? gelFor.color : "#ffb347");
+    // the label has to follow the target, not wait for the next colour change
+    $("lx-gel-for").textContent = gelSummary();
   }
 
   // ---------- the mixer: RGB and HSV, kept in step ----------
@@ -1241,6 +1220,7 @@
     var sw = $("lx-gel-swatch"); if (sw) sw.style.background = hex;
     var nm = $("lx-gel-name"); if (nm) nm.textContent = gelName(hex) || hex;
     $("lx-gel-hex").value = hex;
+    paintWheel(hsv);
   }
   function mixFrom(space) {
     if (mixing) return;
@@ -1255,93 +1235,123 @@
   }
   ["r", "g", "b"].forEach(function (k) { $(mixIds[k]).addEventListener("input", function () { mixFrom("rgb"); }); });
   ["h", "s", "v"].forEach(function (k) { $(mixIds[k]).addEventListener("input", function () { mixFrom("hsv"); }); });
-  $("lx-gel-save").addEventListener("click", function () {
+
+  // ---------- the colour wheel ----------
+  // Hue around the circumference, saturation from the centre out, V on its
+  // own slider. One gesture instead of three, which is how every lighting
+  // desk does it. The face is drawn once at full brightness; V is a black
+  // scrim over it, which is exactly what scaling V does to the colour.
+  var wheel = $("lx-wheel"), wg2 = wheel.getContext("2d"), wheelFace = null;
+  var WHEEL_R = 100;                       // the canvas is 200x200 backing pixels
+
+  function buildWheelFace() {
+    if (wheelFace) return wheelFace;
+    wheelFace = document.createElement("canvas");
+    wheelFace.width = wheelFace.height = WHEEL_R * 2;
+    var g = wheelFace.getContext("2d");
+    var img = g.createImageData(WHEEL_R * 2, WHEEL_R * 2), d = img.data;
+    for (var y = 0; y < WHEEL_R * 2; y++) {
+      for (var x = 0; x < WHEEL_R * 2; x++) {
+        var dx = x - WHEEL_R + 0.5, dy = y - WHEEL_R + 0.5;
+        var dist = Math.sqrt(dx * dx + dy * dy), i = (y * WHEEL_R * 2 + x) * 4;
+        if (dist > WHEEL_R) { d[i + 3] = 0; continue; }
+        // 0deg at the top, clockwise - reads like a colour wheel, not maths
+        var hue = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+        var rgb = E.hsvToRgb([hue, Math.min(100, dist / WHEEL_R * 100), 100]);
+        d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2];
+        // feather the last pixel so the rim is not stair-stepped
+        d[i + 3] = dist > WHEEL_R - 1 ? Math.round(255 * (WHEEL_R - dist)) : 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return wheelFace;
+  }
+
+  function paintWheel(hsv) {
+    var face = buildWheelFace();
+    wg2.clearRect(0, 0, WHEEL_R * 2, WHEEL_R * 2);
+    wg2.drawImage(face, 0, 0);
+    // V as a black scrim: multiplying the face by V is what V means
+    var v = Math.max(0, Math.min(100, hsv[2])) / 100;
+    if (v < 1) {
+      wg2.save();
+      wg2.globalCompositeOperation = "source-atop";
+      wg2.fillStyle = "rgba(0,0,0," + (1 - v).toFixed(3) + ")";
+      wg2.fillRect(0, 0, WHEEL_R * 2, WHEEL_R * 2);
+      wg2.restore();
+    }
+    // handle
+    var ang = (hsv[0] - 90) * Math.PI / 180, rad = hsv[1] / 100 * WHEEL_R;
+    var hx = WHEEL_R + Math.cos(ang) * rad, hy = WHEEL_R + Math.sin(ang) * rad;
+    wg2.beginPath(); wg2.arc(hx, hy, 9, 0, 7);
+    wg2.strokeStyle = "rgba(0,0,0,0.8)"; wg2.lineWidth = 4; wg2.stroke();
+    wg2.strokeStyle = "#ffffff"; wg2.lineWidth = 2; wg2.stroke();
+  }
+
+  function wheelPick(clientX, clientY) {
+    var r = wheel.getBoundingClientRect();
+    // the canvas is 200 backing px shown at whatever CSS size, so scale
+    var x = (clientX - r.left) / r.width * WHEEL_R * 2 - WHEEL_R;
+    var y = (clientY - r.top) / r.height * WHEEL_R * 2 - WHEEL_R;
+    var dist = Math.sqrt(x * x + y * y);
+    var hue = (Math.atan2(x, -y) * 180 / Math.PI + 360) % 360;
+    var sat = Math.min(100, dist / WHEEL_R * 100);
+    setMixHsv([Math.round(hue), Math.round(sat), +$(mixIds.v).value]);
+  }
+  function setMixHsv(hsv) {
+    var hex = E.rgbHex(E.hsvToRgb(hsv));
+    paintMix(hex);
+    if (gelFor) applyGelColor(hex, null, false);
+  }
+
+  var wheelDrag = false;
+  wheel.addEventListener("pointerdown", function (e) {
+    wheelDrag = true; wheel.setPointerCapture(e.pointerId); wheelPick(e.clientX, e.clientY); e.preventDefault();
+  });
+  wheel.addEventListener("pointermove", function (e) { if (wheelDrag) wheelPick(e.clientX, e.clientY); });
+  function wheelUp(e) { wheelDrag = false; try { wheel.releasePointerCapture(e.pointerId); } catch (err) {} }
+  wheel.addEventListener("pointerup", wheelUp);
+  wheel.addEventListener("pointercancel", wheelUp);
+  wheel.addEventListener("keydown", function (e) {
+    var h = +$(mixIds.h).value, s = +$(mixIds.s).value, step = e.shiftKey ? 10 : 2;
+    if (e.key === "ArrowLeft") h -= step * 3;
+    else if (e.key === "ArrowRight") h += step * 3;
+    else if (e.key === "ArrowUp") s += step;
+    else if (e.key === "ArrowDown") s -= step;
+    else return;
+    e.preventDefault();
+    setMixHsv([(Math.round(h) + 360) % 360, Math.max(0, Math.min(100, Math.round(s))), +$(mixIds.v).value]);
+  });
+  // "Save as look" keeps the wheel's colour as a chip you can click again.
+  $("lx-look-new").addEventListener("click", function () {
+    var hint = $("lx-look-form-hint");
     var hex = $("lx-gel-hex").value.trim();
     if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
-    savePaletteEntry(hex, $("lx-gel-save-name").value.trim());
-    $("lx-gel-save-name").value = "";
-    paintMyPalette();
-    announce("Gel saved to your palette");
-  });
-  function paintMyPalette() {
-    var mine = myPalette(), box = $("lx-gel-mine");
-    $("lx-gel-mine-wrap").hidden = !mine.length;
-    if (!box) return;
-    box.innerHTML = "";
-    mine.forEach(function (p) {
-      var b = gelChip(p.hex, p.name);
-      b.classList.add("is-mine");
-      b.addEventListener("contextmenu", function (e) {
-        e.preventDefault();
-        if (window.confirm("Remove “" + p.name + "” from your palette?")) { removePaletteEntry(p.hex); paintMyPalette(); }
-      });
-      box.appendChild(b);
-    });
-  }
-  function openGelForNewLook(anchor) {
-    // A throwaway draft so the whole gel book and mixer work with no song,
-    // no cue and nothing selected.
-    openGel({color: "#ffb347", intensity: 85, fade: 1.0, t: 0, _id: "__draft__"}, anchor, null, "look");
-    $("lx-gel-look-name").value = "";
-    setTimeout(function () { $("lx-gel-look-name").focus(); }, 0);
-  }
-  $("lx-gel-look-add").addEventListener("click", function () {
-    if (gelMode !== "look" || !gelFor) return;
     if ((show.looks || []).length >= MAX_USER_LOOKS) {
-      $("lx-gel-for").textContent = "That is " + MAX_USER_LOOKS + " looks — remove one first.";
+      hint.textContent = "That is " + MAX_USER_LOOKS + " of your own looks — remove one first.";
+      announce(hint.textContent);
       return;
     }
-    var name = ($("lx-gel-look-name").value || "").trim() || gelName(gelFor.color) || gelFor.color;
-    addUserLook(name, gelFor.color, gelFor.intensity, gelFor.fade, $("lx-look-form-hint"));
-    closeGel(true);
+    var name = ($("lx-look-name").value || "").trim() || gelName(hex) || hex;
+    addUserLook(name, hex, gelFor.intensity || 85, gelFor.fade == null ? 1.0 : gelFor.fade, hint);
   });
 
-  function openGel(cue, anchor, nativeInput, mode) {
-    gelMode = mode || "cue";
-    $("lx-gel-make").hidden = gelMode !== "look";
-    gelFor = cue; gelReturn = anchor;
-    var grid = $("lx-gel-grid"); grid.innerHTML = "";
-    GELS.forEach(function (gl) { grid.appendChild(gelChip(gl[1], gl[0])); });
-    var rec = recentColors(), rbox = $("lx-gel-recent"); rbox.innerHTML = "";
-    rec.forEach(function (h) { rbox.appendChild(gelChip(h, gelName(h) || h)); });
-    $("lx-gel-recent-wrap").hidden = !rec.length;
-    paintMyPalette();
-    paintMix(/^#[0-9a-f]{6}$/i.test(cue.color) ? cue.color : "#000000");
-    $("lx-gel-custom").onclick = function () { if (nativeInput) nativeInput.click(); };
-    $("lx-gel-for").textContent = gelSummary();
-    gel.hidden = false;
-    var r = anchor.getBoundingClientRect(), gw = Math.min(330, window.innerWidth - 16);
-    gel.style.width = gw + "px";
-    gel.style.left = Math.max(8, Math.min(window.innerWidth - gw - 8, r.left)) + "px";
-    var top = r.bottom + 6;
-    if (top + gel.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - gel.offsetHeight - 6);
-    gel.style.top = (top + window.scrollY) + "px";
-    var first = grid.querySelector('[aria-pressed="true"]') || grid.querySelector("button"); if (first) first.focus();
-  }
   function applyGelColor(hex, name, syncMix) {
     if (!gelFor) return;
     if (gelMode === "look") {
-      // a draft colour, not a cue - nothing is recorded or marked dirty
+      // a scratch colour, not a cue - nothing is recorded or marked dirty
       gelFor.color = hex;
-      pushRecent(hex);
     } else {
       var row = cuesWrap.querySelector('[data-id="' + gelFor._id + '"]'), sw = row ? row.querySelector(".lx-swatch") : null;
       setCueColor(gelFor, hex, sw);
     }
     $("lx-gel-for").textContent = gelSummary();
-    Array.prototype.forEach.call(gel.querySelectorAll(".lx-gel-chip"), function (ch) {
-      ch.setAttribute("aria-pressed", ch.getAttribute("data-hex") === hex.toLowerCase() ? "true" : "false");
-    });
     if (syncMix !== false) paintMix(hex);
     else { $("lx-gel-hex").value = hex; var s = $("lx-gel-swatch"); if (s) s.style.background = hex; }
     if (name) announce(name + " set");
   }
   function pickGel(hex, name) { applyGelColor(hex, name || hex, true); }
-  function closeGel(refocus) { if (gel.hidden) return; gel.hidden = true; if (refocus && gelReturn && gelReturn.isConnected) gelReturn.focus(); gelFor = null; }
-  $("lx-gel-close").addEventListener("click", function () { closeGel(true); });
   $("lx-gel-hex").addEventListener("change", function () { var v = $("lx-gel-hex").value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) pickGel(v[0] === "#" ? v : "#" + v, null); });
-  gel.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); closeGel(true); } });
-  document.addEventListener("pointerdown", function (e) { if (!gel.hidden && !gel.contains(e.target) && e.target !== gelReturn) closeGel(false); });
 
   // ---------- rig ----------
   var barsSel = $("lx-bars");
@@ -1593,7 +1603,7 @@
     show.rigName = show.rigName || ""; show.rigKey = show.rigKey || null;
     delete show.draftDirty; delete show.draftSavedAt;
     if (meta) { show.libraryId = meta.id; show.name = meta.name; show.trackId = meta.track_id || ""; show.tourShowId = meta.tour_show_id || ""; }
-    selectedCue = null; selectedBar = null; closeGel(false);
+    selectedCue = null; selectedBar = null; aimWheelAt(null);
     H.reset(); paintHistory();
     paintRig();
     renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintBarCtl(); paintAutoCue();
@@ -1719,7 +1729,7 @@
     else if (e.key === "x" || e.key === "X") { togglePanic(); }
     else if (/^[1-6]$/.test(e.key) && e.target !== stage) { applyLook(E.LOOKS[parseInt(e.key, 10) - 1]); }
     else if (USER_KEYS.indexOf(e.key) >= 0 && e.target !== stage) { var ul = (show.looks || [])[USER_KEYS.indexOf(e.key)]; if (ul) applyLook(ul); }
-    else if (e.key === "Escape") { if (!gel.hidden) closeGel(true); else { selectCue(null); selectBar(null); } }
+    else if (e.key === "Escape") { selectCue(null); selectBar(null); }
     else if (e.key === "ArrowLeft" && e.target !== stage && e.target !== wave && buffer) { seek(now() - (e.shiftKey ? 5 : 1)); }
     else if (e.key === "ArrowRight" && e.target !== stage && e.target !== wave && buffer) { seek(now() + (e.shiftKey ? 5 : 1)); }
   });
@@ -1763,7 +1773,8 @@
     waveMetrics: function () { return {view: {start: view.start, end: view.end}, w: waveCss.w, tToX: tToX, xToT: xToT}; },
     draftPayload: draftPayload, maybeOfferDraft: maybeOfferDraft, announce: announce,
     outLooks: outLooks, setMaster: function (v) { masterEl.value = String(Math.round(v * 100)); master = clamp(v, 0, 1); paintMaster(); }, togglePanic: togglePanic,
-    openGel: openGel, pickGel: pickGel, closeGel: closeGel, gels: function () { return GELS.slice(); }, gelOpen: function () { return !gel.hidden; },
+    pickGel: pickGel, aimWheelAt: aimWheelAt, gels: function () { return GELS.slice(); },
+    wheelHex: function () { return $("lx-gel-hex").value; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
     rigs: function () { return rigs; }, applyRigNow: function (r) { record("rig"); E.applyRig(show, r); selectedCue = null; selectedBar = null; ensureIds(); markDirty(); paintRig(); renderCues(); paintGroups(); paintBarCtl(); },

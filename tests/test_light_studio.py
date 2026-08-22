@@ -36,16 +36,17 @@ def test_page_has_the_studio_surfaces(flask_app):
         assert needle in page, needle
     for el_id in ("lx-wave", "lx-stage", "lx-clock", "lx-fileinfo", "lx-dmx-chip", "lx-add", "lx-blackout",
                   "lx-cues", "lx-groups", "lx-looks", "lx-barctl", "lx-bars-list", "lx-lib-select",
-                  "lx-master", "lx-panic", "lx-gel", "lx-gel-grid", "lx-export", "lx-import", "lx-look-save",
+                  "lx-master", "lx-panic", "lx-export", "lx-import", "lx-look-save",
                   "lx-vol", "lx-rate", "lx-scrub", "lx-dmx-start", "lx-dmx-universe", "lx-bar-addr", "lx-patch-warn",
                   "lx-autocue", "lx-autocue-clear", "lx-autocue-note",
                   "lx-mix-r", "lx-mix-g", "lx-mix-b", "lx-mix-h", "lx-mix-s", "lx-mix-v",
-                  "lx-gel-save", "lx-gel-mine", "lx-group-one", "lx-group-clear", "lx-group-picked",
-                  "lx-look-new", "lx-gel-make", "lx-gel-look-name", "lx-gel-look-add",
+                  "lx-group-one", "lx-group-clear", "lx-group-picked",
+                  "lx-wheel", "lx-gel-swatch", "lx-gel-name", "lx-gel-for", "lx-gel-hex",
+                  "lx-look-new", "lx-look-name",
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=15" in page and "light-studio.css?v=8" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=16" in page and "light-studio.css?v=9" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",

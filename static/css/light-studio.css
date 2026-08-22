@@ -207,6 +207,19 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 .lx-gel-mix > summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-soft); font-weight: 700; padding: 4px 0; }
 .lx-gel-preview { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
 .lx-gel-preview i { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 0.25); display: block; }
+/* the colour wheel: hue around, saturation outward, V on its own slider */
+.lx-wheel-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0 4px; }
+.lx-wheel { width: 150px; height: 150px; border-radius: 50%; cursor: crosshair; touch-action: none;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 6px 18px rgb(0 0 0 / 0.5); display: block; }
+.lx-wheel:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 4px; }
+.lx-wheel-v { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 10.5px;
+  font-weight: 700; letter-spacing: 0.08em; color: var(--lx-soft); height: 150px; }
+.lx-wheel-v input[type="range"] { flex: 1 1 auto; writing-mode: vertical-lr; direction: rtl;
+  width: 22px; accent-color: var(--lx-gold); }
+.lx-wheel-v b { color: var(--lx-copy); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: 0; }
+.lx-fine { margin-top: 6px; }
+.lx-fine > summary { cursor: pointer; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--lx-soft); font-weight: 700; padding: 3px 0; }
 .lx-mix-row { display: grid; gap: 4px 10px; margin-top: 6px; }
 .lx-mix { display: grid; grid-template-columns: 1.4em 1fr 3.4em; gap: 8px; align-items: center; font-size: 11px; font-weight: 700; color: var(--lx-soft); }
 .lx-mix input[type="range"] { width: 100%; accent-color: var(--lx-gold); }

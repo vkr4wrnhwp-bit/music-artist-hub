@@ -281,6 +281,119 @@
     return pkt;
   }
 
+  // ---------- network DMX: Art-Net and sACN (E1.31) ----------
+  // A browser cannot open a UDP socket, so these build the exact datagram a
+  // local bridge forwards verbatim. Keeping the packet building here means
+  // it is pure, unit-tested against the published packet layouts, and the
+  // bridge stays a dumb pipe with no protocol knowledge of its own.
+
+  function dmxData(show, looks) {
+    /* The 512-slot universe (no start code) that both protocols carry. */
+    var data = new Uint8Array(512);
+    var chans = show.chans === 3 ? 3 : 4;
+    looks.forEach(function (look, idx) {
+      var ch = fixtureAddress(show, idx + 1);       // 1-based DMX address
+      if (ch + chans - 1 > 512) return;             // off the end: skip, never wrap
+      var i = ch - 1;
+      if (chans === 4) {
+        data[i] = Math.round(look.inten * 255);
+        data[i + 1] = look.rgb[0]; data[i + 2] = look.rgb[1]; data[i + 3] = look.rgb[2];
+      } else {
+        data[i] = Math.round(look.rgb[0] * look.inten);
+        data[i + 1] = Math.round(look.rgb[1] * look.inten);
+        data[i + 2] = Math.round(look.rgb[2] * look.inten);
+      }
+    });
+    return data;
+  }
+
+  // Art-Net 4, ArtDmx (OpOutput 0x5000). Opcode and ProtVer are the two
+  // fields people get backwards: opcode is LITTLE endian, everything else
+  // that is 16-bit here is big endian.
+  var ARTNET_ID = [0x41, 0x72, 0x74, 0x2D, 0x4E, 0x65, 0x74, 0x00];   // "Art-Net\0"
+
+  function artnetPacket(show, looks, opts) {
+    opts = opts || {};
+    var data = dmxData(show, looks);
+    var universe = Math.max(0, Math.min(32767, parseInt(opts.universe, 10) || 0));
+    var pkt = new Uint8Array(18 + data.length);
+    pkt.set(ARTNET_ID, 0);
+    pkt[8] = 0x00; pkt[9] = 0x50;                  // OpDmx, little endian
+    pkt[10] = 0; pkt[11] = 14;                     // ProtVer 14, big endian
+    pkt[12] = (opts.sequence || 0) & 0xFF;         // 0 = sequencing disabled
+    pkt[13] = 0;                                   // Physical
+    pkt[14] = universe & 0xFF;                     // SubUni
+    pkt[15] = (universe >> 8) & 0xFF;              // Net
+    pkt[16] = (data.length >> 8) & 0xFF;           // LengthHi
+    pkt[17] = data.length & 0xFF;                  // LengthLo
+    pkt.set(data, 18);
+    return pkt;
+  }
+
+  var ACN_PID = [0x41, 0x53, 0x43, 0x2D, 0x45, 0x31, 0x2E, 0x31, 0x37, 0x00, 0x00, 0x00];
+
+  function sacnPacket(show, looks, opts) {
+    /* E1.31 data packet: root layer + framing layer + DMP layer. */
+    opts = opts || {};
+    var data = dmxData(show, looks);
+    var universe = Math.max(1, Math.min(63999, parseInt(opts.universe, 10) || 1));
+    var priority = Math.max(0, Math.min(200, opts.priority == null ? 100 : opts.priority));
+    var cid = opts.cid && opts.cid.length === 16 ? opts.cid : defaultCid();
+    var propCount = data.length + 1;               // start code + slots
+    var pkt = new Uint8Array(126 + data.length);
+    var v = new DataView(pkt.buffer);
+
+    // --- root layer
+    v.setUint16(0, 0x0010);                        // preamble size
+    v.setUint16(2, 0x0000);                        // postamble size
+    pkt.set(ACN_PID, 4);
+    v.setUint16(16, 0x7000 | (pkt.length - 16));   // flags 0x7 + length
+    v.setUint32(18, 0x00000004);                   // VECTOR_ROOT_E131_DATA
+    pkt.set(cid, 22);
+
+    // --- framing layer
+    v.setUint16(38, 0x7000 | (pkt.length - 38));
+    v.setUint32(40, 0x00000002);                   // VECTOR_E131_DATA_PACKET
+    var name = String(opts.sourceName || "Street Banker Light Studio");
+    for (var i = 0; i < 63 && i < name.length; i++) pkt[44 + i] = name.charCodeAt(i) & 0x7F;
+    v.setUint8(108, priority);
+    v.setUint16(109, 0);                           // synchronization address
+    v.setUint8(111, (opts.sequence || 0) & 0xFF);
+    v.setUint8(112, 0);                            // options
+    v.setUint16(113, universe);
+
+    // --- DMP layer
+    v.setUint16(115, 0x7000 | (pkt.length - 115));
+    v.setUint8(117, 0x02);                         // VECTOR_DMP_SET_PROPERTY
+    v.setUint8(118, 0xA1);                         // address type & data type
+    v.setUint16(119, 0x0000);                      // first property address
+    v.setUint16(121, 0x0001);                      // address increment
+    v.setUint16(123, propCount);
+    v.setUint8(125, 0x00);                         // DMX start code
+    pkt.set(data, 126);
+    return pkt;
+  }
+
+  var _cid = null;
+  function defaultCid() {
+    /* A stable per-session component id. Receivers use it to tell sources
+       apart; it only has to be unique, not meaningful. */
+    if (_cid) return _cid;
+    _cid = new Uint8Array(16);
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(_cid);
+    else for (var i = 0; i < 16; i++) _cid[i] = Math.floor(Math.random() * 256);
+    _cid[6] = (_cid[6] & 0x0F) | 0x40;             // UUID v4 shape
+    _cid[8] = (_cid[8] & 0x3F) | 0x80;
+    return _cid;
+  }
+
+  var OUTPUTS = [
+    ["preview", "Preview only", "Nothing leaves this machine."],
+    ["enttec", "ENTTEC USB", "Direct over Web Serial (Chrome/Edge, desktop)."],
+    ["artnet", "Art-Net node", "Via the local bridge, UDP 6454."],
+    ["sacn", "sACN / E1.31", "Via the local bridge, UDP 5568."]
+  ];
+
   // ---------- timecode ----------
   function fmtClock(t) {
     var m = Math.floor(t / 60), s = (t - m * 60);
@@ -657,6 +770,7 @@
     hexRgb: hexRgb, rgbHex: rgbHex, rgbToHsv: rgbToHsv, hsvToRgb: hsvToRgb,
     isBlackout: isBlackout, lightingAt: lightingAt, dmxFrame: dmxFrame,
     scaleLooks: scaleLooks, fixtureAddress: fixtureAddress, patchOverlaps: patchOverlaps,
+    dmxData: dmxData, artnetPacket: artnetPacket, sacnPacket: sacnPacket, OUTPUTS: OUTPUTS,
     MOVES: MOVES, movementGain: movementGain, RIG_PRESETS: RIG_PRESETS, applyRig: applyRig, rigFromShow: rigFromShow, venueKey: venueKey,
     remapGroup: remapGroup, remapCues: remapCues,
     fmtClock: fmtClock, fmtTimecode: fmtTimecode, peaks: peaks,
