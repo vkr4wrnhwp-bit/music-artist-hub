@@ -250,7 +250,10 @@ def test_import_csv_previews_then_creates_and_skips_duplicates(flask_app):
     assert [s["venue"] for s in shows] == ["The Basement East", "Terminal West"]
     assert len([d for d in ts.list_days(tid) if d["kind"] == "off"]) == 1
     hist = ts.list_imports(tid)
-    assert hist and hist[0]["summary"]["created"] == {"shows": 1, "days": 1, "skipped": 1}
+    # `updated`/`filled` count dates that were already on the tour and got
+    # their missing deal fields filled in; a plain create run leaves both 0.
+    assert hist and hist[0]["summary"]["created"] == {
+        "shows": 1, "days": 1, "skipped": 1, "updated": 0, "filled": 0}
     # .ics upload goes through the same review
     ics = ("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20300506\nSUMMARY:Show\n"
            "LOCATION:The National\\, Richmond\\, VA\nEND:VEVENT\nEND:VCALENDAR").encode()

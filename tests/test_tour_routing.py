@@ -434,3 +434,52 @@ def test_filling_in_is_opt_in(flask_app):
                 data={"source": "csv", "text": full, "action": "confirm", "pick": ["0"]})
     shows = ts.list_shows(tid)
     assert len(shows) == 1 and not shows[0]["guarantee"]
+
+
+def test_a_four_digit_year_is_not_eaten_two_digits_at_a_time():
+    r"""Regex alternation is ORDERED. `(?:\d{2}|20\d{2})` matched the
+    two-digit branch first and succeeded, so the four-digit branch was
+    dead code: "10/14/2026" parsed as "10/14/20" and left "26" behind as
+    the venue name. Every routing sheet written with full years imported
+    six years into the past, with nothing in `problems`, every row marked
+    'new', and the preview pre-ticked.
+
+    No test caught it because none of them pasted a four-digit year — the
+    fixtures were all taken from one sheet that happened to use two."""
+    for line, date_, venue in [
+            ("10/14/2026 - Nashville, TN - The Basement", "2026-10-14", "The Basement"),
+            ("1/2/2026 - Austin, TX - Elysium", "2026-01-02", "Elysium"),
+            ("01/02/2026 - Austin, TX - Elysium", "2026-01-02", "Elysium"),
+            ("12/31/2027 - Denver, CO - Meow Wolf", "2027-12-31", "Meow Wolf"),
+            # the two-digit form must go on working
+            ("10/14/26 - Nashville, TN - The Basement", "2026-10-14", "The Basement"),
+            ("2026-10-14 - Nashville, TN - The Basement", "2026-10-14", "The Basement")]:
+        rows, problems = eng.parse_pasted(line)
+        assert not problems, (line, problems)
+        assert rows[0]["date"] == date_, (line, rows[0]["date"])
+        assert rows[0]["venue"] == venue, (line, rows[0]["venue"])
+    # A whole sheet of full years must not land in the past.
+    sheet = "\n".join("10/1%d/2026 - City %d, TN - Room %d" % (i, i, i) for i in range(1, 5))
+    rows, problems = eng.parse_pasted(sheet)
+    assert not problems
+    assert all(r["date"].startswith("2026-") for r in rows), [r["date"] for r in rows]
+    assert all(r["venue"].startswith("Room") for r in rows), [r["venue"] for r in rows]
+
+
+def test_a_venue_with_travel_in_its_name_is_still_a_show():
+    """`if "travel" in rl or "drive" in rl` was a substring test over every
+    column joined together, and the not-a-show branch never assigns a
+    venue — so a real date at Drive-In Theater became a venue-less travel
+    day and quietly lost its room."""
+    for line, kind, venue in [
+            ("10/20/26 - Atlanta, GA - Drive-In Theater", "show", "Drive-In Theater"),
+            ("10/20/26 - Nashville, TN - Traveller's Rest", "show", "Traveller's Rest"),
+            ("10/20/26 - Chicago, IL - The Driver's Club", "show", "The Driver's Club"),
+            # genuine travel days still read as travel
+            ("10/20/26 - Travel to Atlanta", "travel", ""),
+            ("10/20/26 - Drive to Chicago", "travel", ""),
+            ("10/20/26 - Travel day", "travel", "")]:
+        rows, problems = eng.parse_pasted(line)
+        assert not problems, (line, problems)
+        assert rows[0]["kind"] == kind, (line, rows[0]["kind"])
+        assert rows[0]["venue"] == venue, (line, rows[0]["venue"])

@@ -974,7 +974,7 @@ def parse_ics(text):
 _PASTE_RE = re.compile(
     r"^\s*(?P<date>"
     r"20\d{2}-\d{2}-\d{2}"
-    r"|\d{1,2}/\d{1,2}/(?:\d{2}|20\d{2})"
+    r"|\d{1,2}/\d{1,2}/(?:20\d{2}|\d{2})"
     # A month name with no year at all is what a routing email looks
     # like ("October 14 - Wednesday - ..."). The tour's own year fills
     # it in; without a tour to ask, the line is reported rather than
@@ -1033,7 +1033,7 @@ def parse_pasted(text, default_year=None):
             problems.append("Line %d: no date at the start." % i)
             continue
         raw_date = m.group("date")
-        if default_year and not re.search(r"\d{4}$|/\d{2}$", raw_date):
+        if default_year and not re.search(r"\d{4}$|/\d{2}$", raw_date.strip()):
             raw_date = "%s %d" % (raw_date.rstrip(","), default_year)
         iso = _to_iso(raw_date)
         if not iso:
@@ -1066,7 +1066,16 @@ def parse_pasted(text, default_year=None):
 
         kind = "show"
         rl = " ".join(parts).lower()
-        if "travel" in rl or "drive" in rl:
+        # A whole part that OPENS with travel/drive — "Travel to Atlanta",
+        # "Drive day". Not a substring over the joined line: that turned
+        # "Drive-In Theater" and any notes column mentioning a drive into a
+        # venue-less travel day, and the else-branch below never assigns a
+        # venue, so the show simply lost its room.
+        def _is_travel(part):
+            w = part.strip(" *").lower().replace("-", " ").split()
+            return bool(w) and w[0] in ("travel", "drive", "driving") and (
+                len(w) == 1 or w[1] in ("to", "day", "back", "north", "south", "east", "west"))
+        if any(_is_travel(p) for p in parts):
             kind = "travel"
         elif any(p.strip(" *").lower() in ("off", "day off", "off day") for p in parts) \
                 or "day off" in rl or "off day" in rl:
@@ -1100,7 +1109,7 @@ def dedupe_against(rows, existing_shows, existing_days):
     by_date = {}
     for s in existing_shows:
         by_date.setdefault(s["date"], []).append({"venue": s["venue"], "city": s.get("city") or "",
-                                                  "kind": "show", "id": s["id"]})
+                                                  "kind": "show", "id": s.get("id") or ""})
     for d in existing_days:
         if not d.get("show_id"):
             by_date.setdefault(d["date"], []).append({"venue": "", "city": d.get("city") or "", "kind": d["kind"]})
