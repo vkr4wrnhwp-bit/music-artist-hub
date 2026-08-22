@@ -6,20 +6,20 @@
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Asset Vault</div>
-      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Archive Drawer</h1>
+      <div class="sb-label text-sb-gold">Street Banker · Asset Vault</div>
+      <h1 class="sb-h1 mt-1">The Archive Drawer</h1>
       <p class="mt-1 max-w-2xl text-sm text-gray-300">Every creative asset across your press kit, campaigns, and rollouts — one drawer, with where each piece is working. Upload anything below to archive it directly.</p>
     </div>
     <div class="flex gap-2 text-sm font-semibold">
-      <a href="/epk" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">+ Press assets</a>
-      <a href="/rollout-studio/new" class="rounded-lg border border-white/15 px-4 py-2 text-gray-200 hover:bg-white/5">+ Rollout assets</a>
+      <a href="/epk" class="sb-btn sb-btn-secondary">+ Press assets</a>
+      <a href="/rollout-studio/new" class="sb-btn sb-btn-secondary">+ Rollout assets</a>
     </div>
   </div>
 
   <!-- Direct vault upload -->
-  <section class="rounded-2xl border border-[#c9a24a]/25 bg-[#141209] p-4">
+  <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-4">
     <form id="vault-upload-form" class="flex flex-wrap items-center gap-2">
-      <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">
+      <label class="cursor-pointer rounded-lg bg-sb-gold-bright px-4 py-2 text-xs font-black text-sb-on-gold hover:bg-sb-gold-bright">
         Upload to Vault<input id="vault-file" type="file" class="hidden">
       </label>
       <select id="vault-kind" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white">
@@ -31,24 +31,24 @@
         <option value="file" selected>Other file</option>
       </select>
       <input id="vault-label" placeholder="Label (e.g. Night Drive v2 final)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-      <span id="vault-msg" class="text-[11px] text-gray-300 font-medium"></span>
+      <span id="vault-msg" class="text-xs text-gray-300 font-medium"></span>
     </form>
-    <p class="mt-2 text-[10px] text-gray-300 font-medium">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically.</p>
+    <p class="mt-2 text-xs text-gray-300 font-medium">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically.</p>
   </section>
 
   {% if items %}
   <!-- Type filters + search -->
   <div class="flex flex-wrap items-center gap-2">
     <input id="vault-search" placeholder="Search assets…" class="w-52 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-    <div id="vault-pills" class="flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wide"></div>
+    <div id="vault-pills" class="flex flex-wrap gap-1.5 text-xs font-bold uppercase tracking-wide"></div>
     <form id="vault-zip-form" method="post" action="/vault/zip" class="ml-auto">
-      <button id="vault-zip-btn" class="hidden rounded-lg border border-[#c9a24a]/50 bg-[#c9a24a]/15 px-3 py-2 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Download selected (zip)</button>
+      <button id="vault-zip-btn" class="sb-btn sb-btn-secondary sb-btn-sm hidden">Download selected (zip)</button>
     </form>
   </div>
 
   <div id="vault-grid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for a in items %}
-    <div class="vault-card overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#15130f] to-[#0e0d0b]" data-type="{{ a.type }}" data-name="{{ (a.name ~ ' ' ~ a.type) | lower }}">
+    <div class="vault-card overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-sb-surface-2 to-sb-ground" data-type="{{ a.type }}" data-name="{{ (a.name ~ ' ' ~ a.type) | lower }}">
       {% if a.path and a.type not in ('Lyrics', 'Video', 'Video / Canvas', 'Master', 'Master Bounce', 'Stems', 'File', 'Other File') %}
       {# media_url resolves both shapes: a disk path unchanged, an "r2:"
          object to a short-lived signed URL. Resolved once so the link and
@@ -61,18 +61,18 @@
       <div class="p-3.5">
         <div class="flex items-center justify-between gap-2">
           <label class="flex min-w-0 items-center gap-2">
-            {% if a.path %}<input type="checkbox" class="vault-pick h-3.5 w-3.5 shrink-0 accent-[#c9a24a]" value="{{ a.path }}">{% endif %}
+            {% if a.path %}<input type="checkbox" class="vault-pick h-3.5 w-3.5 shrink-0 accent-sb-gold" value="{{ a.path }}">{% endif %}
             <span class="truncate text-sm font-bold text-gray-100">{{ a.name }}</span>
           </label>
-          <span class="shrink-0 rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ a.type }}</span>
+          <span class="shrink-0 rounded bg-sb-gold/15 px-1.5 py-0.5 text-xs font-bold uppercase text-sb-gold-bright">{{ a.type }}</span>
         </div>
-        <div class="mt-1 text-[11px] text-gray-300 font-medium">{{ a.usage }}</div>
-        <div class="mt-2 flex items-center justify-between text-[10px] font-medium">
+        <div class="mt-1 text-xs text-gray-300 font-medium">{{ a.usage }}</div>
+        <div class="mt-2 flex items-center justify-between text-xs font-medium">
           <span class="font-bold uppercase {{ 'text-green-400' if a.status in ('Public', 'Released', 'Live') else 'text-gray-300' }}">{{ a.status }}{% if a.date %} · {{ a.date }}{% endif %}</span>
           {% if a.vid %}
           <form method="post" action="/vault/{{ a.vid }}/delete"><button class="font-bold text-gray-300 hover:text-red-400">Remove</button></form>
           {% else %}
-          <a href="{{ a.manage }}" class="font-bold text-[#e8c667] hover:underline">Manage →</a>
+          <a href="{{ a.manage }}" class="font-bold text-sb-gold-bright hover:underline">Manage →</a>
           {% endif %}
         </div>
       </div>
@@ -80,7 +80,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="rounded-2xl border border-dashed border-[#c9a24a]/30 py-10 text-center">
+  <div class="rounded-2xl border border-dashed border-sb-gold/30 py-10 text-center">
     <div class="text-sm font-bold text-gray-200">The drawer is empty</div>
     <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Upload anything above, save cover art in the studio, archive a master from The Rack — everything lands here.</p>
   </div>

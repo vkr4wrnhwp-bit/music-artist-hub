@@ -51,7 +51,7 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=20" in page and "light-studio.css?v=14" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=20" in page and "light-studio.css?v=15" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
@@ -648,3 +648,42 @@ def test_a_share_link_carries_the_show_not_the_bookkeeping(flask_app):
     for private in (tid, tour, "trackId", "tourShowId", "libraryId",
                     "draftDirty", "draftSavedAt", "should-not-travel"):
         assert private not in html, private
+
+
+def test_the_phone_remote_and_the_engine_agree_on_the_looks():
+    """The phone sends an index into `_LIGHT_REMOTE_LOOKS`; the laptop
+    resolves it against `LOOKS` in lights-engine.js. Order is the
+    contract, so if the two lists drift, pressing "Violet haze" on the
+    phone lights something else on stage.
+
+    This exists because the design-system colour sweep rewrote the app.py
+    copy - it looked like ordinary UI colour sitting in a Python file -
+    and collapsed "Cold blue" and "Violet haze" onto the same token. The
+    engine copy was exempt, so the two silently disagreed and nothing
+    failed.
+    """
+    import io
+    import os
+    import re
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    py = io.open(os.path.join(here, "app.py"), encoding="utf8").read()
+    js = io.open(os.path.join(here, "static", "js", "lights-engine.js"),
+                 encoding="utf8").read()
+
+    block = re.search(r"_LIGHT_REMOTE_LOOKS\s*=\s*\[(.*?)\]", py, re.S)
+    assert block, "_LIGHT_REMOTE_LOOKS not found in app.py"
+    phone = re.findall(r'"name":\s*"([^"]+)",\s*"color":\s*"(#[0-9a-fA-F]{3,6})"',
+                       block.group(1))
+
+    looks = re.search(r"\bLOOKS\s*=\s*\[(.*?)\];", js, re.S)
+    assert looks, "LOOKS not found in lights-engine.js"
+    engine = re.findall(r'name:\s*"([^"]+)"[^}]*?color:\s*"(#[0-9a-fA-F]{3,6})"',
+                        looks.group(1))
+
+    assert phone, "no looks parsed from app.py"
+    assert engine, "no looks parsed from lights-engine.js"
+    assert phone == engine, (
+        "the phone remote and the engine disagree about the looks.\n"
+        "  app.py:           %s\n"
+        "  lights-engine.js: %s" % (phone, engine))

@@ -58,7 +58,7 @@
       f.type = "button";
       f.className = "lxs-flag";
       f.style.left = pct(c.t);
-      f.style.setProperty("--flag", c.color || "#ffb347");
+      f.style.setProperty("--flag", c.color || "#E8B950");
       f.title = E.fmtClock(c.t) + " · " + (c.note || E.groupLabel(c.group, bars));
       f.setAttribute("aria-label", "Cue " + (i + 1) + " at " + E.fmtClock(c.t) + ". Jump here.");
       f.addEventListener("click", function (e) { e.stopPropagation(); seek(c.t); });
@@ -132,7 +132,7 @@
         '<span class="lxs-cue-note"></span>' +
         '<span class="lxs-cue-meta"></span>' +
         "</button>";
-      li.querySelector(".lxs-swatch").style.background = c.color || "#ffb347";
+      li.querySelector(".lxs-swatch").style.background = c.color || "#E8B950";
       li.querySelector(".lxs-cue-t").textContent = E.fmtClock(c.t);
       li.querySelector(".lxs-cue-note").textContent = c.note || E.groupLabel(c.group, bars);
       li.querySelector(".lxs-cue-meta").textContent =

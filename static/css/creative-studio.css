@@ -10,10 +10,10 @@
 
 .sbcs {
   --cs-ink: #09090880;
-  --cs-black: #090908;
-  --cs-brass: #C9A86A;
-  --cs-ivory: #EDE7DA;
-  --cs-muted: #9E978C;
+  --cs-black: var(--sb-ground);
+  --cs-brass: var(--sb-gold);
+  --cs-ivory: var(--sb-ink);
+  --cs-muted: var(--sb-ink-2);
   --cs-line: rgb(201 168 106 / 0.28);
 
   position: relative;
@@ -86,7 +86,7 @@
   letter-spacing: -0.015em;
   font-weight: 900;
   text-transform: uppercase;
-  color: #D7D1C6;
+  color: var(--sb-ink-2);
 }
 .sbcs-title span { display: block; }
 
@@ -113,7 +113,7 @@
   min-height: 52px;
   padding: 0 26px;
   border: 1px solid var(--cs-line);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -166,7 +166,7 @@
 }
 .sbcs-step {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;

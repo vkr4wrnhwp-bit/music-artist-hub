@@ -3,12 +3,14 @@
 <!doctype html>
 <html lang="en">
 <head>
+  {% include "_fonts.html" %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>{{ 'Listing renewed' if ok else 'Renew link expired' }} - Street Banker</title>
-  <link rel="stylesheet" href="/static/css/board.css?v=1">
-  <style>body { margin: 0; padding: 28px 16px; background: #0a0a0a; color: #EEE8DC; font: 15px/1.6 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }</style>
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  <link rel="stylesheet" href="/static/css/board.css?v=2">
+  <style>body { margin: 0; padding: 28px 16px; background: var(--sb-ground); color: var(--sb-ink); font: 15px/1.6 var(--sb-text); }</style>
 </head>
 <body>
 <div class="tb" style="max-width:640px">

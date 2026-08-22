@@ -262,7 +262,11 @@ def test_no_cards_no_stats_no_second_rack():
 
 def test_the_dark_system_holds():
     css = _css()
-    for token in ("#090908", "#C9A86A", "#EDE7DA"):
+    for token in (
+                  "var(--sb-ground)",
+                  "var(--sb-gold)",
+                  "var(--sb-ink)"
+               ):
         assert token in css, token
     assert "background: var(--cs-black)" in css
     for bright in ("background: #fff", "background: white"):

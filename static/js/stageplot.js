@@ -67,17 +67,17 @@ window.StagePlot = (function () {
     var label = c.label + (((state.items || {})[c.key] || 0) > 1 ? " " + inst.n : "");
     var shape;
     if (c.key === "riser") {
-      shape = '<rect x="' + x + '" y="' + y + '" width="' + c.w + '" height="' + c.h + '" rx="6" fill="none" stroke="#8a6d1f" stroke-width="2" stroke-dasharray="8 6"/>';
+      shape = '<rect x="' + x + '" y="' + y + '" width="' + c.w + '" height="' + c.h + '" rx="6" fill="none" stroke="#8A6E30" stroke-width="2" stroke-dasharray="8 6"/>';
     } else if (c.key === "vox") {
-      shape = '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + c.w / 2 + '" fill="#1c1810" stroke="#c9a24a" stroke-width="2"/>';
+      shape = '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + c.w / 2 + '" fill="#14100A" stroke="#C9A24A" stroke-width="2"/>';
     } else if (c.key === "wedge") {
-      shape = '<path d="M' + x + ' ' + y + ' L' + (x + c.w) + ' ' + y + ' L' + (x + c.w - 14) + ' ' + (y + c.h) + ' L' + (x + 14) + ' ' + (y + c.h) + ' Z" fill="#15130c" stroke="#c9a24a" stroke-width="2"/>';
+      shape = '<path d="M' + x + ' ' + y + ' L' + (x + c.w) + ' ' + y + ' L' + (x + c.w - 14) + ' ' + (y + c.h) + ' L' + (x + 14) + ' ' + (y + c.h) + ' Z" fill="#1A1714" stroke="#C9A24A" stroke-width="2"/>';
     } else {
-      shape = '<rect x="' + x + '" y="' + y + '" width="' + c.w + '" height="' + c.h + '" rx="6" fill="#15130c" stroke="#c9a24a" stroke-width="2"/>';
+      shape = '<rect x="' + x + '" y="' + y + '" width="' + c.w + '" height="' + c.h + '" rx="6" fill="#1A1714" stroke="#C9A24A" stroke-width="2"/>';
     }
     return '<g class="sp-item" data-id="' + inst.id + '" style="cursor:move">' + shape +
-      '<text x="' + p[0] + '" y="' + (p[1] + 4) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="800" fill="#e8c667">' + esc(c.glyph) + '</text>' +
-      '<text x="' + p[0] + '" y="' + (y + c.h + 16) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#cfc6b0">' + esc(label) + '</text></g>';
+      '<text x="' + p[0] + '" y="' + (p[1] + 4) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="800" fill="#E8B950">' + esc(c.glyph) + '</text>' +
+      '<text x="' + p[0] + '" y="' + (y + c.h + 16) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#A99B84">' + esc(label) + '</text></g>';
   }
 
   function buildSvg(state) {
@@ -86,25 +86,25 @@ window.StagePlot = (function () {
     var listH = 70 + rows * 24;
     var H = 700 + listH;
     var s = '<svg id="sp-svg" viewBox="0 0 1000 ' + H + '" xmlns="http://www.w3.org/2000/svg">';
-    s += '<rect width="1000" height="' + H + '" fill="#0d0c0a"/>';
-    s += '<text x="60" y="60" font-family="Arial, sans-serif" font-size="30" font-weight="900" fill="#f3ead2">' + esc(state.name || "STAGE PLOT") + '</text>';
-    s += '<text x="60" y="86" font-family="Arial, sans-serif" font-size="13" letter-spacing="4" fill="#8a6d1f">STAGE PLOT · ' + new Date().toISOString().slice(0, 10) + '</text>';
-    s += '<text x="940" y="60" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b6459">.street banker</text>';
-    s += '<rect x="' + ST.x + '" y="' + ST.y + '" width="' + ST.w + '" height="' + ST.h + '" rx="10" fill="#12100b" stroke="#3a3424" stroke-width="2"/>';
-    s += '<text x="500" y="' + (ST.y + 24) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" letter-spacing="5" fill="#5a544a">UPSTAGE (BACK)</text>';
-    s += '<text x="500" y="' + (ST.y + ST.h + 34) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" letter-spacing="6" fill="#8a6d1f">DOWNSTAGE · AUDIENCE</text>';
+    s += '<rect width="1000" height="' + H + '" fill="#0B0A08"/>';
+    s += '<text x="60" y="60" font-family="Arial, sans-serif" font-size="30" font-weight="900" fill="#E8B950">' + esc(state.name || "STAGE PLOT") + '</text>';
+    s += '<text x="60" y="86" font-family="Arial, sans-serif" font-size="13" letter-spacing="4" fill="#8A6E30">STAGE PLOT · ' + new Date().toISOString().slice(0, 10) + '</text>';
+    s += '<text x="940" y="60" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#91836A">.street banker</text>';
+    s += '<rect x="' + ST.x + '" y="' + ST.y + '" width="' + ST.w + '" height="' + ST.h + '" rx="10" fill="#14100A" stroke="#3A3226" stroke-width="2"/>';
+    s += '<text x="500" y="' + (ST.y + 24) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" letter-spacing="5" fill="#91836A">UPSTAGE (BACK)</text>';
+    s += '<text x="500" y="' + (ST.y + ST.h + 34) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" letter-spacing="6" fill="#8A6E30">DOWNSTAGE · AUDIENCE</text>';
     instances(state).forEach(function (inst) { s += itemSvg(state, inst); });
     var ly = 700;
-    s += '<line x1="60" y1="' + (ly - 6) + '" x2="940" y2="' + (ly - 6) + '" stroke="#2c2820" stroke-width="1"/>';
-    s += '<text x="60" y="' + (ly + 22) + '" font-family="Arial, sans-serif" font-size="15" font-weight="800" letter-spacing="3" fill="#e8c667">INPUT LIST · ' + chans.length + ' CHANNELS</text>';
+    s += '<line x1="60" y1="' + (ly - 6) + '" x2="940" y2="' + (ly - 6) + '" stroke="#221D18" stroke-width="1"/>';
+    s += '<text x="60" y="' + (ly + 22) + '" font-family="Arial, sans-serif" font-size="15" font-weight="800" letter-spacing="3" fill="#E8B950">INPUT LIST · ' + chans.length + ' CHANNELS</text>';
     if (chans.length) {
       chans.forEach(function (ch, i) {
         var col = i < rows ? 0 : 1;
         var cy = ly + 50 + (i % rows) * 24;
-        s += '<text x="' + (60 + col * 450) + '" y="' + cy + '" font-family="Arial, sans-serif" font-size="14" fill="#cfc6b0">' + (i + 1) + '. ' + esc(ch) + '</text>';
+        s += '<text x="' + (60 + col * 450) + '" y="' + cy + '" font-family="Arial, sans-serif" font-size="14" fill="#A99B84">' + (i + 1) + '. ' + esc(ch) + '</text>';
       });
     } else {
-      s += '<text x="60" y="' + (ly + 50) + '" font-family="Arial, sans-serif" font-size="13" fill="#6b6459">No inputs yet — tick items on the left.</text>';
+      s += '<text x="60" y="' + (ly + 50) + '" font-family="Arial, sans-serif" font-size="13" fill="#91836A">No inputs yet — tick items on the left.</text>';
     }
     return s + "</svg>";
   }

@@ -26,12 +26,12 @@
   <tbody>
   {% for f in files %}
   <tr>
-    <td>{{ f.file_name }}{% if f.file_type %}<div style="font-size:11px;color:var(--dk-faint)">{{ f.file_type }}</div>{% endif %}</td>
+    <td>{{ f.file_name }}{% if f.file_type %}<div style="font-size:12px;color:var(--dk-faint)">{{ f.file_type }}</div>{% endif %}</td>
     <td><span class="dk-chip">{{ f.category }}</span></td>
     <td>{% if f.lead_id %}<a href="/operator-desk/leads/{{ f.lead_id }}">{{ f.artist_name or 'Lead' }}</a>{% else %}—{% endif %}</td>
     <td>{{ f.uploaded_by }}</td>
     <td>{{ f.created_at[:10] }}</td>
-    <td><a class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" href="/operator-desk/files/{{ f.id }}/download">Download</a></td>
+    <td><a class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" href="/operator-desk/files/{{ f.id }}/download">Download</a></td>
   </tr>
   {% endfor %}
   </tbody>

@@ -273,7 +273,11 @@ def test_accessibility_scaffolding():
 
 def test_the_dark_system_holds_and_the_section_is_its_own():
     css = _css()
-    for token in ("#080807", "#C9A86A", "#EFE9DC"):
+    for token in (
+                  "var(--sb-ground)",
+                  "var(--sb-gold)",
+                  "var(--sb-ink)"
+               ):
         assert token in css, token
     eq = _section()
     text = re.sub(r"<[^>]+>", " ", eq).lower()

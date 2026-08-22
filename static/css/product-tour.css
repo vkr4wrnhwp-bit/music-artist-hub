@@ -8,15 +8,15 @@
  */
 
 .sbst-key, .sbst-step, .sbsl {
-  --st-brass: #C9A86A;
-  --st-ivory: #EEE8DC;
-  --st-muted: #A7A198;
+  --st-brass: var(--sb-gold);
+  --st-ivory: var(--sb-ink);
+  --st-muted: var(--sb-ink-2);
   --st-line: rgb(201 168 106 / 0.22);
 }
 
 .sbst-key {
   border: 1px solid rgb(238 232 220 / 0.1);
-  border-radius: 3px;
+  border-radius: var(--sb-r-control);
   padding: 16px 18px;
 }
 
@@ -24,20 +24,20 @@
 .sbst-chip {
   display: inline-block;
   padding: 3px 9px 4px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   border: 1px solid currentColor;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.sbst-live              { color: #7FB77E; }
+.sbst-live              { color: var(--sb-good); }
 .sbst-example           { color: var(--st-brass); }
-.sbst-partner           { color: #86A5C4; }
-.sbst-integration-ready { color: #C2A98D; }
-.sbst-coming-soon       { color: #8C867D; }
-.sbst-verify            { color: #C98A6A; }
+.sbst-partner           { color: var(--sb-info); }
+.sbst-integration-ready { color: var(--sb-warn); }
+.sbst-coming-soon       { color: var(--sb-ink-3); }
+.sbst-verify            { color: var(--sb-warn); }
 
 /* --- one tour step -------------------------------------------------------- */
 .sbst-step {
@@ -63,7 +63,7 @@
 
 .sbst-link {
   display: inline-block;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -73,7 +73,7 @@
   padding-bottom: 3px;
   transition: color 200ms ease, border-color 200ms ease;
 }
-.sbst-link:hover { color: #E1C48F; border-bottom-color: var(--st-brass); }
+.sbst-link:hover { color: var(--sb-gold-bright); border-bottom-color: var(--st-brass); }
 .sbst-link:focus-visible { outline: 2px solid var(--st-brass); outline-offset: 3px; }
 
 /* --- the example smart link ---------------------------------------------- */
@@ -82,9 +82,9 @@
 .sbsl {
   max-width: 420px;
   border: 1px solid var(--st-line);
-  border-radius: 4px;
+  border-radius: var(--sb-r-control);
   overflow: hidden;
-  background: #0D0D0B;
+  background: var(--sb-surface-1);
 }
 .sbsl-art {
   aspect-ratio: 1 / 1;
@@ -92,11 +92,11 @@
   place-items: center;
   background:
     radial-gradient(120% 90% at 30% 20%, rgb(201 168 106 / 0.16), transparent 60%),
-    #141210;
+    var(--sb-surface-2);
   border-bottom: 1px solid var(--st-line);
 }
 .sbsl-art span {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.24em;
   text-transform: uppercase;
@@ -124,7 +124,7 @@
   vertical-align: top;
 }
 .sbfi th {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;

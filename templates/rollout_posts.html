@@ -6,13 +6,13 @@
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Rollout Engine · Posts</div>
-      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">{{ c.title }}</h1>
+      <div class="sb-label text-sb-gold">Rollout Engine · Posts</div>
+      <h1 class="sb-h1 mt-1">{{ c.title }}</h1>
       <p class="mt-1 text-sm text-gray-300">Edit, approve, and post. Manual mode: copy the caption, post it yourself, paste the URL back, mark as posted — attribution still tracks through each post's link.</p>
     </div>
     <div class="flex gap-2">
-      <a href="/rollout-studio/{{ c.id }}/storyboard" class="rounded-lg border border-[#c9a24a]/40 bg-[#c9a24a]/10 px-4 py-2 text-sm font-bold text-[#e8c667] hover:bg-[#c9a24a]/20">Storyboard</a>
-      <a href="/rollout-studio/{{ c.id }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">← Overview</a>
+      <a href="/rollout-studio/{{ c.id }}/storyboard" class="sb-btn sb-btn-secondary">Storyboard</a>
+      <a href="/rollout-studio/{{ c.id }}" class="sb-btn sb-btn-secondary">← Overview</a>
     </div>
   </div>
 
@@ -21,14 +21,14 @@
   {% endif %}
 
   {% for p in posts %}
-  <div class="rounded-2xl border {{ 'border-green-500/25' if p.status == 'posted' else 'border-white/10' }} bg-[#111113] p-5">
+  <div class="rounded-2xl border {{ 'border-green-500/25' if p.status == 'posted' else 'border-white/10' }} bg-sb-surface-1 p-5">
     <div class="flex flex-wrap items-center gap-2">
-      <span class="font-bold tabular-nums text-gray-200">{{ p.scheduled_date }}</span>
+      <span class="font-bold sb-num text-gray-200">{{ p.scheduled_date }}</span>
       <span class="text-sm font-bold text-gray-100">{{ platform_names.get(p.platform, p.platform) }}</span>
-      <span class="rounded bg-[#c9a24a]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#e8c667]">{{ phase_names.get(p.phase, p.phase) }}</span>
-      <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {{ 'bg-green-500/15 text-green-400' if p.status in ('approved', 'posted') else ('bg-red-500/15 text-red-400' if p.status == 'rejected' else 'bg-white/10 text-gray-300') }}">{{ p.status }}</span>
-      <span class="ml-auto flex gap-3 text-[11px] tabular-nums text-gray-300 font-medium">
-        <span>{{ p.visits }} visits</span><span>{{ p.clicks }} clicks</span><span class="text-[#e8c667]">{{ p.fans }} fans</span>
+      <span class="rounded bg-sb-gold/15 px-1.5 py-0.5 text-xs font-bold uppercase text-sb-gold-bright">{{ phase_names.get(p.phase, p.phase) }}</span>
+      <span class="rounded px-1.5 py-0.5 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if p.status in ('approved', 'posted') else ('bg-red-500/15 text-red-400' if p.status == 'rejected' else 'bg-white/10 text-gray-300') }}">{{ p.status }}</span>
+      <span class="ml-auto flex gap-3 text-xs sb-num text-gray-300 font-medium">
+        <span>{{ p.visits }} visits</span><span>{{ p.clicks }} clicks</span><span class="text-sb-gold-bright">{{ p.fans }} fans</span>
       </span>
     </div>
 
@@ -41,23 +41,23 @@
       </div>
       {% if p.variant_id and variants.get(p.variant_id) and ml_campaign %}
       <div class="flex items-center gap-2">
-        <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ ml_campaign.slug }}?v={{ variants[p.variant_id].slug }}" class="post-link w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-gray-300 focus:outline-none font-medium">
-        <button type="button" class="copy-post-link shrink-0 rounded-md border border-[#c9a24a]/40 bg-[#c9a24a]/15 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/25">Copy Link</button>
-        <button type="button" class="copy-caption shrink-0 rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-200 hover:bg-white/5">Copy Caption</button>
+        <input readonly value="{{ request.url_root.rstrip('/') }}/l/{{ ml_campaign.slug }}?v={{ variants[p.variant_id].slug }}" class="post-link w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-gray-300 focus:outline-none font-medium">
+        <button type="button" class="copy-post-link sb-btn sb-btn-secondary sb-btn-sm shrink-0">Copy Link</button>
+        <button type="button" class="copy-caption sb-btn sb-btn-secondary sb-btn-sm shrink-0">Copy Caption</button>
       </div>
       {% endif %}
       {% if p.casts %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-        <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Platform casts — same facts, four registers{% if avoid_count %} · respects your {{ avoid_count }} do-not-say phrase{{ '' if avoid_count == 1 else 's' }}{% endif %}</summary>
-        <p class="mt-1.5 text-[10px] text-gray-300 font-medium">Rule-built recasts of this post's own caption with your real tracked link injected where the platform carries one — a generator, not a chatbot. Edit before posting.</p>
+        <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">Platform casts — same facts, four registers{% if avoid_count %} · respects your {{ avoid_count }} do-not-say phrase{{ '' if avoid_count == 1 else 's' }}{% endif %}</summary>
+        <p class="mt-1.5 text-xs text-gray-300 font-medium">Rule-built recasts of this post's own caption with your real tracked link injected where the platform carries one — a generator, not a chatbot. Edit before posting.</p>
         <div class="mt-2 grid gap-2 sm:grid-cols-2">
           {% for cast in p.casts %}
           <div class="rounded-lg border border-white/10 bg-black/30 p-2.5">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[10px] font-bold uppercase tracking-wide text-gray-300">{{ cast.name }}</span>
-              <button type="button" class="copy-cast rounded border border-white/15 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-300 hover:text-[#e8c667]">Copy</button>
+              <span class="text-xs font-bold uppercase tracking-wide text-gray-300">{{ cast.name }}</span>
+              <button type="button" class="copy-cast sb-btn sb-btn-secondary sb-btn-sm">Copy</button>
             </div>
-            <pre class="cast-text mt-1 whitespace-pre-wrap font-sans text-[11px] leading-snug text-gray-200 font-medium">{{ cast.text }}</pre>
+            <pre class="cast-text mt-1 whitespace-pre-wrap font-sans text-xs leading-snug text-gray-200 font-medium">{{ cast.text }}</pre>
           </div>
           {% endfor %}
         </div>
@@ -65,21 +65,21 @@
       {% endif %}
       {% if p.asset and p.asset.asset_type == 'image' and p.asset.file_path %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-        <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Safe-zone preview — 9:16</summary>
-        <p class="mt-1.5 text-[10px] text-gray-300 font-medium">Generic vertical-video guides: shaded bands are where most platforms draw their own UI. Not any platform's actual interface.</p>
+        <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">Safe-zone preview — 9:16</summary>
+        <p class="mt-1.5 text-xs text-gray-300 font-medium">Generic vertical-video guides: shaded bands are where most platforms draw their own UI. Not any platform's actual interface.</p>
         <div class="relative mx-auto mt-2 aspect-[9/16] w-48 overflow-hidden rounded-xl border border-white/15 bg-black">
           <img src="{{ p.asset.file_path }}" alt="" class="h-full w-full object-cover">
           <div class="absolute inset-x-0 top-0 h-[12%] bg-red-500/25" title="Top UI zone"></div>
           <div class="absolute inset-x-0 bottom-0 h-[18%] bg-red-500/25" title="Bottom UI + caption zone"></div>
           <div class="absolute bottom-[18%] right-0 top-[12%] w-[14%] bg-amber-500/20" title="Action-rail zone"></div>
-          <div class="absolute inset-x-2 bottom-[19%] truncate text-[9px] font-bold text-white drop-shadow">{{ p.caption[:60] }}</div>
+          <div class="absolute inset-x-2 bottom-[19%] truncate text-xs font-bold text-white drop-shadow">{{ p.caption[:60] }}</div>
         </div>
       </details>
       {% endif %}
       {% if p.edit_plan %}
       <details class="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-        <summary class="cursor-pointer text-[11px] font-bold text-[#e8c667]">Video edit plan — {{ p.edit_plan.aspect_ratio }}, {{ p.edit_plan.end_seconds }}s</summary>
-        <div class="mt-2 space-y-1 text-[11px] text-gray-300 font-medium">
+        <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">Video edit plan — {{ p.edit_plan.aspect_ratio }}, {{ p.edit_plan.end_seconds }}s</summary>
+        <div class="mt-2 space-y-1 text-xs text-gray-300 font-medium">
           <div><span class="font-bold text-gray-200">Hook:</span> {{ p.edit_plan.hook_text }}</div>
           {% if p.edit_plan.lyric_overlay %}<div><span class="font-bold text-gray-200">Lyric overlay:</span> {{ p.edit_plan.lyric_overlay }}</div>{% endif %}
           <div><span class="font-bold text-gray-200">CTA overlay:</span> {{ p.edit_plan.cta_overlay }}</div>
@@ -89,18 +89,18 @@
       </details>
       {% endif %}
       <div class="flex flex-wrap items-center gap-2 pt-1">
-        <button name="action" value="save" class="rounded-md border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-gray-200 hover:bg-white/5">Save</button>
+        <button name="action" value="save" class="sb-btn sb-btn-secondary sb-btn-sm">Save</button>
         {% if p.status not in ('approved', 'posted') %}
-        <button name="action" value="approve" class="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-[11px] font-bold text-green-400 hover:bg-green-500/20">Approve</button>
+        <button name="action" value="approve" class="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400 hover:bg-green-500/20">Approve</button>
         {% endif %}
         {% if p.status != 'rejected' and p.status != 'posted' %}
-        <button name="action" value="reject" class="rounded-md border border-red-500/25 px-3 py-1.5 text-[11px] font-semibold text-red-400/80 hover:bg-red-500/10">Reject</button>
+        <button name="action" value="reject" class="sb-btn sb-btn-danger sb-btn-sm">Reject</button>
         {% endif %}
         {% if p.status != 'posted' %}
-        <input name="published_url" placeholder="Published URL (optional)" class="w-48 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-100 placeholder-gray-300 focus:outline-none font-medium">
-        <button name="action" value="posted" class="rounded-md bg-[#141210] px-3 py-1.5 text-[11px] font-bold text-[#e8c667] ring-1 ring-[#c9a24a]/50 hover:bg-black">Mark as Posted</button>
+        <input name="published_url" placeholder="Published URL (optional)" class="w-48 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:outline-none font-medium">
+        <button name="action" value="posted" class="rounded-md bg-sb-surface-2 px-3 py-1.5 text-xs font-bold text-sb-gold-bright ring-1 ring-sb-gold/50 hover:bg-black">Mark as Posted</button>
         {% elif p.published_url %}
-        <a href="{{ p.published_url }}" target="_blank" rel="noopener" class="text-[11px] font-semibold text-green-400 hover:underline">View published post ↗</a>
+        <a href="{{ p.published_url }}" target="_blank" rel="noopener" class="text-xs font-semibold text-green-400 hover:underline">View published post ↗</a>
         {% endif %}
       </div>
     </form>

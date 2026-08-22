@@ -8,11 +8,11 @@
 
 .sbro {
   --ro-black: #08080750;
-  --ro-ink: #080807;
-  --ro-brass: #C9A86A;
-  --ro-brass-lit: #E2C692;
-  --ro-ivory: #EFE9DC;
-  --ro-muted: #A29B90;
+  --ro-ink: var(--sb-ground);
+  --ro-brass: var(--sb-gold);
+  --ro-brass-lit: var(--sb-gold-bright);
+  --ro-ivory: var(--sb-ink);
+  --ro-muted: var(--sb-ink-2);
   --ro-line: rgb(201 168 106 / 0.26);
 
   position: relative;
@@ -77,7 +77,7 @@
   letter-spacing: -0.015em;
   font-weight: 900;
   text-transform: uppercase;
-  color: #DED8CB;
+  color: var(--sb-ink-2);
 }
 .sbro-title span { display: block; }
 
@@ -104,9 +104,9 @@
   min-height: 52px;
   padding: 0 26px;
   border: 1px solid var(--ro-brass);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: var(--ro-brass);
-  color: #14120E;
+  color: var(--sb-surface-2);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.13em;
@@ -164,7 +164,7 @@
 }
 .sbro-cap-label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -211,7 +211,7 @@
   border: 0;
   padding: 8px 10px;
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -244,7 +244,7 @@
   margin-top: 18px;
   max-width: 46ch;
   border: 1px solid var(--ro-line);
-  border-radius: 3px;
+  border-radius: var(--sb-r-control);
   background: rgb(14 14 12 / 0.86);
   padding: 14px 16px 16px;
 }
@@ -256,13 +256,13 @@
   margin: 0 0 10px;
 }
 .sbro-sample-tag {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ro-brass);
 }
-.sbro-sample-len { font-size: 11px; color: var(--ro-muted); }
+.sbro-sample-len { font-size: 12px; color: var(--ro-muted); }
 
 .sbro-sample-list { margin: 0; padding: 0; list-style: none; }
 .sbro-sample-list li {
@@ -277,19 +277,19 @@
 .sbro-day { color: var(--ro-brass); font-variant-numeric: tabular-nums; }
 .sbro-item { color: var(--ro-ivory); }
 .sbro-status {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--ro-muted);
 }
 /* The word is the status. The tint only repeats it. */
-.sbro-status--approved, .sbro-status--published, .sbro-status--completed { color: #7E9A78; }
+.sbro-status--approved, .sbro-status--published, .sbro-status--completed { color: var(--sb-good); }
 .sbro-status--scheduled { color: var(--ro-brass); }
 
 .sbro-sample-note {
   margin: 12px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.55;
   color: var(--ro-muted);
 }

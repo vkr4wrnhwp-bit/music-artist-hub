@@ -20,7 +20,7 @@
   {%- endif %}
   <span>{{ trend.phrase or trend.note }}</span>
   {%- if trend.delta and trend.delta.pct %}
-  <span class="text-[10px] font-normal opacity-70 font-medium">({{ '+' if trend.delta.change > 0 }}{{ trend.delta.pct }}%)</span>
+  <span class="text-xs font-normal opacity-70 font-medium">({{ '+' if trend.delta.change > 0 }}{{ trend.delta.pct }}%)</span>
   {%- endif %}
 </p>
 {% endif %}

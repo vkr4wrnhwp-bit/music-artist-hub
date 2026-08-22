@@ -10,20 +10,21 @@
   <title>Find your lane · Street Banker</title>
   <meta name="description" content="Distribution, Development or Partnership: what each lane covers, and which one fits where you are.">
   <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=24">
-  <link rel="stylesheet" href="/static/css/public-header.css?v=3">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  {% include "_fonts.html" %}
+  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
 </head>
-<body class="min-h-screen bg-[#0A0A09] text-[#EEE9DF] antialiased">
+<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
 
 {% include "partials/public_header.html" %}
 
 <main id="main" class="mx-auto max-w-4xl px-6 py-14 lg:px-10 lg:py-20">
 
-  <div class="text-[10px] font-semibold uppercase tracking-[0.34em] text-[#C9A86A]">Three lanes. One system.</div>
+  <div class="sb-label text-sb-gold">Three lanes. One system.</div>
   <h1 class="mt-4 text-[clamp(1.8rem,5vw,2.6rem)] font-medium uppercase leading-[1.02] tracking-tight">
     Which lane fits you?
   </h1>
-  <p class="mt-4 max-w-xl text-[15px] leading-relaxed text-[#A29B90]">
+  <p class="mt-4 max-w-xl text-base leading-relaxed text-sb-ink-2">
     Pick the line that sounds most like where you are. You will get one lane
     and the reason for it — and all three are set out below either way.
   </p>
@@ -31,8 +32,8 @@
   <form method="get" class="mt-8 flex flex-wrap gap-2.5">
     {% for s in situations %}
     <button type="submit" name="situation" value="{{ s.id }}"
-            class="rounded-sm border px-4 py-2.5 text-left text-[12.5px] font-semibold transition-colors
-                   {% if picked and picked.id == s.id %}border-[#C9A86A] bg-[#C9A86A] text-[#14120E]{% else %}border-[rgb(201_168_106_/_0.24)] text-[#EEE9DF] hover:border-[#C9A86A] hover:text-[#C9A86A]{% endif %}"
+            class="rounded-sm border px-4 py-2.5 text-left text-xs font-semibold transition-colors
+                   {% if picked and picked.id == s.id %}border-sb-gold bg-sb-gold text-sb-surface-2{% else %}border-[rgb(201_168_106_/_0.24)] text-sb-ink hover:border-sb-gold hover:text-sb-gold{% endif %}"
             {% if picked and picked.id == s.id %}aria-current="true"{% endif %}>
       {{ s.label }}
     </button>
@@ -40,36 +41,36 @@
   </form>
 
   {% if picked and suggested %}
-  <section class="mt-9 rounded border border-[rgb(201_168_106_/_0.24)] bg-[#101010] p-6" aria-labelledby="suggested-heading">
-    <p class="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A29B90]">Suggested lane</p>
+  <section class="mt-9 rounded border border-[rgb(201_168_106_/_0.24)] bg-sb-ground p-6" aria-labelledby="suggested-heading">
+    <p class="sb-label text-sb-ink-2">Suggested lane</p>
     <h2 class="mt-2 text-[clamp(1.3rem,3vw,1.8rem)] font-medium uppercase tracking-tight" id="suggested-heading">
-      <span class="text-[#C9A86A]">{{ suggested.num }}</span> {{ suggested.name }}
-      <span class="block text-[13px] font-semibold uppercase tracking-[0.16em] text-[#C9A86A] opacity-80">{{ suggested.subline }}</span>
+      <span class="text-sb-gold">{{ suggested.num }}</span> {{ suggested.name }}
+      <span class="block text-sm font-semibold uppercase tracking-[0.16em] text-sb-gold opacity-80">{{ suggested.subline }}</span>
     </h2>
-    <p class="mt-4 max-w-2xl text-[14.5px] leading-relaxed text-[#EEE9DF]">{{ picked.why }}</p>
-    <p class="mt-3 max-w-2xl text-[13px] leading-relaxed text-[#A29B90]">
+    <p class="mt-4 max-w-2xl text-base leading-relaxed text-sb-ink">{{ picked.why }}</p>
+    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-sb-ink-2">
       This is a starting point, not a placement. Lanes move as the work does,
       and nothing here commits you to one.
     </p>
   </section>
   {% endif %}
 
-  <h2 class="mt-14 text-[13px] font-semibold uppercase tracking-[0.2em] text-[#C9A86A]">All three lanes</h2>
+  <h2 class="mt-14 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">All three lanes</h2>
   <div class="mt-5 space-y-4">
     {% for lane in lanes %}
     <section id="{{ lane.slug }}" class="scroll-mt-28 rounded border p-6
-             {% if suggested and suggested.slug == lane.slug %}border-[#C9A86A] bg-[#121110]{% else %}border-[rgb(201_168_106_/_0.24)] bg-[#0E0E0D]{% endif %}"
+             {% if suggested and suggested.slug == lane.slug %}border-sb-gold bg-sb-surface-1{% else %}border-[rgb(201_168_106_/_0.24)] bg-sb-surface-1{% endif %}"
              aria-labelledby="lane-{{ lane.slug }}">
       <h3 class="text-[clamp(1.2rem,2.6vw,1.6rem)] font-medium uppercase tracking-tight" id="lane-{{ lane.slug }}">
-        <span class="text-[#C9A86A] tracking-[0.18em]">{{ lane.num }}</span> {{ lane.name }}
-        <span class="block text-[12.5px] font-semibold uppercase tracking-[0.16em] text-[#C9A86A] opacity-80">{{ lane.subline }}</span>
+        <span class="text-sb-gold tracking-[0.18em]">{{ lane.num }}</span> {{ lane.name }}
+        <span class="sb-label block text-sb-gold opacity-80">{{ lane.subline }}</span>
       </h3>
-      <p class="mt-3 max-w-2xl text-[14.5px] leading-relaxed text-[#A29B90]">{{ lane.description }}</p>
-      <p class="mt-3 text-[13px] leading-relaxed text-[#C9A86A] opacity-90">{{ lane.for_you_if }}</p>
+      <p class="mt-3 max-w-2xl text-base leading-relaxed text-sb-ink-2">{{ lane.description }}</p>
+      <p class="mt-3 text-sm leading-relaxed text-sb-gold opacity-90">{{ lane.for_you_if }}</p>
       <ul class="mt-4 space-y-2">
         {% for item in lane.includes %}
-        <li class="relative pl-4 text-[13.5px] leading-relaxed text-[#A29B90]">
-          <span class="absolute left-0 top-[0.62em] h-px w-2 bg-[#C9A86A]" aria-hidden="true"></span>{{ item }}
+        <li class="relative pl-4 text-sm leading-relaxed text-sb-ink-2">
+          <span class="absolute left-0 top-[0.62em] h-px w-2 bg-sb-gold" aria-hidden="true"></span>{{ item }}
         </li>
         {% endfor %}
       </ul>
@@ -78,14 +79,14 @@
   </div>
 
   <div class="mt-10 flex flex-wrap gap-3">
-    <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-[#C9A86A] px-6 text-[12px] font-bold uppercase tracking-[0.1em] text-[#14120E] transition-colors hover:bg-[#E0C48C]">Create an account</a>
-    <a href="/catalog-sweep" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.24)] px-6 text-[12px] font-bold uppercase tracking-[0.1em] text-[#EEE9DF] transition-colors hover:border-[#C9A86A] hover:text-[#C9A86A]">Run a free catalog sweep</a>
-    <a href="/submit" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.24)] px-6 text-[12px] font-bold uppercase tracking-[0.1em] text-[#EEE9DF] transition-colors hover:border-[#C9A86A] hover:text-[#C9A86A]">Talk to us about Partnership</a>
+    <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-sb-gold px-6 text-xs font-bold uppercase tracking-[0.1em] text-sb-surface-2 transition-colors hover:bg-sb-gold-bright">Create an account</a>
+    <a href="/catalog-sweep" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.24)] px-6 text-xs font-bold uppercase tracking-[0.1em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">Run a free catalog sweep</a>
+    <a href="/submit" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.24)] px-6 text-xs font-bold uppercase tracking-[0.1em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">Talk to us about Partnership</a>
   </div>
 </main>
 
-<footer class="mx-auto max-w-4xl px-6 pb-14 text-[11px] text-[#7E786F] lg:px-10">
-  <a href="/#lanes" class="font-semibold hover:text-[#EEE9DF]">← Back to Street Banker</a>
+<footer class="mx-auto max-w-4xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
+  <a href="/#lanes" class="font-semibold hover:text-sb-ink">← Back to Street Banker</a>
 </footer>
 </body>
 </html>

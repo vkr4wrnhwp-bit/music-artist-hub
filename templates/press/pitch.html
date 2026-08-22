@@ -66,7 +66,7 @@
 <h2 class="pd-h2">The messages</h2>
 {% for r in recipients %}
 <details style="margin-bottom:10px">
-  <summary style="cursor:pointer;padding:9px 12px;border:1px solid var(--pd-rule);border-radius:8px;font-size:13px">
+  <summary style="cursor:pointer;padding:9px 12px;border:1px solid var(--pd-rule);border-radius:var(--sb-r-panel);font-size:13px">
     {{ r.contact_name }}{% if r.outlet %} — {{ r.outlet }}{% endif %}
     <span class="pd-muted">· {{ r.email or 'no email' }}</span>
   </summary>

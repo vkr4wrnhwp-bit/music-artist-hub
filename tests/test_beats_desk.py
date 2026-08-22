@@ -59,7 +59,7 @@ def test_the_page_carries_the_new_surfaces(flask_app):
                   "bt-tab-catalog", "bt-tab-licences", "bt-tab-api",
                   "bt-panel-catalog", "bt-panel-licences", "bt-panel-api"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "beats.css?v=1" in page and "beats.js?v=1" in page and "tempokey.js" in page
+    assert "beats.css?v=2" in page and "beats.js?v=1" in page and "tempokey.js" in page
     # The ceiling the page prints must be the one the app enforces.
     assert "window.__btMaxMb = %d;" % (store.MAX_BEAT_BYTES // (1024 * 1024)) in page
     # The drop zone must be there when the account is EMPTY — that is when

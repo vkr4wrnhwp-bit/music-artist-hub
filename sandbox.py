@@ -50,10 +50,10 @@ def label():
 _BAR = (
     '<div role="status" aria-label="Sandbox deployment" style="'
     'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
-    'background:#7a1d1d;color:#ffe9e4;'
-    'font:600 11px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
+    'background:#E05C4A;color:#F2ECE0;'
+    'font:600 12px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
     'letter-spacing:0.06em;text-align:center;padding:6px 12px;'
-    'border-top:2px solid #e8734f;pointer-events:none;'
+    'border-top:2px solid #E05C4A;pointer-events:none;'
     'text-transform:uppercase">'
     '%s — experiments only. Email, payments and file storage are off. '
     'Nothing here reaches the live site.'

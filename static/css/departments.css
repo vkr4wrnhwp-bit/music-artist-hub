@@ -13,10 +13,10 @@
  */
 
 .sbdept {
-  --sbdept-ink: #080807;
-  --sbdept-ivory: #EDE7DA;
-  --sbdept-ivory-dim: #9A948A;
-  --sbdept-brass: #C9A86A;
+  --sbdept-ink: var(--sb-ground);
+  --sbdept-ivory: var(--sb-ink);
+  --sbdept-ivory-dim: var(--sb-ink-2);
+  --sbdept-brass: var(--sb-gold);
   --sbdept-rule: rgb(237 231 218 / 0.14);
   --sbdept-ratio: 1553 / 676;          /* the master photograph */
 

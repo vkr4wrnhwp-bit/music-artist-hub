@@ -8,12 +8,12 @@
  */
 
 :root {
-  --sbh-surface: 13 12 11;          /* #0D0C0B, no blue cast */
-  --sbh-ivory: #F2EEE6;
-  --sbh-ivory-muted: #A8A296;
-  --sbh-brass: #C9A86A;
-  --sbh-brass-lit: #DCC08A;
-  --sbh-ink: #14120E;
+  --sbh-surface: 13 12 11;          /* var(--sb-ground), no blue cast */
+  --sbh-ivory: var(--sb-ink);
+  --sbh-ivory-muted: var(--sb-ink-2);
+  --sbh-brass: var(--sb-gold);
+  --sbh-brass-lit: var(--sb-gold-bright);
+  --sbh-ink: var(--sb-surface-2);
   --sbh-height: 86px;
   --sbh-height-mobile: 70px;
   --sbh-max: 1480px;
@@ -73,7 +73,7 @@
 }
 .sbh-descriptor {
   display: none;
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.45;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -135,10 +135,10 @@
   justify-content: center;
   height: 40px;
   padding: 0 16px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: var(--sbh-brass);
   color: var(--sbh-ink);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -166,7 +166,7 @@
   justify-content: center;
   width: 44px; height: 44px;
   border: 1px solid rgb(242 238 230 / 0.18);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: transparent;
   color: var(--sbh-ivory);
   cursor: pointer;
@@ -181,7 +181,7 @@
 .sbh-skip:focus {
   outline: 2px solid var(--sbh-brass);
   outline-offset: 3px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
 }
 
 .sbh-skip {
@@ -236,7 +236,7 @@
   width: 44px; height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid rgb(242 238 230 / 0.18);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: transparent;
   color: var(--sbh-ivory);
   cursor: pointer;
@@ -259,7 +259,7 @@
   align-items: center;
   justify-content: center;
   min-height: 48px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: var(--sbh-brass);
   color: var(--sbh-ink);
   font-size: 12px;

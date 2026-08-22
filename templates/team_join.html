@@ -4,16 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Join a team - Street Banker</title>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=24">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  {% include "_fonts.html" %}
 </head>
-<body class="min-h-screen bg-[#0a0a0b] text-gray-200 antialiased">
+<body class="min-h-screen bg-sb-ground text-gray-200 antialiased">
   <div class="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center px-4">
     <div class="mb-8 text-center">
       <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="mx-auto h-16 w-auto">
-      <div class="mt-1 text-[10px] uppercase tracking-[0.2em] text-amber-500/70 font-medium">Artist Infrastructure</div>
+      <div class="sb-label mt-1 text-amber-500/70">Artist Infrastructure</div>
     </div>
 
-    <div class="w-full rounded-2xl border border-white/10 bg-[#111113] p-6">
+    <div class="w-full rounded-2xl border border-white/10 bg-sb-surface-1 p-6">
       {% if invalid %}
       <h1 class="text-lg font-bold text-white">Invite not found</h1>
       <p class="mt-2 text-sm text-gray-300">This invite link is invalid, already used, or was revoked. Ask the artist to send a new one.</p>
@@ -27,12 +28,12 @@
       <form method="post" class="mt-4 space-y-3">
         {% if not has_account %}
         <div>
-          <label for="name" class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Your name</label>
+          <label for="name" class="sb-label text-gray-300">Your name</label>
           <input type="text" id="name" name="name" required autofocus
                  class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
         </div>
         <div>
-          <label for="password" class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Choose a password</label>
+          <label for="password" class="sb-label text-gray-300">Choose a password</label>
           <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
         </div>
@@ -43,7 +44,7 @@
       </form>
       {% endif %}
     </div>
-    <p class="mt-5 text-center text-[11px] text-gray-300 font-medium"><a href="/terms" class="hover:text-white">Terms</a> · <a href="/privacy" class="hover:text-white">Privacy</a></p>
+    <p class="mt-5 text-center text-xs text-gray-300 font-medium"><a href="/terms" class="hover:text-white">Terms</a> · <a href="/privacy" class="hover:text-white">Privacy</a></p>
   </div>
 </body>
 </html>

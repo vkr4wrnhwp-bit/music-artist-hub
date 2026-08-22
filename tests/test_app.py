@@ -2957,9 +2957,11 @@ def test_notifications_from_real_events():
                 b",Spotify,12.40,2026-05\n")
     client.post("/statements", data={"statement": (io.BytesIO(csv_rows), "s.csv")},
                 content_type="multipart/form-data")
-    # Badge shows unread count in the nav.
+    # Badge shows unread count in the nav. Design system v1 moved it off
+    # gold: gold is brand and primary action, and an unread counter is a
+    # state indicator, so it wears the info colour.
     body = client.get("/links").get_data(as_text=True)
-    assert re.search(r'text-\[#1c1302\]">\d+</span>', body)
+    assert re.search(r'text-sb-info">\d+</span>', body)
     # Page lists all three real events and clears the badge.
     body = client.get("/notifications").get_data(as_text=True)
     assert "Campaign live: Bell Drop" in body
@@ -5241,7 +5243,7 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
     # Board view: one column per status, cards carry the real walk.
     board = client.get("/tour?view=board").get_data(as_text=True)
     assert "$1020.00 walk" in board and "The Basement" in board
-    assert board.count('tracking-[0.2em]') >= 5  # five status columns
+    assert board.count('sb-badge') >= 5  # five status columns, now badges
     # Money Queue surfaces settled tour income as collected money.
     mq = client.get("/money-queue").get_data(as_text=True)
     assert "Settled tour income" in mq and "$1020.00" in mq

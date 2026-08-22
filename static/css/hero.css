@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #0d0c0b;
+  background: var(--sb-ground);
 }
 @media (max-width: 1023px) {
   /* Copy first, photograph after it: on a phone the headline and the two
@@ -111,7 +111,7 @@
 }
 
 .sbhero-eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -150,7 +150,7 @@
   max-width: 560px;
   font-size: clamp(16px, 1.15vw, 19px);
   line-height: 1.6;
-  color: #E4DFD5;
+  color: var(--sb-ink);
 }
 
 .sbhero-ctas { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 14px; }
@@ -163,7 +163,7 @@
   gap: 10px;
   height: 52px;
   padding: 0 26px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -183,7 +183,7 @@
 .sbhero a:focus-visible {
   outline: 2px solid var(--sbh-brass);
   outline-offset: 3px;
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
 }
 
 @media (max-width: 640px) {
@@ -203,7 +203,7 @@
   align-self: flex-end;
   margin-bottom: 6vh;
   border: 1px solid rgb(242 238 230 / 0.14);
-  border-radius: 10px;
+  border-radius: var(--sb-r-panel);
   background: rgb(13 12 11 / 0.82);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -219,20 +219,20 @@
   gap: 10px;
 }
 .sbhero-preview-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--sbh-ivory-muted);
 }
 .sbhero-preview-tag {
-  font-size: 8.5px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--sbh-brass);
   border: 1px solid rgb(201 168 106 / 0.4);
-  border-radius: 999px;
+  border-radius: var(--sb-r-pill);
   padding: 3px 8px;
   white-space: nowrap;
 }
@@ -242,12 +242,12 @@
   align-items: center;
   gap: 9px;
   font-size: 12px;
-  color: #E4DFD5;
+  color: var(--sb-ink);
 }
 .sbhero-preview-row svg { flex: 0 0 auto; }
 .sbhero-preview-foot {
   margin: 14px 0 0;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--sbh-ivory-muted);
 }

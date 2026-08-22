@@ -5,29 +5,29 @@
 {% block content %}
 <div class="mx-auto max-w-[1400px] space-y-5">
   <div>
-    <h1 class="text-2xl font-semibold uppercase tracking-tight">Registration Wizard</h1>
+    <h1 class="sb-h1">Registration Wizard</h1>
     <p class="mt-1 text-sm text-gray-300">Register each song with every rights body so no collection channel is left open.</p>
   </div>
 
   {% set fully = registration_wizards | selectattr('completion_pct', 'equalto', 100) | list | length %}
   <div class="grid grid-cols-3 gap-3">
-    <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Songs</div>
+    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
+      <div class="sb-label text-gray-300">Songs</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ registration_wizards | length }}</div>
     </div>
-    <div class="rounded-2xl border border-green-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Fully Registered</div>
+    <div class="rounded-2xl border border-green-500/15 bg-sb-surface-1 p-5">
+      <div class="sb-label text-gray-300">Fully Registered</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">{{ fully }}</div>
     </div>
-    <div class="rounded-2xl border border-amber-500/15 bg-[#111113] p-5">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">Rights Bodies</div>
+    <div class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
+      <div class="sb-label text-gray-300">Rights Bodies</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ wizard_targets | length }}</div>
     </div>
   </div>
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
     {% for w in registration_wizards %}
-    <section class="reg-card rounded-2xl border border-white/5 bg-[#111113] p-5" data-song-id="{{ w.song_id }}">
+    <section class="reg-card rounded-2xl border border-white/5 bg-sb-surface-1 p-5" data-song-id="{{ w.song_id }}">
       <div class="flex items-center justify-between gap-2">
         <h2 class="font-semibold text-gray-100">{{ w.song_title }}</h2>
         <span class="reg-pct text-sm font-bold tabular-nums {{ 'text-green-400' if w.completion_pct == 100 else 'text-amber-400' }}">{{ w.completion_pct }}%</span>
@@ -43,7 +43,7 @@
             <span class="{{ 'text-gray-300' if w.status[target] else 'text-gray-200' }}">{{ wizard_target_labels[target] }}</span>
           </div>
           {% if not w.status[target] %}
-          <button type="button" class="reg-complete-btn shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">Register</button>
+          <button type="button" class="reg-complete-btn sb-btn sb-btn-secondary sb-btn-sm shrink-0">Register</button>
           {% endif %}
         </div>
         {% endfor %}

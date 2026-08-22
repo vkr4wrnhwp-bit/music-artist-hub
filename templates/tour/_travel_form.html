@@ -28,7 +28,7 @@
     {{ m.field('sleepers', 'Bus sleepers / bunks', e['sleepers'] if e else '') }}
     {{ m.select('visibility', 'Visibility', vocab['visibility'], e['visibility'] if e else 'all') }}
     {{ m.textarea('notes', 'Notes', e['notes'] if e else '', rows=2) }}
-    <div class="to-wide"><span class="to-eyebrow" style="font-size:10px">Travelers</span>
+    <div class="to-wide"><span class="to-eyebrow" style="font-size:12px">Travelers</span>
       <div class="to-checks">
         <label><input type="checkbox" name="travelers" value="all" {% if not e or 'all' in e['travelers'] %}checked{% endif %}> Everyone</label>
         {% for p in people %}<label><input type="checkbox" name="travelers" value="{{ p['id'] }}" {% if e and p['id'] in e['travelers'] %}checked{% endif %}> {{ p['name'] }}</label>{% endfor %}

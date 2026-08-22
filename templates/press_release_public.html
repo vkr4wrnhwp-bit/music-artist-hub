@@ -11,6 +11,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  {% include "_fonts.html" %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ release.headline or release.title }}</title>
@@ -18,7 +19,8 @@
      would defeat the embargo, and a press link is for the person it was
      sent to. #}
   <meta name="robots" content="noindex, nofollow">
-  <link rel="stylesheet" href="/static/css/press-desk.css?v=1">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  <link rel="stylesheet" href="/static/css/press-desk.css?v=2">
 </head>
 <body class="pdp-body">
 <div class="pdp">
@@ -58,7 +60,7 @@
     {% if release.contact_email %}
     <p class="pd-paper-meta">
       Press contact: {{ release.contact_name }}
-      <a href="mailto:{{ release.contact_email }}" style="color:#8a6d1f">{{ release.contact_email }}</a>
+      <a href="mailto:{{ release.contact_email }}" style="color:var(--sb-gold-deep)">{{ release.contact_email }}</a>
     </p>
     {% endif %}
   </div>

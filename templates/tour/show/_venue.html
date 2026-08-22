@@ -8,7 +8,7 @@
       <div class="to-muted">{{ venue['address'] }}{% if venue['city'] %}, {{ venue['city'] }}{% endif %}{% if venue['region'] %}, {{ venue['region'] }}{% endif %} {{ venue['country'] }}</div>
       <div class="to-grid" style="margin-top:10px;font-size:13px">
         {% for k, label in [('capacity','Capacity'),('venue_type','Type'),('phone','Phone'),('website','Website'),('tz','Timezone'),('loading','Loading'),('parking','Parking'),('bus_parking','Bus parking'),('stage','Stage'),('backstage','Backstage'),('dressing_rooms','Dressing rooms'),('showers','Showers'),('catering','Catering'),('wifi','Wi-Fi'),('settlement_location','Settlement'),('merch_location','Merch'),('production_notes','Production'),('notes','Notes')] %}
-          {% if venue[k] %}<div><div class="to-muted" style="font-size:10px;letter-spacing:.12em;text-transform:uppercase">{{ label }}</div><div>{{ venue[k] }}</div></div>{% endif %}
+          {% if venue[k] %}<div><div class="to-muted" style="font-size:12px;letter-spacing:.12em;text-transform:uppercase">{{ label }}</div><div>{{ venue[k] }}</div></div>{% endif %}
         {% endfor %}
       </div>
       <p class="to-sub" style="margin-top:10px">This is what was saved last time. The current advance for this show lives on the <a href="?tab=advance">Advance</a> tab — when it is confirmed, promote it here so the next run starts ahead.</p>

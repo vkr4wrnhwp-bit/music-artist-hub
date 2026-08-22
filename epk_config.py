@@ -318,6 +318,8 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "video_thumb": _video_thumb(video_url) if video_url else None,
         "assets": assets,
         "logo_path": next((a["path"] for a in assets if a.get("kind") == "logo"), None),
+        # Not a token: this is the artist's cover colour, stored and
+        # validated as a hex. Exempt in tools/sweep_colours.py.
         "bg_color": o.get("bg_color") or "#141210",
         "bandsintown_artist": (o.get("bandsintown_artist") or "").strip(),
         "tour_dates": tour_dates,

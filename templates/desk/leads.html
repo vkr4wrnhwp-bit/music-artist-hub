@@ -44,7 +44,7 @@
   {% for l in leads %}
   <tr>
     <td><a href="/operator-desk/leads/{{ l.id }}">{{ l.artist_name }}</a>
-        {% if l.city %}<div style="font-size:11px;color:var(--dk-faint)">{{ l.city }}{{ ', ' ~ l.state if l.state }}</div>{% endif %}</td>
+        {% if l.city %}<div style="font-size:12px;color:var(--dk-faint)">{{ l.city }}{{ ', ' ~ l.state if l.state }}</div>{% endif %}</td>
     <td>{{ l.contact_name or '—' }}</td>
     <td>{{ l.role or '—' }}</td>
     <td><span class="dk-chip">{{ l.pipeline_stage }}</span></td>

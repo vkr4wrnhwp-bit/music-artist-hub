@@ -7,12 +7,12 @@
  */
 
 .sbsw {
-  --sw-ink: #090908;
-  --sw-raised: #10100E;
-  --sw-brass: #C9A86A;
-  --sw-brass-lit: #E1C48F;
-  --sw-ivory: #EEE8DC;
-  --sw-muted: #A7A198;
+  --sw-ink: var(--sb-ground);
+  --sw-raised: var(--sb-surface-1);
+  --sw-brass: var(--sb-gold);
+  --sw-brass-lit: var(--sb-gold-bright);
+  --sw-ivory: var(--sb-ink);
+  --sw-muted: var(--sb-ink-2);
   --sw-line: rgb(201 168 106 / 0.22);
 
   background: var(--sw-ink);
@@ -150,7 +150,7 @@
 
 .sbsw-num {
   display: block;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.24em;
   color: var(--sw-brass);
@@ -197,7 +197,7 @@
   min-height: 54px;
   padding: 0 34px;
   border: 1px solid var(--sw-brass);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   background: transparent;
   color: var(--sw-brass);
   font-size: 12.5px;
@@ -208,7 +208,7 @@
   transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 .sbsw-cta svg { width: 16px; height: 16px; }
-.sbsw-cta:hover { background: var(--sw-brass); color: #14120E; }
+.sbsw-cta:hover { background: var(--sw-brass); color: var(--sb-surface-2); }
 
 .sbsw-example-btn {
   background: none;
@@ -262,7 +262,7 @@
   margin: clamp(22px, 2.6vw, 32px) auto 0;
   max-width: 720px;
   border: 1px solid var(--sw-line);
-  border-radius: 3px;
+  border-radius: var(--sb-r-control);
   background: var(--sw-raised);
   padding: 16px 18px 18px;
   text-align: left;
@@ -276,14 +276,14 @@
   margin: 0 0 12px;
 }
 .sbsw-example-tag {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--sw-brass);
 }
 .sbsw-example-status {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--sw-muted);
@@ -301,7 +301,7 @@
 .sbsw-example-fields dt {
   padding: 8px 0 0;
   border-top: 1px solid rgb(238 232 220 / 0.07);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -332,7 +332,7 @@
 }
 .sbsw-example-note {
   margin: 14px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--sw-muted);
 }

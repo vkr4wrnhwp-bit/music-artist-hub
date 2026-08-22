@@ -12,14 +12,14 @@
   </a>
 
   <div>
-    <div class="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-500/80">{{ lb.brand.name }}</div>
-    <h1 class="mt-1 text-2xl font-semibold tracking-tight">{{ service.title }}</h1>
+    <div class="sb-label text-amber-500/80">{{ lb.brand.name }}</div>
+    <h1 class="sb-h1 mt-1">{{ service.title }}</h1>
     <p class="mt-1 text-sm text-amber-400/90">{{ service.tagline }}</p>
   </div>
 
-  <section class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+  <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <p class="text-sm leading-relaxed text-gray-200">{{ service.summary }}</p>
-    <h2 class="mt-5 text-xs font-medium uppercase tracking-[0.2em] text-gray-300">What's Included</h2>
+    <h2 class="sb-label mt-5 text-gray-300">What's Included</h2>
     <ul class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
       {% for f in service['features'] %}
       <li class="flex items-start gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-sm text-gray-200">
@@ -39,8 +39,8 @@
         </div>
       </div>
       <div class="flex flex-wrap gap-2">
-        <a href="/submit" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">Submit music</a>
-        <a href="mailto:{{ lb.brand.contact_email }}?subject={{ service.title | urlencode }}" class="rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25">{{ service.cta }}</a>
+        <a href="/submit" class="sb-btn sb-btn-secondary">Submit music</a>
+        <a href="mailto:{{ lb.brand.contact_email }}?subject={{ service.title | urlencode }}" class="sb-btn sb-btn-secondary">{{ service.cta }}</a>
       </div>
     </div>
   </section>

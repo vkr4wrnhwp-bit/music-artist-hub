@@ -28,8 +28,8 @@
         <input type="hidden" name="action" value="email">
         <input type="hidden" name="user_id" value="{{ u.id }}">
         <input class="dk-mini" type="email" name="email" value="{{ u.email or '' }}" placeholder="sign-in email"
-               style="padding:5px 8px;border:1px solid var(--dk-rule);border-radius:3px;background:var(--dk-paper);width:190px">
-        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" type="submit">Set</button>
+               style="padding:5px 8px;border:1px solid var(--dk-rule);border-radius:var(--sb-r-control);background:var(--dk-paper);width:190px">
+        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Set</button>
       </form>
       {% if u.email %}
         {% if linked[u.id] %}<span class="dk-chip dk-chip--ok">account linked</span>
@@ -46,22 +46,22 @@
         <input type="hidden" name="action" value="role">
         <input type="hidden" name="user_id" value="{{ u.id }}">
         <select class="dk-mini" name="role">{% for r in vocab.roles %}<option value="{{ r }}" {{ 'selected' if u.role == r }}>{{ vocab.role_labels[r] }}</option>{% endfor %}</select>
-        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" type="submit">Set role</button>
+        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Set role</button>
       </form>
       <form class="dk-inline" method="post" action="/operator-desk/team">
         <input type="hidden" name="action" value="status">
         <input type="hidden" name="user_id" value="{{ u.id }}">
         <input type="hidden" name="status" value="{{ 'disabled' if u.status == 'active' else 'active' }}">
-        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" type="submit">{{ 'Disable' if u.status == 'active' else 'Reactivate' }}</button>
+        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">{{ 'Disable' if u.status == 'active' else 'Reactivate' }}</button>
       </form>
       <form class="dk-inline" method="post" action="/operator-desk/team"
             onsubmit="return confirm('Remove {{ u.name }} from the Desk roster?')">
         <input type="hidden" name="action" value="remove">
         <input type="hidden" name="user_id" value="{{ u.id }}">
-        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" type="submit">Remove</button>
+        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Remove</button>
       </form>
       {% else %}
-      <span style="font-size:11px;color:var(--dk-faint)">You can't change your own access.</span>
+      <span style="font-size:12px;color:var(--dk-faint)">You can't change your own access.</span>
       {% endif %}
     </td>
   </tr>

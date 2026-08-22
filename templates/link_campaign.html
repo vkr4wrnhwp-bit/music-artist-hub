@@ -8,7 +8,8 @@
   <meta property="og:title" content="{{ c.title }} — {{ c.artist_name }}">
   <meta property="og:description" content="{{ c.description or 'Listen on every platform.' }}">
   {% if c.cover_url %}<meta property="og:image" content="{{ c.cover_url }}">{% endif %}
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=24">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  {% include "_fonts.html" %}
   <style>
     .cover-bg {
       position: fixed; inset: -40px; z-index: -1;
@@ -18,12 +19,12 @@
     }
   </style>
 </head>
-<body class="min-h-screen bg-[#0a0a0b] text-gray-100 antialiased">
-  {% set accent = c.settings.get('accent') or '#d8b25a' %}
+<body class="min-h-screen bg-sb-ground text-gray-100 antialiased">
+  {% set accent = c.settings.get('accent') or '#E8B950' %}
   {% if c.cover_url %}<div class="cover-bg" style="background-image: url('{{ c.cover_url }}');"></div>{% endif %}
 
   {% if owner_preview %}
-  <div class="bg-[#d8b25a] px-4 py-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-[#1c1302]">Draft preview — only you can see this. Publish to go live.</div>
+  <div class="bg-sb-gold-bright px-4 py-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-sb-on-gold">Draft preview — only you can see this. Publish to go live.</div>
   {% endif %}
 
   <main class="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
@@ -35,7 +36,7 @@
       {% else %}
       <div class="mx-auto grid aspect-square w-full max-w-[340px] place-items-center rounded-2xl bg-white/5 text-6xl text-gray-300 shadow-2xl">♪</div>
       {% endif %}
-      <div class="mt-5 text-[10px] font-bold uppercase tracking-[0.35em]" style="color: {{ accent }};">{{ c.release_type }}{% if prerelease %} · {{ c.release_date }}{% endif %}</div>
+      <div class="sb-label mt-5" style="color: {{ accent }};">{{ c.release_type }}{% if prerelease %} · {{ c.release_date }}{% endif %}</div>
       <h1 class="mt-1.5 text-3xl font-black leading-tight">{{ c.title }}</h1>
       <div class="mt-1 text-base font-semibold text-gray-200">{{ c.artist_name }}</div>
       {% if c.description %}<p class="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-gray-300">{{ c.description }}</p>{% endif %}
@@ -53,7 +54,7 @@
     {% if prerelease %}
     <!-- Pre-release: countdown + notify -->
     <div class="mt-6 rounded-2xl border border-white/10 bg-black/40 p-5 text-center backdrop-blur">
-      <div class="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-300">Dropping in</div>
+      <div class="sb-label text-gray-300">Dropping in</div>
       <div id="countdown" data-date="{{ c.release_date }}" class="mt-2 flex justify-center gap-4 text-center"></div>
     </div>
     {% endif %}
@@ -63,7 +64,7 @@
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.34a.75.75 0 01-1.03.25c-2.82-1.73-6.38-2.12-10.56-1.16a.75.75 0 11-.33-1.46c4.56-1.04 8.49-.59 11.64 1.34.36.22.47.68.28 1.03zm1.47-3.27a.94.94 0 01-1.29.31c-3.23-1.98-8.16-2.56-11.98-1.4a.94.94 0 11-.55-1.79c4.37-1.33 9.8-.68 13.51 1.6.44.27.58.85.31 1.28zm.13-3.4C15.24 8.37 8.83 8.16 5.14 9.28a1.12 1.12 0 11-.66-2.15c4.24-1.28 11.28-1.03 15.72 1.6a1.13 1.13 0 01-1.1 1.94z"/></svg>
       Pre-Save on Spotify
     </a>
-    <p class="mt-1.5 text-center text-[10px] text-gray-300 font-medium">Saves to your library automatically on release day. You'll approve it on Spotify's own page.</p>
+    <p class="mt-1.5 text-center text-xs text-gray-300 font-medium">Saves to your library automatically on release day. You'll approve it on Spotify's own page.</p>
     {% endif %}
 
     {% set capture_on = c.settings.get('email_capture') %}
@@ -73,11 +74,11 @@
       <input type="hidden" name="v" value="{{ variant_slug }}">
       <div class="flex gap-2">
         <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-300 backdrop-blur focus:border-white/40 focus:outline-none">
-        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-[#1c1302]" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
+        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
       </div>
-      <p class="mt-2 text-[10px] leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
+      <p class="mt-2 text-xs leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
       {% if c.settings.get('gate_reward') %}
-      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
+      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-xs font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
       {% endif %}
       <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
     </form>
@@ -86,7 +87,7 @@
     <!-- Streaming destinations -->
     {% if destinations %}
     <div class="mt-6 space-y-2.5">
-      {% if not prerelease %}<div class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-gray-300">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
+      {% if not prerelease %}<div class="sb-label text-center text-gray-300">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
       {% for d in destinations %}
       <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if variant_slug %}?v={{ variant_slug }}{% endif %}"
          class="flex items-center justify-between rounded-xl border border-white/12 bg-black/45 px-5 py-3.5 backdrop-blur transition-all hover:border-white/35 hover:bg-black/60">
@@ -106,12 +107,12 @@
         <input type="hidden" name="v" value="{{ variant_slug }}">
         <div class="flex gap-2">
           <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-300 focus:border-white/40 focus:outline-none">
-          <button type="submit" class="shrink-0 rounded-xl px-4 py-3 text-sm font-black text-[#1c1302]" style="background: {{ accent }};">Join</button>
+          <button type="submit" class="shrink-0 rounded-xl px-4 py-3 text-sm font-black text-sb-on-gold" style="background: {{ accent }};">Join</button>
         </div>
-        <p class="mt-2 text-[10px] leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
+        <p class="mt-2 text-xs leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
         <div id="capture-done" class="hidden rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-400"></div>
             {% if c.settings.get('gate_reward') %}
-      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
+      <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-xs font-bold" style="color: {{ accent }};">🔓 Unlocks instantly: {{ c.settings.get('gate_label') or 'an exclusive download' }}</p>
       {% endif %}
       </form>
     </div>
@@ -131,7 +132,7 @@
     </div>
 
     <footer class="mt-auto pt-10 text-center">
-      <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100"><span class="text-[9px] font-bold uppercase tracking-[0.35em] text-gray-300">Powered by</span><img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto"></a>
+      <a href="/" class="inline-flex items-center gap-2 opacity-60 transition-opacity hover:opacity-100"><span class="sb-label text-gray-300">Powered by</span><img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-5 w-auto"></a>
     </footer>
   </main>
 
@@ -146,7 +147,7 @@
         const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24,
               m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
         cd.innerHTML = [[d, "days"], [h, "hrs"], [m, "min"], [s, "sec"]].map(([v, l]) =>
-          '<div><div class="text-2xl font-black tabular-nums">' + v + '</div><div class="text-[9px] font-bold uppercase tracking-widest text-gray-300">' + l + "</div></div>").join("");
+          '<div><div class="text-2xl font-black tabular-nums">' + v + '</div><div class="text-xs font-bold uppercase tracking-widest text-gray-300">' + l + "</div></div>").join("");
       }
       tick(); setInterval(tick, 1000);
     }

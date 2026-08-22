@@ -169,7 +169,7 @@
         c.setAttribute("cx", p[0].toFixed(1));
         c.setAttribute("cy", p[1].toFixed(1));
         c.setAttribute("r", "2.6");
-        c.setAttribute("fill", "#C9A86A");
+        c.setAttribute("fill", "#C9A24A");
         traceDots.appendChild(c);
       });
     }

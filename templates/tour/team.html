@@ -12,7 +12,7 @@
     {{ m.field('name', 'Name') }}
     <label class="to-field"><span>Role preset</span><select name="role">{% for r in vocab['role_presets'] %}<option value="{{ r }}">{{ r|replace('_',' ')|capitalize }}</option>{% endfor %}</select></label>
     <label class="to-field"><span>Link to a person in the directory</span><select name="person_id"><option value="">—</option>{% for p in people %}<option value="{{ p['id'] }}">{{ p['name'] }}</option>{% endfor %}</select></label>
-    <div class="to-wide"><span class="to-eyebrow" style="font-size:10px">Permissions (leave all unticked to use the preset)</span>
+    <div class="to-wide"><span class="to-eyebrow" style="font-size:12px">Permissions (leave all unticked to use the preset)</span>
       <div class="to-checks">{% for s in vocab['scopes'] %}{% if s != 'admin' or viewer['is_owner'] %}<label><input type="checkbox" name="scopes" value="{{ s }}"> {{ s }}</label>{% endif %}{% endfor %}</div></div>
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Invite</button></div>
@@ -23,7 +23,7 @@
 {% for mm in members %}
 <details class="to-panel" style="margin-bottom:8px">
   <summary style="cursor:pointer"><b>{{ mm['name'] or mm['email'] }}</b> <span class="to-muted">{{ mm['email'] }} · {{ mm['role']|replace('_',' ') }}</span> {{ m.chip('confirmed' if mm['status'] == 'active' else 'pending') }}{% if mm['status'] == 'invited' %} <span class="to-muted">invited, not yet joined</span>{% endif %}</summary>
-  {% if mm['join_url'] %}<div style="margin-top:8px"><span class="to-muted">Join link:</span> <input class="to-input" readonly value="{{ mm['join_url'] }}" onclick="this.select()" style="min-height:32px;padding:4px 8px;font-size:11px"></div>{% endif %}
+  {% if mm['join_url'] %}<div style="margin-top:8px"><span class="to-muted">Join link:</span> <input class="to-input" readonly value="{{ mm['join_url'] }}" onclick="this.select()" style="min-height:32px;padding:4px 8px;font-size:12px"></div>{% endif %}
   {# One form, two submit buttons, and the action rides on the BUTTON - a
      hidden action input here would be serialised first and shadow the
      Remove button's value. #}

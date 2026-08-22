@@ -332,7 +332,7 @@ def _as_html(text):
     paragraphs = [p.strip() for p in (text or "").split("\n\n") if p.strip()]
     return "".join(
         "<p style=\"margin:0 0 14px;font:15px/1.6 -apple-system,Segoe UI,"
-        "Roboto,Helvetica,Arial,sans-serif;color:#141210\">%s</p>"
+        "Roboto,Helvetica,Arial,sans-serif;color:#1A1714\">%s</p>"
         % str(escape(p)).replace("\n", "<br>") for p in paragraphs)
 
 

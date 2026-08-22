@@ -169,20 +169,20 @@ def domain_status():
 
 def release_email_html(campaign_title, artist_name, listen_url, cover_url=""):
     """Branded release-day note. Plain, readable, one clear button."""
-    cover = ('<img src="%s" alt="" width="120" style="border-radius:12px;display:block;margin:0 auto 16px;">'
+    cover = ('<img src="%s" alt="" width="120" style="border-radius:var(--sb-r-panel);display:block;margin:0 auto 16px;">'
              % cover_url) if cover_url else ""
     return (
-        '<div style="background:#0f0e0c;padding:32px 16px;font-family:Arial,sans-serif;">'
-        '<div style="max-width:480px;margin:0 auto;background:#161412;border:1px solid #3a2f1a;'
-        'border-radius:16px;padding:32px;text-align:center;">'
+        '<div style="background:#0B0A08;padding:32px 16px;font-family:Arial,sans-serif;">'
+        '<div style="max-width:480px;margin:0 auto;background:#131110;border:1px solid #8A6E30;'
+        'border-radius:var(--sb-r-panel);padding:32px;text-align:center;">'
         + cover +
-        '<p style="color:#c9a24a;font-size:11px;letter-spacing:3px;margin:0;">OUT NOW</p>'
-        '<h1 style="color:#f5f1e8;font-size:24px;margin:8px 0 4px;">%s</h1>'
-        '<p style="color:#b8b0a0;font-size:14px;margin:0 0 24px;">%s</p>'
-        '<a href="%s" style="display:inline-block;background:#d8b25a;color:#1c1302;'
-        'font-weight:bold;font-size:14px;padding:12px 28px;border-radius:10px;'
+        '<p style="color:#C9A24A;font-size:12px;letter-spacing:3px;margin:0;">OUT NOW</p>'
+        '<h1 style="color:#F2ECE0;font-size:24px;margin:8px 0 4px;">%s</h1>'
+        '<p style="color:#A99B84;font-size:14px;margin:0 0 24px;">%s</p>'
+        '<a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
+        'font-weight:bold;font-size:14px;padding:12px 28px;border-radius:var(--sb-r-panel);'
         'text-decoration:none;">Listen Now</a>'
-        '<p style="color:#6b6355;font-size:11px;margin:24px 0 0;">You asked to be notified '
+        '<p style="color:#91836A;font-size:12px;margin:24px 0 0;">You asked to be notified '
         'about this release. Links open your preferred platform.</p>'
         '</div></div>'
     ) % (campaign_title, artist_name, listen_url)

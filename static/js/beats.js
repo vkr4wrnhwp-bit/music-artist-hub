@@ -118,7 +118,7 @@
     var mid = h / 2, step = w / peaks.length, played = w * (progress || 0);
     for (var i = 0; i < peaks.length; i++) {
       var x = i * step, amp = Math.max(1, peaks[i] * (h * 0.46));
-      g.fillStyle = x <= played ? "#e8c667" : "rgba(238,232,220,0.34)";
+      g.fillStyle = x <= played ? "#E8B950" : "rgba(238,232,220,0.34)";
       g.fillRect(x, mid - amp, Math.max(1, step - 0.6), amp * 2);
     }
   }

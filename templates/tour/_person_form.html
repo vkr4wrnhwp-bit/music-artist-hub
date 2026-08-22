@@ -13,7 +13,7 @@
     {% if contacts %}<label class="to-field"><span>Or pull from Press Desk contacts</span><select name="from_contact"><option value="">—</option>{% for c in contacts %}<option value="{{ c['id'] }}">{{ c['name'] }}{% if c['outlet'] %} · {{ c['outlet'] }}{% endif %}</option>{% endfor %}</select></label>{% endif %}
     {{ m.textarea('notes', 'Notes', e['notes'] if e else '', rows=2) }}
     <div class="to-checks to-wide">{{ m.check('phone_public', 'Phone visible to everyone on the tour', (e and not e['phone_private'])) }}</div>
-    <div class="to-wide"><span class="to-eyebrow" style="font-size:10px">Shows (none ticked = every show)</span>
+    <div class="to-wide"><span class="to-eyebrow" style="font-size:12px">Shows (none ticked = every show)</span>
       <div class="to-checks">{% for s in shows %}<label><input type="checkbox" name="shows" value="{{ s['id'] }}" {% if e and s['id'] in e['shows'] %}checked{% endif %}> {{ s['date'][5:] }} {{ s['city'] or s['venue'] }}</label>{% endfor %}</div></div>
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">{{ 'Save' if e else 'Add person' }}</button>

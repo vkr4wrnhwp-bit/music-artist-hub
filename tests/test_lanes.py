@@ -215,7 +215,11 @@ def test_the_motion_is_restrained():
 
 def test_the_dark_system_holds():
     css = _css()
-    for token in ("#0A0A09", "#C9A86A", "#EEE9DF"):
+    for token in (
+                  "var(--sb-ground)",
+                  "var(--sb-gold)",
+                  "var(--sb-ink)"
+               ):
         assert token in css, token
     assert "background: var(--ln-ink)" in css
     for bright in ("background: #fff", "background: white"):

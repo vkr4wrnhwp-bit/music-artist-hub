@@ -230,8 +230,16 @@ def test_the_panel_has_no_gauges_charts_or_predictions():
 
 def test_the_dark_system_is_the_one_in_the_brief():
     css = _css()
-    for token in ("#0B0B0A", "#121210", "#171714", "rgb(201 168 106 / 0.26)",
-                  "#C9A86A", "#EEE9DF", "#A8A39A", "#6F8B6B"):
+    for token in (
+                  "var(--sb-ground)",
+                  "var(--sb-surface-1)",
+                  "var(--sb-surface-2)",
+                  "rgb(201 168 106 / 0.26)",
+                  "var(--sb-gold)",
+                  "var(--sb-ink)",
+                  "var(--sb-ink-2)",
+                  "var(--sb-good)"
+               ):
         assert token in css, token
     assert "background: var(--tw-ink)" in css
     for bright in ("#fff", "#FFF", "background: white"):

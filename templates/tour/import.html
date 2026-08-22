@@ -9,7 +9,7 @@
   <input type="hidden" name="action" value="confirm"><input type="hidden" name="source" value="{{ source }}"><input type="hidden" name="text" value="{{ text }}">
   {% set dupes = preview | selectattr('verdict', 'equalto', 'duplicate') | list %}
   {% if dupes %}
-  <label style="display:flex;gap:9px;align-items:flex-start;margin:0 0 14px;padding:11px 13px;border:1px solid var(--to-line);border-radius:8px">
+  <label style="display:flex;gap:9px;align-items:flex-start;margin:0 0 14px;padding:11px 13px;border:1px solid var(--to-line);border-radius:var(--sb-r-panel)">
     <input type="checkbox" name="fill_existing" value="1" checked>
     <span>
       <b>Fill in the {{ dupes|length }} date{{ '' if dupes|length == 1 else 's' }} already on this tour.</b>

@@ -8,14 +8,14 @@
  */
 
 .sbmp {
-  --mp-ink: #080807;
-  --mp-raised: #11110F;
-  --mp-brass: #C9A86A;
-  --mp-brass-lit: #E1C48F;
-  --mp-ivory: #EEE8DC;
-  --mp-muted: #A7A198;
-  --mp-warn: #A77B4A;
-  --mp-ok: #6F8B6B;
+  --mp-ink: var(--sb-ground);
+  --mp-raised: var(--sb-surface-1);
+  --mp-brass: var(--sb-gold);
+  --mp-brass-lit: var(--sb-gold-bright);
+  --mp-ivory: var(--sb-ink);
+  --mp-muted: var(--sb-ink-2);
+  --mp-warn: var(--sb-gold);
+  --mp-ok: var(--sb-good);
   --mp-line: rgb(201 168 106 / 0.22);
 
   background: var(--mp-ink);
@@ -80,7 +80,7 @@
   min-height: 52px;
   padding: 0 30px;
   border: 1px solid var(--mp-brass);
-  border-radius: 2px;
+  border-radius: var(--sb-r-control);
   color: var(--mp-brass);
   font-size: 12.5px;
   font-weight: 600;
@@ -90,7 +90,7 @@
   transition: background-color 200ms ease, color 200ms ease;
 }
 .sbmp-cta svg { width: 16px; height: 16px; }
-.sbmp-cta:hover { background: var(--mp-brass); color: #14120E; }
+.sbmp-cta:hover { background: var(--mp-brass); color: var(--sb-surface-2); }
 
 .sbmp-connect-btn {
   background: none;
@@ -229,7 +229,7 @@
 
 .sbmp-cat-num {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.22em;
   color: var(--mp-brass);
@@ -267,7 +267,7 @@
 .sbmp-connect {
   margin-top: 16px;
   border: 1px solid var(--mp-line);
-  border-radius: 3px;
+  border-radius: var(--sb-r-control);
   padding: 16px clamp(16px, 2vw, 26px) 18px;
 }
 .sbmp-connect-trigger {
@@ -291,7 +291,7 @@
   .sbmp-connect-list li { grid-template-columns: 176px minmax(0, 1fr); }
 }
 .sbmp-connect-area {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;

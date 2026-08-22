@@ -17,16 +17,16 @@
       <div class="relative aspect-[4/5]" style="background: linear-gradient(135deg, {{ m.from }}, {{ m.to }});">
         <!-- tiled watermark -->
         <div class="pointer-events-none absolute inset-0 flex flex-col justify-around p-4 opacity-20">
-          {% for i in range(10) %}<div class="whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.2em] text-white">STREET BANKER · {{ m.serial }} · {{ m.owner_name }} · STREET BANKER · {{ m.serial }}</div>{% endfor %}
+          {% for i in range(10) %}<div class="sb-label whitespace-nowrap text-white">STREET BANKER · {{ m.serial }} · {{ m.owner_name }} · STREET BANKER · {{ m.serial }}</div>{% endfor %}
         </div>
         <div class="absolute inset-x-0 top-0 flex items-center justify-between p-4">
-          <span class="rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-semibold text-white">Edition #{{ m.edition_n }} / {{ m.edition_total }}</span>
-          <span id="countdown" data-expires="{{ m.expires_iso }}" class="rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-semibold text-amber-300">—</span>
+          <span class="rounded-full bg-black/40 px-2.5 py-1 text-xs font-semibold text-white">Edition #{{ m.edition_n }} / {{ m.edition_total }}</span>
+          <span id="countdown" data-expires="{{ m.expires_iso }}" class="rounded-full bg-black/40 px-2.5 py-1 text-xs font-semibold text-amber-300">—</span>
         </div>
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-5">
           <div class="text-lg font-bold text-white">{{ m.title }}</div>
           <div class="mt-0.5 text-xs text-gray-200">{{ m.caption }}</div>
-          <div class="mt-1 text-[11px] font-mono text-gray-300 font-medium">{{ m.serial }} · {{ m.owner_name }}</div>
+          <div class="mt-1 text-xs font-mono text-gray-300 font-medium">{{ m.serial }} · {{ m.owner_name }}</div>
         </div>
       </div>
       <!-- Deterrent overlay: covers the art when the tab/window loses focus -->
@@ -38,12 +38,12 @@
 
     <!-- Details / claim -->
     <div class="space-y-4">
-      <div class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+      <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
         <div class="flex items-center gap-2">
-          <a href="/network/{{ m.owner_id }}" class="grid h-9 w-9 place-items-center rounded-full border border-amber-500/40 text-[11px] font-bold text-amber-400">{{ m.owner_initials }}</a>
-          <div><div class="text-sm font-semibold text-gray-100">{{ m.owner_name }}</div><div class="text-[11px] text-gray-300 font-medium">Moment creator</div></div>
+          <a href="/network/{{ m.owner_id }}" class="grid h-9 w-9 place-items-center rounded-full border border-amber-500/40 text-xs font-bold text-amber-400">{{ m.owner_initials }}</a>
+          <div><div class="text-sm font-semibold text-gray-100">{{ m.owner_name }}</div><div class="text-xs text-gray-300 font-medium">Moment creator</div></div>
         </div>
-        <dl class="mt-4 space-y-1.5 text-[11px] font-medium">
+        <dl class="mt-4 space-y-1.5 text-xs font-medium">
           <div class="flex justify-between"><dt class="text-gray-300">Serial</dt><dd class="font-mono text-gray-200">{{ m.serial }}</dd></div>
           <div class="flex justify-between"><dt class="text-gray-300">Edition</dt><dd class="font-semibold text-gray-200">#{{ m.edition_n }} / {{ m.edition_total }}</dd></div>
           <div class="flex justify-between"><dt class="text-gray-300">Expires in</dt><dd id="countdown-2" data-expires="{{ m.expires_iso }}" class="font-semibold text-amber-400">—</dd></div>
@@ -52,15 +52,15 @@
         {% if m.claimed %}
         <div class="mt-4 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2.5 text-center text-sm font-semibold text-green-400">Owned · {{ m.serial }}</div>
         {% else %}
-        <button type="button" id="claim-btn" class="mt-4 w-full rounded-md border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/25">Claim &amp; Keep — ${{ m.price }}</button>
-        <div id="claim-result" class="mt-2 hidden text-center text-[11px] font-semibold text-green-400"></div>
+        <button type="button" id="claim-btn" class="sb-btn sb-btn-secondary mt-4 w-full">Claim &amp; Keep — ${{ m.price }}</button>
+        <div id="claim-result" class="mt-2 hidden text-center text-xs font-semibold text-green-400"></div>
         {% endif %}
       </div>
 
-      <div class="rounded-2xl border border-white/5 bg-[#111113] p-4">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-300">How it works</div>
-        <p class="mt-2 text-[11px] leading-relaxed text-gray-300 font-medium">This moment shows for a limited time, then disappears. Every view is <span class="text-gray-200">watermarked and serial-numbered</span>, so any screenshot is a traceable, defaced copy. Claim it to keep the clean, owned edition.</p>
-        <p class="mt-2 text-[10px] leading-relaxed text-gray-300 font-medium">Note: a website can't truly block screenshots — the shield here is a deterrent. The real protection is the watermark + serial. Claim is a simulated demo (no real payment).</p>
+      <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-4">
+        <div class="sb-label text-gray-300">How it works</div>
+        <p class="mt-2 text-xs leading-relaxed text-gray-300 font-medium">This moment shows for a limited time, then disappears. Every view is <span class="text-gray-200">watermarked and serial-numbered</span>, so any screenshot is a traceable, defaced copy. Claim it to keep the clean, owned edition.</p>
+        <p class="mt-2 text-xs leading-relaxed text-gray-300 font-medium">Note: a website can't truly block screenshots — the shield here is a deterrent. The real protection is the watermark + serial. Claim is a simulated demo (no real payment).</p>
       </div>
     </div>
   </div>

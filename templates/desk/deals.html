@@ -19,7 +19,7 @@
     <td>{{ d.advance_discussed or '—' }}</td>
     <td>{{ d.distribution_fee or '—' }}</td>
     <td>{{ d.term or '—' }}</td>
-    <td style="font-size:11px">
+    <td style="font-size:12px">
       {% if d.publishing_involved %}<span class="dk-chip">Publishing</span>{% endif %}
       {% if d.content_id_involved %}<span class="dk-chip">Content ID</span>{% endif %}
       {% if d.counsel_involved %}<span class="dk-chip">Counsel</span>{% endif %}
@@ -29,7 +29,7 @@
       <form class="dk-inline" method="post" action="/operator-desk/deals/{{ d.id }}/status">
         <input type="hidden" name="back" value="/operator-desk/deals">
         <select class="dk-mini" name="status">{% for s in vocab.deal_statuses %}<option {{ 'selected' if d.status == s }}>{{ s }}</option>{% endfor %}</select>
-        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:10px" type="submit">Set</button>
+        <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Set</button>
       </form>{% endif %}</td>
   </tr>
   {% endfor %}

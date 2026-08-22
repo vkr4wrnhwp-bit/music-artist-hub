@@ -37,11 +37,11 @@
       {% if r['kind'] == 'show' %}
         <b>{{ r['city'] or r['venue'] }}</b>
         <span class="to-muted">{{ r['venue'] }}</span>
-        {%- if r['address'] %}<br><span class="to-muted" style="font-size:11.5px">{{ r['address'] }}</span>{% endif %}
-        {%- if r['support'] %}<br><span class="to-muted" style="font-size:11.5px">Bill: {{ r['support'] }}</span>{% endif %}
+        {%- if r['address'] %}<br><span class="to-muted" style="font-size:12px">{{ r['address'] }}</span>{% endif %}
+        {%- if r['support'] %}<br><span class="to-muted" style="font-size:12px">Bill: {{ r['support'] }}</span>{% endif %}
         {% if r['schedule'] %}
         <br>
-        {% for it in r['schedule'] %}<span class="to-muted" style="font-size:11.5px">{{ fmt_time(it['start_time']) }} {{ it['title'] }}{{ ' · ' if not loop.last }}</span>{% endfor %}
+        {% for it in r['schedule'] %}<span class="to-muted" style="font-size:12px">{{ fmt_time(it['start_time']) }} {{ it['title'] }}{{ ' · ' if not loop.last }}</span>{% endfor %}
         {% endif %}
       {% else %}
         <b>{{ r['kind']|capitalize }}{% if r['city'] %} — {{ r['city'] }}{% endif %}</b>
@@ -51,7 +51,7 @@
       {% if r['travel'] %}
         <br>
         {% for t in r['travel'] %}
-        <span class="to-muted" style="font-size:11.5px">
+        <span class="to-muted" style="font-size:12px">
           {%- if t['dep_time'] %}{{ fmt_time(t['dep_time']) }} {% endif %}
           {{- {'air':'flight','ground':'drive','bus':'bus','rail':'train'}.get(t['mode'], t['mode']) }}
           {%- if t['dep_loc'] %} from {{ t['dep_loc'] }}{% endif %}
@@ -62,7 +62,7 @@
       {% endif %}
 
       {% if r['hotel'] %}
-        <br><span class="to-muted" style="font-size:11.5px">Hotel: {{ r['hotel']['property'] }}{% if r['hotel']['address'] %} — {{ r['hotel']['address'] }}{% endif %}</span>
+        <br><span class="to-muted" style="font-size:12px">Hotel: {{ r['hotel']['property'] }}{% if r['hotel']['address'] %} — {{ r['hotel']['address'] }}{% endif %}</span>
       {% endif %}
     </span>
     <span></span>

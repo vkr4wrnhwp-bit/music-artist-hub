@@ -310,8 +310,15 @@ def test_the_motion_is_restrained():
 
 def test_the_dark_system_is_the_one_in_the_brief():
     css = _css()
-    for token in ("#080807", "#11110F", "#C9A86A", "#EEE8DC", "#A7A198",
-                  "#A77B4A", "#6F8B6B", "rgb(201 168 106 / 0.22)"):
+    for token in (
+                  "var(--sb-ground)",
+                  "var(--sb-surface-1)",
+                  "var(--sb-gold)",
+                  "var(--sb-ink)",
+                  "var(--sb-ink-2)",
+                  "var(--sb-good)",
+                  "rgb(201 168 106 / 0.22)"
+               ):
         assert token in css, token
     for banned in ("background: #fff", "background: white"):
         assert banned not in css, banned
