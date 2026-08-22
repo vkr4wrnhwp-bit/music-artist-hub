@@ -151,3 +151,29 @@ test("a pass crossing straight THROUGH a protected bore is protected — endpoin
   }));
   assert.ok(a.protectedHits.some((h) => h.label === "40 mm bearing bore"));
 });
+
+test("a cut passing THROUGH a protected region's depth is protected, not just one ending inside it", () => {
+  // The XY match is a segment-to-centre distance, with a comment saying
+  // endpoints alone would let a pass crossing a bore escape. Z was matched on
+  // the endpoint only, so the identical argument failed there: a plunge that
+  // stopped inside the region was protected, and one that carried on past the
+  // bottom of it drew a proposal. A drill continuing through a protected bore
+  // escaped by finishing lower than the region it travelled through.
+  const region = { label: "Bearing Bore A", reason: "critical", centerX: 0, centerY: 0, radius: 1.0, zTop: 0, zBottom: -0.3 };
+  const through = "G20 G90\nS5000 M3\nG0 X0 Y0 Z0.2\nG1 Z-0.5 F10";
+  const a = analyzeLoad(parseNC(through), ctx({ protectedRegions: [region] }));
+  assert.equal(a.protectedHits.length, 1, "the cut travelled through the protected depth");
+  assert.equal(a.proposals.length, 0, "and nothing may be proposed for it");
+});
+
+test("a cut entirely below a region is still not protected", () => {
+  // The span test must not over-reach: a pass under the feature has not
+  // touched it.
+  const region = { label: "Shallow bore", reason: "critical", centerX: 0, centerY: 0, radius: 1.0, zTop: 0, zBottom: -0.1 };
+  const below = "G20 G90\nS5000 M3\nG0 X-2.5 Y0 Z0.2\nG1 Z-0.5 F5\nG1 X2.5 F10";
+  const a = analyzeLoad(parseNC(below), ctx({ protectedRegions: [region] }));
+  const lateral = a.protectedHits.reduce((n, h) => n + h.segments, 0);
+  // The plunge crosses the region on its way down and is rightly caught; the
+  // lateral pass at Z-0.5 is wholly below it and is not.
+  assert.ok(lateral <= 1, `a pass under the feature was protected: ${lateral} segments`);
+});

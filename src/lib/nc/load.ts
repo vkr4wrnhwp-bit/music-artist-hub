@@ -142,7 +142,15 @@ export function analyzeLoad(parsed: ParsedNC, ctx: LoadContext): LoadAnalysis {
     if (s.feed === null) return null;
     for (const r of regions) {
       const inXY = segDist(s.x0, s.y0, s.x1, s.y1, r.centerX, r.centerY) <= r.radius;
-      const inZ = s.z1 <= r.zTop + Z_EPS && s.z1 >= r.zBottom - Z_EPS;
+      // Z is tested as a SPAN, for the same reason XY is tested as a segment
+      // above. Matching s.z1 alone protected a plunge that stopped inside the
+      // region and let an identical one that carried on past the bottom of it
+      // go free — a drill continuing through a protected bore, or a pass
+      // stepping below the feature it just cut, escaped by finishing lower
+      // than the region it travelled through.
+      const zLo = Math.min(s.z0, s.z1);
+      const zHi = Math.max(s.z0, s.z1);
+      const inZ = zLo <= r.zTop + Z_EPS && zHi >= r.zBottom - Z_EPS;
       if (inXY && inZ) return r;
     }
     return null;
