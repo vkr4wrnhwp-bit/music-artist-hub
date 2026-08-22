@@ -156,6 +156,27 @@
     .rk-knob:focus-visible { box-shadow: 0 0 0 2px #0b0906, 0 0 0 4px #e8c667; }
   }
 
+  /* Undo, redo and the history list. The popover opens UPWARD because it
+     lives in a dock pinned to the bottom of the window. */
+  .rk-hist-wrap { position: relative; display: flex; gap: 4px; flex: none; }
+  .rk-hist-pop {
+    position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 50;
+    width: min(300px, calc(100vw - 32px)); max-height: 46vh; overflow-y: auto;
+    background: #0c0b09; border: 1px solid rgba(201,162,74,.45); border-radius: 8px;
+    box-shadow: 0 18px 40px -12px rgba(0,0,0,.85); padding: 10px;
+  }
+  .rk-hist-pop[hidden] { display: none; }
+  .rk-hist-head { margin: 0 0 8px; font-size: 10px; line-height: 1.5; color: #8a7c5d; }
+  .rk-hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .rk-hist-item {
+    width: 100%; text-align: left; padding: 7px 9px; border-radius: 5px;
+    border: 1px solid transparent; background: rgba(255,255,255,.03);
+    color: #e8e2d4; font-size: 11.5px; cursor: pointer;
+  }
+  .rk-hist-item:hover, .rk-hist-item:focus-visible { border-color: rgba(201,162,74,.5); color: #e8c667; }
+  .rk-hist-none { font-size: 11px; color: #8a7c5d; padding: 6px 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
   /* Dormant lane rail: the empty fader slot on an unloaded channel. */
   .rail { height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
           background: repeating-linear-gradient(90deg, #191512 0 6px, #0c0a08 6px 12px);
@@ -283,7 +304,7 @@
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Studio</div>
-      <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">The Rack</h1>
+      <h1 class="sb-h1 mt-1">The Rack</h1>
       <p class="mt-1 max-w-2xl text-sm text-gray-300">Real DSP running in your browser — 12-band EQ, tube stage, cab &amp; mic sim, compressor, WAV export. Your audio never leaves this machine. A utility rack for demos and drops, not a mastering engineer.</p>
     </div>
     <div class="flex items-center gap-2">
@@ -421,6 +442,7 @@
       <div class="flex shrink-0 flex-col items-center gap-1">
         <span id="scope-lamp" class="lamp"></span>
         <span id="rk-status" class="w-20 truncate text-center text-[8px] text-[#8a7c5d] font-medium"></span>
+        <span id="rk-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
       </div>
     </div>
 
@@ -1057,6 +1079,17 @@
       <div class="hidden w-28 shrink-0 sm:block">
         <div class="rk-seg h-2 overflow-hidden rounded-sm border border-black/60 bg-black/70"><div id="rk-peak2" class="h-full w-0 bg-gradient-to-r from-green-500 via-[#e8c667] to-red-500"></div></div>
       </div>
+      <div class="rk-hist-wrap">
+        <button id="rk-undo" class="sw px-2.5 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" type="button" disabled title="Nothing to undo">&#8630;</button>
+        <button id="rk-redo" class="sw px-2.5 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" type="button" disabled title="Nothing to redo">&#8631;</button>
+        <button id="rk-hist-btn" class="sw px-2.5 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" type="button" disabled
+                aria-haspopup="true" aria-expanded="false" aria-controls="rk-hist-pop"
+                title="Every change you have made, newest first">History</button>
+        <div id="rk-hist-pop" class="rk-hist-pop" hidden role="dialog" aria-label="Change history">
+          <p class="rk-hist-head">Newest first &middot; pick one to go back to just before it</p>
+          <ul id="rk-hist-list" class="rk-hist-list" role="list"></ul>
+        </div>
+      </div>
       <button id="rk-ab2" class="sw px-3 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" disabled>Bypass: OFF</button>
       <button id="rk-export2" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] sm:text-[10px] font-medium" disabled>Export</button>
       <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block font-medium" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
@@ -1079,5 +1112,5 @@
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=35"></script>
+<script src="/static/js/rackdsp.js?v=38"></script>
 {% endblock %}

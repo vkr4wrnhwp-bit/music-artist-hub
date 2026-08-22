@@ -610,6 +610,141 @@
     c.outGain.gain.value = Math.pow(10, (modOn("out") ? state.out : 0) / 20);
   }
 
+  // ---------- undo / redo ----------
+  // The rack had A/B per module and no way back at all. This snapshots the
+  // state BEFORE each change, which is what an undo actually needs, and
+  // coalesces a drag so turning one knob is one step rather than sixty.
+  //
+  // It hangs off applyState() — the single call every mutation already
+  // makes — so a change from anywhere is captured without each caller
+  // having to remember to record it.
+  var HIST_MAX = 60, HIST_COALESCE_MS = 700;
+  var hist = {past: [], future: [], prev: null, label: "", at: 0, quiet: false};
+
+  function snap() { return JSON.parse(JSON.stringify(state)); }
+
+  function histMark(label) {
+    // Called from applyState AFTER the mutation. An entry means "this is
+    // what things looked like BEFORE `label` happened", so it pairs the
+    // PREVIOUS state with the NEW label — pairing it with the previous
+    // label named every step after the one before it.
+    var now = Date.now();
+    if (hist.prev === null) { hist.prev = snap(); hist.at = now; return; }
+    var top = hist.past[hist.past.length - 1];
+    // Coalesce against the entry actually on the stack, not against a
+    // field this function overwrites on every call. Sixty pointermove
+    // events on one knob are one thing the user did, and a history that
+    // lists them sixty times is unusable.
+    var sameGesture = top && top.label === label && (now - hist.at) < HIST_COALESCE_MS;
+    if (!sameGesture) {
+      hist.past.push({s: hist.prev, label: label || "change"});
+      if (hist.past.length > HIST_MAX) hist.past.shift();
+      hist.future.length = 0;
+    }
+    hist.prev = snap();
+    hist.label = label;
+    hist.at = now;
+    paintHistory();
+  }
+
+  function histRestore(snapshot, label) {
+    hist.quiet = true;
+    state = JSON.parse(JSON.stringify(snapshot));
+    ensureFx(state);
+    hist.prev = snap();
+    hist.label = label || "";
+    syncAll(); applyState();
+    hist.quiet = false;
+    paintHistory();
+  }
+
+  function histUndo() {
+    if (!hist.past.length) return;
+    var step = hist.past.pop();
+    hist.future.push({s: hist.prev, label: hist.label || "change"});
+    histRestore(step.s, step.label);
+    setStatus("Undone: " + step.label);
+  }
+
+  function histRedo() {
+    if (!hist.future.length) return;
+    var step = hist.future.pop();
+    hist.past.push({s: hist.prev, label: hist.label || "change"});
+    histRestore(step.s, step.label);
+    setStatus("Redone: " + step.label);
+  }
+
+  function histJump(index) {
+    // index counts back from the most recent step: 0 is the newest.
+    if (index < 0 || index >= hist.past.length) return;
+    var keep = hist.past.slice(0, hist.past.length - index);
+    var target = keep[keep.length - 1];
+    // Everything newer than the target becomes redoable, newest last.
+    var undone = hist.past.slice(hist.past.length - index);
+    hist.future = hist.future.concat([{s: hist.prev, label: hist.label || "change"}])
+                             .concat(undone.slice(1).map(function (x) { return x; }));
+    hist.past = keep.slice(0, keep.length - 1);
+    histRestore(target.s, target.label);
+    setStatus("Back to: " + target.label);
+  }
+
+  function setStatus(msg) {
+    var el = document.getElementById("rk-status");
+    if (el) el.textContent = msg;
+    var live = document.getElementById("rk-live");
+    if (live) { live.textContent = ""; setTimeout(function () { live.textContent = msg; }, 30); }
+  }
+
+  function paintHistory() {
+    var u = document.getElementById("rk-undo"), r = document.getElementById("rk-redo");
+    if (u) { u.disabled = !hist.past.length; u.title = hist.past.length
+      ? "Undo " + hist.past[hist.past.length - 1].label + " (Ctrl+Z)" : "Nothing to undo"; }
+    if (r) { r.disabled = !hist.future.length; r.title = hist.future.length
+      ? "Redo " + hist.future[hist.future.length - 1].label + " (Ctrl+Shift+Z)" : "Nothing to redo"; }
+    var btn = document.getElementById("rk-hist-btn");
+    if (btn) btn.disabled = !hist.past.length;
+    var list = document.getElementById("rk-hist-list");
+    if (!list) return;
+    list.textContent = "";
+    if (!hist.past.length) {
+      var none = document.createElement("li");
+      none.className = "rk-hist-none";
+      none.textContent = "Nothing yet — every change you make lands here.";
+      list.appendChild(none);
+      return;
+    }
+    // Newest first: that is the order somebody looking for "what did I just
+    // do" reads in.
+    for (var i = hist.past.length - 1, n = 0; i >= 0 && n < 20; i--, n++) {
+      (function (idx, step) {
+        var li = document.createElement("li");
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "rk-hist-item";
+        b.textContent = step.label;
+        b.setAttribute("aria-label", "Go back to before " + step.label);
+        b.addEventListener("click", function () { histJump(idx); closeHistory(); });
+        li.appendChild(b);
+        list.appendChild(li);
+      })(n, hist.past[i]);
+    }
+  }
+
+  function closeHistory() {
+    var pop = document.getElementById("rk-hist-pop");
+    var btn = document.getElementById("rk-hist-btn");
+    if (pop) pop.hidden = true;
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  // What a change is CALLED matters more than that it happened: "EQ 250 Hz"
+  // is a step somebody recognises, "change" is not. Set by the mutation
+  // sites that know; anything else falls back to the module name.
+  var histLabel = "change";
+  function labelled(name, fn) {
+    return function () { histLabel = name; return fn.apply(this, arguments); };
+  }
+
   function applyState() {
     if (live) {
       voiceChain(live, ctx);
@@ -620,6 +755,7 @@
     syncModButtons();
     paintCabView();
     eqCurveDirty = true;
+    if (!hist.quiet) histMark(histLabel);
   }
 
   // ---------- SB-08 placement diagram ----------
@@ -882,6 +1018,10 @@
       v = Math.round(v / opts.wheelStep * 5) * opts.wheelStep / 5;   // fine grid
       v = Math.round(v * 1000) / 1000;
       if (v === opts.get()) return;
+      // The knob's own caption is what the user just grabbed, so it is
+      // also what the history entry should be called. Coalescing in
+      // histMark turns one drag into one step rather than sixty.
+      histLabel = opts.label;
       opts.set(v);
       paint(); applyState();
     }
@@ -976,6 +1116,7 @@
     });
   }
   document.getElementById("rk-eq-flat").addEventListener("click", function () {
+    histLabel = "EQ flat";
     state.eq = state.eq.map(function () { return 0; });
     renderEq(); applyState();
   });
@@ -1518,6 +1659,7 @@
   document.querySelectorAll(".rk-pwr").forEach(function (b) {
     b.addEventListener("click", function () {
       var m = b.dataset.mod;
+      histLabel = m.toUpperCase() + " power";
       if (m === "cab") state.cab.on = !state.cab.on;
       else state.mods[m] = state.mods[m] === false;
       syncAll(); applyState();
@@ -1526,6 +1668,7 @@
   document.querySelectorAll(".rk-cmp").forEach(function (b) {
     b.addEventListener("click", function () {
       var m = b.dataset.mod;
+      histLabel = m.toUpperCase() + " A/B";
       var cur = modSlice(m);
       MOD_KEYS[m].forEach(function (k) { state[k] = cmpA[m][k]; });
       cmpA[m] = cur;
@@ -1542,7 +1685,7 @@
       p.bypass = state.bypass;
       p.center = state.center || "normal";
       p.mods = state.mods;
-      state = p; ensureFx(state); syncAll(); applyState();
+      histLabel = "preset"; state = p; ensureFx(state); syncAll(); applyState();
       resetCompare();
       statusEl.textContent = "Preset loaded.";
     });
@@ -1557,17 +1700,17 @@
 
   // ---------- cab & mic selectors ----------
   document.getElementById("rk-cab-on").addEventListener("change", function (e) {
-    state.cab.on = e.target.checked; applyState();
+    histLabel = "cab " + (e.target.checked ? "on" : "off"); state.cab.on = e.target.checked; applyState();
   });
   document.getElementById("rk-cab-cab").addEventListener("change", function (e) {
-    state.cab.cab = e.target.value; applyState();
+    histLabel = "cab: " + e.target.value; state.cab.cab = e.target.value; applyState();
   });
   document.getElementById("rk-cab-mic").addEventListener("change", function (e) {
-    state.cab.mic = e.target.value; applyState();
+    histLabel = "mic: " + e.target.value; state.cab.mic = e.target.value; applyState();
   });
   document.querySelectorAll("input[name=rk-axis]").forEach(function (el) {
     el.addEventListener("change", function () {
-      state.cab.axis = el.value; applyState();
+      histLabel = "mic axis: " + el.value; state.cab.axis = el.value; applyState();
     });
   });
   /* The selector caps are the control surface; the hidden select stays the
@@ -3883,4 +4026,38 @@
   resetCompare();
   syncModButtons();
   draw();
+
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, but never while somebody is typing in
+  // a field — the browser's own undo belongs to the text box.
+  document.addEventListener("keydown", function (e) {
+    var t = e.target || {};
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "") || t.isContentEditable;
+    if (typing || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+    e.preventDefault();
+    if (e.shiftKey) histRedo(); else histUndo();
+  });
+
+  (function wireHistoryUi() {
+    // Seed the baseline HERE rather than lazily on the first applyState.
+    // applyState is not called during boot, so the lazy version consumed
+    // the user's first real change as the starting point and that change
+    // could never be undone.
+    if (hist.prev === null) { hist.prev = snap(); hist.label = ""; }
+    var u = document.getElementById("rk-undo"), r = document.getElementById("rk-redo");
+    var btn = document.getElementById("rk-hist-btn"), pop = document.getElementById("rk-hist-pop");
+    if (u) u.addEventListener("click", histUndo);
+    if (r) r.addEventListener("click", histRedo);
+    if (btn && pop) {
+      btn.addEventListener("click", function () {
+        var open = pop.hidden;
+        pop.hidden = !open;
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      document.addEventListener("click", function (e) {
+        if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) closeHistory();
+      });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeHistory(); });
+    }
+    paintHistory();
+  })();
 })();

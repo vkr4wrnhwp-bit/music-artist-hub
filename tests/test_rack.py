@@ -104,3 +104,56 @@ def flask_app_rack():
     c.post("/signup", data={"name": "Rack User", "email": email, "password": "rack-pass-123"})
     c.post("/login", data={"email": email, "password": "rack-pass-123"})
     return c
+
+
+def test_undo_is_hooked_at_the_single_choke_point():
+    """applyState() is called after every mutation, from nineteen places.
+    Hooking history there means a change made from anywhere is captured
+    without each caller having to remember to record it."""
+    js = _js()
+    assert "if (!hist.quiet) histMark(histLabel);" in js
+    body = js.split("function applyState()")[1].split("\n  }")[0]
+    assert "histMark" in body, "history must be recorded from applyState"
+
+
+def test_the_history_baseline_is_seeded_at_load_not_lazily():
+    """applyState is NOT called during boot, so a lazily-seeded baseline
+    consumed the user's first real change as the starting point — and that
+    change could then never be undone."""
+    js = _js()
+    assert "if (hist.prev === null) { hist.prev = snap(); hist.label = \"\"; }" in js
+
+
+def test_a_history_entry_is_named_for_the_change_it_undoes():
+    """An entry means 'this is what it looked like BEFORE label'. Pairing
+    the previous state with the previous LABEL named every step after the
+    one before it."""
+    js = _js()
+    push = js.split("hist.past.push(")[1].split(")")[0]
+    assert "s: hist.prev" in push and "label: label" in push, push
+
+
+def test_one_gesture_is_one_history_step():
+    """Sixty pointermove events on one knob are one thing the user did.
+    Coalescing has to compare against the entry on the STACK, not against
+    a field histMark overwrites on every call — that never matched, and a
+    single knob drag produced sixty entries."""
+    js = _js()
+    assert "var top = hist.past[hist.past.length - 1];" in js
+    assert "top && top.label === label" in js
+    assert "HIST_COALESCE_MS" in js
+
+
+def test_undo_keys_do_not_steal_the_browsers_undo_in_a_text_field():
+    js = _js()
+    block = js.split('e.key.toLowerCase() !== "z"')[0]
+    assert "isContentEditable" in block and "INPUT|TEXTAREA|SELECT" in block
+
+
+def test_the_undo_controls_are_on_the_page():
+    html = _html()
+    for el_id in ("rk-undo", "rk-redo", "rk-hist-btn", "rk-hist-pop", "rk-hist-list", "rk-live"):
+        assert 'id="%s"' % el_id in html, el_id
+    # The popover lives in a dock pinned to the bottom, so it opens upward.
+    assert "bottom: calc(100% + 8px)" in html
+    assert 'aria-haspopup="true"' in html and 'aria-expanded="false"' in html
