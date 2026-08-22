@@ -17,6 +17,7 @@ import demo_seed
 import acr_provider
 import documents_engine
 import inbox_engine
+import board
 import lights_store
 import operator_desk
 import press_desk
@@ -2645,7 +2646,10 @@ def create_app():
                         # without an account. The token is the authorisation
                         # and it is scoped to one thing; /tours/ itself stays
                         # behind the wall.
-                        "/tour-share/")
+                        "/tour-share/",
+                        # The Team-Up Board's one-click renew link from the
+                        # expiry email; single-use token, renews one listing.
+                        "/board-renew/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
@@ -4728,87 +4732,9 @@ def create_app():
         return jsonify({"ok": True})
 
     # --- Team-Up Board: artists seeking partners, venues seeking acts ------------
-
-    @app.route("/tour-board")
-    def tour_board():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        kind = request.args.get("kind")
-        own = store.list_own_board_listings(user["id"])
-        replies_by_listing = {l["id"]: store.list_board_replies(l["id"]) for l in own}
-        return render_template("tour_board.html", active_page="tour-board",
-                               listings=store.list_board_listings(kind),
-                               kind=kind or "", own=own, user=user,
-                               replies_by_listing=replies_by_listing,
-                               **build_dashboard_context())
-
-    @app.route("/tour-board/post", methods=["POST"])
-    def tour_board_post():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        kind = request.form.get("kind") or ""
-        title = (request.form.get("title") or "").strip()
-        if kind in ("artist", "venue") and title:
-            store.add_board_listing(
-                user["id"], kind, title,
-                (request.form.get("region") or "").strip(),
-                (request.form.get("window") or "").strip(),
-                (request.form.get("genre") or "").strip(),
-                (request.form.get("details") or "").strip())
-        return redirect("/tour-board")
-
-    @app.route("/tour-board/<listing_id>/reply", methods=["POST"])
-    def tour_board_reply(listing_id):
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        listing = store.get_board_listing(listing_id)
-        message = (request.form.get("message") or "").strip()
-        contact = (request.form.get("contact") or "").strip()
-        if (listing is None or listing["status"] != "open"
-                or listing["user_id"] == user["id"] or not message
-                or "@" not in contact):
-            return redirect("/tour-board")
-        store.add_board_reply(listing_id, user["id"], message, contact)
-        store.notify(listing["user_id"], "network",
-                     "New reply on your Team-Up listing",
-                     "%s replied to \u201c%s\u201d \u2014 reach them at %s."
-                     % (user["name"] or "A member", listing["title"], contact),
-                     "/tour-board")
-        if emailer.configured():
-            # Best-effort heads-up; the in-app notification is the source
-            # of truth, so a sandbox-blocked send is not an error here.
-            import html as _html
-            owner = store.get_user(listing["user_id"])
-            if owner:
-                emailer.send(
-                    owner["email"], "New reply on your Team-Up listing",
-                    "<p><b>%s</b> replied to \u201c%s\u201d:</p><p>%s</p>"
-                    "<p>Reach them at <a href=\"mailto:%s\">%s</a>, or see it "
-                    "in your Street Banker notifications.</p>"
-                    % (_html.escape(user["name"] or "A member"),
-                       _html.escape(listing["title"]),
-                       _html.escape(message[:500]), _html.escape(contact),
-                       _html.escape(contact)))
-        return redirect("/tour-board?replied=1")
-
-    @app.route("/tour-board/<listing_id>/close", methods=["POST"])
-    def tour_board_close(listing_id):
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        store.close_board_listing(user["id"], listing_id)
-        return redirect("/tour-board")
-
-    @app.route("/tour-board/<listing_id>/delete", methods=["POST"])
-    def tour_board_delete(listing_id):
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        store.delete_board_listing(user["id"], listing_id)
-        return redirect("/tour-board")
+    # Moved to board.py (blueprint "board"): same URLs, structured fields,
+    # in-platform reply threads, lifecycle, saved searches. Registered in
+    # init at the bottom of create_app.
 
     # --- Partner Portal: team roles open real (read-only) doors ------------------
 
@@ -7971,6 +7897,9 @@ def create_app():
     # later, so they too are built from the canonical address.
     tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL)
     lights_store.init_lights()
+    # Team-Up Board: renew and thread links go into emails, so they are
+    # built from the canonical address too.
+    board.init(app, base_url=lambda: PUBLIC_BASE_URL)
 
     return app
 

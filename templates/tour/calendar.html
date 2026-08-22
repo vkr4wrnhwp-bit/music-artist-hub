@@ -50,7 +50,9 @@
         <td data-k="Venue">{% if s %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ s['venue'] }}</a>{% else %}{{ d['title'] or '—' }}{% endif %}</td>
         <td data-k="Ready">{% if s and s['id'] in readiness %}{{ m.ready(readiness[s['id']]) }}{% endif %}</td>
         <td>{% if not s and can('edit') %}
-          <form method="post" action="/tours/{{ tour['id'] }}/days/{{ d['id'] }}/edit" class="to-inline"><input type="hidden" name="action" value="delete"><button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit">Remove</button></form>{% endif %}</td>
+          <span class="to-inline">
+          <a class="to-btn to-btn--ghost to-btn--small" href="/tour-board?new=1&amp;kind=artist&amp;title={{ ('Open date ' ~ d['date'] ~ (' near ' ~ d['city'] if d['city'] else ''))|urlencode }}&amp;region={{ d['city']|urlencode }}&amp;from={{ d['date'] }}&amp;to={{ d['date'] }}" title="Post this open date to the Team-Up Board, prefilled">Post to Team-Up Board</a>
+          <form method="post" action="/tours/{{ tour['id'] }}/days/{{ d['id'] }}/edit" class="to-inline"><input type="hidden" name="action" value="delete"><button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit">Remove</button></form></span>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

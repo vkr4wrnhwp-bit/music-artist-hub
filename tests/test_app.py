@@ -3902,15 +3902,17 @@ def test_team_up_board(monkeypatch):
     monkeypatch.setattr(emailer_mod, "send",
                         lambda to, subject, html, attachments=None:
                         outbox.append((to, subject, html)) or True)
+    import board_store as bs
     app_obj = create_app()
     artist = _demo(app_obj)
-    artist.post("/tour-board/post", data={
+    r = artist.post("/tour-board/post", data={
         "kind": "venue", "title": "Saturday slots open at The Vault",
-        "region": "Charlotte, NC", "window": "Oct 2026", "genre": "indie",
+        "region_text": "Charlotte, NC", "window": "Oct 2026", "genre": "indie",
         "details": "Cap 250, guarantee + door split for the right draw."})
+    assert r.status_code == 302 and "/tour-board/" in r.headers["Location"]
     body = artist.get("/tour-board").get_data(as_text=True)
     assert "Saturday slots open at The Vault" in body and "Your listings" in body
-    # A second account replies; the poster gets notified with the contact.
+    # A second account replies in-platform; the poster gets a thread notification.
     other = app_obj.test_client()
     other.post("/signup", data={"name": "Road Dog", "email": "roaddog@example.net",
                                 "password": "roadpass1"})
@@ -3920,33 +3922,32 @@ def test_team_up_board(monkeypatch):
         "/tour-board?kind=artist").get_data(as_text=True)
     assert "Saturday slots" in other.get(
         "/tour-board?kind=venue").get_data(as_text=True)
-    listing = [l for l in store_mod.list_board_listings("venue")
+    listing = [l for l in bs.list_listings(kind="venue")
                if l["title"].startswith("Saturday slots")][0]
     # Poster can't reply to their own listing.
-    artist.post("/tour-board/%s/reply" % listing["id"], data={
-        "message": "self reply", "contact": "demo@streetbanker.io"})
-    assert store_mod.list_board_replies(listing["id"]) == []
+    artist.post("/tour-board/%s/reply" % listing["id"], data={"message": "self reply"})
+    assert bs.list_board_replies(listing["id"]) == []
     r = other.post("/tour-board/%s/reply" % listing["id"], data={
-        "message": "We pull 200 in Charlotte, October works.",
-        "contact": "roaddog@example.net"})
-    assert "replied=1" in r.headers["Location"]
+        "message": "We pull 200 in Charlotte, October works."})
+    assert "/tour-board/thread/" in r.headers["Location"]
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     notes = store_mod.list_notifications(uid)
-    assert any("Team-Up" in n["title"] and "roaddog@example.net" in n["body"]
+    assert any("Team-Up" in n["title"] and n["link"].startswith("/tour-board/thread/")
                for n in notes)
     assert outbox and outbox[-1][0] == "demo@streetbanker.io"
-    # Replies show for the owner, not on the public card for others.
+    assert "roaddog@example.net" not in outbox[-1][2]      # no email address is handed over
+    # The thread is the poster's to read; the replier's email never appears.
+    tid = r.headers["Location"].split("/thread/")[1].split("?")[0]
     assert "We pull 200 in Charlotte" in artist.get(
-        "/tour-board").get_data(as_text=True)
+        "/tour-board/thread/%s" % tid).get_data(as_text=True)
     assert "We pull 200 in Charlotte" not in other.get(
         "/tour-board").get_data(as_text=True)
-    # Closing hides it from the open board; delete removes it and replies.
+    # Closing hides it from the open board; delete removes it and its threads.
     artist.post("/tour-board/%s/close" % listing["id"])
-    assert not [l for l in store_mod.list_board_listings()
-                if l["id"] == listing["id"]]
+    assert not [l for l in bs.list_listings() if l["id"] == listing["id"]]
     artist.post("/tour-board/%s/delete" % listing["id"])
-    assert store_mod.get_board_listing(listing["id"]) is None
-    assert store_mod.list_board_replies(listing["id"]) == []
+    assert bs.get_listing(listing["id"]) is None
+    assert bs.list_board_replies(listing["id"]) == []
 
 
 def test_rack_page_and_presets():
