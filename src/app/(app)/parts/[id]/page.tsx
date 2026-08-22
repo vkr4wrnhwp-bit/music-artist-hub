@@ -85,7 +85,7 @@ export default async function PartWorkspace(props: {
   const critical = isCriticalApplication(revision.intent);
   const gaps = missingEngineeringInput(revision.intent);
 
-  const [proposals, audits, metrology, datumRows, measurementRows, inspectionPlan, ncProgram, latestSession] =
+  const [proposals, audits, metrology, datumRows, measurementRows, inspectionPlan, ncProgram, openInspectionSession] =
     await Promise.all([
       db.aIRecommendation.findMany({
         where: { partRevisionId: revision.revisionId, status: "PROPOSED" },
@@ -111,8 +111,14 @@ export default async function PartWorkspace(props: {
         include: { items: true, _count: { select: { results: true } } },
       }),
       db.nCProgram.findFirst({ where: { partRevisionId: revision.revisionId }, orderBy: { createdAt: "desc" } }),
+      // The open INSPECTION session, if there is one. Mode and status are
+      // both part of the query, not incidental: the inspection session route
+      // hard-filters `mode: "INSPECTION"` and 404s on anything else, and its
+      // record form only renders while the session is IN_PROGRESS — so a
+      // link built from a looser query would either dead-end or promise a
+      // form that is not there.
       db.measurementSession.findFirst({
-        where: { partRevisionId: revision.revisionId },
+        where: { partRevisionId: revision.revisionId, mode: "INSPECTION", status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
       }),
     ]);
@@ -285,17 +291,57 @@ export default async function PartWorkspace(props: {
     const latestInspection = measurementRows
       .filter((m) => m.featureId === f.id && m.session.mode === "INSPECTION")
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    // `resolvedValue ?? measuredValue` — the same field the FAIR report and the
+    // session page read. This previously passed the raw `measuredValue`, so a
+    // reading a human had resolved could verify one way in the workspace and
+    // the other way in the FAIR. One reading, one verdict.
+    const inspectionValue = latestInspection
+      ? latestInspection.resolvedValue ?? latestInspection.measuredValue
+      : null;
     const conformance = assessConformance(
       f,
-      latestInspection ? { value: latestInspection.measuredValue, uncertainty: latestInspection.uncertainty } : undefined,
+      latestInspection && inspectionValue !== null
+        ? { value: inspectionValue, uncertainty: latestInspection.uncertainty }
+        : undefined,
     );
+    // The inputs the engine was given, carried verbatim so the panel can show
+    // the reading beside its verdict without recomputing either.
+    const featureNominal = nominalOf(f);
+    const evidence =
+      latestInspection && inspectionValue !== null
+        ? {
+            value: inspectionValue,
+            // Only when a resolution actually CHANGED the number. The
+            // inspection form writes `resolvedValue: value` on every reading
+            // (session/[sid]/page.tsx), so a bare non-null test would label
+            // every reading "Resolved" and the word would stop meaning
+            // anything. It means: a human put a different number here than
+            // the instrument read.
+            valueWasResolved:
+              latestInspection.resolvedValue !== null &&
+              latestInspection.resolvedValue !== latestInspection.measuredValue,
+            uncertainty: latestInspection.uncertainty,
+            nominal: featureNominal,
+            lo: featureNominal !== null && f.tolerance ? featureNominal - f.tolerance.minus : null,
+            hi: featureNominal !== null && f.tolerance ? featureNominal + f.tolerance.plus : null,
+            // Carried whether or not the limits could be anchored, so the
+            // panel can distinguish "the drawing states no tolerance" from
+            // "the drawing states one and the engine has no nominal to hang
+            // it on". Those are different sentences to a machinist.
+            tolerancePlus: f.tolerance?.plus ?? null,
+            toleranceMinus: f.tolerance?.minus ?? null,
+            instrument: latestInspection.device?.description ?? null,
+            recordedAt: latestInspection.createdAt.toISOString().slice(0, 10),
+            sessionName: latestInspection.session.name,
+          }
+        : null;
     const verify: VerifyInfo = !latestInspection
-      ? { state: "NOT_MEASURED", reason: "No inspection-session measurement recorded", departure: null }
+      ? { state: "NOT_MEASURED", reason: "No inspection-session measurement recorded", departure: null, evidence: null }
       : conformance.verdict === "CONFORMS"
-        ? { state: "CONFORMS", reason: null, departure: null }
+        ? { state: "CONFORMS", reason: null, departure: null, evidence }
         : conformance.verdict === "NONCONFORMS"
-          ? { state: "NONCONFORMS", reason: null, departure: conformance.departure }
-          : { state: "CANNOT_DETERMINE", reason: conformance.reason, departure: null };
+          ? { state: "NONCONFORMS", reason: null, departure: conformance.departure, evidence }
+          : { state: "CANNOT_DETERMINE", reason: conformance.reason, departure: null, evidence };
 
     featureDetails[f.id] = {
       verify,
@@ -1003,7 +1049,7 @@ export default async function PartWorkspace(props: {
         runway={runway}
         nextActions={actions}
         hasInspectionPlan={pkg.hasInspectionPlan}
-        measurementSessionId={latestSession?.id ?? null}
+        inspectionSessionId={openInspectionSession?.id ?? null}
         simOps={simOps}
         recordSimulation={recordSimulation}
         simulationRecorded={pkg.simulationRun}

@@ -91,8 +91,64 @@ export interface VerifyInfo {
   state: "CONFORMS" | "NONCONFORMS" | "NOT_MEASURED" | "CANNOT_DETERMINE";
   /** Why, when the state is not a clean pass/fail. */
   reason: string | null;
-  /** Signed departure beyond the tolerance band, for NONCONFORMS. */
+  /**
+   * Signed departure beyond the violated LIMIT — not from nominal. Positive is
+   * above the upper limit, negative below the lower. NONCONFORMS only.
+   */
   departure: number | null;
+  /**
+   * The exact inputs `assessConformance` was given, carried so a UI can show
+   * the reading, its nominal and its limits beside the verdict without
+   * recomputing any of them.
+   *
+   * This exists because recomputation drifts. `compare()` in dimension.ts
+   * resolves a nominal through `primaryDimension`, which accepts depth, radius
+   * and width where the conformance engine accepts a diameter and nothing
+   * else — so on a FACE it returns a confident deviation and band for a
+   * feature the engine refuses to assess. `InspectionItem.nominal` is a third
+   * number again, and on the seeded plan it frequently describes a different
+   * characteristic than the feature it hangs off. One verdict beside a nominal
+   * from a different source is how an inspector reads a bore result off a
+   * drill size.
+   *
+   * Null whenever no inspection reading exists — NOT_MEASURED has nothing to
+   * carry.
+   */
+  evidence: VerifyEvidence | null;
+}
+
+/** The measured reading and the limits it was judged against. All inches. */
+export interface VerifyEvidence {
+  /** `resolvedValue ?? measuredValue` — the same field the FAIR report reads. */
+  value: number;
+  /**
+   * True when `value` is a resolved value rather than the raw reading — a
+   * human accepted a nominal in place of what the instrument said. The two
+   * are different claims and the panel labels them differently.
+   */
+  valueWasResolved: boolean;
+  uncertainty: number;
+  /**
+   * The engine's nominal: the feature's diameter, or null when it has none.
+   * Null means the engine returned CANNOT_DETERMINE for want of a nominal, and
+   * a UI must not substitute a depth or a width to fill the gap.
+   */
+  nominal: number | null;
+  /**
+   * Limits from `feature.tolerance`, asymmetric by construction. Null when
+   * there is no nominal to anchor them to EVEN IF a tolerance is stated —
+   * which is why `tolerancePlus`/`toleranceMinus` travel separately. Printing
+   * "no limits" for a characteristic whose drawing states ±0.002 is a lie
+   * about the drawing, not a statement about the engine.
+   */
+  lo: number | null;
+  hi: number | null;
+  tolerancePlus: number | null;
+  toleranceMinus: number | null;
+  /** The device that took the reading. Not necessarily the best one on hand. */
+  instrument: string | null;
+  recordedAt: string;
+  sessionName: string;
 }
 
 /** Everything the feature panel needs about one feature, precomputed server-side. */

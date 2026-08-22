@@ -28,9 +28,19 @@ import {
  * it is the evidence that makes that number mean anything.
  *
  * WHAT THIS PANEL WILL NOT SHOW
- *   - A PASS / FAIL chip. `InspectionResult.pass` has no write path in
- *     CANVAS, and on the demo part the reading is unresolved and outside the
- *     stated band. A green PASS here would be unsourced and wrong.
+ *   - A PASS / FAIL chip derived from arithmetic. `InspectionResult.pass` has
+ *     no write path in CANVAS, and `compare()` below is model-dimension
+ *     arithmetic, not an inspection result. Neither may colour a verdict.
+ *
+ *     The METROLOGY block does state a verdict, and it is a different kind of
+ *     fact: `detail.verify` is `assessConformance()` — the same engine, the
+ *     same reading and the same limits the FAIR report uses — carried whole
+ *     from the server with the reading it judged. Its four states are kept
+ *     distinct on purpose. NOT_MEASURED is an absence of evidence,
+ *     CANNOT_DETERMINE is evidence that cannot decide (the reading sits
+ *     within its own uncertainty of a limit, or the instrument cannot
+ *     resolve the band at 4:1), and neither is a failure. Collapsing either
+ *     into a red chip would invent a result nobody measured.
  *   - A confidence figure. See dimension-card.tsx.
  *   - A datum that has not been accepted by a human, or an instrument the
  *     shop does not own. Neither is ever invented. The datum section is now
@@ -77,6 +87,57 @@ const DATUM_DOF: Record<string, string> = {
   POINT: "1 degree of freedom",
 };
 
+/**
+ * The four verification states, as a machinist would say them.
+ *
+ * NOT_MEASURED and CANNOT_DETERMINE are neither pass nor fail and are not
+ * tinted as failures. CANNOT_DETERMINE is `unknown` rather than `review`
+ * because it is a statement about the evidence, not a caution about the part.
+ */
+const VERIFY_LABEL: Record<string, string> = {
+  CONFORMS: "Conforms",
+  NONCONFORMS: "Does not conform",
+  NOT_MEASURED: "Not measured",
+  CANNOT_DETERMINE: "Cannot determine",
+};
+
+const VERIFY_TONE: Record<string, Tone> = {
+  CONFORMS: "pass",
+  NONCONFORMS: "risk",
+  NOT_MEASURED: "neutral",
+  CANNOT_DETERMINE: "unknown",
+};
+
+/* THE TWO THRESHOLDS ON THE BAND BAR, AND WHY THERE ARE TWO.
+
+   The bar's axis is `consumedFraction` = the instrument's ± half-width over
+   the full tolerance band (engines/inspection-capability.ts). Two different
+   engines cut that axis in two different places, and both call their rule
+   "4:1", because they divide by different things:
+
+     TARGET_RATIO  0.1    capability: at or below this the instrument is
+                          CAPABLE (the gauge-maker's 10:1).
+     VERIFY_LIMIT  0.125  conformance: engines/fair.ts trips on
+                          `uncertainty * 2 > band / 4`, i.e. u/band > 0.125.
+                          Past this the reading CANNOT DETERMINE, whatever
+                          the capability chip says.
+     CAPABILITY_LIMIT 0.25 capability: past this the instrument is
+                          NOT_CAPABLE.
+
+   The first version of this bar drew ticks at 0.1 and 0.25 and captioned the
+   0.25 one "limit" while the verdict card 60px below failed at 0.125 — so an
+   instrument at 20% sat visibly inside the tick labelled "limit", chipped
+   MARGINAL and described as "still discriminating", above a CANNOT DETERMINE
+   citing the 4:1 rule. The tick that governs the verdict is the one that gets
+   drawn and labelled; the capability limit is stated in words instead of
+   being drawn as a second, contradictory line.
+
+   If any of these ratios move in their engine they have to move here in the
+   same commit. */
+const TARGET_RATIO = 0.1;
+const VERIFY_LIMIT_RATIO = 0.125;
+const CAPABILITY_LIMIT_RATIO = 0.25;
+
 export function FeaturePanel({
   partId,
   features,
@@ -86,7 +147,7 @@ export function FeaturePanel({
   details,
   datums,
   hasInspectionPlan,
-  measurementSessionId,
+  inspectionSessionId,
 }: {
   partId: string;
   features: Feature[];
@@ -96,7 +157,8 @@ export function FeaturePanel({
   details: Record<string, FeatureDetail>;
   datums: DatumInfo[];
   hasInspectionPlan: boolean;
-  measurementSessionId: string | null;
+  /** The OPEN inspection session, or null. Not the same as the latest session. */
+  inspectionSessionId: string | null;
 }) {
   const feature = features.find((f) => f.id === selectedId) ?? null;
 
@@ -111,6 +173,16 @@ export function FeaturePanel({
   const role = ROLE_LABEL[feature.functionalRole] || null;
   const capability = detail?.capability ?? null;
   const instrument = capability?.bestInstrument ?? null;
+  // `details[id]` is an index signature and lies about completeness, so every
+  // read of it is optional. `evidence` is null on NOT_MEASURED by construction.
+  const verify = detail?.verify ?? null;
+  const evidence = verify?.evidence ?? null;
+  // The FAIR's own definition of a characteristic (engines/fair.ts) and the
+  // inspection session page's filter. A feature outside it appears on no
+  // AS9102 form and has no record form on the session page, so titling a
+  // "first-article verdict" over it claims an accountability that does not
+  // exist — and the CTA below would land on a page with nothing to fill in.
+  const isCharacteristic = Boolean(feature.tolerance || feature.critical || feature.inspectionMethod);
   const featureDatums = datums.filter((d) => d.featureId === feature.id);
   const shownDatums = featureDatums.length > 0 ? featureDatums : datums;
 
@@ -198,26 +270,24 @@ export function FeaturePanel({
                 <Row label="Session" value={measured.sessionName} />
                 <Row label="Operator" value={measured.operator ?? "not recorded"} muted={!measured.operator} />
                 <Row label="Recorded" value={measured.recordedAt} />
-                {comparison && (
-                  <Row
-                    label="Deviation"
-                    tone={comparison.band === "OUTSIDE" ? "review" : undefined}
-                    value={`${comparison.deviation >= 0 ? "+" : ""}${comparison.deviation.toFixed(4)}`}
-                  />
-                )}
-                {comparison && comparison.band !== "UNKNOWN" && comparison.lower != null && comparison.upper != null && (
-                  <Row
-                    label="Against band"
-                    tone={comparison.band === "OUTSIDE" ? "review" : undefined}
-                    value={`${comparison.band === "INSIDE" ? "inside" : "outside"} ${comparison.lower.toFixed(4)}–${comparison.upper.toFixed(4)}`}
-                  />
-                )}
+                {/* The Deviation and "Against band" rows that used to sit
+                    here were `compare()` — model-dimension arithmetic over
+                    whichever reading is newest, of any session mode. The
+                    METROLOGY block below now states deviation and limits from
+                    the conformance engine, on the inspection reading, and the
+                    two disagreed by construction: `compare()` does a bare
+                    inside/outside test that never sees measurement
+                    uncertainty, so it printed an untinted "inside
+                    1.5748–1.5753" directly above the engine's "cannot
+                    determine" on the same numbers. One deviation, from the
+                    engine that owns the verdict. */}
               </div>
 
               <p className="mt-2.5 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
-                {comparison && comparison.band !== "UNKNOWN"
-                  ? "Deviation and band are computed here from the stored model dimension and tolerance. They are not an inspection result — no inspection result has been recorded against this feature. "
-                  : ""}
+                {measured.sessionName ? `Read in ${measured.sessionName}. ` : ""}
+                {verify?.state === "NOT_MEASURED"
+                  ? "Verification is judged only on inspection-session readings, and none exists for this feature yet — so this reading describes the article it was taken from, not a verified part."
+                  : "Whether this reading verifies the part is stated under Metrology below, on the inspection reading the conformance engine judged."}{" "}
                 {RESOLUTION_DETAIL[measured.resolution] ?? ""}
               </p>
 
@@ -295,14 +365,108 @@ export function FeaturePanel({
         )}
       </Section>
 
-      {/* 5 — Inspection tool. Rendered only when the shop owns something usable. */}
-      {instrument && capability && (
-        <Section title="Inspection tool">
+      {/* 5 — Metrology. Always rendered.
+
+          Absence is a finding here, the same way it is under Datum reference:
+          the case a metrology block most needs to state is the one where the
+          shop owns nothing that can make the measurement, and the old
+          `{instrument && capability &&}` gate made the section vanish in
+          exactly that case. */}
+      <Section title="Metrology">
+        {capability && capability.verdict === "NOT_REQUIRED" ? (
+          <p className="text-[11.5px] leading-relaxed text-muted">
+            No tolerance is stated on this feature, so there is nothing for an instrument to be capable of. Capability
+            is assessed against a tolerance band, not against a dimension.
+          </p>
+        ) : !instrument || !capability ? (
+          <div className="border border-line bg-card px-3 py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12.5px] leading-snug text-platinum">No instrument can make this measurement.</p>
+              <StatusChip tone={CAPABILITY_TONE[capability?.verdict ?? "NO_INSTRUMENT"] ?? "risk"}>
+                {capability?.label ?? "No instrument"}
+              </StatusChip>
+            </div>
+            {capability?.requiredUncertainty != null && (
+              <div className="mt-2">
+                <Row
+                  label="Required"
+                  tone="risk"
+                  value={`±${capability.requiredUncertainty.toFixed(5)} to reach 10:1`}
+                />
+              </div>
+            )}
+            <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">
+              {capability?.reason ?? "No metrology device on record reaches this geometry and covers this nominal."}
+            </p>
+          </div>
+        ) : (
           <div className="border border-line bg-card px-3 py-2.5">
             <div className="flex items-start justify-between gap-2">
               <p className="text-[12.5px] leading-snug text-platinum">{instrument.description}</p>
               <StatusChip tone={CAPABILITY_TONE[capability.verdict] ?? "unknown"}>{capability.label}</StatusChip>
             </div>
+
+            {/* Band consumption. A physical ratio of the instrument's ± to
+                the stated band — not a score, not a confidence, not progress.
+                The printed number is never clamped even when the fill is.
+
+                What is plotted is the BEST INSTRUMENT THE SHOP OWNS for this
+                geometry, which is not necessarily the one that took the
+                reading: the inspection session lets an operator pick any
+                device in the drawer. Where they differ the verdict card below
+                says so rather than letting a green bar corroborate a verdict
+                it had no part in. */}
+            {capability.toleranceBand != null && capability.consumedFraction != null && (
+              <div className="mt-2.5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="tech-label">Best on hand consumes</span>
+                  <span
+                    className={`font-mono text-[11.5px] tabular-nums ${
+                      capability.verdict === "CAPABLE" ? "text-platinum" : "text-review"
+                    }`}
+                  >
+                    {(capability.consumedFraction * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div
+                  className="relative mt-1 h-1 bg-line"
+                  role="img"
+                  aria-label={`The best instrument on hand has an uncertainty of ${(capability.consumedFraction * 100).toFixed(0)} percent of the tolerance band. The capability target is ${TARGET_RATIO * 100} percent and a reading past ${VERIFY_LIMIT_RATIO * 100} percent cannot verify the dimension.`}
+                >
+                  <div
+                    className={`h-1 ${
+                      capability.verdict === "CAPABLE"
+                        ? "bg-pass/70"
+                        : capability.verdict === "MARGINAL"
+                          ? "bg-review/70"
+                          : "bg-risk/70"
+                    }`}
+                    style={{ width: `${Math.min(Math.max(capability.consumedFraction, 0), 1) * 100}%` }}
+                  />
+                  {/* Two ticks, both real: the capability target, and the
+                      threshold past which the conformance engine below stops
+                      being able to decide. */}
+                  <span aria-hidden className="absolute top-[-2px] h-[5px] w-px bg-platinum-dim" style={{ left: `${TARGET_RATIO * 100}%` }} />
+                  <span aria-hidden className="absolute top-[-3px] h-[7px] w-px bg-review" style={{ left: `${VERIFY_LIMIT_RATIO * 100}%` }} />
+                  {capability.consumedFraction > 1 && (
+                    <span aria-hidden className="absolute right-0 top-[-2px] text-[8px] leading-[5px] text-risk">▸</span>
+                  )}
+                </div>
+                <p className="mt-1 text-[10.5px] leading-snug text-muted">
+                  ±{instrument.uncertainty.toFixed(4)} of the {capability.toleranceBand.toFixed(4)} band. Ticks at 10%
+                  (capability target) and 12.5% — past that a reading cannot verify this dimension whatever the chip
+                  above says, because the two rules divide by different things. The capability chip turns NOT CAPABLE
+                  at {CAPABILITY_LIMIT_RATIO * 100}%.
+                </p>
+                {!instrument.calibrated && (
+                  <p className="mt-1 text-[10.5px] leading-snug text-risk">
+                    This instrument is not calibrated, so the ratio above is arithmetic on an untraceable number, not
+                    evidence.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="mt-2">
               <Row
                 label="Range"
@@ -315,13 +479,8 @@ export function FeaturePanel({
               />
               <Row label="Resolution" value={instrument.resolution.toFixed(4)} />
               <Row label="Uncertainty" value={`±${instrument.uncertainty.toFixed(4)}`} />
-              {capability.toleranceBand != null && capability.consumedFraction != null && (
-                <Row
-                  label="Consumes"
-                  tone={capability.verdict === "CAPABLE" ? undefined : "review"}
-                  value={`${(capability.consumedFraction * 100).toFixed(0)}% of the ${capability.toleranceBand.toFixed(4)} band`}
-                />
-              )}
+              {/* The "Consumes" row that used to sit here said the same thing
+                  as the band bar above, in the same words. One statement. */}
               <Row
                 label="Calibration"
                 tone={instrument.calibrated ? undefined : "risk"}
@@ -337,8 +496,106 @@ export function FeaturePanel({
             </div>
             <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">{capability.reason}</p>
           </div>
-        </Section>
-      )}
+        )}
+
+        {/* The verdict, and the reading it was reached on.
+
+            Every number below travels from the server inside
+            `verify.evidence` — the same reading, nominal and limits
+            `assessConformance` was handed. Nothing here is recomputed, so
+            the status and the numbers beside it cannot disagree. */}
+        {verify && isCharacteristic && (
+          <div className="mt-2 border border-line-strong bg-card">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+              <span className="tech-label">First-article verdict</span>
+              <StatusChip tone={VERIFY_TONE[verify.state] ?? "unknown"}>
+                {VERIFY_LABEL[verify.state] ?? verify.state}
+              </StatusChip>
+            </div>
+
+            {evidence ? (
+              <>
+                <div className="grid grid-cols-2 gap-px bg-line">
+                  {(
+                    [
+                      [
+                        "Nominal",
+                        evidence.nominal !== null ? evidence.nominal.toFixed(4) : "none",
+                        evidence.nominal !== null ? undefined : "muted",
+                      ],
+                      [evidence.valueWasResolved ? "Resolved" : "Measured", evidence.value.toFixed(4), undefined],
+                      [
+                        "Deviation",
+                        evidence.nominal !== null
+                          ? `${evidence.value - evidence.nominal >= 0 ? "+" : ""}${(evidence.value - evidence.nominal).toFixed(4)}`
+                          : "—",
+                        evidence.nominal !== null ? undefined : "muted",
+                      ],
+                      [
+                        "Limits",
+                        evidence.lo !== null && evidence.hi !== null
+                          ? `${evidence.lo.toFixed(4)} – ${evidence.hi.toFixed(4)}`
+                          : evidence.tolerancePlus !== null || evidence.toleranceMinus !== null
+                            ? // A tolerance IS stated; there is simply no single
+                              // nominal for the engine to hang it on. Printing
+                              // "none stated" here told the inspector the drawing
+                              // carries no tolerance, which is a lie about the
+                              // drawing rather than a fact about the engine.
+                              `+${(evidence.tolerancePlus ?? 0).toFixed(4)} / −${(evidence.toleranceMinus ?? 0).toFixed(4)}, unanchored`
+                            : "none stated",
+                        evidence.lo !== null && evidence.hi !== null ? undefined : "muted",
+                      ],
+                    ] as const
+                  ).map(([label, value, mutedFlag]) => (
+                    <div key={label} className="bg-card px-3 py-2">
+                      <p className="tech-label">{label}</p>
+                      <p
+                        className={`mt-0.5 font-mono text-[14px] tabular-nums ${
+                          mutedFlag === "muted" ? "text-unknown" : "text-platinum"
+                        }`}
+                      >
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-3 py-2">
+                  {verify.state === "NONCONFORMS" && verify.departure !== null && (
+                    <p className="font-mono text-[11.5px] text-risk tabular-nums">
+                      {verify.departure > 0 ? "+" : ""}
+                      {verify.departure.toFixed(4)} beyond the limit
+                    </p>
+                  )}
+                  {verify.reason && (
+                    <p className="text-[11px] leading-relaxed text-muted">{verify.reason}</p>
+                  )}
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-muted">
+                    ±{evidence.uncertainty.toFixed(4)} · {evidence.instrument ?? "instrument not recorded"} ·{" "}
+                    {evidence.sessionName} · {evidence.recordedAt}
+                  </p>
+                  {/* The card above plots the best instrument on hand. The
+                      session lets an operator record with any device in the
+                      drawer, so the two are frequently not the same tool —
+                      and a green capability bar sitting over a green verdict
+                      reads as one corroborated story when it is two. */}
+                  {evidence.instrument && instrument && evidence.instrument !== instrument.description && (
+                    <p className="mt-1 text-[10.5px] leading-relaxed text-review">
+                      This reading was taken with a different instrument than the capability assessment above, which
+                      rates the {instrument.description}. The verdict is judged on the reading&apos;s own ±
+                      {evidence.uncertainty.toFixed(4)}.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="px-3 py-2.5 text-[11.5px] leading-relaxed text-muted">
+                {verify.reason ?? "No inspection-session measurement has been recorded against this feature."}{" "}
+                Reverse-engineering readings do not verify a part — they describe the article they were taken from.
+              </p>
+            )}
+          </div>
+        )}
+      </Section>
 
       {/* 6 — Inspection method */}
       <Section title="Inspection method">
@@ -385,10 +642,40 @@ export function FeaturePanel({
           <PanelAction href={`/parts/${partId}/features/${feature.id}`} primary>
             Function and fit
           </PanelAction>
-          <PanelAction href={measurementSessionId ? `/reverse-engineer/${measurementSessionId}` : "/reverse-engineer"}>
-            {measurementSessionId ? "Record a measurement" : "Start a measurement session"}
-          </PanelAction>
-          {hasInspectionPlan && <PanelAction href={`/parts/${partId}/inspection`}>Inspection plan</PanelAction>}
+          {/* Where a first-article reading is actually taken.
+
+              This pointed at `/reverse-engineer/{latestSession}` — a different
+              flow with a different meaning. That session id carries no mode
+              filter, so it could be a reverse-engineering session, and the RE
+              screen records a reading about the article in front of you and
+              reasons about nominals. An inspection reading verifies the part
+              against its tolerance and is recorded on the inspection session
+              page, which requires an instrument and filters
+              `mode: "INSPECTION"`.
+
+              With no open inspection session the honest destination is the
+              inspection page, which is where the Start session action lives —
+              the button says so rather than promising a form. */}
+          {/* Only a characteristic has a record form waiting at the other
+              end. For anything else the session page renders no form for this
+              feature, so the button would be a door into an empty room.
+
+              With no open session the single honest destination is the
+              inspection page — and "Inspection plan" already goes there, so
+              the two are not both rendered pointing at one URL under two
+              names. The label does not claim to start a session, because
+              following it does not: the Start session control lives there. */}
+          {isCharacteristic &&
+            (inspectionSessionId ? (
+              <PanelAction href={`/parts/${partId}/inspection/session/${inspectionSessionId}`}>
+                Record a measurement
+              </PanelAction>
+            ) : (
+              <PanelAction href={`/parts/${partId}/inspection`}>Inspection — start a session</PanelAction>
+            ))}
+          {hasInspectionPlan && (!isCharacteristic || inspectionSessionId) && (
+            <PanelAction href={`/parts/${partId}/inspection`}>Inspection plan</PanelAction>
+          )}
         </div>
       </Section>
 

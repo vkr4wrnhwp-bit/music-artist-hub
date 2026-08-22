@@ -1406,3 +1406,63 @@ Context-aware quick toggles beside VIEW/FOCUS (HOLD→Fixture,
 CUT→Toolpath/Tool). Viewport quality AUTO/HIGH/PERFORMANCE persisted;
 PERFORMANCE reduces dpr/shadows/reflections only — never geometry,
 toolpaths, datums or warnings. All browser-verified.
+
+## Feature Detail — metrology module
+
+The reference design's metrology block, built entirely from engines that
+already existed. The Feature Detail panel's "Inspection tool" section is
+now METROLOGY and always renders (absence is a finding, as with datums):
+
+- Capability: the best instrument on hand, its range/resolution/
+  uncertainty/calibration, and a band-consumption bar. The bar is a
+  physical ratio of the instrument's ± to the stated tolerance band —
+  not a score, confidence or progress meter. Ticks mark the capability
+  target (10%) and the threshold past which a reading cannot verify the
+  dimension (12.5%); the printed number is never clamped when the fill
+  is, and an uncalibrated instrument's ratio is labelled as arithmetic
+  on an untraceable number.
+- First-article verdict: CONFORMS / DOES NOT CONFORM / CANNOT DETERMINE
+  / NOT MEASURED from assessConformance, with NOMINAL / MEASURED /
+  DEVIATION / LIMITS and the departure beyond the violated limit. Every
+  number travels from the server inside VerifyInfo.evidence — the exact
+  inputs the engine was given — so the verdict and the numbers beside it
+  cannot disagree.
+
+Also fixed, found by an adversarial review of the first draft (22
+confirmed defects, all from real code paths):
+
+- The workspace judged conformance on raw measuredValue while the FAIR
+  report and session page used resolvedValue ?? measuredValue, so one
+  reading could verify two ways. One field now.
+- The bar's "limit" tick sat at the capability engine's 25% while the
+  verdict below failed at the conformance engine's 12.5% — both rules
+  are called "4:1" and divide by different things. The tick that governs
+  the verdict is the one drawn; the capability limit is stated in words.
+- "Limits — none stated" printed for characteristics that DO state a
+  tolerance but have no single nominal to anchor it to (any FACE or
+  pocket). Now "+0.0020 / −0.0020, unanchored" beside the engine's own
+  reason.
+- The capability card rates the best instrument on hand; the reading may
+  have been taken with another. Where they differ the panel says so
+  instead of letting a green bar corroborate a verdict it had no part in.
+- Section 2's compare() Deviation and "Against band" rows contradicted
+  the engine on the same numbers (a bare inside/outside test that never
+  sees measurement uncertainty). Removed; one deviation, from the engine
+  that owns the verdict. Its hard-coded "no inspection result has been
+  recorded" sentence — printed directly above one — is now conditional.
+- The verdict card and the record CTA are gated on the FAIR's own
+  characteristic predicate, so neither claims first-article
+  accountability for a chamfer nor lands on a page with no form for it.
+- Removed the mode-blind measurementSessionId prop chain: nothing could
+  use it honestly, and labelling it a reverse-engineering session
+  asserted a mode the id does not carry.
+
+Browser-verified across all four verdict states with real instrument
+uncertainties, plus the tolerance-without-nominal case and the
+not-a-characteristic case. 176/176 engine tests pass.
+
+Known pre-existing defect, NOT fixed here (different subsystem):
+features/[fid]/page.tsx stores an accepted fit as
+`toleranceMinus = Math.abs(fit.lowerIn)`, which loses the sign for
+interference classes where both deviations are positive (k6). The limits
+readout inherits it.

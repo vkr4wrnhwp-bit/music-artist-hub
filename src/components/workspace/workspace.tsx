@@ -86,7 +86,18 @@ export interface WorkspaceProps {
   /** Recorded material, for the view-environment recommendation. */
   material: string | null;
   hasInspectionPlan: boolean;
-  measurementSessionId: string | null;
+  /**
+   * The OPEN inspection session, when one exists.
+   *
+   * There used to be a `measurementSessionId` beside this carrying the latest
+   * session of ANY mode. Nothing legitimate could use it: the inspection
+   * session route filters `mode: "INSPECTION"` and 404s on anything else, and
+   * labelling it as a reverse-engineering session asserted a mode the id does
+   * not carry — the moment an inspection session became the newest, the label
+   * was wrong. A mode-blind id in props is an invitation to that mistake, so
+   * it is gone rather than merely unused.
+   */
+  inspectionSessionId: string | null;
 }
 
 /**
@@ -972,7 +983,7 @@ function WorkspaceInner(props: WorkspaceProps) {
               details={props.featureDetails}
               datums={props.datums}
               hasInspectionPlan={props.hasInspectionPlan}
-              measurementSessionId={props.measurementSessionId}
+          inspectionSessionId={props.inspectionSessionId}
             />
           )}
 
