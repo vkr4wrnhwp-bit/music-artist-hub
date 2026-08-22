@@ -111,6 +111,22 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   const effectiveVolume = annual ?? qty ?? null;
   const recs: ProcessRecommendation[] = [];
 
+  /**
+   * A process that changes the material's properties — cast grain instead of
+   * wrought, forged flow lines, fused powder — cannot be weighed against
+   * billet until it is known what the part carries and what happens when it
+   * fails. CASTING already honoured this and returned INSUFFICIENT_DATA;
+   * FORGING and powder-bed did not, so an incomplete part sat under a
+   * headline reading "CANVAS will not compare alternative processes until 2
+   * outstanding inputs are resolved" with FORGING marked INVESTIGATE directly
+   * beneath it. Two near-identical near-net processes answered the same
+   * question differently, and the unsafe one was the one that spoke.
+   *
+   * Through-cutting the same wrought plate is not a property change, so
+   * waterjet is not gated here — only by whether the geometry allows it.
+   */
+  const propertyChangeGated = blockedBy.length > 0;
+
   /* ---- Machining: the baseline ---- */
   const machiningRationale: string[] = [];
   if (effectiveVolume !== null && effectiveVolume <= 50) {
@@ -158,13 +174,19 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   /* ---- Near-net blank ---- */
   recs.push({
     process: "FORGING",
-    verdict: effectiveVolume !== null && effectiveVolume >= 500 ? "INVESTIGATE" : "NOT_SUITABLE",
+    verdict: propertyChangeGated
+      ? "INSUFFICIENT_DATA"
+      : effectiveVolume !== null && effectiveVolume >= 500
+        ? "INVESTIGATE"
+        : "NOT_SUITABLE",
     volumeBand: "500+ /year",
     rationale: [
       "A near-net forged or sawn blank cuts roughing time and material buy substantially while keeping wrought grain structure.",
       "Grain flow follows the part shape, which is a genuine advantage for fatigue-loaded components.",
     ],
-    blockers: blockedBy.length > 0 ? ["Responsibility profile incomplete"] : [],
+    blockers: propertyChangeGated
+      ? ["Responsibility profile incomplete — CANVAS will not recommend a material process change without it."]
+      : [],
     toolingCostOrder: "$8k – $60k die",
     leadTimeNote: "12+ weeks for tooling.",
   });
@@ -190,7 +212,7 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   const complex = input.features.length > 12;
   recs.push({
     process: "METAL_ADDITIVE_PBF",
-    verdict: "INVESTIGATE",
+    verdict: propertyChangeGated ? "INSUFFICIENT_DATA" : "INVESTIGATE",
     volumeBand: "1 – 200, geometry-driven",
     rationale: [
       complex
@@ -198,19 +220,28 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
         : "Geometry is prismatic and machines efficiently — additive would add cost without buying anything.",
       "Powder-bed parts still need datum creation, stress relief and CNC finishing on functional surfaces.",
     ],
-    blockers: critical
-      ? ["Safety-critical additive parts require qualified powder, process controls and NDT that CANVAS does not model."]
-      : [],
+    blockers: [
+      ...(propertyChangeGated ? ["Responsibility profile incomplete — fused powder is not wrought material and cannot be substituted blind."] : []),
+      ...(critical
+        ? ["Safety-critical additive parts require qualified powder, process controls and NDT that CANVAS does not model."]
+        : []),
+    ],
     toolingCostOrder: null,
     leadTimeNote: "1 – 3 weeks including post-processing.",
   });
 
   recs.push({
     process: "HYBRID_ADDITIVE_SUBTRACTIVE",
-    verdict: complex && effectiveVolume !== null && effectiveVolume < 100 ? "INVESTIGATE" : "NOT_SUITABLE",
+    verdict: propertyChangeGated
+      ? "INSUFFICIENT_DATA"
+      : complex && effectiveVolume !== null && effectiveVolume < 100
+        ? "INVESTIGATE"
+        : "NOT_SUITABLE",
     volumeBand: "Low volume, high complexity",
     rationale: ["Print near-net, then finish functional surfaces on the mill. Useful when the machining time is dominated by roughing."],
-    blockers: [],
+    blockers: propertyChangeGated
+      ? ["Responsibility profile incomplete — the printed portion is not wrought material."]
+      : [],
     toolingCostOrder: null,
     leadTimeNote: null,
   });
@@ -240,12 +271,21 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
     headline = `At ${effectiveVolume?.toLocaleString() ?? "the stated"} volume, 3-axis billet machining is the correct process. No alternative has a favourable amortisation.`;
   }
 
-  const crossovers: { volume: number; note: string }[] = [];
-  if (input.machinedUnitCost !== null) {
-    crossovers.push({ volume: 500, note: "Near-net blank plus finish machining typically becomes attractive here." });
-    crossovers.push({ volume: 2000, note: "Casting plus finish machining should be quoted at this point." });
-    crossovers.push({ volume: 20000, note: "Dedicated tooling and a production cell change the economics entirely." });
-  }
+  // These are the volumes at which each process's tooling starts to amortise
+  // — general process economics, the same for every part.
+  //
+  // They were gated on machinedUnitCost being non-null while never reading
+  // it, so a fixed list of three numbers appeared under a heading that
+  // implied it had been computed against this part's machining cost. It had
+  // not: the volumes are identical whether the part costs $5 or $500. A real
+  // crossover is where two cost curves meet and CANVAS has no supplier
+  // quotes to draw the second curve from, so the note says what these are
+  // instead of implying what they are not.
+  const crossovers = [
+    { volume: 500, note: "Near-net blank plus finish machining typically becomes attractive here. Industry tooling-amortisation band, not computed against this part." },
+    { volume: 2000, note: "Casting plus finish machining should be quoted at this point. Industry tooling-amortisation band, not computed against this part." },
+    { volume: 20000, note: "Dedicated tooling and a production cell change the economics entirely. Industry tooling-amortisation band, not computed against this part." },
+  ];
 
   return {
     quantity: qty,
@@ -257,14 +297,35 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   };
 }
 
+/**
+ * A waterjet cuts all the way through, in one thickness, everywhere. So the
+ * question is not whether the part is thin — it is whether anything on it
+ * stops partway down.
+ *
+ * This used to ask that of RECT_POCKET and CIRC_POCKET only. A 0.250" plate
+ * with a 0.100"-deep SLOT was therefore "essentially flat", waterjet came back
+ * VIABLE, and the headline told the shop to buy waterjet blanks and machine
+ * only the functional features — for a part with a blind slot a waterjet
+ * cannot produce at all. The same slot as a pocket was caught correctly,
+ * which is what an allow-list of feature kinds does as soon as the feature
+ * list grows.
+ *
+ * The test is now the other way round: any feature that has a depth and does
+ * not go through is depth variation, whatever it is called.
+ */
 function isEssentiallyFlat(input: ProcessInput): boolean {
-  if (!input.stock) return false;
-  const hasDepthVariation = input.features.some(
-    (f) =>
-      (f.kind === "RECT_POCKET" || f.kind === "CIRC_POCKET") &&
-      !("through" in f && f.through) &&
-      f.depth < input.stock!.z * 0.9,
-  );
-  const thin = input.stock.z <= Math.min(input.stock.x, input.stock.y) * 0.2;
+  const stock = input.stock;
+  if (!stock) return false;
+
+  const hasDepthVariation = input.features.some((f) => {
+    if ("through" in f && f.through) return false;
+    if (!("depth" in f) || typeof f.depth !== "number") return false;
+    // A face cut removes stock from the top rather than putting a step in the
+    // profile, so it does not stop the outline being a through-cut.
+    if (f.kind === "FACE") return false;
+    return f.depth < stock.z * 0.9;
+  });
+
+  const thin = stock.z <= Math.min(stock.x, stock.y) * 0.2;
   return thin && !hasDepthVariation;
 }
