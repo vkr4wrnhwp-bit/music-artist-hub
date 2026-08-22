@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { getMachines, getMaterials, getTools, getWorkholding, getMetrology, loadRevision, getSetups, getShopSettings, parseJson } from "./data";
 import type { LoadedRevision } from "./data";
+import { RISK_ORDER } from "./engines/workholding";
 import { assessWorkholding, type WorkholdingAssessment } from "./engines/workholding";
 import type { JawSurface } from "./engines/holding-margin";
 import type { ToolCondition } from "./engines/cutting-force";
@@ -314,5 +315,6 @@ export async function buildPackage(
   };
 }
 
-const rank = (level: string) =>
-  ({ SAFE: 0, LIKELY_SAFE: 1, REVIEW: 2, HIGH_RISK: 3, UNKNOWN: 4 })[level] ?? 0;
+// One ordering, defined in the engine that owns the vocabulary. This was an
+// inline copy and it disagreed with nothing only by luck.
+const rank = (level: string) => RISK_ORDER[level as keyof typeof RISK_ORDER] ?? 0;

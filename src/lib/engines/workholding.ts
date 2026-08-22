@@ -25,13 +25,43 @@ import { assessHoldingMargin, type HoldingMargin, type JawSurface } from "./hold
 export const RISK_LEVELS = ["SAFE", "LIKELY_SAFE", "REVIEW", "HIGH_RISK", "UNKNOWN"] as const;
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 
-const RISK_ORDER: Record<RiskLevel, number> = {
+/**
+ * Severity order. HIGH_RISK is the top, and that is the whole point.
+ *
+ * This used to rank UNKNOWN above HIGH_RISK, and the effect was to hide a
+ * definite finding behind an absent one. `worst()` collapses a setup's
+ * factors to a single level, so a setup with a real high-risk factor AND one
+ * unknown reported UNKNOWN — which readiness maps to MISSING rather than
+ * FAIL, and which the setups page and the operation runway both print as
+ * "Unknown". A machinist reading UNKNOWN goes to fill in missing data; one
+ * reading HIGH RISK fixes the setup. Those are different actions, and the
+ * more urgent one was being suppressed.
+ *
+ * It was worse in machinist-review.ts, which picks the "safest" plan by the
+ * MINIMUM of this order: with UNKNOWN on top, a plan known to be high risk
+ * out-ranked a plan whose risk could not be computed, so CANVAS would
+ * nominate the known-dangerous one as safest.
+ *
+ * Only one pair changes: (UNKNOWN, HIGH_RISK). Everything else keeps its
+ * relative order, so nothing is weakened — the single affected case moves
+ * from MISSING to FAIL, which is stricter.
+ *
+ * This is also the ordering readiness.ts already uses for the same idea, and
+ * it now lives in one place. It was copy-pasted into three files, which is a
+ * poor way to keep a safety constant.
+ */
+export const RISK_ORDER: Record<RiskLevel, number> = {
   SAFE: 0,
   LIKELY_SAFE: 1,
   REVIEW: 2,
-  HIGH_RISK: 3,
-  UNKNOWN: 4,
+  UNKNOWN: 3,
+  HIGH_RISK: 4,
 };
+
+/** The worst of several risk levels. Max over RISK_ORDER, never an average. */
+export function worstRisk(levels: RiskLevel[]): RiskLevel {
+  return levels.reduce<RiskLevel>((acc, l) => (RISK_ORDER[l] > RISK_ORDER[acc] ? l : acc), "SAFE");
+}
 
 export const RISK_LABEL: Record<RiskLevel, string> = {
   SAFE: "Safe",
@@ -103,8 +133,7 @@ export interface SetupContext {
   operationLabel?: string;
 }
 
-const worst = (levels: RiskLevel[]): RiskLevel =>
-  levels.reduce<RiskLevel>((acc, l) => (RISK_ORDER[l] > RISK_ORDER[acc] ? l : acc), "SAFE");
+const worst = worstRisk;
 
 /**
  * Minimum grip depth recommendation. Scales with the cutting load rather than

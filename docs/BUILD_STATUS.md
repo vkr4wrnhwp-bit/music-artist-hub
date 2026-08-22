@@ -1914,3 +1914,42 @@ Nine tests. One of them failed first time and was wrong rather than the
 content: it matched the WORD "verify" and tripped on the tape rule saying "if
 a tolerance is being verified, this is the wrong tool" — the opposite of the
 claim being guarded against. It now matches the claim, not the vocabulary.
+
+## A definite high risk was being hidden behind an unknown
+
+Found while writing the first tests for `workholding.ts` — an engine that
+produces the verdict a machinist reads before clamping a part, and that had
+no tests at all.
+
+`RISK_ORDER` ranked UNKNOWN (4) above HIGH_RISK (3). `worst()` collapses a
+setup's factors to one level, so a setup with a real high-risk factor AND one
+unknown reported UNKNOWN. Readiness maps UNKNOWN to MISSING and HIGH_RISK to
+FAIL, so the more serious finding surfaced as the less serious one, and the
+setups page and the operation runway both printed "Unknown" over it. A
+machinist reading UNKNOWN goes to fill in missing data; one reading HIGH RISK
+fixes the setup. Different actions, and the urgent one was suppressed.
+
+It was worse in machinist-review.ts, which picks the "safest" plan by the
+MINIMUM of this order. With UNKNOWN on top, a plan known to be high risk
+out-ranked a plan whose risk could not be computed — so CANVAS would nominate
+the known-dangerous plan as the safest option.
+
+The table was copy-pasted into three files: engines/workholding.ts,
+package.ts (inline, as `rank`) and machinist-review.ts. It now lives once, in
+the engine that owns the vocabulary, and the other two import it. A safety
+constant kept in triplicate is a safety constant waiting to disagree.
+
+Only one pair changes: (UNKNOWN, HIGH_RISK). Every other relative order is
+untouched, so nothing is weakened — the single affected case moves from
+MISSING to FAIL, which is stricter. This also matches what readiness.ts
+already did for the same idea, where NOT_ATTEMPTED sits below FAIL.
+
+Nineteen tests for the engine, and they were checked against the bug rather
+than assumed: restoring the old ordering fails three of them, including the
+end-to-end case where the real engine is fed a setup with no roughing tool
+(grip depth UNKNOWN) and a 10:1 projection over grip (HIGH_RISK).
+
+Still untested, and now recorded as known debt: cutting-force (422 lines,
+feeds this engine), process-advisor (270, principle 8), mating (436), nominal
+(306), cost (247), machinist (653), reconstruction, review, tool-substitution,
+jaw-family, network, next-action.

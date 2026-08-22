@@ -5,7 +5,7 @@ import type { MachinistPlan, PlanInput } from "./engines/machinist";
 import { planAllApproaches } from "./engines/machinist";
 import { generateToolpath, totalCycleTime } from "./engines/cam/engine";
 import type { MachiningContext, OperationRequest, Toolpath } from "./engines/cam/types";
-import { assessWorkholding, type RiskLevel } from "./engines/workholding";
+import { assessWorkholding, RISK_ORDER, type RiskLevel } from "./engines/workholding";
 import { computeCost, type CostAssumptions } from "./engines/cost";
 
 /**
@@ -49,13 +49,10 @@ export interface ReviewInput {
   quantity: number;
 }
 
-const RISK_ORDER: Record<RiskLevel, number> = {
-  SAFE: 0,
-  LIKELY_SAFE: 1,
-  REVIEW: 2,
-  HIGH_RISK: 3,
-  UNKNOWN: 4,
-};
+/* RISK_ORDER is imported from the engine that owns RiskLevel. It used to be a
+   third copy of the same table, and `safest` below takes the MINIMUM of it —
+   so while UNKNOWN outranked HIGH_RISK, a plan known to be high risk was
+   nominated as safer than one whose risk could not be computed. */
 
 export function reviewApproaches(input: ReviewInput): ScoredPlan[] {
   const planInput: PlanInput = {
