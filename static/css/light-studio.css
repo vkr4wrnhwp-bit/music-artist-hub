@@ -206,6 +206,7 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 .lx-cue-mid select, .lx-cue-mid input[type="number"] { min-height: 30px; padding: 3px 6px; font-size: 12px; }
 .lx-cue-mid input[type="range"] { width: 90px; accent-color: var(--lx-gold); }
 .lx-cue-note { min-height: 30px; padding: 3px 8px; font-size: 12px; min-width: 120px; flex: 1 1 140px; }
+.lx-auto { display: inline-block; padding: 1px 7px; border-radius: 999px; border: 1px solid rgb(201 162 74 / 0.5); font: 700 9.5px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lx-amber); }
 .lx-cue-x { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--lx-rule); background: transparent; color: var(--lx-soft); font-size: 15px; cursor: pointer; }
 .lx-cue-x:hover { border-color: rgb(239 68 68 / 0.5); color: #f0a58e; }
 @media (max-width: 640px) {

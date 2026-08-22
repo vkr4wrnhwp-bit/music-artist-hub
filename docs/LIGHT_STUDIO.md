@@ -120,6 +120,15 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
 - **Audio controls.** Volume (gain node), rate (½× … 1½× —
   `now()` scales elapsed context time by the rate so the clock and cues
   stay in song time), and a scrub slider mirroring the playhead.
+- **Auto-cue (epic 1).** `Auto-cue` in the wave bar runs
+  `LightsEngine.analyzeTrack` (sections, drops, hard stops, tempo) and
+  `generateCues` on the loaded song: one editable cue per section, a
+  three-beat accent burst on a drop, blackout + restore around hard
+  stops. Auto cues carry `auto:true`, wear an "auto" badge and become
+  yours the moment you edit any field (`own()`); "Clear N auto cues"
+  removes only the untouched ones. Sections/stops are kept in
+  `show.sections` / `show.stops` and drawn as tinted, labelled bands on
+  the waveform; re-running replaces the auto set, never your cues.
 - **Import / export.** `Export JSON` downloads
   `{format:"street-banker-lights", version:1, show}`; `Import JSON`
   sanitises every field (`importShow`) and replaces the working copy only

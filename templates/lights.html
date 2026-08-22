@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=4">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=5">{% endblock %}
 
 {% block content %}
 <script>
@@ -92,6 +92,9 @@
         <button id="lx-tap" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-label="Tap tempo — tap along to set the beat grid">Tap tempo</button>
         <button id="lx-snap" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="false" disabled aria-label="Snap new and dragged cues to the beat grid" title="Detect or tap a tempo first">Snap to beat</button>
         <button id="lx-grid" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="true" aria-label="Show the beat grid on the timeline">Beat grid</button>
+        <button id="lx-autocue" class="lx-btn lx-btn--small" type="button" disabled aria-label="Auto-cue: listen to the song's structure and lay down a first pass of cues — sections, drops, hard stops. Every cue stays editable." title="Load a song first">Auto-cue</button>
+        <button id="lx-autocue-clear" class="lx-btn lx-btn--ghost lx-btn--small" type="button" hidden aria-label="Remove every cue that Auto-cue placed and you have not edited">Clear auto cues</button>
+        <span id="lx-autocue-note" class="lx-hint" role="status" aria-live="polite"></span>
       </span>
     </div>
   </section>
@@ -201,5 +204,5 @@
 <script>window.__savedShow = {{ saved_show | safe }};</script>
 <script>window.__lightsLibrary = {{ lights_library | safe }};</script>
 <script src="/static/js/lights-engine.js?v=3"></script>
-<script src="/static/js/lights.js?v=9"></script>
+<script src="/static/js/lights.js?v=10"></script>
 {% endblock %}

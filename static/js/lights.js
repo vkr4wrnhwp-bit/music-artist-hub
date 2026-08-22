@@ -137,7 +137,7 @@
     totalEl.textContent = "of " + E.fmtTimecode(buf.duration);
     playBtn.disabled = false; scrubEl.disabled = false; scrubEl.value = "0";
     view.start = 0; view.end = buf.duration; invalidatePeaks();
-    paintTransport(); paintWaveAria();
+    paintTransport(); paintWaveAria(); paintAutoCue();
     announce("Song loaded: " + E.fmtClock(buf.duration));
     setTimeout(detectBeats, 50);
   }
@@ -160,7 +160,8 @@
   // track, tour date) is not part of the stack.
   function snapshot() {
     return JSON.stringify({cues: show.cues, pos: show.pos || {}, rot: show.rot || {}, bars: show.bars, chans: show.chans,
-                           looks: show.looks || [], dmxStart: show.dmxStart || 1, dmxAddr: show.dmxAddr || {}});
+                           looks: show.looks || [], dmxStart: show.dmxStart || 1, dmxAddr: show.dmxAddr || {},
+                           sections: show.sections || [], stops: show.stops || []});
   }
   function record(key) { var pushed = H.push(snapshot(), key, performance.now()); paintHistory(); return pushed; }
   function applySnapshot(json) {
@@ -168,12 +169,13 @@
     show.cues = s.cues || []; show.pos = s.pos || {}; show.rot = s.rot || {};
     show.bars = Math.max(2, Math.min(10, s.bars || 6)); show.chans = s.chans === 3 ? 3 : 4;
     show.looks = Array.isArray(s.looks) ? s.looks : []; show.dmxStart = s.dmxStart || 1; show.dmxAddr = s.dmxAddr || {};
+    show.sections = s.sections || []; show.stops = s.stops || [];
     ensureIds();
     selectedCue = null;
     show.cues.forEach(function (c) { if (selId && c._id === selId) selectedCue = c; });
     if (selBar > show.bars) selectedBar = null;
     barsSel.value = String(show.bars); chansSel.value = String(show.chans);
-    renderCues(); paintGroups(); paintLooks(); paintRig(); paintBarCtl(); markDirty();
+    renderCues(); paintGroups(); paintLooks(); paintRig(); paintBarCtl(); paintAutoCue(); markDirty();
   }
   function undo() { var s = H.undo(snapshot()); if (s) { applySnapshot(s); announce("Undone"); } paintHistory(); }
   function redo() { var s = H.redo(snapshot()); if (s) { applySnapshot(s); announce("Redone"); } paintHistory(); }
@@ -241,6 +243,20 @@
     }
     ensurePeaks();
     wg.drawImage(peakCanvas, 0, 0, w, h);
+    // song sections and hard stops (from Auto-cue): tinted bands + labels
+    (show.sections || []).forEach(function (s) {
+      var x0 = tToX(s.start), x1 = tToX(s.end);
+      if (x1 < 0 || x0 > w) return;
+      var a = Math.max(0, x0), b = Math.min(w, x1);
+      wg.fillStyle = SECTION_TINT[s.label] || "rgba(255,255,255,0.04)"; wg.fillRect(a, 0, b - a, h);
+      wg.strokeStyle = "rgba(255,255,255,0.18)"; wg.lineWidth = 1; wg.beginPath(); wg.moveTo(Math.round(x0) + 0.5, 0); wg.lineTo(Math.round(x0) + 0.5, h); wg.stroke();
+      if (b - a > 44) { wg.fillStyle = "rgba(238,232,220,0.72)"; wg.font = "700 9.5px -apple-system, Segoe UI, Roboto, sans-serif"; wg.fillText(String(s.label).toUpperCase(), a + 4, h - 17); }
+    });
+    (show.stops || []).forEach(function (st) {
+      var x0 = tToX(st.start), x1 = tToX(st.end || st.start + 0.5);
+      if (x1 < 0 || x0 > w) return;
+      wg.fillStyle = "rgba(240,165,142,0.14)"; wg.fillRect(x0, 0, Math.max(2, x1 - x0), h);
+    });
     // beat grid
     if (show.bpm && beatGrid) {
       var period = 60 / show.bpm, off = show.beatOffset || 0;
@@ -345,7 +361,7 @@
     if (wDrag) {
       var t = clamp(xToT(x), 0, duration());
       if (show.snap && show.bpm) t = E.snapToBeat(t, show.bpm, show.beatOffset);
-      wDrag.t = Math.round(t * 100) / 100; markDirty(); renderCues(false);
+      wDrag.t = Math.round(t * 100) / 100; own(wDrag); markDirty(); renderCues(false);
     } else if (wSeeking) { seek(xToT(x)); }
     else { wave.style.cursor = cueAtX(x) ? "grab" : "crosshair"; }
   });
@@ -383,6 +399,60 @@
     if (res.bpm) { show.bpm = res.bpm; show.beatOffset = res.offset; markDirty(); }
     paintBeats(res.bpm ? "detected" : "not found");
   }
+  // ---------- auto-cue: a first pass from the song's own structure ----------
+  // analyzeTrack (sections, drops, hard stops, tempo) + generateCues in the
+  // engine; here we only wire it up. Auto cues carry auto:true, wear a
+  // badge, and become yours the moment you edit one (own()).
+  var SECTION_TINT = {intro: "rgba(255,179,71,0.07)", verse: "rgba(59,130,246,0.07)", chorus: "rgba(255,244,208,0.09)", drop: "rgba(255,45,45,0.10)",
+                      breakdown: "rgba(139,92,246,0.08)", bridge: "rgba(139,92,246,0.08)", outro: "rgba(255,179,71,0.06)"};
+  function monoMix() {
+    var n = buffer.length, mono = new Float32Array(n), chs = buffer.numberOfChannels;
+    for (var c = 0; c < chs; c++) { var d = buffer.getChannelData(c); for (var i = 0; i < n; i++) mono[i] += d[i] / chs; }
+    return mono;
+  }
+  function own(c) {
+    if (!c || !c.auto) return;
+    c.auto = false;
+    var badge = cuesWrap.querySelector('[data-id="' + c._id + '"] .lx-auto'); if (badge) badge.remove();
+    paintAutoCue();
+  }
+  function autoCue() {
+    if (!buffer) return;
+    var btn = $("lx-autocue"); btn.disabled = true; btn.textContent = "Listening…";
+    setTimeout(function () {
+      var an = E.analyzeTrack(monoMix(), buffer.sampleRate), gen = E.generateCues(an);
+      record("autocue");
+      if (an.bpm) { show.bpm = an.bpm; show.beatOffset = an.offset; }
+      show.sections = an.sections.map(function (s) { return {start: s.start, end: s.end, label: s.label}; });
+      show.stops = an.stops.map(function (s) { return {start: s.start, end: s.end}; });
+      show.cues = show.cues.filter(function (c) { return !c.auto; }).concat(gen);
+      if (selectedCue && selectedCue.auto) selectedCue = null;
+      ensureIds(); markDirty(); renderCues(); paintGroups(); paintBeats(an.bpm ? "detected" : "not found"); paintAutoCue();
+      var msg = "Auto-cue: " + an.sections.length + " sections, " + an.stops.length + (an.stops.length === 1 ? " hard stop, " : " hard stops, ") + gen.length + " cues" +
+        (an.bpm ? " at " + an.bpm.toFixed(1) + " BPM" : "") + " — every one is editable; drag a flag to retime it, change anything and it becomes yours.";
+      $("lx-autocue-note").textContent = msg; announce(msg);
+      btn.disabled = false; btn.textContent = "Auto-cue again";
+    }, 30);
+  }
+  function clearAutoCues() {
+    var n = show.cues.filter(function (c) { return c.auto; }).length;
+    if (!n) return;
+    record("autocue-clear");
+    show.cues = show.cues.filter(function (c) { return !c.auto; });
+    if (selectedCue && selectedCue.auto) selectedCue = null;
+    markDirty(); renderCues(); paintGroups(); paintAutoCue();
+    $("lx-autocue-note").textContent = n + " auto cue" + (n === 1 ? "" : "s") + " cleared — the section bands stay on the timeline; your own cues were kept.";
+    announce($("lx-autocue-note").textContent);
+  }
+  function paintAutoCue() {
+    var n = show.cues.filter(function (c) { return c.auto; }).length, btn = $("lx-autocue");
+    btn.disabled = !buffer; btn.setAttribute("aria-disabled", buffer ? "false" : "true");
+    btn.title = buffer ? "Listen to the song and lay down a first pass of cues" : "Load a song first";
+    $("lx-autocue-clear").hidden = !n; $("lx-autocue-clear").textContent = "Clear " + n + " auto cue" + (n === 1 ? "" : "s");
+  }
+  $("lx-autocue").addEventListener("click", autoCue);
+  $("lx-autocue-clear").addEventListener("click", clearAutoCues);
+
   function paintBeats(how) {
     $("lx-bpm").textContent = show.bpm ? show.bpm.toFixed(1) : "—";
     $("lx-bpm-how").textContent = show.bpm ? (how || "") : (how || "");
@@ -600,7 +670,7 @@
   // for the selected cue, or for the group new cues start with.
   function pickBar(b) {
     var cur = selectedCue ? selectedCue.group : defaultGroup, next = E.toggleInGroup(cur, b, show.bars);
-    if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = next; markDirty(); renderCues(); }
+    if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = next; own(selectedCue); markDirty(); renderCues(); }
     else defaultGroup = next;
     paintGroups();
     announce(E.groupLabel(next, show.bars) + (selectedCue ? " set on the selected cue" : " set for new cues"));
@@ -815,11 +885,11 @@
       var lookName = c.note || (E.isBlackout(c) ? "blackout" : "look " + c.color);
       row.className = "lx-cue" + (c === selectedCue ? " is-sel" : "") + (E.isBlackout(c) ? " is-black" : "");
       row.setAttribute("data-id", c._id); row.setAttribute("role", "listitem"); row.tabIndex = 0;
-      row.setAttribute("aria-label", "Cue " + (idx + 1) + " at " + E.fmtTimecode(c.t) + ", " + lookName + ", " + E.groupLabel(c.group, show.bars) + ". Enter previews the stage here.");
+      row.setAttribute("aria-label", "Cue " + (idx + 1) + " at " + E.fmtTimecode(c.t) + ", " + lookName + ", " + E.groupLabel(c.group, show.bars) + (c.auto ? ", placed by Auto-cue" : "") + ". Enter previews the stage here.");
       // timecode
       var tc = document.createElement("div"); tc.className = "lx-cue-tc";
       var tin = document.createElement("input"); tin.type = "number"; tin.step = "0.01"; tin.min = "0"; tin.value = c.t.toFixed(2); tin.setAttribute("aria-label", "Cue time in seconds");
-      tin.addEventListener("input", function () { record("time:" + c._id); c.t = Math.max(0, parseFloat(tin.value) || 0); markDirty(); });
+      tin.addEventListener("input", function () { record("time:" + c._id); c.t = Math.max(0, parseFloat(tin.value) || 0); own(c); markDirty(); });
       tin.addEventListener("change", function () { renderCues(false); });
       tc.appendChild(tin); row.appendChild(tc);
       // swatch: opens the gel book; the native picker sits behind it as "Custom…"
@@ -833,22 +903,23 @@
       var gl = document.createElement("span"); gl.innerHTML = glyphHtml(c.group); gl.title = E.groupLabel(c.group, show.bars); row.appendChild(gl.firstChild);
       // middle controls
       var mid = document.createElement("div"); mid.className = "lx-cue-mid";
+      if (c.auto) { var ab = document.createElement("span"); ab.className = "lx-auto"; ab.textContent = "auto"; ab.title = "Placed by Auto-cue — change anything and it becomes yours"; mid.appendChild(ab); }
       var sel = document.createElement("select"); sel.className = "lx-select"; sel.setAttribute("aria-label", "Group");
       var gopts = E.groupOptions(show.bars), known = false;
       gopts.forEach(function (o) { var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; op.selected = c.group === o[0]; if (op.selected) known = true; sel.appendChild(op); });
       if (!known && c.group) { var cop = document.createElement("option"); cop.value = c.group; cop.textContent = E.groupLabel(c.group, show.bars) + " (picked)"; cop.selected = true; sel.appendChild(cop); }
-      sel.addEventListener("change", function () { record("group:" + c._id); c.group = sel.value; markDirty(); renderCues(); paintGroups(); });
+      sel.addEventListener("change", function () { record("group:" + c._id); c.group = sel.value; own(c); markDirty(); renderCues(); paintGroups(); });
       mid.appendChild(sel);
       var inten = document.createElement("input"); inten.type = "range"; inten.min = 0; inten.max = 100; inten.value = c.intensity; inten.setAttribute("aria-label", "Intensity");
       inten.title = "Intensity";
-      inten.addEventListener("input", function () { record("inten:" + c._id); c.intensity = parseInt(inten.value, 10); sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
+      inten.addEventListener("input", function () { record("inten:" + c._id); c.intensity = parseInt(inten.value, 10); own(c); sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
       mid.appendChild(inten);
       var fw = document.createElement("label"); fw.textContent = "fade "; fw.title = "Seconds from the previous look into this one";
       var fin = document.createElement("input"); fin.type = "number"; fin.step = "0.1"; fin.min = "0"; fin.value = c.fade; fin.className = "lx-input"; fin.style.width = "64px"; fin.setAttribute("aria-label", "Fade seconds");
-      fin.addEventListener("input", function () { record("fade:" + c._id); c.fade = Math.max(0, parseFloat(fin.value) || 0); markDirty(); });
+      fin.addEventListener("input", function () { record("fade:" + c._id); c.fade = Math.max(0, parseFloat(fin.value) || 0); own(c); markDirty(); });
       fw.appendChild(fin); fw.appendChild(document.createTextNode(" s")); mid.appendChild(fw);
       var note = document.createElement("input"); note.type = "text"; note.className = "lx-input lx-cue-note"; note.placeholder = "note — chorus, drop, verse 2…"; note.value = c.note || ""; note.maxLength = 80; note.setAttribute("aria-label", "Cue note");
-      note.addEventListener("input", function () { record("note:" + c._id); c.note = note.value; markDirty(); });
+      note.addEventListener("input", function () { record("note:" + c._id); c.note = note.value; own(c); markDirty(); });
       mid.appendChild(note);
       row.appendChild(mid);
       // delete
@@ -934,7 +1005,7 @@
     });
   }
   function applyLook(l) {
-    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; markDirty(); renderCues(); announce(l.name + " applied"); }
+    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; own(selectedCue); markDirty(); renderCues(); announce(l.name + " applied"); }
     else if (buffer || runStart !== null) addCue(l);
   }
   $("lx-look-save").addEventListener("click", function () {
@@ -969,7 +1040,7 @@
   }
   function setCueColor(c, hex, sw) {
     if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
-    record("color:" + c._id); c.color = hex;
+    record("color:" + c._id); c.color = hex; own(c);
     if (sw) { sw.style.background = hex; sw.classList.toggle("is-black", E.isBlackout(c)); sw.setAttribute("aria-label", "Cue colour " + (gelName(hex) || hex) + " — open the gel book"); }
     markDirty(); pushRecent(hex);
   }
@@ -1144,7 +1215,7 @@
     selectedCue = null; selectedBar = null; closeGel(false);
     H.reset(); paintHistory();
     paintRig();
-    renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintBarCtl();
+    renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintBarCtl(); paintAutoCue();
   }
 
   // ---------- import / export (JSON) ----------
@@ -1309,9 +1380,10 @@
     outLooks: outLooks, setMaster: function (v) { masterEl.value = String(Math.round(v * 100)); master = clamp(v, 0, 1); paintMaster(); }, togglePanic: togglePanic,
     openGel: openGel, pickGel: pickGel, closeGel: closeGel, gels: function () { return GELS.slice(); }, gelOpen: function () { return !gel.hidden; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
+    autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
     spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
-  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintDmx("", "Preview only · no hardware");
+  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintDmx("", "Preview only · no hardware");
   paintHistory(); paintWaveAria(); maybeOfferDraft();
   loop();
 })();
