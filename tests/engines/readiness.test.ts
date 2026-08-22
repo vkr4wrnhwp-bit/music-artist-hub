@@ -62,101 +62,118 @@ test("blockingCount counts only blocking gates that are not PASS", () => {
 /* ------------------------------------------------------------------ */
 
 /**
- * The distinction these pin down is the whole reason the gate is separate
- * from tool availability: a changer nobody has mapped must not read the same
- * as a changer that is missing a cutter. Absence of evidence is not evidence
- * of absence, and a gate that confuses the two lies in one direction or the
- * other every time it is asked.
+ * Two distinctions carry this gate, and both are easy to get wrong.
+ *
+ * A changer nobody has mapped must not read the same as a changer that is
+ * missing a cutter — absence of evidence is not evidence of absence.
+ *
+ * And the check is PER SETUP, because `Setup.machineId` is per setup. A part
+ * roughed on one machine and finished on another has tools that belong to
+ * different changers, and an earlier version of this gate checked every tool
+ * against one "primary" machine — which reported correctly-loaded tools as
+ * missing the moment a part spanned two machines.
  */
 
-const MACHINE = {
-  id: "m1",
-  manufacturer: "Haas",
-  model: "VF-2",
-  controller: "HAAS_NGC",
-  machineType: "VMC_3AXIS",
-  axisCount: 3,
-  travelsX: 30, travelsY: 16, travelsZ: 20,
-  tableX: 36, tableY: 14,
-  maxSpindleRPM: 8100, maxSpindlePower: 30, maxSpindleTorque: 90,
-  maxFeed: 500, maxRapid: 1000, axisAccel: null,
-  toolChangerCapacity: 20, maxToolDiameter: 3, maxToolLength: 12, maxToolWeight: 12,
-  coolantTypes: ["FLOOD"], throughSpindleCoolant: false,
-  probe: false, toolSetter: false, fourthAxis: false, fifthAxis: false,
-  supportedPostProcessor: "haas-ngc-dev", isReferenceProfile: false,
-} as ReadinessInput["machine"];
-
-function toolNumbered(n: number) {
-  return {
-    id: `t${n}`, toolNumber: n, toolClass: "FLAT_END_MILL", description: `T${n}`,
-    diameter: 0.5, cornerRadius: 0, flutes: 3, material: "CARBIDE",
-    fluteLength: 1, overallLength: 3, stickout: 1.5,
-    holder: "CAT40", holderNoseDiameter: 1.5, maxRPM: 8100,
-    recommendedMaterials: [], chiploadMin: 0.002, chiploadMax: 0.005,
-    sfmMin: 600, sfmMax: 1000, coolant: "FLOOD", lifeRemaining: 1,
-    condition: "GOOD", regrindCount: 0,
-  } as ReadinessInput["tools"][number];
-}
+type Loading = NonNullable<ReadinessInput["toolLoading"]>;
 
 const loadingGate = (r: ReturnType<typeof evaluateReadiness>) => r.gates.find((g) => g.id === "tool-loading");
 
-/** Same lookup, but asserts the gate is present so the tests read cleanly. */
 function requireLoadingGate(r: ReturnType<typeof evaluateReadiness>) {
   const g = loadingGate(r);
-  assert.ok(g, "the tooling-loaded gate must exist once tools are assigned");
+  assert.ok(g, "the tooling-loaded gate must exist once a setup needs tools");
   return g;
 }
 
-test("an unmapped changer is NOT_ATTEMPTED, never a pass and never MISSING", () => {
-  const r = evaluateReadiness({ ...emptyInput(), machine: MACHINE, tools: [toolNumbered(1)], carousel: null });
-  const g = requireLoadingGate(r);
+const withLoading = (toolLoading: Loading) => evaluateReadiness({ ...emptyInput(), toolLoading });
+
+test("an unmapped changer is NOT_ATTEMPTED, and never claims the tool is absent", () => {
+  const g = requireLoadingGate(
+    withLoading([{ setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1], loadedToolNumbers: null }]),
+  );
   assert.equal(g.status, "NOT_ATTEMPTED");
-  // It must not claim the tool is absent — that is the failure mode.
   assert.ok(!/not in the/i.test(g.detail));
 });
 
-test("an empty carousel list is treated as unmapped, not as an empty machine", () => {
-  const r = evaluateReadiness({
-    ...emptyInput(), machine: MACHINE, tools: [toolNumbered(1)],
-    carousel: { machineId: "m1", loadedToolNumbers: [] },
-  });
-  assert.equal(requireLoadingGate(r).status, "NOT_ATTEMPTED");
+test("an empty carousel list is unmapped, not an empty machine", () => {
+  const g = requireLoadingGate(
+    withLoading([{ setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1], loadedToolNumbers: [] }]),
+  );
+  assert.equal(g.status, "NOT_ATTEMPTED");
+});
+
+test("a setup with no machine has nothing to check against", () => {
+  const g = requireLoadingGate(
+    withLoading([{ setupName: "Setup 01", machineLabel: null, requiredToolNumbers: [1], loadedToolNumbers: null }]),
+  );
+  assert.equal(g.status, "NOT_ATTEMPTED");
+  assert.ok(/no machine assigned/i.test(g.detail));
 });
 
 test("a mapped changer missing a required tool is MISSING and names it", () => {
-  const r = evaluateReadiness({
-    ...emptyInput(), machine: MACHINE, tools: [toolNumbered(1), toolNumbered(7)],
-    carousel: { machineId: "m1", loadedToolNumbers: [1, 2, 3] },
-  });
-  const g = requireLoadingGate(r);
+  const g = requireLoadingGate(
+    withLoading([
+      { setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1, 7], loadedToolNumbers: [1, 2, 3] },
+    ]),
+  );
   assert.equal(g.status, "MISSING");
   assert.ok(g.detail.includes("T7"), "the gate must name the tool that is not loaded");
   assert.ok(!g.detail.includes("T1"), "a loaded tool must not be reported as absent");
 });
 
 test("a mapped changer holding every required tool passes", () => {
-  const r = evaluateReadiness({
-    ...emptyInput(), machine: MACHINE, tools: [toolNumbered(1), toolNumbered(2)],
-    carousel: { machineId: "m1", loadedToolNumbers: [1, 2, 3] },
-  });
-  assert.equal(requireLoadingGate(r).status, "PASS");
+  const g = requireLoadingGate(
+    withLoading([{ setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1, 2], loadedToolNumbers: [1, 2, 3] }]),
+  );
+  assert.equal(g.status, "PASS");
 });
 
-test("no assigned machine means no changer to check against", () => {
-  const r = evaluateReadiness({ ...emptyInput(), machine: null, tools: [toolNumbered(1)], carousel: null });
-  assert.equal(requireLoadingGate(r).status, "NOT_ATTEMPTED");
+test("tools are checked against their own setup's machine, not one primary machine", () => {
+  // T5 is in the Mori's changer and nowhere near the Haas. Checking both
+  // setups against one machine is what the earlier version got wrong.
+  const g = requireLoadingGate(
+    withLoading([
+      { setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1, 2], loadedToolNumbers: [1, 2] },
+      { setupName: "Setup 02", machineLabel: "Mori NH4000", requiredToolNumbers: [5], loadedToolNumbers: [5, 6] },
+    ]),
+  );
+  assert.equal(g.status, "PASS", "every tool is in its own setup's changer");
 });
 
-test("the gate does not appear at all when no tools are assigned", () => {
-  const r = evaluateReadiness({ ...emptyInput(), machine: MACHINE, tools: [] });
-  assert.equal(loadingGate(r), undefined);
+test("a tool absent from its own setup's changer is still caught across machines", () => {
+  const g = requireLoadingGate(
+    withLoading([
+      { setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1], loadedToolNumbers: [1] },
+      { setupName: "Setup 02", machineLabel: "Mori NH4000", requiredToolNumbers: [5], loadedToolNumbers: [6] },
+    ]),
+  );
+  assert.equal(g.status, "MISSING");
+  assert.ok(g.detail.includes("Setup 02"), "the finding must say which setup");
+  assert.ok(g.detail.includes("Mori NH4000"), "and which changer");
+  assert.ok(g.detail.includes("T5"));
+});
+
+test("a real finding outranks an unknown when both are present", () => {
+  const g = requireLoadingGate(
+    withLoading([
+      { setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [9], loadedToolNumbers: [1] },
+      { setupName: "Setup 02", machineLabel: "Mori NH4000", requiredToolNumbers: [5], loadedToolNumbers: null },
+    ]),
+  );
+  assert.equal(g.status, "MISSING", "a tool definitely absent is worse than a changer nobody mapped");
+});
+
+test("the gate does not appear when no setup needs a tool", () => {
+  assert.equal(loadingGate(withLoading([])), undefined);
+  assert.equal(
+    loadingGate(withLoading([{ setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [], loadedToolNumbers: [1] }])),
+    undefined,
+  );
 });
 
 test("a missing tool never averages away — it blocks READY_TO_RUN", () => {
-  const r = evaluateReadiness({
-    ...emptyInput(), machine: MACHINE, tools: [toolNumbered(1), toolNumbered(9)],
-    carousel: { machineId: "m1", loadedToolNumbers: [1] },
-  });
+  const r = withLoading([
+    { setupName: "Setup 01", machineLabel: "Haas VF-2", requiredToolNumbers: [1, 9], loadedToolNumbers: [1] },
+  ]);
   assert.notEqual(r.overall, "READY_TO_RUN");
   assert.ok(r.blockingCount > 0);
 });

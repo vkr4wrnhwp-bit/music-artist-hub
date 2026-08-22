@@ -57,14 +57,27 @@ export interface ReadinessInput {
   workholdingAssessment: WorkholdingAssessment | null;
   hasInspectionPlan: boolean;
   /**
-   * What the assigned machine's tool changer is recorded as holding.
+   * Tool loading, PER SETUP.
    *
-   * `null` — or an empty list — means the changer has not been mapped, which
-   * is NOT the same as "the tools are not loaded". The gate treats the two
-   * differently on purpose: an unmapped changer is NOT_ATTEMPTED, a mapped
-   * changer missing a required tool is MISSING.
+   * Per setup rather than per part, because `Setup.machineId` is per setup:
+   * a part can be roughed on one machine and finished on another, and the
+   * tools for setup 2 have no business being checked against setup 1's
+   * changer. An earlier version of this gate checked every assigned tool
+   * against one "primary" machine, which reported correctly-loaded tools as
+   * missing the moment a part spanned two machines.
+   *
+   * `machineLabel: null` means that setup has no machine assigned — there is
+   * nothing to check against, which is not the same as a failure.
+   * `loadedToolNumbers: null` means the changer has not been mapped, which is
+   * not the same as the tools being absent. Both are NOT_ATTEMPTED; only a
+   * mapped changer that is genuinely missing a required tool is MISSING.
    */
-  carousel?: { machineId: string; loadedToolNumbers: number[] } | null;
+  toolLoading?: {
+    setupName: string;
+    machineLabel: string | null;
+    requiredToolNumbers: number[];
+    loadedToolNumbers: number[] | null;
+  }[];
   /** Metrology the shop actually owns. Drives the inspection capability gate. */
   instruments?: Instrument[];
   simulationRun: boolean;
@@ -135,46 +148,84 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
    * NOT_ATTEMPTED, which keeps the part off READY_TO_RUN without claiming the
    * tooling is missing.
    */
-  if (input.tools.length > 0) {
-    const carousel = input.carousel ?? null;
-    if (!input.machine) {
+  const loading = (input.toolLoading ?? []).filter((s) => s.requiredToolNumbers.length > 0);
+  if (loading.length > 0) {
+    const absentBySetup: { setupName: string; machineLabel: string; absent: number[] }[] = [];
+    const unmapped: string[] = [];
+    const unassigned: string[] = [];
+    let checked = 0;
+
+    for (const s of loading) {
+      if (s.machineLabel === null) {
+        unassigned.push(s.setupName);
+        continue;
+      }
+      if (s.loadedToolNumbers === null || s.loadedToolNumbers.length === 0) {
+        unmapped.push(`${s.setupName} (${s.machineLabel})`);
+        continue;
+      }
+      const loaded = new Set(s.loadedToolNumbers);
+      const absent = s.requiredToolNumbers.filter((n) => !loaded.has(n));
+      checked += 1;
+      if (absent.length > 0) absentBySetup.push({ setupName: s.setupName, machineLabel: s.machineLabel, absent });
+    }
+
+    const tnums = (ns: number[]) => ns.map((n) => `T${n}`).join(", ");
+
+    if (absentBySetup.length > 0) {
+      // A real finding outranks an unknown — the worst unresolved thing wins,
+      // and a tool that is definitely not in the machine is worse than a
+      // changer nobody has mapped.
       gates.push(
-        gate("tool-loading", "Tooling loaded", "NOT_ATTEMPTED", "No machine is assigned, so there is no changer to check the tooling against.", true, [
-          "Assign a machine to the setup",
-        ]),
+        gate(
+          "tool-loading",
+          "Tooling loaded",
+          "MISSING",
+          absentBySetup
+            .map(
+              (a) =>
+                `${a.setupName}: ${tnums(a.absent)} ${a.absent.length === 1 ? "is" : "are"} not in the ${a.machineLabel} changer`,
+            )
+            .join("; ") + ".",
+          true,
+          absentBySetup.map((a) => `Load ${tnums(a.absent)} into the ${a.machineLabel} changer and record the pockets`),
+        ),
       );
-    } else if (carousel === null || carousel.loadedToolNumbers.length === 0) {
+    } else if (unassigned.length > 0) {
       gates.push(
         gate(
           "tool-loading",
           "Tooling loaded",
           "NOT_ATTEMPTED",
-          `The ${input.machine.manufacturer} ${input.machine.model} changer has not been mapped, so CANVAS cannot say whether this tooling is in the machine.`,
+          `${unassigned.join(", ")} ${unassigned.length === 1 ? "has" : "have"} no machine assigned, so there is no changer to check the tooling against.`,
+          true,
+          ["Assign a machine to every setup"],
+        ),
+      );
+    } else if (unmapped.length > 0) {
+      gates.push(
+        gate(
+          "tool-loading",
+          "Tooling loaded",
+          "NOT_ATTEMPTED",
+          `The changer has not been mapped for ${unmapped.join(", ")}, so CANVAS cannot say whether this tooling is in the machine.`,
           true,
           ["Map the changer on the machine's carousel page"],
         ),
       );
     } else {
-      const loaded = new Set(carousel.loadedToolNumbers);
-      const absent = input.tools.filter((t) => !loaded.has(t.toolNumber));
+      const total = loading.reduce((n, s) => n + s.requiredToolNumbers.length, 0);
       gates.push(
-        absent.length === 0
-          ? gate(
-              "tool-loading",
-              "Tooling loaded",
-              "PASS",
-              `All ${input.tools.length} assigned tools are in the ${input.machine.manufacturer} ${input.machine.model} changer.`,
-              true,
-              [],
-            )
-          : gate(
-              "tool-loading",
-              "Tooling loaded",
-              "MISSING",
-              `${absent.map((t) => `T${t.toolNumber}`).join(", ")} ${absent.length === 1 ? "is" : "are"} not in the ${input.machine.manufacturer} ${input.machine.model} changer.`,
-              true,
-              [`Load ${absent.map((t) => `T${t.toolNumber}`).join(", ")} into the changer and record the pockets`],
-            ),
+        gate(
+          "tool-loading",
+          "Tooling loaded",
+          "PASS",
+          checked === 1
+            ? `All ${total} tools this part needs are in the ${loading[0].machineLabel} changer.`
+            : `All ${total} tools this part needs are loaded, across ${checked} setups.`,
+          true,
+          [],
+        ),
       );
     }
   }

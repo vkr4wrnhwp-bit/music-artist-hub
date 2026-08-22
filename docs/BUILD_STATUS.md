@@ -1782,3 +1782,34 @@ the tap, and the seed deliberately leaves both in the crib. The gate reports
 "T9, T10 are not in the Haas VF-2 changer" with the load action. Clearing all
 pocket assignments flips the same part to "the changer has not been mapped",
 and restoring them flips it back.
+
+### Correction: the tooling-loaded gate was per part, and had to be per setup
+
+Shipped a turn earlier with two defects, both invisible in a one-machine
+demo and both real the moment a shop has two.
+
+`Setup.machineId` is per setup — a part can be roughed on one machine and
+finished on another — but the gate checked every assigned tool against a
+single `primaryMachine`. A part spanning two machines would report setup 2's
+tools as missing from setup 1's changer, which is a false MISSING on a
+blocking gate: the worst kind of wrong, because it is confident.
+
+Worse, `primaryMachine` falls back to `machines[0]` when no setup assigns
+one, so the "no machine assigned" branch could never fire while the shop
+owned any machine at all. The gate would check tooling against a machine
+nobody had chosen for the part.
+
+Both fixed by making the input per setup: each setup carries its own machine
+label, the tools its own operations need, and what its own machine's changer
+holds. `package.ts` now reads `setup.machineId` directly rather than
+`primaryMachine`, so the fallback cannot contaminate it. Findings name the
+setup and the changer.
+
+Aggregation rule, stated because it is a judgement: a tool definitely absent
+outranks a changer nobody has mapped. A real finding beats an unknown.
+
+Ten tests now cover the gate, including the two that would have caught this:
+tools loaded in their own setup's changer must pass across two machines, and
+a tool absent from its own setup's changer must still be caught. Verified end
+to end by building the two-machine part in the running app, reading the gate,
+and reverting.

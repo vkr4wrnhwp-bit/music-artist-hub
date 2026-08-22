@@ -187,17 +187,48 @@ export async function buildPackage(
   }));
 
   /*
-   * What the assigned machine's changer is recorded as holding. Queried
-   * rather than derived: a tool is in a pocket because somebody recorded
-   * putting it there. An empty result means the changer has not been mapped,
-   * which the gate treats as unknown rather than as absent.
+   * Tool loading, per setup.
+   *
+   * Per setup because Setup.machineId is per setup — a part can be roughed on
+   * one machine and finished on another, and checking every tool against one
+   * "primary" machine reports correctly-loaded tools as missing the moment a
+   * part spans two. Note this deliberately reads setup.machineId rather than
+   * primaryMachine, which falls back to machines[0] when nothing is assigned
+   * and would have the gate checking tooling against a machine nobody chose.
+   *
+   * Occupancy is queried, never derived: a tool is in a pocket because
+   * somebody recorded putting it there. No rows means the changer has not
+   * been mapped, which the gate treats as unknown rather than as absent.
    */
-  const loadedInMachine = primaryMachine
+  const carouselMachineIds = [...new Set(setups.map((s) => s.machineId).filter(Boolean) as string[])];
+  const loadedRows = carouselMachineIds.length
     ? await db.tool.findMany({
-        where: { organizationId, machineId: primaryMachine.id, pocket: { not: null } },
-        select: { toolNumber: true },
+        where: { organizationId, machineId: { in: carouselMachineIds }, pocket: { not: null } },
+        select: { toolNumber: true, machineId: true },
       })
     : [];
+  const loadedByMachineId = new Map<string, number[]>();
+  for (const r of loadedRows) {
+    if (!r.machineId) continue;
+    loadedByMachineId.set(r.machineId, [...(loadedByMachineId.get(r.machineId) ?? []), r.toolNumber]);
+  }
+
+  const toolLoading = setups.map((s) => {
+    const m = s.machineId ? machines.find((x) => x.id === s.machineId) ?? null : null;
+    const required = [
+      ...new Set(
+        s.operations
+          .map((o) => tools.find((t) => t.id === o.toolId)?.toolNumber)
+          .filter((n): n is number => typeof n === "number"),
+      ),
+    ];
+    return {
+      setupName: s.name,
+      machineLabel: m ? `${m.manufacturer} ${m.model}` : null,
+      requiredToolNumbers: required,
+      loadedToolNumbers: s.machineId ? loadedByMachineId.get(s.machineId) ?? null : null,
+    };
+  });
 
   const readiness = evaluateReadiness({
     intent: revision.intent,
@@ -208,9 +239,7 @@ export async function buildPackage(
     workholding: primaryWorkholding,
     workholdingAssessment: worstAssessment,
     hasInspectionPlan: Boolean(plan),
-    carousel: primaryMachine
-      ? { machineId: primaryMachine.id, loadedToolNumbers: loadedInMachine.map((t) => t.toolNumber) }
-      : null,
+    toolLoading,
     instruments,
     simulationRun: Boolean(sim),
     ncGenerated: Boolean(nc),
