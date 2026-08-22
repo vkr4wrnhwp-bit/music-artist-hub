@@ -1865,3 +1865,52 @@ the planned order rather than looping. Verified end to end by making the
 relief pocket share the bore pocket's cutter, applying the proposal in the
 running app, confirming the database went 7 changes to 6 with every
 precedence rule intact, then reverting.
+
+## Measurement technique — how to take the reading with the gauge you have
+
+The last of the three real features hiding inside the parity audit's refused
+entries. The capability engine already answered "can this instrument verify
+this tolerance"; it never answered "how do I actually take the reading",
+which is the question a machinist standing at the surface plate has.
+
+lib/metrology/technique.ts is a lookup keyed on the instrument's real
+deviceType and the feature's measurement geometry. No model call and no
+per-part text: two features measured the same way with the same gauge get
+the same words, because technique is a property of the instrument and the
+geometry, not of the part.
+
+Four rules it holds to. It is a lookup, not a generator. It is standard shop
+practice, not engineering advice — rock a bore gauge to the reversal point,
+use the ratchet on a micrometer, watch cosine error on a lever indicator.
+It verifies nothing: reading it clears no gate and cannot make an instrument
+capable of a tolerance it cannot resolve, and the copy says so. And an
+instrument with nothing on file renders nothing, the same refusal the
+drawings make.
+
+Twenty-one entries, one per device type the shop can record, each with setup,
+taking the reading, and what specifically goes wrong with that instrument.
+The pitfalls are the part worth having: a lever indicator at 30° reads about
+13% low and nothing on the display suggests it; a spindle probe measures
+where the MACHINE thinks it is, so probing a part on the machine that cut it
+cannot see that machine's own systematic error; a pin gauge reports GO/NO-GO
+and never a dimension.
+
+Universal cautions are stated once rather than repeated into every entry —
+the 20 °C / 68 °F reference temperature, with the aluminium coefficient shown
+as an illustration of magnitude rather than a correction to apply.
+
+Rendered in two places: the Feature Detail capability card beside the
+instrument it describes, and the inspection session page at the moment a
+reading is entered — there against the PLANNED instrument from the
+inspection plan, because a server-rendered page cannot see which gauge is
+currently picked in the select, and the plan is what an operator reaching for
+a different gauge is departing from.
+
+Collapsed by default. A machinist who knows how to rock a bore gauge does not
+need telling on every feature, and a panel that shouts technique gets the
+whole screen ignored.
+
+Nine tests. One of them failed first time and was wrong rather than the
+content: it matched the WORD "verify" and tripped on the tape rule saying "if
+a tolerance is being verified, this is the wrong tool" — the opposite of the
+claim being guarded against. It now matches the claim, not the vocabulary.

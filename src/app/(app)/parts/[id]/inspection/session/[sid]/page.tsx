@@ -7,6 +7,8 @@ import { loadRevision } from "@/lib/data";
 import { assessConformance } from "@/lib/engines/fair";
 import { featureSummary, fmtTol, type Feature } from "@/lib/domain/features";
 import { TopBar } from "@/components/nav";
+import { MeasurementTechnique } from "@/components/measurement-technique";
+import { measurementGeometry } from "@/lib/engines/inspection-capability";
 import { Button, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 
 /**
@@ -41,6 +43,20 @@ export default async function InspectionSessionPage(props: {
     where: { organizationId: user.organizationId },
     orderBy: { description: "asc" },
   });
+
+  /*
+   * The inspection plan already says which instrument each characteristic is
+   * to be measured with, so the technique shown here is the technique for the
+   * PLANNED instrument — not for whatever is currently picked in the select,
+   * which this server-rendered page cannot see. If the operator reaches for a
+   * different gauge the plan is what they are departing from, and that is
+   * worth knowing either way.
+   */
+  const planItems = await db.inspectionItem.findMany({
+    where: { plan: { partRevisionId: revision.revisionId } },
+    select: { featureId: true, deviceType: true, method: true },
+  });
+  const plannedFor = new Map(planItems.filter((i) => i.featureId).map((i) => [i.featureId as string, i]));
 
   const open = session.status === "IN_PROGRESS";
   const characteristics = revision.features.filter((f) => f.tolerance || f.critical || f.inspectionMethod);
@@ -234,6 +250,14 @@ export default async function InspectionSessionPage(props: {
                       </div>
                       <Button type="submit">Record</Button>
                     </form>
+                  )}
+
+                  {plannedFor.get(f.id)?.deviceType && (
+                    <MeasurementTechnique
+                      deviceType={plannedFor.get(f.id)!.deviceType!}
+                      geometry={measurementGeometry(f)}
+                      instrumentLabel={plannedFor.get(f.id)!.method ?? undefined}
+                    />
                   )}
                 </div>
               </Panel>

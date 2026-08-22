@@ -346,6 +346,7 @@ export default async function PartWorkspace(props: {
     featureDetails[f.id] = {
       verify,
       capability: {
+        geometry: measurementGeometry(f),
         verdict: capability.verdict,
         label: CAPABILITY_LABEL[capability.verdict as CapabilityVerdict],
         reason: capability.reason,

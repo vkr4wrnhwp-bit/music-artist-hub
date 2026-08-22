@@ -35,6 +35,15 @@ export interface CapabilityInfo {
   consumedFraction: number | null;
   requiredUncertainty: number | null;
   bestInstrument: InstrumentInfo | null;
+  /**
+   * How this feature is reached — INTERNAL_ROUND | INTERNAL_FLAT | EXTERNAL |
+   * POSITION, from `measurementGeometry()`. Derived, not stored, but it is a
+   * real engine output rather than a guess, and the measurement technique
+   * shown beside the instrument depends on it: an inside caliper reading is
+   * the largest, an outside one is square-on, and swapping them is the
+   * classic caliper error.
+   */
+  geometry: string | null;
 }
 
 /**

@@ -7,6 +7,7 @@ import { featureSummary, fmt, fmtTol } from "@/lib/domain/features";
 import { StatusChip, type Tone } from "@/components/ui";
 import { SectionSketch } from "./section-sketch";
 import { InstrumentGlyph, hasInstrumentGlyph } from "./instrument-glyph";
+import { MeasurementTechnique } from "@/components/measurement-technique";
 import type { DatumInfo, FeatureDetail } from "./panel-data";
 import {
   compare,
@@ -504,6 +505,16 @@ export function FeaturePanel({
               />
             </div>
             <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-muted">{capability.reason}</p>
+            {/* How to actually take it. Collapsed — an experienced machinist
+                does not need to be told how to rock a bore gauge on every
+                feature, and a panel that shouts technique gets ignored
+                wholesale. Renders nothing for an instrument with none on
+                file. */}
+            <MeasurementTechnique
+              deviceType={instrument.deviceType}
+              geometry={(capability.geometry ?? null) as Parameters<typeof MeasurementTechnique>[0]["geometry"]}
+              instrumentLabel={instrument.description}
+            />
           </div>
         )}
 
