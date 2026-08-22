@@ -141,12 +141,61 @@ const useEnv = () => useContext(EnvCtx);
 
 
 
+/**
+ * A studio ground falls off toward the frame edge. A flat fill does not, and
+ * that is most of what separates a product photograph from a CAD viewport:
+ * the part sits in a pool of light rather than on a colour swatch.
+ *
+ * Generated in process on a 2D canvas, not fetched — the viewport has to
+ * render a part on a shop floor with no internet, which is the same reason
+ * the environment rig above is built from Lightformers rather than a preset
+ * HDR. 512px is plenty for a two-stop gradient; it is stretched to the canvas
+ * either way, and the ellipse that stretching produces is what a softbox
+ * looks like anyway.
+ *
+ * The gradient is derived from the preset's own background, so a custom
+ * colour still drives it. The amounts were set by measurement, not by eye:
+ * the first pass lifted the centre 18% and dropped the rim 11%, which
+ * sampled out at rgb(247,247,245) over rgb(235,235,233) — twelve levels
+ * across the whole frame, technically a gradient and visually a flat wall.
+ * ACES tone mapping runs on the background quad too and compresses what it
+ * is given, so the stops have to be set wider than the result you want.
+ */
+function gradientTexture(hex: string): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const SIZE = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const base = new THREE.Color(hex);
+  const centre = base.clone().lerp(new THREE.Color("#ffffff"), 0.22);
+  const rim = base.clone().lerp(new THREE.Color("#000000"), 0.32);
+  // Centre of light sits above the middle, where the key light is.
+  const g = ctx.createRadialGradient(SIZE * 0.5, SIZE * 0.38, 0, SIZE * 0.5, SIZE * 0.38, SIZE * 0.72);
+  g.addColorStop(0, `#${centre.getHexString()}`);
+  g.addColorStop(0.42, `#${base.getHexString()}`);
+  g.addColorStop(1, `#${rim.getHexString()}`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 /** Applies the environment background to the live scene whenever it changes. */
-function SceneBackground({ color }: { color: string }) {
+function SceneBackground({ color, gradient }: { color: string; gradient: boolean }) {
   const scene = useThree((s) => s.scene);
   useEffect(() => {
-    scene.background = new THREE.Color(color);
-  }, [scene, color]);
+    const tex = gradient ? gradientTexture(color) : null;
+    scene.background = tex ?? new THREE.Color(color);
+    return () => {
+      tex?.dispose();
+    };
+  }, [scene, color, gradient]);
   return null;
 }
 
@@ -193,7 +242,10 @@ export function Viewport(props: ViewportProps) {
       {/* Imperative, not <color attach> — attach runs at construction, so a
           changed background hex from the View environment drawer was never
           re-applied to the live scene. This follows the prop every render. */}
-      <SceneBackground color={props.env?.background ?? WORK_WINDOW} />
+      <SceneBackground
+        color={props.env?.background ?? WORK_WINDOW}
+        gradient={props.env?.backgroundGradient ?? true}
+      />
       <hemisphereLight args={["#ffffff", "#d2d5d1", 1.0]} />
       <ambientLight intensity={0.25} />
       {/* Key, fill, rim. Metal needs something to reflect or it reads as clay,
@@ -245,6 +297,13 @@ export function Viewport(props: ViewportProps) {
 
       {/* Floor plane — grounds the part. Tinted and toggled by the view
           environment; a machinist inspecting a shiny wall can turn it off. */}
+      {/* The floor sat 0.003 under the grid, which is nothing at all across a
+          plane this wide: the depth buffer lost the difference and the floor
+          won, so every preset that turned the grid on drew no grid. Confirmed
+          by switching the floor off — the grid appeared immediately. The fix
+          is a polygon offset rather than a bigger magic gap, because the gap
+          that works at the near edge is not the gap that works forty units
+          out. */}
       {(props.env?.floorVisible ?? true) && props.env && props.env.preset !== "STUDIO_WHITE" && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, stock ? -stock.z / 2 - 0.004 : -0.004, 0]}>
           <planeGeometry args={[span * 8, span * 8]} />
@@ -252,13 +311,18 @@ export function Viewport(props: ViewportProps) {
             color={props.env.floorColor}
             metalness={props.env.floorReflectivity}
             roughness={1 - props.env.floorReflectivity * 0.6}
+            polygonOffset
+            polygonOffsetFactor={2}
+            polygonOffsetUnits={2}
           />
         </mesh>
       )}
 
-      {/* The datum grid stays, but quietly, and only far enough out to give
-          scale without competing with the component for attention. */}
-      {(props.env?.gridVisible ?? true) && (
+      {/* Off on the default ground now — see `gridVisible` in
+          view-environment.ts for why. Where a preset does switch it on, it
+          stays quiet, and reaches only far enough out to give the eye a plane
+          without competing with the component for attention. */}
+      {(props.env?.gridVisible ?? false) && (
         <Grid
           args={[span * 6, span * 6]}
           cellSize={0.5}

@@ -1538,3 +1538,40 @@ It claims one consistent direction, not a per-operation cut direction —
 the solid is merged slabs with no per-operation channel, so a tangent
 field following each operation's real feed would be invented. Cast iron
 and plastic sit at anisotropy 0.
+
+## The ground, and a grid that was never drawing
+
+Parity gap 6 in docs/VISUAL_PARITY_AUDIT.md, closed. The reference has a
+graduated ground with no grid; CANVAS drew a flat fill with a grid over it.
+
+`gradientTexture()` in scene.tsx builds a radial gradient on a 2D canvas
+from the preset's own background colour and applies it to
+`scene.background`. Generated in process rather than fetched — same reason
+the environment rig is Lightformers and not a preset HDR: the viewport has
+to draw a part on a shop floor with no internet.
+
+The stops had to be set by measurement. The first pass used +18% toward
+white at the centre and −11% toward black at the rim, which sampled out at
+rgb(247,247,245) down to rgb(235,235,233): twelve levels across the whole
+frame, a gradient by construction and a flat wall to look at. ACES tone
+mapping runs on the background quad and compresses whatever it is given, so
+the stops have to be wider than the result wanted. At +22% / −32% over a
+tighter radius the frame measures rgb(247,247,245) at the peak, rgb(217,217,216)
+at the top corners and rgb(207,207,206) at the bottom — forty levels.
+
+`backgroundGradient` is a real field with a real control in the drawer's
+Surface section. High Contrast sets it false and measures 1 level of
+falloff, which is how we know the flag reaches the renderer.
+
+The grid is now off on the default ground — it is decoration, not
+reference, and the work offset, datum letters and part size are all drawn
+elsewhere. It stays on in Inspection Gray, Blueprint Blue, Dark Machine Bay
+and High Contrast.
+
+That change exposed a defect: those presets also draw a floor plane, and
+the floor sat 0.003 under the grid, which is nothing across a plane forty
+units wide. The depth buffer lost the difference and the floor won, so
+every preset that turned the grid on drew no grid. Confirmed by switching
+the floor off, at which point the grid appeared. Fixed with a polygon
+offset on the floor material rather than a larger gap, because the gap that
+works at the near edge is not the gap that works forty units out.

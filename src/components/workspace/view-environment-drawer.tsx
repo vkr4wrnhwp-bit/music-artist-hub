@@ -175,6 +175,7 @@ export function ViewEnvironmentDrawer({
           <p className={label}>Surface</p>
           {(
             [
+              ["Gradient ground", "backgroundGradient"],
               ["Grid", "gridVisible"],
               ["Floor plane", "floorVisible"],
             ] as const

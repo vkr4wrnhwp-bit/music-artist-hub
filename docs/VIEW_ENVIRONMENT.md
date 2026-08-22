@@ -11,7 +11,7 @@ Opened from the viewport control stack: **Scene → View env**.
 
 | Preset | Intent |
 |---|---|
-| Studio White | Default. Neutral ground, soft shadow. |
+| Studio White | Default. Graduated neutral ground, soft contact shadow, no grid. |
 | Graphite | Mid grey; calms glare on polished surfaces. |
 | Inspection Gray | Edge visibility on bright aluminum / stainless. |
 | Blueprint Blue | Drawing-room ground for review sessions. |
@@ -20,9 +20,27 @@ Opened from the viewport control stack: **Scene → View env**.
 | High Contrast | Strong edges, heavy lines, large text. |
 | Custom | Any colour edit moves the preset to Custom. |
 
-Each preset sets: background, floor colour/visibility/reflectivity, grid
-visibility/intensity, shadow strength, reflection strength, edge mode, and
-(High Contrast) line weights and text size.
+Each preset sets: background, whether the background is graduated, floor
+colour/visibility/reflectivity, grid visibility/intensity, shadow strength,
+reflection strength, edge mode, and (High Contrast) line weights and text
+size.
+
+## The ground
+
+The background is drawn as a soft radial gradient derived from the preset's
+own colour — a studio ground falls off toward the frame edge, a flat fill
+does not, and that is most of what separates a product photograph from a CAD
+viewport. The texture is generated in process on a 2D canvas, never fetched,
+so the viewport still renders a part on a shop floor with no internet. The
+`Gradient ground` toggle in Surface turns it off; High Contrast ships with it
+off, because an even ground is the point of that preset.
+
+The grid is **off** on the default ground. It is decoration rather than
+reference — the work offset is drawn on the part by `DatumIndicator`, the
+print's datum letters by `DatumFlags`, and size by the dimension card — and
+on a light ground it competes with the component. Inspection Gray, Blueprint
+Blue, Dark Machine Bay and High Contrast switch it back on, and it stays a
+per-user toggle everywhere.
 
 ## Custom colours and the semantic lock
 

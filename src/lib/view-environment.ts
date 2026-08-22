@@ -30,6 +30,13 @@ export interface ViewEnvironment {
   /** Preset id, or "CUSTOM". */
   preset: string;
   background: string;
+  /**
+   * Draw the background as a soft radial gradient derived from `background`
+   * rather than as a flat fill. A studio ground falls off toward the frame
+   * edge; a flat fill is a paint chip. Off for High Contrast, where an even
+   * ground is the whole point.
+   */
+  backgroundGradient: boolean;
   floorColor: string;
   gridColor: string;
   /** Custom accent for selected-feature geometry. Defaults to precision blue. */
@@ -62,7 +69,17 @@ export interface ViewEnvironment {
 const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "gridColor"> = {
   selectedFeatureColor: "#0b72ff",
   sectionFillColor: "#dce4ec",
-  gridVisible: true,
+  backgroundGradient: true,
+  /**
+   * Off by default. The grid is ground decoration, not a reference: the work
+   * offset is drawn on the part by `DatumIndicator`, datum letters by
+   * `DatumFlags`, and size by the dimension card — none of them need it. On a
+   * light ground it competes with the component for attention, which is the
+   * opposite of what the workspace is for. The presets that switch it back on
+   * are the ones where a ruled ground earns its place: a drawing-room review,
+   * an inspection ground, a dark bay, and High Contrast.
+   */
+  gridVisible: false,
   gridIntensity: 0.5,
   reflectionStrength: 0.5,
   shadowStrength: 0.45,
@@ -81,7 +98,7 @@ const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "grid
 export const VIEW_PRESETS: Record<string, { label: string; note: string; env: ViewEnvironment }> = {
   STUDIO_WHITE: {
     label: "Studio White",
-    note: "The default. Neutral ground, soft shadow.",
+    note: "The default. Graduated neutral ground, soft contact shadow, no grid.",
     env: { ...base, preset: "STUDIO_WHITE", background: "#f6f6f4", floorColor: "#eceded", gridColor: "#14181c" },
   },
   GRAPHITE: {
@@ -92,12 +109,12 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
   INSPECTION_GRAY: {
     label: "Inspection Gray",
     note: "Improves edge visibility on bright aluminum and stainless.",
-    env: { ...base, preset: "INSPECTION_GRAY", background: "#b9bcbe", floorColor: "#aeb1b3", gridColor: "#3c4045", edgeMode: "STRONG", reflectionStrength: 0.3 },
+    env: { ...base, preset: "INSPECTION_GRAY", background: "#b9bcbe", floorColor: "#aeb1b3", gridColor: "#3c4045", edgeMode: "STRONG", reflectionStrength: 0.3, gridVisible: true },
   },
   BLUEPRINT_BLUE: {
     label: "Blueprint Blue",
     note: "Drawing-room ground for review sessions.",
-    env: { ...base, preset: "BLUEPRINT_BLUE", background: "#1d3a5f", floorColor: "#193353", gridColor: "#7da4cc", gridIntensity: 0.7, shadowStrength: 0.25 },
+    env: { ...base, preset: "BLUEPRINT_BLUE", background: "#1d3a5f", floorColor: "#193353", gridColor: "#7da4cc", gridIntensity: 0.7, shadowStrength: 0.25, gridVisible: true },
   },
   WARM_SHOP_FLOOR: {
     label: "Warm Shop Floor",
@@ -107,7 +124,7 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
   DARK_MACHINE_BAY: {
     label: "Dark Machine Bay",
     note: "Dark ground for bright toolpaths and light materials.",
-    env: { ...base, preset: "DARK_MACHINE_BAY", background: "#14181d", floorColor: "#1b2026", gridColor: "#4b5560", gridIntensity: 0.6, shadowStrength: 0.6, edgeMode: "STRONG" },
+    env: { ...base, preset: "DARK_MACHINE_BAY", background: "#14181d", floorColor: "#1b2026", gridColor: "#4b5560", gridIntensity: 0.6, shadowStrength: 0.6, edgeMode: "STRONG", gridVisible: true },
   },
   HIGH_CONTRAST: {
     label: "High Contrast",
@@ -116,6 +133,7 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
       ...base, preset: "HIGH_CONTRAST", background: "#ffffff", floorColor: "#f2f2f2", gridColor: "#000000",
       edgeMode: "STRONG", datumLineMode: "STRONG", measurementLineWeight: "HEAVY", toolpathLineWeight: "HEAVY",
       featureRingHighContrast: true, annotationSize: "LARGE", gridIntensity: 0.8,
+      gridVisible: true, backgroundGradient: false,
     },
   },
 };

@@ -121,9 +121,58 @@ view preferences; that was test residue, cleared before this audit.)
    operation's real feed would be invented. Cast iron and plastic carry
    anisotropy 0 — an as-cast face has no cutter marks to smear.
 
-6. **Ground treatment.** The reference has a gradient ground and no
-   grid; ours draws a visible grid by default. The grid is already a
-   toggle in View Environment — the question is the default.
+6. ~~**Ground treatment.**~~ **Closed.** The reference has a gradient
+   ground and no grid; ours drew a flat fill with a grid over it.
+
+   Two changes, both measured on the seeded Bearing Support at 1440×900.
+
+   **The ground is now graduated.** `gradientTexture()` in scene.tsx
+   builds a radial gradient on a 2D canvas from the preset's own
+   background colour and hands it to `scene.background`. Generated in
+   process, not fetched — same reason the environment rig is built from
+   Lightformers rather than a preset HDR: the viewport has to draw a part
+   on a shop floor with no internet.
+
+   The first attempt set the stops by eye — centre +18% toward white,
+   rim −11% toward black — and sampled out at rgb(247,247,245) down to
+   rgb(235,235,233). Twelve levels across the entire frame: a gradient by
+   construction and a flat wall to look at. ACES tone mapping runs on the
+   background quad too and compresses whatever it is given, so the stops
+   have to be set wider than the result you want. At +22% / −32% over a
+   tighter radius:
+
+   | sample | value |
+   |---|---|
+   | peak, above the part | rgb(247,247,245) |
+   | top corners | rgb(217,217,216) |
+   | bottom corners | rgb(207,207,206) |
+
+   Forty levels of falloff. The part now sits in a pool of light with the
+   contact shadow under it, which is what the reference is doing.
+
+   `backgroundGradient` is a real field with a real control in the View
+   Environment drawer's Surface section, not a hard-coded look. High
+   Contrast sets it `false` — an even ground is the entire point of that
+   preset — and measures 1 level of falloff, confirming the flag reaches
+   the renderer.
+
+   **The grid is off on the default ground.** It is decoration, not
+   reference: the work offset is drawn on the part by `DatumIndicator`,
+   the print's datum letters by `DatumFlags`, and size by the dimension
+   card. On a light ground it competed with the component. It stays on in
+   Inspection Gray, Blueprint Blue, Dark Machine Bay and High Contrast,
+   where a ruled ground earns its place.
+
+   **That change surfaced a defect worth naming.** Those four presets
+   also draw a floor plane, and the floor sat 0.003 under the grid —
+   nothing at all across a plane forty units wide. The depth buffer lost
+   the difference and the floor won, so a preset that turned the grid on
+   drew no grid. Switching the floor off made the grid appear
+   immediately, which is what confirmed it. Fixed with a polygon offset
+   on the floor material rather than a wider gap, because the gap that
+   works at the near edge is not the gap that works forty units out.
+   Verified: the grid now renders in Blueprint Blue and Dark Machine Bay,
+   and Studio White still has none.
 
 7. **Header chrome.** The reference carries a notification bell with a
    count, an analytics icon, and a circular avatar with the operator's
