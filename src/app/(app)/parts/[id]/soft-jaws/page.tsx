@@ -10,6 +10,7 @@ import type { JawBlank } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, EmptyState, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { selectWorkholdingDevice } from "@/lib/package-selectors";
 
 /**
  * SOFT JAW GENERATOR
@@ -33,7 +34,7 @@ export default async function SoftJawsPage(props: {
 
   const blanks = await db.jawBlank.findMany({ where: { organizationId: user.organizationId } });
   const setup = pkg.setups.find((s) => s.id === sp.setup) ?? pkg.setups.find((s) => s.sequence > 1) ?? pkg.setups[0];
-  const device = pkg.workholdingDevices.find((w) => w.id === setup?.workholdingId) ?? pkg.workholdingDevices[0];
+  const device = selectWorkholdingDevice(pkg.workholdingDevices, setup);
   // Enumerated values are stored as strings in the DB and validated here at
   // the boundary, matching the schema's single-source-of-truth approach.
   const blank = blanks[0] ? { ...blanks[0], material: blanks[0].material as JawBlank["material"] } : undefined;
@@ -94,7 +95,7 @@ export default async function SoftJawsPage(props: {
     const setupId = String(formData.get("setupId"));
     const grip = Number(formData.get("grip"));
     const freshSetup = fresh.setups.find((s) => s.id === setupId);
-    const freshDevice = fresh.workholdingDevices.find((w) => w.id === freshSetup?.workholdingId) ?? fresh.workholdingDevices[0];
+    const freshDevice = selectWorkholdingDevice(fresh.workholdingDevices, freshSetup);
     const blankRow = await db.jawBlank.findFirst({ where: { organizationId: currentUser.organizationId } });
     const freshBlank = blankRow ? { ...blankRow, material: blankRow.material as JawBlank["material"] } : null;
     if (!freshSetup || !freshDevice || !freshBlank || !fresh.revision.stock) notFound();

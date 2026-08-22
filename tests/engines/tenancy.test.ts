@@ -180,3 +180,43 @@ test("a page still renders for someone who may only read it", () => {
   }
   assert.deepEqual(offenders, [], `requireWrite outside a server action:\n  ${offenders.join("\n  ")}`);
 });
+
+/* ---------------- Nothing the shop did not choose ---------------- */
+
+/**
+ * Falling back to the first row of a shop's table is the same mistake in
+ * three places: the material a part is force-modelled with, the machine its
+ * envelope is validated against, and the vise its soft jaws are cut for. In
+ * every case the substitute is a real record that looks chosen and was not.
+ *
+ * The `[0]` fallbacks that remain are display defaults — which of five plans
+ * to show first, which setup a page opens on — and those are named here so a
+ * new one has to be looked at rather than blending in.
+ */
+const DISPLAY_DEFAULTS = [
+  'scored.find((s) => s.plan.pattern === approach) ?? scored[0]',
+  'pkg.setups.find((s) => s.sequence > 1) ?? pkg.setups[0]',
+  'j.outcomes.find((o) => o.code !== "SUCCESS") ?? j.outcomes[0]',
+  'matches.find((n) => n > cur) ?? matches[0]',
+];
+
+test("no shop record is substituted for one the shop did not choose", () => {
+  const offenders: string[] = [];
+  for (const file of [...walk(APP), ...walk(LIB)]) {
+    if (file.endsWith("package-selectors.ts")) continue;
+    const src = readFileSync(file, "utf8");
+    for (const line of src.split("\n")) {
+      // The fallback may be a dotted path — pkg.workholdingDevices[0] — and the
+      // first version of this required a bare identifier, so the vise
+      // substitution slipped straight past the guard written for it.
+      if (!/\.find\(/.test(line) || !/\?\?\s*[\w.]+\[0\]/.test(line)) continue;
+      if (DISPLAY_DEFAULTS.some((d) => line.includes(d.slice(0, 40)))) continue;
+      offenders.push(`${file}: ${line.trim()}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `a lookup falls back to the first record in the shop's table:\n  ${offenders.join("\n  ")}`,
+  );
+});

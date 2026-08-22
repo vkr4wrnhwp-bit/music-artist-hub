@@ -14,6 +14,7 @@ import { money } from "@/lib/engines/cost";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Dot, EmptyState, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
+import { selectMaterial } from "@/lib/package-selectors";
 
 /**
  * THE AI MACHINIST
@@ -43,7 +44,7 @@ export default async function MachinistPage(props: {
   if (!pkg) notFound();
 
   const materials = await getMaterials(user.organizationId);
-  const material = materials.find((m) => m.name === pkg.revision.intent.material.value) ?? materials[0] ?? null;
+  const material = selectMaterial(materials, pkg.revision.intent.material.value);
 
   const blocked =
     !pkg.revision.stock
@@ -107,7 +108,7 @@ export default async function MachinistPage(props: {
     if (!fresh || !fresh.revision.stock || !fresh.primaryMachine) notFound();
 
     const freshMaterials = await getMaterials(currentUser.organizationId);
-    const mat = freshMaterials.find((m) => m.name === fresh.revision.intent.material.value) ?? freshMaterials[0] ?? null;
+    const mat = selectMaterial(freshMaterials, fresh.revision.intent.material.value);
     const env = fresh.revision.intent.finishedEnvelope.value as { z: number } | null;
 
     const plans = reviewApproaches({

@@ -87,3 +87,41 @@ test("a setup naming a machine the shop no longer has is null, not a substitute"
 test("an empty machine list yields null rather than throwing", () => {
   assert.equal(selectPrimaryMachine([{ machineId: "vf2" }], []), null);
 });
+
+/* ---------------- Workholding device ---------------- */
+
+import { selectWorkholdingDevice } from "@/lib/package-selectors";
+
+const device = (id: string) => ({ id, description: id, jawWidth: 6 });
+
+test("a setup naming no vise gets no vise, not the shop's first one", () => {
+  // The device drives jaw width, jaw height and maximum opening, so falling
+  // back dimensioned a set of soft jaws for a vise the setup does not use.
+  // The soft-jaw page already renders an explanation when there is no device
+  // — the fallback was talking over a message written for this case.
+  const devices = [device("kurt6"), device("chick")];
+  assert.equal(selectWorkholdingDevice(devices, { workholdingId: null }), null);
+  assert.equal(selectWorkholdingDevice(devices, null), null);
+  assert.equal(selectWorkholdingDevice(devices, undefined), null);
+});
+
+test("the vise a setup names is the one returned", () => {
+  const devices = [device("kurt6"), device("chick")];
+  assert.equal(selectWorkholdingDevice(devices, { workholdingId: "chick" })?.id, "chick");
+});
+
+test("a setup naming a vise the shop no longer has is null, not a substitute", () => {
+  assert.equal(selectWorkholdingDevice([device("kurt6")], { workholdingId: "sold" }), null);
+});
+
+test("an empty device list yields null rather than throwing", () => {
+  assert.equal(selectWorkholdingDevice([], { workholdingId: "kurt6" }), null);
+});
+
+test("all three selectors refuse rather than substitute", () => {
+  // One rule, three lookups: the shop's records answer for what the shop
+  // actually chose, and say nothing when it chose nothing.
+  assert.equal(selectMaterial(TABLE, "unknown"), null);
+  assert.equal(selectPrimaryMachine([{ machineId: null }], [machine("vf2")]), null);
+  assert.equal(selectWorkholdingDevice([device("kurt6")], { workholdingId: null }), null);
+});

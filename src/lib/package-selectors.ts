@@ -21,3 +21,21 @@ export function selectMaterial<M extends { name: string }>(materials: M[], name:
   if (!name) return null;
   return materials.find((m) => m.name === name) ?? null;
 }
+
+/**
+ * The workholding device a setup names, or null.
+ *
+ * Three call sites fell back to workholdingDevices[0] when the setup named
+ * none. The device drives jaw width, jaw height and maximum opening, so the
+ * fallback dimensioned a set of soft jaws for a vise the setup does not use —
+ * and the soft-jaw page already renders an explanation when there is no
+ * device, so the fallback was talking over a message that was written for
+ * exactly this case.
+ */
+export function selectWorkholdingDevice<D extends { id: string }, S extends { workholdingId: string | null }>(
+  devices: D[],
+  setup: S | null | undefined,
+): D | null {
+  if (!setup?.workholdingId) return null;
+  return devices.find((d) => d.id === setup.workholdingId) ?? null;
+}

@@ -2,6 +2,7 @@ import "server-only";
 import type { ManufacturingPackage } from "@/lib/package";
 import type { JawBlank } from "@/lib/domain/shop";
 import type { SoftJawRequest } from "@/lib/engines/workholding";
+import { selectWorkholdingDevice } from "./package-selectors";
 
 /**
  * ONE assembler for the soft-jaw request.
@@ -30,7 +31,7 @@ export function assembleSoftJawRequest(
     pkg.setups.find((s) => s.id === params.setupId) ??
     pkg.setups.find((s) => s.sequence > 1) ??
     pkg.setups[0];
-  const device = pkg.workholdingDevices.find((w) => w.id === setup?.workholdingId) ?? pkg.workholdingDevices[0];
+  const device = selectWorkholdingDevice(pkg.workholdingDevices, setup);
   if (!setup || !device || !blank || !pkg.revision.stock) return null;
 
   const stock = pkg.revision.stock;
