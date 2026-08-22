@@ -226,6 +226,9 @@ function WorkspaceInner(props: WorkspaceProps) {
   // renders immediately after mount (SSR renders the default); the per-user
   // server copy is fetched and wins when present, so preferences follow the
   // user across devices. Changes save to both.
+  // The scene opens on the iso framing, and VIEWS[0] is defined to return the
+  // camera exactly there, so ISO is the honest starting highlight.
+  const [activeView, setActiveView] = useState<string | null>("Iso");
   const [viewEnv, setViewEnv] = useState<ViewEnvironment>(DEFAULT_ENVIRONMENT);
   // One right-side drawer at a time — env settings or the cinematic panel.
   const [drawer, setDrawer] = useState<"env" | "film" | null>(null);
@@ -341,6 +344,19 @@ function WorkspaceInner(props: WorkspaceProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [escape]);
 
+  // Dragging the part leaves whatever named view it was in. RESET VIEW puts
+  // the camera back where it started, which is the iso framing.
+  useEffect(() => {
+    const off = () => setActiveView(null);
+    const iso = () => setActiveView("Iso");
+    window.addEventListener("canvas:orbit", off);
+    window.addEventListener("canvas:reset-view", iso);
+    return () => {
+      window.removeEventListener("canvas:orbit", off);
+      window.removeEventListener("canvas:reset-view", iso);
+    };
+  }, []);
+
   // Playback is a scrub over the move list, driven by rAF while playing.
   useAnimationLoop(playing, (dt) => {
     setPlayhead((p) => {
@@ -353,8 +369,16 @@ function WorkspaceInner(props: WorkspaceProps) {
     });
   });
 
-  const setView = (position: [number, number, number]) =>
+  /**
+   * `label` is what the orientation bar highlights. It is null for the
+   * framing moves CANVAS makes on its own — entering HOLD reframes to take
+   * in the vise, which is not TOP or FRONT or any other named view, so
+   * nothing lights up.
+   */
+  const setView = (position: [number, number, number], label: string | null = null) => {
     window.dispatchEvent(new CustomEvent("canvas:setview", { detail: { position } }));
+    setActiveView(label);
+  };
 
   /** Selecting geometry always brings the feature panel forward. */
   const selectFeature = (id: string | null) => {
@@ -768,7 +792,12 @@ function WorkspaceInner(props: WorkspaceProps) {
               <div className="no-scrollbar pointer-events-auto max-h-full overflow-y-auto">
                 <ControlGroup heading="View">
                   {VIEWS.map((v) => (
-                    <ControlButton key={v.label} title={v.title} onClick={() => setView(v.position)}>
+                    <ControlButton
+                      key={v.label}
+                      title={v.title}
+                      on={activeView === v.label}
+                      onClick={() => setView(v.position, v.label)}
+                    >
                       {v.label}
                     </ControlButton>
                   ))}
@@ -868,6 +897,45 @@ function WorkspaceInner(props: WorkspaceProps) {
                     : undefined
                 }
               />
+            )}
+
+            {/* Orientation, bottom centre.
+
+                Six orthographic views and the iso return. These already
+                existed, four clicks deep behind VIEW, which is three clicks
+                too many for the thing a machinist does most: look straight
+                down at the face being cut, then straight at the wall, then
+                back. The view cube in the corner does the same job by drag,
+                and this does it by name.
+
+                Hidden below md — a phone has no room for it, and the cube is
+                still there. Suppressed while the stock is undefined, because
+                there is nothing in the frame to orient. */}
+            {props.stock && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 hidden justify-center md:flex">
+                <div
+                  role="group"
+                  aria-label="Part orientation"
+                  className="pointer-events-auto flex divide-x divide-line-strong border border-line-strong bg-card/92 backdrop-blur"
+                >
+                  {VIEWS.map((v) => (
+                    <button
+                      key={v.label}
+                      type="button"
+                      title={v.title}
+                      aria-pressed={activeView === v.label}
+                      onClick={() => setView(v.position, v.label)}
+                      className={`px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] transition-colors ${
+                        activeView === v.label
+                          ? "bg-precision/10 text-precision-dim"
+                          : "text-muted hover:text-platinum"
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Toolpath transport. Present only while a path is on screen —

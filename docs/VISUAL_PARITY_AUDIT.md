@@ -193,9 +193,37 @@ view preferences; that was test residue, cleared before this audit.)
     SETUP 02 with SAFE / HIGH RISK beside the viewport. Ours has them
     on the setups page with the hold scene.
 
-11. **Orientation controls.** The reference has a bottom-centre
-    segmented orientation control and bottom-right viewport tool icons.
-    Ours has the view cube plus orientation inside the VIEW menu.
+11. ~~**Orientation controls.**~~ **Half closed.** The reference has a
+    bottom-centre segmented orientation control and bottom-right viewport
+    tool icons.
+
+    The segmented control is in. ISO / TOP / BOTTOM / FRONT / REAR / LEFT
+    / RIGHT, bottom centre, driving the same camera positions the VIEW
+    menu always drove. The views were not missing before — they were four
+    clicks deep, which is three too many for the thing a machinist does
+    most: look straight down at the face being cut, then straight at the
+    wall, then back.
+
+    The highlight tells the truth about where the camera is. Clicking TOP
+    lights TOP; **dragging the part clears every highlight**, because the
+    camera is then in no named view and a control still claiming TOP
+    while the part sits at three-quarters is a small lie in the same
+    family as the large ones. `OrbitControls` fires `start` on the first
+    drag and `CameraSync` republishes it as `canvas:orbit`. Entering HOLD
+    reframes to take in the vise, which is not a named view either, so
+    `setView` takes the label as a separate argument and that path passes
+    none.
+
+    Verified in the running build at 1920×1080, 1440×900, 1366×768 and
+    1024×768: control present, no horizontal scroll at any size, ISO lit
+    on arrival, TOP lit after clicking TOP and the camera actually
+    looking down the Z axis, nothing lit after a drag. Hidden below the
+    md breakpoint — a phone has no room, and the view cube is still
+    there.
+
+    The bottom-right viewport tool icons are still not in. They are
+    duplicates of controls that exist in the VIEW menu, not new
+    capability, so they rank below the remaining items here.
 
 12. **Instrument illustration.** The reference draws the micrometer in
     the metrology block. Ours names the instrument in text.

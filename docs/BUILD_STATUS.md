@@ -1575,3 +1575,27 @@ every preset that turned the grid on drew no grid. Confirmed by switching
 the floor off, at which point the grid appeared. Fixed with a polygon
 offset on the floor material rather than a larger gap, because the gap that
 works at the near edge is not the gap that works forty units out.
+
+## Orientation, out of the menu
+
+Parity gap 11, half closed. A segmented ISO / TOP / BOTTOM / FRONT / REAR /
+LEFT / RIGHT control now sits at the bottom centre of the work window,
+driving the same camera positions the VIEW menu always drove. The views
+were not missing before; they were four clicks deep, which is three too
+many for the thing a machinist does most — look straight down at the face
+being cut, then straight at the wall, then back.
+
+The highlight is honest about where the camera actually is. Dragging the
+part clears every highlight, because the camera is then in no named view.
+OrbitControls fires `start` on the first drag and CameraSync republishes it
+as `canvas:orbit`. Entering HOLD reframes to take in the vise, which is not
+a named view either, so `setView` takes the label as a separate argument and
+that path passes none.
+
+Verified in the running build at 1920x1080, 1440x900, 1366x768 and 1024x768:
+control present, no horizontal scroll at any size, ISO lit on arrival, TOP
+lit after clicking TOP with the camera genuinely looking down the Z axis,
+nothing lit after a drag. Hidden below md, where the view cube covers it.
+
+The reference's bottom-right viewport tool icons are still out. They
+duplicate controls that already exist in VIEW rather than adding capability.

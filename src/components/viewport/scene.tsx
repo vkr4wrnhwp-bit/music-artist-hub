@@ -371,9 +371,20 @@ function CameraSync() {
       (controls as { reset?: () => void } | null)?.reset?.();
     };
     window.addEventListener("canvas:reset-view", reset);
+
+    /* The orientation bar shows which named view the camera is sitting in.
+       The moment the operator drags, it is no longer sitting in any of them,
+       and a control still claiming TOP while the part is at three-quarters
+       is a small lie in the same family as the large ones. OrbitControls
+       fires `start` on the first drag; that is the signal. */
+    const orbiting = () => window.dispatchEvent(new CustomEvent("canvas:orbit"));
+    const c = controls as { addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void } | null;
+    c?.addEventListener?.("start", orbiting);
+
     return () => {
       window.removeEventListener("canvas:setview", handler);
       window.removeEventListener("canvas:reset-view", reset);
+      c?.removeEventListener?.("start", orbiting);
     };
   }, [camera, controls]);
   return null;
