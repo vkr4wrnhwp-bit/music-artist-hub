@@ -293,16 +293,40 @@ export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIss
   const issues: NcVerificationIssue[] = [];
   const lines = nc.split("\n");
 
+  // This checker reads G-code. Heidenhain conversational is a different
+  // language — BEGIN PGM ... INCH rather than G20, L X.. R0 F.. rather than
+  // G1 X.. F.. — and every rule below misreads it. Run against a valid TNC
+  // program it reported "No units word (G20/G21)" as an ERROR and, once the
+  // feed checks were added, a second error saying no feed was ever commanded
+  // when every L block carried one. Two false errors on a correct program.
+  //
+  // Saying so is the only defensible answer. A dialect this cannot parse must
+  // not come back clean either, because clean is what an operator reads as
+  // verified.
+  if (/^\s*BEGIN PGM\b/m.test(nc)) {
+    return [
+      {
+        severity: "WARNING",
+        line: 1,
+        message:
+          "This is a Heidenhain conversational program. CANVAS's NC verification reads G-code and cannot check this dialect — travel envelope, spindle state and feed limits are all unverified here.",
+      },
+    ];
+  }
+
   let unitsSet = false;
   let spindleOn = false;
   let sawMotion = false;
+  let sawFeedMotion = false;
+  let spindleOnAtEnd = false;
+  let feedEverSet = false;
 
   lines.forEach((raw, i) => {
     const line = raw.trim().toUpperCase();
     const ln = i + 1;
     if (/\bG20\b|\bG21\b|\bG70\b|\bG71\b/.test(line)) unitsSet = true;
-    if (/\bM3\b|\bM4\b/.test(line)) spindleOn = true;
-    if (/\bM5\b/.test(line)) spindleOn = false;
+    if (/\bM3\b|\bM4\b/.test(line)) { spindleOn = true; spindleOnAtEnd = true; }
+    if (/\bM5\b/.test(line)) { spindleOn = false; spindleOnAtEnd = false; }
 
     const x = /X(-?\d+\.?\d*)/.exec(line);
     const y = /Y(-?\d+\.?\d*)/.exec(line);
@@ -310,6 +334,24 @@ export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIss
 
     if (x || y || z) {
       sawMotion = true;
+      // A cutting move is one with a feed rate. G0 is the machine moving as
+      // fast as it can, and it does that in air.
+      const cutting = /\bG0?1\b|\bG0?2\b|\bG0?3\b/.test(line);
+      if (cutting || /\bF\d/.test(line)) sawFeedMotion = true;
+
+      // An F word that is not a number reaches the control as a malformed
+      // block. Depending on the control it is a fault or, worse, silently
+      // ignored so the move runs at whatever feed was last modal. Either way
+      // it is not the feed the CAM engine computed.
+      const fWord = /\bF([^\s]*)/.exec(line);
+      if (cutting && fWord && !/^\d+\.?\d*$/.test(fWord[1])) {
+        issues.push({
+          severity: "ERROR",
+          line: ln,
+          message: `Cutting move carries a malformed feed word "F${fWord[1]}". The control will either fault or fall back to the last modal feed.`,
+        });
+      }
+      if (cutting) feedEverSet ||= Boolean(fWord) || feedEverSet;
       if (x && Math.abs(parseFloat(x[1])) > machine.travelsX / 2) {
         issues.push({ severity: "ERROR", line: ln, message: `X${x[1]} is outside the ±${(machine.travelsX / 2).toFixed(1)}" travel envelope` });
       }
@@ -336,6 +378,40 @@ export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIss
 
   if (!unitsSet) issues.push({ severity: "ERROR", line: 1, message: "No units word (G20/G21) in the program" });
   if (!sawMotion) issues.push({ severity: "WARNING", line: 1, message: "Program contains no motion" });
+
+  // A program that moves and never feeds is not cutting anything. Either it
+  // does nothing, or — the reason this check exists — every cutting move has
+  // been emitted as a rapid, which is the machine driving into the material
+  // at full traverse. Nothing caught that: a post mutated to emit G0 for every
+  // cutting move produced a program verifyNc passed with no errors at all.
+  if (sawMotion && !sawFeedMotion) {
+    issues.push({
+      severity: "ERROR",
+      line: 1,
+      message:
+        "Program contains motion but no feed moves — every move is a rapid. A cutting pass emitted as G0 drives into the material at traverse speed.",
+    });
+  }
+
+  // Cutter compensation and a canned cycle left active by the PREVIOUS
+  // program are still active when this one starts. The safe line cancels them.
+  if (sawMotion && !/\bG40\b/.test(nc.toUpperCase())) {
+    issues.push({
+      severity: "WARNING",
+      line: 1,
+      message: "No G40 in the program — cutter compensation left on by whatever ran before this is still active.",
+    });
+  }
+  if (sawFeedMotion && !feedEverSet) {
+    issues.push({
+      severity: "ERROR",
+      line: 1,
+      message: "Cutting moves are present but no feed rate is ever commanded — every pass would run at whatever feed the control had left over.",
+    });
+  }
+  if (spindleOnAtEnd) {
+    issues.push({ severity: "WARNING", line: lines.length, message: "Program ends with the spindle still commanded on." });
+  }
   if (!/M30|M2\b/.test(nc.toUpperCase())) {
     issues.push({ severity: "WARNING", line: lines.length, message: "Program has no end-of-program code" });
   }

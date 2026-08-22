@@ -174,3 +174,78 @@ test("preflightPassed is worst-case: one failing required item fails the list", 
   // A non-required failure does not block. That is what "required" means.
   assert.equal(preflightPassed([item("PASS", true), item("FAIL", false)]), true);
 });
+
+/* ---- what verifyNc has to catch before a program reaches a machine ---- */
+
+test("a program whose every move is a rapid is an ERROR, not a clean program", () => {
+  // Inverting one line of the post so every CUTTING move came out as G0 —
+  // the machine driving into the material at traverse — passed all twelve
+  // tests here and produced zero errors from verifyNc. This is the NC
+  // VERIFICATION stage of the pipeline; it has to notice that.
+  const allRapid = ["G20", "G17 G40 G49 G80 G90", "M3 S5000", "G0 X0. Y0. Z-0.500", "G0 X1. Y0. Z-0.500", "M5", "M30"].join("\n");
+  const errors = verifyNc(allRapid, machine).filter((i) => i.severity === "ERROR");
+  assert.ok(errors.some((e) => /no feed moves|every move is a rapid/i.test(e.message)), `got [${errors.map((e) => e.message).join(" | ")}]`);
+});
+
+test("a cutting move with a malformed feed word is an ERROR", () => {
+  // "Fnull" reaches the control as a bad block: it faults, or it silently
+  // runs the move at whatever feed was last modal. Either way it is not the
+  // feed the CAM engine computed.
+  const bad = ["G20", "G17 G40 G49 G80 G90", "M3 S5000", "G1 X1. Y0. Z-0.100 Fnull.", "M5", "M30"].join("\n");
+  const errors = verifyNc(bad, machine).filter((i) => i.severity === "ERROR");
+  assert.ok(errors.some((e) => /malformed feed/i.test(e.message)), `got [${errors.map((e) => e.message).join(" | ")}]`);
+});
+
+test("cutting with no feed rate ever commanded is an ERROR", () => {
+  const noFeed = ["G20", "G17 G40 G49 G80 G90", "M3 S5000", "G1 X1. Y0. Z-0.100", "M5", "M30"].join("\n");
+  const errors = verifyNc(noFeed, machine).filter((i) => i.severity === "ERROR");
+  assert.ok(errors.some((e) => /no feed rate is ever commanded/i.test(e.message)));
+});
+
+test("a program with no G40 is flagged — the last program's cutter comp is still live", () => {
+  const noG40 = ["G20", "G17 G90", "M3 S5000", "G1 X1. Y0. Z-0.100 F20.", "M5", "M30"].join("\n");
+  assert.ok(verifyNc(noG40, machine).some((i) => /G40/.test(i.message)));
+});
+
+test("a program that ends with the spindle running is flagged", () => {
+  const spinning = ["G20", "G17 G40 G49 G80 G90", "M3 S5000", "G1 X1. Y0. Z-0.100 F20.", "M30"].join("\n");
+  assert.ok(verifyNc(spinning, machine).some((i) => /spindle still commanded on/i.test(i.message)));
+});
+
+test("every shipped post emits a program that passes its own verifier", () => {
+  // Six posts, one assertion: whatever dialect, the emitted program has to
+  // survive the stage that stands between it and a machine.
+  const rb = generateToolpath(req("BORE"), bore, ctx(boringHead), stock);
+  assert.ok(rb.ok);
+  if (!rb.ok) return;
+  for (const id of ["haas-ngc-dev", "fanuc-dev", "pathpilot-dev", "siemens-840d-dev", "heidenhain-dev", "grbl-dev"]) {
+    const post = getPost(id);
+    assert.ok(post, `${id} is not registered`);
+    const nc = post.emit([rb.toolpath], postCtx);
+    const errors = verifyNc(nc, machine).filter((i) => i.severity === "ERROR");
+    assert.deepEqual(errors.map((e) => e.message), [], `${id} emitted a program with errors`);
+  }
+});
+
+test("no shipped post is marked certified", () => {
+  // Principle 5: an unimplemented or unvalidated capability stays labelled.
+  // These are development posts and the UI says so; the registry must not
+  // quietly disagree with it.
+  for (const id of ["haas-ngc-dev", "fanuc-dev", "pathpilot-dev", "siemens-840d-dev", "heidenhain-dev", "grbl-dev"]) {
+    assert.equal(getPost(id)!.certified, false, `${id} claims to be certified`);
+  }
+});
+
+test("a dialect the verifier cannot read is declared unverified, not clean", () => {
+  // Heidenhain conversational is a different language, and every G-code rule
+  // misread it: a valid TNC program came back with "No units word (G20/G21)"
+  // as an ERROR. Coming back clean instead would be worse — clean is what an
+  // operator reads as verified.
+  const rb = generateToolpath(req("BORE"), bore, ctx(boringHead), stock);
+  assert.ok(rb.ok);
+  if (!rb.ok) return;
+  const nc = getPost("heidenhain-dev")!.emit([rb.toolpath], postCtx);
+  const issues = verifyNc(nc, machine);
+  assert.equal(issues.filter((i) => i.severity === "ERROR").length, 0, "no invented errors");
+  assert.ok(issues.some((i) => /cannot check this dialect/i.test(i.message)), "and it says it did not verify");
+});
