@@ -36,6 +36,19 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
             Cost & make vs buy
           </SectionHeading>
 
+          {pkg.cost.warnings.length > 0 && (
+            <div className="border border-review/40 bg-review/5 p-4">
+              <p className="tech-label mb-2 text-review">Assumptions this quote cannot stand on</p>
+              <ul className="space-y-1.5">
+                {pkg.cost.warnings.map((w) => (
+                  <li key={w} className="text-[12.5px] leading-relaxed text-platinum">
+                    {w}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="grid gap-px bg-line sm:grid-cols-3">
             <Metric label="Unit cost" value={money(pkg.cost.unitCost)} sub={`at quantity ${pkg.cost.quantity}`} />
             <Metric label="Unit price" value={money(pkg.cost.unitPrice)} sub={`${(pkg.costAssumptions.marginRate * 100).toFixed(0)}% margin`} />

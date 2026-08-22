@@ -100,10 +100,13 @@ export default async function SettingsPage() {
                 <input name="shiftHours" type="number" step="0.5" defaultValue={shop.shiftHours} className={inputClass} />
               </Field>
               <Field label="Overhead (%)">
-                <input name="overheadRate" type="number" step="0.5" defaultValue={(shop.overheadRate * 100).toFixed(1)} className={inputClass} />
+                <input name="overheadRate" type="number" min="0" max="500" defaultValue={(shop.overheadRate * 100).toFixed(1)} className={inputClass} />
               </Field>
-              <Field label="Target margin (%)" hint="Applied to price, not marked up on cost.">
-                <input name="marginRate" type="number" step="0.5" defaultValue={(shop.marginRate * 100).toFixed(1)} className={inputClass} />
+              <Field
+                label="Target margin (%)"
+                hint="Applied to price, not marked up on cost — so it cannot reach 100%. A 100% markup is a 50% margin."
+              >
+                <input name="marginRate" type="number" min="0" max="95" defaultValue={(shop.marginRate * 100).toFixed(1)} className={inputClass} />
               </Field>
               <div className="sm:col-span-2">
                 <Button type="submit" variant="primary">

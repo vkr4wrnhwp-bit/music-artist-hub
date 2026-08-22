@@ -70,6 +70,50 @@ export interface CostResult {
   unitPrice: number;
   lotPrice: number;
   marginDollars: number;
+  /** Spindle hours per part, so capacity can be worked out from the result. */
+  cycleHoursPerPart: number;
+  /** Setup hours for the lot, charged once. */
+  setupHours: number;
+  /**
+   * Assumptions that are outside the range the arithmetic is valid over.
+   * A quote carrying one of these is not defensible in a customer meeting,
+   * which is the whole point of this engine.
+   */
+  warnings: string[];
+}
+
+/**
+ * Assumptions the model cannot work with. These are not tuning judgements —
+ * each one makes a specific term in the arithmetic meaningless.
+ */
+function assumptionWarnings(a: CostAssumptions): string[] {
+  const w: string[] = [];
+
+  for (const [key, value] of Object.entries(a) as [keyof CostAssumptions, number][]) {
+    if (!Number.isFinite(value)) w.push(`${key} is not a number, so every figure derived from it is meaningless.`);
+  }
+
+  // Margin here is a fraction OF THE PRICE, so it cannot reach 1 — that would
+  // be an infinite price. The settings form divides a typed percentage by 100,
+  // so a shop owner entering 100 meaning "100% markup" lands exactly here, and
+  // the quote came back at cost with zero margin and said nothing.
+  if (Number.isFinite(a.marginRate) && a.marginRate >= 1) {
+    w.push(
+      `Margin is recorded as ${(a.marginRate * 100).toFixed(0)}% of the sell price, which cannot be reached — margin on price approaches 100% only as the price approaches infinity. The quote below is at cost with no margin at all. If 100% markup was meant, that is a margin of 50%.`,
+    );
+  }
+  if (Number.isFinite(a.marginRate) && a.marginRate < 0) {
+    w.push(`Margin is negative, so the quote is below cost by design.`);
+  }
+  if (Number.isFinite(a.materialUtilization) && a.materialUtilization > 1) {
+    w.push(
+      `Material utilisation is recorded as ${a.materialUtilization}, which is more than the stock purchased. Material cost is being divided by it and has come out far too low; utilisation is a fraction between 0 and 1.`,
+    );
+  }
+  if (Number.isFinite(a.scrapRate) && a.scrapRate >= 1) {
+    w.push(`Scrap rate is ${(a.scrapRate * 100).toFixed(0)}%, which means no part ever ships. The scrap allowance below is not a usable number.`);
+  }
+  return w;
 }
 
 export function computeCost(q: number, a: CostAssumptions): CostResult {
@@ -103,6 +147,7 @@ export function computeCost(q: number, a: CostAssumptions): CostResult {
 
   const unitCost = base + scrapAdder + overhead;
   const unitPrice = a.marginRate >= 1 ? unitCost : unitCost / (1 - a.marginRate);
+  const warnings = assumptionWarnings(a);
 
   const lines: CostLine[] = [
     { label: "Material", perPart: materialCost, perLot: materialCost * quantity, basis: `${a.stockVolumePerPart.toFixed(2)} in³ × ${a.materialDensity} lb/in³ × $${a.materialCostPerPound.toFixed(2)}/lb ÷ ${(a.materialUtilization * 100).toFixed(0)}% utilisation` },
@@ -133,6 +178,9 @@ export function computeCost(q: number, a: CostAssumptions): CostResult {
     unitPrice,
     lotPrice: unitPrice * quantity,
     marginDollars: (unitPrice - unitCost) * quantity,
+    cycleHoursPerPart: cycleHours,
+    setupHours: a.setupHours,
+    warnings,
   };
 }
 
@@ -200,9 +248,18 @@ export function compareMakeVsBuy(
   if (capacityHoursAvailable === null) {
     caveats.push("Available machine capacity is not recorded, so opportunity cost of the spindle time is not included.");
   } else {
-    const hoursNeeded = (makeCost.quantity * (makeCost.machineCost / Math.max(makeCost.machineCost, 1))) || 0;
-    if (hoursNeeded > capacityHoursAvailable) {
-      caveats.push("This lot exceeds recorded available capacity — making it in-house displaces other work.");
+    // This read
+    //   makeCost.quantity * (makeCost.machineCost / Math.max(makeCost.machineCost, 1))
+    // which for any machine cost at or above $1 collapses to the quantity
+    // itself. The lot's spindle demand was therefore the PART COUNT treated
+    // as hours: 100 parts at 12 minutes each is 20 spindle hours, and it
+    // reported 100, so a shop with 50 hours free was told the lot displaced
+    // other work. The result now carries its own cycle and setup hours.
+    const hoursNeeded = makeCost.setupHours + makeCost.cycleHoursPerPart * makeCost.quantity;
+    if (Number.isFinite(hoursNeeded) && hoursNeeded > capacityHoursAvailable) {
+      caveats.push(
+        `This lot needs ${hoursNeeded.toFixed(1)} spindle hours against ${capacityHoursAvailable.toFixed(1)} recorded available — making it in-house displaces other work.`,
+      );
     }
   }
   if (externalQuotes.length === 0) {
@@ -243,5 +300,19 @@ export const DEFAULT_ASSUMPTIONS: CostAssumptions = {
   marginRate: 0.32,
 };
 
-export const money = (v: number) =>
-  v >= 100 ? `$${v.toFixed(0)}` : v >= 10 ? `$${v.toFixed(2)}` : `$${v.toFixed(2)}`;
+/**
+ * Currency for display. Whole dollars once the figure is large enough that
+ * cents are noise; cents below that.
+ *
+ * A non-finite value renders as an em dash rather than "$NaN". This function
+ * is the last thing between the cost model and five pages a shop owner quotes
+ * from, and a price of "$NaN" is worse than a blank because it looks like a
+ * number until you read it. The second and third branches used to be
+ * identical, which is what a dead ternary looks like.
+ */
+export const money = (v: number) => {
+  if (!Number.isFinite(v)) return "—";
+  const sign = v < 0 ? "-" : "";
+  const abs = Math.abs(v);
+  return abs >= 100 ? `${sign}$${abs.toFixed(0)}` : `${sign}$${abs.toFixed(2)}`;
+};
