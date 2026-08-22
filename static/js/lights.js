@@ -706,7 +706,14 @@
     if (b) { setRot(b, (show.rot || {})[String(b)] === 90 ? 0 : 90); selectBar(b); }
   });
   function setRot(bar, deg) { record("rot:" + bar); show.rot = show.rot || {}; show.rot[String(bar)] = deg; markDirty(); paintBarCtl(); announce("Bar " + bar + (deg === 90 ? " stood up as a side stick" : " hung")); }
-  function selectBar(b) { selectedBar = b; paintBarCtl(); paintBarsList(now()); }
+  function selectBar(b) {
+    var changed = b !== selectedBar;
+    selectedBar = b; paintBarCtl(); paintBarsList(now());
+    // Selection is otherwise conveyed only by a ring on the canvas, which a
+    // screen reader cannot see.
+    if (changed && b) announce("Bar " + b + " selected, DMX " + E.fixtureAddress(show, b) +
+                               ((show.rot || {})[String(b)] === 90 ? ", side stick" : ", hung"));
+  }
   // The bar drawer: orientation, position, DMX start address, look now,
   // mirror partner, prev/next. Opens on click (canvas or list row).
   function paintBarCtl() {
@@ -724,7 +731,13 @@
     if (document.activeElement !== ad) ad.value = own ? own : "";
     ad.placeholder = "auto · " + E.fixtureAddress(show, selectedBar);
     $("lx-bar-mirror").textContent = mir ? "Mirror partner: bar " + mir + " (pairs move as a look)." : "Centre bar — no mirror partner.";
-    $("lx-bar-prev").disabled = selectedBar <= 1; $("lx-bar-next").disabled = selectedBar >= show.bars;
+    // A control that disables itself while it holds focus drops the keyboard
+    // to <body> mid-task. Hand focus to the sibling that is still live first.
+    var prevBtn = $("lx-bar-prev"), nextBtn = $("lx-bar-next");
+    var wantPrevOff = selectedBar <= 1, wantNextOff = selectedBar >= show.bars;
+    if (wantPrevOff && document.activeElement === prevBtn && !wantNextOff) nextBtn.focus();
+    if (wantNextOff && document.activeElement === nextBtn && !wantPrevOff) prevBtn.focus();
+    prevBtn.disabled = wantPrevOff; nextBtn.disabled = wantNextOff;
     paintPatchWarn();
   }
   function paintPatchWarn() {

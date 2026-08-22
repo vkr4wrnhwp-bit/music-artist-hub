@@ -215,6 +215,47 @@ def test_lifecycle_expiry_renew_edit(flask_app, monkeypatch):
     assert other.get("/tour-board/%s/edit" % lid).status_code == 404
 
 
+def test_an_explicit_state_beats_a_colliding_city_name():
+    """City names collide across states and countries. When the poster names
+    a state, believe the state - otherwise a New Hampshire venue files as UK
+    and never appears in a US filter."""
+    assert tx.parse_region("Manchester, NH") == (tx.US_STATE_REGION["nh"], "state")
+    assert tx.parse_region("Portland, ME") == (tx.US_STATE_REGION["me"], "state")
+    assert tx.parse_region("Charleston, WV") == (tx.US_STATE_REGION["wv"], "state")
+    # a state that agrees with the metro keeps the more precise metro code
+    assert tx.parse_region("Portland, OR")[0] == "metro-portland"
+    assert tx.parse_region("Nashville, TN")[0] == "metro-nashville"
+    # and a bare city with no state still resolves as before
+    assert tx.parse_region("Manchester")[0] == "metro-manchester"
+
+
+def test_a_word_that_merely_starts_like_a_month_is_not_a_date():
+    """'may be flexible' must not become a May date window - that silently
+    answers date filters the poster never opted into."""
+    for phrase in ("may be flexible", "maybe next spring", "junction shows", "marching band"):
+        start, end = tx.parse_window(phrase)
+        assert not (start and start[5:7] in ("05", "06", "03")) or "spring" in phrase, (phrase, start, end)
+    assert tx.parse_window("may be flexible") == (None, None)
+    assert tx.parse_window("junction shows") == (None, None)
+    # real months still parse
+    assert tx.parse_window("May 2030") == ("2030-05-01", "2030-05-31")
+    assert tx.parse_window("October 2030") == ("2030-10-01", "2030-10-31")
+    assert tx.parse_window("Sept 2030") == ("2030-09-01", "2030-09-30")
+
+
+def test_ago_never_says_zero_years():
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+
+    def at(days):
+        return bs.ago((now - timedelta(days=days)).isoformat(), now=now)
+
+    for d in (359, 360, 362, 364):
+        assert "0 years" not in at(d) and "months ago" in at(d), (d, at(d))
+    assert at(365).endswith("year ago") or at(365).endswith("years ago")
+    assert bs.ago((now - timedelta(seconds=95)).isoformat(), now=now) == "1 minute ago"
+
+
 def test_legacy_rows_survive_the_migration_and_can_be_renewed(flask_app):
     """A listing posted long before the lifecycle columns existed must not
     be born expired, and must get a working renew token - otherwise it

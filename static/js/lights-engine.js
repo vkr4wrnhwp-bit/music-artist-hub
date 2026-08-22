@@ -87,16 +87,31 @@
       var seq = sorted.filter(function (c) {
         return membersOf(c.group, bars).indexOf(f) >= 0;
       });
-      var prev = {rgb: [0, 0, 0], inten: 0}, cur = null, before = prev;
+      // A cue fades from WHAT IS ON STAGE, not from the previous cue's
+      // declared target. Those differ whenever a cue lands before the fade
+      // under it has finished - which the shipped looks and auto-cue do
+      // routinely (a 2 s intro fade with a hard stop inside it). Reading the
+      // target instead made the rig jump to full brightness at the instant
+      // the new cue fired, then fade from there. So walk the sequence and
+      // carry the rendered state forward.
+      var cur = null, from = {rgb: [0, 0, 0], inten: 0};
       for (var i = 0; i < seq.length; i++) {
-        if (seq[i].t <= t) { before = cur || prev; cur = seq[i]; }
-        else break;
+        if (seq[i].t > t) break;
+        if (cur) {
+          // render the cue we are leaving, at the moment the next one fires
+          var kp = Math.min(1, (seq[i].t - cur.t) / Math.max(0.01, cur.fade || 0.01));
+          var tp = {rgb: hexRgb(cur.color), inten: (cur.intensity || 0) / 100};
+          from = {
+            rgb: [0, 1, 2].map(function (ci) {
+              return from.rgb[ci] + (tp.rgb[ci] - from.rgb[ci]) * kp;
+            }),
+            inten: from.inten + (tp.inten - from.inten) * kp
+          };
+        }
+        cur = seq[i];
       }
       if (!cur) { out.push({rgb: [0, 0, 0], inten: 0}); continue; }
       var target = {rgb: hexRgb(cur.color), inten: (cur.intensity || 0) / 100};
-      var from = cur === seq[0] ? {rgb: [0, 0, 0], inten: 0}
-        : {rgb: hexRgb(before.color || "#000000"),
-           inten: (before.intensity || 0) / 100};
       var k = Math.min(1, (t - cur.t) / Math.max(0.01, cur.fade || 0.01));
       var inten = from.inten + (target.inten - from.inten) * k;
       if (cur.move) inten *= movementGain(cur, f, t, show, bars);

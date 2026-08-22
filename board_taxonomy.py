@@ -191,12 +191,19 @@ def parse_region(text):
             if re.search(r"(?<![a-z])" + re.escape(a_n) + r"(?![a-z])", t):
                 if best is None or len(a_n) > best[2]:
                     best = (code, "exact" if a_n == t else "alias", len(a_n))
+    # An explicit trailing state wins over a bare city alias. City names
+    # collide across states and countries - "Manchester, NH" must not file
+    # as Manchester UK, and "Portland, ME" is not Portland OR. When the
+    # writer named a state, believe the state.
+    m = re.search(r"\b([a-z]{2})$", t)
+    state_region = US_STATE_REGION.get(m.group(1)) if m else None
+    if best and state_region and region_parent(best[0]) != state_region:
+        return (state_region, "state")
     if best:
         return (best[0], best[1])
     # trailing state abbreviation: "Boone, NC" -> southeast
-    m = re.search(r"\b([a-z]{2})$", t)
-    if m and m.group(1) in US_STATE_REGION:
-        return (US_STATE_REGION[m.group(1)], "state")
+    if state_region:
+        return (state_region, "state")
     return (None, None)
 
 
@@ -210,8 +217,30 @@ def _month_end(y, m):
     return date(y, m + 1, 1).fromordinal(date(y, m + 1, 1).toordinal() - 1)
 
 
+_MONTH_FULL = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+               "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
+# Month names that are also ordinary English words. On their own they are not
+# evidence of a date; they need a year or a day number beside them.
+_AMBIGUOUS_MONTHS = {"may", "march", "august"}
+
+
 def _month_of(token):
-    return _MONTHS.get(token[:3].lower())
+    """A month only when the word IS a month - not merely starts like one.
+
+    Matching on the first three letters turned "may be flexible" into May,
+    "junction" into June and "december"-ish typos into anything, writing a
+    date window the poster never stated and making the listing answer date
+    filters it should not.
+    """
+    t = (token or "").lower()
+    if t in _MONTH_FULL:
+        return _MONTH_FULL[t]
+    if len(t) == 3 and t in _MONTHS:
+        return _MONTHS[t]
+    # "sept" is the one abbreviation people write with four letters
+    if t == "sept":
+        return 9
+    return None
 
 
 def parse_window(text, today=None):
@@ -259,10 +288,18 @@ def parse_window(text, today=None):
         y1 = year_for(m1)
         y2 = y1 if m2 >= m1 else y1 + 1
         return (date(y1, m1, 1).isoformat(), _month_end(y2, m2).isoformat())
-    # single month "october 2026" / "oct" / "oct 12"
-    m = re.search(r"\b([a-z]{3,9})\.?(?:\s+(\d{1,2}))?\b", low)
-    if m and _month_of(m.group(1)) and m.group(1)[:3] in _MONTHS and len(m.group(1)) <= 9:
+    # single month "october 2026" / "oct" / "oct 12".
+    # Scan every candidate word rather than only the first, and treat the
+    # month names that are also ordinary English words as months only when
+    # something corroborates them - a year or a day number. Otherwise
+    # "may be flexible" and "we march on" become date windows the poster
+    # never stated, and the listing answers date filters it should not.
+    for m in re.finditer(r"\b([a-z]{3,9})\.?(?:\s+(\d{1,2}))?\b", low):
         mo = _month_of(m.group(1))
+        if not mo:
+            continue
+        if m.group(1) in _AMBIGUOUS_MONTHS and not year and not m.group(2):
+            continue
         if m.group(2):
             d = int(m.group(2))
             try:

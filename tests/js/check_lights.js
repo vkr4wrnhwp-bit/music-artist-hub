@@ -73,6 +73,21 @@ ok("nearestCue within tolerance", E.nearestCue([{t: 1}, {t: 5}], 5.2, 0.5).t ===
 ok("isBlackout", E.isBlackout({color: "#000000", intensity: 80}) && E.isBlackout({color: "#ff0000", intensity: 0}) && !E.isBlackout({color: "#ff0000", intensity: 1}));
 ok("six looks, last is blackout", E.LOOKS.length === 6 && E.LOOKS[5].key === "blackout");
 
+// a cue interrupting a fade starts from what is ON STAGE, not from the
+// previous cue's target - otherwise the rig pops to full then fades down
+const interrupt = {bars: 1, cues: [
+  {t: 0, group: "all", color: "#ffb347", intensity: 100, fade: 4},
+  {t: 1, group: "all", color: "#ffb347", intensity: 0, fade: 1}]};
+const justBefore = E.lightingAt(interrupt, 0.99)[0].inten;
+const atCut = E.lightingAt(interrupt, 1.0)[0].inten;
+ok("an interrupted fade does not jump to the previous cue's target",
+   Math.abs(atCut - justBefore) < 0.02, "before=" + justBefore.toFixed(3) + " at=" + atCut.toFixed(3));
+ok("and it keeps fading down from there", E.lightingAt(interrupt, 1.5)[0].inten < atCut / 1.5);
+ok("a fade that completed still starts from its full target",
+   Math.abs(E.lightingAt({bars: 1, cues: [
+     {t: 0, group: "all", color: "#ffffff", intensity: 100, fade: 0.5},
+     {t: 5, group: "all", color: "#000000", intensity: 0, fade: 1}]}, 5)[0].inten - 1) < 1e-9);
+
 // custom (hand-picked) groups
 ok("custom group members, sorted and deduped", E.membersOf("b3+b1+b3", 6).join() === "1,3");
 ok("custom group ignores bars beyond the rig", E.membersOf("b1+b9", 6).join() === "1");

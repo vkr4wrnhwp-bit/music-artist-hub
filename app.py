@@ -21,6 +21,9 @@ import inbox_engine
 import board
 import lights_store
 import operator_desk
+# NB: signal_hub, not signal - a module named `signal` in the repo root would
+# shadow the standard library module that gunicorn and Werkzeug import.
+import signal_hub
 import press_desk
 import tour_os
 import producers
@@ -7998,6 +8001,11 @@ def create_app():
     # TOUR: invitation and share links are pasted into messages and read
     # later, so they too are built from the canonical address.
     tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    # Signal: the A&R / distribution / rights intelligence layer. Access is a
+    # row in its own roster, seeded from the Operator Desk roster and the
+    # owner predicate - no person's name lives in the module.
+    signal_hub.init(app, base_url=lambda: PUBLIC_BASE_URL,
+                    is_owner_email=_is_owner_email)
     lights_store.init_lights()
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.

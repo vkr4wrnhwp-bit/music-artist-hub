@@ -249,7 +249,7 @@ def ago(ts, now=None):
         return "just now"
     mins = secs // 60
     if mins < 60:
-        return "%d minutes ago" % mins
+        return ("1 minute ago" if mins == 1 else "%d minutes ago" % mins)
     hours = mins // 60
     if hours < 24:
         return ("1 hour ago" if hours == 1 else "%d hours ago" % hours)
@@ -261,9 +261,11 @@ def ago(ts, now=None):
     weeks = days // 7
     if days < 60:
         return "%d weeks ago" % weeks
+    # months = days // 30, so days 360-364 give 12 and used to fall through
+    # to the years branch, which then reported "0 years ago". Switch on days.
     months = days // 30
-    if months < 12:
-        return "%d months ago" % months
+    if days < 365:
+        return "%d months ago" % max(2, months)
     return "%d years ago" % (days // 365)
 
 
