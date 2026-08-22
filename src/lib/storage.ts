@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
+import { buildStorageKey, resolveWithinRoot } from "./storage-key";
 
 /**
  * Object storage abstraction.
@@ -70,21 +71,20 @@ export const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 class LocalStorage implements StorageDriver {
   async put(organizationId: string, filename: string, data: Buffer): Promise<StoredObject> {
     const checksum = createHash("sha256").update(data).digest("hex");
-    // Organisation id is part of the key so a leaked key from one org cannot
-    // be guessed into another's namespace.
-    const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
-    const key = path.posix.join(organizationId, checksum.slice(0, 2), `${checksum.slice(0, 16)}-${safe}`);
-    const dest = path.join(ROOT, key);
+    const key = buildStorageKey(organizationId, checksum, filename);
+    const dest = resolveWithinRoot(ROOT, key);
+    if (!dest) throw new Error("Invalid storage key");
     await mkdir(/* turbopackIgnore: true */ path.dirname(dest), { recursive: true });
     await writeFile(/* turbopackIgnore: true */ dest, data);
     return { storageKey: key, checksum, size: data.byteLength };
   }
 
   async get(storageKey: string): Promise<Buffer> {
-    // Reject traversal explicitly rather than relying on the caller.
-    if (storageKey.includes("..")) throw new Error("Invalid storage key");
-    // Paths are always under the storage root and keyed by organisation.
-    return readFile(/* turbopackIgnore: true */ path.join(ROOT, storageKey));
+    // Resolved rather than pattern-matched: the question is where the path
+    // lands, not whether it contains a suspicious substring.
+    const target = resolveWithinRoot(ROOT, storageKey);
+    if (!target) throw new Error("Invalid storage key");
+    return readFile(/* turbopackIgnore: true */ target);
   }
 
   async url(storageKey: string): Promise<string> {
