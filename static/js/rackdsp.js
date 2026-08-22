@@ -1698,6 +1698,188 @@
       .catch(function () { statusEl.textContent = "Save failed."; });
   });
 
+  /* ---------- the preset library ----------
+   * "Save my rack" keeps ONE rack: the one that loads with the page. This
+   * keeps many, named, so a vocal chain and a drum bus can both exist.
+   *
+   * Loading a preset carries over bypass, center and mods from the rack you
+   * are sitting in, exactly as the built-in presets do — those describe how
+   * you are LISTENING, not what the rack is, and resetting them mid-audition
+   * is disorienting.
+   */
+  (function rackLibrary() {
+    var back = document.getElementById("rk-lib-back");
+    var openBtn = document.getElementById("rk-lib-btn");
+    if (!back || !openBtn) return;
+
+    var listEl = document.getElementById("rk-lib-list");
+    var msgEl = document.getElementById("rk-lib-msg");
+    var countEl = document.getElementById("rk-lib-count");
+    var nameEl = document.getElementById("rk-lib-name");
+    var noteEl = document.getElementById("rk-lib-note");
+    var presets = [], max = 40, loaded = false, lastFocus = null;
+
+    function say(t) { msgEl.textContent = t || ""; }
+
+    function fmtWhen(iso) {
+      var d = new Date(iso);
+      return isNaN(d) ? "" : d.toLocaleDateString([], {month: "short", day: "numeric"});
+    }
+
+    function render() {
+      countEl.textContent = presets.length + " of " + max;
+      listEl.textContent = "";
+      if (!presets.length) {
+        var none = document.createElement("li");
+        none.className = "rk-lib-none";
+        none.textContent = "Nothing saved yet. Name the rack you have now and it lands here.";
+        listEl.appendChild(none);
+        return;
+      }
+      presets.forEach(function (pr) {
+        var li = document.createElement("li");
+        li.className = "rk-lib-row";
+
+        var box = document.createElement("span");
+        box.className = "rk-lib-name";
+        var nm = document.createElement("b");
+        nm.className = "rk-lib-nm";
+        nm.textContent = pr.name;                 // textContent, never innerHTML
+        var meta = document.createElement("span");
+        meta.className = "rk-lib-meta";
+        meta.textContent = (pr.note ? pr.note + " · " : "") + fmtWhen(pr.updated);
+        box.appendChild(nm);
+        box.appendChild(meta);
+
+        var load = document.createElement("button");
+        load.type = "button";
+        load.className = "sw px-2.5 py-1 text-[10px] font-medium";
+        load.textContent = "Load";
+        load.setAttribute("aria-label", "Load " + pr.name);
+        load.addEventListener("click", function () { loadPreset(pr); });
+
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "sw px-2 py-1 text-[10px] font-medium";
+        del.textContent = "Delete";
+        del.setAttribute("aria-label", "Delete " + pr.name);
+        del.addEventListener("click", function () { removePreset(pr, del); });
+
+        li.appendChild(box);
+        li.appendChild(load);
+        li.appendChild(del);
+        listEl.appendChild(li);
+      });
+    }
+
+    function refresh() {
+      fetch("/rack/library")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { say("Sign in to keep a library of racks."); return; }
+          presets = d.presets || [];
+          max = d.max || max;
+          loaded = true;
+          render();
+        })
+        .catch(function () { say("Offline — the library did not load."); });
+    }
+
+    function loadPreset(pr) {
+      say("Loading…");
+      fetch("/rack/library/" + encodeURIComponent(pr.id))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var p = d.ok && d.preset ? d.preset.data : null;
+          if (!p) { say("That preset would not load."); return; }
+          // A rack saved before a band count changed no longer fits the EQ.
+          if (!p.eq || p.eq.length !== EQ_BANDS.length) {
+            say("That one was saved by an older rack and no longer fits.");
+            return;
+          }
+          p.bypass = state.bypass;
+          p.center = state.center || "normal";
+          p.mods = state.mods;
+          histLabel = "load: " + pr.name;
+          state = p;
+          ensureFx(state);
+          syncAll();
+          applyState();
+          resetCompare();
+          closeLib();
+          statusEl.textContent = "Loaded “" + pr.name + "”.";
+        })
+        .catch(function () { say("Offline — that preset did not load."); });
+    }
+
+    function removePreset(pr, btn) {
+      // Two-step rather than a confirm(): a modal inside a modal is worse,
+      // and this reverts itself if you walk away from it.
+      if (btn.dataset.sure !== "1") {
+        btn.dataset.sure = "1";
+        btn.textContent = "Sure?";
+        setTimeout(function () {
+          if (btn.dataset.sure === "1") { btn.dataset.sure = ""; btn.textContent = "Delete"; }
+        }, 4000);
+        return;
+      }
+      say("Deleting…");
+      fetch("/rack/library/" + encodeURIComponent(pr.id) + "/delete", {method: "POST"})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { say("That did not delete."); return; }
+          presets = d.presets || [];
+          render();
+          say("Deleted.");
+        })
+        .catch(function () { say("Offline — nothing was deleted."); });
+    }
+
+    document.getElementById("rk-lib-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var nm = (nameEl.value || "").trim();
+      if (!nm) return;
+      say("Saving…");
+      fetch("/rack/library/save", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: nm, note: (noteEl.value || "").trim(), data: state})
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { say(d.error || "That did not save."); return; }
+          presets = d.presets || presets;
+          nameEl.value = ""; noteEl.value = "";
+          render();
+          say("Saved.");
+        })
+        .catch(function () { say("Offline — nothing was saved."); });
+    });
+
+    function openLib() {
+      lastFocus = document.activeElement;
+      back.hidden = false;
+      openBtn.setAttribute("aria-expanded", "true");
+      say("");
+      if (!loaded) refresh();
+      nameEl.focus();
+    }
+
+    function closeLib() {
+      back.hidden = true;
+      openBtn.setAttribute("aria-expanded", "false");
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    openBtn.addEventListener("click", openLib);
+    document.getElementById("rk-lib-x").addEventListener("click", closeLib);
+    back.addEventListener("click", function (e) { if (e.target === back) closeLib(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !back.hidden) closeLib();
+    });
+
+    render();
+  })();
+
   // ---------- cab & mic selectors ----------
   document.getElementById("rk-cab-on").addEventListener("change", function (e) {
     histLabel = "cab " + (e.target.checked ? "on" : "off"); state.cab.on = e.target.checked; applyState();

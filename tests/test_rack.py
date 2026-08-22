@@ -157,3 +157,124 @@ def test_the_undo_controls_are_on_the_page():
     # The popover lives in a dock pinned to the bottom, so it opens upward.
     assert "bottom: calc(100% + 8px)" in html
     assert 'aria-haspopup="true"' in html and 'aria-expanded="false"' in html
+
+
+# --- the preset library -------------------------------------------------
+
+
+def _fresh_client():
+    """A signed-in client with its own account, so a test that fills the
+    library to its cap cannot bleed into the module-scoped fixture."""
+    import uuid
+    app = appmod.create_app()
+    c = app.test_client()
+    email = "racklib-%s@example.net" % uuid.uuid4().hex[:8]
+    c.post("/signup", data={"name": "Lib User", "email": email, "password": "rack-pass-123"})
+    c.post("/login", data={"email": email, "password": "rack-pass-123"})
+    return c
+
+
+def test_a_named_rack_survives_a_round_trip():
+    c = _fresh_client()
+    r = c.post("/rack/library/save",
+               json={"name": "Vocal chain", "note": "bright", "data": {"eq": [1, 2], "out": 0.8}})
+    assert r.status_code == 200 and r.get_json()["ok"]
+    pid = r.get_json()["id"]
+
+    listed = c.get("/rack/library").get_json()
+    assert listed["ok"] and len(listed["presets"]) == 1
+    assert listed["presets"][0]["name"] == "Vocal chain"
+    assert listed["presets"][0]["note"] == "bright"
+    # The list is a menu, not the racks themselves: no blob in the index.
+    assert "data" not in listed["presets"][0]
+
+    got = c.get("/rack/library/%s" % pid).get_json()
+    assert got["ok"] and got["preset"]["data"] == {"eq": [1, 2], "out": 0.8}
+
+    assert c.post("/rack/library/%s/delete" % pid).get_json()["ok"]
+    assert c.get("/rack/library").get_json()["presets"] == []
+
+
+def test_one_artists_racks_are_invisible_to_another():
+    """Every query in the store is scoped by user_id. This is the test that
+    would have caught the inbox bug, where a table without a user_id meant
+    every account read every row."""
+    a, b = _fresh_client(), _fresh_client()
+    pid = a.post("/rack/library/save",
+                 json={"name": "Mine", "data": {"eq": [1]}}).get_json()["id"]
+
+    assert b.get("/rack/library").get_json()["presets"] == []      # not listed
+    assert b.get("/rack/library/%s" % pid).status_code == 404      # not readable
+    assert b.post("/rack/library/%s/delete" % pid).status_code == 404  # not deletable
+    # ...and A still has it after B tried.
+    assert len(a.get("/rack/library").get_json()["presets"]) == 1
+
+
+def test_saving_over_a_name_replaces_it_rather_than_duplicating():
+    c = _fresh_client()
+    first = c.post("/rack/library/save",
+                   json={"name": "Drum bus", "data": {"eq": [1]}}).get_json()["id"]
+    again = c.post("/rack/library/save",
+                   json={"name": "drum BUS", "data": {"eq": [2]}}).get_json()["id"]
+    assert again == first, "same name, case-insensitively, is the same preset"
+    presets = c.get("/rack/library").get_json()["presets"]
+    assert len(presets) == 1
+    assert c.get("/rack/library/%s" % first).get_json()["preset"]["data"] == {"eq": [2]}
+
+
+def test_the_library_has_a_ceiling_and_says_so():
+    import db as store
+    c = _fresh_client()
+    for i in range(store.MAX_RACK_PRESETS):
+        assert c.post("/rack/library/save",
+                      json={"name": "rack %d" % i, "data": {"eq": [i]}}).status_code == 200
+    over = c.post("/rack/library/save", json={"name": "one too many", "data": {"eq": [0]}})
+    assert over.status_code == 409
+    assert str(store.MAX_RACK_PRESETS) in over.get_json()["error"]
+
+
+def test_a_nameless_or_empty_rack_is_refused():
+    c = _fresh_client()
+    assert c.post("/rack/library/save", json={"name": "  ", "data": {"eq": [1]}}).status_code == 400
+    assert c.post("/rack/library/save", json={"name": "ok", "data": {}}).status_code == 400
+    assert c.post("/rack/library/save", json={"name": "ok", "data": "not a dict"}).status_code == 400
+
+
+def test_the_library_is_shut_to_signed_out_visitors():
+    """The whole app is login-gated, so these redirect to /login before the
+    route's own 401 ever runs. Either answer is fine; what must never happen
+    is a 200 with somebody's racks in it."""
+    owner = _fresh_client()
+    pid = owner.post("/rack/library/save",
+                     json={"name": "Secret rack", "data": {"eq": [1]}}).get_json()["id"]
+
+    out = appmod.create_app().test_client()
+    for resp in (out.get("/rack/library"),
+                 out.post("/rack/library/save", json={"name": "x", "data": {"eq": [1]}}),
+                 out.get("/rack/library/%s" % pid),
+                 out.post("/rack/library/%s/delete" % pid)):
+        assert resp.status_code in (301, 302, 401), resp.status_code
+        assert b"Secret rack" not in resp.data
+
+    # The delete attempt did not land.
+    assert len(owner.get("/rack/library").get_json()["presets"]) == 1
+
+
+def test_a_preset_name_is_written_as_text_not_markup():
+    """Preset names are user input rendered back into the page. innerHTML
+    here would be stored XSS with the artist's own rack as the vector."""
+    js = _js()
+    start = js.index("function rackLibrary()")
+    block = js[start:js.index("})();", start)]
+    assert "nm.textContent = pr.name;" in block
+    assert ".innerHTML" not in block, "the library must never build markup from a preset name"
+
+
+def test_the_library_controls_are_on_the_page():
+    html = _html()
+    for hook in ('id="rk-lib-btn"', 'id="rk-lib-back"', 'id="rk-lib-form"',
+                 'id="rk-lib-list"', 'id="rk-lib-name"'):
+        assert hook in html, hook
+    # It is a real dialog, and the trigger says so.
+    assert 'role="dialog"' in html and 'aria-modal="true"' in html
+    assert 'aria-controls="rk-lib-back"' in html

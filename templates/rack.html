@@ -177,6 +177,48 @@
   .rk-hist-none { font-size: 11px; color: #8a7c5d; padding: 6px 2px; }
   .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+  /* The preset library. "Save my rack" keeps ONE rack — the one that loads
+     with the page. This keeps many, named, so a vocal chain and a drum bus
+     can both live here without overwriting each other. */
+  .rk-lib-back {
+    position: fixed; inset: 0; z-index: 60; display: flex; align-items: center;
+    justify-content: center; padding: 16px; background: rgba(4,4,3,.74);
+  }
+  .rk-lib-back[hidden] { display: none; }
+  .rk-lib {
+    width: min(520px, 100%); max-height: min(80vh, 640px); display: flex;
+    flex-direction: column; background: #0c0b09; border-radius: 10px;
+    border: 1px solid rgba(201,162,74,.45);
+    box-shadow: 0 24px 60px -16px rgba(0,0,0,.9);
+  }
+  .rk-lib-top { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px 10px; }
+  .rk-lib-title { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .02em; color: #e8c667; }
+  .rk-lib-count { margin: 0; font-size: 10px; color: #8a7c5d; }
+  .rk-lib-x { margin-left: auto; }
+  .rk-lib-new { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+  .rk-lib-in {
+    flex: 1 1 150px; min-width: 0; padding: 7px 9px; border-radius: 5px;
+    border: 1px solid rgba(201,162,74,.3); background: rgba(255,255,255,.04);
+    color: #e8e2d4; font-size: 12px;
+  }
+  .rk-lib-in::placeholder { color: #6f6754; }
+  .rk-lib-msg { min-height: 14px; margin: 0; padding: 0 16px 8px; font-size: 11px; color: #c9bd9c; }
+  .rk-lib-list {
+    list-style: none; margin: 0; padding: 0 16px 16px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .rk-lib-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid transparent; background: rgba(255,255,255,.03);
+  }
+  .rk-lib-row:hover, .rk-lib-row:focus-within { border-color: rgba(201,162,74,.35); }
+  .rk-lib-name { flex: 1; min-width: 0; }
+  .rk-lib-nm { display: block; font-size: 12px; font-weight: 600; color: #e8e2d4;
+               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk-lib-meta { display: block; font-size: 10px; color: #8a7c5d;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk-lib-none { padding: 4px 2px 10px; font-size: 11.5px; color: #8a7c5d; }
+
   /* Dormant lane rail: the empty fader slot on an unloaded channel. */
   .rail { height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
           background: repeating-linear-gradient(90deg, #191512 0 6px, #0c0a08 6px 12px);
@@ -466,6 +508,9 @@
       <button id="rk-play" class="sw px-2.5 py-1 text-[10px] font-medium" disabled>Play</button>
       <button id="rk-export" class="sw px-2.5 py-1 text-[10px] text-[#e8c667] font-medium" disabled>Export WAV</button>
       <button id="rk-save" class="sw px-2 py-1 text-[9px] text-[#e8c667] font-medium">Save my rack</button>
+      <button id="rk-lib-btn" class="sw px-2 py-1 text-[9px] font-medium" type="button"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="rk-lib-back"
+              title="Racks you have named and kept">Library</button>
       <div class="ml-auto flex items-center gap-2">
         <div data-kn="out" data-ksize="44"></div>
         <div class="mods !ml-0">
@@ -1108,9 +1153,31 @@
 <script src="/static/js/tempokey.js?v=3"></script>
 <script src="/static/js/tubes.js?v=3"></script>
 <script src="/static/js/loudness.js?v=1"></script>
+<!-- The rack library. Named racks, kept server-side and scoped to the
+     signed-in artist. Distinct from "Save my rack", which keeps only the
+     one rack that loads with the page. -->
+<div id="rk-lib-back" class="rk-lib-back" hidden>
+  <div class="rk-lib" role="dialog" aria-modal="true" aria-labelledby="rk-lib-title">
+    <div class="rk-lib-top">
+      <h2 id="rk-lib-title" class="rk-lib-title">Rack library</h2>
+      <p id="rk-lib-count" class="rk-lib-count"></p>
+      <button id="rk-lib-x" class="sw rk-lib-x px-2 py-1 text-[10px] font-medium" type="button">Close</button>
+    </div>
+    <form id="rk-lib-form" class="rk-lib-new">
+      <input id="rk-lib-name" class="rk-lib-in" type="text" maxlength="80" required
+             placeholder="Name this rack &mdash; vocal chain, drum bus&hellip;" aria-label="Name for this rack">
+      <input id="rk-lib-note" class="rk-lib-in" type="text" maxlength="200"
+             placeholder="Note (optional)" aria-label="Note about this rack">
+      <button class="sw sw-gold px-3 py-1 text-[10px] font-black" type="submit">Save current</button>
+    </form>
+    <p id="rk-lib-msg" class="rk-lib-msg" role="status" aria-live="polite"></p>
+    <ul id="rk-lib-list" class="rk-lib-list" role="list"></ul>
+  </div>
+</div>
+
 {# The rack reads window.__savedRack once, at load. It has to be set
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=38"></script>
+<script src="/static/js/rackdsp.js?v=39"></script>
 {% endblock %}

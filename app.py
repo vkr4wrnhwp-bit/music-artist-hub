@@ -5165,6 +5165,57 @@ def create_app():
         saved = store.latest_track_analysis(user["id"])
         return jsonify({"ok": True, "assessment": audio_readiness.assess(saved)})
 
+    # --- the rack preset library ----------------------------------------
+    # /rack/save keeps ONE rack: the one that loads with the page. These
+    # keep many, named, so a vocal chain and a drum bus can both exist.
+
+    @app.route("/rack/library")
+    def rack_library():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": True, "presets": store.list_rack_presets(user["id"]),
+                        "max": store.MAX_RACK_PRESETS})
+
+    @app.route("/rack/library/save", methods=["POST"])
+    def rack_library_save():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"ok": False, "error": "a preset needs a name"}), 400
+        data = body.get("data")
+        if not isinstance(data, dict) or not data:
+            return jsonify({"ok": False, "error": "nothing to save"}), 400
+        pid = store.save_rack_preset_named(user["id"], body.get("id") or "",
+                                           name, data, body.get("note") or "")
+        if pid is None:
+            return jsonify({"ok": False,
+                            "error": "that is %d presets — delete one first"
+                                     % store.MAX_RACK_PRESETS}), 409
+        return jsonify({"ok": True, "id": pid, "presets": store.list_rack_presets(user["id"])})
+
+    @app.route("/rack/library/<preset_id>")
+    def rack_library_get(preset_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        p = store.get_rack_preset_by_id(user["id"], preset_id)
+        if p is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "preset": p})
+
+    @app.route("/rack/library/<preset_id>/delete", methods=["POST"])
+    def rack_library_delete(preset_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if not store.delete_rack_preset(user["id"], preset_id):
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "presets": store.list_rack_presets(user["id"])})
+
     @app.route("/rack/save", methods=["POST"])
     def rack_save():
         user = current_user()

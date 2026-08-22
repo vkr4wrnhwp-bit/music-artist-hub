@@ -151,6 +151,19 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            -- rack_presets holds ONE rack per user: the one that loads with
+            -- the page. This is the library beside it — many named racks,
+            -- so a second setup does not overwrite the first.
+            CREATE TABLE IF NOT EXISTS rack_library (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                data TEXT NOT NULL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_rack_lib ON rack_library(user_id, updated);
             CREATE TABLE IF NOT EXISTS rack_presets (
                 user_id TEXT PRIMARY KEY,
                 data TEXT NOT NULL,
@@ -1613,6 +1626,70 @@ def get_light_show(user_id):
         row = db.execute("SELECT data FROM light_shows WHERE user_id = ?",
                          (user_id,)).fetchone()
     return json.loads(row["data"]) if row else None
+
+
+MAX_RACK_PRESETS = 40
+
+
+def list_rack_presets(user_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, name, note, created, updated FROM rack_library "
+            "WHERE user_id = ? ORDER BY updated DESC", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_rack_preset_by_id(user_id, preset_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM rack_library WHERE id = ? AND user_id = ?",
+                         (preset_id, user_id)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    try:
+        d["data"] = json.loads(d["data"] or "{}")
+    except ValueError:
+        d["data"] = {}
+    return d
+
+
+def save_rack_preset_named(user_id, preset_id, name, data, note=""):
+    """Upsert by id. Saving over a name you already have replaces it rather
+    than making a second row with the same label, because two racks called
+    "vocal chain" is worse than one."""
+    name = (name or "Untitled rack").strip()[:80]
+    blob = json.dumps(data if isinstance(data, dict) else {})
+    now = _now()
+    with get_db() as db:
+        row = None
+        if preset_id:
+            row = db.execute("SELECT id FROM rack_library WHERE id=? AND user_id=?",
+                             (preset_id, user_id)).fetchone()
+        if row is None:
+            row = db.execute("SELECT id FROM rack_library WHERE user_id=? AND lower(name)=lower(?)",
+                             (user_id, name)).fetchone()
+        if row is not None:
+            preset_id = row["id"]
+            db.execute("UPDATE rack_library SET name=?, note=?, data=?, updated=? "
+                       "WHERE id=? AND user_id=?",
+                       (name, (note or "")[:200], blob, now, preset_id, user_id))
+        else:
+            n = db.execute("SELECT COUNT(*) AS n FROM rack_library WHERE user_id=?",
+                           (user_id,)).fetchone()["n"]
+            if n >= MAX_RACK_PRESETS:
+                return None
+            preset_id = uuid.uuid4().hex
+            db.execute("INSERT INTO rack_library (id, user_id, name, note, data, created, updated) "
+                       "VALUES (?,?,?,?,?,?,?)",
+                       (preset_id, user_id, name, (note or "")[:200], blob, now, now))
+    return preset_id
+
+
+def delete_rack_preset(user_id, preset_id):
+    with get_db() as db:
+        cur = db.execute("DELETE FROM rack_library WHERE id=? AND user_id=?",
+                         (preset_id, user_id))
+    return cur.rowcount > 0
 
 
 def get_rack_preset(user_id):
