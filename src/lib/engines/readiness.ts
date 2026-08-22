@@ -19,7 +19,7 @@ import { assessCapability, measurementGeometry, worstCapability, type Capability
 export const GATE_STATUS = ["PASS", "REVIEW", "MISSING", "FAIL", "NOT_ATTEMPTED"] as const;
 export type GateStatus = (typeof GATE_STATUS)[number];
 
-const SEVERITY: Record<GateStatus, number> = {
+export const SEVERITY: Record<GateStatus, number> = {
   PASS: 0,
   NOT_ATTEMPTED: 1,
   REVIEW: 2,
@@ -462,9 +462,31 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     );
   }
 
-  const blocking = gates.filter((g) => g.blocking);
-  const worst = gates.reduce((acc, g) => (SEVERITY[g.status] > SEVERITY[acc] ? g.status : acc), "PASS" as GateStatus);
-  const blockingFailures = blocking.filter((g) => g.status !== "PASS").length;
+  const { overall, blockingCount } = aggregate(gates);
+  return { gates, overall, criticalApplication: critical, blockingCount, capability };
+}
+
+/**
+ * The aggregation locked principle 1 is about: "the aggregate state is the
+ * worst unresolved required gate. Never average a FAIL away."
+ *
+ * Lifted out of computeReadiness so it can be exercised directly. It could
+ * not be before, and the gap showed: inverting SEVERITY so that FAIL ranked
+ * as the LEAST severe status broke none of the readiness tests. That is
+ * currently latent rather than live — every gate that can emit FAIL is also
+ * marked blocking, so blockingFailures catches it first — but `worst` exists
+ * precisely to survive someone adding a non-blocking FAIL later, and nothing
+ * was checking that it would.
+ */
+export function aggregate(gates: ReadinessGate[]): {
+  overall: ReadinessReport["overall"];
+  blockingCount: number;
+} {
+  const blockingFailures = gates.filter((g) => g.blocking && g.status !== "PASS").length;
+  const worst = gates.reduce<GateStatus>(
+    (acc, g) => (SEVERITY[g.status] > SEVERITY[acc] ? g.status : acc),
+    "PASS",
+  );
 
   const overall =
     blockingFailures === 0 && worst !== "FAIL"
@@ -473,7 +495,7 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
         ? "NOT_READY_TO_RUN"
         : "REVIEW_REQUIRED";
 
-  return { gates, overall, criticalApplication: critical, blockingCount: blockingFailures, capability };
+  return { overall, blockingCount: blockingFailures };
 }
 
 /* `measurementGeometry` used to live here. It now lives in

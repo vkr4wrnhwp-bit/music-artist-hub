@@ -177,3 +177,86 @@ test("a missing tool never averages away — it blocks READY_TO_RUN", () => {
   assert.notEqual(r.overall, "READY_TO_RUN");
   assert.ok(r.blockingCount > 0);
 });
+
+/* ---------------- Principle 1: the aggregate is the worst gate ---------------- */
+
+import { aggregate, SEVERITY, GATE_STATUS, type GateStatus, type ReadinessGate } from "@/lib/engines/readiness";
+
+const g = (status: GateStatus, blocking: boolean, id = "geometry"): ReadinessGate =>
+  ({ id, label: id, status, detail: "d", blocking, actions: [] }) as ReadinessGate;
+
+test("a FAIL is the most severe status there is", () => {
+  // Inverting this ordering so FAIL ranked LEAST severe broke none of the
+  // tests above. That is latent rather than live — every gate that can emit
+  // FAIL is also blocking, so blockingFailures catches it first — but `worst`
+  // exists to survive someone adding a non-blocking FAIL later, and nothing
+  // was checking that it would.
+  for (const s of GATE_STATUS) {
+    if (s === "FAIL") continue;
+    assert.ok(SEVERITY.FAIL > SEVERITY[s], `FAIL must outrank ${s}`);
+  }
+});
+
+test("the severity ordering is total — no two statuses share a rank", () => {
+  const ranks = GATE_STATUS.map((s) => SEVERITY[s]);
+  assert.equal(new Set(ranks).size, GATE_STATUS.length, "two statuses sharing a rank makes worst() order-dependent");
+});
+
+test("a passing status is the least severe, so nothing hides behind it", () => {
+  for (const s of GATE_STATUS) {
+    if (s === "PASS") continue;
+    assert.ok(SEVERITY[s] > SEVERITY.PASS, `${s} must outrank PASS`);
+  }
+});
+
+test("nine passes and one failure is not ready", () => {
+  // Verbatim from the locked principle: "A part with nine passing gates and
+  // one failure is not 90% ready; it is not ready."
+  const nine = Array.from({ length: 9 }, () => g("PASS", true));
+  assert.notEqual(aggregate([...nine, g("FAIL", true)]).overall, "READY_TO_RUN");
+  assert.notEqual(aggregate([...nine, g("FAIL", false)]).overall, "READY_TO_RUN", "even when the failing gate is not blocking");
+});
+
+test("a non-blocking FAIL still stops a part being ready to run", () => {
+  // The case `worst !== "FAIL"` exists for, and the one nothing reached.
+  const r = aggregate([g("PASS", true), g("FAIL", false, "tolerance")]);
+  assert.equal(r.overall, "REVIEW_REQUIRED");
+  assert.equal(r.blockingCount, 0, "it is genuinely not a blocking gate");
+});
+
+test("a blocking gate short of PASS is never ready, whatever the status", () => {
+  for (const s of GATE_STATUS) {
+    if (s === "PASS") continue;
+    const r = aggregate([g("PASS", true), g(s, true, "tools")]);
+    assert.equal(r.overall, "NOT_READY_TO_RUN", `a blocking ${s} reported ${r.overall}`);
+    assert.equal(r.blockingCount, 1);
+  }
+});
+
+test("a non-blocking gate short of PASS asks for review rather than blocking", () => {
+  for (const s of ["REVIEW", "MISSING", "NOT_ATTEMPTED"] as GateStatus[]) {
+    const r = aggregate([g("PASS", true), g(s, false, "tolerance")]);
+    assert.equal(r.overall, "READY_TO_RUN", `a non-blocking ${s} blocked the part`);
+  }
+});
+
+test("everything passing is ready, and an empty gate list is not a claim of readiness by accident", () => {
+  assert.equal(aggregate([g("PASS", true), g("PASS", false)]).overall, "READY_TO_RUN");
+  // No gates at all means nothing was evaluated. It reports READY_TO_RUN by
+  // construction, which is why computeReadiness always emits gates and why
+  // next-action does not trust an empty list on its own.
+  assert.equal(aggregate([]).overall, "READY_TO_RUN");
+});
+
+test("aggregation is a maximum, never an average", () => {
+  // The arithmetic principle 1 forbids: no number of passes dilutes a FAIL.
+  for (const passes of [0, 1, 5, 50]) {
+    const gates = [...Array.from({ length: passes }, () => g("PASS", true)), g("FAIL", true)];
+    assert.equal(aggregate(gates).overall, "NOT_READY_TO_RUN", `${passes} passes diluted a FAIL`);
+  }
+});
+
+test("the blocking count is a count of blocking gates, not of all gates", () => {
+  const r = aggregate([g("FAIL", true), g("MISSING", true), g("REVIEW", false), g("PASS", true)]);
+  assert.equal(r.blockingCount, 2);
+});
