@@ -7,6 +7,8 @@ import { ShowCalculation, MissingInputs } from "@/components/show-calculation";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { HoldScene } from "@/components/hold-scene";
+import { SequenceProposalPanel, UnbuiltOptimisations } from "@/components/sequence-proposal";
+import { proposeSequence, type SequencedOperation } from "@/lib/engines/sequencing";
 import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 
 /**
@@ -16,8 +18,29 @@ import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeadin
  * that reorders operations without a model behind it is worse than no button,
  * so they are labelled as not implemented rather than animated.
  */
-export default async function SetupsPage(props: { params: Promise<{ id: string }> }) {
+/** The engine's view of a setup's operations. Tool number, not tool id — the
+ *  sequencer reasons about what is in the spindle, and two records of the
+ *  same physical cutter would otherwise read as a change. */
+function sequencedOps(s: {
+  operations: { id: string; sequence: number; type: string; label: string; featureId?: string | null; feature?: { label: string } | null; tool?: { toolNumber: number } | null }[];
+}): SequencedOperation[] {
+  return s.operations.map((o) => ({
+    id: o.id,
+    sequence: o.sequence,
+    type: o.type,
+    label: o.label,
+    featureId: o.featureId ?? null,
+    featureLabel: o.feature?.label ?? null,
+    toolNumber: o.tool?.toolNumber ?? null,
+  }));
+}
+
+export default async function SetupsPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ problem?: string }>;
+}) {
   const { id } = await props.params;
+  const { problem } = await props.searchParams;
   const user = await requireUser();
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
@@ -39,6 +62,12 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
             Setup planning
           </SectionHeading>
 
+          {problem && (
+            <Notice tone="review" title="Nothing applied">
+              {problem}
+            </Notice>
+          )}
+
           <div data-guide-target="hold-scene" className="space-y-6">
           {pkg.setups.length === 0 ? (
             <EmptyState title="No setups" body="A part needs at least one setup before operations can be planned against a machine and workholding." />
@@ -50,7 +79,12 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
               const ops = s.operations;
               const paths = pkg.toolpaths.filter((t) => ops.some((o) => o.id === t.operationId));
               const minutes = paths.reduce((sum, t) => sum + t.cycleTimeMinutes, 0);
-              const toolChanges = new Set(ops.map((o) => o.tool?.toolNumber)).size;
+              // This was labelled "Tool changes" and was in fact the count of
+              // distinct tools — a two-operation setup with two cutters reads
+              // as 2 changes when it has 1. The number was right; the label
+              // was wrong. Tool changes are the sequencer's business and are
+              // shown, correctly, in the panel below.
+              const toolsUsed = new Set(ops.map((o) => o.tool?.toolNumber).filter((n) => n != null)).size;
 
               return (
                 <Panel
@@ -86,7 +120,7 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
                         <DataRow label="Work offset" value={s.workOffset} />
                         <DataRow label="Machine" value={s.machine ? `${s.machine.manufacturer} ${s.machine.model}` : "Not assigned"} />
                         <DataRow label="Workholding" value={s.workholding?.description ?? "Not defined"} />
-                        <DataRow label="Tool changes" value={String(toolChanges)} />
+                        <DataRow label="Tools used" value={String(toolsUsed)} />
                         <DataRow label="Estimated cycle" value={`${minutes.toFixed(2)} min`} />
                       </div>
                     </div>
@@ -201,14 +235,15 @@ export default async function SetupsPage(props: { params: Promise<{ id: string }
                     </Notice>
                   )}
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {["Optimize setup", "Reduce tool changes", "Reduce cycle time", "Reduce risk", "Improve finish"].map((label) => (
-                      <span key={label} className="flex items-center gap-1.5 border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-unknown">
-                        {label}
-                        <DevLabel>Not implemented</DevLabel>
-                      </span>
-                    ))}
-                  </div>
+                  {/* Reduce tool changes, for real. The other four stay
+                      labelled, but each now says which wall it hits. */}
+                  <SequenceProposalPanel
+                    proposal={proposeSequence(sequencedOps(s))}
+                    operations={sequencedOps(s)}
+                    setupId={s.id}
+                    partId={id}
+                  />
+                  <UnbuiltOptimisations />
                 </Panel>
               );
             })

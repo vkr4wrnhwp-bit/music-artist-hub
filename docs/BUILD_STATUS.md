@@ -1813,3 +1813,55 @@ tools loaded in their own setup's changer must pass across two machines, and
 a tool absent from its own setup's changer must still be caught. Verified end
 to end by building the two-machine part in the running app, reading the gate,
 and reverting.
+
+## Reduce tool changes — the first of the five setup actions made real
+
+The setups page carried five buttons labelled Not implemented. One of them
+is now an engine.
+
+`engines/sequencing.ts` builds a precedence graph over a setup's operations
+and runs a greedy topological pass that keeps the tool in the spindle
+wherever the graph allows. No model call, and there must not be one:
+reordering machine motion is exactly what principle 6 keeps away from an LLM.
+
+The rules are conservative by design. Facing precedes everything, because it
+sets the Z datum later depths are cut from. The outside profile goes last,
+because the part is held by its own stock until it is cut. On one feature the
+stages are fixed — spot, drill, bore, tap, chamfer. An operation with no tool
+assigned never moves at all. A "helpful" reorder that taps a hole nobody
+drilled is worse than the seconds it saves, by every measure.
+
+What it admits it cannot see is carried on every proposal: thermal growth,
+thin-wall deflection as material comes off, chip evacuation, and that the
+search is greedy rather than a proven minimum. Applying changes the posted
+order but regenerates no toolpath, so the proposal says the program must be
+re-verified, and the audit entry says it again.
+
+TWO THINGS THE BUILD TURNED UP.
+
+The engine's first honest act was to decline. On the seeded demo, setup 1 has
+eight operations and eight distinct tools, so seven changes is already the
+floor — and it says exactly that rather than shuffling for nothing: "every
+operation in this setup uses a different tool, so 7 changes are already the
+minimum." A proposal that saves nothing never claims a different order.
+
+And a failing test exposed a better feature than the one being built. The
+engine computed a full precedence graph and then stayed silent when the plan
+as written violated it, because there were no tool changes to save. A setup
+that profiles the part before it pockets it is a far more serious finding
+than a wasted tool change. `violations` now reports the rules the current
+order breaks, and a violation is reason enough to reorder on its own.
+
+Also fixed while in there: the page's own "Tool changes" row was
+`new Set(tools).size` — the count of distinct tools, not changes. A
+two-operation setup with two cutters read as 2 changes when it has 1. The
+number was right and the label was wrong; it now reads "Tools used", and tool
+changes are the sequencer's business.
+
+Twenty tests, safety first: facing never moves late, a tap never precedes its
+drill, the profile stays last even when grouping a tool would be tempting, no
+operation is ever dropped or duplicated, and contradictory rules fall back to
+the planned order rather than looping. Verified end to end by making the
+relief pocket share the bore pocket's cutter, applying the proposal in the
+running app, confirming the database went 7 changes to 6 with every
+precedence rule intact, then reverting.
