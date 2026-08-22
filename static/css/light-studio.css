@@ -1,0 +1,188 @@
+/* Light Studio — hand-written (the Tailwind build is frozen). lx-* only.
+   Near-black ground, gold accent, letterspaced uppercase labels; helper
+   text never below 12px; every focusable thing shows a focus ring. */
+
+.lx {
+  --lx-gold: #c9a24a;
+  --lx-amber: #e8c667;
+  --lx-badge: #d8b25a;
+  --lx-ink: #0a0a0a;
+  --lx-panel: #111113;
+  --lx-warm: #141209;
+  --lx-rule: rgb(255 255 255 / 0.10);
+  --lx-line: rgb(201 162 74 / 0.32);
+  --lx-copy: #EEE8DC;
+  --lx-soft: #C2BBAE;
+  --lx-ok: #7fcf8a;
+  --lx-warn: #f0a58e;
+  color: var(--lx-copy);
+  max-width: 1500px;
+  margin: 0 auto;
+  font-size: 13px;
+}
+.lx *:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 2px; border-radius: 4px; }
+.lx .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Focus mode: the shell gives the width back. */
+body.lx-focus main { padding: 0.6rem 0.9rem 1rem !important; }
+@media (min-width: 1024px) { body.lx-focus main { padding: 0.75rem 1.1rem 1rem !important; } }
+
+/* --- head ------------------------------------------------------------- */
+.lx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; margin-bottom: 10px; }
+.lx-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; color: var(--lx-gold); margin: 0 0 4px; }
+.lx-h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; text-transform: uppercase; margin: 0; line-height: 1.1; }
+.lx-lede { margin: 4px 0 0; max-width: 70ch; color: var(--lx-soft); font-size: 12.5px; line-height: 1.55; }
+.lx-lede b { color: var(--lx-copy); font-weight: 600; }
+
+/* --- buttons --------------------------------------------------------- */
+.lx-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 13px;
+  border-radius: 8px; border: 1px solid var(--lx-line); background: transparent; color: var(--lx-amber);
+  font-size: 11.5px; font-weight: 800; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; }
+.lx-btn:hover { background: rgb(201 162 74 / 0.10); }
+.lx-btn--fill { background: var(--lx-badge); border-color: var(--lx-badge); color: #1c1302; }
+.lx-btn--fill:hover { background: #e5c878; }
+.lx-btn--ghost { border-color: var(--lx-rule); color: var(--lx-copy); }
+.lx-btn--ghost:hover { border-color: var(--lx-line); }
+.lx-btn--small { min-height: 30px; padding: 0 9px; font-size: 10.5px; }
+.lx-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.lx-btn[aria-pressed="true"] { background: rgb(201 162 74 / 0.16); border-color: var(--lx-gold); }
+.lx-kbd { display: inline-block; min-width: 16px; padding: 0 4px; border: 1px solid rgb(255 255 255 / 0.2); border-radius: 4px; font: 600 9.5px/16px ui-monospace, Menlo, Consolas, monospace; color: var(--lx-soft); }
+
+/* --- transport (sticky) ---------------------------------------------- */
+.lx-transport { position: sticky; top: 0; z-index: 25; border: 1px solid var(--lx-line); border-radius: 14px;
+  background: linear-gradient(180deg, #181409 0%, #120f07 100%); padding: 10px 14px; margin-bottom: 8px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); }
+/* A wrapping flex row, not a grid: when the button groups outgrow the
+   width the status text drops to its own full line instead of being
+   squeezed to zero - it must never truncate or vanish. */
+.lx-tr-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.lx-tr-left, .lx-tr-right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lx-status { flex: 1 1 260px; }
+.lx-tr-right { margin-left: auto; }
+.lx-timecode { font: 800 38px/1 ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums;
+  color: var(--lx-amber); letter-spacing: 0.02em; min-width: 7.2ch; text-align: center; }
+.lx-timecode small { display: block; font: 700 9.5px/1.3 -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: 0.28em; text-transform: uppercase; color: var(--lx-soft); margin-top: 4px; }
+.lx-status { min-width: 0; font-size: 12px; color: var(--lx-soft); line-height: 1.4; overflow-wrap: anywhere; }
+.lx-status b { color: var(--lx-copy); font-weight: 600; }
+.lx-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--lx-rule);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lx-soft); white-space: nowrap; }
+.lx-chip i { width: 8px; height: 8px; border-radius: 999px; background: #6b6355; }
+.lx-chip.is-on { border-color: rgb(127 207 138 / 0.5); color: var(--lx-ok); }
+.lx-chip.is-on i { background: var(--lx-ok); box-shadow: 0 0 8px var(--lx-ok); }
+.lx-chip.is-err { border-color: rgb(240 165 142 / 0.5); color: var(--lx-warn); }
+.lx-chip.is-err i { background: var(--lx-warn); }
+@media (max-width: 900px) {
+  .lx-timecode { font-size: 30px; text-align: left; }
+  .lx-tr-right { margin-left: 0; }
+}
+/* Phones: the full transport is four wrapped rows - too tall to pin. It
+   scrolls with the page, and a compact fixed dock keeps Play, + Cue,
+   Blackout and the clock under the thumb instead. */
+.lx-dock { display: none; }
+@media (max-width: 640px) {
+  .lx-transport { position: static; }
+  .lx-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: rgb(16 13 7 / 0.96); border-top: 1px solid var(--lx-line); backdrop-filter: blur(6px); }
+  .lx-dock .lx-timecode { font-size: 22px; min-width: 0; text-align: left; }
+  .lx-dock .lx-timecode small { display: none; }
+  .lx { padding-bottom: 76px; }
+}
+
+/* --- waveform lane --------------------------------------------------- */
+.lx-wave-wrap { border: 1px solid var(--lx-rule); border-radius: 12px; background: #0b0b0d; padding: 8px 10px 6px; margin-bottom: 10px; }
+.lx-wave { display: block; width: 100%; height: 112px; border-radius: 8px; background: #070708; cursor: crosshair; touch-action: none; }
+.lx-wave-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 6px; font-size: 12px; color: var(--lx-soft); }
+.lx-wave-bar b { color: var(--lx-copy); font-weight: 600; }
+.lx-beat { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lx-bpm { font: 800 13px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--lx-amber); font-variant-numeric: tabular-nums; min-width: 5ch; }
+
+/* --- workspace: two panes on desktop, stacked on phone ---------------- */
+.lx-work { display: grid; gap: 10px; }
+@media (min-width: 1024px) {
+  .lx-work { grid-template-columns: minmax(0, 57fr) minmax(0, 43fr); align-items: start; }
+  body.lx-focus .lx-pane--cues { max-height: calc(100vh - 300px); overflow: auto; }
+}
+.lx-pane { border: 1px solid var(--lx-rule); border-radius: 14px; background: var(--lx-panel); padding: 12px; min-width: 0; }
+.lx-pane--stage { background: #060605; }
+.lx-h2 { font-size: 10.5px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--lx-gold); margin: 0; }
+.lx-pane-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+
+/* stage */
+.lx-stage-wrap { position: relative; width: 100%; }
+.lx-stage { display: block; width: 100%; height: auto; border-radius: 10px; touch-action: none; cursor: grab; }
+.lx-stage:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 3px; }
+.lx-stage-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--lx-soft); line-height: 1.45; }
+.lx-rig { display: inline-flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; max-width: 100%; }
+.lx-rig label { display: inline-flex; gap: 6px; align-items: center; min-width: 0; font-weight: 700; color: var(--lx-soft); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.lx-select, .lx-input { background: #0b0b0c; border: 1px solid var(--lx-rule); border-radius: 7px; color: var(--lx-copy); font: inherit; font-size: 12.5px; padding: 6px 8px; min-height: 34px; max-width: 100%; }
+.lx-barctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--lx-line); border-radius: 10px; background: rgb(201 162 74 / 0.06); font-size: 12px; }
+.lx-barctl[hidden] { display: none; }
+.lx-barctl b { color: var(--lx-amber); }
+.lx-seg { display: inline-flex; border: 1px solid var(--lx-rule); border-radius: 8px; overflow: hidden; }
+.lx-seg button { min-height: 32px; padding: 0 10px; background: transparent; border: 0; color: var(--lx-soft); font: 700 11px/1 inherit; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
+.lx-seg button[aria-pressed="true"] { background: rgb(201 162 74 / 0.18); color: var(--lx-amber); }
+.lx-bars-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.lx-bars-table th { text-align: left; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-soft); padding: 5px 6px; border-bottom: 1px solid var(--lx-rule); }
+.lx-bars-table td { padding: 5px 6px; border-bottom: 1px solid var(--lx-rule); font-variant-numeric: tabular-nums; }
+.lx-bars-table tr.is-sel td { color: var(--lx-amber); }
+.lx-sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgb(255 255 255 / 0.25); vertical-align: middle; }
+
+/* cue list */
+.lx-cues { display: flex; flex-direction: column; gap: 6px; }
+.lx-cue { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 7px 9px; border: 1px solid var(--lx-rule); border-radius: 10px; background: rgb(0 0 0 / 0.3); cursor: pointer; }
+.lx-cue:hover { border-color: var(--lx-line); }
+.lx-cue.is-sel { border-color: var(--lx-gold); background: rgb(201 162 74 / 0.08); }
+.lx-cue.is-black { border-style: dashed; }
+.lx-cue-tc { font: 700 13px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--lx-amber); font-variant-numeric: tabular-nums; min-width: 7.5ch; }
+.lx-cue-tc input { width: 7.5ch; background: transparent; border: 0; border-bottom: 1px dashed var(--lx-rule); color: inherit; font: inherit; padding: 2px 0; }
+.lx-swatch { width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgb(255 255 255 / 0.25); position: relative; overflow: hidden; }
+.lx-swatch input { position: absolute; inset: -6px; width: 40px; height: 40px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+.lx-swatch.is-black::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--lx-warn); font-size: 11px; font-weight: 900; }
+.lx-glyph { display: inline-grid; grid-auto-flow: column; gap: 2px; align-items: end; height: 18px; padding: 0 2px; }
+.lx-glyph i { display: block; width: 4px; height: 10px; border-radius: 1px; background: #2b271f; }
+.lx-glyph i.on { background: var(--lx-amber); box-shadow: 0 0 5px var(--lx-amber); }
+.lx-cue-mid { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; min-width: 0; font-size: 12px; color: var(--lx-soft); }
+.lx-cue-mid select, .lx-cue-mid input[type="number"] { min-height: 30px; padding: 3px 6px; font-size: 12px; }
+.lx-cue-mid input[type="range"] { width: 90px; accent-color: var(--lx-gold); }
+.lx-cue-note { min-height: 30px; padding: 3px 8px; font-size: 12px; min-width: 120px; flex: 1 1 140px; }
+.lx-cue-x { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--lx-rule); background: transparent; color: var(--lx-soft); font-size: 15px; cursor: pointer; }
+.lx-cue-x:hover { border-color: rgb(239 68 68 / 0.5); color: #f0a58e; }
+@media (max-width: 640px) {
+  .lx-cue { grid-template-columns: auto auto auto 1fr; }
+  .lx-cue-mid { grid-column: 1 / -1; }
+  .lx-cue-x { grid-row: 1; grid-column: 4; justify-self: end; }
+}
+.lx-empty { border: 1px dashed var(--lx-rule); border-radius: 10px; padding: 16px; text-align: center; color: var(--lx-soft); font-size: 12.5px; line-height: 1.55; }
+
+/* group picker */
+.lx-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; margin-top: 8px; }
+.lx-group { border: 1px solid var(--lx-rule); border-radius: 9px; background: rgb(0 0 0 / 0.3); padding: 7px 6px 6px; cursor: pointer; text-align: center; }
+.lx-group:hover, .lx-group:focus-visible { border-color: var(--lx-line); }
+.lx-group[aria-pressed="true"] { border-color: var(--lx-gold); background: rgb(201 162 74 / 0.10); }
+.lx-group svg { display: block; width: 100%; height: 34px; }
+.lx-group b { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lx-copy); margin-top: 4px; }
+.lx-group small { display: block; font-size: 11px; color: var(--lx-soft); line-height: 1.3; margin-top: 2px; }
+
+/* looks */
+.lx-looks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lx-look { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--lx-rule); background: rgb(0 0 0 / 0.3); color: var(--lx-copy); font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.lx-look:hover { border-color: var(--lx-line); }
+.lx-look i { width: 16px; height: 16px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.3); }
+
+/* library */
+.lx-lib { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lx-lib .lx-input { min-width: 160px; }
+.lx-saved { font-size: 12px; color: var(--lx-soft); min-width: 9ch; }
+.lx-saved.is-ok { color: var(--lx-ok); }
+.lx-saved.is-dirty { color: var(--lx-amber); }
+.lx-versions { margin-top: 6px; font-size: 12px; color: var(--lx-soft); }
+.lx-versions button { margin-left: 6px; }
+
+/* notices */
+.lx-hint { font-size: 12px; color: var(--lx-soft); line-height: 1.5; }
+.lx-note { border: 1px solid var(--lx-line); border-left-width: 3px; border-radius: 8px; background: rgb(201 162 74 / 0.07); padding: 8px 12px; font-size: 12.5px; line-height: 1.5; margin-top: 8px; }
+
+details.lx-more summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-soft); font-weight: 700; padding: 6px 0; }
+@media (pointer: coarse) { .lx-btn, .lx-seg button, .lx-look, .lx-group { min-height: 44px; } .lx-cue-x { width: 40px; height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .lx * { transition: none !important; } }

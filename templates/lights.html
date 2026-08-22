@@ -1,65 +1,147 @@
 {% extends "base.html" %}
 
 {% block title %}Light Studio - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/light-studio.css?v=2">{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-[1100px] space-y-5">
-  <div>
-    <div class="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c9a24a]">Street Banker · Touring</div>
-    <h1 class="mt-1 text-2xl font-semibold uppercase tracking-tight">Light Studio</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Cue your light show to the song, exactly like a timecoded tour rig: load the track, drop cues where the music turns, and watch the stage follow. The preview below is a <span class="text-gray-200">simulation</span>; plug an ENTTEC USB DMX interface into this computer and the same cues drive your real fixtures over Web Serial (Chrome/Edge). Your audio stays on this machine.</p>
+<script>
+  /* Focus mode before paint: the studio keeps the viewport, the sidebar
+     folds to its icon rail (desktop). Remembered per browser; the button
+     in the header and the rail's own toggle both undo it. */
+  try {
+    if (localStorage.getItem("lxFocus") !== "0") {
+      document.body.classList.add("lx-focus");
+      if (window.innerWidth >= 1024 && localStorage.getItem("lxRail") !== "0") document.body.classList.add("sb-rail");
+    }
+  } catch (e) {}
+</script>
+<div class="lx" id="lx-root">
+  <div class="lx-head">
+    <div>
+      <p class="lx-eyebrow">Street Banker · Touring</p>
+      <h1 class="lx-h1">Light Studio</h1>
+      <p class="lx-lede">Cue your light show to the song like a timecoded tour rig: load the track, drop cues where the music turns, drag them on the waveform, and watch the stage follow. The stage is a <b>simulation</b>; plug an ENTTEC USB DMX interface into this computer and the same cues drive your real fixtures over Web Serial (Chrome/Edge). Your audio stays on this machine.</p>
+    </div>
+    <div class="lx-lib" aria-label="Show library">
+      <input id="lx-show-name" class="lx-input" type="text" placeholder="Show name" aria-label="Show name" maxlength="120">
+      <select id="lx-lib-select" class="lx-select" aria-label="Open a saved show"></select>
+      <select id="lx-track" class="lx-select" aria-label="Track this show belongs to"><option value="">— track —</option>{% for t in lights_tracks %}<option value="{{ t['id'] }}">{{ t['title'] }}</option>{% endfor %}</select>
+      <select id="lx-tourshow" class="lx-select" aria-label="Tour date this show belongs to"><option value="">— tour date —</option>{% for s in lights_tour_shows %}<option value="{{ s['id'] }}">{{ s['date'] }} · {{ s['city'] or s['venue'] }}</option>{% endfor %}</select>
+      <input id="lx-version-note" class="lx-input" type="text" placeholder="version note (optional)" aria-label="Version note" maxlength="200" style="min-width:150px">
+      <button id="lx-lib-save" class="lx-btn" type="button">Save to library</button>
+      <button id="lx-lib-new" class="lx-btn lx-btn--ghost lx-btn--small" type="button">New</button>
+      <button id="lx-lib-delete" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Delete</button>
+      <span id="lx-saved" class="lx-saved" role="status" aria-live="polite"></span>
+      <button id="lx-focus" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="false">Focus mode</button>
+    </div>
   </div>
 
-  <!-- Transport -->
-  <section class="rounded-2xl border border-[#c9a24a]/30 bg-[#141209] p-4">
-    <div class="flex flex-wrap items-center gap-3">
-      <label class="cursor-pointer rounded-lg bg-[#d8b25a] px-4 py-2 text-xs font-black text-[#1c1302] hover:bg-[#e5c878]">
-        Load song<input id="lx-file" type="file" accept="audio/*" class="hidden">
-      </label>
-      <button id="lx-play" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10" disabled>Play</button>
-      <span id="lx-clock" class="font-mono text-sm font-bold tabular-nums text-[#e8c667]">0:00.0</span>
-      <span id="lx-fileinfo" class="min-w-0 flex-1 truncate text-[11px] text-gray-300 font-medium">No song loaded — cues still preview with the Run button.</span>
-      <button id="lx-run" class="rounded-lg border border-white/15 px-4 py-2 text-xs font-bold text-gray-200 hover:bg-white/10">Run cues only</button>
-      <button id="lx-dmx" class="rounded-lg border border-[#c9a24a]/40 px-4 py-2 text-xs font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Connect DMX (ENTTEC)</button>
-      <span id="lx-dmx-state" class="text-[10px] text-gray-300 font-medium">Hardware: not connected — preview only</span>
+  <!-- Transport (sticky) -->
+  <section class="lx-transport" aria-label="Transport">
+    <div class="lx-tr-row">
+      <div class="lx-tr-left">
+        <label class="lx-btn lx-btn--fill" style="cursor:pointer">Load song<input id="lx-file" type="file" accept="audio/*" class="sr-only"></label>
+        <button id="lx-play" class="lx-btn" type="button" disabled aria-pressed="false" title="Space">Play</button>
+        <button id="lx-run" class="lx-btn lx-btn--ghost" type="button" title="Run the cue list without audio">Run cues only</button>
+        <div class="lx-timecode" aria-live="off"><span id="lx-clock">0:00.00</span><small id="lx-clock-total">timecode</small></div>
+      </div>
+      <div class="lx-status" id="lx-fileinfo" role="status" aria-live="polite">No song loaded — load one to cue against its waveform; “Run cues only” previews the list without audio.</div>
+      <div class="lx-tr-right">
+        <button id="lx-add" class="lx-btn lx-btn--fill" type="button" disabled>+ Cue at playhead <span class="lx-kbd">C</span></button>
+        <button id="lx-blackout" class="lx-btn lx-btn--ghost" type="button" disabled>+ Blackout <span class="lx-kbd">B</span></button>
+        <span id="lx-cue-hint" class="lx-hint">Load a song to drop cues</span>
+        <span id="lx-dmx-chip" class="lx-chip" role="status" aria-live="polite"><i></i><span id="lx-dmx-text">Preview only · no hardware</span></span>
+        <button id="lx-dmx" class="lx-btn" type="button">Connect DMX (ENTTEC)</button>
+      </div>
     </div>
   </section>
 
-  <!-- Stage preview -->
-  <section class="rounded-2xl border border-white/10 bg-[#060605] p-4">
-    <canvas id="lx-stage" class="w-full" height="400"></canvas>
-    <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-300 font-medium">
-      <span>Audience view, simulated — drag any bar to where it really hangs or sits, and double-click a bar to stand it upright as a side stick (its beam throws across the stage). Pairs mirror outermost-in (bar 1 with the last bar).</span>
-      <span class="flex items-center gap-3">
-        <label class="flex items-center gap-1.5 font-bold text-gray-300">Bars
-          <select id="lx-bars" class="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white"></select>
-        </label>
-        <label class="flex items-center gap-1.5 font-bold text-gray-300">Fixture
-          <select id="lx-chans" class="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white">
-            <option value="4">Dimmer + RGB (4ch)</option>
-            <option value="3">RGB (3ch)</option>
-          </select>
-        </label>
+  <!-- Waveform lane -->
+  <section class="lx-wave-wrap" aria-label="Waveform timeline">
+    <canvas id="lx-wave" class="lx-wave" role="img" aria-label="Song waveform with cue flags. Click to seek, drag a flag to retime a cue, mouse wheel to zoom, shift-wheel to pan."></canvas>
+    <div class="lx-wave-bar">
+      <span><b>Click</b> to seek · <b>drag a flag</b> to retime · <b>wheel</b> zooms, <b>shift+wheel</b> pans, <b>pinch</b> on touch · dashed marker = blackout
+        <button id="lx-zoom-fit" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Fit song</button></span>
+      <span class="lx-beat">
+        <span>BPM <span id="lx-bpm" class="lx-bpm">—</span> <span id="lx-bpm-how" class="lx-hint"></span></span>
+        <button id="lx-detect" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Detect beats</button>
+        <button id="lx-tap" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Tap tempo</button>
+        <button id="lx-snap" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="false" disabled>Snap to beat</button>
+        <button id="lx-grid" class="lx-btn lx-btn--ghost lx-btn--small" type="button" aria-pressed="true">Beat grid</button>
       </span>
     </div>
   </section>
 
-  <!-- Cues -->
-  <section class="rounded-2xl border border-white/10 bg-[#111113] p-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] text-[#c9a24a]">Cue List</h2>
-      <div class="flex flex-wrap gap-2">
-        <button id="lx-add" class="rounded-lg bg-[#d8b25a] px-3 py-1.5 text-[11px] font-black text-[#1c1302] hover:bg-[#e5c878]">+ Cue at playhead</button>
-        <button id="lx-blackout" class="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-bold text-gray-200 hover:bg-white/10">+ Blackout</button>
-        <button id="lx-save" class="rounded-lg border border-[#c9a24a]/40 px-3 py-1.5 text-[11px] font-bold text-[#e8c667] hover:bg-[#c9a24a]/10">Save show</button>
-        <span id="lx-status" class="self-center text-[11px] text-gray-300 font-medium"></span>
+  <!-- Workspace: stage | cues -->
+  <div class="lx-work">
+    <section class="lx-pane lx-pane--stage" aria-label="Stage preview">
+      <div id="lx-stage-wrap" class="lx-stage-wrap">
+        <canvas id="lx-stage" class="lx-stage" tabindex="0" aria-label="Stage preview, audience view. Bars are draggable; use the table below for a text version."></canvas>
       </div>
-    </div>
-    <div id="lx-cues" class="mt-3 space-y-1.5"></div>
-    <p class="mt-3 text-[10px] text-gray-300 font-medium">Groups: All, mirrored pairs (outermost in), odd/even sides, or a single bar. Fade is seconds from the previous look into this one. DMX addresses run 1 upward, one fixture after another — set your bars to match and daisy-chain as usual.</p>
-  </section>
+      <div id="lx-barctl" class="lx-barctl" hidden>
+        <b id="lx-barctl-name">Bar</b>
+        <span class="lx-seg" role="group" aria-label="Orientation">
+          <button id="lx-or-hung" type="button" aria-pressed="true">Hung</button>
+          <button id="lx-or-side" type="button" aria-pressed="false">Side stick</button>
+        </span>
+        <span class="lx-hint">Arrow keys nudge (shift = bigger) · <span class="lx-kbd">R</span> flips orientation · drag to place</span>
+        <button id="lx-bar-deselect" class="lx-btn lx-btn--ghost lx-btn--small" type="button">Done</button>
+      </div>
+      <div class="lx-stage-foot">
+        <span>Audience view, simulated — drag any bar to where it really hangs or sits; click a bar to select it, hover to see its mirror partner. Pairs mirror outermost-in (bar 1 with the last bar).</span>
+        <span class="lx-rig">
+          <label>Bars <select id="lx-bars" class="lx-select"></select></label>
+          <label>Fixture <select id="lx-chans" class="lx-select"><option value="4">Dimmer + RGB (4ch)</option><option value="3">RGB (3ch)</option></select></label>
+        </span>
+      </div>
+      <details class="lx-more">
+        <summary>Bars as a table</summary>
+        <table class="lx-bars-table">
+          <thead><tr><th scope="col">Bar</th><th scope="col">Across</th><th scope="col">Row</th><th scope="col">Orientation</th><th scope="col">Look now</th><th scope="col">Mirror</th></tr></thead>
+          <tbody id="lx-bars-tbody"></tbody>
+        </table>
+        <p class="lx-hint">DMX addresses run 1 upward, one fixture after another — set your bars to match and daisy-chain as usual.</p>
+      </details>
+    </section>
+
+    <section class="lx-pane lx-pane--cues" aria-label="Cue list">
+      <div class="lx-pane-head">
+        <h2 class="lx-h2">Cue list <span id="lx-cues-count" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></h2>
+        <span class="lx-hint">Click a row to preview the stage at that cue</span>
+      </div>
+      <div id="lx-cues" class="lx-cues"></div>
+
+      <details class="lx-more" open>
+        <summary>Looks</summary>
+        <div id="lx-looks" class="lx-looks"></div>
+        <p class="lx-hint">One tap applies the look to the selected cue, or drops a new cue at the playhead. Keys 1–6 do the same.</p>
+      </details>
+
+      <details class="lx-more" open>
+        <summary>Group picker</summary>
+        <p id="lx-groups-for" class="lx-hint"></p>
+        <div id="lx-groups" class="lx-groups"></div>
+        <p class="lx-hint">Hover a group and the bars it fires light up on the stage. Fade is seconds from the previous look into this one.</p>
+      </details>
+
+      <details class="lx-more">
+        <summary>Version history</summary>
+        <div id="lx-versions" class="lx-versions"></div>
+        <p class="lx-hint">Every “Save to library” keeps a snapshot (last {{ 20 }}); autosave updates the current one in place.</p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<div class="lx-dock" id="lx-dock" aria-label="Transport (phone)">
+  <button id="lx-dock-play" class="lx-btn" type="button" disabled>Play</button>
+  <div class="lx-timecode"><span id="lx-dock-clock">0:00.00</span></div>
+  <button id="lx-dock-add" class="lx-btn lx-btn--fill" type="button" disabled>+ Cue</button>
+  <button id="lx-dock-black" class="lx-btn lx-btn--ghost" type="button" disabled>Blackout</button>
 </div>
 
 <script>window.__savedShow = {{ saved_show | safe }};</script>
-<script src="/static/js/lights.js?v=5"></script>
+<script>window.__lightsLibrary = {{ lights_library | safe }};</script>
+<script src="/static/js/lights-engine.js?v=1"></script>
+<script src="/static/js/lights.js?v=7"></script>
 {% endblock %}

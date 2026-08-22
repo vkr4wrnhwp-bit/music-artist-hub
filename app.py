@@ -17,6 +17,7 @@ import demo_seed
 import acr_provider
 import documents_engine
 import inbox_engine
+import lights_store
 import operator_desk
 import press_desk
 import tour_os
@@ -4325,17 +4326,102 @@ def create_app():
         if user is None:
             return login_required_redirect()
         saved = store.get_light_show(user["id"])
+        library = {
+            "shows": [{"id": s["id"], "name": s["name"], "cue_count": s["cue_count"],
+                       "track_id": s["track_id"], "tour_show_id": s["tour_show_id"],
+                       "updated": s["updated"]} for s in lights_store.list_shows(user["id"])],
+        }
+        tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
+        tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or ""}
+                      for s in store.list_tour_shows(user["id"])]
         return render_template("lights.html", active_page="lights",
                                saved_show=(_json.dumps(saved) if saved else "null"),
+                               lights_library=_json.dumps(library),
+                               lights_tracks=tracks, lights_tour_shows=tour_shows,
                                **build_dashboard_context())
 
     @app.route("/lights/save", methods=["POST"])
     def lights_save():
+        """The working copy - one per account, what the page opens with.
+        Autosave writes here; the library below is the named shows."""
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
         store.save_light_show(user["id"], request.get_json(silent=True) or {})
         return jsonify({"ok": True})
+
+    def _lights_shows(user_id):
+        return [{"id": s["id"], "name": s["name"], "cue_count": s["cue_count"],
+                 "track_id": s["track_id"], "tour_show_id": s["tour_show_id"],
+                 "updated": s["updated"]} for s in lights_store.list_shows(user_id)]
+
+    @app.route("/lights/library")
+    def lights_library():
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
+
+    @app.route("/lights/library/save", methods=["POST"])
+    def lights_library_save():
+        """Explicit save -> new version snapshot; autosave -> update in
+        place. Track and tour-date links are validated against the
+        caller's own rows; anything else is dropped, not stored."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        data = body.get("data") if isinstance(body.get("data"), dict) else {}
+        track_id = (body.get("track_id") or "") or None
+        if track_id and store.get_os_track(user["id"], track_id) is None:
+            track_id = None
+        tour_show_id = (body.get("tour_show_id") or "") or None
+        if tour_show_id and store.get_tour_show(user["id"], tour_show_id) is None:
+            tour_show_id = None
+        show_id = lights_store.save_show(
+            user["id"], body.get("id") or None, body.get("name") or data.get("name") or "Untitled show",
+            data, track_id, tour_show_id, version=not body.get("autosave"),
+            note=str(body.get("note") or "")[:200])
+        return jsonify({"ok": True, "id": show_id, "shows": _lights_shows(user["id"]),
+                        "versions": len(lights_store.list_versions(user["id"], show_id))})
+
+    @app.route("/lights/library/<show_id>")
+    def lights_library_get(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        s = lights_store.get_show(user["id"], show_id)
+        if s is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "show": s})
+
+    @app.route("/lights/library/<show_id>/versions")
+    def lights_library_versions(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        if lights_store.get_show(user["id"], show_id) is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "versions": lights_store.list_versions(user["id"], show_id)})
+
+    @app.route("/lights/library/<show_id>/restore", methods=["POST"])
+    def lights_library_restore(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        body = request.get_json(silent=True) or {}
+        v = lights_store.get_version(user["id"], body.get("version_id") or "")
+        if v is None or v["show_id"] != show_id:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "data": v["data"]})
+
+    @app.route("/lights/library/<show_id>/delete", methods=["POST"])
+    def lights_library_delete(show_id):
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        lights_store.delete_show(user["id"], show_id)
+        return jsonify({"ok": True, "shows": _lights_shows(user["id"])})
 
     @app.route("/rack")
     def rack():
@@ -7884,6 +7970,7 @@ def create_app():
     # TOUR: invitation and share links are pasted into messages and read
     # later, so they too are built from the canonical address.
     tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    lights_store.init_lights()
 
     return app
 
