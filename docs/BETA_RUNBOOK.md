@@ -4,6 +4,39 @@ What a shop does in week one, what CANVAS records, and what it must
 not be trusted for yet. The full loop below was dress-rehearsed end
 to end in the browser on 2026-08-13; measured results at the bottom.
 
+## Week zero — before the first program
+
+This section did not exist in the original runbook because none of it was
+possible: the shop records were read-only and every "Add" button was a
+dead link. They are all editable now, and the loop below assumes this is
+done. Budget an hour or two, once.
+
+1. **Tool crib.** Every cutter you will use, with real geometry. Corner
+   radius decides whether an internal corner is machinable at all;
+   stickout decides whether a depth is reachable; chipload and surface
+   speed are what the feed calculation reads. A tool that is not in the
+   crib does not exist to the planner.
+2. **Machines.** Travels, table, spindle and changer limits. A machine
+   recorded without travels cannot fail the envelope gate, which means
+   it cannot pass it honestly either.
+3. **Instruments.** Every gauge, with the uncertainty it actually
+   achieves in your conditions — not the catalogue figure and not the
+   resolution. This is the denominator in every inspection-capability
+   verdict you will see. A caliper entered at ±0.0002 will be called
+   capable of a bore it cannot verify.
+4. **Workholding.** Jaw width, height, opening, fixture height. Clamp
+   force only if you have measured it or read it off a torque chart for
+   the torque you actually use — left blank, the holding margin comes
+   back INDETERMINATE and names it, which is the correct answer for a
+   vise nobody has measured.
+5. **Map each machine's carousel.** Machines → Carousel → load each tool
+   into its pocket. Until this is done, the TOOLING LOADED gate reads
+   NOT_ATTEMPTED — CANVAS will say it cannot tell whether the tooling is
+   in the machine, and will not claim it is missing.
+
+Everything above is evidence a person enters. Nothing in it is inferred,
+and blanks stay blank rather than becoming plausible defaults.
+
 ## The daily loop (per program you run)
 
 1. **Run it past CANVAS first.** Part → NC ANALYZER → upload the
@@ -52,6 +85,34 @@ to end in the browser on 2026-08-13; measured results at the bottom.
 - Holding margin is DEVELOPMENT ANALYSIS — not validated against
   physical testing.
 - No beta record changes any calculation or clears any gate.
+- TOOLING LOADED tells you whether the cutters are in the changer
+  according to what somebody recorded — not according to the machine.
+  There is no connection to the control. If the map is stale, the gate
+  is confidently wrong, and the fix is to keep the map honest when tools
+  are swapped.
+
+## What this runbook cannot do on its own
+
+Everything above has been dress-rehearsed in the browser. None of it has
+been run against metal, and that is the entire point of the beta, so it
+is worth being blunt about the division of labour.
+
+CANVAS can be driven through the whole loop by anybody. What it cannot
+do is supply the two things the beta exists to collect:
+
+- **A real machinist's judgement.** Whether a recommendation was right,
+  whether a load band matched what the spindle actually did, whether a
+  workholding verdict matched what the part actually did in the vise.
+  WAS CANVAS RIGHT? is the collection point and it is worthless without
+  somebody who was standing at the machine.
+- **Actual cycle times off a real control.** Calibration is claimed from
+  five samples and refuses to claim anything below that. Those five have
+  to come from five real runs.
+
+So the next step is not a build task. It is: pick one shop, one machine,
+one part they already run, and work the loop above for a week. Until
+that happens the honest status of the beta is *rehearsed, not run*, and
+this document should keep saying so.
 
 ## Dress rehearsal results (2026-08-13, demo org)
 

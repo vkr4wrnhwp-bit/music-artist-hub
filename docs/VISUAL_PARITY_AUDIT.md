@@ -174,20 +174,52 @@ view preferences; that was test residue, cleared before this audit.)
    Verified: the grid now renders in Blueprint Blue and Dark Machine Bay,
    and Studio White still has none.
 
-7. **Header chrome.** The reference carries a notification bell with a
-   count, an analytics icon, and a circular avatar with the operator's
-   name and role. Ours has the datum mark and the operator's name as
-   text. Notifications and an analytics surface do not exist yet.
+7. ~~**Header chrome.**~~ **Refused.** The reference carries a
+   notification bell with a count, an analytics icon, and a circular
+   avatar with the operator's name and role.
 
-8. **Persistent bottom action bar.** The reference keeps READINESS
-   GATES + four gate chips + EXPORT NC visible along the bottom. Ours
-   puts the gate strip at the top and NC OUTPUT in it. (EXPORT NC is
-   reachable and gated; only its placement differs.)
+   The bell needs notifications; there is no notification model, no
+   producer and no delivery path. The analytics icon needs an analytics
+   surface; see 13. Both would be chrome that looks like a feature, and
+   a bell showing a count of nothing is worse than no bell, because the
+   count is the part people believe.
 
-9. **Next-action card.** The reference has a dedicated bottom-right card
-   with the action, the instrument, VIEW INSTRUCTIONS and WHY THIS
-   MATTERS. Ours states the next action in the context drawer and the
-   Guide card, and the CANVAS Guide occupies that corner.
+   The avatar is the one piece that could be drawn honestly — the
+   operator's name and organisation are real data — but a circular photo
+   frame with no photo behind it is decoration, and the command bar
+   already carries the name and the shop. Not worth the pixels it would
+   take from the part.
+
+8. ~~**Persistent bottom action bar.**~~ **Refused, on the same grounds
+   as 10.** The reference keeps READINESS GATES + four gate chips +
+   EXPORT NC along the bottom. Ours puts the gate strip at the top and
+   NC OUTPUT in it. Everything in the reference bar exists and is
+   reachable; only the placement differs.
+
+   Adding a second permanent horizontal band would take a further ~40px
+   of vertical space from a work window already measuring 62.1% of the
+   canvas at 1366×768 and 57.7% at 1024×768, both under the 70–75% the
+   brief protects. Duplicating the gate strip so it appears twice on one
+   screen is the same mistake gap 10 was withdrawn for.
+
+   The reference also puts SEND TO MACHINE in that bar, which is refused
+   outright — see deliberate difference 2.
+
+9. ~~**Next-action card.**~~ **Refused — the corner is already doing
+   this job.** The reference has a bottom-right card with the action,
+   the instrument, VIEW INSTRUCTIONS and WHY THIS MATTERS.
+
+   The CANVAS Guide occupies that corner and carries the next action,
+   RESOLVE and WHY? — the same three things under different names, from
+   `next-action.ts` rather than from a static card. Building a second
+   card beside it would mean two components in one corner disagreeing
+   the moment a gate changes, and the reference's own version has no
+   source for the action it displays.
+
+   The one genuinely missing piece is VIEW INSTRUCTIONS — a written
+   measurement procedure for the named instrument. That is a real
+   feature rather than a layout difference, it belongs to the inspection
+   flow rather than to this audit, and it is not built.
 
 10. ~~**Setup cards in the left column.**~~ **Withdrawn — this entry was
     wrong.** The reference lists SETUP 01 / SETUP 02 with SAFE / HIGH
@@ -291,5 +323,41 @@ view preferences; that was test residue, cleared before this audit.)
     with anvil and spindle sharing one axis and the frame swinging below
     it.
 
-13. **ANALYTICS nav item.** Present in the reference rail; no such route
-    exists here.
+13. ~~**ANALYTICS nav item.**~~ **Refused.** Present in the reference
+    rail; no such route exists here, and a rail item that navigates to
+    nothing is the plainest possible version of principle 5.
+
+    There is real material for one eventually — `MachineCalibrationRecord`
+    holds estimated against actual cycle times, `ReferenceCut` holds
+    proven cutting regions, `BetaRunRecord` holds whether CANVAS was
+    right. That is a shop-performance surface worth building, and when
+    it is built the rail item comes with it. Adding the item first, to
+    match a picture, would be the wrong order.
+
+## Audit closed
+
+Thirteen entries, all resolved: **four deliberate differences** (1–4),
+**four closed by work** (5, 6, 11, 12), and **five withdrawn or refused**
+with the reason recorded (7, 8, 9, 10, 13). Nothing here is outstanding
+debt.
+
+Entry 5, part rendering, is the one closed by degree rather than
+absolutely. The metals sit at real conductor values, the environment is
+bright enough to light them, and the tool-mark anisotropy runs on a real
+tangent frame — measured, not judged by eye. It is a machined plate
+rather than a matte solid. It is not a photograph, and the remaining
+distance is ray-traced reflection and a real HDR environment, neither of
+which a viewport that has to work offline on a shop floor is going to
+get. Closed at the point where more effort stops buying the machinist
+anything.
+
+The refusals are worth reading together, because they are the same
+judgement four times. The reference is a picture, and a picture can show
+a bell with a count, an analytics icon and a SEND TO MACHINE button
+without any of them being connected to anything. CANVAS cannot, and the
+gap between the two is not a gap to close — it is the product working.
+
+The three real features hiding inside the refused entries, none of which
+belong to a visual audit: a notification model, a shop-performance
+analytics surface built on the calibration and beta records, and written
+measurement instructions per instrument in the inspection flow.
