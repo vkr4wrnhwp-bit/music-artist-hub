@@ -398,36 +398,40 @@ function SceneContent({
  * raised to ~2.2 the same material reads rgb(128,131,134) on the top face
  * and rgb(96,100,102) on the wall, with a real gradient across both.
  *
- * ANISOTROPY IS NOT HERE, DELIBERATELY. Face-milled surfaces smear their
- * highlight along the cutter marks, and MeshPhysicalMaterial's `anisotropy`
- * is the analytic way to draw that. It was tried and removed: it needs a
- * valid tangent frame, and this solid is merged ExtrudeGeometry whose UVs do
- * not survive the merge intact, so the tangents come out degenerate and the
- * specular explodes — rgb(255,255,255) on the top face against rgb(0,0,0) on
- * the wall, at every anisotropy value tested. Adding it back means computing
- * real tangents first; it is not a material-tuning knob.
+ * ANISOTROPY IS BACK, AND IT DEPENDS ON THE GEOMETRY. A face-milled
+ * surface smears its highlight along the cutter marks, and `anisotropy`
+ * draws that — but only against a real tangent frame. This geometry has no
+ * UVs (the merge drops them), so three cannot derive one, and without the
+ * explicit frame `computeMachiningTangents()` builds in part-solid.ts the
+ * shader clipped the top face to rgb(255,255,255) over rgb(0,0,0) walls. If
+ * that function is ever removed, these anisotropy values must go with it.
+ *
+ * Cast iron and plastic sit at 0: an as-cast or moulded face carries no
+ * cutter marks to smear.
  */
 interface MaterialLook {
   color: string;
   metalness: number;
   roughness: number;
+  /** 0 = isotropic. Higher smears the specular along the cutter marks. */
+  anisotropy: number;
 }
 
 const MATERIAL_APPEARANCE: Record<string, MaterialLook> = {
-  ALUMINUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38 },
-  ALUMINIUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38 },
-  STEEL: { color: "#9aa0a8", metalness: 0.92, roughness: 0.34 },
-  STAINLESS: { color: "#a9aeb4", metalness: 0.94, roughness: 0.26 },
-  TOOL_STEEL: { color: "#8a9098", metalness: 0.92, roughness: 0.3 },
+  ALUMINUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38, anisotropy: 0.3 },
+  ALUMINIUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38, anisotropy: 0.3 },
+  STEEL: { color: "#9aa0a8", metalness: 0.92, roughness: 0.34, anisotropy: 0.3 },
+  STAINLESS: { color: "#a9aeb4", metalness: 0.94, roughness: 0.26, anisotropy: 0.3 },
+  TOOL_STEEL: { color: "#8a9098", metalness: 0.92, roughness: 0.3, anisotropy: 0.3 },
   // Cast iron is not polished and carries no cutter marks on its as-cast
   // faces. Low metalness, high roughness, no anisotropy — it should read
   // matte and grainy beside a milled aluminium plate.
-  CAST_IRON: { color: "#7c7d7a", metalness: 0.35, roughness: 0.75 },
-  BRASS: { color: "#c2a668", metalness: 0.9, roughness: 0.32 },
-  BRONZE: { color: "#b08d63", metalness: 0.88, roughness: 0.38 },
-  COPPER: { color: "#c08466", metalness: 0.9, roughness: 0.34 },
-  TITANIUM: { color: "#9d9a97", metalness: 0.88, roughness: 0.44 },
-  PLASTIC: { color: "#d5d7d2", metalness: 0.02, roughness: 0.85 },
+  CAST_IRON: { color: "#7c7d7a", metalness: 0.35, roughness: 0.75, anisotropy: 0 },
+  BRASS: { color: "#c2a668", metalness: 0.9, roughness: 0.32, anisotropy: 0.3 },
+  BRONZE: { color: "#b08d63", metalness: 0.88, roughness: 0.38, anisotropy: 0.3 },
+  COPPER: { color: "#c08466", metalness: 0.9, roughness: 0.34, anisotropy: 0.3 },
+  TITANIUM: { color: "#9d9a97", metalness: 0.88, roughness: 0.44, anisotropy: 0.3 },
+  PLASTIC: { color: "#d5d7d2", metalness: 0.02, roughness: 0.85, anisotropy: 0 },
 };
 
 function appearanceFor(material: string): MaterialLook {
@@ -437,7 +441,7 @@ function appearanceFor(material: string): MaterialLook {
   }
   // Unrecognised material reads as a neutral machined metal rather than
   // pretending to be something specific.
-  return { color: "#adb1b6", metalness: 0.82, roughness: 0.46 };
+  return { color: "#adb1b6", metalness: 0.82, roughness: 0.46, anisotropy: 0.25 };
 }
 
 /**
@@ -456,10 +460,15 @@ function PartBody({ stock, features, mode }: { stock: Stock; features: Feature[]
       {mode === "WIREFRAME" ? (
         <meshBasicMaterial wireframe color="#9aa0a8" />
       ) : (
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color={look.color}
           metalness={look.metalness}
           roughness={look.roughness}
+          // The cutter-mark highlight, running along the tangent frame
+          // part-solid.ts builds. It renders correctly only because that
+          // frame exists — see computeMachiningTangents there for what
+          // happens without it.
+          anisotropy={look.anisotropy}
           transparent={mode === "TRANSPARENT"}
           opacity={mode === "TRANSPARENT" ? 0.25 : 1}
           side={THREE.DoubleSide}

@@ -1518,3 +1518,23 @@ reason: at anisotropy 0.35 the top face clips to rgb(255,255,255) and the
 wall crushes to rgb(0,0,0), because it needs a tangent frame the merged
 ExtrudeGeometry does not carry. It returns only after real tangents are
 computed.
+
+## Anisotropy — the tool-mark highlight, now rendering
+
+The last piece of the reference's machined look. It failed earlier not
+because of the material but because of the geometry: mergeGeometries in
+part-solid.ts concatenates position and normal only, dropping the
+ExtrudeGeometry UVs, so three had nothing to derive tangents from and the
+shader ran on a degenerate frame (top face rgb(255,255,255) over walls at
+rgb(0,0,0)).
+
+computeMachiningTangents() now builds the frame directly — one world
+direction projected onto each vertex's surface plane, with the standard
+fallback where the normal is parallel to it. With anisotropy 0.3 restored:
+rgb(134,136,139) top face, rgb(156,159,162) centre, rgb(92,95,98) wall. In
+range, no clipping, directional sheen visible across the top face.
+
+It claims one consistent direction, not a per-operation cut direction —
+the solid is merged slabs with no per-operation channel, so a tangent
+field following each operation's real feed would be invented. Cast iron
+and plastic sit at anisotropy 0.

@@ -288,8 +288,64 @@ export function buildPartSolid(stock: Stock, features: Feature[]): PartSolid {
 
   const merged = mergeGeometries(geometries);
   merged.computeVertexNormals();
+  computeMachiningTangents(merged);
 
   return { geometry: merged, unrepresented, layerCount: geometries.length };
+}
+
+/**
+ * A tangent frame aligned to one machining direction.
+ *
+ * WHY THIS IS NOT `computeTangents()`. Three's helper derives tangents from
+ * the UV parameterisation, and this geometry has no UVs to derive them from:
+ * `mergeGeometries` below concatenates position and normal only, and the
+ * ExtrudeGeometry UVs are dropped on the way in. Without a tangent attribute
+ * the material's `anisotropy` runs on a degenerate frame, which is not a
+ * subtle error — measured on the seeded plate it clipped the top face to
+ * rgb(255,255,255) and crushed the side walls to rgb(0,0,0).
+ *
+ * WHAT IT CLAIMS. Anisotropy is what makes a milled face look milled: the
+ * highlight smears along the cutter marks. The honest version of that here is
+ * ONE consistent direction, because CANVAS does not know the real feed
+ * direction per face — the solid is merged slabs with no per-operation
+ * channel, so a tangent field pretending to follow each operation's actual
+ * cut would be invented. Each vertex gets the fixed world direction projected
+ * onto its own surface plane, so every face carries a valid frame and the
+ * smear runs the same way across the part.
+ *
+ * Faces whose normal is parallel to the reference direction get the fallback
+ * axis instead, which is the standard degenerate-case handling — without it
+ * those faces would receive a zero-length tangent and render as the same
+ * blown-out garbage this function exists to prevent.
+ */
+function computeMachiningTangents(geometry: THREE.BufferGeometry): void {
+  const pos = geometry.getAttribute("position");
+  const nor = geometry.getAttribute("normal");
+  if (!pos || !nor) return;
+
+  const REFERENCE = new THREE.Vector3(1, 0, 0);
+  const FALLBACK = new THREE.Vector3(0, 1, 0);
+  const n = new THREE.Vector3();
+  const t = new THREE.Vector3();
+  // vec4: xyz tangent, w handedness. Uniform +1 — there is no UV winding to
+  // disagree with, so bitangents are consistently n × t.
+  const tangents = new Float32Array(pos.count * 4);
+
+  for (let i = 0; i < pos.count; i++) {
+    n.set(nor.getX(i), nor.getY(i), nor.getZ(i)).normalize();
+    // Gram-Schmidt: the reference direction with its normal component removed.
+    t.copy(REFERENCE).addScaledVector(n, -REFERENCE.dot(n));
+    if (t.lengthSq() < 1e-8) {
+      t.copy(FALLBACK).addScaledVector(n, -FALLBACK.dot(n));
+    }
+    t.normalize();
+    tangents[i * 4] = t.x;
+    tangents[i * 4 + 1] = t.y;
+    tangents[i * 4 + 2] = t.z;
+    tangents[i * 4 + 3] = 1;
+  }
+
+  geometry.setAttribute("tangent", new THREE.BufferAttribute(tangents, 4));
 }
 
 /**

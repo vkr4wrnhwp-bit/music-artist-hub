@@ -98,15 +98,28 @@ view preferences; that was test residue, cleared before this audit.)
    moved every sampled pixel. The environment was arriving; there was
    simply not enough of it to light a surface with no diffuse response.
 
-   **Anisotropy is still missing, and now for a known reason.** Milled
-   faces smear their highlight along the cutter marks, and
-   MeshPhysicalMaterial's `anisotropy` draws that analytically. Isolated
-   test, holding everything else fixed: anisotropy 0 → rgb(128,131,134)
-   top / rgb(96,100,102) wall; anisotropy 0.35 → rgb(255,255,255) top /
-   rgb(0,0,0) wall. It needs a valid tangent frame, and the solid is
-   merged `ExtrudeGeometry` whose UVs do not survive the merge intact,
-   so the tangents come out degenerate. Adding it back means computing
-   real tangents first — it is not a tuning knob.
+   **Anisotropy now works, and the fix was upstream of the material.**
+   Milled faces smear their highlight along the cutter marks, and
+   MeshPhysicalMaterial's `anisotropy` draws that analytically — but it
+   needs a tangent frame, and `mergeGeometries` in part-solid.ts
+   concatenates position and normal only, dropping the ExtrudeGeometry
+   UVs. With no UVs there is nothing for three's `computeTangents()` to
+   derive from, so the shader ran on a degenerate frame: measured, the
+   top face clipped to rgb(255,255,255) over side walls at rgb(0,0,0),
+   at every anisotropy value tried.
+
+   `computeMachiningTangents()` now builds the frame directly, by
+   projecting one world direction onto each vertex's surface plane
+   (with the standard fallback axis where the normal is parallel to it).
+   Measured with anisotropy 0.3 restored: rgb(134,136,139) top face,
+   rgb(156,159,162) centre, rgb(92,95,98) wall — in range, no clipping,
+   with a directional sheen across the top face.
+
+   What it claims is deliberately modest: ONE consistent direction, not
+   a per-operation cut direction. The solid is merged slabs with no
+   per-operation channel, so a tangent field pretending to follow each
+   operation's real feed would be invented. Cast iron and plastic carry
+   anisotropy 0 — an as-cast face has no cutter marks to smear.
 
 6. **Ground treatment.** The reference has a gradient ground and no
    grid; ours draws a visible grid by default. The grid is already a
