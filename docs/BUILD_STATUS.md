@@ -1953,3 +1953,56 @@ Still untested, and now recorded as known debt: cutting-force (422 lines,
 feeds this engine), process-advisor (270, principle 8), mating (436), nominal
 (306), cost (247), machinist (653), reconstruction, review, tool-substitution,
 jaw-family, network, next-action.
+
+## cutting-force.ts under test — and the tests checked against mutations
+
+Every load number in CANVAS comes out of this engine: the holding margin
+divides by it, the spindle-power check compares against it, and the setups
+page prints it. It had no tests.
+
+WHAT THE TESTS DELIBERATELY DO NOT DO: assert magnitudes. The model is
+DEVELOPMENT ANALYSIS by its own admission — it has not been validated against
+a dynamometer — and `assert.equal(tangential, 93.7)` would pin today's output
+as though it were measured truth, forcing the next person to break a test in
+order to make the model more accurate. That is backwards.
+
+What is pinned instead is what must hold however the arithmetic is tuned:
+
+  Refusal      Every missing input refuses and names ITSELF, not just "some
+               input". Tool diameter, flute count, axial depth, chipload,
+               spindle speed and material each have their own message, and
+               tangential comes back null rather than 0 — zero force is a
+               claim, and a false one.
+  The divisor  governingLateralLoad is null whenever the model did not run.
+               holding-margin.ts divides by it, so a fabricated number here
+               becomes a fabricated safety margin.
+  Direction    More depth, more width, more feed per tooth all mean more
+               force. A worn edge pulls harder than a new one, and an
+               UNRECORDED condition is not optimistically treated as fresh.
+  Admissions   A successful estimate always carries an uncertainty band above
+               zero and a traceable input list; an interrupted cut says peak
+               governs; a radial width wider than the cutter is cautioned.
+
+THE TESTS WERE THEN CHECKED AGAINST THE BUGS THEY CLAIM TO CATCH, by mutating
+the engine and confirming a failure:
+
+  UNKNOWN condition factor 1.25 -> 1.0     caught
+  governingLateralLoad null -> 0            caught
+  peakTangential reports the average        MISSED at first
+
+The third exposed a weak assertion of my own. `peakTangential >= tangential`
+is satisfied by equality, so an engine that dropped the peak factor and
+reported the average twice would have passed — and the workholding model would
+then be sized against the mean load rather than the worst instant, which is
+precisely what the engine's own comment warns against. Tightened to a strict
+inequality on a partial-immersion cut, where the two must differ. It now
+catches the mutation.
+
+Worth recording separately: my first attempt at that mutation did not apply
+at all — the regex looked for a line shape the file does not use — and the
+suite "passing" told me nothing. A mutation that silently fails to mutate is
+indistinguishable from a test that works.
+
+Still untested: process-advisor (270, principle 8), mating (436), nominal
+(306), cost (247), machinist (653), reconstruction, review, tool-substitution,
+jaw-family, network, next-action.
