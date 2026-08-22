@@ -27,8 +27,38 @@ const SEVERITY: Record<GateStatus, number> = {
   FAIL: 4,
 };
 
+/**
+ * Every gate this engine can emit.
+ *
+ * Declared as a closed list rather than left as a free string because
+ * next-action.ts keys two tables off these ids — the order gates should be
+ * resolved in, and where the operator goes to resolve each one. Both were
+ * hand-written, and when the tool-loading gate was added neither was updated:
+ * it sorted last among its peers and offered no link at all. A union means
+ * the compiler asks for both entries the day a gate is added.
+ */
+export const READINESS_GATE_IDS = [
+  "geometry",
+  "material",
+  "engineering",
+  "machine",
+  "reach",
+  "corners",
+  "tools",
+  "tool-loading",
+  "inspection-capability",
+  "critical-review",
+  "workholding",
+  "tolerance",
+  "inspection",
+  "simulation",
+  "nc",
+  "approval",
+] as const;
+export type ReadinessGateId = (typeof READINESS_GATE_IDS)[number];
+
 export interface ReadinessGate {
-  id: string;
+  id: ReadinessGateId;
   label: string;
   status: GateStatus;
   detail: string;
@@ -463,7 +493,7 @@ function workholdingDetail(a: WorkholdingAssessment): string {
 }
 
 const gate = (
-  id: string,
+  id: ReadinessGateId,
   label: string,
   status: GateStatus,
   detail: string,
