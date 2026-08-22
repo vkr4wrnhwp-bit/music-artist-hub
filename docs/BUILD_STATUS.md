@@ -1599,3 +1599,42 @@ nothing lit after a drag. Hidden below md, where the view cube covers it.
 
 The reference's bottom-right viewport tool icons are still out. They
 duplicate controls that already exist in VIEW rather than adding capability.
+
+## The instrument, drawn
+
+Parity gap 12, closed. instrument-glyph.tsx draws thirteen schematics, one
+per deviceType in the capability engine's vocabulary — outside, inside and
+depth micrometers, digital caliper, dial bore gauge, telescoping gauge, pin
+gauge, height gauge, dial indicator, surface plate, optical comparator, CMM
+and spindle probe. They render in the Feature Detail capability card and in
+the metrology page's instrument table.
+
+The drawing follows the data: it is selected by the deviceType on the real
+MetrologyDevice record assessCapability picked. A micrometer drawn beside a
+verdict computed against a CMM would be a picture that lies, which is worse
+than a number that lies because nobody thinks to check a picture. An
+unrecognised deviceType draws nothing — the same refusal HoldScene and
+MillPartThumb already make.
+
+No reading is implied: no needle on a dial, no digits in a display, no
+deflection, no annotated gap. There is no probe feed or live instrument
+connection in CANVAS and a pointer resting at a graduation would suggest
+one. It is also not a meter — no arc fill, no coloured sector, no ring.
+
+Verified by rendering all thirteen. The six device types the demo shop does
+not own were seeded temporarily, captured, checked and removed. The first
+micrometer was wrong: drawn frame-around-the-gap it read as a closed
+capsule, and was redrawn with anvil and spindle sharing one axis and the
+frame swinging below it.
+
+## Setup cards: the audit was wrong, and no code was written
+
+Parity gap 10 claimed the reference's SETUP 01 / SAFE cards beside the
+viewport were missing. They are not. operation-runway.tsx:286-302 renders
+exactly that artifact from assessWorkholding's own vocabulary, and the same
+setup-plus-verdict pair renders on three further surfaces.
+
+The difference is placement. Moving it into a left column would cost canvas
+share that is already 62.1% at 1366x768 and 57.7% at 1024x768 — both under
+the 70-75% target the brief protects — to show a fifth copy of a verdict
+already on screen. Recorded rather than quietly dropped.

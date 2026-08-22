@@ -189,9 +189,29 @@ view preferences; that was test residue, cleared before this audit.)
    MATTERS. Ours states the next action in the context drawer and the
    Guide card, and the CANVAS Guide occupies that corner.
 
-10. **Setup cards in the left column.** The reference lists SETUP 01 /
-    SETUP 02 with SAFE / HIGH RISK beside the viewport. Ours has them
-    on the setups page with the hold scene.
+10. ~~**Setup cards in the left column.**~~ **Withdrawn — this entry was
+    wrong.** The reference lists SETUP 01 / SETUP 02 with SAFE / HIGH
+    RISK beside the viewport, and this audit recorded it as missing.
+
+    It is not missing. `operation-runway.tsx:286-302` renders exactly
+    that artifact — `Setup {sequence padded to 02}`, the setup name, and
+    a `StatusChip` carrying `RISK_LABEL[riskLevel]` straight from
+    `assessWorkholding`. SAFE and HIGH RISK are our own vocabulary
+    (`RISK_LEVELS` = SAFE | LIKELY_SAFE | REVIEW | HIGH_RISK | UNKNOWN),
+    not a coincidence of wording. The same setup-plus-verdict pair also
+    renders in the HOLD context's `setups` and `workholding` data
+    panels and on the `/parts/[id]/setups` route. Four surfaces already.
+
+    So the difference is placement, not capability — and moving it left
+    would cost the one thing the brief protects hardest. The measured
+    canvas share is already 62.1% at 1366×768 and 57.7% at 1024×768,
+    both under the 70–75% target. A persistent new left column makes
+    three of four breakpoints worse, in service of a fifth copy of a
+    verdict already on screen.
+
+    Building it would have been duplication dressed as parity. Recorded
+    here rather than quietly dropped, because the audit claimed a gap
+    that a reading of the runway would have disproved.
 
 11. ~~**Orientation controls.**~~ **Half closed.** The reference has a
     bottom-centre segmented orientation control and bottom-right viewport
@@ -225,8 +245,51 @@ view preferences; that was test residue, cleared before this audit.)
     duplicates of controls that exist in the VIEW menu, not new
     capability, so they rank below the remaining items here.
 
-12. **Instrument illustration.** The reference draws the micrometer in
-    the metrology block. Ours names the instrument in text.
+12. ~~**Instrument illustration.**~~ **Closed.** The reference draws a
+    micrometer in the metrology block; ours named the instrument in text.
+
+    `instrument-glyph.tsx` draws thirteen schematics, one per
+    `deviceType` in the capability engine's vocabulary: outside, inside
+    and depth micrometers, digital caliper, dial bore gauge, telescoping
+    gauge, pin gauge, height gauge, dial indicator, surface plate,
+    optical comparator, CMM and spindle probe. They render in the
+    Feature Detail capability card and in the metrology page's
+    instrument table, so an instrument looks the same wherever it is
+    named.
+
+    Three constraints shaped it.
+
+    **The drawing follows the data.** It is selected by the `deviceType`
+    on the real `MetrologyDevice` record that `assessCapability` picked,
+    never by guesswork. Drawing a micrometer beside a verdict computed
+    against a CMM would be a picture that lies, which is worse than a
+    number that lies because nobody thinks to check a picture. An
+    unrecognised deviceType draws **nothing** — the same refusal
+    `HoldScene` and `MillPartThumb` already make.
+
+    **No reading is implied.** No needle on a dial, no digits in a
+    display, no deflection. There is no probe feed or live instrument
+    connection anywhere in CANVAS, and a pointer resting at a graduation
+    would suggest one. Dials are bezel, graduations and hub; the
+    caliper's display is an empty bezel. Measuring gaps carry no
+    dimension line.
+
+    **It is not a meter.** No arc fill, no coloured sector, no ring. The
+    band-consumption bar below it is a physical ratio with a stated
+    denominator; a gauge face appearing to read one would be the
+    percentage pattern principle 1 forbids, in costume.
+
+    Drawn in theme tokens (the `section-sketch` idiom) because it sits in
+    a dark panel, not the fixed paper inks the light-ground drawings use.
+    Blue marks the measuring faces only — the one place the locked
+    semantic is literally what is being drawn.
+
+    Verified by rendering all thirteen: the six device types the demo
+    shop does not own were seeded temporarily, captured, checked and
+    removed. The first micrometer was wrong — drawn frame-around-the-gap
+    it read as a closed capsule rather than a C-frame, and was redrawn
+    with anvil and spindle sharing one axis and the frame swinging below
+    it.
 
 13. **ANALYTICS nav item.** Present in the reference rail; no such route
     exists here.

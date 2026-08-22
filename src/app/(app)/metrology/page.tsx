@@ -3,6 +3,7 @@ import { getMetrology } from "@/lib/data";
 import { METROLOGY_LABELS } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
 import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { InstrumentGlyph } from "@/components/workspace/instrument-glyph";
 
 export default async function MetrologyPage() {
   const user = await requireUser();
@@ -26,9 +27,15 @@ export default async function MetrologyPage() {
           />
         ) : (
           <Panel title={`${devices.length} instruments`} dense>
-            <Table head={["Instrument", "Range", "Resolution", "Uncertainty", "Calibration"]}>
+            <Table head={["", "Instrument", "Range", "Resolution", "Uncertainty", "Calibration"]}>
               {devices.map((d) => (
                 <tr key={d.id} className="hover:bg-raised">
+                  {/* The same schematic the feature panel draws, so an
+                      instrument looks the same wherever it is named. Nothing
+                      is drawn for a device type without a drawing. */}
+                  <Td className="w-[64px]">
+                    <InstrumentGlyph deviceType={d.deviceType} className="w-[52px]" />
+                  </Td>
                   <Td className="text-platinum">{d.description}</Td>
                   <Td muted>
                     {d.rangeMin != null && d.rangeMax != null ? `${d.rangeMin}–${d.rangeMax}″` : "—"}

@@ -6,6 +6,7 @@ import type { Feature, FunctionalRole, Stock } from "@/lib/domain/features";
 import { featureSummary, fmt, fmtTol } from "@/lib/domain/features";
 import { StatusChip, type Tone } from "@/components/ui";
 import { SectionSketch } from "./section-sketch";
+import { InstrumentGlyph, hasInstrumentGlyph } from "./instrument-glyph";
 import type { DatumInfo, FeatureDetail } from "./panel-data";
 import {
   compare,
@@ -402,7 +403,15 @@ export function FeaturePanel({
         ) : (
           <div className="border border-line bg-card px-3 py-2.5">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[12.5px] leading-snug text-platinum">{instrument.description}</p>
+              {/* The instrument, drawn. Selected by the real deviceType off
+                  the MetrologyDevice record — an unrecognised type draws
+                  nothing and the description stands on its own. */}
+              <div className="flex min-w-0 items-start gap-2.5">
+                {hasInstrumentGlyph(instrument.deviceType) && (
+                  <InstrumentGlyph deviceType={instrument.deviceType} className="mt-[1px] w-[62px] shrink-0" />
+                )}
+                <p className="min-w-0 text-[12.5px] leading-snug text-platinum">{instrument.description}</p>
+              </div>
               <StatusChip tone={CAPABILITY_TONE[capability.verdict] ?? "unknown"}>{capability.label}</StatusChip>
             </div>
 
