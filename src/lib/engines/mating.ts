@@ -124,8 +124,31 @@ export function findBearing(designation: string): Bearing | null {
  * fit or it will creep and fret the seat; the stationary ring is left loose
  * enough to be assembled and to allow axial movement for thermal growth.
  */
+/**
+ * ISO 286 size bands are stated as "over X up to and INCLUDING Y", so `upTo`
+ * is an inclusive bound and `fitFor` selects with `<=`.
+ *
+ * It used to be exclusive, and the tables used to start at 30. Two things
+ * went wrong, both of them widening the tolerance and both presented to the
+ * operator as "per ISO 286":
+ *
+ *   Below 18 mm there was no band at all, so a 15 mm bearing bore fell into
+ *   the 18–30 row: k6 came out +2/+15 µm where the standard says +1/+12.
+ *
+ *   An exact boundary size fell through to the NEXT band, because 30 is not
+ *   less than 30. A 6006's 30 mm bore got the 30–50 row: k6 +2/+18 instead of
+ *   +2/+15.
+ *
+ * Nineteen bearings in the table below are affected, including the 6000,
+ * 6200 and 6300 series. On an interference fit a wider, upward-shifted band
+ * means more interference than the standard allows — which on a bearing seat
+ * crushes the outer race and takes out the internal clearance, or splits the
+ * housing. This is the one place in CANVAS where a table is presented as
+ * engineering fact rather than as DEVELOPMENT ANALYSIS, so it has to be the
+ * standard's numbers exactly.
+ */
 interface FitBand {
-  upTo: number; // mm, exclusive upper bound of the size band
+  upTo: number; // mm, INCLUSIVE upper bound of the size band
   lower: number; // µm
   upper: number; // µm
 }
@@ -133,6 +156,10 @@ interface FitBand {
 const FIT_TABLE: Record<string, FitBand[]> = {
   // Housing bore, stationary outer ring — the normal case.
   H7: [
+    { upTo: 3, lower: 0, upper: 10 },
+    { upTo: 6, lower: 0, upper: 12 },
+    { upTo: 10, lower: 0, upper: 15 },
+    { upTo: 18, lower: 0, upper: 18 },
     { upTo: 30, lower: 0, upper: 21 },
     { upTo: 50, lower: 0, upper: 25 },
     { upTo: 80, lower: 0, upper: 30 },
@@ -141,6 +168,10 @@ const FIT_TABLE: Record<string, FitBand[]> = {
   ],
   // Housing bore, rotating outer ring — interference.
   N7: [
+    { upTo: 3, lower: -14, upper: -4 },
+    { upTo: 6, lower: -16, upper: -4 },
+    { upTo: 10, lower: -19, upper: -4 },
+    { upTo: 18, lower: -23, upper: -5 },
     { upTo: 30, lower: -28, upper: -7 },
     { upTo: 50, lower: -33, upper: -8 },
     { upTo: 80, lower: -39, upper: -9 },
@@ -149,6 +180,10 @@ const FIT_TABLE: Record<string, FitBand[]> = {
   ],
   // Shaft journal, rotating inner ring — interference.
   k6: [
+    { upTo: 3, lower: 0, upper: 6 },
+    { upTo: 6, lower: 1, upper: 9 },
+    { upTo: 10, lower: 1, upper: 10 },
+    { upTo: 18, lower: 1, upper: 12 },
     { upTo: 30, lower: 2, upper: 15 },
     { upTo: 50, lower: 2, upper: 18 },
     { upTo: 80, lower: 2, upper: 21 },
@@ -157,6 +192,10 @@ const FIT_TABLE: Record<string, FitBand[]> = {
   ],
   // Shaft journal, stationary inner ring — transition.
   h6: [
+    { upTo: 3, lower: -6, upper: 0 },
+    { upTo: 6, lower: -8, upper: 0 },
+    { upTo: 10, lower: -9, upper: 0 },
+    { upTo: 18, lower: -11, upper: 0 },
     { upTo: 30, lower: -13, upper: 0 },
     { upTo: 50, lower: -16, upper: 0 },
     { upTo: 80, lower: -19, upper: 0 },
@@ -182,7 +221,12 @@ export interface FitResult {
 export function fitFor(nominalMm: number, fitClass: string, rationale: string): FitResult | null {
   const bands = FIT_TABLE[fitClass];
   if (!bands) return null;
-  const band = bands.find((b) => nominalMm < b.upTo);
+  // A nominal of zero or less is not a size. ISO's first band is "up to and
+  // including 3 mm" with no lower bound, so without this a negative nominal
+  // would quietly collect the smallest band's limits.
+  if (!Number.isFinite(nominalMm) || nominalMm <= 0) return null;
+  // Inclusive: ISO bands run "over X up to and including Y".
+  const band = bands.find((b) => nominalMm <= b.upTo);
   if (!band) return null;
 
   const lowerIn = band.lower / 1000 / MM;

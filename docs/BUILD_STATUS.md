@@ -2006,3 +2006,50 @@ indistinguishable from a test that works.
 Still untested: process-advisor (270, principle 8), mating (436), nominal
 (306), cost (247), machinist (653), reconstruction, review, tool-substitution,
 jaw-family, network, next-action.
+
+## The ISO 286 fit tables were wrong for 19 of the bearings in our own table
+
+Found while writing the first tests for `mating.ts` — the engine that turns
+"a 6203 goes in here" into a tolerance on the print. Two defects, both
+widening the band and both shifting it toward more interference, and both
+presented to the operator as "per ISO 286".
+
+FIRST: the tables started at 30 mm. `fitFor` picks the first band whose
+bound covers the nominal, and the first row was 18–30 — so every nominal
+below 18 silently took 18–30 values. A 15 mm bearing bore on a k6 shaft
+journal came back +2/+15 µm where the standard says +1/+12. Four bores in
+CANVAS's own bearing table are 10, 12, 15 and 17 mm.
+
+SECOND: the bound was exclusive. ISO size ranges run "over X up to and
+INCLUDING Y", but the selector used `<`, so 30 was not less than 30 and fell
+through to the 30–50 row. A 6006's 30 mm bore got +2/+18 instead of +2/+15;
+a 6010's 50 mm bore and 80 mm OD were both off by a band too.
+
+Nineteen bearings in the table are affected, across all three series —
+6000, 6001, 6002, 6003, 6006, 6010, 6200 through 6210, 6300 through 6307.
+
+Why it matters more than the width suggests: on an interference fit the band
+is not symmetric about a target, it is a controlled squeeze. A wider band
+shifted upward means more interference than the standard permits, and on a
+bearing seat that crushes the outer race and takes out the internal
+clearance, or splits the housing. Unlike the force model this is not
+DEVELOPMENT ANALYSIS — it is the one place in CANVAS where a number is handed
+to an operator as engineering fact, so it has to be the standard's number.
+
+Fixed by adding the 1–3, 3–6, 6–10 and 10–18 bands to all four classes and
+making the bound inclusive. Also added a guard: a nominal of zero or less now
+returns null instead of quietly collecting the smallest band.
+
+UNLIKE the cutting-force tests, these assert magnitudes, and they must. A
+model's output should not be frozen by a test; a published table's values are
+not CANVAS's to choose. All four classes are checked value by value across
+every band, and mutation-tested: restoring the exclusive bound fails five
+tests, removing the small bands fails three.
+
+One test of mine was wrong and the code was right — I asserted that 0.5 mm
+should return null, but ISO's first band is "up to and including 3" with no
+lower bound, so it legitimately covers it. Corrected the test.
+
+Still untested: process-advisor (270, principle 8), nominal (306), cost
+(247), machinist (653), reconstruction, review, tool-substitution,
+jaw-family, network, next-action.
