@@ -71,6 +71,24 @@ migration.
 ### Touring
 `tour_shows`, `stage_plots`, `tour_board`, `tour_board_replies`
 
+TOUR (tour_store.py) groups shows into tours and adds what a tour runs
+on. `tour_shows` stays the Show entity and gains `tour_id` + `tz`;
+everything else TOUR knows about a show lives in `tour_show_ext`
+(promoter, capacity, tickets, guest allocation/cutoff, deal and money
+fields, marketing JSON). Then: `tours`, `tour_members` (invite lifecycle
++ scopes JSON), `tour_days`, `tour_schedule`, `tour_venues` (per
+account, reused across tours), `tour_advance` (one row per checklist
+item per show), `tour_travel`, `tour_lodging`, `tour_rooms`,
+`tour_people`, `tour_guests`, `tour_vip`, `tour_files` (private
+`tour:` paths or R2 `tour/`, never `/uploads/`), `tour_expenses`,
+`tour_merch_products`, `tour_merch_counts`, `tour_content`,
+`tour_setlists` + `tour_setlist_items` (`os_track_id` links the
+catalog), `tour_changes` + `tour_acks` (before/after, severity, who
+acknowledged), `tour_share_links` (token, scope, show, password hash,
+expiry, revoked, access count), `tour_imports`, `tour_fan_captures`.
+Every row carries the tour OWNER's `user_id`; membership and scopes are
+enforced in tour_os.py, never in the store.
+
 ### Studio
 `rack_presets`, `light_shows`
 

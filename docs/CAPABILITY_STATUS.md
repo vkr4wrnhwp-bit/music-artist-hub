@@ -46,9 +46,30 @@ page's statement about encrypting pre-save tokens is therefore
 conditional on the same probe: with credentials absent it says instead
 that no Spotify token is requested, stored or processed.
 
+## TOUR
+
+Four entries, so the module cannot over-claim:
+
+- **TOUR (tour operating system)** — Live. Tours, days, Show Command,
+  schedule, advance, travel, hotels and rooms, people, guests, VIP,
+  files, money, merch, marketing, content, set lists, imports, exports,
+  share links, team permissions, What Changed, Ask Tour — on your own
+  data, enforced server-side.
+- **Advance inbox extraction** — Live, *rule-based*. Pasted text is read
+  with patterns; every proposal carries its source line and a
+  confidence and goes through a review step before anything is written.
+  There is no language model on this deployment, and PDFs must be
+  pasted as text (no extraction library is installed).
+- **Offline** — Live. Tour Home, My Day and Show Command are
+  network-first with a cached fallback after a visit.
+- **Route map with drive times** — Integration ready. Route order, day
+  gaps, back-to-back flags and straight-line distances from entered
+  coordinates are live; map tiles and drive-time estimates need a
+  provider, and a Directions link opens the real route instead.
+
 ## Every capability
 
-### Live (10)
+### Live (10, plus TOUR's three above)
 
 - Artist EQ
 - Starting plan

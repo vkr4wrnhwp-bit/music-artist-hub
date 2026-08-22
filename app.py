@@ -19,6 +19,7 @@ import documents_engine
 import inbox_engine
 import operator_desk
 import press_desk
+import tour_os
 import producers
 import recovery_engine
 import report_builder
@@ -2632,7 +2633,13 @@ def create_app():
                         # A beat licence is read and signed by somebody who
                         # has no account here, and the cleared list exists to
                         # be checked by a label that never will.
-                        "/licence/", "/cleared/")
+                        "/licence/", "/cleared/",
+                        # A TOUR share link - a day sheet for the local crew,
+                        # a check-in list for the door - is read by somebody
+                        # without an account. The token is the authorisation
+                        # and it is scoped to one thing; /tours/ itself stays
+                        # behind the wall.
+                        "/tour-share/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
@@ -7869,6 +7876,9 @@ def create_app():
     # built from the canonical address rather than whichever host the
     # request happened to arrive on.
     press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    # TOUR: invitation and share links are pasted into messages and read
+    # later, so they too are built from the canonical address.
+    tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL)
 
     return app
 

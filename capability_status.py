@@ -97,6 +97,21 @@ CAPABILITIES = {
     "rollout_plans": {"status": LIVE, "name": "Rollout plans"},
     "press_desk": {"status": LIVE, "name": "Press Desk"},
     "lanes": {"status": LIVE, "name": "Three Street Banker Lanes"},
+    # TOUR. The module is live end to end on your own data. Two parts are
+    # deliberately labelled for what they are: the advance-inbox extractor
+    # is pattern-based (no language model on this deployment) and always
+    # routes through a review step; the route view orders the run and
+    # computes straight-line distances from coordinates you entered, with
+    # no map tiles or drive-time provider connected.
+    "tour_os": {"status": LIVE, "name": "TOUR (tour operating system)"},
+    "tour_extraction": {"status": LIVE,
+                        "name": "Advance inbox extraction (rule-based, reviewed before it writes)"},
+    "tour_offline": {"status": LIVE,
+                     "name": "My Day and Show Command readable offline after a visit"},
+    "tour_map": {"status": INTEGRATION_READY,
+                 "name": "Route map with drive times",
+                 "note": ("Route order, gaps and straight-line distances are live; "
+                          "map tiles and drive-time estimates need a provider.")},
 
     # --- things that depend on the environment ---
     "spotify_presave": {
