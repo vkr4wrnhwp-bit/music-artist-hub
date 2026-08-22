@@ -66,15 +66,56 @@ const METRIC_ROUND_MM = [
 /** Inch fractions down to 1/64. */
 const INCH_FRACTIONS = Array.from({ length: 256 }, (_, i) => (i + 1) / 64).filter((v) => v <= 4);
 
-/** Number, letter and fractional drill sizes that actually live in a drill index. */
-const DRILL_SIZES = [
-  0.0625, 0.0781, 0.0935, 0.096, 0.1015, 0.104, 0.1065, 0.1094, 0.11, 0.113, 0.116, 0.12, 0.125,
-  0.1285, 0.136, 0.1405, 0.144, 0.147, 0.1495, 0.1562, 0.159, 0.166, 0.1695, 0.173, 0.177, 0.18,
-  0.1875, 0.1935, 0.196, 0.199, 0.201, 0.204, 0.209, 0.213, 0.2188, 0.221, 0.228, 0.234, 0.2344,
-  0.238, 0.242, 0.246, 0.25, 0.257, 0.261, 0.266, 0.272, 0.277, 0.281, 0.29, 0.295, 0.302, 0.3125,
-  0.316, 0.323, 0.332, 0.339, 0.348, 0.3438, 0.358, 0.368, 0.377, 0.386, 0.397, 0.404, 0.413, 0.42,
-  0.4219, 0.428, 0.4375, 0.4531, 0.4688, 0.4844, 0.5,
-];
+/**
+ * The drill index, as three published series rather than one hand-kept list.
+ *
+ * This was previously a flat array of decimals with no designations, and it
+ * had holes in it: 3/8, 13/64, 11/64, 23/64 and four other fractional drills
+ * were absent, and #43 — the tap drill this file's own #4-40 row names — was
+ * absent too. A hole drilled 0.3750 therefore matched letter V (0.377) and
+ * came back as a 0.003" oversize letter drill instead of the 3/8 it obviously
+ * was. It also carried 0.420, which is not a drill size in any series; the
+ * neighbouring entries suggest a decimal slip from #58 (0.0420).
+ *
+ * Keeping the designation alongside the diameter matters at the counter: a
+ * machinist reaches for "letter S", not for "0.3480".
+ */
+interface DrillSize {
+  d: number;
+  /** The designation stamped on the shank. */
+  label: string;
+}
+
+/** Number drills #1–#60 (ANSI/ASME B94.11M). */
+const NUMBER_DRILLS: DrillSize[] = [
+  [1, 0.228], [2, 0.221], [3, 0.213], [4, 0.209], [5, 0.2055], [6, 0.204], [7, 0.201], [8, 0.199],
+  [9, 0.196], [10, 0.1935], [11, 0.191], [12, 0.189], [13, 0.185], [14, 0.182], [15, 0.18],
+  [16, 0.177], [17, 0.173], [18, 0.1695], [19, 0.166], [20, 0.161], [21, 0.159], [22, 0.157],
+  [23, 0.154], [24, 0.152], [25, 0.1495], [26, 0.147], [27, 0.144], [28, 0.1405], [29, 0.136],
+  [30, 0.1285], [31, 0.12], [32, 0.116], [33, 0.113], [34, 0.111], [35, 0.11], [36, 0.1065],
+  [37, 0.104], [38, 0.1015], [39, 0.0995], [40, 0.098], [41, 0.096], [42, 0.0935], [43, 0.089],
+  [44, 0.086], [45, 0.082], [46, 0.081], [47, 0.0785], [48, 0.076], [49, 0.073], [50, 0.07],
+  [51, 0.067], [52, 0.0635], [53, 0.0595], [54, 0.055], [55, 0.052], [56, 0.0465], [57, 0.043],
+  [58, 0.042], [59, 0.041], [60, 0.04],
+].map(([n, d]) => ({ d, label: `#${n}` }));
+
+/** Letter drills A–Z. */
+const LETTER_DRILLS: DrillSize[] = [
+  ["A", 0.234], ["B", 0.238], ["C", 0.242], ["D", 0.246], ["E", 0.25], ["F", 0.257], ["G", 0.261],
+  ["H", 0.266], ["I", 0.272], ["J", 0.277], ["K", 0.281], ["L", 0.29], ["M", 0.295], ["N", 0.302],
+  ["O", 0.316], ["P", 0.323], ["Q", 0.332], ["R", 0.339], ["S", 0.348], ["T", 0.358], ["U", 0.368],
+  ["V", 0.377], ["W", 0.386], ["X", 0.397], ["Y", 0.404], ["Z", 0.413],
+].map(([letter, d]) => ({ d: d as number, label: `letter ${letter}` }));
+
+/** Fractional drills, 1/16 through 1/2 by 64ths — the whole index, no gaps. */
+const FRACTIONAL_DRILLS: DrillSize[] = Array.from({ length: 29 }, (_, i) => {
+  const sixtyFourths = i + 4; // 4/64 = 1/16 up to 32/64 = 1/2
+  return { d: sixtyFourths / 64, label: toFractionLabel(sixtyFourths / 64) };
+});
+
+const DRILL_SIZES: DrillSize[] = [...FRACTIONAL_DRILLS, ...NUMBER_DRILLS, ...LETTER_DRILLS].sort(
+  (a, b) => a.d - b.d,
+);
 
 /** Unified and metric coarse thread major diameters. */
 const THREADS: { label: string; major: number; note: string }[] = [
@@ -148,6 +189,14 @@ const fmtMm = (v: number) => (Math.abs(v - Math.round(v)) < 0.01 ? String(Math.r
 
 export function findNominalCandidates(q: NominalQuery): NominalCandidate[] {
   const { measured, uncertainty } = q;
+  // A non-finite measurement or uncertainty used to pass straight through the
+  // window filter, because `Math.abs(NaN) > window` is false and so is
+  // `x > NaN`. Every table entry was then accepted, scored NaN, and
+  // bestNominalSuggestion returned one of them — `NaN < 0.7` is false. An
+  // empty field became a confident standard-value suggestion. There is no
+  // nominal to infer from a measurement that does not exist.
+  if (!Number.isFinite(measured) || measured <= 0) return [];
+  if (!Number.isFinite(uncertainty) || uncertainty < 0) return [];
   // Wear opens the search window: a worn bearing seat measures over nominal.
   const window = Math.max(uncertainty * 6, q.wearExpected ? 0.004 : 0.0015);
   const out: NominalCandidate[] = [];
@@ -162,13 +211,21 @@ export function findNominalCandidates(q: NominalQuery): NominalCandidate[] {
   ) => {
     const deviation = measured - nominalInches;
     if (Math.abs(deviation) > window) return;
+    const confidence = scoreCandidate(measured, nominalInches, uncertainty, metric);
+    // The window and the scoring curve are two different judgements and they
+    // disagree at the edges: a coarse-window match can be far enough out that
+    // scoreCandidate floors it at zero, and the candidate was still listed.
+    // A row the engine itself scored at no confidence is not a candidate —
+    // it is a standard value that happens to be in the neighbourhood, and
+    // shown in a list beside real matches it reads as one.
+    if (confidence <= 0) return;
     out.push({
       nominalInches,
       label,
       family,
       interpretation,
       deviation: Number(deviation.toFixed(5)),
-      confidence: scoreCandidate(measured, nominalInches, uncertainty, metric),
+      confidence,
       basis,
     });
   };
@@ -212,13 +269,13 @@ export function findNominalCandidates(q: NominalQuery): NominalCandidate[] {
   }
 
   if (ctx === "HOLE" || ctx === "GENERAL") {
-    for (const d of DRILL_SIZES) {
+    for (const drill of DRILL_SIZES) {
       push(
-        d,
-        `⌀${fmtIn(d)}`,
+        drill.d,
+        `${drill.label} (⌀${fmtIn(drill.d)})`,
         "DRILL_SIZE",
         "Standard drill size — likely drilled, not bored",
-        "Value matches a size present in a standard drill index.",
+        `Matches ${drill.label} in a standard drill index.`,
         false,
       );
     }
