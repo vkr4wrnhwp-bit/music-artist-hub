@@ -139,6 +139,8 @@ const EnvCtx = createContext<ViewEnvironment>(DEFAULT_ENVIRONMENT);
 const useEnv = () => useContext(EnvCtx);
 
 
+
+
 /** Applies the environment background to the live scene whenever it changes. */
 function SceneBackground({ color }: { color: string }) {
   const scene = useThree((s) => s.scene);
@@ -207,7 +209,7 @@ export function Viewport(props: ViewportProps) {
           depend on the network to render a part — and fails closed to a lost
           WebGL context when that network is not there. This is generated in
           process, so it works on a shop floor with no internet. */}
-      <Environment resolution={props.quality === "PERFORMANCE" ? 64 : 256} environmentIntensity={props.quality === "PERFORMANCE" ? 0.15 : 0.2 + (props.env?.reflectionStrength ?? 0.5) * 0.6}>
+      <Environment resolution={props.quality === "PERFORMANCE" ? 64 : 256} environmentIntensity={props.quality === "PERFORMANCE" ? 0.15 : 1.4 + (props.env?.reflectionStrength ?? 0.5) * 1.6}>
         <Lightformer form="rect" intensity={3} position={[0, 8, 3]} scale={[12, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1.3} position={[-7, 3, 4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={1} position={[7, 2, -4]} scale={[6, 7, 1]} target={[0, 0, 0]} />
@@ -384,31 +386,58 @@ function SceneContent({
  * getting it wrong — putting a chrome finish on a milled 6061 block —
  * communicates that the software does not know what it is looking at.
  *
- * Values are chosen to read as *machined*: moderate metalness with real
- * roughness, never a mirror. A freshly milled face is not a mirror.
+ * Values are chosen to read as *machined*: never a mirror. A freshly milled
+ * face is not a mirror.
+ *
+ * The metals sit at real conductor values (~0.9) rather than the 0.55–0.78
+ * they used to. A metal has no diffuse response — it shows the room or it
+ * shows black — so the previous compromise was not a material judgement, it
+ * was compensating for an environment too dim to light one. Measured on the
+ * seeded plate: at the old `environmentIntensity` of 0.5, metalness 0.9 gave
+ * a top face of rgb(254,254,254) and side walls of rgb(0,0,0); with the room
+ * raised to ~2.2 the same material reads rgb(128,131,134) on the top face
+ * and rgb(96,100,102) on the wall, with a real gradient across both.
+ *
+ * ANISOTROPY IS NOT HERE, DELIBERATELY. Face-milled surfaces smear their
+ * highlight along the cutter marks, and MeshPhysicalMaterial's `anisotropy`
+ * is the analytic way to draw that. It was tried and removed: it needs a
+ * valid tangent frame, and this solid is merged ExtrudeGeometry whose UVs do
+ * not survive the merge intact, so the tangents come out degenerate and the
+ * specular explodes — rgb(255,255,255) on the top face against rgb(0,0,0) on
+ * the wall, at every anisotropy value tested. Adding it back means computing
+ * real tangents first; it is not a material-tuning knob.
  */
-const MATERIAL_APPEARANCE: Record<string, { color: string; metalness: number; roughness: number }> = {
-  ALUMINUM: { color: "#b8bcc0", metalness: 0.62, roughness: 0.42 },
-  ALUMINIUM: { color: "#b8bcc0", metalness: 0.62, roughness: 0.42 },
-  STEEL: { color: "#9aa0a8", metalness: 0.72, roughness: 0.36 },
-  STAINLESS: { color: "#a9aeb4", metalness: 0.78, roughness: 0.28 },
-  TOOL_STEEL: { color: "#8a9098", metalness: 0.75, roughness: 0.3 },
-  CAST_IRON: { color: "#7c7d7a", metalness: 0.35, roughness: 0.72 },
-  BRASS: { color: "#c2a668", metalness: 0.7, roughness: 0.34 },
-  BRONZE: { color: "#b08d63", metalness: 0.68, roughness: 0.4 },
-  COPPER: { color: "#c08466", metalness: 0.72, roughness: 0.36 },
-  TITANIUM: { color: "#9d9a97", metalness: 0.6, roughness: 0.46 },
-  PLASTIC: { color: "#d5d7d2", metalness: 0.05, roughness: 0.85 },
+interface MaterialLook {
+  color: string;
+  metalness: number;
+  roughness: number;
+}
+
+const MATERIAL_APPEARANCE: Record<string, MaterialLook> = {
+  ALUMINUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38 },
+  ALUMINIUM: { color: "#b9bdc1", metalness: 0.9, roughness: 0.38 },
+  STEEL: { color: "#9aa0a8", metalness: 0.92, roughness: 0.34 },
+  STAINLESS: { color: "#a9aeb4", metalness: 0.94, roughness: 0.26 },
+  TOOL_STEEL: { color: "#8a9098", metalness: 0.92, roughness: 0.3 },
+  // Cast iron is not polished and carries no cutter marks on its as-cast
+  // faces. Low metalness, high roughness, no anisotropy — it should read
+  // matte and grainy beside a milled aluminium plate.
+  CAST_IRON: { color: "#7c7d7a", metalness: 0.35, roughness: 0.75 },
+  BRASS: { color: "#c2a668", metalness: 0.9, roughness: 0.32 },
+  BRONZE: { color: "#b08d63", metalness: 0.88, roughness: 0.38 },
+  COPPER: { color: "#c08466", metalness: 0.9, roughness: 0.34 },
+  TITANIUM: { color: "#9d9a97", metalness: 0.88, roughness: 0.44 },
+  PLASTIC: { color: "#d5d7d2", metalness: 0.02, roughness: 0.85 },
 };
 
-function appearanceFor(material: string) {
+function appearanceFor(material: string): MaterialLook {
   const key = (material || "").toUpperCase().replace(/[\s-]+/g, "_");
   for (const candidate of Object.keys(MATERIAL_APPEARANCE)) {
     if (key.includes(candidate)) return MATERIAL_APPEARANCE[candidate];
   }
   // Unrecognised material reads as a neutral machined metal rather than
   // pretending to be something specific.
-  return { color: "#adb1b6", metalness: 0.55, roughness: 0.5 };
+  return { color: "#adb1b6", metalness: 0.82, roughness: 0.46 };
 }
 
 /**

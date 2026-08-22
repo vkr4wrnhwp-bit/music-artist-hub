@@ -1497,3 +1497,24 @@ material's environment map — which is why the committed low metalness
 values work at all. Reverted to the known-good material; the diagnosis
 and the next step are recorded in docs/VISUAL_PARITY_AUDIT.md so the
 next attempt starts from the real cause rather than from tuning.
+
+## Part rendering fidelity — closed, with a corrected diagnosis
+
+Metals now sit at real conductor values (aluminium 0.62 → 0.9) with the
+environment raised to light them. Sampled on the seeded plate: top face
+rgb(148,150,153) → rgb(128,131,134), side wall rgb(119,122,125) →
+rgb(96,100,102), with a real gradient where there was a near-flat fill.
+Cast iron, brass and aluminium verified visually distinct.
+
+The earlier BUILD_STATUS entry claiming the Environment rig "is not
+reaching the material" was WRONG and is corrected in
+docs/VISUAL_PARITY_AUDIT.md. An in-scene probe showed scene.environment
+populated with ACES tone mapping active, and forcing environmentIntensity
+0.5 → 3.0 moved every sampled pixel. The environment was arriving; there
+was too little of it to light a surface with no diffuse response.
+
+Anisotropy (the tool-mark highlight) remains out, now for an isolated
+reason: at anisotropy 0.35 the top face clips to rgb(255,255,255) and the
+wall crushes to rgb(0,0,0), because it needs a tangent frame the merged
+ExtrudeGeometry does not carry. It returns only after real tangents are
+computed.

@@ -72,40 +72,41 @@ view preferences; that was test residue, cleared before this audit.)
    studio gradient and a contact shadow. Ours is a clean matte solid
    over a perspective grid. This is the largest remaining visual gap.
 
-   **Attempted and reverted, with a diagnosis.** Raising the metals to
-   physical conductor values (aluminium metalness 0.62 → 0.9) and adding
-   `anisotropy` for tool-mark specular made the render worse, not
-   better: the top face clipped to `rgb(254,254,254)` and the side walls
-   crushed to `rgb(0,0,0)`, measured by sampling the captured PNG rather
-   than judged by eye.
+   **Partly closed.** The metals now sit at real conductor values
+   (aluminium 0.62 → 0.9) and the environment is bright enough to light
+   them. Measured on the seeded plate by sampling the captured PNG:
 
-   That is the signature of a metal with nothing to reflect — a metal
-   has no diffuse response, so it shows the room or it shows black.
-   Rebalancing the direct lights and adding four large enclosing
-   Lightformer panels did not move a single sampled pixel. The decisive
-   test: setting those enclosure panels to `intensity={20}` — absurd,
-   twenty times any sane value — also produced **zero** pixel change.
+   | | top face | top face centre | side wall |
+   |---|---|---|---|
+   | before | rgb(148,150,153) | rgb(169,172,174) | rgb(119,122,125) |
+   | after | rgb(128,131,134) | rgb(152,156,159) | rgb(96,100,102) |
 
-   So the finding is specific and it is not about material tuning: the
-   `<Environment>` lightformer rig is not reaching this material's
-   environment map at all. The current low metalness values work only
-   because at 0.62 a surface still has enough diffuse response to be lit
-   by the direct lights alone; they are compensating for an environment
-   that is not arriving.
+   Slightly darker, and with a real gradient across both surfaces where
+   there was a near-flat fill before — it reads as a machined plate
+   rather than a matte solid. Material differentiation was checked at
+   the same time and is genuine: cast iron rgb(175,176,174) matte,
+   brass rgb(124,107,71) gold, aluminium rgb(128,131,134) cool neutral.
 
-   (An intermediate diagnosis that the side walls were a second mesh was
-   wrong and is recorded here so it is not repeated: a red-base-colour
-   test appeared to leave them untinted, but that was because they were
-   already black — black times red is black. At the reverted baseline
-   those same pixels read `rgb(113,117,119)`, so they are the part
-   material.)
+   **The lever was `environmentIntensity`, and an earlier entry here got
+   that wrong.** A first pass raised metalness alone and produced a top
+   face clipped to rgb(254,254,254) over side walls crushed to
+   rgb(0,0,0); adding four enclosing Lightformer panels changed nothing,
+   even at `intensity={20}`, and this document briefly recorded that the
+   `<Environment>` rig "is not reaching the material". That was wrong. A
+   probe inside the scene showed `scene.environment` populated and ACES
+   tone mapping active, and forcing `environmentIntensity` 0.5 → 3.0
+   moved every sampled pixel. The environment was arriving; there was
+   simply not enough of it to light a surface with no diffuse response.
 
-   Next attempt should start by proving `scene.environment` is actually
-   populated when the lightformers mount — `<Environment frames>` and
-   mount ordering are the first suspects — and only then revisit
-   metalness and anisotropy. Until the room arrives, physical metal
-   values cannot be used, and the honest thing is the matte surface that
-   is there now rather than a black-sided part.
+   **Anisotropy is still missing, and now for a known reason.** Milled
+   faces smear their highlight along the cutter marks, and
+   MeshPhysicalMaterial's `anisotropy` draws that analytically. Isolated
+   test, holding everything else fixed: anisotropy 0 → rgb(128,131,134)
+   top / rgb(96,100,102) wall; anisotropy 0.35 → rgb(255,255,255) top /
+   rgb(0,0,0) wall. It needs a valid tangent frame, and the solid is
+   merged `ExtrudeGeometry` whose UVs do not survive the merge intact,
+   so the tangents come out degenerate. Adding it back means computing
+   real tangents first — it is not a tuning knob.
 
 6. **Ground treatment.** The reference has a gradient ground and no
    grid; ours draws a visible grid by default. The grid is already a
