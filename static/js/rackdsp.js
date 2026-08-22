@@ -1237,6 +1237,21 @@
   var statusEl = document.getElementById("rk-status");
   var scopeLamp = document.getElementById("scope-lamp");
 
+  /* The "drop audio" scrim. Guidance, not a gate: it ignores the mouse so
+     the knobs underneath stay usable, and it goes away for good once
+     something decodes. dragDepth counts enter/leave because they fire for
+     every child element the pointer crosses, so a bare boolean flickers. */
+  var emptyEl = document.getElementById("rk-empty");
+  var dragDepth = 0;
+
+  function hideEmpty() {
+    if (emptyEl) { emptyEl.hidden = true; emptyEl.classList.remove("is-over"); }
+  }
+
+  function markDrag(on) {
+    if (emptyEl && !emptyEl.hidden) emptyEl.classList.toggle("is-over", on);
+  }
+
   function loadFile(file) {
     ensureCtx().resume();
     file.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
@@ -1244,6 +1259,7 @@
         buffer = buf;
         loadedFile = file;
         loadedName = file.name.replace(/\.[^.]+$/, "");
+        hideEmpty();
         document.getElementById("rk-fileinfo").textContent =
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
           buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
@@ -1261,8 +1277,15 @@
     if (fileInput.files[0]) loadFile(fileInput.files[0]);
   });
   document.addEventListener("dragover", function (e) { e.preventDefault(); });
+  document.addEventListener("dragenter", function () { dragDepth++; markDrag(true); });
+  document.addEventListener("dragleave", function () {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) markDrag(false);
+  });
   document.addEventListener("drop", function (e) {
     e.preventDefault();
+    dragDepth = 0;
+    markDrag(false);
     if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
   });
 

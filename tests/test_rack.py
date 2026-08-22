@@ -278,3 +278,65 @@ def test_the_library_controls_are_on_the_page():
     # It is a real dialog, and the trigger says so.
     assert 'role="dialog"' in html and 'aria-modal="true"' in html
     assert 'aria-controls="rk-lib-back"' in html
+
+
+# --- the "drop audio" empty state ---------------------------------------
+
+
+def test_the_empty_state_guides_without_blocking_the_controls():
+    """The scrim covers the whole faceplate, so if it swallowed clicks the
+    rack would be unusable until audio loaded — and you are meant to be
+    able to dial a rack in blind and save it to the library. Only the card
+    inside it takes the mouse."""
+    html = _html()
+    assert 'id="rk-empty"' in html
+    css = html[html.index(".rk-empty {"):html.index(".rk-empty-h")]
+    assert "pointer-events: none" in css, "the scrim must let clicks through"
+    card = html[html.index(".rk-empty-card {"):html.index(".rk-empty-h")]
+    assert "pointer-events: auto" in card, "the card itself must be clickable"
+
+
+def test_the_empty_state_sits_inside_the_chassis():
+    """inset:0 only covers the faceplate if it is a child of .chassis,
+    which is the positioned ancestor."""
+    html = _html()
+    chassis = html.index('<div class="chassis">')
+    fit_close = html.index("<!-- /chassis-fit -->")
+    assert chassis < html.index('id="rk-empty"') < fit_close
+
+
+def test_the_scrim_lifts_only_after_a_file_actually_decodes():
+    """Hiding it on drop would strand anyone who dropped a PDF: the rack
+    would look armed and play nothing. hideEmpty() belongs in the resolve
+    arm, after decodeAudioData has come back."""
+    js = _js()
+    start = js.index("function loadFile(file)")
+    body = js[start:js.index("fileInput.addEventListener", start)]
+    assert "hideEmpty();" in body
+    assert body.index("decodeAudioData") < body.index("hideEmpty();")
+    # and the catch arm must NOT hide it
+    catch = body[body.index(".catch("):]
+    assert "hideEmpty" not in catch, "a failed decode must leave the scrim up"
+
+
+def test_the_drag_highlight_counts_depth_rather_than_toggling():
+    """dragenter/dragleave fire for every child element the pointer
+    crosses. A bare boolean flickers the whole time you are dragging over
+    the rack; a depth counter does not."""
+    js = _js()
+    assert "var dragDepth = 0;" in js
+    assert "dragDepth++" in js
+    assert "dragDepth = Math.max(0, dragDepth - 1);" in js
+    # the drop handler resets it, or the next drag starts already-counted
+    start = js.index('document.addEventListener("drop"')
+    drop = js[start:js.index("var stems", start)]
+    assert "dragDepth = 0;" in drop
+
+
+def test_the_empty_state_button_opens_the_real_file_picker():
+    """A second <input type=file> would be a second load path to keep in
+    step. This one points at the input that already exists."""
+    html = _html()
+    card = html[html.index('id="rk-empty"'):html.index("<!-- /chassis-fit -->")]
+    assert 'for="rk-file"' in card
+    assert "<input" not in card, "no second file input — reuse rk-file"
