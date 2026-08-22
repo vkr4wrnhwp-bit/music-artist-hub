@@ -1484,3 +1484,16 @@ contradicts its numbers and ours computes the verdict) and real gaps
 (part rendering fidelity, grid-vs-gradient ground, header chrome,
 bottom action bar placement, next-action card, setup cards, orientation
 controls, instrument illustration, analytics route).
+
+## Part rendering fidelity — attempted, reverted, diagnosed
+
+Raising the metals to physical conductor values and adding anisotropy
+for tool-mark specular made the viewport worse: top face clipped to
+rgb(254,254,254), sides crushed to rgb(0,0,0), measured by sampling the
+captured PNG. Rebalancing the direct lights and adding four enclosing
+Lightformer panels moved nothing; setting those panels to intensity 20
+also moved nothing. The `<Environment>` rig is not reaching the part
+material's environment map — which is why the committed low metalness
+values work at all. Reverted to the known-good material; the diagnosis
+and the next step are recorded in docs/VISUAL_PARITY_AUDIT.md so the
+next attempt starts from the real cause rather than from tuning.

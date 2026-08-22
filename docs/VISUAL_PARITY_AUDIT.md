@@ -72,6 +72,41 @@ view preferences; that was test residue, cleared before this audit.)
    studio gradient and a contact shadow. Ours is a clean matte solid
    over a perspective grid. This is the largest remaining visual gap.
 
+   **Attempted and reverted, with a diagnosis.** Raising the metals to
+   physical conductor values (aluminium metalness 0.62 → 0.9) and adding
+   `anisotropy` for tool-mark specular made the render worse, not
+   better: the top face clipped to `rgb(254,254,254)` and the side walls
+   crushed to `rgb(0,0,0)`, measured by sampling the captured PNG rather
+   than judged by eye.
+
+   That is the signature of a metal with nothing to reflect — a metal
+   has no diffuse response, so it shows the room or it shows black.
+   Rebalancing the direct lights and adding four large enclosing
+   Lightformer panels did not move a single sampled pixel. The decisive
+   test: setting those enclosure panels to `intensity={20}` — absurd,
+   twenty times any sane value — also produced **zero** pixel change.
+
+   So the finding is specific and it is not about material tuning: the
+   `<Environment>` lightformer rig is not reaching this material's
+   environment map at all. The current low metalness values work only
+   because at 0.62 a surface still has enough diffuse response to be lit
+   by the direct lights alone; they are compensating for an environment
+   that is not arriving.
+
+   (An intermediate diagnosis that the side walls were a second mesh was
+   wrong and is recorded here so it is not repeated: a red-base-colour
+   test appeared to leave them untinted, but that was because they were
+   already black — black times red is black. At the reverted baseline
+   those same pixels read `rgb(113,117,119)`, so they are the part
+   material.)
+
+   Next attempt should start by proving `scene.environment` is actually
+   populated when the lightformers mount — `<Environment frames>` and
+   mount ordering are the first suspects — and only then revisit
+   metalness and anisotropy. Until the room arrives, physical metal
+   values cannot be used, and the honest thing is the matte surface that
+   is there now rather than a black-sided part.
+
 6. **Ground treatment.** The reference has a gradient ground and no
    grid; ours draws a visible grid by default. The grid is already a
    toggle in View Environment — the question is the default.
