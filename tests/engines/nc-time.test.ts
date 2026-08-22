@@ -65,3 +65,79 @@ test("analyzeNC uses the model when accel is recorded and says so; never guesses
   assert.ok(modeled.assumptions.some((a) => /DEVELOPMENT ANALYSIS/.test(a)));
   assert.ok(flat.assumptions.some((a) => /No axis acceleration recorded/.test(a)));
 });
+
+/* ---------------- The tap is never retimed ---------------- */
+
+/**
+ * A tap is synchronised to the spindle: its feed IS the thread lead. Every
+ * finding analyzeNC raises about a feed move proposes speeding it up or
+ * replacing it with a rapid, and following either on a tapping segment
+ * snaps the tap in the hole.
+ *
+ * The proposal side of this is pinned in nc-load. The analysis side — the
+ * `!s.tapping` guard that stops the finding being raised at all — had no
+ * test, and removing it broke nothing.
+ */
+
+const tapSeg = (x0: number, y0: number, x1: number, y1: number, feed: number, line = 1): NCSegment => ({
+  line, kind: "CUT", x0, y0, z0: 1, x1, y1, z1: 1,
+  feed, toolNumber: 5, spindleRPM: 500, comped: false, tapping: true,
+});
+
+const parsedOf = (segments: NCSegment[]) =>
+  ({
+    segments, toolChanges: [], workOffsetsSeen: ["G54"], refusals: [], warnings: [],
+    lineCount: segments.length, units: "IN",
+  }) as unknown as Parameters<typeof analyzeNC>[0];
+
+const CTX = { stock: { x: 6, y: 4, z: 1 }, toolDiameters: { 5: 0.25 }, rapidRate: 600 };
+
+test("a tapping move above the stock is never called a slow linking move", () => {
+  // The same geometry as an ordinary feed move that WOULD be flagged: a long
+  // feed entirely above Z0, where a rapid does the same job in less time.
+  const ordinary = analyzeNC(parsedOf([seg(0, 0, 6, 0, 10, 1)].map((s) => ({ ...s, z0: 1, z1: 1 }))), CTX);
+  assert.ok(
+    ordinary.findings.some((f) => f.kind === "SLOW_LINKING_MOVE"),
+    "precondition: this geometry is flagged when it is not tapping",
+  );
+
+  const tapping = analyzeNC(parsedOf([tapSeg(0, 0, 6, 0, 10, 1)]), CTX);
+  assert.deepEqual(
+    tapping.findings.filter((f) => f.kind === "SLOW_LINKING_MOVE"),
+    [],
+    "a tapping segment must never be proposed as a rapid",
+  );
+});
+
+test("no finding at all is raised against a tapping segment", () => {
+  // Not just the linking-move finding: nothing that would change its feed or
+  // its motion type.
+  const tapping = analyzeNC(parsedOf([tapSeg(0, 0, 6, 0, 10, 1), tapSeg(6, 0, 6, 4, 10, 2)]), CTX);
+  assert.deepEqual(tapping.findings, [], `got ${JSON.stringify(tapping.findings)}`);
+});
+
+test("a tapping segment still counts toward the cycle time", () => {
+  // Untouchable is not the same as invisible — the tap takes as long as it
+  // takes, and the estimate has to include it.
+  const withTap = analyzeNC(parsedOf([tapSeg(0, 0, 6, 0, 10, 1)]), CTX);
+  assert.ok(withTap.totalMinutes > 0, "the tap contributes time");
+});
+
+test("an ordinary feed move beside a tapping one is still analysed", () => {
+  // The guard is per segment, not per program: one tap must not silence the
+  // analysis of everything around it.
+  const mixed = analyzeNC(
+    parsedOf([tapSeg(0, 0, 1, 0, 10, 1), { ...seg(1, 0, 6, 0, 10, 2), z0: 1, z1: 1 }]),
+    CTX,
+  );
+  assert.ok(mixed.findings.some((f) => f.kind === "SLOW_LINKING_MOVE"), "the non-tapping move is still examined");
+  assert.ok(mixed.findings.every((f) => f.line !== 1), "and the tapping one is not");
+});
+
+test("rapid time counts toward the cycle, and is reported separately", () => {
+  // Zeroing rapid time understates the cycle and inflates every saving
+  // measured against it. A long traverse is not free.
+  const withRapid = analyzeNC(parsedOf([{ ...seg(0, 0, 20, 0, null, 1), z0: 1, z1: 1 }]), CTX);
+  assert.ok(withRapid.totalMinutes > 0, "a rapid takes time");
+  assert.ok(withRapid.rapidMinutes > 0, "and is attributed to rapid rather than to cutting");
+});

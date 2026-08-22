@@ -122,3 +122,94 @@ test("slow linking moves above the stock are found with the rapid-delta saving",
   assert.ok(slow);
   assert.ok(slow!.seconds > 30); // 6" at F10 is 36s; a rapid is under a second
 });
+
+/* ---------------- Every refusal, and what a refusal promises ---------------- */
+
+/**
+ * The analyzer tells the operator "Interpretation stopped at line N.
+ * Everything before that line is analyzed; nothing after it is." Three of the
+ * four refusals had no test, so a parser that quietly carried on reading
+ * would have kept that message truthful only by accident — and the optimiser
+ * proposes feed changes against whatever the parser believes it read.
+ */
+
+test("a subprogram call is refused, and nothing after it is interpreted", () => {
+  // M98 jumps somewhere the parser cannot follow. Continuing past it means
+  // believing the program is what remains in this file, which it is not.
+  const p = parseNC("G20 G90\nG1 X1 F10\nM98 P1000\nG1 X5 F60\nG1 X9 F60");
+  assert.equal(p.refusals.length, 1);
+  assert.match(p.refusals[0].reason, /subprogram/i);
+  assert.equal(p.refusals[0].line, 3);
+  for (const s of p.segments) assert.ok(s.line < 3, `line ${s.line} was interpreted past the refusal`);
+});
+
+test("M97 is refused as well as M98 — both are calls", () => {
+  // The pattern is M9[78], and the reason says "Subprogram call". M97 is
+  // Haas's local subprogram call and M98 the standard one, so both belong.
+  //
+  // M99 is deliberately not here: it is the subprogram RETURN, not a call.
+  // A first version of this test asserted M99 was refused, which was an
+  // assumption about the code rather than a reading of it — the reason
+  // string says what the pattern is for.
+  for (const call of ["M97 P1000", "M98 P1000"]) {
+    const p = parseNC(`G20 G90\nG1 X1 F10\n${call}`);
+    assert.equal(p.refusals.length, 1, call);
+    assert.match(p.refusals[0].reason, /subprogram/i);
+  }
+});
+
+test("an arc outside the XY plane is refused rather than flattened", () => {
+  // A G18/G19 arc read as though it were in XY produces a segment of the
+  // wrong length in the wrong place, and every downstream number — arc
+  // length, engagement, cycle time — is computed from that.
+  const p = parseNC("G20 G90\nG18\nG1 X1 F10\nG2 X2 Z1 I0.5 K0");
+  assert.equal(p.refusals.length, 1);
+  assert.match(p.refusals[0].reason, /G17|plane/i);
+});
+
+test("an arc whose I/J/R cannot be resolved is refused, not guessed at", () => {
+  // An R that cannot reach between the endpoints has no solution. Inventing
+  // one puts the toolpath somewhere the program does not go.
+  const p = parseNC("G20 G90\nG1 X0 Y0 F10\nG2 X10 Y0 R0.1");
+  assert.equal(p.refusals.length, 1, `got ${JSON.stringify(p.refusals)}`);
+  assert.match(p.refusals[0].reason, /arc geometry|I\/J\/R/i);
+});
+
+test("a macro or control-flow word is refused", () => {
+  for (const line of ["#100 = 5", "IF [#1 GT 2] GOTO 50", "WHILE [#1 LT 10] DO 1", "GOTO 100"]) {
+    const p = parseNC(`G20 G90\nG1 X1 F10\n${line}\nG1 X5 F60`);
+    assert.equal(p.refusals.length, 1, line);
+    assert.match(p.refusals[0].reason, /macro|control flow/i);
+  }
+});
+
+test("every refusal stops interpretation, which is what the analyzer promises", () => {
+  // The promise is in the UI: "Everything before that line is analyzed;
+  // nothing after it is." A refusal that did not stop would make that false.
+  const programs = [
+    "G20 G90\nG1 X1 F10\n#100 = 5\nG1 X5 F60",
+    "G20 G90\nG1 X1 F10\nM98 P1000\nG1 X5 F60",
+    "G20 G90\nG18\nG1 X1 F10\nG2 X2 Z1 I0.5 K0\nG1 X9 F60",
+    "G20 G90\nG1 X0 Y0 F10\nG2 X10 Y0 R0.1\nG1 X20 F60",
+  ];
+  for (const src of programs) {
+    const p = parseNC(src);
+    assert.equal(p.refusals.length, 1, src.split("\n")[2]);
+    const stoppedAt = p.refusals[0].line;
+    for (const s of p.segments) {
+      assert.ok(s.line <= stoppedAt, `a segment at line ${s.line} survived a refusal at ${stoppedAt}`);
+    }
+  }
+});
+
+test("a refusal names a line the operator can go and look at", () => {
+  const p = parseNC("G20 G90\nG1 X1 F10\nG1 X2\nM98 P1000");
+  assert.equal(p.refusals[0].line, 4);
+  assert.ok(p.refusals[0].reason.length > 10, "a reason has to say what stopped it");
+});
+
+test("a clean program refuses nothing", () => {
+  const p = parseNC("G20 G90\nG0 X0 Y0 Z1\nG1 Z-0.1 F10\nG1 X2 F30\nG2 X3 Y1 I0.5 J0\nG0 Z1\nM30");
+  assert.deepEqual(p.refusals, []);
+  assert.ok(p.segments.length > 0);
+});
