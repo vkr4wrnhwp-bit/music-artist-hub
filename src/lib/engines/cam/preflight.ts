@@ -1,4 +1,3 @@
-import "server-only";
 import type { ManufacturingPackage } from "@/lib/package";
 import type { PostDefinition, PreflightItem } from "./post";
 
@@ -18,6 +17,10 @@ import type { PostDefinition, PreflightItem } from "./post";
  *
  * `preflightPassed()` stays worst-case by construction: every required item
  * must be PASS. No arithmetic, no averaging. See CLAUDE.md principle 1.
+ *
+ * This module carried a server-only import and every one of its own imports
+ * is a type, erased at build. The guard protected nothing and stopped the
+ * export gate being exercised at all — which for a gate is the worse trade.
  */
 export function buildPreflight(
   pkg: ManufacturingPackage,
@@ -34,7 +37,18 @@ export function buildPreflight(
     item(
       "workholding",
       "Workholding verified",
-      Object.values(pkg.workholdingBySetup).every((a) => a.level === "SAFE" || a.level === "LIKELY_SAFE"),
+      // `.every()` on an empty object is true, so a package with no setups
+      // passed "Workholding verified" with the detail "No setups to
+      // evaluate". Nothing has been verified there.
+      //
+      // The toolpath item below was fixed for this exact reason and states
+      // the rule: zero is a FAIL rather than a vacuous pass. In practice the
+      // toolpath item currently masks this one — no setups means no
+      // operations means no toolpaths — but an item on this list has to state
+      // its own fact. Relying on a neighbour to catch it is the reasoning
+      // this file was written to remove.
+      Object.keys(pkg.workholdingBySetup).length > 0 &&
+        Object.values(pkg.workholdingBySetup).every((a) => a.level === "SAFE" || a.level === "LIKELY_SAFE"),
       workholdingSummary(pkg),
       true,
     ),
@@ -42,7 +56,8 @@ export function buildPreflight(
     item(
       "toollengths",
       "Tool lengths verified",
-      pkg.assignedTools.every((t) => t.stickout > 0),
+      // Same rule: no tools is not "every tool has a stickout recorded".
+      pkg.assignedTools.length > 0 && pkg.assignedTools.every((t) => t.stickout > 0),
       "Stickout recorded for every assigned tool. Length offsets must still be set at the machine.",
       true,
     ),
@@ -99,7 +114,7 @@ function toolpathDetail(total: number, real: number): string {
 
 function workholdingSummary(pkg: ManufacturingPackage): string {
   const levels = Object.values(pkg.workholdingBySetup).map((a) => a.level);
-  if (levels.length === 0) return "No setups to evaluate";
+  if (levels.length === 0) return "No setups to evaluate — nothing has been assessed";
   const bad = levels.filter((l) => l !== "SAFE" && l !== "LIKELY_SAFE");
   return bad.length === 0 ? "All setups assessed safe or likely safe" : `${bad.length} setup(s) at ${bad.join(", ")}`;
 }
