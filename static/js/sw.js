@@ -5,9 +5,10 @@
    One exception, for the road: TOUR's Tour Home, My Day and Show Command
    pages are network-first with a cached fallback, so a schedule that was
    open an hour ago still opens in a venue basement with no signal. The
-   copy is per-URL, is whatever the server last sent that signed-in
-   person, and is replaced on every successful load. */
-var VERSION = "sb-v116";   /* TOUR pages: network-first, cached fallback */
+   copy is per-URL - query string included, because Show Command tabs and
+   My Day dates live in the query - is whatever the server last sent that
+   signed-in person, and is replaced on every successful load. */
+var VERSION = "sb-v117";   /* TOUR pages: cache tabbed/dated URLs too */
 var PAGES = VERSION + "-tour";
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
@@ -28,7 +29,7 @@ self.addEventListener("activate", function (e) {
 self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (e.request.mode === "navigate") {
-    if (url.origin === location.origin && TOUR_PAGE.test(url.pathname) && !url.search) {
+    if (url.origin === location.origin && TOUR_PAGE.test(url.pathname)) {
       e.respondWith(fetch(e.request).then(function (resp) {
         if (resp.ok) {
           var copy = resp.clone();

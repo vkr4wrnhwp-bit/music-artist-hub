@@ -248,6 +248,11 @@
 .to-paper .meta { font-size: 12px; color: #5c564c; }
 @media print {
   body, .to-body { background: #fff !important; color: #111 !important; }
+  /* The app ground is dark with near-white copy; on paper that is white
+     on white. Flatten every tour surface to ink on white, then let the
+     paper documents keep their own ink. */
+  .to, .to * { color: #111 !important; background: transparent !important; border-color: #999 !important; box-shadow: none !important; }
+  .to-paper, .to-paper * { color: #141210 !important; }
   .no-print, aside, nav, .to-tabs, #sb-aside { display: none !important; }
   .to-paper { border-radius: 0; padding: 0; }
 }

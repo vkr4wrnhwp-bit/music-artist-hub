@@ -26,6 +26,7 @@ Conventions, same as the rest of db.py:
   ever called for demo accounts by the app, never at init.
 """
 import json
+import re
 import uuid
 
 from db import get_db, _now
@@ -961,6 +962,8 @@ def update_show_ext(tour_id, show_id, fields):
             new = current.get("deal_type") or "flat"
         if key == "settlement_status" and new and new not in SETTLEMENT_STATUSES:
             new = current.get("settlement_status") or "open"
+        if key == "ticket_url" and new and not re.match(r"^https?://", new, re.I):
+            new = ""           # rendered as an href: only web links, never javascript:
         old = current.get(key) or ""
         if str(old) != new:
             changed[key] = (str(old), new)

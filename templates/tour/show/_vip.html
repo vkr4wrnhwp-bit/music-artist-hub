@@ -18,10 +18,13 @@
     <td data-k="Guest">{{ v['guest'] or v['purchaser'] or '—' }}{% if v['purchaser'] and v['guest'] %}<div class="to-muted">bought by {{ v['purchaser'] }}</div>{% endif %}</td>
     <td data-k="Includes">{% if v['meet_greet'] %}M&amp;G {% endif %}{% if v['early_entry'] %}early entry {% endif %}{% if v['merch'] %}merch{% if v['fulfilled'] %} ✓{% endif %} {% endif %}{% if v['photo'] %}photo{% endif %}</td>
     <td data-k="Status">{{ m.chip(v['status']) }}</td>
-    <td><form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/{{ v['id'] }}" class="to-inline">
-      {% if v['status'] == 'sold' %}<button class="to-btn to-btn--small" type="submit" name="status" value="checked_in">Check in</button><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="no_show">No show</button>{% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="sold">Undo</button>{% endif %}
-      {% if v['merch'] and not v['fulfilled'] %}<input type="hidden" name="fulfilled_flag" value="1"><input type="hidden" name="fulfilled" value="1"><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="{{ v['status'] }}">Merch given</button>{% endif %}
-    </form></td>
+    <td><div class="to-inline">
+      <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/{{ v['id'] }}" class="to-inline">
+        {% if v['status'] == 'sold' %}<button class="to-btn to-btn--small" type="submit" name="status" value="checked_in">Check in</button><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="no_show">No show</button>{% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="sold">Undo</button>{% endif %}
+      </form>
+      {# Its own form: the fulfilled inputs must not ride along with a check-in. #}
+      {% if v['merch'] and not v['fulfilled'] %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/{{ v['id'] }}" class="to-inline"><input type="hidden" name="fulfilled_flag" value="1"><input type="hidden" name="fulfilled" value="1"><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="{{ v['status'] }}">Merch given</button></form>{% endif %}
+    </div></td>
   </tr>
   {% endfor %}
   </tbody>

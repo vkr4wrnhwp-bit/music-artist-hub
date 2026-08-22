@@ -442,7 +442,12 @@ def create_app():
     # RENDER=true; keying off SECRET_KEY instead would silently break
     # local sign-in the moment somebody set a key over http.
     app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
-    app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # statement uploads
+    # Request-body ceiling. Statements are small CSVs, but TOUR files -
+    # riders, tech packs, venue maps, receipt photos - are routinely over
+    # 8 MB, and Werkzeug enforces this cap before any handler's own check,
+    # so it must be at least tour_os.MAX_UPLOAD (25 MB). Large parts are
+    # spooled to disk by the form parser, not held in memory.
+    app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
     # The public header reads its links from landing_config. A callable

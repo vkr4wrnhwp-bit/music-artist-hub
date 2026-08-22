@@ -19,7 +19,7 @@
 {% else %}{{ m.empty("No files yet", "Upload tour-wide documents here (rider, insurance, tech pack) and show-specific ones from each show.") }}{% endif %}
 <form method="post" action="/tours/{{ tour['id'] }}/files/upload" enctype="multipart/form-data" class="to-form" style="margin-top:10px">
   <div class="to-grid">
-    <label class="to-field"><span>File</span><input type="file" name="file" required></label>
+    <label class="to-field"><span>File (up to 25 MB)</span><input type="file" name="file" required></label>
     <label class="to-field"><span>Attach to</span><select name="entity_type" onchange="this.form.entity_id.disabled = this.value !== 'show'"><option value="tour">Whole tour</option><option value="show">A show</option></select></label>
     <label class="to-field"><span>Show</span><select name="entity_id" disabled>{% for s in shows %}<option value="{{ s['id'] }}">{{ s['date'] }} {{ s['city'] or s['venue'] }}</option>{% endfor %}</select></label>
     {{ m.select('category', 'Category', vocab['file_categories'], 'other') }}

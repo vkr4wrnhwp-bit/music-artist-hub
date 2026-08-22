@@ -87,6 +87,14 @@ Public: `/tour-share/<token>` (GET, POST for password / check-in) and
   .ics and pasted text only.
 - PDFs are refused with the reason (no extraction library), not
   silently emptied.
+- Uploads are capped at 25 MB (`tour_os.MAX_UPLOAD`; the app's global
+  `MAX_CONTENT_LENGTH` matches it) and an oversize body gets the
+  module's own 413 page, not a bare Werkzeug one. Files land in
+  `tour_uploads/` next to the database (or R2 under `tour/`), with a
+  fallback to `instance/tour_uploads` if the disk path cannot be created.
+- The service worker (`sb-v117`) caches Tour Home, My Day and Show
+  Command per full URL — query string included, so tabs and dated days
+  survive offline.
 
 ## Deferred (said plainly in the UI)
 

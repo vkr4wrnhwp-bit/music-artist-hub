@@ -8,10 +8,14 @@ narrow — and the tests check what that account CANNOT see, in every
 surface: pages, exports, Ask Tour, search, share links, file downloads.
 """
 import io
+import os
+import re
 import uuid
 from datetime import date, timedelta
 
 import pytest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 import app as appmod
 import command_center
@@ -548,6 +552,99 @@ def test_fan_tier_cannot_own_but_join_is_open(flask_app):
     assert r.status_code == 402
     assert ts.list_tours(user["id"]) == []
     assert fan.get("/tours").status_code == 200
+
+
+def test_live_audit_regressions(flask_app):
+    """Each block pins a defect the live audit found after the first deploy.
+    They are kept together because they share one seeded tour."""
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    sid = _show(client, tid, "2030-05-02", "Audit Room")
+
+    # 1. Team: 'Remove from tour' must not be shadowed by a hidden action.
+    crew, member = _member_join(flask_app, client, tid, "crew", ["view"])
+    html = client.get("/tours/%s/team" % tid).get_data(as_text=True)
+    assert not re.search(r'<input[^>]*type="hidden"[^>]*name="action"', html)
+    assert 'name="action" value="remove"' in html and 'name="action" value="scopes"' in html
+    m = ts.get_member_by_email(tid, member["email"])
+    client.post("/tours/%s/team/%s" % (tid, m["id"]), data={"action": "remove"})
+    assert crew.get("/tours/%s" % tid).status_code == 404
+
+    # 2. VIP: the check-in buttons must not carry the fulfilled inputs.
+    client.post("/tours/%s/shows/%s/vip/add" % (tid, sid), data={"package": "M&G", "guest": "V Guest", "merch": "1"})
+    html = client.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
+    forms = html.split("<form")
+    checkin = [f for f in forms if 'value="checked_in"' in f]
+    assert checkin and all("fulfilled" not in f for f in checkin)
+    assert any('name="fulfilled_flag"' in f and 'value="checked_in"' not in f for f in forms)
+
+    # 3. Money tab: the classic sheet is the GET show page, not the POST route.
+    html = client.get("/tours/%s/shows/%s?tab=money" % (tid, sid)).get_data(as_text=True)
+    assert ('href="/tour/%s"' % sid) in html and ('href="/tour/%s/settlement"' % sid) not in html
+
+    # 4. A guests-only member may set allocation/cutoff via /ext and nothing else.
+    gm, _g = _member_join(flask_app, client, tid, "viewer", ["view", "guests"], label="Guest Desk")
+    r = gm.post("/tours/%s/shows/%s/ext" % (tid, sid),
+                data={"guest_allocation": "12", "guest_cutoff": "5 PM", "promoter": "Sneaky", "status": "settled"})
+    assert r.status_code == 302
+    s = ts.get_show(tid, sid)
+    assert s["guest_allocation"] == "12" and s["guest_cutoff"] == "5 PM"
+    assert s["promoter"] == "" and s["status"] != "settled"
+
+    # 5. The global request ceiling covers the module's upload limit.
+    import tour_os
+    assert flask_app.config["MAX_CONTENT_LENGTH"] >= tour_os.MAX_UPLOAD
+
+    # 6. 'Unsettled' uses the tour-local date, not the server's.
+    rows = [{"id": "a", "date": "2030-05-01", "settlement_status": "open", "deal_type": "flat", "guarantee": "100"}]
+    assert len(eng.tour_finance(rows, {}, "USD", today="2030-05-02")["unsettled"]) == 1
+    assert len(eng.tour_finance(rows, {}, "USD", today="2030-05-01")["unsettled"]) == 0
+
+    # 7. The service worker caches tabbed and dated tour URLs too.
+    sw = open(os.path.join(ROOT, "static", "js", "sw.js"), encoding="utf-8").read()
+    assert "!url.search" not in sw and int(re.search(r'sb-v(\d+)', sw).group(1)) >= 117
+
+    # 8. Travel list separates named travellers.
+    for name in ("Alice Example", "Bob Example"):
+        client.post("/tours/%s/people/save" % tid, data={"name": name, "category": "Crew"})
+    ids = [p["id"] for p in ts.list_people(tid) if p["name"] in ("Alice Example", "Bob Example")]
+    client.post("/tours/%s/travel/add" % tid, data={"day_date": "2030-05-02", "mode": "ground", "travelers": ids})
+    html = client.get("/tours/%s/travel" % tid).get_data(as_text=True)
+    assert "Alice Example, Bob Example" in html or "Bob Example, Alice Example" in html
+
+    # 9. ticket_url is an href: only web schemes are stored.
+    client.post("/tours/%s/shows/%s/marketing" % (tid, sid), data={"ticket_url": "javascript:alert(1)"})
+    assert ts.get_show(tid, sid)["ticket_url"] == ""
+    client.post("/tours/%s/shows/%s/marketing" % (tid, sid), data={"ticket_url": "https://tickets.example/x"})
+    assert ts.get_show(tid, sid)["ticket_url"] == "https://tickets.example/x"
+
+    # 10. Print CSS flattens app pages to ink on white.
+    css = open(os.path.join(ROOT, "static", "css", "tour-os.css"), encoding="utf-8").read()
+    assert "@media print" in css and ".to, .to *" in css
+
+    # 11. The shared rooming list's CSV link works without an account.
+    client.post("/tours/%s/hotels/add" % tid, data={"show_id": sid, "property": "Audit Hotel", "checkin": "2030-05-02"})
+    lid = ts.list_lodging(tid)[0]["id"]
+    client.post("/tours/%s/share/new" % tid, data={"scope": "rooming", "lodging_id": lid})
+    tok = [l for l in ts.list_share_links(tid) if l["scope"] == "rooming"][0]["token"]
+    r = flask_app.test_client().get("/tour-share/%s?format=csv" % tok)
+    assert r.status_code == 200 and r.mimetype == "text/csv"
+
+    # 12. An oversize upload gets the module's own page, not a bare 413.
+    big = io.BytesIO(b"x" * (tour_os.MAX_UPLOAD + 1024 * 1024))
+    r = client.post("/tours/%s/files/upload" % tid, data={"entity_type": "tour", "category": "other",
+                                                        "file": (big, "huge.pdf")}, content_type="multipart/form-data")
+    assert r.status_code == 413 and b"too large" in r.data
+
+
+def test_tour_dir_falls_back_when_disk_path_unusable(monkeypatch, tmp_path):
+    import tour_os
+    blocker = tmp_path / "afile"
+    blocker.write_text("x")
+    # A path UNDER a file cannot be created: the same OSError an unmounted disk raises.
+    monkeypatch.setattr(tour_os.store, "db_path", lambda: str(blocker / "streetbanker.db"))
+    d = tour_os._tour_dir()
+    assert os.path.isdir(d) and d.endswith("tour_uploads")
 
 
 def test_stale_invite_and_settings_delete(flask_app):

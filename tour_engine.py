@@ -973,7 +973,10 @@ def show_money(show, expenses):
                 _num(show.get("deposit_required")) > 0 and _num(show.get("deposit_received")) <= 0)}
 
 
-def tour_finance(shows, expenses_by_show, currency):
+def tour_finance(shows, expenses_by_show, currency, today=None):
+    """`today` is the tour-local date (callers pass today_in(home_tz));
+    the server's own calendar is UTC and would misfile an evening show."""
+    today = today or date.today().isoformat()
     rows = []
     for s in shows:
         m = show_money(s, expenses_by_show.get(s["id"], []))
@@ -996,7 +999,7 @@ def tour_finance(shows, expenses_by_show, currency):
         "avg_net": round(total("estimated_net") / len(with_numbers), 2) if with_numbers else 0.0,
         "best": best, "worst": worst,
         "unsettled": [r for r in rows if (r["show"].get("settlement_status") or "open") != "settled"
-                      and r["show"]["date"] < date.today().isoformat()],
+                      and r["show"]["date"] < today],
     }
 
 

@@ -24,14 +24,16 @@
 <details class="to-panel" style="margin-bottom:8px">
   <summary style="cursor:pointer"><b>{{ mm['name'] or mm['email'] }}</b> <span class="to-muted">{{ mm['email'] }} · {{ mm['role']|replace('_',' ') }}</span> {{ m.chip('confirmed' if mm['status'] == 'active' else 'pending') }}{% if mm['status'] == 'invited' %} <span class="to-muted">invited, not yet joined</span>{% endif %}</summary>
   {% if mm['join_url'] %}<div style="margin-top:8px"><span class="to-muted">Join link:</span> <input class="to-input" readonly value="{{ mm['join_url'] }}" onclick="this.select()" style="min-height:32px;padding:4px 8px;font-size:11px"></div>{% endif %}
+  {# One form, two submit buttons, and the action rides on the BUTTON - a
+     hidden action input here would be serialised first and shadow the
+     Remove button's value. #}
   <form method="post" action="/tours/{{ tour['id'] }}/team/{{ mm['id'] }}" style="margin-top:8px">
-    <input type="hidden" name="action" value="scopes">
     <div class="to-grid">
       <label class="to-field"><span>Role</span><select name="role">{% for r in vocab['role_presets'] %}<option value="{{ r }}" {% if r == mm['role'] %}selected{% endif %}>{{ r|replace('_',' ')|capitalize }}</option>{% endfor %}</select></label>
       <label class="to-field"><span>Person</span><select name="person_id"><option value="">—</option>{% for p in people %}<option value="{{ p['id'] }}" {% if p['id'] == mm['person_id'] %}selected{% endif %}>{{ p['name'] }}</option>{% endfor %}</select></label>
       <div class="to-wide to-checks">{% for s in vocab['scopes'] %}{% if s != 'admin' or viewer['is_owner'] %}<label><input type="checkbox" name="scopes" value="{{ s }}" {% if s in mm['scopes'] %}checked{% endif %}> {{ s }}</label>{% endif %}{% endfor %}</div>
     </div>
-    <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Save permissions</button>
+    <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit" name="action" value="scopes">Save permissions</button>
       <button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit" name="action" value="remove">Remove from tour</button></div>
   </form>
 </details>

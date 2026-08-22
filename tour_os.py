@@ -523,7 +523,7 @@ def home(user, tour, viewer, tour_id):
         exp = {}
         for e in ts.list_expenses(tour_id):
             exp.setdefault(e.get("show_id") or "", []).append(e)
-        finance = eng.tour_finance(shows, exp, tour["currency"])
+        finance = eng.tour_finance(shows, exp, tour["currency"], today=today)
     tasks = _tour_tasks(tour, shows)
     open_tasks = [t for t in tasks if t["status"] in ("new", "in_progress")]
     guests_pending = 0
@@ -804,7 +804,7 @@ def _ticket_progress(show):
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/ext", methods=["POST"])
-@require_tour("edit", "advance")
+@require_tour("edit", "advance", "guests")
 def show_ext(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
     fields = {}
@@ -812,6 +812,11 @@ def show_ext(user, tour, viewer, tour_id, show_id):
               "guest_allocation", "guest_cutoff", "tz"):
         if k in request.form:
             fields[k] = request.form.get(k)
+    # The guests scope alone may set the allocation and cutoff (the guest
+    # list tab offers exactly those); everything else needs edit/advance.
+    full = can(viewer, "edit") or can(viewer, "advance")
+    if not full:
+        fields = {k: v for k, v in fields.items() if k in ("guest_allocation", "guest_cutoff")}
     if "tz" in fields and fields["tz"] and not eng.valid_tz(fields["tz"]):
         fields.pop("tz")
     if "venue_id" in fields and fields["venue_id"]:
@@ -821,7 +826,7 @@ def show_ext(user, tour, viewer, tour_id, show_id):
         elif not fields.get("tz") and v.get("tz"):
             fields["tz"] = v["tz"]
     changed = ts.update_show_ext(tour_id, show_id, fields)
-    if "status" in request.form and request.form["status"] in ("hold", "confirmed", "advanced", "played", "settled"):
+    if full and "status" in request.form and request.form["status"] in ("hold", "confirmed", "advanced", "played", "settled"):
         if request.form["status"] != show["status"]:
             store.update_tour_show_status(tour["user_id"], show_id, request.form["status"])
             changed = dict(changed or {}, status=(show["status"], request.form["status"]))
@@ -1431,7 +1436,7 @@ def money(user, tour, viewer, tour_id):
     exp = {}
     for e in exp_all:
         exp.setdefault(e.get("show_id") or "", []).append(e)
-    finance = eng.tour_finance(shows, exp, tour["currency"])
+    finance = eng.tour_finance(shows, exp, tour["currency"], today=eng.today_in(tour["home_tz"]))
     receipts = {f["id"]: f for f in ts.list_files(tour_id, entity_type="expense")}
     return render_template("tour/money.html", **_ctx(
         user, tour, viewer, "money", shows=shows, finance=finance, expenses=exp_all, receipts=receipts,
@@ -1485,7 +1490,7 @@ def money_csv(user, tour, viewer, tour_id):
     exp = {}
     for e in ts.list_expenses(tour_id):
         exp.setdefault(e.get("show_id") or "", []).append(e)
-    fin = eng.tour_finance(shows, exp, tour["currency"])
+    fin = eng.tour_finance(shows, exp, tour["currency"], today=eng.today_in(tour["home_tz"]))
     rows = [(r["show"]["date"], r["show"]["city"], r["show"]["venue"], r["deal"], r["guarantee"],
              r["backend"], r["earned"], r["merch_net"], r["vip"], r["expenses"], r["settlement"] or "",
              r["collected"], r["outstanding"], r["estimated_net"], r["actual_net"] if r["actual_net"] is not None else "",
@@ -1732,9 +1737,25 @@ def task_status(user, tour, viewer, tour_id, action_id):
 # --- files ------------------------------------------------------------------
 
 def _tour_dir():
+    """Private upload dir next to the database (persistent disk on Render).
+    If that path cannot be created - the disk is not mounted - degrade to
+    the local instance dir exactly as db.get_db() and the public uploads
+    dir do, instead of turning every upload into a 500."""
     path = os.path.join(os.path.dirname(store.db_path()), "tour_uploads")
-    os.makedirs(path, exist_ok=True)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "tour_uploads")
+        os.makedirs(path, exist_ok=True)
     return path
+
+
+@bp.errorhandler(413)
+def _too_large(_err):
+    """A body over the request ceiling is refused by Werkzeug before the
+    handler runs; say so in the app's own voice rather than a bare 413."""
+    return render_template("tour/too_large.html", limit_mb=MAX_UPLOAD // (1024 * 1024),
+                           active_page="tours"), 413
 
 
 def _store_upload(tour, viewer, up, entity_type, entity_id, category, visibility):
@@ -1889,7 +1910,7 @@ def _ask_context(user, tour, viewer):
         exp = {}
         for e in ts.list_expenses(tour["id"]):
             exp.setdefault(e.get("show_id") or "", []).append(e)
-        finance = eng.tour_finance(shows, exp, tour["currency"])
+        finance = eng.tour_finance(shows, exp, tour["currency"], today=today)
     return {"shows": [_strip_money(viewer, s) if not can(viewer, "financials") else s for s in shows],
             "today": today, "today_utc": datetime.now(timezone.utc).date().isoformat(),
             "schedule": schedule, "travel": travel, "lodging": lodging, "readiness": readiness,
@@ -2257,7 +2278,12 @@ def shared(token):
         l = ts.get_lodging(tour["id"], link["show_id"])
         if l is None:
             abort(404)
-        return render_template("tour/share_rooming.html", lodging=l, rooms=ts.list_rooms(tour["id"], l["id"]), **base)
+        rooms = ts.list_rooms(tour["id"], l["id"])
+        if request.args.get("format") == "csv":
+            rows = [(r.get("person_name") or r["guest_name"], r["room_number"], r["room_kind"], r["notes"]) for r in rooms]
+            return _csv(eng.csv_text(["Name", "Room", "Type", "Notes"], rows),
+                        "rooming-%s-%s.csv" % (l["checkin"], _slug(l["property"])))
+        return render_template("tour/share_rooming.html", lodging=l, rooms=rooms, **base)
     show = ts.get_show(tour["id"], link["show_id"])
     if show is None:
         abort(404)
