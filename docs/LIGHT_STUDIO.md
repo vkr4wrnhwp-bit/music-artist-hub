@@ -51,6 +51,29 @@ over Web Serial (ENTTEC USB Pro framing, `0x7E … 0xE7`, 30 fps).
 - **Keyboard**: Space play/pause, C cue, B blackout, 1–6 looks, ←/→ seek,
   Esc deselect; visible focus rings; helper text ≥12 px.
 
+## Unsaved work, undo, accessibility (polish pass)
+
+- **Draft vs library.** Every change autosaves the *draft* (the
+  `light_shows` working copy) 1.5 s later with `draftDirty` /
+  `draftSavedAt`. A library row changes **only** on "Save to library",
+  which also takes a version. A dirty draft of a library show prompts on
+  load: keep the draft, or open the last library save. `beforeunload`
+  warns while there are unsaved changes relative to the last library
+  save (or an autosave is pending). The indicator by the Save button
+  reads *unsaved changes* / *saved to library* / *not in library yet*.
+- **Undo/redo.** `LightsEngine.makeHistory(50, 800)` — snapshots of
+  cues/pos/rot/bars/chans; gestures coalesce by key inside 800 ms;
+  Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y (ignored while typing in a
+  field); Undo/Redo buttons in the cue pane.
+- **A11y.** Labelled transport; `role=list` cue rows with timecode+look
+  labels; waveform as a keyboard slider; bars table with Select buttons
+  (updated in place); `#lx-live` polite announcements; focus rings.
+- **Focus rail.** `body.lx-focus` at ≥1024 px hides `#sb-aside` and
+  shows `#lx-rail` (56 px, icon links + expand control).
+- **Known-good interactions (self-tested with a real WAV through the
+  file input):** click-seek, flag drag at any zoom, zoom anchoring, pan,
+  pinch, Fit song, Detect beats, Snap to beat.
+
 ## Endpoints
 
 `GET /lights` · `POST /lights/save` (working copy) · `GET /lights/library`

@@ -19,7 +19,12 @@
   var port = null, writer = null, lastDmx = 0, dmxWrites = 0, dmxFps = 0, dmxSec = 0;
   var selectedCue = null, selectedBar = null, hoverBar = null, hoverGroup = null, defaultGroup = "all";
   var dirty = false, saveTimer = null, beatGrid = true, taps = [];
+  // libraryDirty: edits since the last explicit "Save to library" (or load).
+  // The draft autosave keeps them safe; it never writes a library version.
+  var libraryDirty = false;
+  var H = E.makeHistory(50, 800);
   var DPR = function () { return Math.max(1, Math.min(3, window.devicePixelRatio || 1)); };
+  function announce(msg) { var el = $("lx-live"); if (!el) return; el.textContent = ""; setTimeout(function () { el.textContent = msg; }, 30); }
 
   function ensureCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -74,9 +79,13 @@
     playBtn.textContent = live ? "Stop" : "Play";
     playBtn.setAttribute("aria-pressed", live ? "true" : "false");
     var canCue = !!buffer || runStart !== null;
+    $("lx-run").setAttribute("aria-pressed", runStart !== null ? "true" : "false");
     $("lx-add").disabled = !canCue; $("lx-blackout").disabled = !canCue;
-    $("lx-add").title = canCue ? "C" : "Load a song first — then cues land at the playhead";
-    $("lx-blackout").title = canCue ? "B" : "Load a song first";
+    $("lx-add").setAttribute("aria-disabled", canCue ? "false" : "true"); $("lx-blackout").setAttribute("aria-disabled", canCue ? "false" : "true");
+    $("lx-add").title = canCue ? "Add a cue at the playhead (C)" : "Load a song first — then cues land at the playhead";
+    $("lx-blackout").title = canCue ? "Add a blackout at the playhead (B)" : "Load a song first — then a blackout lands at the playhead";
+    playBtn.title = buffer ? "Play or stop (Space)" : "Load a song to play it";
+    playBtn.setAttribute("aria-disabled", buffer ? "false" : "true");
     $("lx-cue-hint").hidden = canCue;
     // phone dock mirrors the transport
     $("lx-dock-play").textContent = live ? "Stop" : "Play"; $("lx-dock-play").disabled = !buffer;
@@ -100,7 +109,8 @@
     totalEl.textContent = "of " + E.fmtTimecode(buf.duration);
     playBtn.disabled = false;
     view.start = 0; view.end = buf.duration; invalidatePeaks();
-    paintTransport();
+    paintTransport(); paintWaveAria();
+    announce("Song loaded: " + E.fmtClock(buf.duration));
     setTimeout(detectBeats, 50);
   }
   $("lx-file").addEventListener("change", function (e) {
@@ -115,6 +125,34 @@
       });
   });
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+
+  // ---------- undo / redo ----------
+  // Snapshots cover what the user edits on the page: cues, bar layout,
+  // orientation, bar count and fixture type. Library metadata (name,
+  // track, tour date) is not part of the stack.
+  function snapshot() {
+    return JSON.stringify({cues: show.cues, pos: show.pos || {}, rot: show.rot || {}, bars: show.bars, chans: show.chans});
+  }
+  function record(key) { var pushed = H.push(snapshot(), key, performance.now()); paintHistory(); return pushed; }
+  function applySnapshot(json) {
+    var s = JSON.parse(json), selId = selectedCue ? selectedCue._id : null, selBar = selectedBar;
+    show.cues = s.cues || []; show.pos = s.pos || {}; show.rot = s.rot || {};
+    show.bars = Math.max(2, Math.min(10, s.bars || 6)); show.chans = s.chans === 3 ? 3 : 4;
+    ensureIds();
+    selectedCue = null;
+    show.cues.forEach(function (c) { if (selId && c._id === selId) selectedCue = c; });
+    if (selBar > show.bars) selectedBar = null;
+    barsSel.value = String(show.bars); chansSel.value = String(show.chans);
+    renderCues(); paintGroups(); paintBarCtl(); markDirty();
+  }
+  function undo() { var s = H.undo(snapshot()); if (s) { applySnapshot(s); announce("Undone"); } paintHistory(); }
+  function redo() { var s = H.redo(snapshot()); if (s) { applySnapshot(s); announce("Redone"); } paintHistory(); }
+  function paintHistory() {
+    var u = $("lx-undo"), r = $("lx-redo");
+    if (!u || !r) return;
+    u.disabled = !H.canUndo(); r.disabled = !H.canRedo();
+    u.setAttribute("aria-disabled", u.disabled ? "true" : "false"); r.setAttribute("aria-disabled", r.disabled ? "true" : "false");
+  }
 
   // ---------- waveform lane ----------
   var wave = $("lx-wave"), wg = wave.getContext("2d");
@@ -226,28 +264,51 @@
     show.cues.forEach(function (c) { var d = Math.abs(tToX(c.t) - x); if (d < bd) { bd = d; best = c; } });
     return best;
   }
-  var wDrag = null, wSeeking = false, pinch = {};
+  // Active pointers by id (for pinch) kept apart from the pinch baseline:
+  // storing the baseline as a key on the same object once made every
+  // click after the first count as a second finger.
+  var wDrag = null, wSeeking = false, pointers = {}, pinchBase = null;
+  function pointerIds() { return Object.keys(pointers); }
   wave.addEventListener("pointerdown", function (e) {
     if (!buffer) return;
     var r = wave.getBoundingClientRect(), x = e.clientX - r.left;
-    pinch[e.pointerId] = {x: e.clientX};
-    if (Object.keys(pinch).length === 2) { wDrag = null; wSeeking = false; pinch.base = null; return; }
+    pointers[e.pointerId] = {x: e.clientX};
+    if (pointerIds().length >= 2) { wDrag = null; wSeeking = false; pinchBase = null; return; }
     var c = cueAtX(x);
     wave.setPointerCapture(e.pointerId);
-    if (c) { wDrag = c; selectCue(c); wave.style.cursor = "grabbing"; }
+    if (c) { record("drag:" + c._id); wDrag = c; selectCue(c); wave.style.cursor = "grabbing"; }
     else { wSeeking = true; seek(xToT(x)); }
     e.preventDefault();
   });
+  // Keyboard alternative for the timeline: the lane is a slider over the
+  // song. Arrows nudge the playhead, Home/End jump, and the live value is
+  // announced through aria-valuetext.
+  wave.addEventListener("keydown", function (e) {
+    if (!buffer) return;
+    var step = e.shiftKey ? 5 : 1;
+    if (e.key === "ArrowLeft") { seek(now() - step); e.preventDefault(); e.stopPropagation(); }
+    else if (e.key === "ArrowRight") { seek(now() + step); e.preventDefault(); e.stopPropagation(); }
+    else if (e.key === "Home") { seek(0); e.preventDefault(); }
+    else if (e.key === "End") { seek(duration()); e.preventDefault(); }
+    paintWaveAria();
+  });
+  var lastAria = 0;
+  function paintWaveAria() {
+    var t = now();
+    wave.setAttribute("aria-valuenow", t.toFixed(2));
+    wave.setAttribute("aria-valuemax", duration().toFixed(2));
+    wave.setAttribute("aria-valuetext", buffer ? "Playhead at " + E.fmtTimecode(t) + " of " + E.fmtTimecode(duration()) : "No song loaded");
+  }
   wave.addEventListener("pointermove", function (e) {
     var r = wave.getBoundingClientRect(), x = e.clientX - r.left;
-    if (pinch[e.pointerId]) pinch[e.pointerId].x = e.clientX;
-    var ids = Object.keys(pinch).filter(function (k) { return k !== "base"; });
+    if (pointers[e.pointerId]) pointers[e.pointerId].x = e.clientX;
+    var ids = pointerIds();
     if (ids.length === 2) {
-      var dist = Math.abs(pinch[ids[0]].x - pinch[ids[1]].x);
-      if (!pinch.base) pinch.base = {dist: dist, start: view.start, end: view.end};
-      else if (pinch.base.dist > 10) {
-        var mid = xToT((pinch[ids[0]].x + pinch[ids[1]].x) / 2 - r.left);
-        zoomTo((pinch.base.end - pinch.base.start) * pinch.base.dist / Math.max(10, dist), mid);
+      var dist = Math.abs(pointers[ids[0]].x - pointers[ids[1]].x);
+      if (!pinchBase) pinchBase = {dist: dist, start: view.start, end: view.end};
+      else if (pinchBase.dist > 10) {
+        var mid = xToT((pointers[ids[0]].x + pointers[ids[1]].x) / 2 - r.left);
+        zoomTo((pinchBase.end - pinchBase.start) * pinchBase.dist / Math.max(10, dist), mid);
       }
       return;
     }
@@ -258,7 +319,7 @@
     } else if (wSeeking) { seek(xToT(x)); }
     else { wave.style.cursor = cueAtX(x) ? "grab" : "crosshair"; }
   });
-  function wUp(e) { delete pinch[e.pointerId]; if (Object.keys(pinch).filter(function (k) { return k !== "base"; }).length < 2) pinch.base = null; if (wDrag) { wDrag = null; renderCues(); } wSeeking = false; wave.style.cursor = "crosshair"; }
+  function wUp(e) { delete pointers[e.pointerId]; if (pointerIds().length < 2) pinchBase = null; if (wDrag) { wDrag = null; renderCues(); } wSeeking = false; wave.style.cursor = "crosshair"; paintWaveAria(); }
   wave.addEventListener("pointerup", wUp); wave.addEventListener("pointercancel", wUp);
   wave.addEventListener("wheel", function (e) {
     if (!buffer) return;
@@ -475,7 +536,7 @@
   var dragBar = null, dragMoved = false;
   stage.addEventListener("pointerdown", function (e) {
     var r = stage.getBoundingClientRect(), b = barAt(e.clientX - r.left, e.clientY - r.top);
-    if (b) { dragBar = b; dragMoved = false; stage.setPointerCapture(e.pointerId); e.preventDefault(); }
+    if (b) { record("pos:" + b); dragBar = b; dragMoved = false; stage.setPointerCapture(e.pointerId); e.preventDefault(); }
     else { selectBar(null); }
   });
   stage.addEventListener("pointermove", function (e) {
@@ -497,7 +558,7 @@
     var r = stage.getBoundingClientRect(), b = barAt(e.clientX - r.left, e.clientY - r.top);
     if (b) { setRot(b, (show.rot || {})[String(b)] === 90 ? 0 : 90); selectBar(b); }
   });
-  function setRot(bar, deg) { show.rot = show.rot || {}; show.rot[String(bar)] = deg; markDirty(); paintBarCtl(); }
+  function setRot(bar, deg) { record("rot:" + bar); show.rot = show.rot || {}; show.rot[String(bar)] = deg; markDirty(); paintBarCtl(); announce("Bar " + bar + (deg === 90 ? " stood up as a side stick" : " hung")); }
   function selectBar(b) { selectedBar = b; paintBarCtl(); }
   function paintBarCtl() {
     var box = $("lx-barctl");
@@ -513,6 +574,7 @@
   $("lx-bar-deselect").addEventListener("click", function () { selectBar(null); });
   function nudge(dx, dy) {
     if (!selectedBar) return;
+    record("nudge:" + selectedBar);
     var p = barPos(selectedBar, show.bars).slice();
     show.pos = show.pos || {};
     show.pos[String(selectedBar)] = [clamp(p[0] + dx, 0.03, 0.97), clamp(p[1] + dy, 0.04, 0.92)];
@@ -530,17 +592,33 @@
     else if (/^[0-9]$/.test(e.key) && e.key !== "0") { var n = parseInt(e.key, 10); if (n <= show.bars) selectBar(n); }
   });
 
-  // bars table: the screen-reader-accessible twin of the canvas
+  // bars table: the screen-reader-accessible twin of the canvas. Rows are
+  // built once per bar count and updated in place, so a focused "Select"
+  // button is never torn out from under the keyboard.
   function paintBarsTable(t) {
     var tb = $("lx-bars-tbody"); if (!tb) return;
-    var looks = E.lightingAt(show, t), html = "";
-    for (var i = 1; i <= show.bars; i++) {
-      var p = barPos(i, show.bars), lk = looks[i - 1], rot = (show.rot || {})[String(i)] === 90;
-      html += '<tr class="' + (selectedBar === i ? "is-sel" : "") + '"><th scope="row">Bar ' + i + '</th><td>' + Math.round(p[0] * 100) + '% across</td><td>' +
-        (p[1] < 0.5 ? "truss" : "floor") + ' · ' + Math.round(p[1] * 100) + '%</td><td>' + (rot ? "side stick" : "hung") + '</td><td><span class="lx-sw" style="background:rgb(' +
-        lk.rgb.join(",") + ')"></span> ' + Math.round(lk.inten * 100) + '%</td><td>' + (E.mirrorOf(i, show.bars) || "—") + '</td></tr>';
+    var looks = E.lightingAt(show, t);
+    if (tb.children.length !== show.bars) {
+      tb.innerHTML = "";
+      for (var n = 1; n <= show.bars; n++) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = '<th scope="row">Bar ' + n + '</th><td class="c-x"></td><td class="c-row"></td><td class="c-or"></td><td class="c-look"><span class="lx-sw"></span> <span class="c-pct"></span></td><td class="c-mir"></td>' +
+          '<td><button type="button" class="lx-btn lx-btn--ghost lx-btn--small" data-bar="' + n + '" aria-label="Select bar ' + n + ' for keyboard nudging">Select</button></td>';
+        tr.querySelector("button").addEventListener("click", function (e) { selectBar(parseInt(e.currentTarget.getAttribute("data-bar"), 10)); stage.focus(); });
+        tb.appendChild(tr);
+      }
     }
-    tb.innerHTML = html;
+    for (var i = 1; i <= show.bars; i++) {
+      var row = tb.children[i - 1], p = barPos(i, show.bars), lk = looks[i - 1], rot = (show.rot || {})[String(i)] === 90;
+      row.classList.toggle("is-sel", selectedBar === i);
+      row.querySelector(".c-x").textContent = Math.round(p[0] * 100) + "% across";
+      row.querySelector(".c-row").textContent = (p[1] < 0.5 ? "truss" : "floor") + " · " + Math.round(p[1] * 100) + "%";
+      row.querySelector(".c-or").textContent = rot ? "side stick" : "hung";
+      row.querySelector(".lx-sw").style.background = "rgb(" + lk.rgb.join(",") + ")";
+      row.querySelector(".c-pct").textContent = Math.round(lk.inten * 100) + "%";
+      row.querySelector(".c-mir").textContent = E.mirrorOf(i, show.bars) || "—";
+      row.querySelector("button").setAttribute("aria-pressed", selectedBar === i ? "true" : "false");
+    }
   }
 
   // ---------- DMX (ENTTEC USB Pro over Web Serial) ----------
@@ -603,21 +681,22 @@
       return;
     }
     cuesWrap.innerHTML = "";
-    sorted.forEach(function (c) {
+    sorted.forEach(function (c, idx) {
       var row = document.createElement("div");
+      var lookName = c.note || (E.isBlackout(c) ? "blackout" : "look " + c.color);
       row.className = "lx-cue" + (c === selectedCue ? " is-sel" : "") + (E.isBlackout(c) ? " is-black" : "");
-      row.setAttribute("data-id", c._id); row.setAttribute("role", "button"); row.tabIndex = 0;
-      row.setAttribute("aria-label", "Cue at " + E.fmtTimecode(c.t) + ", " + E.groupLabel(c.group, show.bars) + (c.note ? ", " + c.note : ""));
+      row.setAttribute("data-id", c._id); row.setAttribute("role", "listitem"); row.tabIndex = 0;
+      row.setAttribute("aria-label", "Cue " + (idx + 1) + " at " + E.fmtTimecode(c.t) + ", " + lookName + ", " + E.groupLabel(c.group, show.bars) + ". Enter previews the stage here.");
       // timecode
       var tc = document.createElement("div"); tc.className = "lx-cue-tc";
       var tin = document.createElement("input"); tin.type = "number"; tin.step = "0.01"; tin.min = "0"; tin.value = c.t.toFixed(2); tin.setAttribute("aria-label", "Cue time in seconds");
-      tin.addEventListener("input", function () { c.t = Math.max(0, parseFloat(tin.value) || 0); markDirty(); });
+      tin.addEventListener("input", function () { record("time:" + c._id); c.t = Math.max(0, parseFloat(tin.value) || 0); markDirty(); });
       tin.addEventListener("change", function () { renderCues(false); });
       tc.appendChild(tin); row.appendChild(tc);
       // swatch
       var sw = document.createElement("label"); sw.className = "lx-swatch" + (E.isBlackout(c) ? " is-black" : ""); sw.style.background = c.color; sw.title = "Colour";
       var cin = document.createElement("input"); cin.type = "color"; cin.value = /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : "#000000"; cin.setAttribute("aria-label", "Cue colour");
-      cin.addEventListener("input", function () { c.color = cin.value; sw.style.background = c.color; sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
+      cin.addEventListener("input", function () { record("color:" + c._id); c.color = cin.value; sw.style.background = c.color; sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
       sw.appendChild(cin); row.appendChild(sw);
       // glyph
       var gl = document.createElement("span"); gl.innerHTML = glyphHtml(c.group); gl.title = E.groupLabel(c.group, show.bars); row.appendChild(gl.firstChild);
@@ -625,23 +704,27 @@
       var mid = document.createElement("div"); mid.className = "lx-cue-mid";
       var sel = document.createElement("select"); sel.className = "lx-select"; sel.setAttribute("aria-label", "Group");
       E.groupOptions(show.bars).forEach(function (o) { var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; op.selected = c.group === o[0]; sel.appendChild(op); });
-      sel.addEventListener("change", function () { c.group = sel.value; markDirty(); renderCues(); paintGroups(); });
+      sel.addEventListener("change", function () { record("group:" + c._id); c.group = sel.value; markDirty(); renderCues(); paintGroups(); });
       mid.appendChild(sel);
       var inten = document.createElement("input"); inten.type = "range"; inten.min = 0; inten.max = 100; inten.value = c.intensity; inten.setAttribute("aria-label", "Intensity");
       inten.title = "Intensity";
-      inten.addEventListener("input", function () { c.intensity = parseInt(inten.value, 10); sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
+      inten.addEventListener("input", function () { record("inten:" + c._id); c.intensity = parseInt(inten.value, 10); sw.classList.toggle("is-black", E.isBlackout(c)); markDirty(); });
       mid.appendChild(inten);
       var fw = document.createElement("label"); fw.textContent = "fade "; fw.title = "Seconds from the previous look into this one";
       var fin = document.createElement("input"); fin.type = "number"; fin.step = "0.1"; fin.min = "0"; fin.value = c.fade; fin.className = "lx-input"; fin.style.width = "64px"; fin.setAttribute("aria-label", "Fade seconds");
-      fin.addEventListener("input", function () { c.fade = Math.max(0, parseFloat(fin.value) || 0); markDirty(); });
+      fin.addEventListener("input", function () { record("fade:" + c._id); c.fade = Math.max(0, parseFloat(fin.value) || 0); markDirty(); });
       fw.appendChild(fin); fw.appendChild(document.createTextNode(" s")); mid.appendChild(fw);
       var note = document.createElement("input"); note.type = "text"; note.className = "lx-input lx-cue-note"; note.placeholder = "note — chorus, drop, verse 2…"; note.value = c.note || ""; note.maxLength = 80; note.setAttribute("aria-label", "Cue note");
-      note.addEventListener("input", function () { c.note = note.value; markDirty(); });
+      note.addEventListener("input", function () { record("note:" + c._id); c.note = note.value; markDirty(); });
       mid.appendChild(note);
       row.appendChild(mid);
       // delete
-      var del = document.createElement("button"); del.type = "button"; del.className = "lx-cue-x"; del.textContent = "×"; del.setAttribute("aria-label", "Delete cue");
-      del.addEventListener("click", function (e) { e.stopPropagation(); show.cues.splice(show.cues.indexOf(c), 1); if (selectedCue === c) selectedCue = null; markDirty(); renderCues(); });
+      var del = document.createElement("button"); del.type = "button"; del.className = "lx-cue-x"; del.textContent = "×"; del.setAttribute("aria-label", "Delete cue at " + E.fmtTimecode(c.t));
+      del.addEventListener("click", function (e) {
+        e.stopPropagation(); record("delete");
+        show.cues.splice(show.cues.indexOf(c), 1); if (selectedCue === c) selectedCue = null;
+        markDirty(); renderCues(); announce("Cue at " + E.fmtTimecode(c.t) + " deleted");
+      });
       row.appendChild(del);
       // row click = preview at that time + select
       row.addEventListener("click", function (e) { if (isTyping(e.target) || e.target === del) return; selectCue(c); });
@@ -654,7 +737,9 @@
     if (show.snap && show.bpm) t = E.snapToBeat(t, show.bpm, show.beatOffset);
     var c = {t: t, group: defaultGroup, color: "#d8b25a", intensity: 80, fade: 0.5, note: ""};
     if (look) { c.color = look.color; c.intensity = look.intensity; c.fade = look.fade; c.note = look.name; }
+    record("add");
     show.cues.push(c); markDirty(); ensureIds(); renderCues(); selectCue(c, true);
+    announce((look ? look.name : "Cue") + " added at " + E.fmtTimecode(t));
   }
   $("lx-add").addEventListener("click", function () { addCue(); });
   $("lx-blackout").addEventListener("click", function () { addCue(E.LOOKS[5]); });
@@ -676,13 +761,14 @@
     E.groupOptions(show.bars).forEach(function (o) {
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-group";
       b.setAttribute("aria-pressed", cur === o[0] ? "true" : "false"); b.setAttribute("data-group", o[0]);
+      b.setAttribute("aria-label", o[1] + " — " + o[2] + " (bars " + (E.membersOf(o[0], show.bars).join(", ") || "none") + ")");
       b.innerHTML = miniStage(o[0]) + "<b>" + o[1] + "</b><small>" + o[2] + "</small>";
       b.addEventListener("mouseenter", function () { hoverGroup = o[0]; });
       b.addEventListener("mouseleave", function () { hoverGroup = null; });
       b.addEventListener("focus", function () { hoverGroup = o[0]; });
       b.addEventListener("blur", function () { hoverGroup = null; });
       b.addEventListener("click", function () {
-        if (selectedCue) { selectedCue.group = o[0]; markDirty(); renderCues(); }
+        if (selectedCue) { record("group:" + selectedCue._id); selectedCue.group = o[0]; markDirty(); renderCues(); }
         else defaultGroup = o[0];
         paintGroups();
       });
@@ -696,49 +782,86 @@
     var box = $("lx-looks"); box.innerHTML = "";
     E.LOOKS.forEach(function (l, i) {
       var b = document.createElement("button"); b.type = "button"; b.className = "lx-look";
-      b.innerHTML = '<i style="background:' + l.color + '"></i>' + l.name + ' <span class="lx-kbd">' + (i + 1) + '</span>';
+      b.innerHTML = '<i style="background:' + l.color + '" aria-hidden="true"></i>' + l.name + ' <span class="lx-kbd" aria-hidden="true">' + (i + 1) + '</span>';
+      b.setAttribute("aria-label", l.name + " — apply this look to the selected cue or add a cue at the playhead (key " + (i + 1) + ")");
       b.title = (selectedCue ? "Apply to the selected cue" : "Add a cue at the playhead with this look") + " — key " + (i + 1);
       b.addEventListener("click", function () { applyLook(l); });
       box.appendChild(b);
     });
   }
   function applyLook(l) {
-    if (selectedCue) { selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; markDirty(); renderCues(); }
+    if (selectedCue) { record("look:" + selectedCue._id); selectedCue.color = l.color; selectedCue.intensity = l.intensity; selectedCue.fade = l.fade; if (!selectedCue.note) selectedCue.note = l.name; markDirty(); renderCues(); announce(l.name + " applied"); }
     else if (buffer || runStart !== null) addCue(l);
   }
 
   // ---------- rig ----------
   var barsSel = $("lx-bars");
   for (var b = 2; b <= 10; b++) { var o = document.createElement("option"); o.value = b; o.textContent = b + " bars"; o.selected = b === show.bars; barsSel.appendChild(o); }
-  barsSel.addEventListener("change", function () { show.bars = parseInt(barsSel.value, 10); if (selectedBar > show.bars) selectBar(null); markDirty(); renderCues(); paintGroups(); });
+  barsSel.addEventListener("change", function () { record("bars"); show.bars = parseInt(barsSel.value, 10); if (selectedBar > show.bars) selectBar(null); markDirty(); renderCues(); paintGroups(); });
   var chansSel = $("lx-chans"); chansSel.value = String(show.chans || 4);
-  chansSel.addEventListener("change", function () { show.chans = parseInt(chansSel.value, 10); markDirty(); });
+  chansSel.addEventListener("change", function () { record("chans"); show.chans = parseInt(chansSel.value, 10); markDirty(); });
 
-  // ---------- library & autosave ----------
+  // ---------- draft autosave, library, unsaved-work protection ----------
+  // Two layers. The DRAFT is the working copy (POST /lights/save): every
+  // change lands there 1.5 s later, so a crash loses nothing. The LIBRARY
+  // is only written by "Save to library", which also takes a version.
+  // Autosave never touches a library row.
   var savedEl = $("lx-saved");
   function paintSaved(state, text) { savedEl.className = "lx-saved" + (state ? " is-" + state : ""); savedEl.textContent = text; }
+  function paintLibDirty() {
+    var el = $("lx-libdirty"); if (!el) return;
+    if (show.libraryId) { el.textContent = libraryDirty ? "unsaved changes" : "saved to library"; el.className = "lx-libdirty" + (libraryDirty ? " is-dirty" : " is-ok"); }
+    else { el.textContent = show.cues.length ? "not in library yet" : ""; el.className = "lx-libdirty"; }
+  }
   function payload() {
     var out = {}; Object.keys(show).forEach(function (k) { out[k] = show[k]; });
     out.cues = show.cues.map(function (c) { var d = {}; Object.keys(c).forEach(function (k) { if (k !== "_id") d[k] = c[k]; }); return d; });
     return out;
   }
-  function markDirty() {
-    dirty = true; paintSaved("dirty", "Unsaved changes…");
+  function markDirty(touchLibrary) {
+    dirty = true;
+    if (touchLibrary !== false && show.libraryId) libraryDirty = true;
+    paintSaved("dirty", "Saving draft…"); paintLibDirty();
     clearTimeout(saveTimer); saveTimer = setTimeout(autosave, 1500);
   }
   function post(url, body) {
     return fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}).then(function (r) { return r.json(); });
   }
+  function draftPayload() {
+    var data = payload();
+    data.draftDirty = !!(show.libraryId && libraryDirty);
+    data.draftSavedAt = new Date().toISOString();
+    return data;
+  }
   function autosave() {
     if (!dirty) return;
-    paintSaved("", "Saving…");
-    var data = payload();
-    var jobs = [post("/lights/save", data)];
-    if (show.libraryId) jobs.push(post("/lights/library/save", {id: show.libraryId, name: show.name, data: data, track_id: show.trackId || "", tour_show_id: show.tourShowId || "", autosave: true}));
-    Promise.all(jobs).then(function (rs) {
-      if (rs.every(function (d) { return d && d.ok; })) { dirty = false; paintSaved("ok", "Saved ✓ " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})); }
-      else paintSaved("dirty", "Save failed — will retry");
-    }).catch(function () { paintSaved("dirty", "Offline — will retry"); });
+    paintSaved("", "Saving draft…");
+    post("/lights/save", draftPayload()).then(function (d) {
+      if (d && d.ok) { dirty = false; paintSaved("ok", "Draft saved ✓ " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})); }
+      else paintSaved("dirty", "Draft not saved — will retry");
+    }).catch(function () { paintSaved("dirty", "Offline — draft will retry"); });
+  }
+  window.addEventListener("beforeunload", function (e) {
+    if (dirty || libraryDirty) { e.preventDefault(); e.returnValue = ""; return ""; }
+  });
+  // Unsaved draft on load: the working copy carries edits a library show
+  // never received. Ask, don't guess.
+  function maybeOfferDraft() {
+    var bar = $("lx-draft-prompt");
+    if (!bar || !saved || !saved.libraryId || !saved.draftDirty) return;
+    libraryDirty = true; paintLibDirty();
+    var when = saved.draftSavedAt ? new Date(saved.draftSavedAt).toLocaleString([], {hour: "2-digit", minute: "2-digit", month: "short", day: "numeric"}) : "earlier";
+    $("lx-draft-text").textContent = "You have an unsaved draft of “" + (saved.name || "this show") + "” from " + when + ". Keep working on it, or open the last library save?";
+    bar.hidden = false;
+    $("lx-draft-keep").onclick = function () { bar.hidden = true; announce("Draft kept"); };
+    $("lx-draft-discard").onclick = function () {
+      fetch("/lights/library/" + saved.libraryId).then(function (r) { return r.json(); }).then(function (d) {
+        bar.hidden = true;
+        if (!d.ok) { announce("The library copy could not be loaded; draft kept"); return; }
+        loadShowData(d.show.data, d.show); libraryDirty = false; paintLibDirty(); markDirty(false);
+        announce("Opened the last library save");
+      });
+    };
   }
   function paintLibrary() {
     var sel = $("lx-lib-select"); sel.innerHTML = '<option value="">— working copy —</option>';
@@ -746,6 +869,7 @@
     $("lx-show-name").value = show.name || "";
     $("lx-track").value = show.trackId || ""; $("lx-tourshow").value = show.tourShowId || "";
     $("lx-lib-delete").disabled = !show.libraryId;
+    paintLibDirty();
     loadVersions();
   }
   $("lx-show-name").addEventListener("input", function () { show.name = $("lx-show-name").value.slice(0, 120); markDirty(); });
@@ -757,19 +881,19 @@
     post("/lights/library/save", {id: show.libraryId || "", name: show.name || "Untitled show", data: data, track_id: show.trackId || "", tour_show_id: show.tourShowId || "", note: $("lx-version-note").value || ""})
       .then(function (d) {
         if (!d.ok) { paintSaved("dirty", "Save failed"); return; }
-        show.libraryId = d.id; dirty = false;
+        show.libraryId = d.id; dirty = false; libraryDirty = false;
         lib.shows = d.shows || lib.shows; $("lx-version-note").value = "";
         paintSaved("ok", "Saved to library ✓ v" + d.versions);
-        paintLibrary();
-        return post("/lights/save", payload());
+        paintLibrary(); announce("Saved to library, version " + d.versions);
+        return post("/lights/save", draftPayload());
       });
   });
   $("lx-lib-select").addEventListener("change", function () {
     var id = $("lx-lib-select").value;
-    if (!id) { show.libraryId = null; paintLibrary(); markDirty(); return; }
+    if (!id) { show.libraryId = null; libraryDirty = false; paintLibrary(); markDirty(false); return; }
     fetch("/lights/library/" + id).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) return;
-      loadShowData(d.show.data, d.show); markDirty();
+      loadShowData(d.show.data, d.show); libraryDirty = false; paintLibDirty(); markDirty(false);
     });
   });
   function loadShowData(data, meta) {
@@ -777,14 +901,16 @@
     show = data && data.cues ? data : {name: meta ? meta.name : "", bars: 6, chans: 4, cues: []};
     show.bars = Math.max(2, Math.min(10, show.bars || keep.bars || 6)); show.chans = show.chans === 3 ? 3 : 4;
     show.cues.forEach(function (c) { if (typeof c.note !== "string") c.note = ""; });
+    delete show.draftDirty; delete show.draftSavedAt;
     if (meta) { show.libraryId = meta.id; show.name = meta.name; show.trackId = meta.track_id || ""; show.tourShowId = meta.tour_show_id || ""; }
     selectedCue = null; selectedBar = null;
+    H.reset(); paintHistory();
     barsSel.value = String(show.bars); chansSel.value = String(show.chans);
     renderCues(); paintGroups(); paintLibrary(); paintBeats(); paintBarCtl();
   }
   $("lx-lib-new").addEventListener("click", function () {
     loadShowData({name: "", bars: show.bars, chans: show.chans, cues: []}, null);
-    show.libraryId = null; show.name = ""; paintLibrary(); markDirty();
+    show.libraryId = null; show.name = ""; libraryDirty = false; paintLibrary(); markDirty(false);
   });
   $("lx-lib-delete").addEventListener("click", function () {
     if (!show.libraryId || !window.confirm("Delete this show from the library? Versions go with it.")) return;
@@ -806,7 +932,7 @@
         var btn = document.createElement("button"); btn.type = "button"; btn.className = "lx-btn lx-btn--ghost lx-btn--small"; btn.textContent = "Restore";
         btn.addEventListener("click", function () {
           post("/lights/library/" + show.libraryId + "/restore", {version_id: v.id}).then(function (r) {
-            if (r.ok) { loadShowData(r.data, {id: show.libraryId, name: show.name, track_id: show.trackId, tour_show_id: show.tourShowId}); markDirty(); }
+            if (r.ok) { loadShowData(r.data, {id: show.libraryId, name: show.name, track_id: show.trackId, tour_show_id: show.tourShowId}); markDirty(); announce("Version restored into the draft — save to library to keep it"); }
           });
         });
         line.appendChild(btn); box.appendChild(line);
@@ -815,14 +941,14 @@
   }
 
   // ---------- focus mode ----------
-  var FOCUS = "lxFocus", RAIL = "lxRail";
+  // Focus mode hides the app sidebar entirely on desktop and shows the
+  // slim studio rail (#lx-rail: four icon links + an expand control) in
+  // its place, so the workspace gets the width. Leaving focus restores
+  // the sidebar in whatever rail/full state the rest of the app uses.
+  var FOCUS = "lxFocus";
   function setFocus(on, persist) {
     document.body.classList.toggle("lx-focus", on);
-    if (window.innerWidth >= 1024) {
-      var railOn = on && (safeGet(RAIL) !== "0");
-      document.body.classList.toggle("sb-rail", railOn);
-      if (!on) { document.body.classList.toggle("sb-rail", safeGet("sbRail") === "1"); }
-    }
+    if (!on && window.innerWidth >= 1024) document.body.classList.toggle("sb-rail", safeGet("sbRail") === "1");
     if (persist) safeSet(FOCUS, on ? "1" : "0");
     var btn = $("lx-focus"); btn.setAttribute("aria-pressed", on ? "true" : "false"); btn.textContent = on ? "Exit focus" : "Focus mode";
     var rt = $("sb-rail-tgl"); if (rt) rt.setAttribute("aria-pressed", document.body.classList.contains("sb-rail") ? "true" : "false");
@@ -830,12 +956,21 @@
   function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("lx-focus").addEventListener("click", function () { setFocus(!document.body.classList.contains("lx-focus"), true); });
-  var railTgl = $("sb-rail-tgl");
-  if (railTgl) railTgl.addEventListener("click", function () { setTimeout(function () { safeSet(RAIL, document.body.classList.contains("sb-rail") ? "1" : "0"); }, 0); });
+  $("lx-rail-expand").addEventListener("click", function () { setFocus(false, true); var rt = $("sb-rail-tgl"); if (rt) rt.focus(); });
   setFocus(safeGet(FOCUS) !== "0", false);
+  $("lx-undo").addEventListener("click", undo);
+  $("lx-redo").addEventListener("click", redo);
 
   // ---------- keyboard ----------
   document.addEventListener("keydown", function (e) {
+    // Undo / redo: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y. Inside a text
+    // field the browser's own undo wins - never hijack typing.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "z" || e.key === "Z" || e.key === "y" || e.key === "Y")) {
+      if (isTyping(e.target)) return;
+      e.preventDefault();
+      if (e.key === "y" || e.key === "Y" || e.shiftKey) redo(); else undo();
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (isTyping(e.target)) return;
     if (e.key === " " || e.code === "Space") { e.preventDefault(); togglePlay(); }
@@ -843,8 +978,8 @@
     else if (e.key === "b" || e.key === "B") { if (!$("lx-blackout").disabled) addCue(E.LOOKS[5]); }
     else if (/^[1-6]$/.test(e.key) && e.target !== stage) { applyLook(E.LOOKS[parseInt(e.key, 10) - 1]); }
     else if (e.key === "Escape") { selectCue(null); selectBar(null); }
-    else if (e.key === "ArrowLeft" && e.target !== stage && buffer) { seek(now() - (e.shiftKey ? 5 : 1)); }
-    else if (e.key === "ArrowRight" && e.target !== stage && buffer) { seek(now() + (e.shiftKey ? 5 : 1)); }
+    else if (e.key === "ArrowLeft" && e.target !== stage && e.target !== wave && buffer) { seek(now() - (e.shiftKey ? 5 : 1)); }
+    else if (e.key === "ArrowRight" && e.target !== stage && e.target !== wave && buffer) { seek(now() + (e.shiftKey ? 5 : 1)); }
   });
 
   // ---------- resize ----------
@@ -863,6 +998,7 @@
     drawWave(t);
     var ts = performance.now();
     if (ts - lastTable > 500) { lastTable = ts; paintBarsTable(t); }
+    if (ts - lastAria > 400) { lastAria = ts; paintWaveAria(); }
     if (writer && (playing || runStart !== null)) {
       if (ts - lastDmx > 33) {
         lastDmx = ts; dmxWrites++;
@@ -881,9 +1017,13 @@
     seek: seek, now: now, addCue: addCue, selectCue: selectCue, selectBar: selectBar, view: function () { return view; },
     zoomTo: zoomTo, setFocus: setFocus, stageSize: function () { return stageCss; }, barRects: function () { return barRects; },
     loadShowData: loadShowData, loadBuffer: loadBuffer, ensureCtx: ensureCtx, detectBeats: detectBeats,
-    drawWave: drawWave, tick: function () { var t = now(); clockEl.textContent = E.fmtTimecode(t); if (dockClock) dockClock.textContent = clockEl.textContent; drawStage(t); drawWave(t); paintBarsTable(t); return t; },
-    setHover: function (b, grp) { hoverBar = b; hoverGroup = grp; }, state: function () { return {playing: playing, buffer: !!buffer, selectedBar: selectedBar, selectedCue: selectedCue, dirty: dirty}; }
+    drawWave: drawWave, tick: function () { var t = now(); clockEl.textContent = E.fmtTimecode(t); if (dockClock) dockClock.textContent = clockEl.textContent; drawStage(t); drawWave(t); paintBarsTable(t); paintWaveAria(); return t; },
+    setHover: function (b, grp) { hoverBar = b; hoverGroup = grp; }, state: function () { return {playing: playing, buffer: !!buffer, selectedBar: selectedBar, selectedCue: selectedCue, dirty: dirty, libraryDirty: libraryDirty}; },
+    undo: undo, redo: redo, historySize: function () { return H.size(); }, canRedo: function () { return H.canRedo(); },
+    waveMetrics: function () { return {view: {start: view.start, end: view.end}, w: waveCss.w, tToX: tToX, xToT: xToT}; },
+    draftPayload: draftPayload, maybeOfferDraft: maybeOfferDraft, announce: announce
   };
   ensureIds(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintDmx("", "Preview only · no hardware");
+  paintHistory(); paintWaveAria(); maybeOfferDraft();
   loop();
 })();

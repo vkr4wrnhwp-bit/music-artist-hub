@@ -417,6 +417,31 @@
     return out.filter(function (c) { var k = c.group + "@" + c.t.toFixed(2); if (seen[k]) return false; seen[k] = 1; return true; });
   }
 
+  // ---------- undo history ----------
+  function makeHistory(cap, window_) {
+    // Snapshot stack. push() takes the state BEFORE a change plus a
+    // coalescing key: repeated pushes with the same key inside the window
+    // (a slider being dragged, a note being typed) keep the first
+    // snapshot and drop the rest, so one undo steps back over the whole
+    // gesture. Redo is cleared by any new push.
+    cap = cap || 50; window_ = window_ || 800;
+    var undo = [], redo = [], lastKey = null, lastAt = -1e9;
+    return {
+      push: function (snapshot, key, now) {
+        now = now || 0;
+        if (key && key === lastKey && (now - lastAt) < window_) { lastAt = now; return false; }
+        undo.push(snapshot); if (undo.length > cap) undo.shift();
+        redo.length = 0; lastKey = key || null; lastAt = now; return true;
+      },
+      undo: function (current) { if (!undo.length) return null; redo.push(current); lastKey = null; return undo.pop(); },
+      redo: function (current) { if (!redo.length) return null; undo.push(current); lastKey = null; return redo.pop(); },
+      canUndo: function () { return undo.length > 0; },
+      canRedo: function () { return redo.length > 0; },
+      size: function () { return undo.length; },
+      reset: function () { undo = []; redo = []; lastKey = null; lastAt = -1e9; }
+    };
+  }
+
   var LOOKS = [
     {key: "amber", name: "Amber wash", color: "#ffb347", intensity: 85, fade: 1.0},
     {key: "blue", name: "Cold blue", color: "#3b82f6", intensity: 80, fade: 1.0},
@@ -433,6 +458,6 @@
     onsetEnvelope: onsetEnvelope, detectBeats: detectBeats, snapToBeat: snapToBeat,
     tapTempo: tapTempo, nearestCue: nearestCue, LOOKS: LOOKS,
     frameFeatures: frameFeatures, detectSections: detectSections, analyzeTrack: analyzeTrack,
-    generateCues: generateCues, SECTION_LOOKS: SECTION_LOOKS
+    generateCues: generateCues, SECTION_LOOKS: SECTION_LOOKS, makeHistory: makeHistory
   };
 });

@@ -38,8 +38,18 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-cues", "lx-groups", "lx-looks", "lx-barctl", "lx-bars-tbody", "lx-lib-select",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js" in page and "lights.js?v=7" in page and "light-studio.css?v=2" in page
+    assert "lights-engine.js?v=2" in page and "lights.js?v=8" in page and "light-studio.css?v=3" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
+    # polish pass: unsaved-work, undo, a11y, rail
+    for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",
+                  "lx-rail", "lx-rail-expand"):
+        assert 'id="%s"' % el_id in page, el_id
+    assert 'id="lx-cues" class="lx-cues" role="list"' in page
+    assert 'id="lx-wave" class="lx-wave" tabindex="0" role="slider"' in page
+    assert 'id="lx-play"' in page and 'aria-label="Play or stop the song (Space)"' in page
+    assert 'id="lx-run"' in page and 'aria-pressed="false" aria-label="Run the cue list without audio"' in page
+    assert 'aria-live="polite"' in page.split('id="lx-live"')[1][:80]
+    assert 'href="/command-center"' in page.split('id="lx-rail"')[1].split("</nav>")[0]
     # helper text floor: no 10px text classes on this page any more
     assert "text-[10px]" not in page.split('id="lx-root"')[1].split("</div>\n\n<script>")[0]
 
@@ -130,10 +140,28 @@ def test_engine_checks_under_node():
         node = found[0] if found else None
     if not node:
         pytest.skip("node not available")
-    proc = subprocess.run([node, os.path.join(ROOT, "tests", "js", "check_lights.js")],
-                          capture_output=True, text=True, timeout=120)
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "FAIL" not in proc.stdout
+    for name in ("check_lights.js", "check_lights_autocue.js", "check_lights_history.js"):
+        proc = subprocess.run([node, os.path.join(ROOT, "tests", "js", name)],
+                              capture_output=True, text=True, timeout=180)
+        assert proc.returncode == 0, name + "\n" + proc.stdout + proc.stderr
+        assert "FAIL" not in proc.stdout, name
+
+
+def test_draft_flags_round_trip_and_library_untouched_by_autosave(flask_app):
+    """The working copy carries draftDirty/draftSavedAt; only an explicit
+    library save (version=True) may change a library row's data."""
+    client, user = _user(flask_app)
+    r = client.post("/lights/library/save", json={"name": "Named", "data": {"cues": [{"t": 1, "group": "all", "color": "#fff", "intensity": 50, "fade": 0}], "bars": 4, "chans": 4}}).get_json()
+    sid = r["id"]
+    draft = {"name": "Named", "libraryId": sid, "bars": 4, "chans": 4, "draftDirty": True, "draftSavedAt": "2026-08-22T10:00:00Z",
+             "cues": [{"t": 1, "group": "all", "color": "#fff", "intensity": 50, "fade": 0}, {"t": 9, "group": "odd", "color": "#f00", "intensity": 90, "fade": 1}]}
+    assert client.post("/lights/save", json=draft).get_json()["ok"]
+    got = store.get_light_show(user["id"])
+    assert got["draftDirty"] is True and got["draftSavedAt"].startswith("2026-08-22") and len(got["cues"]) == 2
+    # the library row still has one cue
+    assert lights_store.get_show(user["id"], sid)["cue_count"] == 1
+    page = client.get("/lights").get_data(as_text=True)
+    assert '"draftDirty": true' in page and sid in page
 
 
 def test_stylesheet_has_no_tiny_helper_text():

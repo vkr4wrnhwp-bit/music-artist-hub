@@ -23,9 +23,33 @@
 .lx *:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 2px; border-radius: 4px; }
 .lx .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* Focus mode: the shell gives the width back. */
+/* Focus mode: the shell gives the width back. On desktop the app sidebar
+   is replaced by a slim 56px studio rail - four icon links and an expand
+   control - instead of a 76px strip of hub icons the studio never uses. */
 body.lx-focus main { padding: 0.6rem 0.9rem 1rem !important; }
-@media (min-width: 1024px) { body.lx-focus main { padding: 0.75rem 1.1rem 1rem !important; } }
+.lx-rail { display: none; }
+@media (min-width: 1024px) {
+  body.lx-focus main { padding: 0.75rem 1.1rem 1rem calc(56px + 1.1rem) !important; }
+  body.lx-focus #sb-aside { display: none !important; }
+  body.lx-focus .lx-rail { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: 56px; z-index: 35; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 0; background: #0d0d0f; border-right: 1px solid rgb(255 255 255 / 0.08); }
+}
+.lx-rail-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid transparent;
+  background: transparent; color: #C2BBAE; cursor: pointer; text-decoration: none; }
+.lx-rail-btn svg { width: 20px; height: 20px; }
+.lx-rail-btn:hover { border-color: rgb(201 162 74 / 0.4); color: #EEE8DC; background: rgb(255 255 255 / 0.04); }
+.lx-rail-btn:focus-visible { outline: 2px solid #e8c667; outline-offset: 2px; }
+.lx-rail-btn.is-here { color: #e8c667; border-color: rgb(201 162 74 / 0.5); background: rgb(201 162 74 / 0.12); }
+.lx-rail-spacer { flex: 1; }
+
+/* unsaved-work signals */
+.lx-libdirty { font-size: 11.5px; color: var(--lx-soft); letter-spacing: 0.04em; }
+.lx-libdirty.is-dirty { color: var(--lx-amber); }
+.lx-libdirty.is-dirty::before { content: "● "; }
+.lx-libdirty.is-ok { color: var(--lx-ok); }
+.lx-draft { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; padding: 9px 12px; border: 1px solid var(--lx-line); border-left-width: 3px;
+  border-radius: 10px; background: rgb(201 162 74 / 0.09); font-size: 12.5px; color: var(--lx-copy); }
+.lx-draft[hidden] { display: none; }
 
 /* --- head ------------------------------------------------------------- */
 .lx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; margin-bottom: 10px; }
@@ -91,6 +115,9 @@ body.lx-focus main { padding: 0.6rem 0.9rem 1rem !important; }
 /* --- waveform lane --------------------------------------------------- */
 .lx-wave-wrap { border: 1px solid var(--lx-rule); border-radius: 12px; background: #0b0b0d; padding: 8px 10px 6px; margin-bottom: 10px; }
 .lx-wave { display: block; width: 100%; height: 112px; border-radius: 8px; background: #070708; cursor: crosshair; touch-action: none; }
+.lx-wave:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 3px; }
+.lx-cue:focus-visible { outline: 2px solid var(--lx-amber); outline-offset: 2px; }
+.lx-inline { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .lx-wave-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 6px; font-size: 12px; color: var(--lx-soft); }
 .lx-wave-bar b { color: var(--lx-copy); font-weight: 600; }
 .lx-beat { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
