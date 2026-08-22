@@ -1,5 +1,7 @@
 import "server-only";
 import { db } from "./db";
+import { knowledgeApplies } from "./disagreement-scope";
+import type { DisagreementSubject } from "./disagreement-scope";
 import { audit } from "./audit";
 
 /**
@@ -29,28 +31,14 @@ import { audit } from "./audit";
  * nothing, and CANVAS records which it is rather than treating them alike.
  */
 
-export const DISAGREEMENT_SUBJECTS = [
-  "READINESS_GATE",
-  "WORKHOLDING",
-  "TOOL_CHOICE",
-  "FEED_SPEED",
-  "PROCESS",
-  "NOMINAL",
-  "COST",
-  "OTHER",
-] as const;
-export type DisagreementSubject = (typeof DISAGREEMENT_SUBJECTS)[number];
-
-export const SUBJECT_LABEL: Record<DisagreementSubject, string> = {
-  READINESS_GATE: "Readiness gate",
-  WORKHOLDING: "Workholding",
-  TOOL_CHOICE: "Tool choice",
-  FEED_SPEED: "Feeds and speeds",
-  PROCESS: "Process",
-  NOMINAL: "Nominal dimension",
-  COST: "Cost",
-  OTHER: "Other",
-};
+export {
+  DISAGREEMENT_SUBJECTS,
+  SUBJECT_LABEL,
+  knowledgeApplies,
+  type DisagreementSubject,
+  type KnowledgeScope,
+  type KnowledgeContext,
+} from "./disagreement-scope";
 
 export interface RecordDisagreementInput {
   organizationId: string;
@@ -185,6 +173,13 @@ export async function promoteToShopKnowledge(input: {
  * ranking: knowledge about VF-2 #2 is not evidence about VF-2 #1, and offering
  * it as though it were is how a shop-specific observation quietly becomes a
  * universal claim.
+ *
+ * The organisation is filtered in the query — one shop's observations must
+ * never be reachable from another's, and that is not a rule to enforce in
+ * application code. The scope rule is applied in memory instead of as a
+ * where-clause so that knowledgeApplies is the single statement of it, rather
+ * than a Prisma expression that has to be read as one. A shop's knowledge
+ * base is its own observations; this is tens of rows, not a table scan.
  */
 export async function relevantKnowledge(params: {
   organizationId: string;
@@ -192,17 +187,11 @@ export async function relevantKnowledge(params: {
   toolIds?: string[];
   materialId?: string | null;
 }) {
-  return db.shopKnowledge.findMany({
-    where: {
-      organizationId: params.organizationId,
-      active: true,
-      OR: [
-        { machineId: params.machineId ?? undefined },
-        { toolId: { in: params.toolIds ?? [] } },
-        { materialId: params.materialId ?? undefined },
-      ].filter((clause) => Object.values(clause).some((v) => v !== undefined && v !== null)),
-    },
+  const all = await db.shopKnowledge.findMany({
+    where: { organizationId: params.organizationId, active: true },
     include: { machine: true, tool: true, material: true },
     orderBy: [{ jobCount: "desc" }, { lastObservedAt: "desc" }],
   });
+
+  return all.filter((k) => knowledgeApplies(k, params));
 }
