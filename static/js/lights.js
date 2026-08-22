@@ -880,9 +880,93 @@
   }
   function paintDmxLive() {
     var live = playing || runStart !== null;
-    paintDmx("on", "Connected · universe " + (show.dmxUniverse || 1) + " · " + (panic ? "ALL OFF" : (live ? dmxFps + " fps" : "idle · holding")));
+    var where = output === "enttec" ? "Connected" : (output === "artnet" ? "Art-Net" : "sACN");
+    paintDmx("on", where + " · universe " + (show.dmxUniverse || 1) + " · " +
+             (panic ? "ALL OFF" : (live ? dmxFps + " fps" : "idle · holding")));
   }
-  function sendDmx(t) { writer.write(E.dmxFrame(show, outLooks(t))).catch(function () {}); dmxWrites++; }
+
+  // ---------- outputs ----------
+  // One frame loop, several sinks. ENTTEC goes out over Web Serial; Art-Net
+  // and sACN are UDP, which a browser cannot speak, so they are POSTed to a
+  // bridge script running on this machine that forwards them verbatim.
+  var output = "preview", bridgeOk = false, bridgeInFlight = false;
+  function bridgeUrl(path) { return "http://127.0.0.1:" + (parseInt($("lx-bridge-port").value, 10) || 7070) + path; }
+
+  function paintOutputs() {
+    var sel = $("lx-output");
+    if (!sel.options.length) {
+      E.OUTPUTS.forEach(function (o) {
+        var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; op.title = o[2];
+        sel.appendChild(op);
+      });
+    }
+    sel.value = output;
+    var net = $("lx-net-now");
+    if (net) net.textContent = (output === "artnet" || output === "sacn")
+      ? "· " + (bridgeOk ? "bridge connected" : "bridge not found") : "";
+    $("lx-dmx").hidden = output !== "enttec";
+    if (output === "preview") paintDmx("", "Preview only · no hardware");
+    else if (output === "enttec") { if (!writer) paintDmx("", "Preview only · no hardware"); else paintDmxLive(); }
+    else paintDmx(bridgeOk ? "on" : "err", bridgeOk
+      ? (output === "artnet" ? "Art-Net" : "sACN") + " · via the local bridge"
+      : "Bridge not running — start lx-bridge.py on this computer");
+  }
+
+  $("lx-output").addEventListener("change", function () {
+    output = $("lx-output").value;
+    show.output = output; markDirty();
+    if (output === "artnet" || output === "sacn") { $("lx-net-fold").open = true; checkBridge(); }
+    paintOutputs();
+    announce("Output set to " + $("lx-output").options[$("lx-output").selectedIndex].textContent);
+  });
+
+  function checkBridge() {
+    var status = $("lx-bridge-status");
+    status.textContent = "checking…";
+    return fetch(bridgeUrl("/"), {cache: "no-store"})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        bridgeOk = !!(d && d.ok);
+        status.textContent = bridgeOk
+          ? "Bridge is running — Art-Net to " + (d.artnet_host || "?") + ", sACN to " + (d.sacn_host || "?") + "."
+          : "Something answered on that port, but it is not the bridge.";
+        paintOutputs();
+        return bridgeOk;
+      })
+      .catch(function () {
+        bridgeOk = false;
+        status.textContent = "No bridge on that port. Download it, then run: python lx-bridge.py";
+        paintOutputs();
+        return false;
+      });
+  }
+  $("lx-bridge-test").addEventListener("click", checkBridge);
+  $("lx-bridge-port").addEventListener("change", function () { bridgeOk = false; paintOutputs(); });
+
+  function sendDmx(t) {
+    var looks = outLooks(t);
+    if (output === "enttec") {
+      if (!writer) return;
+      writer.write(E.dmxFrame(show, looks)).catch(function () {});
+      dmxWrites++;
+      return;
+    }
+    if (output !== "artnet" && output !== "sacn") return;
+    // Never queue: if the previous frame is still in flight, skip this one.
+    // A backlog of stale frames is worse than a dropped one.
+    if (bridgeInFlight) return;
+    var seq = (dmxSeq = (dmxSeq + 1) & 0xFF);
+    var pkt = output === "artnet"
+      ? E.artnetPacket(show, looks, {universe: (show.dmxUniverse || 1) - 1, sequence: seq})
+      : E.sacnPacket(show, looks, {universe: show.dmxUniverse || 1, sequence: seq});
+    bridgeInFlight = true;
+    fetch(bridgeUrl(output === "artnet" ? "/artnet" : "/sacn"),
+          {method: "POST", body: pkt, headers: {"Content-Type": "application/octet-stream"}})
+      .then(function () { dmxWrites++; if (!bridgeOk) { bridgeOk = true; paintOutputs(); } })
+      .catch(function () { if (bridgeOk) { bridgeOk = false; paintOutputs(); } })
+      .then(function () { bridgeInFlight = false; });
+  }
+  var dmxSeq = 0;
   $("lx-dmx").addEventListener("click", function () {
     if (!("serial" in navigator)) { paintDmx("err", "No Web Serial in this browser — use Chrome or Edge on desktop"); return; }
     if (port) {
@@ -1601,6 +1685,7 @@
     show.looks = Array.isArray(show.looks) ? show.looks.slice(0, MAX_USER_LOOKS) : [];
     show.dmxStart = parseInt(show.dmxStart, 10) || 1; show.dmxUniverse = parseInt(show.dmxUniverse, 10) || 1; show.dmxAddr = show.dmxAddr || {};
     show.rigName = show.rigName || ""; show.rigKey = show.rigKey || null;
+    output = show.output || "preview";
     delete show.draftDirty; delete show.draftSavedAt;
     if (meta) { show.libraryId = meta.id; show.name = meta.name; show.trackId = meta.track_id || ""; show.tourShowId = meta.tour_show_id || ""; }
     selectedCue = null; selectedBar = null; aimWheelAt(null);
@@ -1632,6 +1717,7 @@
     var clean = {name: String(s.name || "").slice(0, 120), bars: Math.max(2, Math.min(10, parseInt(s.bars, 10) || 6)), chans: s.chans === 3 ? 3 : 4,
                  bpm: +s.bpm || 0, beatOffset: +s.beatOffset || 0, snap: !!s.snap, pos: {}, rot: {}, dmxAddr: {}, looks: [], cues: [],
                  rigName: String(s.rigName || "").slice(0, 80), rigKey: null,
+                 output: ["preview", "enttec", "artnet", "sacn"].indexOf(s.output) >= 0 ? s.output : "preview",
                  dmxStart: Math.max(1, Math.min(512, parseInt(s.dmxStart, 10) || 1)), dmxUniverse: Math.max(1, Math.min(64, parseInt(s.dmxUniverse, 10) || 1))};
     Object.keys(s.pos || {}).forEach(function (k) { var p = s.pos[k]; if (Array.isArray(p) && p.length === 2) clean.pos[k] = [clamp(+p[0] || 0, 0.03, 0.97), clamp(+p[1] || 0, 0.04, 0.92)]; });
     Object.keys(s.rot || {}).forEach(function (k) { clean.rot[k] = s.rot[k] === 90 ? 90 : 0; });
@@ -1754,7 +1840,10 @@
     if (ts - lastAria > 400) { lastAria = ts; paintWaveAria(); }
     // DMX: 30 fps while the show runs; a slow heartbeat when idle so the
     // rig holds whatever the stage shows (master, panic, a selected cue).
-    if (writer) {
+    // Whichever sink is active gets the same 30 fps loop, and the same slow
+    // heartbeat when idle so the rig holds what the stage shows.
+    var sinkLive = (output === "enttec" && writer) || output === "artnet" || output === "sacn";
+    if (sinkLive) {
       var live = playing || runStart !== null;
       if (ts - lastDmx > (live ? 33 : 500)) { lastDmx = ts; sendDmx(t); }
       if (ts - dmxSec > 1000) { dmxSec = ts; dmxFps = dmxWrites; dmxWrites = 0; paintDmxLive(); }
@@ -1777,11 +1866,13 @@
     wheelHex: function () { return $("lx-gel-hex").value; },
     pickBar: pickBar, paintBarsList: paintBarsList, exportJson: exportJson, importShow: importShow, fixtureAddress: function (b) { return E.fixtureAddress(show, b); },
     autoCue: autoCue, clearAutoCues: clearAutoCues, own: own,
+    setOutput: function (o) { $("lx-output").value = o; $("lx-output").dispatchEvent(new Event("change")); },
+    output: function () { return output; }, checkBridge: checkBridge, sendDmx: sendDmx,
     rigs: function () { return rigs; }, applyRigNow: function (r) { record("rig"); E.applyRig(show, r); selectedCue = null; selectedBar = null; ensureIds(); markDirty(); paintRig(); renderCues(); paintGroups(); paintBarCtl(); },
     offerVenueRig: offerVenueRig, setBars: function (n) { barsSel.value = String(n); barsSel.dispatchEvent(new Event("change")); },
     spriteReady: function () { return barImg.complete && barImg.naturalWidth > 0; }, bgReady: function () { return bgImg.complete && bgImg.naturalWidth > 0; }
   };
-  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintDmx("", "Preview only · no hardware");
+  ensureIds(); paintRig(); renderCues(); paintGroups(); paintLooks(); paintLibrary(); paintBeats(); paintTransport(); paintBarCtl(); paintMaster(); paintAutoCue(); paintOutputs();
   paintHistory(); paintWaveAria(); maybeOfferDraft();
   loop();
 })();

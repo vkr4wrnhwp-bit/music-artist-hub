@@ -75,6 +75,9 @@
         <label class="lx-master" title="Grand master — scales every intensity on the stage and over DMX; the cues themselves are not changed"><span>GM</span><input id="lx-master" type="range" min="0" max="100" value="100" aria-label="Grand master, percent of every intensity"><b id="lx-master-val">100%</b></label>
         <button id="lx-panic" class="lx-btn lx-btn--panic" type="button" aria-pressed="false" aria-label="All off — kill every light now, preview and DMX (key X). Press again to restore." title="All off now (X) — press again to restore">All off</button>
         <span id="lx-dmx-chip" class="lx-chip" role="status" aria-live="polite"><i aria-hidden="true"></i><span id="lx-dmx-text">Preview only · no hardware</span></span>
+        <label class="lx-audio-ctl" title="Where the cues go. The same frame loop feeds whichever sink is active."><span>Out</span>
+          <select id="lx-output" class="lx-select lx-select--tiny" aria-label="Output: where the light cues are sent"></select>
+        </label>
         <button id="lx-dmx" class="lx-btn" type="button" aria-label="Connect an ENTTEC USB DMX interface over Web Serial">Connect DMX (ENTTEC)</button>
       </div>
     </div>
@@ -128,6 +131,20 @@
         <p class="lx-hint">Arrow keys nudge the bar on the stage (shift = bigger) · <span class="lx-kbd">R</span> flips orientation · drag to place · <b>shift-click</b> bars on the stage to hand-pick a group for the selected cue.</p>
         <p id="lx-patch-warn" class="lx-warn" role="status" hidden></p>
       </div>
+
+      {# Network DMX. A browser cannot open a UDP socket, so Art-Net and
+         sACN go through a small script the user runs on this machine. #}
+      <details class="lx-more" id="lx-net-fold">
+        <summary>Network DMX — Art-Net &amp; sACN <span id="lx-net-now" class="lx-hint" style="letter-spacing:0;text-transform:none"></span></summary>
+        <p class="lx-hint">Browsers cannot send UDP, so these go through a bridge you run on this computer. It is one file, standard library only, and it forwards finished DMX packets to your lighting network — it never sees your audio or your show.</p>
+        <div class="lx-rig-row">
+          <label class="lx-field"><span>Bridge port</span><input id="lx-bridge-port" class="lx-input lx-input--tiny" type="number" min="1" max="65535" value="7070" aria-label="Localhost port the bridge listens on"></label>
+          <button id="lx-bridge-test" class="lx-btn lx-btn--small" type="button" aria-label="Check whether the bridge is running on this computer">Check bridge</button>
+          <a class="lx-btn lx-btn--ghost lx-btn--small" href="/static/tools/lx-bridge.py" download="lx-bridge.py">Download bridge</a>
+          <span id="lx-bridge-status" class="lx-hint" role="status" aria-live="polite"></span>
+        </div>
+        <p class="lx-hint"><b>To run it:</b> <code>python lx-bridge.py</code> — add <code>--artnet-host 192.168.1.55</code> to aim at a specific node, or <code>--port</code> to move it. Art-Net goes to UDP 6454, sACN to 5568, and the universe number comes from the rig settings above.</p>
+      </details>
       <div class="lx-stage-foot">
         <span>Audience view, simulated — drag any bar to where it really hangs or sits; click a bar to open its panel, hover to see its mirror partner. Pairs mirror outermost-in (bar 1 with the last bar).</span>
         <span class="lx-rig">
@@ -255,5 +272,5 @@
 <script>window.__savedShow = {{ saved_show | js_json }};</script>
 <script>window.__lightsLibrary = {{ lights_library | js_json }};</script>
 <script src="/static/js/lights-engine.js?v=7"></script>
-<script src="/static/js/lights.js?v=16"></script>
+<script src="/static/js/lights.js?v=17"></script>
 {% endblock %}
