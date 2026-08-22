@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
+import { roleCanWrite, roleCanApprove } from "./roles";
 
 /**
  * Session authentication with organisation scoping.
@@ -96,12 +97,39 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-/** Roles that may change manufacturing parameters or approve a package. */
-const WRITE_ROLES = new Set(["OWNER", "ENGINEER", "MACHINIST"]);
-const APPROVE_ROLES = new Set(["OWNER", "ENGINEER"]);
+/**
+ * NOT YET ENFORCED — canWrite is exported and called by nothing.
+ *
+ * canApprove IS enforced, inside the two server actions that use it, against
+ * a freshly read session rather than a rendered prop. canWrite has no such
+ * caller: every mutating server action in the app checks that a user is
+ * signed in and does not check what they may do. A VIEWER could change a
+ * machine, a tool, a material or a sharing level.
+ *
+ * Nothing can exploit that today. Every user this application creates is an
+ * OWNER — sign-up and the demo seed both hardcode it — and there is no invite
+ * flow or role-assignment UI, so no VIEWER, MACHINIST or ENGINEER account can
+ * exist. The hazard is a future one and it is specific: somebody adds user
+ * invitations, sees an exported canWrite, and reasonably assumes writes are
+ * already gated.
+ *
+ * requireWrite() below is the one line each action needs. Wiring it through
+ * roughly thirty actions is a deliberate change with no non-OWNER account to
+ * test the negative path against, so it is called out here rather than done
+ * quietly.
+ */
+export const canWrite = (user: SessionUser) => roleCanWrite(user.role);
+export const canApprove = (user: SessionUser) => roleCanApprove(user.role);
 
-export const canWrite = (user: SessionUser) => WRITE_ROLES.has(user.role);
-export const canApprove = (user: SessionUser) => APPROVE_ROLES.has(user.role);
+/**
+ * Signed in AND permitted to change something. Use in a mutating server
+ * action in place of requireUser().
+ */
+export async function requireWrite(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!canWrite(user)) redirect("/");
+  return user;
+}
 
 /** Constant-time compare for any token comparison outside the DB lookup. */
 export function safeEqual(a: string, b: string): boolean {
