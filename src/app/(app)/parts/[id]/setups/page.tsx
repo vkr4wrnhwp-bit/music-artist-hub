@@ -115,6 +115,20 @@ export default async function SetupsPage(props: {
                           Holding margin not calculable — {a?.missingInputs.join("; ") ?? "workholding not assessed"}
                         </p>
                       )}
+                      {/*
+                        * Unconditionally, not only when the margin is null. A
+                        * setup carrying a recorded clamp force but no vise
+                        * selected computes a margin perfectly well — 9.73x,
+                        * SAFE — while "Workholding device not selected" sat
+                        * in missingInputs and was rendered by the branch that
+                        * did not run. The number was read without the fact
+                        * that qualifies it.
+                        */}
+                      {a && a.holdingMargin?.margin != null && a.missingInputs.length > 0 && (
+                        <p className="mb-2 text-[11.5px] leading-relaxed text-review">
+                          Computed without: {a.missingInputs.join("; ")}
+                        </p>
+                      )}
                       <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
                         <DataRow label="Orientation" value={s.orientation} />
                         <DataRow label="Work offset" value={s.workOffset} />

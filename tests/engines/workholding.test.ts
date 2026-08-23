@@ -191,3 +191,18 @@ test("the real engine reports HIGH_RISK when a setup has both an unknown and a h
 
   assert.equal(a.level, "HIGH_RISK", "the definite finding must win");
 });
+
+test("a margin can be computed while an input is still missing — the two are independent", () => {
+  // Clamp force can be recorded on the setup itself, so the force model runs
+  // with no vise selected at all: a confident 9.73x margin and a SAFE level
+  // alongside "Workholding device not selected". The setups page rendered
+  // missingInputs only in the branch for a NULL margin, so in exactly this
+  // case the number was read without the fact that qualifies it.
+  const a = assessWorkholding(ctx({ device: null, clampForce: 4000, jawSurface: "SERRATED", hasPositiveStop: true }));
+  assert.notEqual(a.holdingMargin?.margin, null);
+  assert.ok(a.holdingMargin!.margin! > 2);
+  assert.deepEqual(a.missingInputs, ["Workholding device not selected"]);
+  // The readiness gate is what stops this being cut; the screen's job is to
+  // stop it being believed.
+  assert.equal(a.level, "SAFE");
+});

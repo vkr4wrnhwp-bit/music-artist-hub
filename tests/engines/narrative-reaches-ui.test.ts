@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Locked principles 5 and 12 as a property of the UI rather than of an
@@ -85,3 +86,41 @@ test("a calculation that could not be made says what it was never given", () => 
     );
   }
 });
+
+test("no engine names its missing evidence only where the answer is already absent", () => {
+  /*
+   * The third instance of this bug, so it is checked by shape now.
+   *
+   * missingInputs and a computed answer are INDEPENDENT: workholding can
+   * return a 9.73x holding margin and "Workholding device not selected"
+   * together, because clamp force is recorded on the setup rather than on
+   * the vise. A page that renders the missing inputs only inside an
+   * `else` — the branch for "no answer" — hides them in exactly the case
+   * where a number is on screen to be believed.
+   *
+   * So: every file that reads `.missingInputs` must guard at least one of
+   * those reads on the field being non-empty, rather than only on the
+   * answer being absent. Files that delegate to a shared narrative
+   * component do not read it here at all, which is the better shape and is
+   * covered by the test above.
+   */
+  const readers = walk("src").filter((f) => f.endsWith(".tsx") && read(f).includes(".missingInputs"));
+  assert.ok(readers.length > 0, "precondition: something renders missing inputs");
+  for (const f of readers) {
+    assert.match(
+      read(f),
+      /missingInputs\.length > 0/,
+      `${f} renders missing inputs only as a fallback for a null answer — they are also true when there IS an answer`,
+    );
+  }
+});
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) out.push(...walk(p));
+    else out.push(p);
+  }
+  return out;
+}
