@@ -340,3 +340,71 @@ def test_the_empty_state_button_opens_the_real_file_picker():
     card = html[html.index('id="rk-empty"'):html.index("<!-- /chassis-fit -->")]
     assert 'for="rk-file"' in card
     assert "<input" not in card, "no second file input — reuse rk-file"
+
+
+# --- per-module level meters --------------------------------------------
+
+
+def _meter_taps():
+    js = _js()
+    body = js[js.index("function meterTaps"):js.index("function buildMeters")]
+    return set(re.findall(r"([a-z]+):\s*ch\.", body))
+
+
+def test_every_module_has_a_meter_tap_and_a_bar():
+    """Three lists have to agree or a module quietly has no meter: the
+    modules the rack knows about, the tap points, and the bars on the
+    faceplate. Adding a module to MOD_KEYS without a tap is the silent
+    failure this catches."""
+    js = _js()
+    modkeys = set(re.findall(r"([a-z]+):\s*\[",
+                             js[js.index("var MOD_KEYS"):js.index("function modSlice")]))
+    bars = set(re.findall(r'class="rk-lvl" data-mod="([a-z]+)"', _html()))
+    taps = _meter_taps()
+    assert taps == modkeys, "tap points and MOD_KEYS disagree: %s" % (taps ^ modkeys)
+    assert bars == modkeys, "faceplate bars and MOD_KEYS disagree: %s" % (bars ^ modkeys)
+
+
+def test_the_time_based_effects_meter_their_wet_send():
+    """The fx bus carries the dry signal too, so metering fx.outNode reads
+    hot with delay and reverb both at zero — it would say the effect is
+    working when it is doing nothing. The wet send reads 0 when the effect
+    is off and rises as it comes in. Measured: 0.000 off, 0.430 at 60% mix."""
+    taps = _js()[_js().index("function meterTaps"):_js().index("function buildMeters")]
+    assert "dly: ch.fx.dWet" in taps
+    assert "rev: ch.fx.rWet" in taps
+    assert "fx.outNode" not in taps, "metering the bus tells you nothing about the effect"
+
+
+def test_a_meter_is_a_tap_and_never_a_link_in_the_chain():
+    """An analyser inserted INTO the path would still pass audio, so this
+    would not be audible — it would just silently add nine nodes of
+    latency and a second reference to every module output."""
+    js = _js()
+    body = js[js.index("function buildMeters"):js.index("var lvlEls")]
+    assert "taps[k].connect(a);" in body, "the module output feeds the analyser"
+    assert "a.connect(" not in body, "an analyser must not feed anything onward"
+
+
+def test_the_meter_falls_slower_than_it_rises():
+    """A meter with a symmetric envelope is a strobe on any material with
+    transients. Rise is instant so peaks are not missed; the fall is
+    smoothed."""
+    js = _js()
+    assert "m.peak = peak > m.peak ? peak : m.peak * 0.86 + peak * 0.14;" in js
+
+
+def test_buildchain_hands_back_the_bus_the_tube_meter_needs():
+    """The tube stage sums its wet and dry legs into a node that used to
+    be local to buildChain. Without it returned there is nowhere to tap
+    the tube's real output."""
+    js = _js()
+    ret = js[js.index("return {input: input, filters: filters"):]
+    ret = ret[:ret.index("}")]
+    assert "sum: sum" in ret
+
+
+def test_the_meters_are_painted_from_the_animation_loop():
+    js = _js()
+    draw = js[js.index("function draw() {"):]
+    assert "paintMeters();" in draw[:400], "meters must repaint every frame"

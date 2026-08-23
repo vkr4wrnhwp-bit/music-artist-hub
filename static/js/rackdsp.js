@@ -554,9 +554,77 @@
     fx.outNode.connect(outGain);
     outGain.connect(dest);
     return {input: input, filters: filters, tube: tube, wetTube: wetTube,
-            dryTube: dryTube, cabMic: cabMic, comp: comp, makeup: makeup,
-            outGain: outGain, out: outGain, centerM: centerM, fx: fx,
-            sub: sub, valves: valves};
+            dryTube: dryTube, sum: sum, cabMic: cabMic, comp: comp,
+            makeup: makeup, outGain: outGain, out: outGain, centerM: centerM,
+            fx: fx, sub: sub, valves: valves};
+  }
+
+  /* Per-module level meters.
+   *
+   * Each analyser taps that module's OWN output, so you can watch the
+   * level change down the chain and see where it dies.
+   *
+   * Switching a module OFF does not zero its meter, and should not: an
+   * off module passes through neutrally by design (EQ gains 0, tube fully
+   * dry, comp 1:1), so signal still leaves it. Measured: valves off holds
+   * at the same reading as valves on.
+   *
+   * dly and rev are the exception, and the reason they tap their wet
+   * sends rather than the fx bus. The bus carries the dry signal too, so
+   * it reads hot with both effects at zero and tells you nothing. The wet
+   * send reads exactly 0 with the effect off and rises as you bring it
+   * in, which is what you actually want to see.
+   */
+  function meterTaps(ch) {
+    return {sub: ch.sub.outNode,
+            eq: ch.filters[ch.filters.length - 1],
+            tube: ch.sum,
+            vlv: ch.valves.outNode,
+            cab: ch.cabMic.moduleOut,
+            comp: ch.makeup,
+            dly: ch.fx.dWet,
+            rev: ch.fx.rWet,
+            out: ch.outGain};
+  }
+
+  function buildMeters(ac, ch) {
+    var taps = meterTaps(ch), out = {};
+    Object.keys(taps).forEach(function (k) {
+      if (!taps[k]) return;
+      var a = ac.createAnalyser();
+      a.fftSize = 256;
+      a.smoothingTimeConstant = 0;   // we want peak; the fall is smoothed below
+      taps[k].connect(a);            // a tap, not a link in the chain
+      out[k] = {node: a, buf: new Uint8Array(a.fftSize), peak: 0};
+    });
+    return out;
+  }
+
+  var lvlEls = null;
+
+  function paintMeters() {
+    if (!live || !live.meters) return;
+    if (!lvlEls) {
+      lvlEls = {};
+      document.querySelectorAll(".rk-lvl").forEach(function (el) {
+        lvlEls[el.dataset.mod] = {wrap: el, fill: el.firstElementChild};
+      });
+    }
+    Object.keys(live.meters).forEach(function (k) {
+      var m = live.meters[k], el = lvlEls[k];
+      if (!el) return;
+      m.node.getByteTimeDomainData(m.buf);
+      var peak = 0;
+      for (var i = 0; i < m.buf.length; i++) {
+        var v = Math.abs(m.buf[i] - 128) / 128;
+        if (v > peak) peak = v;
+      }
+      // Rise instantly, fall slowly. A meter that falls as fast as it rises
+      // is a flicker at any tempo with transients in it.
+      m.peak = peak > m.peak ? peak : m.peak * 0.86 + peak * 0.14;
+      el.fill.style.right = ((1 - Math.min(1, m.peak)) * 100).toFixed(1) + "%";
+      el.wrap.classList.toggle("is-hot", m.peak > 0.98);
+    });
   }
 
   function ensureCtx() {
@@ -566,6 +634,7 @@
       live.analyser = ctx.createAnalyser();
       live.analyser.fftSize = 4096;
       live.analyser.smoothingTimeConstant = 0.8;
+      live.meters = buildMeters(ctx, live);
       live.outGain.connect(live.analyser);
       live.wet = ctx.createGain(); live.dry = ctx.createGain();
       live.dry.gain.value = 0;
@@ -2686,6 +2755,7 @@
   function draw() {
     requestAnimationFrame(draw);
     paintValves();
+    paintMeters();
     var w = canvas.clientWidth;
     if (canvas.width !== w) canvas.width = w;
     if (SCREEN) {
@@ -4179,6 +4249,12 @@
 
   window.__rackTest = {buildChain: buildChain, encodeWav: encodeWav,
                        tubeCurve: tubeCurve, roomIR: roomIR,
+                       // The meters are painted from the rAF loop, which a
+                       // headless or backgrounded page never runs. Exposing
+                       // the painter lets the level path be driven and read
+                       // without a compositor.
+                       paintMeters: function () { paintMeters(); },
+                       meters: function () { return live && live.meters; },
                        state: function () { return state; },
                        stems: function () { return stems; },
                        addStem: function (s) {

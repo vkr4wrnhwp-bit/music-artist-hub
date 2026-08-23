@@ -363,6 +363,22 @@
   .rk-ledwrap b { font-size: 7px; font-weight: 900; color: #4a4234; line-height: 1; }
   .rk-ledwrap b.on.rk-la { color: #e8c667; text-shadow: 0 0 5px rgba(232,198,103,0.9); }
   .rk-ledwrap b.on.rk-lb { color: #7fbf5f; text-shadow: 0 0 5px rgba(127,191,95,0.9); }
+
+  /* Per-module level. Decorative: the meaningful state (on/off, A/B) is
+     already spoken by the buttons beside it, and a bar that changes sixty
+     times a second is noise to a screen reader. */
+  .rk-lvl {
+    position: relative; display: block; width: 34px; height: 4px;
+    margin: 1px auto 0; border-radius: 2px; overflow: hidden;
+    background: #0f0d0a; box-shadow: inset 0 0 0 1px rgba(201,162,74,.22);
+  }
+  .rk-lvl i {
+    position: absolute; inset: 0 100% 0 0; display: block;
+    background: linear-gradient(90deg, #6f8b6b, #c9a24a 72%, #d96a4a);
+    transition: right .06s linear;
+  }
+  .rk-lvl.is-hot i { background: #d96a4a; }
+  @media (prefers-reduced-motion: reduce) { .rk-lvl i { transition: none; } }
 </style>
 
 <div class="mx-auto max-w-[1150px] space-y-5">
@@ -418,6 +434,7 @@
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="tube" title="Compare — swap with your previous tube settings">A/B</button>
         <span class="rk-ledwrap" data-mod="tube"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="tube" title="Level leaving this module" aria-hidden="true"><i></i></span>
       </div>
     </div>
 
@@ -432,6 +449,7 @@
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="sub" title="Compare — swap with your previous SUB-1 settings">A/B</button>
         <span class="rk-ledwrap" data-mod="sub"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="sub" title="Level leaving this module" aria-hidden="true"><i></i></span>
       </div>
     </div>
 
@@ -444,6 +462,7 @@
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="eq" title="Compare — swap with your previous EQ curve">A/B</button>
         <span class="rk-ledwrap" data-mod="eq"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="eq" title="Level leaving this module" aria-hidden="true"><i></i></span>
       </div>
     </div>
 
@@ -466,6 +485,7 @@
         <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp">ON</button>
         <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="comp" title="Compare — swap with your previous compressor settings">A/B</button>
         <span class="rk-ledwrap" data-mod="comp"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="comp" title="Level leaving this module" aria-hidden="true"><i></i></span>
       </div>
     </div>
 
@@ -540,6 +560,7 @@
           <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out">ON</button>
           <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="out" title="Compare — swap with your previous trim">A/B</button>
         <span class="rk-ledwrap" data-mod="out"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="out" title="Level leaving this module" aria-hidden="true"><i></i></span>
         </div>
       </div>
     </div>
@@ -583,6 +604,7 @@
           <label class="flex items-center gap-1.5 text-[10px] font-bold text-[#8a7c5d]"><input id="rk-cab-on" type="checkbox" checked class="h-3.5 w-3.5 accent-[#c9a24a]">On</label>
           <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="cab" title="Compare — swap with your previous cab &amp; mic setup">A/B</button>
         <span class="rk-ledwrap" data-mod="cab"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="cab" title="Level leaving this module" aria-hidden="true"><i></i></span>
         </span>
       </div>
       <div class="w2 grid gap-3 sm:grid-cols-[196px_1fr]">
@@ -694,6 +716,7 @@
               <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly">ON</button>
               <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="dly" title="Compare — swap with your previous delay settings">A/B</button>
         <span class="rk-ledwrap" data-mod="dly"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="dly" title="Level leaving this module" aria-hidden="true"><i></i></span>
             </span>
           </div>
           <div class="w2 flex justify-around">
@@ -712,6 +735,7 @@
               <button class="rk-pwr sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev">ON</button>
               <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="rev" title="Compare — swap with your previous reverb settings">A/B</button>
         <span class="rk-ledwrap" data-mod="rev"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="rev" title="Level leaving this module" aria-hidden="true"><i></i></span>
             </span>
           </div>
           <div class="w2 flex justify-around">
@@ -1013,6 +1037,7 @@
           <button id="rk-vlv-all" class="sw px-2.5 py-1 text-[9px] font-black">All off</button>
           <button class="rk-cmp sw px-1.5 py-0.5 text-[8px] font-black" data-mod="vlv" title="Compare — swap with your previous valve setup">A/B</button>
           <span class="rk-ledwrap" data-mod="vlv"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
+        <span class="rk-lvl" data-mod="vlv" title="Level leaving this module" aria-hidden="true"><i></i></span>
         </span>
       </div>
       <div class="w2">
@@ -1212,5 +1237,5 @@
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=40"></script>
+<script src="/static/js/rackdsp.js?v=42"></script>
 {% endblock %}
