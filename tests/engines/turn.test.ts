@@ -9,6 +9,10 @@ import {
   partOffToolpath,
   grooveToolpath,
   chamferToolpath,
+  tapToolpath,
+  reamToolpath,
+  REAM_MIN_STOCK,
+  REAM_MAX_STOCK,
   radiusBlendToolpath,
   idBoreRoughToolpath,
   idBoreFinishToolpath,
@@ -921,4 +925,137 @@ test("generateTurnToolpath routes chamfers and blends with their context", () =>
   );
   // Missing concavity is carried through as a refusal, not defaulted.
   assert.equal(generateTurnToolpath(blend(), profile, { noseRadius: 0.0156, blendRadius: 0.25 }).ok, false);
+});
+
+/* ------------------------------------------------------------------ */
+/* Tap and ream                                                        */
+/* ------------------------------------------------------------------ */
+
+const tapOp = (over: Partial<TurnOperation> = {}) =>
+  op({
+    type: "TAP", label: "tap 1/4-20", startZ: 0, endZ: -0.5, startDiameter: 0.201, endDiameter: 0.25,
+    params: { ...op({}).params, cssEnabled: false, rpm: 400, feedPerRev: 0.05 },
+    ...over,
+  });
+
+test("a tap's feed IS its pitch — programmed feed is overridden and the override stated", () => {
+  const pitch = 1 / 20;
+  const r = tapToolpath(tapOp(), pitch);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  const cuts = r.toolpath.moves.filter((m) => m.kind === "CUT");
+  assert.equal(cuts.length, 2, "in and back out");
+  for (const c of cuts) assert.equal(c.feedPerRev, pitch);
+  // 0.05 != 0.05? The programmed feed HERE equals the pitch, so no override
+  // warning — change the programmed feed and the override is named.
+  const off = tapToolpath(tapOp({ params: { ...tapOp().params, feedPerRev: 0.01 } }), pitch);
+  assert.ok(off.ok && off.toolpath.warnings.some((w) => /overridden to the 0\.0500" pitch/.test(w)));
+  // And the MOVES carry the pitch, not the programmed feed — the fixture
+  // above has feed == pitch, so it cannot see this on its own. (A mutation
+  // feeding the tap at params.feedPerRev survived exactly there.)
+  if (off.ok) for (const c of off.toolpath.moves.filter((m) => m.kind === "CUT")) assert.equal(c.feedPerRev, pitch);
+  assert.ok(r.ok && r.toolpath.rigidTapCycle === true);
+});
+
+test("a tap refuses without a pitch, without a hole, and under CSS", () => {
+  const noPitch = tapToolpath(tapOp(), null);
+  assert.equal(noPitch.ok, false);
+  assert.ok(!noPitch.ok && /will not invent one/i.test(noPitch.reason));
+
+  const noHole = tapToolpath(tapOp({ startDiameter: 0 }), 0.05);
+  assert.equal(noHole.ok, false);
+  assert.ok(!noHole.ok && /drilled hole/i.test(noHole.reason));
+
+  // The cycle owns the spindle; CSS mid-tap breaks the synchronisation.
+  const css = tapToolpath(tapOp({ params: { ...tapOp().params, cssEnabled: true } }), 0.05);
+  assert.equal(css.ok, false);
+  assert.ok(!css.ok && /CSS/i.test(css.reason));
+});
+
+test("the tap's spindle cap survives into the toolpath the post reads", () => {
+  // The engine capping rpm means nothing if the post reads params.rpm — the
+  // override must travel with the toolpath to the one place it matters.
+  const fast = tapToolpath(tapOp({ params: { ...tapOp().params, rpm: 3000 } }), 0.05);
+  assert.equal(fast.ok, true);
+  if (!fast.ok) return;
+  assert.equal(fast.toolpath.spindleRpmOverride, 600);
+  assert.ok(fast.toolpath.warnings.some((w) => /capped at 600 RPM/i.test(w)));
+});
+
+test("the lathe post emits the tap as a canned cycle that owns the spindle", () => {
+  const r = tapToolpath(tapOp(), 0.05);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const { code, refusals } = emitLatheProgram(
+    [{ toolpath: r.toolpath, station: "0909", description: "Tap 1/4-20", cssEnabled: false, surfaceSpeed: null, rpm: 400, coolant: true }],
+    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23" },
+  );
+  assert.equal(refusals.length, 0, refusals.join(" | "));
+  const lines = code.split("\n");
+  const g84 = lines.findIndex((l) => /^G84 /.test(l));
+  assert.ok(g84 > 0, "no G84 emitted");
+  assert.match(lines[g84], /F0\.0500/, "the cycle's feed word must be the pitch");
+  assert.match(lines[g84 - 1], /^M29 S400$/, "M29 arms rigid mode with the tap rpm");
+  assert.equal(lines[g84 + 1], "G80", "the cycle must be closed");
+  // G84 owns the spindle: no M3 before it, and no G1 stand-in moves leak out.
+  const opBlock = lines.slice(lines.findIndex((l) => l.includes("TAP 1/4-20")), g84 + 2);
+  assert.ok(!opBlock.some((l) => /M3\b/.test(l)), `M3 in the tap block: ${opBlock.join(" / ")}`);
+  assert.ok(!opBlock.some((l) => /^G1 /.test(l)), "stand-in feed moves leaked into the program");
+});
+
+test("the post prefers the engine's capped rpm over the plan's", () => {
+  const fast = tapToolpath(tapOp({ params: { ...tapOp().params, rpm: 3000 } }), 0.05);
+  assert.equal(fast.ok, true);
+  if (!fast.ok) return;
+  const { code } = emitLatheProgram(
+    [{ toolpath: fast.toolpath, station: "0909", description: "Tap", cssEnabled: false, surfaceSpeed: null, rpm: 3000, coolant: false }],
+    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23" },
+  );
+  assert.match(code, /M29 S600\b/, "the post must carry the tapping cap, not the plan's 3000");
+});
+
+const reamOp = (over: Partial<TurnOperation> = {}) =>
+  op({
+    type: "REAM", label: "ream", startZ: 0, endZ: -0.75, startDiameter: 0.4925, endDiameter: 0.5,
+    params: { ...op({}).params, cssEnabled: false, rpm: 300, feedPerRev: 0.006 },
+    ...over,
+  });
+
+test("a reamer follows a hole and comes out at feed, never at rapid", () => {
+  const r = reamToolpath(reamOp(), null);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  const moves = r.toolpath.moves;
+  // The move back out of the hole is a CUT at feed: a rapid out of a reamed
+  // hole drags a spiral scratch down the finish the reamer exists to make.
+  const out = moves[moves.length - 1];
+  assert.equal(out.kind, "CUT");
+  assert.equal(out.feedPerRev, 0.006);
+  assert.ok(out.z > moves[moves.length - 2].z, "the last move must come back out");
+});
+
+test("reaming stock is bounded on both sides, by name", () => {
+  // Too little: the reamer burnishes and the hole comes out glassy/undersize.
+  const skim = reamToolpath(reamOp({ startDiameter: 0.499 }), null);
+  assert.equal(skim.ok, false);
+  assert.ok(!skim.ok && /burnish/i.test(skim.reason), skim.ok ? "" : skim.reason);
+  // Too much: that is a drilling cut, and the hole comes out oversize.
+  const hog = reamToolpath(reamOp({ startDiameter: 0.46 }), null);
+  assert.equal(hog.ok, false);
+  assert.ok(!hog.ok && /drilling cut/i.test(hog.reason), hog.ok ? "" : hog.reason);
+  // No hole at all, or a "ream" that removes nothing.
+  assert.equal(reamToolpath(reamOp({ startDiameter: 0 }), null).ok, false);
+  assert.equal(reamToolpath(reamOp({ startDiameter: 0.5 }), null).ok, false);
+  // The window itself is sane.
+  assert.ok(REAM_MIN_STOCK > 0 && REAM_MAX_STOCK > REAM_MIN_STOCK);
+});
+
+test("generateTurnToolpath routes tap and ream, with the pitch from context", () => {
+  const profile = {
+    units: "IN" as const, zZeroReference: "front face", stockDiameter: 2, stockLength: 4,
+    barStock: true, segments: [],
+  };
+  assert.equal(generateTurnToolpath(tapOp(), profile, { pitchIn: 0.05 }).ok, true);
+  assert.equal(generateTurnToolpath(tapOp(), profile, {}).ok, false);
+  assert.equal(generateTurnToolpath(reamOp(), profile, {}).ok, true);
 });

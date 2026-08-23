@@ -66,3 +66,30 @@ Concavity also decides the nose fit: a **concave** blend cannot be cut by a
 nose bigger than itself — the same impossibility the milling engine refuses
 for a corner radius against an end mill. A convex blend has no such limit,
 because a large nose simply rolls around the outside of it.
+
+## Tap and ream
+
+Both are centreline operations with hard rules rather than parameters.
+
+**Tap.** The feed is not chosen — it IS the thread. In G99 feed-per-rev the
+tap's feed word is the pitch exactly, so `params.feedPerRev` is overridden
+rather than trusted, and the override is stated as a warning. The spindle is
+capped at 600 RPM (the engine's cap travels to the post as
+`spindleRpmOverride`, because a cap the post cannot see is not a cap).
+Refusals: no pitch, no drilled hole, CSS enabled.
+
+The reversal at the bottom cannot be expressed as moves — `TurnMove` has no
+spindle state — so the toolpath carries `rigidTapCycle: true` and the post
+emits `M29 S… / G84 … F(pitch) / G80`, which owns the spindle: no `M3`
+before it, no stand-in `G1` moves leaked into the program. A post without
+the cycle must refuse the operation. (The lathe NC *parser* refuses `G84`
+by the same honesty — it cannot expand a control-dependent cycle, so
+analysis of a program containing one stops at that line by name.)
+
+**Ream.** A reamer follows a hole, it does not make one. Removal on diameter
+is bounded on both sides — below 0.003" it burnishes and the hole comes out
+glassy and undersize; above 0.015" it is being used as a drill and cuts
+oversize or bell-mouthed. Both refusals name the bound. The reamer feeds in
+AND OUT at cutting feed: a rapid out of a reamed hole drags a spiral scratch
+down the finish the reamer exists to produce, and a reamer is never
+reversed.

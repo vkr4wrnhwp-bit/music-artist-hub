@@ -76,6 +76,21 @@ export interface TurnToolpath {
   estimatedMinutes: number;
   assumptions: string[];
   warnings: string[];
+  /**
+   * True when the motion is a rigid tapping cycle. The moves stand in for
+   * simulation and timing only — the post must emit the canned cycle
+   * (M29/G84..G80), which owns the spindle and the reversal, or refuse.
+   * TurnMove cannot express a spindle reversal, and feed moves emitted as
+   * G1 would strip the thread on the way out.
+   */
+  rigidTapCycle?: true;
+  /**
+   * Spindle RPM the engine DECIDED, overriding params.rpm — set when the
+   * operation caps or locks the speed (tapping). The post must prefer this:
+   * reading params.rpm there would silently undo the cap at the one place
+   * it matters.
+   */
+  spindleRpmOverride?: number;
 }
 
 export type TurnToolpathResult = { ok: true; toolpath: TurnToolpath } | { ok: false; reason: string };
@@ -646,6 +661,167 @@ export function partOffToolpath(op: TurnOperation, toolWidth: number): TurnToolp
 }
 
 /** Drilling on centre (center drill, drill): Z plunge at X0. */
+/* ------------------------------------------------------------------ */
+/* TAP AND REAM — centreline operations with hard rules                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The spindle cap for tapping. A tap is driven into a blind or through hole
+ * with its feed locked to the spindle; the slower it runs, the more the
+ * control's synchronisation and the machinist's ear can save a broken tap.
+ * Same convention as the mill engine's rigid-tap cap.
+ */
+const TAP_RPM_CAP = 600;
+
+/**
+ * Tap: the feed is not chosen, it IS the thread.
+ *
+ * In G99 (feed per revolution — this post's mode) the tap's feed word is
+ * the pitch, exactly. A tap fed at anything else cross-threads or breaks:
+ * there is no "conservative" tap feed the way there is a conservative
+ * turning feed, which is why params.feedPerRev is OVERRIDDEN here rather
+ * than trusted, and the override is stated.
+ *
+ * The reversal at the bottom cannot be expressed as moves — TurnMove has no
+ * spindle state. The toolpath therefore carries `rigidTapCycle: true` and
+ * the post emits a canned cycle (M29/G84, closed by G80) that owns the
+ * spindle, exactly as the mill's Haas post does. A post without the cycle
+ * must refuse the operation, not emit unsynchronised G1 moves.
+ */
+export function tapToolpath(op: TurnOperation, pitchIn: number | null): TurnToolpathResult {
+  if (pitchIn === null || !(pitchIn > 0)) {
+    return {
+      ok: false,
+      reason:
+        "No thread pitch. A tap's feed IS its pitch — record the thread designation on the target segment; CANVAS will not invent one.",
+    };
+  }
+  const depth = Math.abs(op.endZ - op.startZ);
+  if (depth <= 0) return { ok: false, reason: "Zero tapping depth." };
+  if (op.startDiameter <= 0) {
+    return {
+      ok: false,
+      reason: "Tapping needs a drilled hole. There is no hole recorded at this operation — drill to the tap-drill size first.",
+    };
+  }
+  if (op.params.cssEnabled) {
+    return {
+      ok: false,
+      reason: "CSS while tapping is refused: the cycle owns the spindle, and a surface-speed override mid-tap breaks the synchronisation that keeps the tap alive.",
+    };
+  }
+
+  const rpm = Math.min(op.params.rpm, TAP_RPM_CAP);
+  const warnings: string[] = [];
+  if (Math.abs(op.params.feedPerRev - pitchIn) > 1e-6) {
+    warnings.push(
+      `Programmed feed ${op.params.feedPerRev.toFixed(4)}"/rev overridden to the ${pitchIn.toFixed(4)}" pitch — a tap's feed is its thread.`,
+    );
+  }
+  if (op.params.rpm > TAP_RPM_CAP) {
+    warnings.push(`Spindle capped at ${TAP_RPM_CAP} RPM for tapping (was ${op.params.rpm}).`);
+  }
+
+  // In and back out at the synchronised feed. The post replaces these with
+  // the canned cycle; they exist so simulation and timing see the motion.
+  const moves: TurnMove[] = [
+    { kind: "RAPID", x: 0, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "CUT", x: 0, z: op.startZ - depth, feedPerRev: pitchIn },
+    { kind: "CUT", x: 0, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: pitchIn },
+  ];
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes: 1,
+      // Down and back out, both at pitch feed, both counted.
+      estimatedMinutes: r3((2 * depth) / (pitchIn * rpm)),
+      assumptions: [
+        "ESTIMATED: in and out at the synchronised feed; reversal dwell not modelled.",
+        `Feed locked to the ${pitchIn.toFixed(4)}" pitch at ${rpm} RPM — G99 feed per revolution.`,
+        "G97 fixed RPM on centre — CSS at X0 is meaningless.",
+      ],
+      warnings,
+      rigidTapCycle: true,
+      spindleRpmOverride: rpm,
+    },
+  };
+}
+
+/**
+ * How much a reamer is allowed to remove, on diameter. Below the floor it
+ * burnishes instead of cutting and the hole goes glassy and undersize;
+ * above the ceiling it is being used as a drill and cuts oversize, bell-
+ * mouthed, or grabs. Machinery's Handbook territory; stated, not tuned.
+ */
+export const REAM_MIN_STOCK = 0.003;
+export const REAM_MAX_STOCK = 0.015;
+
+/**
+ * Ream: a reamer follows a hole, it does not make one.
+ *
+ * The reamer feeds in AND OUT at cutting feed, spindle forward the whole
+ * time — a reamer is never reversed (it chips the flute edges) and never
+ * rapided out of the hole it just sized (it drags a spiral scratch down
+ * the finish it exists to produce).
+ */
+export function reamToolpath(op: TurnOperation, pitchIn: number | null): TurnToolpathResult {
+  void pitchIn;
+  const depth = Math.abs(op.endZ - op.startZ);
+  if (depth <= 0) return { ok: false, reason: "Zero reaming depth." };
+  if (op.startDiameter <= 0) {
+    return {
+      ok: false,
+      reason: "A reamer follows a hole, it does not make one. There is no drilled hole recorded at this operation.",
+    };
+  }
+  if (op.endDiameter <= op.startDiameter) {
+    return {
+      ok: false,
+      reason: `Reaming to ⌀${op.endDiameter.toFixed(4)} from a ⌀${op.startDiameter.toFixed(4)} hole removes nothing.`,
+    };
+  }
+  const removal = op.endDiameter - op.startDiameter;
+  if (removal < REAM_MIN_STOCK) {
+    return {
+      ok: false,
+      reason: `${removal.toFixed(4)}" on diameter is below the ${REAM_MIN_STOCK.toFixed(3)}" a reamer needs to cut — it will burnish instead, and the hole comes out glassy and undersize. Drill smaller.`,
+    };
+  }
+  if (removal > REAM_MAX_STOCK) {
+    return {
+      ok: false,
+      reason: `${removal.toFixed(4)}" on diameter is more than the ${REAM_MAX_STOCK.toFixed(3)}" a reamer should take — that is a drilling cut, and reamed that way the hole comes out oversize or bell-mouthed. Drill closer to size.`,
+    };
+  }
+
+  const moves: TurnMove[] = [
+    { kind: "RAPID", x: 0, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "CUT", x: 0, z: op.startZ - depth, feedPerRev: op.params.feedPerRev },
+    // OUT AT FEED. Not a rapid: a rapid out of a reamed hole drags a spiral
+    // scratch down the finish the reamer exists to produce.
+    { kind: "CUT", x: 0, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: op.params.feedPerRev },
+  ];
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes: 1,
+      estimatedMinutes: r3((2 * depth + SAFE_Z_CLEAR) / Math.max(1e-9, op.params.feedPerRev * effectiveRpm(op.params, op.endDiameter))),
+      assumptions: [
+        "ESTIMATED: in and out at cutting feed; no dwell at depth.",
+        `Removing ${removal.toFixed(4)}" on diameter — inside the ${REAM_MIN_STOCK.toFixed(3)}"–${REAM_MAX_STOCK.toFixed(3)}" reaming window.`,
+        "G97 fixed RPM on centre — CSS at X0 is meaningless.",
+      ],
+      warnings: [],
+    },
+  };
+}
+
 export function centerlineDrillToolpath(op: TurnOperation): TurnToolpathResult {
   const depth = Math.abs(op.endZ - op.startZ);
   if (depth <= 0) return { ok: false, reason: "Zero drilling depth." };
@@ -720,6 +896,10 @@ export function generateTurnToolpath(
     case "CENTER_DRILL":
     case "ID_DRILL":
       return centerlineDrillToolpath(op);
+    case "TAP":
+      return tapToolpath(op, ctx.pitchIn ?? null);
+    case "REAM":
+      return reamToolpath(op, ctx.pitchIn ?? null);
     default:
       return { ok: false, reason: `${op.type} has no turning engine yet. It is listed, not faked.` };
   }

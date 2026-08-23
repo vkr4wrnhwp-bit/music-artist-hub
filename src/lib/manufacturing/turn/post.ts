@@ -53,6 +53,33 @@ export function emitLatheProgram(ops: LatheOpForPost[], ctx: LathePostContext): 
   for (const op of ops) {
     L.push(`(${op.description.toUpperCase().slice(0, 40)})`);
     L.push(`T${op.station}`);
+
+    /*
+     * Rigid tapping is a canned cycle, not a sequence of feed moves. The
+     * cycle (M29 arms it, G84 runs it, G80 closes it) owns the spindle —
+     * it starts, synchronises, reverses at depth and backs out itself,
+     * which is why there is no M3 here: a spindle already turning when
+     * G84 takes over is a crashed tap. The engine's stand-in moves exist
+     * for simulation and timing; emitting them as G1 would strip the
+     * thread on the way out.
+     */
+    if (op.toolpath.rigidTapCycle) {
+      const plunge = op.toolpath.moves.find((m) => m.kind === "CUT");
+      const retractZ = op.toolpath.moves[0]?.z;
+      if (!plunge || plunge.feedPerRev === null || retractZ === undefined) {
+        refusals.push(`${op.description}: rigid tap cycle carries no synchronised plunge. Refusing to emit.`);
+        continue;
+      }
+      L.push(`G0 X0. Z${retractZ.toFixed(4)}`);
+      if (op.coolant) L.push("M8");
+      L.push(`M29 S${Math.round(op.toolpath.spindleRpmOverride ?? op.rpm)}`);
+      L.push(`G84 Z${plunge.z.toFixed(4)} F${plunge.feedPerRev.toFixed(4)}`);
+      L.push("G80");
+      if (op.coolant) L.push("M9");
+      L.push("G0 X6.0 Z2.0 (CLEAR)");
+      continue;
+    }
+
     if (op.cssEnabled && op.surfaceSpeed !== null) {
       L.push(`G96 S${Math.round(op.surfaceSpeed)} M3`);
     } else {

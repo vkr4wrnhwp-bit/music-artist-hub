@@ -71,7 +71,7 @@ export function buildTurnSim(profile: RotationalProfile, ops: TurnOpForSim[], ce
   let t = 0;
   let skippedInternal = 0;
 
-  const INTERNAL_TYPES = new Set(["ID_DRILL", "CENTER_DRILL", "ID_BORE_ROUGH", "ID_BORE_FINISH", "GROOVE_ID", "THREAD_ID"]);
+  const INTERNAL_TYPES = new Set(["ID_DRILL", "CENTER_DRILL", "ID_BORE_ROUGH", "ID_BORE_FINISH", "GROOVE_ID", "THREAD_ID", "TAP", "REAM"]);
   ops.forEach(({ op, moves }, opIndex) => {
     const internal = INTERNAL_TYPES.has(op.type);
     let px = profile.stockDiameter + 0.2;
