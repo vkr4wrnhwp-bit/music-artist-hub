@@ -2,6 +2,9 @@ import { HeightField, type StockDims } from "@/lib/sim/stock-removal";
 import type { NCSegment, ParsedNC } from "./parse";
 import { timePath } from "./time";
 
+/** Stated fallback when a part names no machine. Never presented as machine data. */
+export const DEFAULT_RAPID_IPM = 600;
+
 /**
  * NC ANALYSIS — Phase 4B: cycle-time breakdown and air-cut detection
  *
@@ -58,7 +61,12 @@ export interface AnalysisContext {
   stock: StockDims | null;
   /** Tool diameters by T number, from the shop's tool table. */
   toolDiameters: Record<number, number>;
-  rapidRate: number;
+  /**
+   * Rapid traverse, in/min, from the machine record. Null when this part
+   * names no machine — the analysis still runs, on a stated default, and
+   * says so rather than attributing the number to a machine.
+   */
+  rapidRate: number | null;
   /**
    * Axis acceleration in in/s², from the machine record. Null means not
    * recorded: timing falls back to distance-over-feed and the assumptions
@@ -71,12 +79,18 @@ const AIR_MIN_SECONDS = 0.5; // below this a finding is noise, not a saving
 
 export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
   const accel = ctx.axisAccel ?? null;
+  const rapid = ctx.rapidRate ?? DEFAULT_RAPID_IPM;
   const assumptions = [
     accel !== null
       ? `Trapezoidal acceleration model at ${accel} in/s² (machine record) with cos-scaled junction velocities — DEVELOPMENT ANALYSIS, not validated against this machine's control. Jerk, per-axis limits and look-ahead are not modelled; dense 3D paths run slower than this estimate.`
       : "No axis acceleration recorded for this machine: times are distance over feed and overstate savings on short segments. Record axisAccel on the machine to enable the trapezoidal model.",
     "Work-offset origin taken as program zero with Z0 at the stock top.",
   ];
+  if (ctx.rapidRate === null) {
+    assumptions.push(
+      `No machine record bound to this part: rapid traverse assumed at ${DEFAULT_RAPID_IPM} in/min. Rapid time, and therefore every savings figure below, is computed from that assumption and not from a machine.`,
+    );
+  }
   if (parsed.workOffsetsSeen.length > 1) assumptions.push("Multiple work offsets — spatial findings downgraded to REVIEW.");
   const multiOffset = parsed.workOffsetsSeen.length > 1;
 
@@ -93,11 +107,11 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     if (s.kind === "DWELL") return (s.dwellSeconds ?? 0) / 60;
     const dist = Math.hypot(s.x1 - s.x0, s.y1 - s.y0, s.z1 - s.z0);
     if (dist === 0) return 0;
-    return dist / Math.max(1, s.feed === null ? ctx.rapidRate : s.feed);
+    return dist / Math.max(1, s.feed === null ? rapid : s.feed);
   };
   const segMinutes: number[] =
     accel !== null
-      ? timePath(parsed.segments, accel, ctx.rapidRate).seconds.map((s) => s / 60)
+      ? timePath(parsed.segments, accel, rapid).seconds.map((s) => s / 60)
       : parsed.segments.map(flatSegTime);
 
   for (const [si, s] of parsed.segments.entries()) {
@@ -135,7 +149,7 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     if (s.feed !== null && !s.tapping) {
       // Feed move fully above the stock top: a linking move at cutting feed.
       if (s.z0 >= stockTop - 1e-9 && s.z1 >= stockTop - 1e-9) {
-        const rapidT = (Math.hypot(s.x1 - s.x0, s.y1 - s.y0, s.z1 - s.z0) / ctx.rapidRate) * 60;
+        const rapidT = (Math.hypot(s.x1 - s.x0, s.y1 - s.y0, s.z1 - s.z0) / rapid) * 60;
         const saved = t - rapidT;
         if (saved > AIR_MIN_SECONDS) {
           findings.push({
@@ -170,7 +184,7 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     // Excessive retract: rapids climbing far above the stock.
     if (s.feed === null && s.z1 > stockTop + 0.5 && s.z1 > s.z0) {
       const excess = s.z1 - (stockTop + 0.25);
-      const saved = (excess / ctx.rapidRate) * 60 * 2; // up and back down
+      const saved = (excess / rapid) * 60 * 2; // up and back down
       if (saved > AIR_MIN_SECONDS) {
         findings.push({
           kind: "EXCESSIVE_RETRACT",

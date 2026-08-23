@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
+import { loadRevision, getTools, getMachines, getMaterials, getSetups } from "@/lib/data";
+import { selectPrimaryMachine } from "@/lib/package-selectors";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
@@ -57,7 +58,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const materialName = revision.intent.material.value ?? "";
   const material = materials.find((m) => materialName.toLowerCase().includes(m.name.toLowerCase().split(" ")[0]));
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
-  const machine = machines[0] ?? null;
+  /*
+   * The machine THIS part's setups name — not machines[0]. The audit gate
+   * "Machine profile" is written to report INSUFFICIENT_DATA when no
+   * machine is bound ("rapid rate and feed ceiling are defaults, not this
+   * machine"), and the first-machine fallback defeated it: any shop owning
+   * one machine record read as machine-known for every part, and the feed
+   * ceiling that caps every raise proposal came from a machine that may
+   * not be the one running the program.
+   */
+  const machine = selectPrimaryMachine(await getSetups(revision.revisionId), machines);
 
   // The immutable original, from the database — reachable only through the
   // session's own revision. The digest check refuses a swapped subject.
@@ -65,7 +75,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     where: { id: uploadedProgramId, partRevisionId: revision.revisionId, origin: "UPLOADED" },
   });
   if (!original) return NextResponse.json({ error: "Stored original not found for this revision. Analyze first." }, { status: 404 });
-  if (claimedDigest && original.sourceDigest !== claimedDigest) {
+  // The header claims a swapped or stale subject is refused. An optional
+  // check is not a check: omitting the field must not skip it.
+  if (!claimedDigest) {
+    return NextResponse.json({ error: "The stored original's digest is required — it is what ties this optimization to the program you analyzed." }, { status: 400 });
+  }
+  if (original.sourceDigest !== claimedDigest) {
     return NextResponse.json({ error: "Digest mismatch — the stored original is not the program you analyzed. Re-analyze." }, { status: 409 });
   }
   const originalText = original.code;
@@ -77,7 +92,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   // Re-derive server-side; accept only exact matches.
   const derived = analyzeLoad(parsed, {
     stock, tools: loadTools, specificEnergy: material?.specificEnergy ?? null,
-    machineMaxFeed: machine?.maxFeed ?? 300,
+    machineMaxFeed: machine?.maxFeed ?? null,
     preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
     protectedRegions: buildProtectedRegions(revision.features),
   });
@@ -102,8 +117,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (reparsed.refusals.length > 0 || reparsed.segments.length !== parsed.segments.length) {
     return NextResponse.json({ error: "Optimized text failed re-parsing — nothing was stored." }, { status: 500 });
   }
-  const before = analyzeNC(parsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600, axisAccel: machine?.axisAccel ?? null });
-  const after = analyzeNC(reparsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? 600, axisAccel: machine?.axisAccel ?? null });
+  const before = analyzeNC(parsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? null, axisAccel: machine?.axisAccel ?? null });
+  const after = analyzeNC(reparsed, { stock, toolDiameters: Object.fromEntries(tools.map((t) => [t.toolNumber, t.diameter])), rapidRate: machine?.maxRapid ?? null, axisAccel: machine?.axisAccel ?? null });
   const lint = machine ? verifyNc(emitted.text, machine) : [];
 
   const auditPayload = {

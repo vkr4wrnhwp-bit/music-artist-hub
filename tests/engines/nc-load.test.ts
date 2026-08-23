@@ -177,3 +177,19 @@ test("a cut entirely below a region is still not protected", () => {
   // lateral pass at Z-0.5 is wholly below it and is not.
   assert.ok(lateral <= 1, `a pass under the feature was protected: ${lateral} segments`);
 });
+
+test("no machine bound means no raise is proposed — a raise is a number the operator runs", () => {
+  // The feed ceiling is what stops a proposal exceeding what the machine can
+  // make. Against a fabricated ceiling the optimizer could hand the operator
+  // a feed a slower machine cannot reach, so with no machine record the
+  // raise is withheld rather than computed from an assumption.
+  const withMachine = analyzeLoad(parseNC(LIGHT), ctx());
+  assert.ok(withMachine.proposals.some((p) => p.kind === "RAISE"));
+  const without = analyzeLoad(parseNC(LIGHT), ctx({ machineMaxFeed: null }));
+  assert.equal(without.proposals.filter((p) => p.kind === "RAISE").length, 0);
+  // The banding still works: the analysis is not withheld, only the proposal.
+  assert.deepEqual(
+    without.segments.map((s) => s.band),
+    withMachine.segments.map((s) => s.band),
+  );
+});

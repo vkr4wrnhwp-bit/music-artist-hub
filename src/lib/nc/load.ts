@@ -41,7 +41,14 @@ export interface LoadContext {
   tools: Record<number, LoadToolContext>;
   /** hp per in³/min — from the material record. Null = no power estimate. */
   specificEnergy: number | null;
-  machineMaxFeed: number;
+  /**
+   * The machine's maximum feed, in/min. Null when this part names no
+   * machine — and then NO raise is proposed. A raise is a number the
+   * operator runs; proposing one against an assumed ceiling can hand them a
+   * feed the actual machine cannot make. Reductions are load control and
+   * are unaffected: cutting slower needs no ceiling.
+   */
+  machineMaxFeed: number | null;
   preset: "CONSERVATIVE" | "BALANCED" | "AGGRESSIVE" | "LIGHTS_OUT";
   /**
    * Finish-pass protection, built deterministically from the part's own
@@ -225,6 +232,7 @@ export function analyzeLoad(parsed: ParsedNC, ctx: LoadContext): LoadAnalysis {
     if (chip === null) { run = null; return; }
     // Target the middle of the published window, capped by preset and machine.
     const targetChip = (tool.chiploadMin + tool.chiploadMax) / 2;
+    if (ctx.machineMaxFeed === null) { run = null; return; }
     const proposed = Math.min(first.feed! * cap, first.feed! * (targetChip / chip), ctx.machineMaxFeed);
     if (proposed <= first.feed! * 1.02) { run = null; return; }
     let dist = 0;

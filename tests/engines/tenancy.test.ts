@@ -13,7 +13,8 @@ import { join } from "node:path";
  * holds the line — the shop-record actions prove ownership with an
  * org-scoped findFirst before updating by id, the measurements API checks the
  * organisation through the relation chain, and getSetups takes an unscoped
- * revision id but is only ever reached through loadRevision, which is scoped.
+ * revision id — the Setup table has no organisation of its own — and every
+ * caller resolves that id through loadRevision, which is scoped.
  *
  * That is true today and nothing was keeping it true. These tests are coarse
  * on purpose: they are not trying to prove a given query is correct, only to
@@ -71,10 +72,6 @@ test("the pre-organisation exceptions are still the files they were written for"
 });
 
 test("every data accessor takes an organisation id, or is reached only through one that does", () => {
-  // getSetups(revisionId) is the single exception and it is safe by
-  // construction: its only caller is buildPackage, which resolves the
-  // revision through loadRevision(organizationId, partId) first and passes
-  // the id off that result. If a second caller appears, this fails.
   const data = readFileSync(join(LIB, "data.ts"), "utf8");
   const exported = [...data.matchAll(/export async function (\w+)\(([\s\S]*?)\)/g)];
   assert.ok(exported.length > 5, "precondition: the accessors are found");
@@ -82,12 +79,24 @@ test("every data accessor takes an organisation id, or is reached only through o
   const unscoped = exported.filter(([, , args]) => !args.includes("organizationId")).map(([, name]) => name);
   assert.deepEqual(unscoped, ["getSetups"], `accessors taking no organisation id: ${unscoped.join(", ")}`);
 
+  // The Setup table carries no organizationId — it can only ever be scoped
+  // through its revision. So the rule is checked as a property of each
+  // caller rather than as a list of approved filenames: whoever calls
+  // getSetups must have resolved that revision id through the org-scoped
+  // loadRevision in the same file. A new caller is fine; a new caller that
+  // got its revision id somewhere else is not.
   const callers = walk("src").filter((f) => !f.endsWith("data.ts") && readFileSync(f, "utf8").includes("getSetups("));
-  assert.deepEqual(
-    callers,
-    ["src/lib/package.ts"],
-    "getSetups is unscoped and safe only because buildPackage resolves the revision through loadRevision first",
-  );
+  assert.ok(callers.length > 0, "precondition: getSetups has callers");
+  for (const f of callers) {
+    const src = readFileSync(f, "utf8");
+    assert.match(
+      src,
+      /loadRevision\(\s*(user\.organizationId|organizationId)/,
+      `${f} calls getSetups(revisionId) — the Setup table has no organisation of its own, so the revision id must come from an org-scoped loadRevision in this file`,
+    );
+    // And the id handed over must be the one that load returned.
+    assert.match(src, /getSetups\(\s*revision\.revisionId/, `${f}: getSetups must be passed the loaded revision's own id`);
+  }
 });
 
 test("the session is the only source of an organisation id", () => {

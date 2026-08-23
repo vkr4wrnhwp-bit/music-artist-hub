@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { requireUser, requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { loadRevision, getTools, getMachines, getMaterials } from "@/lib/data";
+import { loadRevision, getTools, getMachines, getMaterials, getSetups } from "@/lib/data";
+import { selectPrimaryMachine } from "@/lib/package-selectors";
 import { parseNC } from "@/lib/nc/parse";
 import { analyzeNC } from "@/lib/nc/analyze";
 import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
@@ -51,6 +52,17 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const materialName = revision.intent.material.value ?? "";
   const material = materials.find((m) => materialName.toLowerCase().includes(m.name.toLowerCase().split(" ")[0]) || m.name.toLowerCase().includes(materialName.toLowerCase().split(" ")[0] ?? "∅"));
 
+  /*
+   * The machine THIS part's setups name — not machines[0]. The audit gate
+   * "Machine profile" is written to report INSUFFICIENT_DATA when no
+   * machine is bound ("rapid rate and feed ceiling are defaults, not this
+   * machine"), and the first-machine fallback defeated it: any shop owning
+   * one machine record read as machine-known for every part, and the feed
+   * ceiling that caps every raise proposal came from a machine that may
+   * not be the one running the program.
+   */
+  const machine = selectPrimaryMachine(await getSetups(revision.revisionId), machines);
+
   const preset = (new URL(request.url).searchParams.get("preset") ?? "BALANCED") as LoadContext["preset"];
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
 
@@ -84,14 +96,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const analysis = analyzeNC(parsed, {
     stock,
     toolDiameters,
-    rapidRate: machines[0]?.maxRapid ?? 600,
-    axisAccel: machines[0]?.axisAccel ?? null,
+    rapidRate: machine?.maxRapid ?? null,
+    axisAccel: machine?.axisAccel ?? null,
   });
   const load = analyzeLoad(parsed, {
     stock,
     tools: loadTools,
     specificEnergy: material?.specificEnergy ?? null,
-    machineMaxFeed: machines[0]?.maxFeed ?? 300,
+    machineMaxFeed: machine?.maxFeed ?? null,
     preset: ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "LIGHTS_OUT"].includes(preset) ? preset : "BALANCED",
     protectedRegions: buildProtectedRegions(revision.features),
   });
@@ -103,8 +115,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     digest,
     toolsInProgram,
     toolsMapped: toolsInProgram.filter((t) => toolDiameters[t] !== undefined),
-    machineKnown: Boolean(machines[0]),
-    axisAccelKnown: machines[0]?.axisAccel != null,
+    machineKnown: machine !== null,
+    axisAccelKnown: machine?.axisAccel != null,
     stockBound: Boolean(revision.stock),
     materialMatched: Boolean(material),
     compedSegments: parsed.segments.filter((s) => s.comped).length,
@@ -145,8 +157,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     context: {
       stockBound: Boolean(revision.stock),
       toolsKnown: Object.keys(toolDiameters).length,
-      rapidRate: machines[0]?.maxRapid ?? 600,
-      machine: machines[0] ? `${machines[0].manufacturer} ${machines[0].model}` : null,
+      rapidRate: machine?.maxRapid ?? null,
+      machine: machine ? `${machine.manufacturer} ${machine.model}` : null,
       machineRatePerHour: shop?.machineRate ?? null,
     },
   });

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { timePath } from "@/lib/nc/time";
 import { analyzeNC } from "@/lib/nc/analyze";
-import type { NCSegment } from "@/lib/nc/parse";
+import { parseNC, type NCSegment } from "@/lib/nc/parse";
 
 /**
  * Trapezoidal path timing. The closed-form answers below are the model's own
@@ -140,4 +140,16 @@ test("rapid time counts toward the cycle, and is reported separately", () => {
   const withRapid = analyzeNC(parsedOf([{ ...seg(0, 0, 20, 0, null, 1), z0: 1, z1: 1 }]), CTX);
   assert.ok(withRapid.totalMinutes > 0, "a rapid takes time");
   assert.ok(withRapid.rapidMinutes > 0, "and is attributed to rapid rather than to cutting");
+});
+
+test("a defaulted rapid rate is stated as an assumption, not attributed to a machine", () => {
+  const nc = "G20 G90\nG0 X0 Y0 Z1\nG1 Z-0.1 F10\nG1 X4 F20\nG0 Z1\nG0 X0";
+  const parsed = parseNC(nc);
+  const bound = analyzeNC(parsed, { stock: null, toolDiameters: {}, rapidRate: 600, axisAccel: null });
+  const unbound = analyzeNC(parsed, { stock: null, toolDiameters: {}, rapidRate: null, axisAccel: null });
+  // Same arithmetic — the difference is that one of them says where the
+  // number came from. Every savings figure downstream is computed from it.
+  assert.equal(unbound.totalMinutes, bound.totalMinutes);
+  assert.ok(unbound.assumptions.some((a) => /no machine record bound/i.test(a) && /600/.test(a)));
+  assert.ok(!bound.assumptions.some((a) => /no machine record bound/i.test(a)));
 });
