@@ -1173,3 +1173,9 @@ test("generateTurnToolpath routes the ID pair with the tool record's own fit ans
   assert.equal(generateTurnToolpath(idThread(), profile, { pitchIn: 1 / 12, minBoreDiameter: 1.0 }).ok, true);
   assert.equal(generateTurnToolpath(idThread(), profile, { pitchIn: 1 / 12 }).ok, false);
 });
+
+test("a zero-length OD thread is refused, matching the ID rule", () => {
+  const r = threadToolpath(op({ type: "THREAD_OD", startZ: 0.5, endZ: 0.5 }), 0.0625);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /zero-length thread/i.test(r.reason));
+});

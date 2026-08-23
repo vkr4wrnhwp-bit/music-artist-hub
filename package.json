@@ -17,7 +17,8 @@
     "db:migrate:new": "npm run prepare:db && prisma migrate dev",
     "vercel-build": "npm run deploy:build",
     "deploy:build": "npm run prepare:db && prisma migrate deploy && prisma db seed && next build",
-    "prepare:db": "node scripts/prepare-schema.mjs && prisma generate"
+    "prepare:db": "node scripts/prepare-schema.mjs && prisma generate",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

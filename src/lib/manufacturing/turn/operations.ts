@@ -609,6 +609,9 @@ export function threadToolpath(op: TurnOperation, pitchIn: number): TurnToolpath
   const firstDoc = Math.min(0.012, depth / 2);
   const passes = Math.max(2, Math.ceil((depth / firstDoc) ** (2 / 3)) + 1);
   const cutLen = Math.abs(op.endZ - op.startZ);
+  // The ID thread refuses this; the OD one silently emitted a stack of
+  // zero-length passes with a zero-minute estimate — same law both sides.
+  if (cutLen <= 0) return { ok: false, reason: "Zero-length thread." };
   const moves: TurnMove[] = [];
   for (let i = 1; i <= passes; i++) {
     // Constant-area infeed: depth_i = depth × sqrt(i/passes).

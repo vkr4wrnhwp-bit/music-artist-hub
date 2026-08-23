@@ -11,6 +11,13 @@ possible: the shop records were read-only and every "Add" button was a
 dead link. They are all editable now, and the loop below assumes this is
 done. Budget an hour or two, once.
 
+0. **Smoke the install.** `npm run build && npm run db:seed && npm run
+   smoke` — boots the built app, requests every workspace route with a
+   real session, and asserts the assemblies assemble (seconds, no
+   browser). Then `npm run test:e2e` for the browser walk of sign-in and
+   gate posture. A beta morning that starts with a broken page is a beta
+   morning lost.
+
 1. **Tool crib.** Every cutter you will use, with real geometry. Corner
    radius decides whether an internal corner is machinable at all;
    stickout decides whether a depth is reachable; chipload and surface
