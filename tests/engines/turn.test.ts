@@ -8,6 +8,8 @@ import {
   threadToolpath,
   partOffToolpath,
   grooveToolpath,
+  chamferToolpath,
+  radiusBlendToolpath,
   idBoreRoughToolpath,
   idBoreFinishToolpath,
   generateTurnToolpath,
@@ -766,9 +768,157 @@ test("generateTurnToolpath routes the bore types and passes the bar through", ()
     units: "IN" as const, zZeroReference: "front face", stockDiameter: 2, stockLength: 4,
     barStock: true, segments: [],
   };
-  const withBar = generateTurnToolpath(bore(), profile, null, null, 0.5);
+  const withBar = generateTurnToolpath(bore(), profile, { barDiameter: 0.5 });
   assert.equal(withBar.ok, true, withBar.ok ? "" : withBar.reason);
   // The default is "no bar recorded", which refuses rather than assuming one.
-  const withoutBar = generateTurnToolpath(bore(), profile, null, null);
+  const withoutBar = generateTurnToolpath(bore(), profile, {});
   assert.equal(withoutBar.ok, false);
+});
+
+/* ------------------------------------------------------------------ */
+/* Chamfers and blends                                                 */
+/* ------------------------------------------------------------------ */
+
+const cham = (over: Partial<TurnOperation> = {}) =>
+  op({ type: "CHAMFER", label: "chamfer", startZ: 0, endZ: 0.05, startDiameter: 0.9, endDiameter: 1.0, ...over });
+
+const blend = (over: Partial<TurnOperation> = {}) =>
+  op({ type: "RADIUS_BLEND", label: "blend", startZ: 0, endZ: 0.25, startDiameter: 1.0, endDiameter: 1.5, ...over });
+
+test("a chamfer or a blend refuses without a recorded nose radius", () => {
+  // A straight OD gets away with ignoring the insert nose: it touches the
+  // work at the programmed X. A taper or an arc does not — the contact
+  // point walks around the nose, and the profile error scales with it.
+  for (const r of [chamferToolpath(cham(), null), radiusBlendToolpath(blend(), 0.25, null, false)]) {
+    assert.equal(r.ok, false);
+    assert.ok(!r.ok && /nose radius/i.test(r.reason), r.ok ? "" : r.reason);
+  }
+});
+
+test("a chamfer is one interpolated cut and says what the uncompensated path costs", () => {
+  const r = chamferToolpath(cham(), 0.0312);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  const cuts = r.toolpath.moves.filter((m) => m.kind === "CUT");
+  // Onto the start diameter, then one move that changes X and Z together.
+  const slant = cuts[cuts.length - 1];
+  assert.equal(slant.x, 1.0);
+  assert.equal(slant.z, 0.05);
+  assert.ok(slant.feedPerRev !== null, "the chamfer must be cut, not rapided");
+  // 45 degrees: 0.05 in Z against 0.05 on radius.
+  assert.ok(r.toolpath.assumptions.some((a) => /45\.0°/.test(a)), r.toolpath.assumptions.join(" | "));
+  // The nose radius is named, with the number, in a warning — not buried.
+  assert.ok(r.toolpath.warnings.some((w) => /0\.0312/.test(w) && /compensation/i.test(w)), r.toolpath.warnings.join(" | "));
+});
+
+test("a chamfer with no extent is refused rather than emitted as a zero move", () => {
+  const r = chamferToolpath(cham({ endZ: 0, endDiameter: 0.9 }), 0.0312);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /nothing to cut/i.test(r.reason), r.ok ? "" : r.reason);
+});
+
+test("a blend will not pick a side when the segment does not record which way it curves", () => {
+  // `internal` says bore-or-OD. It does NOT say concave-or-convex: an OD
+  // shoulder carries a concave fillet every day. Confusing the two puts the
+  // arc on the wrong side of its own endpoints.
+  const r = radiusBlendToolpath(blend(), 0.25, 0.0156, null);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /which way/i.test(r.reason), r.ok ? "" : r.reason);
+});
+
+test("blend points lie on the true arc, to the tolerance the engine claims", () => {
+  // The first implementation interpolated the chord and pushed each point
+  // out by a parabola. It claimed 0.0005" and delivered 0.0027" — five
+  // times worse, stated with a confidence it had not earned.
+  const R = 0.25;
+  for (const concave of [false, true]) {
+    const r = radiusBlendToolpath(blend(), R, 0.0156, concave);
+    assert.equal(r.ok, true, r.ok ? "" : r.reason);
+    if (!r.ok) return;
+    const pts = r.toolpath.moves.filter((m) => m.kind === "CUT").map((m) => [m.z, m.x / 2] as const);
+    // Recover the centre from the endpoints and R, on the recorded side.
+    const [p0, p1] = [pts[0], pts[pts.length - 1]];
+    const c = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+    const h = Math.sqrt(R * R - (c / 2) ** 2);
+    const nz = -(p1[1] - p0[1]) / c;
+    const nr = (p1[0] - p0[0]) / c;
+    const side = concave ? 1 : -1;
+    const cz = (p0[0] + p1[0]) / 2 + nz * h * side;
+    const cr = (p0[1] + p1[1]) / 2 + nr * h * side;
+    let worst = 0;
+    for (const [z, rad] of pts) worst = Math.max(worst, Math.abs(Math.hypot(z - cz, rad - cr) - R));
+    assert.ok(worst < 0.0005, `${concave ? "concave" : "convex"} blend deviates ${worst.toFixed(6)} from a true R${R} arc`);
+    // Endpoints are exact — a blend that misses its own ends leaves a step.
+    assert.ok(Math.abs(pts[0][1] * 2 - 1.0) < 1e-6, "start diameter not hit");
+    assert.ok(Math.abs(pts[pts.length - 1][1] * 2 - 1.5) < 1e-6, "end diameter not hit");
+  }
+});
+
+test("concave and convex blends of the same endpoints curve opposite ways", () => {
+  const mid = (concave: boolean) => {
+    const r = radiusBlendToolpath(blend(), 0.25, 0.0156, concave);
+    assert.equal(r.ok, true);
+    if (!r.ok) throw new Error();
+    const cuts = r.toolpath.moves.filter((m) => m.kind === "CUT");
+    const m = cuts[Math.floor(cuts.length / 2)];
+    // Radius of the straight chord at the same Z, to compare against.
+    const chord = 0.5 + (0.75 - 0.5) * (m.z / 0.25);
+    return m.x / 2 - chord;
+  };
+  // A round ON the material stands proud of the chord; a fillet cut INTO it
+  // falls inside. Same endpoints, opposite sides.
+  assert.ok(mid(false) > 0, "a convex blend must bulge away from the centreline");
+  assert.ok(mid(true) < 0, "a concave blend must cut in toward the centreline");
+});
+
+test("a nose bigger than a concave blend cannot produce it", () => {
+  // Endpoints an R0.01 arc can actually span — otherwise the refusal comes
+  // from the geometry rather than from the insert, and proves nothing about
+  // the nose. (It did, on the first try.)
+  const small = blend({ startZ: 0, endZ: 0.01, startDiameter: 1.0, endDiameter: 1.02 });
+  const r = radiusBlendToolpath(small, 0.01, 0.0312, true);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /cannot produce a concave/i.test(r.reason), r.ok ? "" : r.reason);
+  // A convex blend has no such limit — a big nose rolls around the outside.
+  const convex = radiusBlendToolpath(small, 0.01, 0.0312, false);
+  assert.equal(convex.ok, true, convex.ok ? "" : convex.reason);
+});
+
+test("a blend refuses a radius it cannot reach, and one that was never recorded", () => {
+  // Endpoints 0.354" apart cannot be spanned by an R0.1 arc.
+  const tooSmall = radiusBlendToolpath(blend(), 0.1, 0.0156, false);
+  assert.equal(tooSmall.ok, false);
+  assert.ok(!tooSmall.ok && /no R0\.1000 arc can span/i.test(tooSmall.reason), tooSmall.ok ? "" : tooSmall.reason);
+
+  const none = radiusBlendToolpath(blend(), null, 0.0156, false);
+  assert.equal(none.ok, false);
+  assert.ok(!none.ok && /will not choose one/i.test(none.reason), none.ok ? "" : none.reason);
+});
+
+test("the chorded blend is declared as chords, not claimed as an arc", () => {
+  // The post has no arc output. A move the engine cannot express is not a
+  // move it should describe as one.
+  const r = radiusBlendToolpath(blend(), 0.25, 0.0156, false);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.ok(r.toolpath.moves.every((m) => m.kind !== "THREAD_PASS"));
+  assert.ok(
+    r.toolpath.assumptions.some((a) => /chorded into \d+ linear moves/.test(a) && /0\.0005/.test(a)),
+    r.toolpath.assumptions.join(" | "),
+  );
+});
+
+test("generateTurnToolpath routes chamfers and blends with their context", () => {
+  const profile = {
+    units: "IN" as const, zZeroReference: "front face", stockDiameter: 2, stockLength: 4,
+    barStock: true, segments: [],
+  };
+  assert.equal(generateTurnToolpath(cham(), profile, { noseRadius: 0.0156 }).ok, true);
+  assert.equal(generateTurnToolpath(cham(), profile, {}).ok, false);
+  assert.equal(
+    generateTurnToolpath(blend(), profile, { noseRadius: 0.0156, blendRadius: 0.25, concave: false }).ok,
+    true,
+  );
+  // Missing concavity is carried through as a refusal, not defaulted.
+  assert.equal(generateTurnToolpath(blend(), profile, { noseRadius: 0.0156, blendRadius: 0.25 }).ok, false);
 });

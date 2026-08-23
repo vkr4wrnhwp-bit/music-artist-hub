@@ -171,6 +171,215 @@ export function odFinishToolpath(op: TurnOperation): TurnToolpathResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* CHAMFERS AND BLENDS — where the nose radius stops being ignorable   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A straight OD or a face gets away with ignoring the insert's nose radius:
+ * the nose touches the work at the programmed X (or Z), so the imaginary
+ * tool tip the control positions cuts the size you asked for.
+ *
+ * A TAPER OR AN ARC DOES NOT. The contact point walks around the nose as
+ * the cut angle changes, and an uncompensated path leaves the profile off
+ * by an amount that scales with the nose radius — on a 1/32" insert that is
+ * over ten thou, always in the same direction. This is the entire reason
+ * lathe controls have G41/G42.
+ *
+ * So these two operations refuse without a recorded nose radius, and they
+ * say what the uncompensated path will cost. What they do NOT do is invent
+ * a compensated path: the post emits G40 and CANVAS does not compute nose
+ * radius compensation, so claiming a corrected profile would be a number
+ * with nothing behind it. The bound is stated instead, and the machinist
+ * decides. See docs/TURNING_OPERATIONS.md.
+ */
+
+/** Chord tolerance for approximating a blend arc, inches. Stated, not tuned. */
+const BLEND_CHORD_TOLERANCE = 0.0005;
+
+function noseRadiusCheck(noseRadius: number | null | undefined): { reason: string } | null {
+  if (noseRadius === null || noseRadius === undefined) {
+    return {
+      reason:
+        "No insert nose radius recorded at this station. On a taper or a blend the nose radius decides the profile, and CANVAS will not assume an insert.",
+    };
+  }
+  if (!(noseRadius >= 0)) return { reason: `Nose radius ${noseRadius} is not a radius.` };
+  return null;
+}
+
+/** The uncompensated profile error, stated as the bound it actually is. */
+function compensationWarning(noseRadius: number): string {
+  return (
+    `Path is the imaginary tool tip, uncompensated: the cut profile will deviate by up to the ` +
+    `${noseRadius.toFixed(4)}" nose radius. Turn on nose radius compensation at the control, or ` +
+    `prove the chamfer on the first piece before running the rest.`
+  );
+}
+
+/** Chamfer: one straight cut between two diameters. */
+export function chamferToolpath(op: TurnOperation, noseRadius: number | null): TurnToolpathResult {
+  const nose = noseRadiusCheck(noseRadius);
+  if (nose) return { ok: false, reason: nose.reason };
+
+  const dz = op.endZ - op.startZ;
+  const dx = (op.endDiameter - op.startDiameter) / 2; // radial
+  if (dz === 0 && dx === 0) return { ok: false, reason: "Chamfer has no extent in Z or X — there is nothing to cut." };
+  if (op.startDiameter < 0 || op.endDiameter < 0) return { ok: false, reason: "Negative diameter." };
+
+  const slant = Math.hypot(dz, dx);
+  const angleDeg = Math.abs((Math.atan2(dx, dz) * 180) / Math.PI);
+  const approachD = Math.max(op.startDiameter, op.endDiameter) + 2 * SAFE_X_CLEAR;
+  const moves: TurnMove[] = [
+    { kind: "RAPID", x: approachD, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "RAPID", x: op.startDiameter, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "CUT", x: op.startDiameter, z: op.startZ, feedPerRev: op.params.feedPerRev },
+    // The chamfer itself: a single interpolated move, X and Z together.
+    { kind: "CUT", x: op.endDiameter, z: op.endZ, feedPerRev: op.params.feedPerRev },
+    { kind: "RAPID", x: approachD, z: op.endZ, feedPerRev: null },
+  ];
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes: 1,
+      estimatedMinutes: r3(passMinutes(slant, op.params, (op.startDiameter + op.endDiameter) / 2)),
+      assumptions: [
+        "ESTIMATED: no acceleration model; feed applied along the slant length.",
+        `Chamfer at ${angleDeg.toFixed(1)}° to the centreline, ${slant.toFixed(4)}" along the slant.`,
+      ],
+      warnings: [compensationWarning(noseRadius!)],
+    },
+  };
+}
+
+/**
+ * Radius blend: an arc between two diameters, chorded into linear moves.
+ *
+ * Chorded rather than emitted as G02/G03 because the post has no arc output
+ * and a move this engine cannot express is not a move it should pretend to
+ * make. The chord tolerance is stated and the deviation is bounded by it.
+ */
+export function radiusBlendToolpath(
+  op: TurnOperation,
+  blendRadius: number | null,
+  noseRadius: number | null,
+  concave: boolean | null,
+): TurnToolpathResult {
+  const nose = noseRadiusCheck(noseRadius);
+  if (nose) return { ok: false, reason: nose.reason };
+  if (blendRadius === null || !(blendRadius > 0)) {
+    return {
+      ok: false,
+      reason: "No blend radius recorded on the target segment. A blend is its radius; CANVAS will not choose one.",
+    };
+  }
+  /*
+   * Which way the blend curves decides where its centre goes, and the model
+   * does not always record it. Guessing puts the arc on the wrong side of
+   * its own endpoints — a visibly wrong profile, cut confidently.
+   */
+  if (concave === null || concave === undefined) {
+    return {
+      ok: false,
+      reason:
+        "The target segment does not record whether this blend curves into the material or onto it. Which way a radius turns decides where its centre is, and CANVAS will not pick a side.",
+    };
+  }
+  /*
+   * A concave blend cannot be cut by a nose bigger than it — the same
+   * impossibility the milling engine refuses for a corner radius against an
+   * end mill. A convex blend has no such limit: a large nose simply rolls
+   * around the outside of it.
+   */
+  if (concave && noseRadius! > blendRadius) {
+    return {
+      ok: false,
+      reason: `A ⌀${(noseRadius! * 2).toFixed(4)} nose (R${noseRadius!.toFixed(4)}) cannot produce a concave R${blendRadius.toFixed(4)} blend.`,
+    };
+  }
+
+  const dz = op.endZ - op.startZ;
+  const dx = (op.endDiameter - op.startDiameter) / 2;
+  const chordLen = Math.hypot(dz, dx);
+  if (chordLen === 0) return { ok: false, reason: "Blend has no extent — start and end are the same point." };
+  if (chordLen > 2 * blendRadius + 1e-9) {
+    return {
+      ok: false,
+      reason: `The blend endpoints are ${chordLen.toFixed(4)}" apart, which no R${blendRadius.toFixed(4)} arc can span.`,
+    };
+  }
+
+  /*
+   * Segment count from the stated chord tolerance: for a sagitta t on a
+   * radius R, each chord subtends 2*acos(1 - t/R).
+   */
+  const maxStep = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - BLEND_CHORD_TOLERANCE / blendRadius)));
+  const sweep = 2 * Math.asin(Math.max(-1, Math.min(1, chordLen / (2 * blendRadius))));
+  const steps = Math.max(2, Math.ceil(sweep / Math.max(maxStep, 1e-9)));
+
+  const approachD = Math.max(op.startDiameter, op.endDiameter) + 2 * SAFE_X_CLEAR;
+  const moves: TurnMove[] = [
+    { kind: "RAPID", x: approachD, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "RAPID", x: op.startDiameter, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null },
+    { kind: "CUT", x: op.startDiameter, z: op.startZ, feedPerRev: op.params.feedPerRev },
+  ];
+  /*
+   * Exact points ON the arc, not an approximation of its offset from the
+   * chord. The first version interpolated the chord and pushed each point
+   * out by a parabola; it claimed a 0.0005" tolerance and delivered
+   * 0.0027" — five times worse, and stated with a confidence it had not
+   * earned. Stepping the true arc leaves the chord sagitta as the ONLY
+   * deviation, which is what the step count is derived to bound.
+   *
+   * Centre: the two candidates sit either side of the chord, and the
+   * concavity picks which.
+   */
+  const nz = -dx / chordLen; // unit normal to the chord, in (z, radial)
+  const nr = dz / chordLen;
+  const mz = op.startZ + dz / 2;
+  const mr = op.startDiameter / 2 + dx / 2;
+  const half = Math.sqrt(Math.max(0, blendRadius * blendRadius - (chordLen / 2) * (chordLen / 2)));
+  const side = concave ? 1 : -1;
+  const cz = mz + nz * half * side;
+  const cr = mr + nr * half * side;
+
+  const a0 = Math.atan2(op.startDiameter / 2 - cr, op.startZ - cz);
+  const a1 = Math.atan2(op.endDiameter / 2 - cr, op.endZ - cz);
+  // Sweep the short way round: a blend between two adjacent diameters is a
+  // minor arc, never the long way about the centre.
+  let delta = a1 - a0;
+  while (delta > Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+
+  for (let i = 1; i <= steps; i++) {
+    const ang = a0 + (delta * i) / steps;
+    const z = cz + blendRadius * Math.cos(ang);
+    const rad = cr + blendRadius * Math.sin(ang);
+    moves.push({ kind: "CUT", x: Number((rad * 2).toFixed(5)), z: Number(z.toFixed(5)), feedPerRev: op.params.feedPerRev });
+  }
+  moves.push({ kind: "RAPID", x: approachD, z: op.endZ, feedPerRev: null });
+
+  const arcLen = blendRadius * sweep;
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes: 1,
+      estimatedMinutes: r3(passMinutes(arcLen, op.params, (op.startDiameter + op.endDiameter) / 2)),
+      assumptions: [
+        "ESTIMATED: no acceleration model.",
+        `R${blendRadius.toFixed(4)} ${concave ? "concave" : "convex"} blend chorded into ${steps} linear moves at a ${BLEND_CHORD_TOLERANCE.toFixed(4)}" chord tolerance — the post has no arc output, so the arc is not claimed as one.`,
+      ],
+      warnings: [compensationWarning(noseRadius!)],
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* ID BORING                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -459,14 +668,34 @@ export function centerlineDrillToolpath(op: TurnOperation): TurnToolpathResult {
   };
 }
 
+/**
+ * What the engine needs to know about the tool and the geometry that is not
+ * in the operation itself. Every field is nullable and every null is a
+ * refusal at the operation that needs it — never a substituted value.
+ */
+export interface TurnToolContext {
+  /** Groove/cutoff insert width at this station. */
+  toolWidth?: number | null;
+  /** Thread pitch, inches, parsed from the segment's designation. */
+  pitchIn?: number | null;
+  /** Boring bar diameter at this station. */
+  barDiameter?: number | null;
+  /** Insert nose radius at this station. Decides chamfers and blends. */
+  noseRadius?: number | null;
+  /** Blend radius from the target segment, inches. */
+  blendRadius?: number | null;
+  /** True when the feature is inside the part (a bore), from the segment. */
+  internal?: boolean | null;
+  /** Whether a blend curves into the material. Null = not recorded. */
+  concave?: boolean | null;
+}
+
 export function generateTurnToolpath(
   op: TurnOperation,
   profile: RotationalProfile,
-  toolWidth: number | null,
-  pitchIn: number | null,
-  /** Boring bar diameter at this station. Null = none recorded. */
-  barDiameter: number | null = null,
+  ctx: TurnToolContext = {},
 ): TurnToolpathResult {
+  const { toolWidth = null, pitchIn = null, barDiameter = null } = ctx;
   switch (op.type) {
     case "FACE":
       return faceToolpath(op, profile);
@@ -482,6 +711,10 @@ export function generateTurnToolpath(
       return grooveToolpath(op, Math.abs(op.endZ - op.startZ), toolWidth ?? 0);
     case "THREAD_OD":
       return threadToolpath(op, pitchIn ?? 0);
+    case "CHAMFER":
+      return chamferToolpath(op, ctx.noseRadius ?? null);
+    case "RADIUS_BLEND":
+      return radiusBlendToolpath(op, ctx.blendRadius ?? null, ctx.noseRadius ?? null, ctx.concave ?? null);
     case "PART_OFF":
       return partOffToolpath(op, toolWidth ?? 0);
     case "CENTER_DRILL":

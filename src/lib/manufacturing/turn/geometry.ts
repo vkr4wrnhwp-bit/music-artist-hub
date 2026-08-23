@@ -65,6 +65,17 @@ export interface ProfileSegment {
   /** Internal geometry (bores, ID steps) is measured the same way, flagged. */
   internal: boolean;
   cornerRadius?: number;
+  /**
+   * Which way a RADIUS/blend curves. True is a fillet cut INTO the material
+   * (the stress-relief radius at the base of a shoulder); false is a round
+   * ON the material (a broken corner).
+   *
+   * This is NOT the same question as `internal`, which says whether the
+   * feature is a bore or an OD — an OD shoulder carries a concave fillet
+   * every day. Getting the two confused puts the arc on the wrong side of
+   * its own endpoints, so the blend engine refuses rather than assuming.
+   */
+  concave?: boolean;
   chamfer?: number;
   /** Threads carry designation exactly as read, e.g. "3/4-16 UNF-2A". */
   thread?: string;

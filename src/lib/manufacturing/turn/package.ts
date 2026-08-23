@@ -71,12 +71,21 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     const t = tools.find((x) => x.station === station);
     return t?.toolClass === "BORING_BAR" ? t.barDiameter ?? null : null;
   };
+  const noseRadiusFor = (station: string) => tools.find((t) => t.station === station)?.noseRadius ?? null;
   const results = plan.map((op) => {
     const seg = op.targetSegmentId ? profile.segments.find((s) => s.id === op.targetSegmentId) : null;
     const pitch = seg?.thread ? parseThreadPitch(seg.thread) : null;
     return {
       op,
-      result: generateTurnToolpath(op, profile, toolWidthFor(op.toolStation), pitch, barDiameterFor(op.toolStation)),
+      result: generateTurnToolpath(op, profile, {
+        toolWidth: toolWidthFor(op.toolStation),
+        pitchIn: pitch,
+        barDiameter: barDiameterFor(op.toolStation),
+        noseRadius: noseRadiusFor(op.toolStation),
+        blendRadius: seg?.cornerRadius ?? null,
+        internal: seg?.internal ?? null,
+        concave: seg?.concave ?? null,
+      }),
     };
   });
   const totalMinutes = results.reduce((t, r) => t + (r.result.ok ? r.result.toolpath.estimatedMinutes : 0), 0);
