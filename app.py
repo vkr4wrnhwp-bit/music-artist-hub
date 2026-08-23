@@ -884,10 +884,10 @@ def create_app():
                         "<h2>Reset your password</h2>"
                         "<p>Someone (hopefully you) asked to reset the password for this "
                         "Street Banker account. The link works for 1 hour.</p>"
-                        '<p><a href="%s" style="display:inline-block;background:#d8b25a;'
-                        'color:#1c1302;font-weight:bold;padding:12px 24px;border-radius:8px;'
+                        '<p><a href="%s" style="display:inline-block;background:#E8B950;'
+                        'color:#14100A;font-weight:bold;padding:12px 24px;border-radius:10px;'
                         'text-decoration:none;">Choose a new password</a></p>'
-                        "<p style=\"color:#777;font-size:12px;\">If you didn't ask for this, "
+                        "<p style=\"color:#91836A;font-size:12px;\">If you didn't ask for this, "
                         "ignore this email — your password is unchanged.</p></div>" % link)
                 # Same response either way: never confirm whether an email exists.
                 sent = True
@@ -2603,7 +2603,7 @@ def create_app():
             url += "&v=" + vslug
         buf = _io.BytesIO()
         segno.make(url, error="m").save(buf, kind="svg", scale=6,
-                                        dark="#141210", light=None)
+                                        dark="#1A1714", light=None)
         return Response(buf.getvalue(), mimetype="image/svg+xml")
 
     # --- Plan tiers + product worlds -------------------------------------------
@@ -3533,7 +3533,7 @@ def create_app():
                 email, "Your %s access link" % (club["name"] or "fan club"),
                 '<p>Tap to open the members area for <b>%s</b>:</p>'
                 '<p><a href="%s">%s</a></p>'
-                '<p style="color:#888;font-size:12px">The link works for 7 days '
+                '<p style="color:#91836A;font-size:12px">The link works for 7 days '
                 'and keeps you signed in on this device.</p>'
                 % (club["name"] or "the fan club", link, link))
             if not ok:
@@ -3570,17 +3570,17 @@ def create_app():
                 m["member_email"],
                 "%s: new members-only drop" % (club["name"] or "Fan club"),
                 '<div style="font-family:sans-serif;max-width:480px">'
-                '<p style="color:#a37c2a;font-weight:800;letter-spacing:2px;'
-                'text-transform:uppercase;font-size:11px">%s</p>'
+                '<p style="color:#8A6E30;font-weight:800;letter-spacing:2px;'
+                'text-transform:uppercase;font-size:12px">%s</p>'
                 '<h2 style="margin:6px 0 12px">%s</h2>%s'
-                '<p style="margin-top:18px"><a href="%s" style="background:#d8b25a;'
-                'color:#1c1302;padding:11px 20px;border-radius:8px;'
+                '<p style="margin-top:18px"><a href="%s" style="background:#E8B950;'
+                'color:#14100A;padding:11px 20px;border-radius:10px;'
                 'text-decoration:none;font-weight:800">Open the drop</a></p>'
-                '<p style="color:#888;font-size:12px">This link signs you '
+                '<p style="color:#91836A;font-size:12px">This link signs you '
                 'straight in and works for 7 days.</p></div>'
                 % (_html.escape(user["name"] or "Your artist"),
                    _html.escape(title),
-                   ('<p style="color:#444">%s</p>' % _html.escape(body[:300])
+                   ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
                    link))
             if ok:
@@ -4670,6 +4670,8 @@ def create_app():
     # names and swatches, the laptop owns what they actually do. Order is
     # the contract: the phone sends the index, not a colour.
     _LIGHT_REMOTE_LOOKS = [
+        # sb-keep: stage gels, not interface. These are the colours the
+        # lamps make; the design tokens have no business here.
         {"name": "Amber wash", "color": "#ffb347"}, {"name": "Cold blue", "color": "#3b82f6"},
         {"name": "Red alert", "color": "#ff2d2d"}, {"name": "White full", "color": "#ffffff"},
         {"name": "Violet haze", "color": "#8b5cf6"}, {"name": "Blackout", "color": "#000000"},
@@ -4745,7 +4747,7 @@ def create_app():
         import io as _io
         url = "%s/lights/remote/%s" % (PUBLIC_BASE_URL.rstrip("/"), code)
         buf = _io.BytesIO()
-        segno.make(url, error="m").save(buf, kind="svg", scale=5, dark="#e8c667", light=None)
+        segno.make(url, error="m").save(buf, kind="svg", scale=5, dark="#E8B950", light=None)
         return Response(buf.getvalue(), mimetype="image/svg+xml",
                         headers={"Cache-Control": "no-store"})
 
@@ -4805,7 +4807,7 @@ def create_app():
         items = body.get("items") if isinstance(body.get("items"), list) else []
         sid = lights_store.save_setlist(
             user["id"], body.get("id") or None, body.get("name") or "Setlist", items,
-            gap_color=(body.get("gap_color") or "#1a1712")[:7],
+            gap_color=(body.get("gap_color") or "#1A1714")[:7],
             gap_intensity=body.get("gap_intensity") or 0)
         return jsonify({"ok": True, "id": sid, "setlists": lights_store.list_setlists(user["id"]),
                         "setlist": lights_store.get_setlist(user["id"], sid)})
@@ -7590,8 +7592,8 @@ def create_app():
                 "<h2>You're invited</h2>"
                 "<p><strong>%s</strong> added you to their Street Banker team as their "
                 "<strong>%s</strong>.</p>"
-                '<p><a href="%s" style="display:inline-block;background:#d8b25a;color:#1c1302;'
-                'font-weight:bold;padding:12px 24px;border-radius:8px;text-decoration:none;">'
+                '<p><a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
+                'font-weight:bold;padding:12px 24px;border-radius:10px;text-decoration:none;">'
                 "Accept the invite</a></p></div>" % (user["name"], role, link))
         return jsonify({"ok": True, "link": link, "emailed": emailed})
 
