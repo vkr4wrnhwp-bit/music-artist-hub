@@ -29,9 +29,11 @@ worst-gate clearing, delivery through the turning export mint. Mounted
 on the turning workspace; GuideCard now takes a flowId and persists
 sessions per flow without clobbering other flows' progress.
 
-Not implemented, not faked: DRAW_FROM_SCRATCH (no sketching exists),
-the mill guided reverse-engineering flow (the turning bench flow
-guides itself), (and see below for analytics).
+Not implemented, not faked: DRAW_FROM_SCRATCH (no sketching exists).
+REVERSE_A_PART (added since this section was written) guides the mill
+RE measurement session — photos, datums, measurement order, nominal
+rulings, handoff — completing from the session's own state and
+satisfying nothing.
 
 Guide analytics: append-only GuideEvent rows (START / ADVANCE / BACK /
 SKIP / RESET / MODE_CHANGE / FLOW_COMPLETE), written fire-and-forget

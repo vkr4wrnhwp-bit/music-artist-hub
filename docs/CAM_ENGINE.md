@@ -53,6 +53,15 @@ and machine maximum, and derives feed from `RPM × flutes × chipload`. When RPM
 clamps at the machine limit the toolpath carries a warning, because that means
 surface speed is below the ideal window and the operator should know.
 
+Two refusals guard the derivation. No material window on file refuses
+the operation outright — a default window is another material's numbers,
+and Inconel at a carbide-in-steel default is a destroyed tool. And for a
+milling cutter, a tool window that does not overlap the material's is
+refused as "not rated for this material" rather than averaged into a
+surface speed belonging to neither; taps and drills are exempt from the
+overlap rule because their speed is not set by the material's milling
+window, and where the windows do not overlap the tool's own rating wins.
+
 Drills use chipload per revolution, not per tooth.
 
 ## Cycle time

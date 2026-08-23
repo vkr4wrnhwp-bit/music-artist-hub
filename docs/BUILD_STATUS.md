@@ -1,8 +1,9 @@
 # Build status
 
-Updated through Phase 3A. Read /docs/PHASE_3A_SUMMARY.md first — it states
-REAL / PARTIAL / SIMULATED / DEVELOPMENT ONLY / SHELL / BLOCKED per feature,
-and is the honest answer to "what actually works".
+An append-only log, newest entries at the bottom — it records what each
+pass built and found, and is not a statement of current state. For "what
+actually works", read the per-feature docs (each carries BUILT / NOT
+BUILT / DEVELOPMENT in its title line) and the phase summaries.
 
 ## WORKSPACE DESIGN PASS — PARTIAL
 

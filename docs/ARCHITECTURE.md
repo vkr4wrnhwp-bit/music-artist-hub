@@ -33,6 +33,16 @@ src/
     engines/           the reasoning: workholding, nominal, CAM, readiness, cost,
                        process advisor, network fingerprint
     ai/                provider abstraction — deterministic and Anthropic
+    manufacturing/     the turning side: geometry, operations, analyses,
+                       readiness, post, cost, sim, soft jaws, NC parse/optimize,
+                       package.ts (the lathe's own composition point)
+    nc/                uploaded-program analysis: parse, time, load, protect,
+                       audit gates, feed-only optimization
+    step/              STEP import: Part 21 parser + feature recognizer
+    scan/              STL scan import: mesh parser + honest inspection
+    guide/             the guided workflows: pure engine + authored flows
+    sim/  metrology/  export/   stock-removal replay, instrument vocabulary,
+                       gated NC export minting
     package.ts         composition point: assembles the manufacturing package
     provenance.ts      where every value's source and confidence lives
     auth.ts db.ts audit.ts data.ts storage.ts

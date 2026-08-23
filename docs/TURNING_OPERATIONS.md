@@ -1,7 +1,8 @@
 # Turning operations
 
-Types in `turn/operations.ts` (17 named; 8 have engines, the rest
-refuse by name). Every op carries feed/rev, CSS or fixed RPM, DOC,
+Types in `turn/operations.ts` (17 named; 16 have engines — every
+implementable type. CUSTOM refuses by definition: an operation CANVAS
+cannot characterise is not one it generates motion for). Every op carries feed/rev, CSS or fixed RPM, DOC,
 finish allowance, spring passes, coolant. Engines are pure arithmetic;
 refusals are typed results with reasons ("groove narrower than the
 insert"). Thread passes: constant-area infeed, feed = pitch, G97 —

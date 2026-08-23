@@ -60,11 +60,14 @@ what honestly remains.
   proposal is generated for spikes.
 - Finish-pass protection is by exclusion only (comped/tapping); there
   is no feature-role-aware protection of finishing passes yet.
-- Reference cuts, machine calibration records, and telemetry
-  (MTConnect/OPC UA) — architecture described in the brief, not built.
-- Operation classification, block-synchronized code viewer, side-by-
-  side original-vs-proposed backplot, Show Me scene changes, ROI panel,
-  seeded demo program, and a Run-It-Past guide flow — not built.
+- Machine telemetry (MTConnect/OPC UA) — interfaces only, labelled NOT
+  CONNECTED (`src/lib/telemetry.ts`); nothing claims live data.
+- Built since this doc was first written, each with its own doc:
+  reference cuts and machine calibration (REFERENCE_CUTS.md,
+  MACHINE_CALIBRATION.md), operation classification (`nc/classify.ts`),
+  the block-synchronized viewer (NC_BLOCK_SYNC.md), Show Me scenes
+  (SHOW_ME.md), the ROI panel (ROI_CAPACITY.md), the Load demo program
+  button, and the Run-It-Past guide flow (`guide/flows.ts`).
 - 3D backplot is top-view 2D; drilling cycles beyond G81/83/84 are
   refused, not expanded.
 

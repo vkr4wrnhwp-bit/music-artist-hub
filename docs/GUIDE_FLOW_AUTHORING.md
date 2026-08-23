@@ -15,7 +15,7 @@ one authored place, no per-page hardcoding. A step:
 - `why` / `camHint` / `recommended` — the teaching content. CAM hints
   render only when the terminology preference is on.
 
-Active flows: MAKE_A_PART. Not authored because the capability does not
-exist (listed in DEVELOPMENT_FLOWS, never faked): DRAW_FROM_SCRATCH
-(no sketching), CREATE_TURN_SETUP (no turning), REVERSE_ENGINEER_GUIDE
-(sessions exist; the guided flow is future work).
+Active flows (`guide/flows.ts`): MAKE_A_PART, TURN_A_SHAFT,
+REVERSE_A_PART, RUN_IT_PAST. Not authored because the capability does
+not exist (listed in DEVELOPMENT_FLOWS, never faked): DRAW_FROM_SCRATCH
+(no sketching).

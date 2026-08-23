@@ -108,7 +108,10 @@ process advisor relaxing a dimension that carries a role.
 - Vision analysis of photographs. `analyzePartImage()` returns observations
   empty and states plainly that no vision model is configured, rather than
   describing geometry it has not analysed.
-- Scan import (STL/point cloud) and mesh-to-parametric fitting.
+- ~~Scan import (STL)~~ — built since: see `docs/SCAN_IMPORT.md`. Point
+  clouds and mesh-to-parametric fitting remain unbuilt; the STL import
+  claims envelope, integrity and planar regions only, and refuses
+  without declared units and a recorded scanner.
 - Automatic feature detection from images.
 - Full measurement dependency-graph solving. The `dependsOn` field and the
   ordering exist; the solver that computes the *minimum* set of measurements to
