@@ -327,6 +327,25 @@ export interface MetrologyDevice {
   calibrationDue?: string;
 }
 
+/**
+ * Instruments that produce a 3D mesh, and can therefore be named as the
+ * source of a scan import.
+ *
+ * Typed as MetrologyDeviceType[] so a rename in the vocabulary breaks this
+ * rather than silently emptying the scanner list — an import that quietly
+ * says "no scanning instrument on file" for a shop that owns one is a
+ * confusing dead end, not a safe default.
+ */
+export const SCANNING_INSTRUMENTS: readonly MetrologyDeviceType[] = [
+  "STRUCTURED_LIGHT_SCANNER",
+  "LASER_SCANNER",
+  "PORTABLE_CMM",
+  "CMM",
+];
+
+export const isScanningInstrument = (t: string): boolean =>
+  (SCANNING_INSTRUMENTS as readonly string[]).includes(t);
+
 export const METROLOGY_LABELS: Record<MetrologyDeviceType, string> = {
   TAPE_RULE: "Tape / steel rule",
   DIGITAL_CALIPER: "Digital calipers",

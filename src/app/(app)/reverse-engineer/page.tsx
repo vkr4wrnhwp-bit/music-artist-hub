@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getMetrology } from "@/lib/data";
-import { METROLOGY_LABELS } from "@/lib/domain/shop";
+import { METROLOGY_LABELS, isScanningInstrument } from "@/lib/domain/shop";
 import { TopBar } from "@/components/nav";
 import { PhotoSetUploader } from "@/components/reverse/photo-set";
+import { ScanImport } from "@/components/reverse/scan-import";
 import { storageIsEphemeral } from "@/lib/storage";
 import { AxisTriad, Button, EmptyState, Field, LinkButton, Notice, Panel, SectionHeading, StatusChip, Table, Td, inputClass } from "@/components/ui";
 
@@ -29,6 +30,13 @@ export default async function ReverseEngineerPage() {
     }),
     getMetrology(user.organizationId),
   ]);
+
+  // A scan's uncertainty is the scanner's. Only instruments that actually
+  // produce a mesh can be attributed one — from the one list, so the picker
+  // and the route that validates against it cannot disagree.
+  const scanners = devices
+    .filter((d) => isScanningInstrument(d.deviceType))
+    .map((d) => ({ id: d.id, description: d.description, uncertainty: d.uncertainty, calibrated: d.calibrated }));
 
   async function startSession(formData: FormData) {
     "use server";
@@ -103,7 +111,7 @@ export default async function ReverseEngineerPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <StatusChip tone="neutral">Upload photos</StatusChip>
               <StatusChip tone="neutral">Guided measurement</StatusChip>
-              <StatusChip tone="unknown">Import scan — not implemented</StatusChip>
+              <StatusChip tone="neutral">Import scan</StatusChip>
             </div>
           </div>
         </section>
@@ -124,6 +132,18 @@ export default async function ReverseEngineerPage() {
             without a scale reference in frame — a ruler in the photo bounds the error, it does not eliminate the
             perspective, lens and placement error underneath it.
           </Notice>
+
+          <Panel
+            title="Import a 3D scan"
+            meta={<span className="tech-label">Measured, by a named instrument</span>}
+          >
+            <p className="mb-3 text-[12.5px] leading-relaxed text-muted">
+              A scan is a measurement, not a drawing: it records one worn example to the accuracy of the scanner that
+              read it. CANVAS attaches that instrument&apos;s uncertainty to every dimension and rules on none of them
+              — the readings arrive PENDING in the same flow as anything measured at the bench.
+            </p>
+            <ScanImport scanners={scanners} />
+          </Panel>
 
           <Panel title="Your metrology" meta={<span className="tech-label">{devices.length} instruments</span>}>
             {devices.length === 0 ? (
