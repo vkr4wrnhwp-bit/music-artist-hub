@@ -27,7 +27,7 @@ const input = (over: Partial<TurnReadinessInput> = {}): TurnReadinessInput =>
     toolsAssigned: 2,
     toolsRequired: 2,
     chuckRpmKnown: true,
-    inspectionCapable: true,
+    inspectionCapable: "CAPABLE" as const,
     postSelected: true,
     humanApproved: true,
     cssUsed: false,
@@ -127,4 +127,21 @@ test("gate ids are unique and the evaluation is deterministic", () => {
   const r = evaluateTurnReadiness(input({ boringBarUnrecorded: true }));
   assert.equal(new Set(r.gates.map((g) => g.id)).size, r.gates.length);
   assert.deepEqual(r, evaluateTurnReadiness(input({ boringBarUnrecorded: true })));
+});
+
+test("a marginal instrument is REVIEW, never PASS — and never averaged into ready", () => {
+  // 10-25% of the band: usable with guard-banded accept limits, and the
+  // gate says so instead of passing. The old rule passed anything to 25%.
+  const r = evaluateTurnReadiness({ ...input(), inspectionCapable: "MARGINAL" });
+  const gate = r.gates.find((x) => x.id === "inspection")!;
+  assert.equal(gate.status, "REVIEW");
+  assert.match(gate.detail, /guard-band/i);
+  assert.notEqual(r.overall, "READY_TO_RUN");
+
+  const none = evaluateTurnReadiness({ ...input(), inspectionCapable: "NOT_REQUIRED" });
+  const g2 = none.gates.find((x) => x.id === "inspection")!;
+  assert.equal(g2.status, "PASS");
+  // Nothing to verify is not the same as verified, and the wording keeps
+  // the two apart.
+  assert.match(g2.detail, /not the same as verified/i);
 });

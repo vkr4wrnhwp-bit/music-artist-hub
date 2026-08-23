@@ -5,8 +5,8 @@ import {
   cutoffDistanceFromChuck,
   inspectionCapableFor,
   materialFromIntent,
-  TURN_INSPECTION_RATIO,
 } from "@/lib/manufacturing/turn/derive";
+import { LIMIT_RATIO, TARGET_RATIO } from "@/lib/engines/inspection-capability";
 import { assessPartOff } from "@/lib/manufacturing/turn/analysis";
 import type { ProfileSegment, RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 
@@ -129,34 +129,45 @@ test("the tolerance band is the tightest critical one, and a plus-only dimension
 
 /* ---------------- Inspection capability ---------------- */
 
-test("inspection capability is a property of the instruments, at the stated 4:1 ratio", () => {
-  assert.equal(TURN_INSPECTION_RATIO, 4);
+test("inspection capability runs the mill's ratios: 10% capable, 25% marginal, past that noise", () => {
   const band = 0.001; // ±0.0005
-  const mic = [{ deviceType: "MICROMETER", uncertainty: 0.0001 }];
+  // ≤10% of the band: fully capable.
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.0001 }]), "CAPABLE");
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.00011 }]), "MARGINAL");
+  // The old turning rule passed anything to 25% as fully capable — the
+  // same bore read capable turned and marginal milled. 10-25% is MARGINAL
+  // now, which the readiness gate reports as REVIEW, not PASS.
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.00025 }]), "MARGINAL");
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.00026 }]), "NOT_CAPABLE");
   // A surface plate's uncertainty is tiny and it cannot measure a diameter.
   // Membership of the instrument vocabulary is the check, not the number.
-  const plate = [{ deviceType: "SURFACE_PLATE", uncertainty: 0.00001 }];
-  assert.equal(inspectionCapableFor(band, mic), true);
-  assert.equal(inspectionCapableFor(band, plate), false);
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "SURFACE_PLATE", uncertainty: 0.00001 }]), "NOT_CAPABLE");
   // An inside micrometer measures a bore, and a turned part's critical band
   // is as often in a bore as on a journal.
-  assert.equal(inspectionCapableFor(band, [{ deviceType: "INSIDE_MICROMETER", uncertainty: 0.0001 }]), true);
-  assert.equal(inspectionCapableFor(band, []), false);
-  // Exactly at 4:1 passes; one step past it does not.
-  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.00025 }]), true);
-  assert.equal(inspectionCapableFor(band, [{ deviceType: "MICROMETER", uncertainty: 0.00026 }]), false);
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "INSIDE_MICROMETER", uncertainty: 0.0001 }]), "CAPABLE");
+  assert.equal(inspectionCapableFor(band, []), "NOT_CAPABLE");
   // The best instrument is chosen, not the first on file.
   assert.equal(
     inspectionCapableFor(band, [
       { deviceType: "MICROMETER", uncertainty: 0.0005 },
       { deviceType: "BORE_GAUGE", uncertainty: 0.00005 },
     ]),
-    true,
+    "CAPABLE",
   );
 });
 
-test("a profile with no critical tolerance has no inspection gate to fail", () => {
-  assert.equal(inspectionCapableFor(null, []), true);
+test("the ratios are the mill's own constants, not a copy", () => {
+  // One home for the gauge-maker's rule. A drifted copy is how turning got
+  // its own 4:1 in the first place.
+  assert.equal(TARGET_RATIO, 0.1);
+  assert.equal(LIMIT_RATIO, 0.25);
+  const band = 0.001;
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "CMM", uncertainty: band * TARGET_RATIO }]), "CAPABLE");
+  assert.equal(inspectionCapableFor(band, [{ deviceType: "CMM", uncertainty: band * LIMIT_RATIO }]), "MARGINAL");
+});
+
+test("a profile with no critical tolerance has nothing to verify — which is not verified", () => {
+  assert.equal(inspectionCapableFor(null, []), "NOT_REQUIRED");
 });
 
 /* ---------------- Material from intent ---------------- */

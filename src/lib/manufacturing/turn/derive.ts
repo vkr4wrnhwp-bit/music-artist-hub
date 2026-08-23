@@ -1,4 +1,5 @@
 import type { RotationalProfile } from "./geometry";
+import { LIMIT_RATIO, TARGET_RATIO } from "@/lib/engines/inspection-capability";
 
 /**
  * TURNING PACKAGE — the pure derivations.
@@ -78,33 +79,40 @@ export function criticalToleranceBand(profile: RotationalProfile): number | null
  */
 const MEASURING_DEVICE_TYPES = ["MICROMETER", "INSIDE_MICROMETER", "BORE_GAUGE", "CMM"] as const;
 
+export type TurnInspectionVerdict = "CAPABLE" | "MARGINAL" | "NOT_CAPABLE" | "NOT_REQUIRED";
+
 /**
  * Can the shop's instruments prove the tightest critical band?
  *
- * A profile with no critical tolerance band has nothing for this gate to
- * refuse, and returns true: the gate is not a standing block that no
- * evidence could ever clear. False means the instruments on file cannot
- * prove the band, including the case of owning none.
+ * The ratios are the mill's, imported from their one home
+ * (engines/inspection-capability.ts) rather than kept as a copy: the
+ * instrument's uncertainty consuming ≤10% of the band is the target
+ * (CAPABLE); up to 25% is MARGINAL — usable with guard-banded accept
+ * limits, and the gate says REVIEW rather than PASS; past that the
+ * reading is largely the instrument's own noise (NOT_CAPABLE).
  *
- * NOTE — the ratio here is 4:1, the gauge-maker's rule taken at its limit.
- * `engines/inspection-capability.ts` targets 10:1 and treats 4:1 as the
- * floor, so the same band can read capable turned and marginal milled. That
- * difference is deliberate until somebody decides which one the shop runs
- * to; it is not an oversight to be quietly averaged away.
+ * Turning previously judged at 25% alone and reported it as fully
+ * capable, so the same bore read capable turned and marginal milled.
+ * That disagreement is closed by decision now, not averaged.
+ *
+ * NOT_REQUIRED means no critical segment carries a tolerance band —
+ * nothing for this gate to refuse, which is not the same as verified,
+ * and the gate wording keeps the two apart.
  */
-export const TURN_INSPECTION_RATIO = 4;
-
 export function inspectionCapableFor(
   band: number | null,
   instruments: { deviceType: string; uncertainty: number }[],
-): boolean {
-  if (band === null) return true;
+): TurnInspectionVerdict {
+  if (band === null) return "NOT_REQUIRED";
   const usable = instruments
     .filter((m) => (MEASURING_DEVICE_TYPES as readonly string[]).includes(m.deviceType))
     .filter((m) => Number.isFinite(m.uncertainty) && m.uncertainty > 0)
     .sort((a, b) => a.uncertainty - b.uncertainty);
-  if (usable.length === 0) return false;
-  return usable[0].uncertainty * TURN_INSPECTION_RATIO <= band;
+  if (usable.length === 0) return "NOT_CAPABLE";
+  const consumed = usable[0].uncertainty / band;
+  if (consumed <= TARGET_RATIO) return "CAPABLE";
+  if (consumed <= LIMIT_RATIO) return "MARGINAL";
+  return "NOT_CAPABLE";
 }
 
 /**

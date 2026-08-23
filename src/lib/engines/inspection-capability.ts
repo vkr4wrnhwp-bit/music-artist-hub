@@ -32,8 +32,14 @@ export const CAPABILITY_LABEL: Record<CapabilityVerdict, string> = {
 };
 
 /** Fraction of the tolerance band the instrument may consume. */
-const TARGET_RATIO = 0.1;
-const LIMIT_RATIO = 0.25;
+/**
+ * The gauge-maker's rule, both ends, exported because they are the ONE
+ * home of the ratio — the turning side judges capability with these same
+ * numbers rather than keeping its own copy. Uncertainty consuming ≤10% of
+ * the band is the target; past 25% the reading is largely its own noise.
+ */
+export const TARGET_RATIO = 0.1;
+export const LIMIT_RATIO = 0.25;
 
 export interface Instrument {
   id: string;

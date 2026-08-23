@@ -167,10 +167,10 @@ test("turning readiness is worst-gate: one FAIL makes NOT READY; UNKNOWN analyse
     grip: assessChuckGrip({ gripDiameter: 2, gripLength: 1, jawMaterial: "HARD" as const, serrated: true, clampForceLbf: 3000, stickout: 1, chuckMaxRpm: 4200, programmedMaxRpm: 3000 }),
     stickout: assessStickout({ unsupportedLength: 2, diameter: 2, tailstock: false }),
     boringBar: null, partOff: null, toolsAssigned: 5, toolsRequired: 5,
-    chuckRpmKnown: true, cssUsed: true, inspectionCapable: true, postSelected: true, humanApproved: true,
+    chuckRpmKnown: true, cssUsed: true, inspectionCapable: "CAPABLE" as const, postSelected: true, humanApproved: true,
   };
   assert.equal(evaluateTurnReadiness(base).overall, "READY_TO_RUN");
-  assert.equal(evaluateTurnReadiness({ ...base, inspectionCapable: false }).overall, "NOT_READY_TO_RUN");
+  assert.equal(evaluateTurnReadiness({ ...base, inspectionCapable: "NOT_CAPABLE" as const }).overall, "NOT_READY_TO_RUN");
   assert.equal(evaluateTurnReadiness({ ...base, chuckRpmKnown: false }).overall, "REVIEW_REQUIRED");
 });
 

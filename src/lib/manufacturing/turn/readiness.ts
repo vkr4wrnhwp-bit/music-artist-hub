@@ -1,6 +1,7 @@
 import type { RotationalProfile } from "./geometry";
 import { validateProfile } from "./geometry";
 import type { TurnAnalysis } from "./analysis";
+import type { TurnInspectionVerdict } from "./derive";
 
 /**
  * TURNING READINESS — the same law as milling: gates, and the aggregate is
@@ -34,7 +35,8 @@ export interface TurnReadinessInput {
   toolsRequired: number;
   chuckRpmKnown: boolean;
   cssUsed: boolean;
-  inspectionCapable: boolean | null; // null = not assessed
+  /** Verdict from turn/derive.ts — the mill's 10:1/4:1 rule, one home. */
+  inspectionCapable: TurnInspectionVerdict | null; // null = not assessed
   postSelected: boolean;
   humanApproved: boolean;
 }
@@ -104,16 +106,26 @@ export function evaluateTurnReadiness(input: TurnReadinessInput): {
         ? "CSS with a recorded chuck limit."
         : "Fixed RPM programming.",
   );
-  g(
-    "inspection",
-    "Inspection capability",
-    input.inspectionCapable === null ? "NOT_ATTEMPTED" : input.inspectionCapable ? "PASS" : "FAIL",
-    input.inspectionCapable === null
-      ? "Not assessed against the instrument library."
-      : input.inspectionCapable
-        ? "Instruments cover the tolerances."
-        : "Instruments on hand cannot verify a required tolerance. The gate moves when the instrument does.",
-  );
+  {
+    // The mill's gauge-maker's rule, both ends: ≤10% of the band is
+    // capable, ≤25% is marginal — usable with guard-banded accept limits,
+    // and REVIEW rather than PASS says so — past that the reading is
+    // largely the instrument's own noise. Turning used to pass at 25%.
+    const v = input.inspectionCapable;
+    const status: TurnGateStatus =
+      v === null ? "NOT_ATTEMPTED" : v === "NOT_CAPABLE" ? "FAIL" : v === "MARGINAL" ? "REVIEW" : "PASS";
+    const detail =
+      v === null
+        ? "Not assessed against the instrument library."
+        : v === "NOT_REQUIRED"
+          ? "No critical segment carries a tolerance band — nothing to verify, which is not the same as verified."
+          : v === "CAPABLE"
+            ? "Best instrument consumes no more than 10% of the tightest critical band."
+            : v === "MARGINAL"
+              ? "Best instrument consumes 10-25% of the tightest critical band. Guard-band the accept limits by the instrument's uncertainty, or use a more capable instrument."
+              : "Instruments on hand cannot verify a required tolerance — what they report is largely their own noise. The gate moves when the instrument does.";
+    g("inspection", "Inspection capability", status, detail);
+  }
   g("post", "Post / NC", input.postSelected ? "PASS" : "FAIL", input.postSelected ? "Development lathe post selected." : "No post selected.");
   g("approval", "Human approval", input.humanApproved ? "PASS" : "NOT_ATTEMPTED", input.humanApproved ? "Approved." : "Awaiting a named human.");
 
