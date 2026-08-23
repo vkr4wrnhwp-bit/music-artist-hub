@@ -14,6 +14,11 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
     material: `/parts/${partId}?guide=context-part`,
     workholding: `/parts/${partId}/setups?guide=hold-scene`,
     tools: `/parts/${partId}/tooling?guide=tool-assignment`,
+    // The changer mapping lives on the machines page — the tool-loading
+    // gate's evidence is pockets, not assignments. This was returning null
+    // on a BLOCKING gate: no link on the one gate whose fix lives furthest
+    // from the part.
+    "tool-loading": `/machines`,
     reach: `/parts/${partId}/tooling?guide=tool-assignment`,
     corners: `/parts/${partId}/tooling?guide=tool-assignment`,
     tolerance: `/parts/${partId}/inspection?guide=inspection-plan`,
