@@ -6,6 +6,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop"
 import { canReach, checkEnvelope, fitsInternalCorner } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
 import { assessCapability, measurementGeometry, worstCapability, type CapabilityResult, type Instrument } from "./inspection-capability";
+import { isEngineeringGrade, SOURCE_LABEL } from "@/lib/provenance";
 
 /**
  * MANUFACTURING READINESS
@@ -299,13 +300,32 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   }
 
   /* ---- Material ---- */
+  /*
+   * Gated through isEngineeringGrade, which is where locked principle 3
+   * lives: AI inference never satisfies a required gate at any score, and a
+   * value is otherwise good enough only when a human confirmed it or it came
+   * from a source verifiable outside CANVAS.
+   *
+   * This gate used to read `mat.confirmedByUser` directly. The two agree on
+   * the case that matters, but CLAUDE.md says the rule has one home and is
+   * not to be reimplemented — and it had been, while the function itself was
+   * called by nothing in the repository. A rule enforced by a copy is a rule
+   * with nothing keeping the copies together.
+   */
   const mat = input.intent.material;
   gates.push(
     mat.value == null
       ? gate("material", "Material", "MISSING", "Material is not specified.", true, ["Specify material and condition"])
-      : mat.confirmedByUser
-        ? gate("material", "Material", "PASS", `${mat.value} — confirmed.`, true, [])
-        : gate("material", "Material", "REVIEW", `${mat.value} — inferred, not confirmed by a human.`, true, ["Confirm the material"]),
+      : isEngineeringGrade(mat)
+        ? gate("material", "Material", "PASS", `${mat.value} — ${SOURCE_LABEL[mat.source].toLowerCase()}.`, true, [])
+        : gate(
+            "material",
+            "Material",
+            "REVIEW",
+            `${mat.value} — ${SOURCE_LABEL[mat.source].toLowerCase()}, not confirmed by a human.`,
+            true,
+            ["Confirm the material"],
+          ),
   );
 
   /* ---- Workholding ---- */

@@ -180,6 +180,7 @@ test("a missing tool never averages away — it blocks READY_TO_RUN", () => {
 
 /* ---------------- Principle 1: the aggregate is the worst gate ---------------- */
 
+import { inferred, unknown, userValue, value } from "@/lib/provenance";
 import { aggregate, SEVERITY, GATE_STATUS, type GateStatus, type ReadinessGate } from "@/lib/engines/readiness";
 
 const g = (status: GateStatus, blocking: boolean, id = "geometry"): ReadinessGate =>
@@ -259,4 +260,24 @@ test("aggregation is a maximum, never an average", () => {
 test("the blocking count is a count of blocking gates, not of all gates", () => {
   const r = aggregate([g("FAIL", true), g("MISSING", true), g("REVIEW", false), g("PASS", true)]);
   assert.equal(r.blockingCount, 2);
+});
+
+test("the material gate cannot be passed by an AI inference, at any score", () => {
+  // Locked principle 3, at the gate rather than at the function. The
+  // intake parser tags what it read from a drawing as AI_INFERENCE; that is
+  // a proposal, and the gate says so until a human signs it.
+  const withMaterial = (material: ReturnType<typeof emptyPartIntent>["material"]) =>
+    evaluateReadiness({ ...emptyInput(), intent: { ...emptyPartIntent("Test part"), material } });
+
+  const g = (r: ReturnType<typeof evaluateReadiness>) => r.gates.find((x) => x.id === "material")!;
+
+  assert.equal(g(withMaterial(inferred("6061-T6", 0.99))).status, "REVIEW");
+  assert.equal(g(withMaterial(value("6061-T6", "AI_INFERENCE", "VERIFIED"))).status, "REVIEW");
+  // A human confirming it is what moves the gate — and it is still blocking
+  // until they do.
+  assert.equal(g(withMaterial(inferred("6061-T6", 0.5))).blocking, true);
+  assert.equal(g(withMaterial(userValue("6061-T6"))).status, "PASS");
+  assert.equal(g(withMaterial(value("6061-T6", "AI_INFERENCE", "LOW", { confirmedByUser: true }))).status, "PASS");
+  // No material at all is MISSING, not REVIEW: there is nothing to confirm.
+  assert.equal(g(withMaterial(unknown())).status, "MISSING");
 });

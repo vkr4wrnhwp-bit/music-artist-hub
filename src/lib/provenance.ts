@@ -74,14 +74,43 @@ export const manufacturerSpec = <T>(v: T, note?: string): Provenanced<T> =>
   value(v, "MANUFACTURER", "VERIFIED", { note, confirmedByUser: true });
 
 /**
+ * Can this source stand on its own, or does it need a human?
+ *
+ * True means the value is checkable outside CANVAS — against the operator
+ * who typed it, an instrument, a vendor datasheet, a published standard.
+ * False means it is CANVAS talking to itself: a model's guess, a
+ * simulation, a derived number, a default nobody has looked at. Those
+ * become engineering grade only when a named human signs off.
+ *
+ * Keyed by Source so a new entry in the vocabulary has to be decided here
+ * rather than inheriting whatever the last branch happened to do.
+ */
+const VERIFIABLE_OUTSIDE_CANVAS: Record<Source, boolean> = {
+  USER: true,
+  MEASURED: true,
+  MANUFACTURER: true,
+  STANDARD: true,
+  // Locked principle 3. Never true, at any score.
+  AI_INFERENCE: false,
+  // A simulation is not a measurement, and a derived number is not evidence
+  // about the world — both are only as good as what went into them.
+  SIMULATION: false,
+  CALCULATED: false,
+  // "A system default that nobody has looked at yet" cannot certify
+  // anything, whatever confidence a caller attaches to it.
+  DEFAULT: false,
+};
+
+/**
  * A value is safe to gate a manufacturing decision on only when a human has
  * confirmed it or it came from a source that is verifiable outside CANVAS.
  * AI inference NEVER satisfies this, at any score.
  */
 export function isEngineeringGrade(p: Provenanced<unknown>): boolean {
   if (p.value === null || p.value === undefined) return false;
-  if (p.source === "AI_INFERENCE") return p.confirmedByUser;
-  return p.confirmedByUser || p.confidence === "VERIFIED" || p.confidence === "HIGH";
+  if (p.confirmedByUser) return true;
+  if (!VERIFIABLE_OUTSIDE_CANVAS[p.source]) return false;
+  return p.confidence === "VERIFIED" || p.confidence === "HIGH";
 }
 
 export const SOURCE_LABEL: Record<Source, string> = {
