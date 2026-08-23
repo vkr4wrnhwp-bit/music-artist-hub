@@ -4,11 +4,9 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TopBar } from "@/components/nav";
 import { Notice, Panel, SectionHeading, Table, Td } from "@/components/ui";
-import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
-import { generateTurnToolpath, type TurnOperation } from "@/lib/manufacturing/turn/operations";
+import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
 import { deriveTurnCostAssumptions } from "@/lib/manufacturing/turn/cost";
 import { computeCost, quantityBreaks, compareMakeVsBuy, money } from "@/lib/engines/cost";
-import { parseThreadPitch } from "@/lib/engines/cam/engine";
 import { findReusableLatheJaws } from "@/lib/manufacturing/turn/soft-jaws";
 
 /**
@@ -25,25 +23,17 @@ export default async function LatheCostPage(props: { params: Promise<{ id: strin
   const { id } = await props.params;
   const user = await requireUser();
 
-  const part = await db.part.findFirst({ where: { id, organizationId: user.organizationId } });
-  if (!part) notFound();
-  const revision = await db.partRevision.findFirst({ where: { partId: part.id }, orderBy: { createdAt: "desc" } });
-  if (!revision) notFound();
-  const rot = await db.rotationalPart.findFirst({ where: { partRevisionId: revision.id, organizationId: user.organizationId } });
-  if (!rot) notFound();
-
-  const profile = JSON.parse(rot.profileJson) as RotationalProfile;
-  const plan = JSON.parse(rot.planJson) as TurnOperation[];
-  const tools = await db.turningTool.findMany({ where: { organizationId: user.organizationId } });
+  /*
+   * One assembly, same as the workspace. This page used to rebuild the
+   * toolpaths itself, so it also had to know how to resolve a groove insert
+   * and a thread pitch — and when boring learned to ask for the bar at its
+   * station, this copy would have quietly costed every bore at zero minutes.
+   */
+  const pkg = await buildTurnPackage(user.organizationId, id);
+  if (!pkg) notFound();
+  const { part, rot, profile, results, totalMinutes: cycleMinutes, tools } = pkg;
   const jawSets = await db.latheWorkholding.findMany({ where: { organizationId: user.organizationId, type: "SOFT_JAWS" } });
-
-  const toolWidthFor = (station: string) => tools.find((t) => t.station === station)?.grooveWidth ?? null;
-  const cycleMinutes = plan.reduce((total, op) => {
-    const seg = op.targetSegmentId ? profile.segments.find((s) => s.id === op.targetSegmentId) : null;
-    const pitch = seg?.thread ? parseThreadPitch(seg.thread) : null;
-    const r = generateTurnToolpath(op, profile, toolWidthFor(op.toolStation), pitch);
-    return total + (r.ok ? r.toolpath.estimatedMinutes : 0);
-  }, 0);
+  const refused = results.filter((r) => !r.result.ok);
 
   const partingTool = tools.find((t) => t.toolClass === "PARTING");
   const gripDia = profile.stockDiameter;
@@ -53,8 +43,7 @@ export default async function LatheCostPage(props: { params: Promise<{ id: strin
       : [];
   const softJawsNeedBoring = jawMatches.length > 0 && jawMatches[0].kind !== "DIRECT";
 
-  const intent = JSON.parse(revision.intentJson ?? "{}") as { quantity?: { value?: number } };
-  const quantity = typeof intent.quantity?.value === "number" && intent.quantity.value > 0 ? intent.quantity.value : 1;
+  const quantity = pkg.quantity;
 
   const derived = deriveTurnCostAssumptions({
     profile,
@@ -101,6 +90,27 @@ export default async function LatheCostPage(props: { params: Promise<{ id: strin
             <Metric label="Unit price" value={money(cost.unitPrice)} sub={`${(derived.assumptions.marginRate * 100).toFixed(0)}% margin`} />
             <Metric label="Cycle time" value={`${cycleMinutes.toFixed(2)} min`} sub="from turning toolpaths" />
           </div>
+
+          {/*
+            * A refused operation contributes zero minutes, so the cycle time
+            * above — and every figure derived from it — is for a job that
+            * does not include it. Quoting that as the cycle is quoting the
+            * part short.
+            */}
+          {refused.length > 0 && (
+            <Notice tone="risk" title={`Cycle time excludes ${refused.length} operation(s) the engine could not plan`}>
+              <ul className="mt-1 space-y-1">
+                {refused.map(({ op, result }) => (
+                  <li key={op.operationNumber}>
+                    — Op {op.operationNumber} {op.label}: {result.ok ? "" : result.reason}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">
+                The quote below is for the operations that could be planned. It is not the cost of this part.
+              </p>
+            </Notice>
+          )}
 
           <Panel title="Bar economics" dense>
             <div className="grid gap-px bg-line sm:grid-cols-4">

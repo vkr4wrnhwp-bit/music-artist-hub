@@ -40,6 +40,8 @@ export interface TurnPackage {
   blocking: ReturnType<typeof evaluateTurnReadiness>["gates"];
   /** The material the part's own intent records, or null. */
   materialFromIntent: string | null;
+  /** Order quantity from the part's intent; 1 when none is recorded. */
+  quantity: number;
   program: { code: string; refusals: string[] };
 }
 
@@ -63,10 +65,19 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
 
   /* ---- toolpaths, deterministic ---- */
   const toolWidthFor = (station: string) => tools.find((t) => t.station === station)?.grooveWidth ?? null;
+  // The bar at the station the operation actually calls, not the first bar in
+  // the crib: whether it fits the hole is the first question boring asks.
+  const barDiameterFor = (station: string) => {
+    const t = tools.find((x) => x.station === station);
+    return t?.toolClass === "BORING_BAR" ? t.barDiameter ?? null : null;
+  };
   const results = plan.map((op) => {
     const seg = op.targetSegmentId ? profile.segments.find((s) => s.id === op.targetSegmentId) : null;
     const pitch = seg?.thread ? parseThreadPitch(seg.thread) : null;
-    return { op, result: generateTurnToolpath(op, profile, toolWidthFor(op.toolStation), pitch) };
+    return {
+      op,
+      result: generateTurnToolpath(op, profile, toolWidthFor(op.toolStation), pitch, barDiameterFor(op.toolStation)),
+    };
   });
   const totalMinutes = results.reduce((t, r) => t + (r.result.ok ? r.result.toolpath.estimatedMinutes : 0), 0);
 
@@ -142,6 +153,14 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
    * does.
    */
   const intentMaterial = materialFromIntent(revision.intentJson);
+  const quantity = (() => {
+    try {
+      const v = (JSON.parse(revision.intentJson ?? "{}") as { quantity?: { value?: unknown } }).quantity?.value;
+      return typeof v === "number" && v > 0 ? v : 1;
+    } catch {
+      return 1;
+    }
+  })();
 
   const readiness = evaluateTurnReadiness({
     profile,
@@ -200,6 +219,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     readiness,
     blocking,
     materialFromIntent: intentMaterial,
+    quantity,
     program,
   };
 }

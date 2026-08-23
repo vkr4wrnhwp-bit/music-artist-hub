@@ -8,6 +8,9 @@ import {
   threadToolpath,
   partOffToolpath,
   grooveToolpath,
+  idBoreRoughToolpath,
+  idBoreFinishToolpath,
+  generateTurnToolpath,
   type TurnOperation,
 } from "@/lib/manufacturing/turn/operations";
 import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from "@/lib/manufacturing/turn/analysis";
@@ -633,4 +636,139 @@ test("cinematic mill wording is untouched by the turning additions", () => {
   );
   assert.ok(mill.prompt.includes("Face mill"));
   assert.ok(mill.prompt.includes("6 × 4 × 0.75 in"));
+});
+
+/* ------------------------------------------------------------------ */
+/* ID boring                                                           */
+/* ------------------------------------------------------------------ */
+
+const bore = (over: Partial<TurnOperation> = {}) =>
+  op({ type: "ID_BORE_ROUGH", label: "bore", startDiameter: 0.75, endDiameter: 1.25, startZ: 0, endZ: 1.5, ...over });
+
+/** Every X in the path, in program order. X is a DIAMETER on a lathe. */
+const xs = (r: ReturnType<typeof idBoreRoughToolpath>) => (r.ok ? r.toolpath.moves.map((m) => m.x) : []);
+
+test("boring opens the hole outward, never down from stock", () => {
+  const r = idBoreRoughToolpath(bore(), 0.5);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  assert.ok(r.toolpath.passes > 1, "0.25\" on radius at 0.08 doc is more than one pass");
+  // The full-length cuts, one per pass, must STRICTLY PROGRESS outward. A
+  // pass list that jumps straight to size on every pass is not roughing, it
+  // is one cut repeated — and it passes a "did it reach size" assertion.
+  // The arriving cut of each pass: a CUT that changed Z at constant X. (The
+  // other CUT at depth is the come-off-the-wall move, which changes X.)
+  const mv = r.toolpath.moves;
+  const atDepth = mv
+    .filter((m, i) => i > 0 && m.kind === "CUT" && m.z === 1.5 && m.x === mv[i - 1].x && m.z !== mv[i - 1].z)
+    .map((m) => m.x);
+  assert.equal(atDepth.length, r.toolpath.passes, "one full-length cut per pass");
+  for (let i = 1; i < atDepth.length; i++) {
+    assert.ok(atDepth[i] > atDepth[i - 1], `pass ${i + 1} did not open the bore further: ${atDepth.join(" -> ")}`);
+  }
+  assert.ok(atDepth[0] > 0.75, "the first pass must open out from the drilled hole");
+  const atSize = atDepth[atDepth.length - 1];
+  assert.ok(atSize <= 1.25 - 2 * 0.01 + 1e-9, `roughing left no finish allowance: ${atSize}`);
+});
+
+test("every retract inside a bore goes INWARD — outward is the wall", () => {
+  // The mistake this pins: on an OD you retract to a LARGER diameter to come
+  // clear. Do that inside a bore and the bar is driven into the wall it just
+  // cut. Both bore engines must come off the wall by going smaller.
+  for (const [name, r] of [
+    ["rough", idBoreRoughToolpath(bore(), 0.5)],
+    ["finish", idBoreFinishToolpath(bore({ type: "ID_BORE_FINISH", params: { ...bore().params, springPasses: 1 } }), 0.5)],
+  ] as const) {
+    assert.equal(r.ok, true, r.ok ? "" : r.reason);
+    if (!r.ok) return;
+    const moves = r.toolpath.moves;
+    for (let i = 1; i < moves.length; i++) {
+      const prev = moves[i - 1];
+      const m = moves[i];
+      // A pure Z move at the far end of a cut is the retract. It must never
+      // happen at a diameter larger than the cut that preceded it.
+      if (m.z !== prev.z && m.x > prev.x) {
+        assert.fail(`${name}: moved to a larger diameter (${prev.x} -> ${m.x}) while changing Z — that is into the wall`);
+      }
+    }
+    // And the maximum X reached is the bore itself, never beyond it.
+    assert.ok(Math.max(...moves.map((x) => x.x)) <= 1.25 + 1e-9, `${name} exceeded the finished bore diameter`);
+    // Stronger: the tool must LEAVE the wall before Z moves at all. A
+    // diagonal away from the wall still starts the Z move at cutting
+    // diameter, dragging the tool along the surface it just cut.
+    let arrivals = 0;
+    for (let i = 1; i < moves.length - 1; i++) {
+      const cut = moves[i];
+      // A cut that travelled in Z at constant X is a full-length pass. What
+      // follows it must be a pure X move off the wall — a diagonal away is
+      // still Z motion begun at the cutting diameter, dragging the tool
+      // along the surface it just cut.
+      if (cut.kind === "CUT" && cut.x === moves[i - 1].x && cut.z !== moves[i - 1].z) {
+        arrivals++;
+        const next = moves[i + 1];
+        assert.equal(next.z, cut.z, `${name}: Z moved while still at the cutting diameter`);
+        assert.ok(next.x < cut.x, `${name}: did not come off the wall after the cut`);
+      }
+    }
+    assert.ok(arrivals > 0, `${name}: no full-length cutting pass found`);
+  }
+});
+
+test("a bar that does not fit the hole is refused, and so is an unrecorded bar", () => {
+  // A boring bar cannot enter a hole smaller than itself, so it cannot cut a
+  // bore it cannot enter. Reach is a separate question, assessed at plan level.
+  const tooBig = idBoreRoughToolpath(bore({ startDiameter: 0.4 }), 0.5);
+  assert.equal(tooBig.ok, false);
+  assert.ok(!tooBig.ok && /does not fit/i.test(tooBig.reason), tooBig.ok ? "" : tooBig.reason);
+
+  const unrecorded = idBoreRoughToolpath(bore(), null);
+  assert.equal(unrecorded.ok, false);
+  assert.ok(!unrecorded.ok && /will not assume a bar/i.test(unrecorded.reason), unrecorded.ok ? "" : unrecorded.reason);
+});
+
+test("boring from solid is refused — the bar needs a hole to start in", () => {
+  const solid = idBoreRoughToolpath(bore({ startDiameter: 0 }), 0.5);
+  assert.equal(solid.ok, false);
+  assert.ok(!solid.ok && /existing hole/i.test(solid.reason), solid.ok ? "" : solid.reason);
+
+  // Nor is a "bore" that removes nothing a bore.
+  const nothing = idBoreRoughToolpath(bore({ endDiameter: 0.75 }), 0.5);
+  assert.equal(nothing.ok, false);
+  assert.ok(!nothing.ok && /removes nothing/i.test(nothing.reason), nothing.ok ? "" : nothing.reason);
+});
+
+test("a finish allowance that swallows the roughing pass is named, not silently skipped", () => {
+  const r = idBoreRoughToolpath(
+    bore({ endDiameter: 0.8, params: { ...bore().params, finishAllowance: 0.05 } }),
+    0.5,
+  );
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /nothing to cut/i.test(r.reason), r.ok ? "" : r.reason);
+});
+
+test("the bore finish pass runs at size, with its spring passes", () => {
+  const r = idBoreFinishToolpath(
+    bore({ type: "ID_BORE_FINISH", params: { ...bore().params, springPasses: 2 } }),
+    0.5,
+  );
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  assert.equal(r.toolpath.passes, 3);
+  const cuts = r.toolpath.moves.filter((m) => m.kind === "CUT");
+  // Finishing cuts sit at the finished bore, not short of it.
+  assert.ok(cuts.some((m) => Math.abs(m.x - 1.25) < 1e-9), "no cut at the finished diameter");
+  assert.ok(r.toolpath.assumptions.some((a) => /ESTIMATED/.test(a)));
+  assert.ok(r.toolpath.assumptions.some((a) => /off the bore wall/i.test(a)));
+});
+
+test("generateTurnToolpath routes the bore types and passes the bar through", () => {
+  const profile = {
+    units: "IN" as const, zZeroReference: "front face", stockDiameter: 2, stockLength: 4,
+    barStock: true, segments: [],
+  };
+  const withBar = generateTurnToolpath(bore(), profile, null, null, 0.5);
+  assert.equal(withBar.ok, true, withBar.ok ? "" : withBar.reason);
+  // The default is "no bar recorded", which refuses rather than assuming one.
+  const withoutBar = generateTurnToolpath(bore(), profile, null, null);
+  assert.equal(withoutBar.ok, false);
 });

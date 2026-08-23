@@ -170,6 +170,154 @@ export function odFinishToolpath(op: TurnOperation): TurnToolpathResult {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* ID BORING                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Boring is not OD turning with the numbers negated, and the difference is
+ * the one that breaks bars:
+ *
+ * - The cut runs OUTWARD. Roughing an OD walks the diameter down from stock;
+ *   boring walks it up from the drilled hole to the finished size.
+ * - The retract runs INWARD. On an OD you pull away by going to a larger X.
+ *   Inside a bore a larger X is the wall — retracting "clear" the OD way
+ *   drives the bar into the bore it just cut. Every retract here goes to a
+ *   SMALLER diameter, and that is why the clearance is subtracted.
+ * - The bar has to fit in the hole before any of this is a question. A
+ *   boring bar cannot enter a hole smaller than itself, and it cannot cut a
+ *   bore it cannot enter.
+ *
+ * Reach (length-to-diameter) is assessed separately, at the plan level, by
+ * assessBoringBar — this is the geometry check, not the chatter one.
+ */
+
+/** Radial clearance from the bore wall on a retract. Diameter, inches. */
+const BORE_X_CLEAR = 0.06;
+
+function boreEntryCheck(
+  op: TurnOperation,
+  barDiameter: number | null,
+): { reason: string } | null {
+  if (op.startDiameter <= 0) {
+    return {
+      reason:
+        "Boring starts from an existing hole. There is no hole recorded at this station — drill or centre-drill before the bar goes in.",
+    };
+  }
+  if (op.endDiameter <= op.startDiameter) {
+    return {
+      reason: `Bore finishes at ⌀${op.endDiameter.toFixed(4)} from a ⌀${op.startDiameter.toFixed(4)} hole — a bore opens a hole up, and this removes nothing.`,
+    };
+  }
+  if (Math.abs(op.endZ - op.startZ) <= 0) return { reason: "Zero-length cut." };
+  if (barDiameter === null) {
+    return {
+      reason:
+        "No boring bar diameter recorded for this station. Whether the bar fits the hole is the first question boring asks, and CANVAS will not assume a bar.",
+    };
+  }
+  if (barDiameter >= op.startDiameter) {
+    return {
+      reason: `⌀${barDiameter.toFixed(4)} boring bar does not fit the ⌀${op.startDiameter.toFixed(4)} hole it has to enter.`,
+    };
+  }
+  return null;
+}
+
+/** ID roughing: successive passes opening the hole out toward the bore. */
+export function idBoreRoughToolpath(
+  op: TurnOperation,
+  barDiameter: number | null,
+): TurnToolpathResult {
+  if (op.params.doc <= 0) return { ok: false, reason: "Depth of cut must be positive." };
+  const entry = boreEntryCheck(op, barDiameter);
+  if (entry) return { ok: false, reason: entry.reason };
+
+  const targetD = op.endDiameter - 2 * op.params.finishAllowance;
+  if (targetD <= op.startDiameter) {
+    return {
+      ok: false,
+      reason: `Finish allowance ${op.params.finishAllowance.toFixed(4)}" leaves the roughing pass nothing to cut between ⌀${op.startDiameter.toFixed(4)} and ⌀${op.endDiameter.toFixed(4)}.`,
+    };
+  }
+  const cutLen = Math.abs(op.endZ - op.startZ);
+  const radialTotal = (targetD - op.startDiameter) / 2;
+  const passes = Math.max(1, Math.ceil(radialTotal / op.params.doc));
+  const moves: TurnMove[] = [];
+  let minutes = 0;
+  for (let i = 1; i <= passes; i++) {
+    // Opening OUT: each pass sits at a larger diameter than the last.
+    const d = Math.min(targetD, op.startDiameter + 2 * op.params.doc * i);
+    // Position at the pass diameter in free air AHEAD of the face, never
+    // while entering the bore: X and Z do not move together in here.
+    moves.push({ kind: "RAPID", x: d, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    moves.push({ kind: "CUT", x: d, z: op.endZ, feedPerRev: op.params.feedPerRev });
+    // Come OFF the wall before travelling: inward, never outward.
+    moves.push({ kind: "CUT", x: Math.max(0, d - 2 * BORE_X_CLEAR), z: op.endZ, feedPerRev: op.params.feedPerRev });
+    moves.push({ kind: "RAPID", x: Math.max(0, d - 2 * BORE_X_CLEAR), z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    minutes += passMinutes(cutLen, op.params, (d + Math.max(op.startDiameter, d - 2 * op.params.doc)) / 2);
+  }
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes,
+      estimatedMinutes: r3(minutes),
+      assumptions: [
+        "ESTIMATED: no acceleration model; CSS approximated at each pass's mean diameter.",
+        `Finish allowance ${op.params.finishAllowance.toFixed(4)}" left on diameter per side.`,
+        `Retracts clear the bore wall by ${(2 * BORE_X_CLEAR).toFixed(3)}" on diameter, inward.`,
+        "X and Z never move together inside the bore: the bar reaches its diameter in free air ahead of the face.",
+      ],
+      warnings: [],
+    },
+  };
+}
+
+/** ID finishing: one pass at size, plus spring passes. */
+export function idBoreFinishToolpath(
+  op: TurnOperation,
+  barDiameter: number | null,
+): TurnToolpathResult {
+  const entry = boreEntryCheck(op, barDiameter);
+  if (entry) return { ok: false, reason: entry.reason };
+
+  const cutLen = Math.abs(op.endZ - op.startZ);
+  const passes = 1 + Math.max(0, op.params.springPasses);
+  const d = op.endDiameter;
+  const clear = Math.max(0, d - 2 * BORE_X_CLEAR);
+  const moves: TurnMove[] = [];
+  let minutes = 0;
+  for (let i = 0; i < passes; i++) {
+    moves.push({ kind: "RAPID", x: d, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    moves.push({ kind: "CUT", x: d, z: op.endZ, feedPerRev: op.params.feedPerRev });
+    // A finished bore is scratched by a tool dragged back along it under
+    // pressure, so come off the wall before the Z move, every time.
+    moves.push({ kind: "CUT", x: clear, z: op.endZ, feedPerRev: op.params.feedPerRev });
+    moves.push({ kind: "RAPID", x: clear, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    minutes += passMinutes(cutLen, op.params, d);
+  }
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes,
+      estimatedMinutes: r3(minutes),
+      assumptions: [
+        "ESTIMATED: no acceleration model.",
+        op.params.springPasses > 0 ? `${op.params.springPasses} spring pass(es) at full length.` : "No spring passes.",
+        "Tool comes off the bore wall before every Z retract.",
+      ],
+      warnings: [],
+    },
+  };
+}
+
 /** Facing: from OD to centerline at the given Z. */
 export function faceToolpath(op: TurnOperation, profile: RotationalProfile): TurnToolpathResult {
   const startD = profile.stockDiameter + 2 * SAFE_X_CLEAR;
@@ -316,6 +464,8 @@ export function generateTurnToolpath(
   profile: RotationalProfile,
   toolWidth: number | null,
   pitchIn: number | null,
+  /** Boring bar diameter at this station. Null = none recorded. */
+  barDiameter: number | null = null,
 ): TurnToolpathResult {
   switch (op.type) {
     case "FACE":
@@ -324,6 +474,10 @@ export function generateTurnToolpath(
       return odRoughToolpath(op, profile);
     case "OD_FINISH":
       return odFinishToolpath(op);
+    case "ID_BORE_ROUGH":
+      return idBoreRoughToolpath(op, barDiameter);
+    case "ID_BORE_FINISH":
+      return idBoreFinishToolpath(op, barDiameter);
     case "GROOVE_OD":
       return grooveToolpath(op, Math.abs(op.endZ - op.startZ), toolWidth ?? 0);
     case "THREAD_OD":
