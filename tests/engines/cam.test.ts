@@ -249,3 +249,65 @@ test("a dialect the verifier cannot read is declared unverified, not clean", () 
   assert.equal(issues.filter((i) => i.severity === "ERROR").length, 0, "no invented errors");
   assert.ok(issues.some((i) => /cannot check this dialect/i.test(i.message)), "and it says it did not verify");
 });
+
+/* ------------------------------------------------------------------ */
+/* Surface speed: the material window, or no motion                    */
+/* ------------------------------------------------------------------ */
+
+test("no material record means no toolpath — a default SFM window is another material's numbers", () => {
+  // This defaulted to 300-800 SFM, a carbide-in-steel window, for whatever
+  // was in the vise. Inconel 718 cuts at roughly 60-100 SFM with carbide:
+  // the default is six times that, and the operator reads a plausible
+  // S-number in the program.
+  const r = generateToolpath(req("BORE"), bore, { ...ctx(boringHead), materialSfmMin: null, materialSfmMax: null, materialName: "Inconel 718" }, stock);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /no surface speed window on file/i.test(r.error.reason), r.ok ? "" : r.error.reason);
+  assert.ok(!r.ok && /Inconel 718/.test(r.error.reason));
+  assert.ok(!r.ok && r.error.recommendations.length > 0);
+  // Half a window is not a window.
+  assert.equal(generateToolpath(req("BORE"), bore, { ...ctx(boringHead), materialSfmMax: null }, stock).ok, false);
+  assert.equal(generateToolpath(req("BORE"), bore, { ...ctx(boringHead), materialSfmMin: null }, stock).ok, false);
+});
+
+test("a milling cutter not rated for the material is refused, not averaged into a middle number", () => {
+  // Tool rated 400-700, material cutting at 60-100: no overlap. Averaging
+  // the two windows' endpoints yields a surface speed belonging to neither.
+  const slow = { ...ctx(endmill), materialSfmMin: 60, materialSfmMax: 100, materialName: "Inconel 718" };
+  const r = generateToolpath(req("BORE"), bore, slow, stock);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /do not overlap/i.test(r.error.reason), r.ok ? "" : r.error.reason);
+});
+
+test("the overlap rule is a milling rule — a tap is not refused by it", () => {
+  // The material record's SFM window is a MILLING window. A tap runs at a
+  // fraction of it by design; refusing it here would refuse a correct
+  // operation. The tap is rated 30-60 against aluminium's 600-1000.
+  const r = generateToolpath({ ...req("TAP"), finalZ: -0.625 }, tapped, ctx(tap), stock);
+  assert.equal(r.ok, true, r.ok ? "" : r.error.reason);
+});
+
+test("surface speed lands inside both windows where they overlap", () => {
+  // The clamp used to widen to min/max of the two — the union, not the
+  // intersection — so the midpoint could be pulled outside both.
+  const c = { ...ctx(endmill), materialSfmMin: 650, materialSfmMax: 900 }; // tool 400-700
+  const r = generateToolpath(req("BORE"), bore, c, stock);
+  assert.equal(r.ok, true, r.ok ? "" : r.error.reason);
+  if (!r.ok) return;
+  const sfm = r.toolpath.parameters.sfm;
+  assert.ok(sfm >= 650 && sfm <= 700, `SFM ${sfm} is outside the 650-700 intersection`);
+});
+
+test("where the windows do not overlap the tool's own rating wins, not a number between them", () => {
+  // The tap is rated 30-60 SFM; aluminium is quoted 600-1000 for milling.
+  // The old expression averaged max(30,600)=600 with min(60,1000)=60 to get
+  // 330 SFM — strictly between the two windows and inside neither, which on
+  // a ⌀0.25 tap is over eleven thousand rpm before the tapping cap catches
+  // it. A tap runs at the tap's rating.
+  const r = generateToolpath({ ...req("TAP"), finalZ: -0.625 }, tapped, ctx(tap), stock);
+  assert.equal(r.ok, true, r.ok ? "" : r.error.reason);
+  if (!r.ok) return;
+  const sfm = r.toolpath.parameters.sfm;
+  assert.ok(sfm >= 30 && sfm <= 60, `SFM ${sfm} is outside the tap's own 30-60 rating`);
+  // And the emitted spindle speed follows from it rather than from the cap.
+  assert.ok(r.toolpath.parameters.rpm < 800, `rpm ${r.toolpath.parameters.rpm} is the tapping cap, not the tap's rating`);
+});

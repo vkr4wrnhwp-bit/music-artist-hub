@@ -137,9 +137,14 @@ export type ToolpathResult =
 
 export interface MachiningContext {
   tool: Tool;
-  /** SFM window for the material being cut. */
-  materialSfmMin: number;
-  materialSfmMax: number;
+  /**
+   * SFM window for the material being cut. Null when the shop has no record
+   * of this material — and then no motion is produced for it. Surface speed
+   * is what sets the spindle, and a default window is a different material's
+   * numbers wearing this one's name.
+   */
+  materialSfmMin: number | null;
+  materialSfmMax: number | null;
   materialName: string;
   /** Rapid rate for cycle time computation, in/min. */
   rapidRate: number;

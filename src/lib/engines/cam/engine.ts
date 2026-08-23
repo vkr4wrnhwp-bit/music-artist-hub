@@ -27,19 +27,35 @@ import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
 /* Speeds and feeds                                                    */
 /* ------------------------------------------------------------------ */
 
+/** A context whose material window is known. See generateToolpath's refusal. */
+export type CuttableContext = MachiningContext & { materialSfmMin: number; materialSfmMax: number };
+
 export function deriveCuttingParameters(
-  ctx: MachiningContext,
+  ctx: CuttableContext,
   overrides: Partial<CuttingParameters> = {},
   finishing = false,
 ): CuttingParameters {
   const { tool } = ctx;
 
-  // Use the intersection of the tool's rated window and the material's window.
-  const sfm = clamp(
-    (Math.max(tool.sfmMin, ctx.materialSfmMin) + Math.min(tool.sfmMax, ctx.materialSfmMax)) / 2,
-    Math.min(tool.sfmMin, ctx.materialSfmMin),
-    Math.max(tool.sfmMax, ctx.materialSfmMax),
-  );
+  /*
+   * The intersection of the tool's rated window and the material's.
+   *
+   * Where they overlap — which generateToolpath requires of a milling
+   * cutter — the midpoint of the intersection is the answer, and the old
+   * clamp to the union was a no-op on it.
+   *
+   * Where they do NOT overlap, the old expression was not: `max(toolMin,
+   * matMin)` and `min(toolMax, matMax)` cross over, and their average is a
+   * number strictly between the two windows and inside neither. A ⌀0.25 tap
+   * rated 30-60 SFM, in aluminium quoted 600-1000, came out at 330 SFM —
+   * eleven thousand rpm before the tapping cap caught it. Those are the
+   * tools whose speed is not set by the material's milling window at all,
+   * so the tool's own rating wins: it is the rating that belongs to the
+   * thing doing the cutting.
+   */
+  const sfmLo = Math.max(tool.sfmMin, ctx.materialSfmMin);
+  const sfmHi = Math.min(tool.sfmMax, ctx.materialSfmMax);
+  const sfm = sfmLo <= sfmHi ? (sfmLo + sfmHi) / 2 : clamp((tool.sfmMin + tool.sfmMax) / 2, tool.sfmMin, tool.sfmMax);
 
   const rawRpm = (sfm * 12) / (Math.PI * tool.diameter);
   const rpm = Math.round(clamp(rawRpm, 100, Math.min(tool.maxRPM, ctx.maxSpindleRPM)));
@@ -76,7 +92,62 @@ export function generateToolpath(
   ctx: MachiningContext,
   stock: Stock,
 ): ToolpathResult {
-  const params = deriveCuttingParameters(ctx, req.overrides, req.type === "CHAMFER" || req.type === "ENGRAVE");
+  /*
+   * No material record, no speeds and feeds.
+   *
+   * Surface speed is what sets the spindle, and the window used to default
+   * to 300-800 SFM when the shop had no record of the material — a carbide
+   * -in-steel window applied to whatever was in the vise. Inconel 718 cuts
+   * at roughly 60-100 SFM with carbide; the default is six times that, and
+   * the operator would have read a plausible S-number in the program.
+   */
+  if (ctx.materialSfmMin === null || ctx.materialSfmMax === null) {
+    return {
+      ok: false,
+      error: {
+        operationId: req.id,
+        reason: `No surface speed window on file for ${ctx.materialName || "this material"}. Speeds and feeds are not derivable without it, and CANVAS will not substitute another material's numbers.`,
+        recommendations: [
+          `Add ${ctx.materialName || "the material"} to the material library with its carbide SFM window`,
+          "Check the material named on the part matches a library record",
+        ],
+      },
+    };
+  }
+  const cuttable = ctx as CuttableContext;
+
+  /*
+   * The tool's rated window and the material's must actually overlap.
+   *
+   * Scoped to the peripheral-milling classes on purpose: the material record's
+   * SFM window is a MILLING window. A tap runs at a fraction of it by design
+   * (this engine caps rigid tapping at 800 rpm and locks the feed to the
+   * thread), and a drill's rated speed is a property of the drill. Applying
+   * the overlap test to those would refuse operations that are correct.
+   *
+   * Where the windows genuinely do not overlap for a milling cutter, this
+   * tool is not rated for this material — and averaging the two windows'
+   * endpoints produced a surface speed belonging to neither.
+   */
+  const SURFACE_SPEED_MILLING = ["FACE_MILL", "FLAT_END_MILL", "BALL_END_MILL", "BULL_NOSE", "SHELL_MILL", "CHAMFER_MILL"];
+  if (
+    SURFACE_SPEED_MILLING.includes(ctx.tool.toolClass) &&
+    (ctx.tool.sfmMin > cuttable.materialSfmMax || ctx.tool.sfmMax < cuttable.materialSfmMin)
+  ) {
+    return {
+      ok: false,
+      error: {
+        operationId: req.id,
+        reason: `${ctx.tool.description} is rated ${ctx.tool.sfmMin}-${ctx.tool.sfmMax} SFM and ${ctx.materialName} cuts at ${cuttable.materialSfmMin}-${cuttable.materialSfmMax} SFM. The windows do not overlap — this tool is not rated for this material.`,
+        recommendations: [
+          `Select a tool rated at or below ${cuttable.materialSfmMax} SFM`,
+          "Confirm the material record against the supplier's data",
+        ],
+      },
+    };
+  }
+
+  const params = deriveCuttingParameters(cuttable, req.overrides, req.type === "CHAMFER" || req.type === "ENGRAVE");
   const warnings: string[] = [];
 
   /* ---- Hard validation before any motion is produced ---- */

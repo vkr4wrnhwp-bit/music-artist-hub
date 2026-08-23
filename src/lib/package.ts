@@ -129,8 +129,8 @@ export async function buildPackage(
         }
         const ctx: MachiningContext = {
           tool,
-          materialSfmMin: material?.sfmCarbideMin ?? 300,
-          materialSfmMax: material?.sfmCarbideMax ?? 800,
+          materialSfmMin: material?.sfmCarbideMin ?? null,
+          materialSfmMax: material?.sfmCarbideMax ?? null,
           materialName: material?.name ?? "Unspecified",
           rapidRate: primaryMachine.maxRapid,
           maxSpindleRPM: primaryMachine.maxSpindleRPM,

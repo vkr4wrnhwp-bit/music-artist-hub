@@ -42,8 +42,10 @@ export interface ReviewInput {
   tools: Tool[];
   workholding: WorkholdingDevice | null;
   finishedHeight: number;
-  materialSfmMin: number;
-  materialSfmMax: number;
+  /** Null when the shop has no record of this material — the CAM engine
+   * refuses the operations rather than substituting a default window. */
+  materialSfmMin: number | null;
+  materialSfmMax: number | null;
   materialName: string;
   specificEnergy: number | null;
   costAssumptions: CostAssumptions;
