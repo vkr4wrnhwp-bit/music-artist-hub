@@ -121,6 +121,38 @@ one part they already run, and work the loop above for a week. Until
 that happens the honest status of the beta is *rehearsed, not run*, and
 this document should keep saying so.
 
+## Dress rehearsal re-run (2026-08-23, demo org, over HTTP)
+
+Re-run against the current build after the branch's engine and gate
+changes, using `npm run smoke` plus direct requests with a real session.
+What a script can verify was verified; the interactive walk (accepting
+proposals, recording verdicts and reference cuts) is the e2e scripts' and
+the machinist's job, and items 2–4 and 6–9 above stand as recorded on
+2026-08-13.
+
+1. All 23 workspace routes answer 200, no error boundaries; content
+   assertions hold (chamfer warning, scan form, holding-margin block).
+2. Turning readiness on the demo shaft, per gate: geometry PASS, material
+   PASS (it can now fail; it reads the intent), machine PASS, workholding
+   PASS, grip PASS, stickout PASS, part-off REVIEW ("nothing manages the
+   drop — the finished part falls" — no parts catcher on the seeded
+   lathe, correct), tooling 8/8 PASS, RPM/CSS PASS, post PASS, approval
+   NOT ATTEMPTED, **inspection FAIL** — overall NOT READY TO RUN.
+3. The inspection FAIL is the 10:1 decision doing its job, with sharper
+   numbers than expected: the bearing journal is +0.0000/−0.0005", a
+   ONE-SIDED 0.0005" band, so the seeded ±0.0002" micrometer consumes
+   40% of it — past even the 25% marginal floor. The plus-only-tolerance
+   fix is what put this band in the check at all; before it, the segment
+   was silently excluded. A tenths instrument (±0.00005") reaches
+   CAPABLE. This is the beta conversation working as designed: the shop
+   either owns a tenth mic or guard-bands and knows it.
+4. Mill part CNV-001: readiness NOT READY TO RUN, NC export withheld
+   (unchanged posture from 2026-08-13, item 5).
+5. NC analyzer page renders with the Load demo button; knowledge page
+   200; machines page shows reference-cut and calibration panels (the
+   recorded samples from the 13th were interactive artifacts and are
+   reset by reseed — the honesty wording is in the panels, not the data).
+
 ## Dress rehearsal results (2026-08-13, demo org)
 
 1. Audit: 11 gates listed, stage AUDIT: REVIEW (comped region —

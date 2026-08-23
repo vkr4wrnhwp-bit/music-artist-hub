@@ -209,7 +209,7 @@ export const TURN_A_SHAFT: GuideFlowDef = {
     {
       id: "verify",
       title: "Verify — can your instruments prove it?",
-      body: "A ±0.0005\" journal wants an instrument consuming no more than 10% of the band — the same gauge-maker's rule as the mill. The seeded ±0.0002\" micrometer consumes 20%: MARGINAL, so the gate reads REVIEW and asks for guard-banded accept limits, not a click.",
+      body: "The bearing journal is +0.0000/\u22120.0005\" — a one-sided 0.0005\" band, and the gauge-maker's rule wants the instrument consuming no more than 10% of it. The seeded ±0.0002\" micrometer consumes 40%: what it reports is largely its own noise, and the gate fails until a tenths-reading instrument is on file.",
       why: "Inspection capability is a property of the instruments the shop owns. It cannot be cleared by confirmation, on a lathe or anywhere else.",
       href: (ctx) => `/lathe/${ctx.partId}`,
       done: (ctx) => !ctx.blockingGates.some((g) => /inspection|metrology/i.test(g.label)),
