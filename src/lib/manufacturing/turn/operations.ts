@@ -662,6 +662,151 @@ export function partOffToolpath(op: TurnOperation, toolWidth: number): TurnToolp
 
 /** Drilling on centre (center drill, drill): Z plunge at X0. */
 /* ------------------------------------------------------------------ */
+/* ID GROOVING AND THREADING — boring's law applies                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Everything inside a bore obeys the rule the boring engines established:
+ * clear is INWARD. An OD groove retracts to a bigger X; an ID groove
+ * retracting to a bigger X is parked in the groove it just cut. And before
+ * any of it, the tool has to fit the hole — the tool record states the
+ * smallest bore it enters (minBoreDiameter), and an unrecorded value is a
+ * refusal, not an assumption, because "does it fit" is the first question
+ * and CANVAS does not answer it with a guess.
+ */
+function idEntryCheck(boreDiameter: number, minBore: number | null | undefined): { reason: string } | null {
+  if (boreDiameter <= 0) {
+    return { reason: "This operation runs inside a bore, and there is no bore recorded at this operation. Drill or bore first." };
+  }
+  if (minBore === null || minBore === undefined) {
+    return {
+      reason:
+        "The tool record does not state the smallest bore this tool enters (minBoreDiameter). Whether it fits the hole is the first question an ID operation asks, and CANVAS will not assume it.",
+    };
+  }
+  if (minBore > boreDiameter) {
+    return { reason: `This tool needs a ⌀${minBore.toFixed(4)} bore to enter and the bore is ⌀${boreDiameter.toFixed(4)}.` };
+  }
+  return null;
+}
+
+/**
+ * ID groove: plunge OUTWARD from the bore surface, retract INWARD.
+ * startDiameter is the bore, endDiameter the groove root — a groove inside
+ * a hole is BIGGER than the hole, the mirror of the OD case.
+ */
+export function grooveIdToolpath(
+  op: TurnOperation,
+  grooveWidth: number,
+  toolWidth: number,
+  minBore: number | null,
+): TurnToolpathResult {
+  if (toolWidth <= 0) return { ok: false, reason: "Groove tool width unknown — refusing to guess an insert." };
+  if (grooveWidth < toolWidth) {
+    return { ok: false, reason: `Groove ${grooveWidth.toFixed(3)}" is narrower than the ${toolWidth.toFixed(3)}" insert.` };
+  }
+  const entry = idEntryCheck(op.startDiameter, minBore);
+  if (entry) return { ok: false, reason: entry.reason };
+  if (op.endDiameter <= op.startDiameter) {
+    return {
+      ok: false,
+      reason: `Groove root ⌀${op.endDiameter.toFixed(4)} is not larger than the ⌀${op.startDiameter.toFixed(4)} bore — an internal groove opens outward, and this one removes nothing.`,
+    };
+  }
+
+  const clearX = Math.max(0, op.startDiameter - 2 * BORE_X_CLEAR);
+  const plunges = Math.max(1, Math.ceil(grooveWidth / (toolWidth * 0.9)));
+  const radial = (op.endDiameter - op.startDiameter) / 2;
+  const moves: TurnMove[] = [];
+  let minutes = 0;
+  // In through the mouth at clear diameter, once — X and Z never together.
+  moves.push({ kind: "RAPID", x: clearX, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+  for (let i = 0; i < plunges; i++) {
+    const z = op.startZ + Math.min(grooveWidth - toolWidth, i * toolWidth * 0.9);
+    moves.push({ kind: "RAPID", x: clearX, z, feedPerRev: null });
+    // Plunge OUTWARD to the groove root, back INWARD to clear.
+    moves.push({ kind: "CUT", x: op.endDiameter, z, feedPerRev: op.params.feedPerRev });
+    moves.push({ kind: "CUT", x: clearX, z, feedPerRev: op.params.feedPerRev });
+    minutes += passMinutes(radial, op.params, (op.startDiameter + op.endDiameter) / 2);
+  }
+  // Back out of the bore at clear diameter.
+  moves.push({ kind: "RAPID", x: clearX, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes: plunges,
+      estimatedMinutes: r3(minutes),
+      assumptions: [
+        "ESTIMATED: plunge feed only; dwell at depth not modelled.",
+        `${plunges} plunge(s) at 90% insert width.`,
+        `Retracts clear the bore inward to ⌀${clearX.toFixed(4)} before any Z move.`,
+      ],
+      warnings: [],
+    },
+  };
+}
+
+/**
+ * Internal 60° thread height as a fraction of pitch — shallower than the
+ * external 0.6134 because the internal form is truncated at the crest
+ * (5/8H engagement, the standard nut form). Stated, not tuned.
+ */
+const ID_THREAD_DEPTH_FACTOR = 0.5413;
+
+/**
+ * ID thread: passes open OUTWARD from the minor diameter (the bore) toward
+ * the major. Feed is the pitch, G97 fixed RPM, same law as the OD thread —
+ * plus boring's: every between-pass retract is inward, and the bar leaves
+ * the bore along the clear diameter.
+ */
+export function threadIdToolpath(op: TurnOperation, pitchIn: number, minBore: number | null): TurnToolpathResult {
+  if (pitchIn <= 0) return { ok: false, reason: "Thread pitch unknown — a thread without a pitch is not a thread." };
+  const entry = idEntryCheck(op.startDiameter, minBore);
+  if (entry) return { ok: false, reason: entry.reason };
+  const cutLen = Math.abs(op.endZ - op.startZ);
+  if (cutLen <= 0) return { ok: false, reason: "Zero-length thread." };
+
+  const minorD = op.startDiameter; // the bore is the minor diameter
+  const depth = ID_THREAD_DEPTH_FACTOR * pitchIn; // radial
+  const firstDoc = Math.min(0.012, depth / 2);
+  const passes = Math.max(2, Math.ceil((depth / firstDoc) ** (2 / 3)) + 1);
+  const clearX = Math.max(0, minorD - 2 * BORE_X_CLEAR);
+  const moves: TurnMove[] = [];
+  for (let i = 1; i <= passes; i++) {
+    // Constant-area infeed, opening OUT: depth_i = depth × sqrt(i/passes).
+    const di = minorD + 2 * depth * Math.sqrt(i / passes);
+    moves.push({ kind: "RAPID", x: clearX, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    moves.push({ kind: "RAPID", x: di, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+    moves.push({ kind: "THREAD_PASS", x: di, z: op.endZ, feedPerRev: pitchIn });
+    // Off the flank INWARD, then out of the bore at clear diameter.
+    moves.push({ kind: "RAPID", x: clearX, z: op.endZ, feedPerRev: null });
+    moves.push({ kind: "RAPID", x: clearX, z: op.startZ + SAFE_Z_CLEAR, feedPerRev: null });
+  }
+  const rpm = op.params.rpm; // threading runs G97 fixed RPM, always
+  const minutes = rpm > 0 ? (passes * cutLen) / (pitchIn * rpm) : 0;
+  return {
+    ok: true,
+    toolpath: {
+      operationNumber: op.operationNumber,
+      type: op.type,
+      moves,
+      passes,
+      estimatedMinutes: r3(minutes),
+      assumptions: [
+        "Thread feed equals pitch and is never retimed.",
+        `Constant-area infeed; 60° internal form depth ${ID_THREAD_DEPTH_FACTOR} × pitch (5/8H crest truncation).`,
+        "G97 fixed RPM — CSS is never used for threading.",
+        `Between-pass retracts clear the thread inward to ⌀${clearX.toFixed(4)} before leaving the bore.`,
+      ],
+      warnings: [],
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* TAP AND REAM — centreline operations with hard rules                */
 /* ------------------------------------------------------------------ */
 
@@ -864,6 +1009,11 @@ export interface TurnToolContext {
   internal?: boolean | null;
   /** Whether a blend curves into the material. Null = not recorded. */
   concave?: boolean | null;
+  /**
+   * Smallest bore this station's tool fits into, from the tool record.
+   * The first question every ID operation asks.
+   */
+  minBoreDiameter?: number | null;
 }
 
 export function generateTurnToolpath(
@@ -883,6 +1033,10 @@ export function generateTurnToolpath(
       return idBoreRoughToolpath(op, barDiameter);
     case "ID_BORE_FINISH":
       return idBoreFinishToolpath(op, barDiameter);
+    case "GROOVE_ID":
+      return grooveIdToolpath(op, Math.abs(op.endZ - op.startZ), toolWidth ?? 0, ctx.minBoreDiameter ?? null);
+    case "THREAD_ID":
+      return threadIdToolpath(op, pitchIn ?? 0, ctx.minBoreDiameter ?? null);
     case "GROOVE_OD":
       return grooveToolpath(op, Math.abs(op.endZ - op.startZ), toolWidth ?? 0);
     case "THREAD_OD":

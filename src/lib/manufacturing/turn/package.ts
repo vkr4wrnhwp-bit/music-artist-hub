@@ -85,6 +85,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
         blendRadius: seg?.cornerRadius ?? null,
         internal: seg?.internal ?? null,
         concave: seg?.concave ?? null,
+        minBoreDiameter: tools.find((t) => t.station === op.toolStation)?.minBoreDiameter ?? null,
       }),
     };
   });

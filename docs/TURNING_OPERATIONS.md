@@ -93,3 +93,30 @@ oversize or bell-mouthed. Both refusals name the bound. The reamer feeds in
 AND OUT at cutting feed: a rapid out of a reamed hole drags a spiral scratch
 down the finish the reamer exists to produce, and a reamer is never
 reversed.
+
+## ID grooving and threading
+
+Boring's law applies to everything inside a bore: **clear is inward.** An OD
+groove retracts to a bigger X; an ID groove retracting to a bigger X is
+parked in the groove it just cut.
+
+Before any of it, the tool has to fit the hole. `TurningTool.minBoreDiameter`
+is the tool record's own answer — a column previously used by nothing — and
+an unrecorded value is a refusal, not an assumption.
+
+**ID groove.** Plunges outward from the bore surface to the groove root
+(`endDiameter > startDiameter` — an internal groove is *bigger* than its
+bore, the mirror of the OD case, and the inverted form is refused as
+removing nothing). Between plunges the tool comes fully off the root before
+any Z move: the test requires **both endpoints** of every Z-changing move to
+sit at or inside the clear diameter, because a diagonal rapid from the root
+ends clear and sweeps through the shoulder on the way.
+
+**ID thread.** Passes open outward from the minor diameter (the bore) with
+constant-area infeed, feed = pitch on `G32`, G97 fixed RPM — the OD thread's
+law plus boring's. Form depth is **0.5413 × pitch**, not the external
+0.6134: the internal crest is truncated (5/8H, the standard nut form).
+Cutting an internal thread to the external depth over-cuts the major and
+guts the thread engagement. Between passes the tool comes off the flank
+inward and leaves the bore along the clear diameter, never dragged back
+across the thread it just cut.

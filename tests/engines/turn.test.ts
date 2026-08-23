@@ -9,6 +9,8 @@ import {
   partOffToolpath,
   grooveToolpath,
   chamferToolpath,
+  grooveIdToolpath,
+  threadIdToolpath,
   tapToolpath,
   reamToolpath,
   REAM_MIN_STOCK,
@@ -1058,4 +1060,116 @@ test("generateTurnToolpath routes tap and ream, with the pitch from context", ()
   assert.equal(generateTurnToolpath(tapOp(), profile, { pitchIn: 0.05 }).ok, true);
   assert.equal(generateTurnToolpath(tapOp(), profile, {}).ok, false);
   assert.equal(generateTurnToolpath(reamOp(), profile, {}).ok, true);
+});
+
+/* ------------------------------------------------------------------ */
+/* ID grooving and threading                                           */
+/* ------------------------------------------------------------------ */
+
+const idGroove = (over: Partial<TurnOperation> = {}) =>
+  op({
+    type: "GROOVE_ID", label: "o-ring groove", startZ: 0.4, endZ: 0.55, startDiameter: 1.0, endDiameter: 1.12,
+    params: { ...op({}).params, cssEnabled: false, rpm: 800, feedPerRev: 0.003 },
+    ...over,
+  });
+
+const idThread = (over: Partial<TurnOperation> = {}) =>
+  op({
+    type: "THREAD_ID", label: "thread 1-1/4-12 int", startZ: 0, endZ: 0.6, startDiameter: 1.16, endDiameter: 1.25,
+    params: { ...op({}).params, cssEnabled: false, rpm: 500, feedPerRev: 0.0833 },
+    ...over,
+  });
+
+test("every ID operation asks whether the tool fits the hole before anything else", () => {
+  // minBoreDiameter is the tool record's own answer, and an unrecorded one
+  // is a refusal — "does it fit" is not a question CANVAS guesses at.
+  for (const [name, r] of [
+    ["groove unrecorded", grooveIdToolpath(idGroove(), 0.15, 0.125, null)],
+    ["groove too small", grooveIdToolpath(idGroove(), 0.15, 0.125, 1.1)],
+    ["thread unrecorded", threadIdToolpath(idThread(), 1 / 12, null)],
+    ["thread too small", threadIdToolpath(idThread(), 1 / 12, 1.5)],
+    ["groove no bore", grooveIdToolpath(idGroove({ startDiameter: 0 }), 0.15, 0.125, 0.9)],
+  ] as const) {
+    assert.equal(r.ok, false, name);
+    assert.ok(!r.ok && /(fits? the hole|needs a ⌀|no bore recorded)/i.test(r.reason), `${name}: ${r.ok ? "" : r.reason}`);
+  }
+});
+
+test("an ID groove plunges OUTWARD and every retract is inward — outward is the groove it just cut", () => {
+  const r = grooveIdToolpath(idGroove(), 0.15, 0.125, 0.9);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  const moves = r.toolpath.moves;
+  // The groove root is reached, and nothing exceeds it.
+  assert.ok(moves.some((m) => m.kind === "CUT" && Math.abs(m.x - 1.12) < 1e-9), "groove root never reached");
+  assert.ok(Math.max(...moves.map((m) => m.x)) <= 1.12 + 1e-9);
+  // Boring's law: any move that changes Z happens at or below the clear
+  // diameter, which sits INSIDE the bore surface.
+  const clear = 1.0 - 2 * 0.06;
+  for (let i = 1; i < moves.length; i++) {
+    if (moves[i].z !== moves[i - 1].z) {
+      // BOTH ends of any Z-changing move must sit at or inside the clear
+      // diameter. Checking only the destination lets a diagonal rapid from
+      // the groove root pass — it ends clear, and sweeps through the
+      // shoulder on the way. (A mutation survived exactly there.)
+      assert.ok(moves[i].x <= clear + 1e-9, `Z moved to ⌀${moves[i].x} — inside a ⌀1.0 bore that is a crash`);
+      assert.ok(moves[i - 1].x <= clear + 1e-9, `Z move began at ⌀${moves[i - 1].x} — dragging across the groove`);
+    }
+  }
+});
+
+test("an internal groove that does not open outward removes nothing and says so", () => {
+  const r = grooveIdToolpath(idGroove({ endDiameter: 0.95 }), 0.15, 0.125, 0.9);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /opens outward/i.test(r.reason), r.ok ? "" : r.reason);
+});
+
+test("an ID groove narrower than the insert is refused, same as the OD case", () => {
+  const r = grooveIdToolpath(idGroove(), 0.1, 0.125, 0.9);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /narrower than/i.test(r.reason));
+  assert.equal(grooveIdToolpath(idGroove(), 0.15, 0, 0.9).ok, false);
+});
+
+test("ID thread passes open outward from the bore at pitch feed, shallower than the external form", () => {
+  const pitch = 1 / 12;
+  const r = threadIdToolpath(idThread(), pitch, 1.0);
+  assert.equal(r.ok, true, r.ok ? "" : r.reason);
+  if (!r.ok) return;
+  const tp = r.toolpath.moves.filter((m) => m.kind === "THREAD_PASS");
+  assert.ok(tp.length >= 2);
+  for (const m of tp) assert.equal(m.feedPerRev, pitch, "a thread's feed is its pitch");
+  // Successive passes sit at LARGER diameters — the mirror of the OD thread.
+  for (let i = 1; i < tp.length; i++) assert.ok(tp[i].x > tp[i - 1].x, "passes must open outward");
+  // The last pass reaches the internal form depth: minor + 2 × 0.5413 × pitch,
+  // NOT the external 0.6134 — the internal crest is truncated (5/8H).
+  const finalD = tp[tp.length - 1].x;
+  assert.ok(Math.abs(finalD - (1.16 + 2 * 0.5413 * pitch)) < 1e-6, `final pass ⌀${finalD}`);
+  assert.ok(finalD < 1.16 + 2 * 0.6134 * pitch, "internal depth must be shallower than the external form");
+});
+
+test("between ID thread passes the tool leaves along the clear diameter, never across the thread", () => {
+  const r = threadIdToolpath(idThread(), 1 / 12, 1.0);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const moves = r.toolpath.moves;
+  const clear = 1.16 - 2 * 0.06;
+  for (let i = 1; i < moves.length; i++) {
+    if (moves[i].z !== moves[i - 1].z && moves[i].kind !== "THREAD_PASS") {
+      assert.ok(moves[i].x <= clear + 1e-9, `retract crossed the thread at ⌀${moves[i].x}`);
+    }
+  }
+  assert.ok(r.toolpath.assumptions.some((a) => /never retimed/.test(a)));
+  assert.ok(r.toolpath.assumptions.some((a) => /G97/.test(a)));
+});
+
+test("generateTurnToolpath routes the ID pair with the tool record's own fit answer", () => {
+  const profile = {
+    units: "IN" as const, zZeroReference: "front face", stockDiameter: 2, stockLength: 4,
+    barStock: true, segments: [],
+  };
+  assert.equal(generateTurnToolpath(idGroove(), profile, { toolWidth: 0.125, minBoreDiameter: 0.9 }).ok, true);
+  assert.equal(generateTurnToolpath(idGroove(), profile, { toolWidth: 0.125 }).ok, false);
+  assert.equal(generateTurnToolpath(idThread(), profile, { pitchIn: 1 / 12, minBoreDiameter: 1.0 }).ok, true);
+  assert.equal(generateTurnToolpath(idThread(), profile, { pitchIn: 1 / 12 }).ok, false);
 });
