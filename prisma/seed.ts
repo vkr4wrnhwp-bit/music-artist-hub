@@ -251,6 +251,11 @@ async function main() {
     { deviceType: "SURFACE_PLATE", description: '18 × 24" granite surface plate, Grade B', resolution: 0.0001, uncertainty: 0.0001, calibrated: true },
     { deviceType: "DIAL_INDICATOR", description: '0.001" dial indicator', resolution: 0.001, uncertainty: 0.001, calibrated: true },
     { deviceType: "MACHINE_PROBE", description: "Spindle probe on the VF-2", resolution: 0.0001, uncertainty: 0.0005, calibrated: true },
+    // Shop-grade structured light, at the uncertainty it actually achieves
+    // on a bench in shop conditions — not the brochure figure. This is what
+    // makes the scan import usable in the demo, and its number is what the
+    // import attaches to every scanned dimension.
+    { deviceType: "STRUCTURED_LIGHT_SCANNER", description: "Benchtop structured-light scanner", resolution: 0.001, uncertainty: 0.002, calibrated: false },
   ];
   for (const d of metrology) await db.metrologyDevice.create({ data: { organizationId: org.id, ...d } });
 
