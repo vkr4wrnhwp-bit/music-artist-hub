@@ -430,6 +430,47 @@ def test_every_page_that_reads_a_token_also_defines_it():
         % broken)
 
 
+def test_the_component_macros_never_nest_an_anchor_in_an_anchor():
+    """An <a> inside an <a> is not HTML. The parser closes the outer one
+    at the inner one's open tag, and whatever followed falls out of the
+    component into the page - which is how the KPI tile's first-step link
+    ended up floating in the grid beside its tile on Command Center.
+
+    Render every macro variant that takes an href together with an inner
+    link, and walk the result with a real HTML parser rather than a regex."""
+    from html.parser import HTMLParser
+    from jinja2 import Environment, FileSystemLoader
+
+    class Depth(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.open_a = 0
+            self.nested = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                if self.open_a:
+                    self.nested.append(dict(attrs).get("class", "?"))
+                self.open_a += 1
+
+        def handle_endtag(self, tag):
+            if tag == "a" and self.open_a:
+                self.open_a -= 1
+
+    env = Environment(loader=FileSystemLoader(os.path.join(HERE, "templates")))
+    out = env.from_string('''
+      {% import "_sb.html" as sb %}
+      {{ sb.kpi("Smart link score", href="/links", first="Create your first campaign", first_href="/links/builder") }}
+      {{ sb.kpi("Fans", value=12, href="/links/fans", delta="3 hot", direction="up") }}
+      {{ sb.kpi("Catalog health", first="Add a track", first_href="/catalog") }}
+      {{ sb.module_card("Light Studio", "2 shows", "/lights") }}
+      {% call sb.priority("T", "b", severity="crit") %}{{ sb.btn("Fix", href="/x", variant="primary") }}{% endcall %}
+    ''').render()
+    d = Depth()
+    d.feed(out)
+    assert not d.nested, "anchors nested inside anchors: %s" % d.nested
+
+
 def test_the_focus_ring_and_reduced_motion_guard_are_global():
     css = _read(os.path.join(HERE, "static", "css", "tailwind.css"))
     assert "focus-visible" in css and "--sb-focus" in css, \

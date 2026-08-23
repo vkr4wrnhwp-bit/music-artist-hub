@@ -61,7 +61,11 @@
 {% macro kpi(label, value=none, scale=none, delta=none, direction="flat",
              target=none, href=none, spark=none, spark_tone="good",
              first=none, first_href="#", value_tone=none, empty_label="Not started") -%}
-  {%- set tag = "a" if href else "div" -%}
+  {#- The empty variant carries its own link (the first step), and an <a>
+      inside an <a> is not HTML: the parser closes the outer one early and
+      the first-step link falls out of the tile into the grid. So an empty
+      tile is always a <div>, and the first step is the only link in it. -#}
+  {%- set tag = "a" if (href and not first) else "div" -%}
   {%- set tone_hex = {"good": "var(--sb-good)", "crit": "var(--sb-crit)",
                       "warn": "var(--sb-warn)", "info": "var(--sb-info)"} -%}
   <{{ tag }}{% if href %} href="{{ href }}"{% endif %} class="sb-kpi{{ ' sb-kpi-empty' if first else '' }}">
