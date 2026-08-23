@@ -3958,8 +3958,11 @@ def test_rack_page_and_presets():
     artist = _demo(app_obj)
     page = artist.get("/rack").get_data(as_text=True)
     assert "The Rack" in page and "12 Band" in page
-    # Artist-supplied chassis v2 hosts the live controls in its wells.
-    assert "rack-chassis2.jpg" in page and "rackdsp.js?v=" in page
+    # CSS-drawn chassis; every live control keeps its hook. The photo is gone
+    # and the template asks for no image at all (base.html still links the
+    # apple-touch-icon on every page, so check the template, not the page).
+    assert "rack-chassis2.jpg" not in page and "rackdsp.js?v=" in page
+    assert "/static/img/" not in open("templates/rack.html", encoding="utf8").read()
     # v3 workflow layer: flow strip, reference slot, shareable rigs
     assert 'class="flow-node' in page and 'id="rk-ref"' in page
     assert 'id="rk-rig-export"' in page and "Import rig" in page
@@ -4039,8 +4042,8 @@ def test_rack_page_and_presets():
     assert 'id="sb14"' in page and "VLV-6" in page and "tubes.js?v=" in page
     assert page.count('class="vlv"') == 6
     assert page.count('class="vlv-pwr sw"') == 6
-    assert page.count('class="vlv-fil"') == 6
-    assert page.count('class="vlv-halo"') == 6
+    assert page.count('class="glass"') == 6
+    assert page.count('style="--heat:0"') == 6
     for key, tube, name in (("triode", "V1", "Triode"),
                             ("pentode", "V2", "Pentode"),
                             ("tape", "V3", "Tape"),
@@ -4051,10 +4054,6 @@ def test_rack_page_and_presets():
         assert 'data-valve="%s"' % key in page, key
         assert ">%s<" % tube in page, tube
         assert ">%s<" % name in page, name
-    # Each socket needs its own gradient ids, or every tube would light from
-    # whichever definition happened to be first in the document.
-    for key in ("triode", "pentode", "tape", "flutter", "iron", "varimu"):
-        assert 'id="vh-%s"' % key in page and 'id="vg-%s"' % key in page, key
     assert 'id="rk-vlv-all"' in page
     # What the panel promises about itself stays on the faceplate.
     assert "the glow is a meter, not decoration" in page

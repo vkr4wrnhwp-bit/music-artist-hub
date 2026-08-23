@@ -301,7 +301,7 @@ def test_the_empty_state_sits_inside_the_chassis():
     which is the positioned ancestor."""
     html = _html()
     chassis = html.index('<div class="chassis">')
-    fit_close = html.index("<!-- /chassis-fit -->")
+    fit_close = html.index("<!-- /chassis -->")
     assert chassis < html.index('id="rk-empty"') < fit_close
 
 
@@ -337,7 +337,7 @@ def test_the_empty_state_button_opens_the_real_file_picker():
     """A second <input type=file> would be a second load path to keep in
     step. This one points at the input that already exists."""
     html = _html()
-    card = html[html.index('id="rk-empty"'):html.index("<!-- /chassis-fit -->")]
+    card = html[html.index('id="rk-empty"'):html.index("<!-- /chassis -->")]
     assert 'for="rk-file"' in card
     assert "<input" not in card, "no second file input — reuse rk-file"
 

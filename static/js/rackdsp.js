@@ -1017,7 +1017,7 @@
     var col = document.createElement("div");
     col.className = "flex flex-col items-center";
     var val = document.createElement("div");
-    val.className = "font-mono text-[10px] font-bold tabular-nums";
+    val.className = "k-value font-mono text-[10px] font-bold tabular-nums";
     var wrap = document.createElement("div");
     wrap.style.touchAction = "none";
     wrap.style.cursor = "ns-resize";
@@ -1052,8 +1052,7 @@
     var arc = svg.querySelector(".k-arc");
     var glow = svg.querySelector(".k-glow");
     var lab = document.createElement("div");
-    lab.className = "text-[9px] font-bold uppercase tracking-wide";
-    lab.style.color = "#b3a684";  // readable on the dark wells
+    lab.className = "k-label text-[9px] font-bold uppercase tracking-wide";
     lab.textContent = opts.label;
 
     function angleOf(v) {
@@ -1285,6 +1284,7 @@
     });
     syncCabPicks();
     setCenterButtons();
+    syncValveUI();
   }
 
   /* The visible caps follow state, so a preset or an imported rig lights
@@ -2565,6 +2565,7 @@
       explainBtn.classList.toggle("sw-lit", on);
       explainBtn.setAttribute("aria-pressed", on ? "true" : "false");
     }
+    document.querySelectorAll(".ru-explain").forEach(function (c) { c.hidden = !on; });
     Array.prototype.forEach.call(
       document.querySelectorAll(".rk-explain-note"),
       function (n) { n.remove(); });
@@ -4052,6 +4053,7 @@
       el.glow += (target - el.glow) * (target > el.glow ? 0.28 : 0.09);
       if (el.glow < 0.004) { el.glow = 0; }
       var g = el.glow;
+      el.box.style.setProperty("--heat", g.toFixed(3));   // the deck glass lights from this
       if (el.halo) { el.halo.setAttribute("opacity", (g * 0.9).toFixed(3)); }
       if (el.fil) {
         if (g <= 0) {
