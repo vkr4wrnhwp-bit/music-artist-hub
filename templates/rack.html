@@ -378,6 +378,19 @@
     transition: right .06s linear;
   }
   .rk-lvl.is-hot i { background: #d96a4a; }
+  /* Chain cost. Hidden on narrow screens where the dock has no room —
+     done with a media query rather than Tailwind's hidden/lg: pair,
+     because the compiled stylesheet is frozen and new bracket classes
+     would not exist in it. */
+  .rk-cost {
+    display: none; flex: none; align-items: center; padding: 3px 7px;
+    border-radius: 6px; border: 1px solid rgba(201,162,74,.28);
+    background: rgba(255,255,255,.03); white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1; color: #c9bd9c;
+  }
+  @media (min-width: 1024px) { .rk-cost { display: inline-flex; } }
+  .rk-cost.is-heavy { color: #e8c667; border-color: rgba(201,162,74,.55); }
   @media (prefers-reduced-motion: reduce) { .rk-lvl i { transition: none; } }
 </style>
 
@@ -1193,6 +1206,8 @@
           <ul id="rk-hist-list" class="rk-hist-list" role="list"></ul>
         </div>
       </div>
+      <span id="rk-cost" class="rk-cost" role="status" aria-live="off"
+            title="How long a bounce takes. Measured on this machine, not estimated.">measuring&hellip;</span>
       <button id="rk-ab2" class="sw px-3 py-2 text-[11px] sm:py-1.5 sm:text-[10px] font-medium" disabled>Bypass: OFF</button>
       <button id="rk-export2" class="sw px-3 py-1.5 text-[11px] text-[#e8c667] sm:text-[10px] font-medium" disabled>Export</button>
       <button id="rk-rollout" class="sw hidden px-3 py-1.5 text-[10px] text-[#e8c667] lg:block font-medium" title="Start a Smart Link campaign titled after this session" disabled>→ Smart Link</button>
@@ -1237,5 +1252,5 @@
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=42"></script>
+<script src="/static/js/rackdsp.js?v=46"></script>
 {% endblock %}

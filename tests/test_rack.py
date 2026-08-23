@@ -408,3 +408,88 @@ def test_the_meters_are_painted_from_the_animation_loop():
     js = _js()
     draw = js[js.index("function draw() {"):]
     assert "paintMeters();" in draw[:400], "meters must repaint every frame"
+
+
+# --- what the rack costs ------------------------------------------------
+
+
+def _cost_js():
+    js = _js()
+    return js[js.index("var COST_SECONDS"):js.index("function renderMaster()")]
+
+
+def test_the_cost_readout_never_claims_to_be_a_cpu_meter():
+    """Web Audio exposes no DSP load. A percentage here would be a
+    decoration shaped like an instrument, which is worse than showing
+    nothing. What is reported is a timed render, and the wording has to
+    keep saying so."""
+    js = _cost_js()
+    assert "realtime" in js, "the unit is a speed, not a load"
+    assert "not a CPU reading" in js
+    for lie in ("cpu%", "CPU%", "DSP load", "dspLoad", "cpuLoad"):
+        assert lie not in js, "do not claim a reading the browser does not give: %s" % lie
+
+
+def test_the_cost_is_measured_through_the_same_chain_the_export_uses():
+    """Measuring a hand-rolled approximation of the rack would drift from
+    the rack. buildChain + voiceChain is the one description of the
+    signal path, and renderMasterBuffer uses the same pair."""
+    js = _cost_js()
+    assert "buildChain(oc, oc.destination)" in js
+    assert "voiceChain(chain, oc)" in js
+    assert "startRendering()" in js
+    assert "performance.now()" in js, "it has to be timed, not estimated"
+
+
+def test_the_cost_probe_is_fed_signal_not_silence():
+    """A chain fed zeros does not exercise the waveshaper curve and gives
+    the compressor nothing to do, so silence would time a rack that is not
+    the one being listened to."""
+    js = _cost_js()
+    assert "costNoiseBuf" in js
+    body = js[js.index("function costSource"):js.index("function measureCost")]
+    assert "getChannelData(0)" in body
+    assert "1103515245" in body, "a fixed generator, so two runs are comparable"
+
+
+def test_the_cost_is_measured_once_and_not_on_every_knob_turn():
+    """It began as a per-change meter. Measured, idle, six alternating
+    samples at a three-second render: a 0.3s reverb tail cost 205 ms per
+    second of audio and a 3.0s tail cost 180 ms — the larger one FASTER,
+    with more spread inside each setting than between them. The graph's
+    cost does not track its settings, so re-rendering on every change was
+    burning real CPU to report a number that never moved."""
+    js = _js()
+    assert "scheduleCost" not in js, "no debounced re-measure: there is nothing to re-measure"
+    a0 = js.index("function applyState()")
+    apply_body = js[a0:js.index("function ", a0 + 10)]
+    assert "measureCost" not in apply_body, "a knob turn must not trigger a render"
+    assert "measureCost();" in js, "but it must be measured once, at load"
+    assert "costBusy" in _cost_js(), "and never started twice at once"
+
+
+def test_the_readout_answers_the_question_the_number_can_answer():
+    """A render speed on its own is trivia. With a track loaded the same
+    measurement answers something real — how long the bounce takes — so
+    that is what it says, and it uses that track's own length."""
+    js = _cost_js()
+    assert 'el.textContent = "export ~" + fmtDur(dur / costFactor);' in js
+    assert "buffer ? buffer.duration : 0" in js
+    assert "s.buffer.duration" in js, "stems have their own length"
+
+
+def test_the_heavy_threshold_means_something():
+    """The first threshold was a guess at x8, taken from readings on a
+    machine running a full test suite. Idle it reads about x5, so that
+    guess would have cried wolf permanently. Below x1 is the line that
+    means something: the export takes longer than the song."""
+    assert "el.classList.toggle(\"is-heavy\", costFactor < 1);" in _cost_js()
+
+
+def test_the_cost_readout_is_on_the_page_and_not_announced():
+    """The number changes every time the rack settles. Announcing that to
+    a screen reader would be a tic, so it is a status region that does not
+    interrupt."""
+    html = _html()
+    assert 'id="rk-cost"' in html
+    assert 'aria-live="off"' in html

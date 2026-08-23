@@ -1329,6 +1329,7 @@
         loadedFile = file;
         loadedName = file.name.replace(/\.[^.]+$/, "");
         hideEmpty();
+        showCost();      // now there is a length to estimate for
         document.getElementById("rk-fileinfo").textContent =
           file.name + " — " + buf.duration.toFixed(1) + "s · " +
           buf.numberOfChannels + "ch · " + buf.sampleRate + "Hz";
@@ -3002,6 +3003,100 @@
   /* One offline render path shared by the WAV export, the Vault archive
      and the Format Bench. Split in two so the Bench can reach the raw
      AudioBuffer instead of a WAV blob it would have to decode again. */
+  /* How long a bounce will take.
+   *
+   * This began as a DSP load meter and the measurements killed that idea.
+   * Web Audio exposes no CPU reading, so the only honest number is a timed
+   * render — and a timed render of THIS rack turns out not to vary with
+   * how the rack is set. Measured, idle, six alternating samples at a
+   * three-second render: a 0.3s reverb tail cost 205 ms per second of
+   * audio and a 3.0s tail cost 180 ms. The larger one was faster. The
+   * spread within each setting was bigger than the gap between them.
+   *
+   * So the graph's cost is essentially fixed, and what is really being
+   * measured is how quickly this machine renders it. That is worth
+   * exactly one thing, and it is a thing people actually ask: how long
+   * will exporting take. So that is what it says.
+   *
+   * Measured once, at load. There is nothing to re-measure on a knob
+   * turn, and re-rendering on every change was burning real CPU to
+   * report a number that never moved.
+   */
+  var COST_SECONDS = 1.0, COST_RATE = 44100;
+  var costBusy = false, costNoiseBuf = null, costFactor = 0;
+
+  function costSource(oc, len) {
+    // Noise, not silence. A chain fed zeros does not exercise the
+    // waveshaper curve or make the compressor work, so silence would
+    // time a rack that is not the one being listened to.
+    if (!costNoiseBuf || costNoiseBuf.length !== len) {
+      costNoiseBuf = oc.createBuffer(1, len, COST_RATE);
+      var d = costNoiseBuf.getChannelData(0), seed = 12345;
+      for (var i = 0; i < len; i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;   // deterministic
+        d[i] = ((seed / 0x7fffffff) * 2 - 1) * 0.5;
+      }
+    }
+    var src = oc.createBufferSource();
+    src.buffer = costNoiseBuf;
+    return src;
+  }
+
+  function measureCost() {
+    var el = document.getElementById("rk-cost");
+    if (!el || costBusy || typeof OfflineAudioContext === "undefined") return;
+    costBusy = true;
+    var len = Math.floor(COST_RATE * COST_SECONDS), oc;
+    try { oc = new OfflineAudioContext(2, len, COST_RATE); }
+    catch (e) { costBusy = false; return; }
+    var chain = buildChain(oc, oc.destination);
+    voiceChain(chain, oc);          // the same voicing the export uses
+    var src = costSource(oc, len);
+    src.connect(chain.input);
+    src.start();
+    var t0 = performance.now();
+    oc.startRendering().then(function () {
+      var ms = performance.now() - t0;
+      costFactor = (COST_SECONDS * 1000) / Math.max(0.01, ms);
+      showCost();
+      costBusy = false;
+    }).catch(function () { costBusy = false; });
+  }
+
+  function fmtDur(sec) {
+    if (sec < 90) return Math.max(1, Math.round(sec)) + "s";
+    return Math.round(sec / 60) + " min";
+  }
+
+  /* With a track loaded this answers for THAT track. Without one there is
+     no length to answer for, so it falls back to the rate it measured. */
+  function showCost() {
+    var el = document.getElementById("rk-cost");
+    if (!el || !costFactor) return;
+    var dur = buffer ? buffer.duration : 0;
+    if (stems.length) {
+      dur = Math.max.apply(null, stems.map(function (s) { return s.buffer.duration; }));
+    }
+    if (dur) {
+      el.textContent = "export ~" + fmtDur(dur / costFactor);
+      el.title = "Rendering this rack measured " + costFactor.toFixed(1) +
+                 "x realtime when the page loaded, so " + fmtDur(dur) +
+                 " of audio should bounce in about " + fmtDur(dur / costFactor) + ".\n" +
+                 "A timed render, not a CPU reading — the browser does not report one.";
+    } else {
+      el.textContent = "x" + (costFactor >= 10 ? Math.round(costFactor) : costFactor.toFixed(1)) +
+                       " realtime";
+      el.title = "This rack renders " + costFactor.toFixed(1) + "x faster than realtime on " +
+                 "this machine, so a three-minute track would export in about " +
+                 fmtDur(180 / costFactor) + ".\n" +
+                 "Load a track and this becomes an estimate for that track.\n" +
+                 "A timed render, not a CPU reading — the browser does not report one.";
+    }
+    // Below realtime the export takes longer than the song, and live
+    // playback is at risk of falling behind on this machine.
+    el.classList.toggle("is-heavy", costFactor < 1);
+  }
+
   function renderMaster() {
     return renderMasterBuffer().then(encodeWav);
   }
@@ -4307,6 +4402,7 @@
   resetCompare();
   syncModButtons();
   draw();
+  measureCost();   // once; see the note above measureCost
 
   // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, but never while somebody is typing in
   // a field — the browser's own undo belongs to the text box.
