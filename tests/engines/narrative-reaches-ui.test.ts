@@ -124,3 +124,22 @@ function walk(dir: string): string[] {
   }
   return out;
 }
+
+test("a turning toolpath's warnings and assumptions reach the workspace", () => {
+  /*
+   * TurnToolpath carries warnings ("path is the imaginary tool tip,
+   * uncompensated…", "feed overridden to the pitch") and assumptions
+   * (ESTIMATED, chord tolerance) written for the operator. The lathe
+   * workspace rendered the refusal reason and dropped both of these — the
+   * fourth instance of this defect, on engines written the same week as
+   * the rule that forbids it.
+   */
+  const page = read("src/app/(app)/lathe/[id]/page.tsx");
+  for (const f of ["warnings", "assumptions"]) {
+    assert.match(
+      page,
+      new RegExp(`toolpath\\.${f}\\.(map|join)\\(`),
+      `the lathe workspace never renders the selected toolpath's ${f}`,
+    );
+  }
+});

@@ -242,6 +242,30 @@ export default async function LathePartPage(props: {
                       Op {selected.op.operationNumber}: {selected.result.reason}
                     </p>
                   )}
+                  {/*
+                    * The toolpath's own narrative, where the operation is
+                    * examined. Every engine writes warnings (a chamfer's
+                    * uncompensated nose radius, a tap's feed override) and
+                    * assumptions (ESTIMATED, chord tolerance) for a human —
+                    * and until this block, no page rendered either. The
+                    * fourth instance of exactly that defect, this time on
+                    * engines written the same week as the rule.
+                    */}
+                  {selected?.result.ok && selected.result.toolpath.warnings.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {selected.result.toolpath.warnings.map((w) => (
+                        <li key={w} className="flex gap-2 text-[11.5px] leading-relaxed text-review">
+                          <Dot tone="review" /> {w}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {selected?.result.ok && selected.result.toolpath.assumptions.length > 0 && (
+                    <p className="mt-1.5 border-t border-line/60 pt-1.5 text-[10.5px] leading-relaxed text-muted">
+                      <span className="tech-label mr-1.5">Assumed</span>
+                      {selected.result.toolpath.assumptions.join(" · ")}
+                    </p>
+                  )}
                 </>
               }
               sim={
