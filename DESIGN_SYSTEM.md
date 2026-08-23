@@ -259,6 +259,8 @@ appears when the figures are genuinely from uploaded statements.
 `disabled_reason` and nothing else can disable a button, so "Add cue"
 greyed out always carries "Load a song first" on hover.
 
+**A component that can be a link must never contain a link.** The KPI tile's empty variant carried its own first-step link, and the macro also wrapped the tile in an `<a>` when given an href. Nested anchors are not HTML: the parser closes the outer one at the inner one's open tag and the inner link falls out of the component into the page. Counting the elements never catches it — only containment does — so `test_the_component_macros_never_nest_an_anchor_in_an_anchor` walks the rendered macros with a real parser. An empty tile is always a `<div>`.
+
 **An empty metric is not a failing metric.** `0%` with no tracks behind
 it reads as failure when it means "not started". The `kpi` macro's empty
 variant shows the first step instead.
