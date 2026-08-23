@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   planApproach,
   planAllApproaches,
@@ -396,4 +397,28 @@ test("a featureless block is still faced to thickness, and nothing else is inven
     assert.equal(op.type, "FACE", `${op.label} was planned for a part with no features`);
     assert.equal(op.featureId, null, "there is no feature for it to point at");
   }
+});
+
+/* ---------------- The warnings have to reach the operator ---------------- */
+
+test("every narrative the planner writes for the operator is rendered by the machinist page", () => {
+  // planApproach computes three arrays whose only purpose is to be read by a
+  // human: what it assumed, what it is concerned about, and what it could
+  // not produce. `assumptions` was computed and rendered nowhere, so a plan
+  // whose grip lengths and stock projections came from an assumed 6" vise
+  // looked exactly like one measured against a real vise. The numbers
+  // reached the machinist; the reason they were only estimates did not.
+  //
+  // This is a source check because the arrays are consumed in JSX. It is
+  // coarse on purpose: it cannot prove the panel reads well, only that a
+  // narrative field is not silently dropped on the floor again.
+  const page = readFileSync("src/app/(app)/parts/[id]/machinist/page.tsx", "utf8");
+  for (const field of ["assumptions", "concerns"] as const) {
+    assert.match(
+      page,
+      new RegExp(`plan\\.${field}\\.map\\(`),
+      `plan.${field} is computed for the operator and never rendered on the machinist page`,
+    );
+  }
+  assert.match(page, /errors\.map\(/, "operations that could not be produced are computed and never rendered");
 });

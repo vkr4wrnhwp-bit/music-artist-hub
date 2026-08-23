@@ -281,11 +281,15 @@ export async function buildPackage(
     const tool = tools.find((t) => t.id === tp.toolId);
     const row = setups.flatMap((s) => s.operations).find((o) => o.id === tp.operationId);
     if (!tool || !row) return sum;
-    // Tool cost is consumed life: minutes in cut over expected life.
+    // Tool cost is consumed life: minutes in cut over expected life. No
+    // crib record, no cost — rather than a default life the operation is
+    // simply not costed, which the cost breakdown already reports as an
+    // assumption. (`?? 240` sat here and could never fire: the column is
+    // non-null with a database default of 120, so it only applied when
+    // there was no tool at all, and then the cost is zero regardless.)
     const dbTool = row.tool;
-    const life = dbTool?.expectedLifeMinutes ?? 240;
-    const cost = dbTool?.costPerTool ?? 0;
-    return sum + (tp.cycleTimeMinutes / Math.max(life, 1)) * cost;
+    if (!dbTool) return sum;
+    return sum + (tp.cycleTimeMinutes / Math.max(dbTool.expectedLifeMinutes, 1)) * dbTool.costPerTool;
   }, 0);
 
   const costAssumptions: CostAssumptions = {

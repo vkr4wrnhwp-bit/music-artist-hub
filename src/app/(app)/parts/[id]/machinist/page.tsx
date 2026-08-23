@@ -425,6 +425,24 @@ export default async function MachinistPage(props: {
                     </Notice>
                   )}
 
+                  {/*
+                    * What the plan assumed, not what it found. This array was
+                    * computed and rendered nowhere — so a plan whose grip
+                    * lengths and stock projections came from an assumed 6"
+                    * vise looked exactly like one measured against a real
+                    * one. The numbers reached the machinist; the reason they
+                    * were only estimates did not.
+                    */}
+                  {selected.plan.assumptions.length > 0 && (
+                    <Notice tone="unknown" title="Assumed, not recorded">
+                      <ul className="mt-1 space-y-1.5">
+                        {selected.plan.assumptions.map((a) => (
+                          <li key={a}>— {a}</li>
+                        ))}
+                      </ul>
+                    </Notice>
+                  )}
+
                   {selected.errors.length > 0 && (
                     <Notice tone="risk" title="Operations that cannot be produced">
                       <ul className="mt-1 space-y-1">
