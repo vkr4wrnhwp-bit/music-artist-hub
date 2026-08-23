@@ -24,6 +24,7 @@ export function ShowCalculation({
   assumptions,
   uncertaintyPercent,
   confidence,
+  missingInputs = [],
   cautions = [],
   developmentAnalysis = false,
   children,
@@ -36,6 +37,13 @@ export function ShowCalculation({
   assumptions: string[];
   uncertaintyPercent?: number | null;
   confidence?: string;
+  /**
+   * Inputs the engine was never given. These name the evidence that would
+   * move the answer, so they belong in the SUMMARY, not behind the fold: a
+   * headline reading "—" with the reason hidden one click away is the same
+   * as not saying it.
+   */
+  missingInputs?: string[];
   cautions?: string[];
   /** Marks a model that has not been validated against physical testing. */
   developmentAnalysis?: boolean;
@@ -59,6 +67,17 @@ export function ShowCalculation({
           <span className="hidden group-open:inline">Hide calculation</span>
         </span>
       </summary>
+
+      {missingInputs.length > 0 && (
+        <ul className="space-y-1 border-t border-line/60 px-3 py-2">
+          {missingInputs.map((m) => (
+            <li key={m} className="flex gap-2 text-[11.5px] leading-relaxed text-review">
+              <span>—</span>
+              <span>{m}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="space-y-4 border-t border-line px-3 py-3">
         <div>

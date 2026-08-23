@@ -8,6 +8,7 @@ import { TopBar } from "@/components/nav";
 import { TurnProfileView } from "@/components/turn/profile-view";
 import { LatheSimView } from "@/components/turn/lathe-3d";
 import { TurnViews } from "@/components/turn/turn-views";
+import { TurnAnalysisNarrative } from "@/components/turn/analysis-narrative";
 import { CinematicTurnButton } from "@/components/turn/cinematic-turn";
 import { NcExportPanel } from "@/components/nc/export-panel";
 import { mintTurnExport, recordTurnExport } from "./nc/actions";
@@ -371,13 +372,7 @@ export default async function LathePartPage(props: {
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Hold — chuck grip" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(grip.verdict)}>{grip.verdict}</StatusChip></span>}>
               <p className="text-[12.5px] leading-relaxed text-platinum-dim">{grip.detail}</p>
-              {grip.missingInputs.length > 0 && (
-                <ul className="mt-1.5 space-y-1">
-                  {grip.missingInputs.map((m, i) => (
-                    <li key={i} className="flex gap-2 text-[11.5px] text-review"><Dot tone="review" /> {m}</li>
-                  ))}
-                </ul>
-              )}
+              <TurnAnalysisNarrative analysis={grip} />
               {rot.clampForceLbf === null && (
                 <form action={recordClampForce} className="mt-2 flex items-end gap-2">
                   <label className="block">
@@ -396,9 +391,7 @@ export default async function LathePartPage(props: {
             <Panel title="Hold — stickout" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(stickout.verdict)}>{stickout.verdict}</StatusChip></span>}>
               <p className="font-mono text-[15px] text-platinum tabular-nums">L/D {("ldRatio" in stickout ? stickout.ldRatio : 0).toFixed(1)}:1</p>
               <p className="mt-1 text-[12.5px] leading-relaxed text-platinum-dim">{stickout.detail}</p>
-              {stickout.recommendations.length > 0 && (
-                <p className="mt-1 text-[11.5px] text-muted">{stickout.recommendations.join(" · ")}</p>
-              )}
+              <TurnAnalysisNarrative analysis={stickout} />
               <form action={toggleTailstock} className="mt-2">
                 <Button type="submit">{rot.tailstockActive ? "Retract tailstock" : "Engage tailstock"}</Button>
               </form>
@@ -410,7 +403,7 @@ export default async function LathePartPage(props: {
           {partOff && (
             <Panel title="Part-off stability" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(partOff.verdict)}>{partOff.verdict}</StatusChip></span>}>
               <p className="text-[12.5px] leading-relaxed text-platinum-dim">{partOff.detail}</p>
-              {partOff.recommendations.length > 0 && <p className="mt-1 text-[11.5px] text-muted">{partOff.recommendations.join(" · ")}</p>}
+              <TurnAnalysisNarrative analysis={partOff} />
             </Panel>
           )}
 

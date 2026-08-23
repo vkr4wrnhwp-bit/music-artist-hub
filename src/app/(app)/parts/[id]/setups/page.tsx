@@ -137,6 +137,7 @@ export default async function SetupsPage(props: {
                           method={a.holdingMargin.method}
                           inputs={a.holdingMargin.inputs}
                           assumptions={a.holdingMargin.assumptions}
+                          missingInputs={a.holdingMargin.missingInputs}
                           developmentAnalysis
                         >
                           <div className="grid gap-x-8 sm:grid-cols-2">
@@ -189,6 +190,7 @@ export default async function SetupsPage(props: {
                           method={a.forceEstimate.method}
                           inputs={a.forceEstimate.inputs}
                           assumptions={a.forceEstimate.assumptions}
+                          missingInputs={a.forceEstimate.missingInputs}
                           uncertaintyPercent={a.forceEstimate.uncertaintyPercent}
                           confidence={a.forceEstimate.confidence}
                           cautions={a.forceEstimate.cautions}
