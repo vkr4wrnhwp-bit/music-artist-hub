@@ -918,7 +918,11 @@ def delete_alert_rule(organization_id, rule_id):
 def raise_alert(organization_id, kind, title, body="", artist_id=None, rule_id=None, severity="info"):
     """Idempotent per (org, artist, kind, title) inside a day, so a sweep
     that runs on every page view cannot spam the same finding."""
-    today = date.today().isoformat()
+    # The UTC date, because created_at below is stamped with _now(), which is
+    # UTC. date.today() is the LOCAL date, and every evening in any timezone
+    # west of UTC the two disagree: the row said tomorrow, the check asked
+    # about today, nothing ever matched, and each sweep raised a duplicate.
+    today = _now()[:10]
     with get_db() as db:
         dupe = db.execute("SELECT 1 FROM signal_alerts WHERE organization_id=? AND kind=? AND title=? "
                           "AND COALESCE(artist_id,'')=? AND substr(created_at,1,10)=?",
