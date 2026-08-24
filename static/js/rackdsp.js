@@ -75,6 +75,7 @@
     // EQ-12 mid/side and per-band bypass arrived after every preset and
     // most saved racks: default to the behaviour they were saved with.
     if (s.eqMode !== "mid" && s.eqMode !== "side") s.eqMode = "stereo";
+    if (s.comp && typeof s.comp.key !== "string") s.comp.key = "";   // "" = the internal detector
     if (!s.eqOff || s.eqOff.length !== EQ_BANDS.length) s.eqOff = EQ_BANDS.map(function () { return false; });
     // Racks saved before SB-14 existed have no valves; give them silent
     // ones rather than colouring a mix the artist already signed off.
@@ -571,6 +572,60 @@
     e.listenGain.gain.value = solo ? 1 : 0;
   }
 
+  /* ---------- DYN-1 sidechain: the ducker worklet ----------
+     The compressor node has no key input, so keying DYN-1 from a stem runs
+     through static/js/rack-ducker.js, an AudioWorklet spliced between the
+     compressor and its makeup gain. Every context loads the module once;
+     until it has — or where worklets do not exist at all — the splice is a
+     plain wire and DYN-1 uses its own detector exactly as before. A keyed
+     chain neutralises the internal detector so nothing is compressed twice.
+     The key is the stem's RAW signal, before its lane fader, mute or solo:
+     that is how a sidechain input behaves on hardware, and it means the
+     kick can drive the duck while being muted from the mix. */
+  var DUCKER_URL = "/static/js/rack-ducker.js?v=1";
+  var duckReady = (typeof WeakMap !== "undefined") ? new WeakMap() : null;   // context -> Promise<bool>
+  var keyGR = 0;                                                              // live ducker reduction, dB (<= 0)
+  function loadDucker(ac) {
+    if (!ac || !ac.audioWorklet || !duckReady) return Promise.resolve(false);
+    var p = duckReady.get(ac);
+    if (!p) {
+      p = ac.audioWorklet.addModule(DUCKER_URL).then(function () { return true; }, function () { return false; });
+      duckReady.set(ac, p);
+    }
+    return p;
+  }
+  function armDucker(c, ac) {
+    if (c.duck || !ac.audioWorklet) return;
+    var d;
+    try {
+      d = new AudioWorkletNode(ac, "sb-ducker", {numberOfInputs: 2, numberOfOutputs: 1, outputChannelCount: [2]});
+    } catch (e) { return; }
+    // comp -> duckIn -> makeup becomes comp -> duck -> duckIn -> makeup, key -> duck
+    c.comp.disconnect(c.duckIn);
+    c.comp.connect(d, 0, 0);
+    d.connect(c.duckIn);
+    c.keyIn.connect(d, 0, 1);
+    c.duck = d;
+    d.port.onmessage = function (e) { if (c === live) keyGR = +e.data || 0; };
+  }
+  function keyStem() {
+    var k = state.comp && state.comp.key;
+    if (!k) return null;
+    for (var i = 0; i < stems.length; i++) if (stems[i].name === k) return stems[i];
+    return null;
+  }
+  function voiceDuck(c, compOn) {
+    if (!c.duck) return false;
+    var keyed = compOn && !!keyStem();
+    var P = c.duck.parameters;
+    P.get("threshold").value = state.comp.thr; P.get("ratio").value = state.comp.ratio;
+    P.get("attack").value = state.comp.att;    P.get("release").value = state.comp.rel;
+    P.get("knee").value = 6;
+    P.get("active").value = keyed ? 1 : 0;
+    c.duckKeyed = keyed;
+    return keyed;
+  }
+
   function buildChain(ac, dest) {
     var input = ac.createGain();
     // Mono sources must duplicate to both channels before the mid/side split.
@@ -613,13 +668,15 @@
     valves.outNode.connect(cabMic.moduleIn);
     voiceCabMic(cabMic);
     cabMic.moduleOut.connect(comp);
-    comp.connect(makeup);
+    var duckIn = ac.createGain(), keyIn = ac.createGain();   // the sidechain splice; see armDucker
+    comp.connect(duckIn); duckIn.connect(makeup);
     var fx = buildFx(ac);
     voiceFx(fx, ac);
     makeup.connect(fx.inNode);
     fx.outNode.connect(outGain);
     outGain.connect(dest);
     return {input: input, filters: filters, eq: eq, tube: tube, wetTube: wetTube,
+            duckIn: duckIn, keyIn: keyIn, duck: null, duckKeyed: false,
             dryTube: dryTube, sum: sum, cabMic: cabMic, comp: comp,
             makeup: makeup, outGain: outGain, out: outGain, centerM: centerM,
             fx: fx, sub: sub, valves: valves};
@@ -701,6 +758,7 @@
       live.analyser.fftSize = 4096;
       live.analyser.smoothingTimeConstant = 0.8;
       live.meters = buildMeters(ctx, live);
+      loadDucker(ctx).then(function (ok) { if (ok) { armDucker(live, ctx); voiceLive(); } });
       live.outGain.connect(live.analyser);
       live.wet = ctx.createGain(); live.dry = ctx.createGain();
       live.dry.gain.value = 0;
@@ -736,8 +794,9 @@
     voiceCenter(c.centerM);
     voiceFx(c.fx, ac);
     voiceSub(c.sub);
-    c.comp.threshold.value = compOn ? state.comp.thr : 0;
-    c.comp.ratio.value = compOn ? state.comp.ratio : 1;
+    var keyed = voiceDuck(c, compOn);
+    c.comp.threshold.value = (compOn && !keyed) ? state.comp.thr : 0;
+    c.comp.ratio.value = (compOn && !keyed) ? state.comp.ratio : 1;
     c.comp.attack.value = state.comp.att;
     c.comp.release.value = state.comp.rel;
     c.makeup.gain.value = Math.pow(10, (compOn ? state.comp.makeup : 0) / 20);
@@ -1410,6 +1469,7 @@
     syncCabPicks();
     setCenterButtons();
     setEqModeButtons();
+    renderKeyButtons();
     syncValveUI();
   }
 
@@ -1555,6 +1615,7 @@
         gn.gain.value = stemGainValue(st);
         st.playGain = gn;
         src.connect(gn); gn.connect(live.wet); gn.connect(live.dry);
+        if (state.comp.key && state.comp.key === st.name && live.keyIn) src.connect(live.keyIn);
         src.start(t0, Math.min(offset, Math.max(0, st.buffer.duration - 0.01)));
         sources.push(src);
       });
@@ -1662,6 +1723,7 @@
       ["VOCALS", "DRUMS", "BASS", "INSTRUMENTS"].forEach(function (nm) {
         stemsWrap.appendChild(dormantLane(nm, "empty"));
       });
+      renderKeyButtons();
       return;
     }
     stems.forEach(function (st, i) {
@@ -1724,6 +1786,7 @@
       stemsWrap.appendChild(row);
       paintLaneWave(wave, st);          // after append: the lane has a width now
     });
+    renderKeyButtons();
   }
 
   /* One static picture per lane: the stem's OWN peaks, so a bay of four
@@ -1761,6 +1824,34 @@
     for (var i = 0; i < pk.length; i++) {
       var a = Math.max(0.6, pk[i] * (h * 0.46));
       g.fillRect(i * colW, mid - a, Math.max(0.8, colW - 0.4), a * 2);
+    }
+  }
+
+  /* KEY: Internal, or any loaded stem by name. The choice is saved with
+     the rack; a key that names a stem which is not loaded right now falls
+     back to the internal detector and says so. */
+  function renderKeyButtons() {
+    var wrap = document.getElementById("rk-comp-key");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    var key = (state.comp && state.comp.key) || "";
+    var names = [""].concat(stems.map(function (s) { return s.name; }));
+    names.forEach(function (nm) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "rk-key sw" + (nm === key ? " sw-lit" : "");
+      b.dataset.key = nm; b.textContent = nm || "Internal";
+      b.setAttribute("aria-pressed", nm === key ? "true" : "false");
+      b.addEventListener("click", function () {
+        histLabel = "key: " + (nm || "internal");
+        state.comp.key = nm;
+        renderKeyButtons(); applyState();
+        if (playing) seek(playPos());                            // re-route the key
+      });
+      wrap.appendChild(b);
+    });
+    var note = document.getElementById("rk-comp-key-note");
+    if (note) {
+      note.textContent = (key && !keyStem()) ? "keyed to " + key + " \u2014 not loaded, using the internal detector" : "";
     }
   }
 
@@ -3079,7 +3170,8 @@
     });
 
     // VU needle: fast attack, slow release, like the real thing.
-    var target = (live && playing) ? Math.min(20, -(live.comp.reduction || 0)) : 0;
+    var gr = live ? (live.duckKeyed ? keyGR : (live.comp.reduction || 0)) : 0;
+    var target = (live && playing) ? Math.min(20, -gr) : 0;
     vuPos += (target - vuPos) * (target > vuPos ? 0.45 : 0.07);
     var needle = document.getElementById("rk-vu-needle");
     if (needle) {
@@ -3276,24 +3368,28 @@
       ? Math.max.apply(null, stems.map(function (s) { return s.buffer.length; }))
       : buffer.length;
     var oc = new OfflineAudioContext(2, len, rate);
-    var chain = buildChain(oc, oc.destination);
-    voiceChain(chain, oc);  // renders honor module power exactly like live
-    if (stems.length) {
-      stems.forEach(function (st) {
+    return loadDucker(oc).then(function (ok) {
+      var chain = buildChain(oc, oc.destination);
+      if (ok) armDucker(chain, oc);
+      voiceChain(chain, oc);  // renders honor module power exactly like live
+      if (stems.length) {
+        stems.forEach(function (st) {
+          var src = oc.createBufferSource();
+          src.buffer = st.buffer;
+          var gn = oc.createGain();
+          gn.gain.value = stemGainValue(st);
+          src.connect(gn); gn.connect(chain.input);
+          if (state.comp.key && state.comp.key === st.name) src.connect(chain.keyIn);
+          src.start();
+        });
+      } else {
         var src = oc.createBufferSource();
-        src.buffer = st.buffer;
-        var gn = oc.createGain();
-        gn.gain.value = stemGainValue(st);
-        src.connect(gn); gn.connect(chain.input);
+        src.buffer = buffer;
+        src.connect(chain.input);
         src.start();
-      });
-    } else {
-      var src = oc.createBufferSource();
-      src.buffer = buffer;
-      src.connect(chain.input);
-      src.start();
-    }
-    return oc.startRendering();
+      }
+      return oc.startRendering();
+    });
   }
 
   exportBtn.addEventListener("click", function () {
@@ -4519,6 +4615,7 @@
                        // the painter lets the level path be driven and read
                        // without a compositor.
                        paintMeters: function () { paintMeters(); },
+                       renderMasterBuffer: function () { return renderMasterBuffer(); },
                        meters: function () { return live && live.meters; },
                        state: function () { return state; },
                        stems: function () { return stems; },

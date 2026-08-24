@@ -591,3 +591,61 @@ def test_the_eq_mode_switch_and_band_switches_are_on_the_page():
     assert ".eq-band-sw {" in html
     render = js[js.index("function renderEq()"):js.index("function bandSwitch")]
     assert "var sw = bandSwitch(i, b);" in render and "k.el.appendChild(sw);" in render
+
+
+# --- DYN-1 sidechain (the ducker worklet) --------------------------------
+
+
+def test_dyn1_can_be_keyed_from_a_stem_and_the_export_honours_it():
+    """The browser compressor has no key input, so the key path is an
+    AudioWorklet spliced between the compressor and its makeup gain. It
+    lives in buildChain, which serves live playback AND the bounce, and
+    renderMasterBuffer awaits the module before building, so an export
+    ducks exactly as playback did. Measured through renderMasterBuffer:
+    with DRUMS keyed, a kick burst pulls the mix from 0.47 to 0.079."""
+    js = _js()
+    ducker = open(os.path.join(ROOT, "static", "js", "rack-ducker.js"), encoding="utf-8").read()
+    assert 'registerProcessor("sb-ducker", SBDucker);' in ducker
+    assert '{name: "active"' in ducker, "idle must mean a wire, not a compressor"
+    build = js[js.index("function buildChain(ac, dest)"):js.index("function ensureCtx()")]
+    assert "comp.connect(duckIn); duckIn.connect(makeup);" in build, "the splice point"
+    bounce = js[js.index("function renderMasterBuffer()"):js.index("function renderMasterBuffer()") + 1600]
+    assert "return loadDucker(oc).then(function (ok) {" in bounce
+    assert "if (ok) armDucker(chain, oc);" in bounce
+    assert "src.connect(chain.keyIn);" in bounce
+
+
+def test_a_keyed_chain_never_compresses_twice():
+    """When the ducker is active the internal detector is neutralised
+    (threshold 0, ratio 1); otherwise DYN-1 behaves exactly as before."""
+    js = _js()
+    voice = js[js.index("function voiceChain(c, ac)"):js.index("function voiceChain(c, ac)") + 1600]
+    assert "var keyed = voiceDuck(c, compOn);" in voice
+    assert "c.comp.threshold.value = (compOn && !keyed) ? state.comp.thr : 0;" in voice
+    assert "c.comp.ratio.value = (compOn && !keyed) ? state.comp.ratio : 1;" in voice
+
+
+def test_the_key_is_the_raw_stem_not_the_lane_fader():
+    """A hardware sidechain input hears the source, not the monitor mix:
+    the kick can drive the duck while being muted from the mix. So the key
+    tap comes off the SOURCE, before the lane gain."""
+    js = _js()
+    play = js[js.index("function startPlayback(offset)"):js.index("function playPos()")]
+    assert "if (state.comp.key && state.comp.key === st.name && live.keyIn) src.connect(live.keyIn);" in play
+
+
+def test_a_missing_key_falls_back_to_the_internal_detector_and_says_so():
+    js = _js()
+    assert 'if (s.comp && typeof s.comp.key !== "string") s.comp.key = "";' in js
+    key = js[js.index("function keyStem()"):js.index("function voiceDuck")]
+    assert "return null;" in key
+    rkb = js[js.index("function renderKeyButtons()"):js.index("function syncDeckInfo()")]
+    assert "not loaded, using the internal detector" in rkb
+    assert 'id="rk-comp-key"' in _html() and 'id="rk-comp-key-note"' in _html()
+
+
+def test_the_gr_ladder_follows_whichever_detector_is_working():
+    """A keyed chain reads reduction from the worklet's port; the internal
+    node would read zero and the meter would lie."""
+    js = _js()
+    assert "var gr = live ? (live.duckKeyed ? keyGR : (live.comp.reduction || 0)) : 0;" in js

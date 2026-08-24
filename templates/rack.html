@@ -524,6 +524,10 @@
   .eq-band-sw.is-listen { border-color: var(--sb-gold-bright); box-shadow: 0 0 0 1px var(--sb-gold-line), 0 0 10px rgba(232,185,80,.5); }
   .eq-band-sw.is-listen::after { background: var(--sb-good); box-shadow: 0 0 6px rgba(121,180,115,.9); }
   #rk-eq > div.is-bypassed > .rk-knob, #rk-eq > div.is-bypassed > .k-value { opacity: .38; }
+  /* DYN-1 key: Internal + one switch per loaded stem, built by the script */
+  .rk-key-lg { margin-right: -4px; }
+  .rk-key-note { flex: 1 0 100%; order: 9; font-family: var(--sb-mono); font-size: 11px; color: var(--sb-ink-3); }
+  .rk-key-note:empty { display: none; }
   @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
@@ -1493,6 +1497,9 @@ closing tag lines) ==== */
                 <div class="ru-title" role="heading" aria-level="2">Dynamics Control</div>
                 <span class="ru-sub">DYN-1 · Program compressor</span>
                 <div class="ru-ctl">
+                  <span class="lg rk-key-lg">Key</span>
+                  <div class="rk-segsw" id="rk-comp-key" role="group" aria-label="Compressor key: internal detector or a loaded stem"></div>
+                  <span id="rk-comp-key-note" class="rk-key-note" role="status" aria-live="polite"></span>
                   <button class="rk-pwr sw" data-mod="comp">ON</button>
                   <button class="rk-cmp sw" data-mod="comp" title="Compare — swap with your previous compressor settings">A/B</button>
                   <span class="rk-ledwrap" data-mod="comp"><b class="rk-la on">A</b><b class="rk-lb">B</b></span>
@@ -2402,5 +2409,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=49"></script>
+<script src="/static/js/rackdsp.js?v=50"></script>
 {% endblock %}
