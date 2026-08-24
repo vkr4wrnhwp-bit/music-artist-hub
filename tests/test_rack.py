@@ -534,7 +534,8 @@ def test_eq12_is_a_mid_side_block_in_the_chain_the_export_also_uses():
     js = _js()
     build = js[js.index("function buildChain(ac, dest)"):js.index("function ensureCtx()")]
     assert "var eq = buildEq(ac);" in build
-    assert "node.connect(eq.inNode); node = eq.outNode;" in build
+    # since the patch bay landed, the EQ is wired as a block in the bay
+    assert "eq:   {i: eq.inNode,       o: eq.outNode}" in build
     assert "eq: eq," in build, "the block must be handed back so voiceChain can voice it"
     voice = js[js.index("function voiceChain(c, ac)"):js.index("function voiceChain(c, ac)") + 1200]
     assert "voiceEq(c.eq, eqOn);" in voice
@@ -649,3 +650,71 @@ def test_the_gr_ladder_follows_whichever_detector_is_working():
     node would read zero and the meter would lie."""
     js = _js()
     assert "var gr = live ? (live.duckKeyed ? keyGR : (live.comp.reduction || 0)) : 0;" in js
+
+
+# --- the patch bay -------------------------------------------------------
+
+
+def test_the_patch_bay_rewires_the_chain_the_export_also_uses():
+    """The units stay bolted; the CABLES move. buildChain wires the seven
+    patchable blocks in state.patch order between the master-bus matrix and
+    the output trim, and it serves live playback and the bounce alike.
+    Measured through renderMasterBuffer with -12 dB at 1k and the tube
+    driven hard: EQ-before-tube reads RMS 0.53 / HF 0.077, tube-before-EQ
+    reads RMS 0.29 / HF 0.108 — the same knobs, audibly different records."""
+    js = _js()
+    assert 'var PATCH_KEYS = ["eq", "sub", "tube", "vlv", "cab", "comp", "fx"];' in js
+    build = js[js.index("function buildChain(ac, dest)"):js.index("function meterTaps")]
+    assert "var blocks = {eq:" in build
+    assert "order.forEach(function (k) { node.connect(blocks[k].i); node = blocks[k].o; });" in build
+    assert "patchOrder: order.join(\",\")," in build, "the chain must remember what it was built as"
+
+
+def test_an_invalid_patch_falls_back_whole_not_half():
+    """An old save, a hand edit, a stem of a key that no longer exists —
+    anything that is not a full permutation of the seven keys loads as the
+    factory order. Half a patch would be a guess with someone's record."""
+    js = _js()
+    fn = js[js.index("function patchOrder()"):js.index("function patchOrder()") + 600]
+    assert "if (!p || p.length !== PATCH_KEYS.length) return PATCH_KEYS.slice();" in fn
+    assert "if (PATCH_KEYS.indexOf(p[i]) < 0 || seen[p[i]]) return PATCH_KEYS.slice();" in fn
+    # and the helpers are declared ABOVE the state init: ensureFx runs at
+    # boot and a var only hoists its name, not its value
+    assert js.index("var PATCH_KEYS") < js.index("var saved = window.__savedRack || null;")
+
+
+def test_reordering_rebuilds_the_live_chain_and_resumes_playback():
+    """Web Audio cannot reorder a graph in place, so a patch change rebuilds
+    the live chain; the old one is disconnected first or it would keep
+    playing into the output alongside the new one. applyState resumes
+    playback where it was, so a reorder mid-listen is a blink, not a stop."""
+    js = _js()
+    ap = js[js.index("function applyState()"):js.index("function applyState()") + 900]
+    assert 'if (live && live.patchOrder !== patchOrder().join(","))' in ap
+    assert "rebuildLive();" in ap
+    assert "if (resumeAt >= 0) startPlayback(resumeAt);" in ap
+    rb = js[js.index("function rebuildLive()"):js.index("function ensureCtx()")]
+    assert "try { live.outGain.disconnect(); } catch (e) {}" in rb
+    assert "try { live.wet.disconnect(); } catch (e) {}" in rb
+    assert "buildLive();" in rb
+
+
+def test_every_patch_move_is_one_undoable_step():
+    js = _js()
+    mv = js[js.index("function movePatch(from, to)"):js.index("function renderPatch()")]
+    assert "histLabel = \"patch: \" + PATCH_LABELS[k] + \" to slot \" + (to + 1);" in mv
+    assert "renderPatch(); applyState();" in mv
+    # and syncAll repaints the bay, so undo / presets / rig loads show the truth
+    sync = js[js.index("function syncAll()"):js.index("function syncAll()") + 1200]
+    assert "renderPatch();" in sync
+
+
+def test_the_bay_is_on_the_page_and_reachable_without_a_mouse():
+    html, js = _html(), _js()
+    for hook in ('id="sb-patch"', 'id="rk-patch-row"', 'id="rk-patch-reset"', 'id="rk-patch-note"'):
+        assert hook in html, hook
+    assert ".rk-jack {" in html and ".rk-jack.is-armed" in html
+    rp = js[js.index("function renderPatch()"):js.index("function focusPatch")]
+    assert '"ArrowLeft"' in rp and '"ArrowRight"' in rp, "arrow keys move the focused jack"
+    assert "patchArmed" in rp, "tap one jack, tap its new place — no drag needed on touch"
+    assert 'aria-label' in rp

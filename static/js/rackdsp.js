@@ -64,6 +64,26 @@
     return v;
   }
 
+  /* ---------- the patch bay ----------
+     The rack's units are bolted in place; the CABLES move. state.patch is
+     the signal order of the seven patchable blocks between the master-bus
+     matrix and the output trim. Anything invalid — an old save, a hand
+     edit, a missing key — falls back to the factory order, silently and
+     completely: half a patch would be a guess. */
+  var PATCH_KEYS = ["eq", "sub", "tube", "vlv", "cab", "comp", "fx"];
+  var PATCH_LABELS = {eq: "EQ-12", sub: "SUB-1", tube: "TS-1", vlv: "VLV-6",
+                      cab: "CAB-3", comp: "DYN-1", fx: "FX"};
+  function patchOrder() {
+    var p = state.patch;
+    if (!p || p.length !== PATCH_KEYS.length) return PATCH_KEYS.slice();
+    var seen = {};
+    for (var i = 0; i < p.length; i++) {
+      if (PATCH_KEYS.indexOf(p[i]) < 0 || seen[p[i]]) return PATCH_KEYS.slice();
+      seen[p[i]] = true;
+    }
+    return p;
+  }
+
   var saved = window.__savedRack || null;
   var state = (saved && saved.eq && saved.eq.length === EQ_BANDS.length)
     ? saved : JSON.parse(JSON.stringify(PRESETS.flat));
@@ -77,6 +97,7 @@
     if (s.eqMode !== "mid" && s.eqMode !== "side") s.eqMode = "stereo";
     if (s.comp && typeof s.comp.key !== "string") s.comp.key = "";   // "" = the internal detector
     if (!s.eqOff || s.eqOff.length !== EQ_BANDS.length) s.eqOff = EQ_BANDS.map(function () { return false; });
+    if (!s.patch) s.patch = PATCH_KEYS.slice();   // patchOrder() validates the rest
     // Racks saved before SB-14 existed have no valves; give them silent
     // ones rather than colouring a mix the artist already signed off.
     if (!s.valves) { s.valves = defaultValves(); }
@@ -651,31 +672,36 @@
     var centerM = buildCenterMatrix(ac);
     voiceCenter(centerM);
     input.connect(centerM.input);
-    var node = centerM.output;
-    node.connect(eq.inNode); node = eq.outNode;
     var sub = buildSub(ac);
     voiceSub(sub);
-    node.connect(sub.inNode);
-    node = sub.outNode;
-    node.connect(tube); tube.connect(wetTube);
-    node.connect(dryTube);
+    var tubeIn = ac.createGain();               // an explicit door, so the tube block is patchable
+    tubeIn.connect(tube); tube.connect(wetTube);
+    tubeIn.connect(dryTube);
     var sum = ac.createGain();
     wetTube.connect(sum); dryTube.connect(sum);
-    // Colour goes in before the cab and the compressor, so both hear it.
     var valves = buildValves(ac);
     voiceValves(valves);
-    sum.connect(valves.inNode);
-    valves.outNode.connect(cabMic.moduleIn);
     voiceCabMic(cabMic);
-    cabMic.moduleOut.connect(comp);
     var duckIn = ac.createGain(), keyIn = ac.createGain();   // the sidechain splice; see armDucker
     comp.connect(duckIn); duckIn.connect(makeup);
     var fx = buildFx(ac);
     voiceFx(fx, ac);
-    makeup.connect(fx.inNode);
-    fx.outNode.connect(outGain);
+    // The bay: seven blocks, each a door in and a door out, cabled in
+    // whatever order the artist patched. The matrix is always first and
+    // the output trim always last - those are the bay's end plates.
+    var blocks = {eq:   {i: eq.inNode,       o: eq.outNode},
+                  sub:  {i: sub.inNode,      o: sub.outNode},
+                  tube: {i: tubeIn,          o: sum},
+                  vlv:  {i: valves.inNode,   o: valves.outNode},
+                  cab:  {i: cabMic.moduleIn, o: cabMic.moduleOut},
+                  comp: {i: comp,            o: makeup},
+                  fx:   {i: fx.inNode,       o: fx.outNode}};
+    var order = patchOrder(), node = centerM.output;
+    order.forEach(function (k) { node.connect(blocks[k].i); node = blocks[k].o; });
+    node.connect(outGain);
     outGain.connect(dest);
     return {input: input, filters: filters, eq: eq, tube: tube, wetTube: wetTube,
+            patchOrder: order.join(","), tubeIn: tubeIn,
             duckIn: duckIn, keyIn: keyIn, duck: null, duckKeyed: false,
             dryTube: dryTube, sum: sum, cabMic: cabMic, comp: comp,
             makeup: makeup, outGain: outGain, out: outGain, centerM: centerM,
@@ -750,21 +776,38 @@
     });
   }
 
+  function buildLive() {
+    live = buildChain(ctx, ctx.destination);
+    live.analyser = ctx.createAnalyser();
+    live.analyser.fftSize = 4096;
+    live.analyser.smoothingTimeConstant = 0.8;
+    live.meters = buildMeters(ctx, live);
+    var mine = live;
+    loadDucker(ctx).then(function (ok) { if (ok && live === mine) { armDucker(live, ctx); voiceLive(); } });
+    live.outGain.connect(live.analyser);
+    live.wet = ctx.createGain(); live.dry = ctx.createGain();
+    live.dry.gain.value = 0;
+    live.wet.connect(live.input);
+    live.dry.connect(ctx.destination);
+    live.dry.connect(live.analyser);
+  }
+  /* Re-cable the live rack to the current patch order. Web Audio cannot
+     reorder a graph in place, so the chain is rebuilt; the old one is
+     fully disconnected first or it would keep playing into the output.
+     Playback is the caller's problem (applyState resumes it). */
+  function rebuildLive() {
+    if (!ctx || !live) return;
+    if (playing) stop();
+    try { live.outGain.disconnect(); } catch (e) {}
+    try { live.wet.disconnect(); } catch (e) {}
+    try { live.dry.disconnect(); } catch (e) {}
+    keyGR = 0;
+    buildLive();
+  }
   function ensureCtx() {
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
-      live = buildChain(ctx, ctx.destination);
-      live.analyser = ctx.createAnalyser();
-      live.analyser.fftSize = 4096;
-      live.analyser.smoothingTimeConstant = 0.8;
-      live.meters = buildMeters(ctx, live);
-      loadDucker(ctx).then(function (ok) { if (ok) { armDucker(live, ctx); voiceLive(); } });
-      live.outGain.connect(live.analyser);
-      live.wet = ctx.createGain(); live.dry = ctx.createGain();
-      live.dry.gain.value = 0;
-      live.wet.connect(live.input);
-      live.dry.connect(ctx.destination);
-      live.dry.connect(live.analyser);
+      buildLive();
     }
     return ctx;
   }
@@ -939,6 +982,11 @@
   }
 
   function applyState() {
+    var resumeAt = -1;
+    if (live && live.patchOrder !== patchOrder().join(",")) {
+      resumeAt = playing ? playPos() : -1;
+      rebuildLive();
+    }
     if (live) {
       voiceChain(live, ctx);
       live.wet.gain.value = state.bypass ? 0 : 1;
@@ -948,6 +996,7 @@
     syncModButtons();
     paintCabView();
     eqCurveDirty = true;
+    if (resumeAt >= 0) startPlayback(resumeAt);
     if (!hist.quiet) histMark(histLabel);
   }
 
@@ -1367,6 +1416,81 @@
       setEqModeButtons(); applyState();
     });
   });
+
+  /* The bay row: seven jacks between IN and OUT. Drag one onto another
+     to take its place; with the keyboard, arrows move the focused jack;
+     on touch (or without dragging), tap a jack to pick it up and tap
+     where it should go. Every move is one undoable step. */
+  var patchArmed = null;
+  function movePatch(from, to) {
+    if (from === to || from < 0 || to < 0) return;
+    var p = patchOrder().slice();
+    var k = p.splice(from, 1)[0];
+    p.splice(to, 0, k);
+    histLabel = "patch: " + PATCH_LABELS[k] + " to slot " + (to + 1);
+    state.patch = p;
+    patchArmed = null;
+    renderPatch(); applyState();
+  }
+  function renderPatch() {
+    var row = document.getElementById("rk-patch-row");
+    if (!row) return;
+    row.innerHTML = "";
+    var order = patchOrder();
+    order.forEach(function (k, i) {
+      var li = document.createElement("li");
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rk-jack sw" + (patchArmed === i ? " is-armed" : "");
+      b.draggable = true;
+      b.dataset.slot = i;
+      b.textContent = PATCH_LABELS[k];
+      b.setAttribute("aria-label", PATCH_LABELS[k] + ", slot " + (i + 1) + " of " + order.length +
+                     ". Arrow keys move it; or press it, then press its new place.");
+      b.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", String(i));
+        e.dataTransfer.effectAllowed = "move";
+        b.classList.add("is-dragging");
+      });
+      b.addEventListener("dragend", function () { b.classList.remove("is-dragging"); });
+      b.addEventListener("dragover", function (e) { e.preventDefault(); b.classList.add("is-over"); });
+      b.addEventListener("dragleave", function () { b.classList.remove("is-over"); });
+      b.addEventListener("drop", function (e) {
+        e.preventDefault();
+        b.classList.remove("is-over");
+        movePatch(parseInt(e.dataTransfer.getData("text/plain"), 10), i);
+      });
+      b.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowLeft" && i > 0) { e.preventDefault(); movePatch(i, i - 1); focusPatch(i - 1); }
+        else if (e.key === "ArrowRight" && i < order.length - 1) { e.preventDefault(); movePatch(i, i + 1); focusPatch(i + 1); }
+      });
+      b.addEventListener("click", function () {
+        if (patchArmed === null) { patchArmed = i; b.classList.add("is-armed"); return; }
+        if (patchArmed === i) { patchArmed = null; b.classList.remove("is-armed"); return; }
+        movePatch(patchArmed, i);
+      });
+      li.appendChild(b);
+      row.appendChild(li);
+    });
+    var note = document.getElementById("rk-patch-note");
+    if (note) {
+      var dflt = order.join(",") === PATCH_KEYS.join(",");
+      note.textContent = dflt ? "" : "custom order \u2014 " + order.map(function (k) { return PATCH_LABELS[k]; }).join(" \u203a ");
+    }
+  }
+  function focusPatch(i) {
+    var b = document.querySelector('#rk-patch-row [data-slot="' + i + '"]');
+    if (b) b.focus();
+  }
+  var patchReset = document.getElementById("rk-patch-reset");
+  if (patchReset) {
+    patchReset.addEventListener("click", function () {
+      histLabel = "patch: default order";
+      state.patch = PATCH_KEYS.slice();
+      patchArmed = null;
+      renderPatch(); applyState();
+    });
+  }
   document.getElementById("rk-eq-flat").addEventListener("click", function () {
     histLabel = "EQ flat";
     state.eq = state.eq.map(function () { return 0; });
@@ -1470,6 +1594,7 @@
     setCenterButtons();
     setEqModeButtons();
     renderKeyButtons();
+    renderPatch();
     syncValveUI();
   }
 

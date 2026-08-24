@@ -528,6 +528,29 @@
   .rk-key-lg { margin-right: -4px; }
   .rk-key-note { flex: 1 0 100%; order: 9; font-family: var(--sb-mono); font-size: 11px; color: var(--sb-ink-3); }
   .rk-key-note:empty { display: none; }
+  /* the patch bay: jacks between IN and OUT; drag, arrows, or tap-tap */
+  .rk-bay { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rk-jack-end {
+    font-family: var(--sb-mono); font-size: 11px; font-weight: 600; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--sb-ink-3);
+  }
+  .rk-patch-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+  .rk-patch-row li { display: flex; align-items: center; }
+  .rk-patch-row li + li::before {
+    content: ""; width: 10px; height: 2px; margin-right: 6px; border-radius: 1px;
+    background: var(--sb-gold-line);   /* the cable between jacks */
+  }
+  .rk-jack { cursor: grab; position: relative; padding-left: 22px; }
+  .rk-jack::before {
+    content: ""; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #3A342A, #0B0A08 70%);
+    box-shadow: 0 0 0 1.5px var(--sb-gold-deep);   /* the jack hole */
+  }
+  .rk-jack.is-dragging { opacity: .45; cursor: grabbing; }
+  .rk-jack.is-over { border-color: var(--sb-gold-bright); box-shadow: 0 0 0 1px var(--sb-gold-line); }
+  .rk-jack.is-armed { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright);
+    box-shadow: 0 0 0 1px var(--sb-gold-line), 0 0 10px rgba(232,185,80,.4); }
   @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
@@ -1370,6 +1393,27 @@ closing tag lines) ==== */
                 </div>
               </div>
             </section>
+
+            <!-- PATCH · the bay: units stay put, the cables move -->
+            <section class="ru" id="sb-patch">
+              <header class="ru-head">
+                <span class="ru-tag">Patch</span>
+                <div class="ru-title" role="heading" aria-level="2">Patch Bay</div>
+                <span class="ru-sub">Signal order · the units stay put, the cables move</span>
+                <div class="ru-ctl">
+                  <button id="rk-patch-reset" class="sw" title="Back to the factory order: EQ, SUB, tube, valves, cab, dynamics, FX">Default</button>
+                </div>
+              </header>
+              <div class="ru-body">
+                <div class="rk-bay">
+                  <span class="rk-jack-end" aria-hidden="true">In</span>
+                  <ol id="rk-patch-row" class="rk-patch-row" role="list" aria-label="Signal chain, first to last"></ol>
+                  <span class="rk-jack-end" aria-hidden="true">Out</span>
+                </div>
+                <p id="rk-patch-note" class="rk-key-note" role="status" aria-live="polite"></p>
+              </div>
+            </section>
+
             <!-- SB-01 Harmonic Bank · tube -->
             <section class="ru" id="sb01">
               <header class="ru-head">
@@ -2409,5 +2453,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=50"></script>
+<script src="/static/js/rackdsp.js?v=52"></script>
 {% endblock %}
