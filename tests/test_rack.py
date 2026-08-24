@@ -493,3 +493,30 @@ def test_the_cost_readout_is_on_the_page_and_not_announced():
     html = _html()
     assert 'id="rk-cost"' in html
     assert 'aria-live="off"' in html
+
+
+# --- stem mini-waveforms -------------------------------------------------
+
+
+def test_every_loaded_stem_lane_carries_its_own_waveform():
+    """A bay of four identical bars says nothing. Each lane draws the peaks
+    of ITS stem, so vocals, drums, bass and the rest read as four different
+    instruments. Dormant lanes keep the empty rail — a picture of nothing
+    would be a lie."""
+    js = _js()
+    start = js.index("function renderStems()")
+    body = js[start:js.index("function syncDeckInfo", start)]
+    assert 'wave.className = "lane-wave";' in body
+    assert "paintLaneWave(wave, st);" in body, "painted after append, when the lane has a width"
+    dormant = js[js.index("function dormantLane"):start]
+    assert "lane-wave" not in dormant and 'rail.className = "rail";' in dormant
+    assert ".lane-wave {" in _html()
+
+
+def test_stem_peaks_are_measured_once_and_cached_on_the_stem():
+    """Mute, solo and remove all re-render every lane. Re-measuring a
+    three-minute stem on every click would make the M button feel broken."""
+    js = _js()
+    body = js[js.index("function stemPeaks(st)"):js.index("function paintLaneWave")]
+    assert "if (st.peaks) return st.peaks;" in body
+    assert "st.peaks = out;" in body

@@ -705,6 +705,12 @@
   .lane .sw.text-\[\#e8c667\] { color: var(--sb-gold); }                           /* the JS-built WAV button stays gold (escaped Tailwind class) */
   .lane .fader { width: 112px; }
   #rk-stems, #rk-hooks { display: block; }
+  /* A loaded lane: the name yields the long slot to the stem's own waveform. */
+  .lane .ln.truncate { flex: 0 1 auto; max-width: 30%; }
+  .lane-wave {
+    flex: 1 1 140px; min-width: 80px; height: 22px; border-radius: 3px;
+    background: var(--rk-well); box-shadow: inset 0 1px 2px #000;
+  }
   /* Dormant lane rail: the empty fader slot on an unloaded channel. */
   .rail {
     height: 5px; flex: 1; min-width: 60px; border-radius: 3px;
@@ -2375,5 +2381,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=47"></script>
+<script src="/static/js/rackdsp.js?v=48"></script>
 {% endblock %}

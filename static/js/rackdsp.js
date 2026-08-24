@@ -1546,8 +1546,11 @@
       lamp.className = "lamp" + (st.solo ? " grn" : st.mute ? "" : " on");
       row.appendChild(lamp);
       var name = document.createElement("span");
-      name.className = "ln min-w-0 flex-1 truncate";
+      name.className = "ln min-w-0 truncate";
       name.textContent = st.name;
+      var wave = document.createElement("canvas");
+      wave.className = "lane-wave";
+      wave.setAttribute("aria-hidden", "true");
       var dur = document.createElement("span");
       dur.className = "ld";
       dur.textContent = st.buffer.duration.toFixed(1) + "s";
@@ -1589,11 +1592,50 @@
       rm.addEventListener("click", function () {
         stop(); stems.splice(i, 1); renderStems(); syncDeckInfo(); renderWave();
       });
-      row.appendChild(name); row.appendChild(dur); row.appendChild(gain);
+      row.appendChild(name); row.appendChild(wave); row.appendChild(dur); row.appendChild(gain);
       row.appendChild(mute); row.appendChild(solo); row.appendChild(dl);
       row.appendChild(rm);
       stemsWrap.appendChild(row);
+      paintLaneWave(wave, st);          // after append: the lane has a width now
     });
+  }
+
+  /* One static picture per lane: the stem's OWN peaks, so a bay of four
+     reads as four different instruments rather than four identical bars.
+     Peaks are measured once per stem and cached on it; the canvas just
+     draws them at whatever width the lane gives it. No playhead here -
+     the dock carries the one playhead for the whole mix, and four more
+     would mean four more repaints a frame for nothing new. */
+  var LANE_COLS = 240;
+  function stemPeaks(st) {
+    if (st.peaks) return st.peaks;
+    var d = st.buffer.getChannelData(0), n = d.length;
+    var step = Math.max(1, Math.floor(n / LANE_COLS)), hop = Math.max(1, Math.floor(step / 32));
+    var out = new Float32Array(LANE_COLS);
+    for (var c = 0; c < LANE_COLS; c++) {
+      var pk = 0;
+      for (var j = c * step, e = Math.min(n, (c + 1) * step); j < e; j += hop) {
+        var v = d[j] < 0 ? -d[j] : d[j];
+        if (v > pk) pk = v;
+      }
+      out[c] = pk;
+    }
+    st.peaks = out;
+    return out;
+  }
+  function paintLaneWave(cv, st) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth || 140, h = cv.clientHeight || 22;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    var pk = stemPeaks(st), mid = h / 2, colW = w / pk.length;
+    g.fillStyle = "rgba(201,162,74,0.78)";
+    for (var i = 0; i < pk.length; i++) {
+      var a = Math.max(0.6, pk[i] * (h * 0.46));
+      g.fillRect(i * colW, mid - a, Math.max(0.8, colW - 0.4), a * 2);
+    }
   }
 
   function syncDeckInfo() {
