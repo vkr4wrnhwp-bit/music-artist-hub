@@ -520,3 +520,74 @@ def test_stem_peaks_are_measured_once_and_cached_on_the_stem():
     body = js[js.index("function stemPeaks(st)"):js.index("function paintLaneWave")]
     assert "if (st.peaks) return st.peaks;" in body
     assert "st.peaks = out;" in body
+
+
+# --- EQ-12 mid/side + per-band bypass / listen ---------------------------
+
+
+def test_eq12_is_a_mid_side_block_in_the_chain_the_export_also_uses():
+    """buildChain/voiceChain serve live playback AND the offline bounce, so
+    the M/S block lives there and nowhere else: an export honours the mode
+    by construction. Measured through an offline render: a pure-side tone
+    with +12 dB at 1k reads +12.0 dB in STEREO and SIDE and 0.0 dB in MID;
+    a pure-mid tone reads the mirror."""
+    js = _js()
+    build = js[js.index("function buildChain(ac, dest)"):js.index("function ensureCtx()")]
+    assert "var eq = buildEq(ac);" in build
+    assert "node.connect(eq.inNode); node = eq.outNode;" in build
+    assert "eq: eq," in build, "the block must be handed back so voiceChain can voice it"
+    voice = js[js.index("function voiceChain(c, ac)"):js.index("function voiceChain(c, ac)") + 1200]
+    assert "voiceEq(c.eq, eqOn);" in voice
+    assert "c.filters = (state.eqMode === \"side\") ? c.eq.filtersS : c.eq.filtersM;" in voice, (
+        "the scope must draw the chain that is actually voiced")
+    # the encode/decode matrix, literally
+    blk = js[js.index("function buildEq(ac)"):js.index("var eqSolo")]
+    assert "e.mL.gain.value = 0.5; e.mR.gain.value = 0.5; e.sL.gain.value = 0.5; e.sR.gain.value = -0.5;" in blk
+    assert "e.dML.gain.value = 1; e.dSL.gain.value = 1; e.dMR.gain.value = 1; e.dSR.gain.value = -1;" in blk
+
+
+def test_the_eq_meter_taps_the_decoded_output_not_one_chain():
+    """Tapping the mid chain would read silence in SIDE mode while the EQ
+    was working hard."""
+    js = _js()
+    taps = js[js.index("function meterTaps"):js.index("function buildMeters")]
+    assert "eq: ch.eq.outNode," in taps
+
+
+def test_eq_mode_and_band_bypass_ride_the_ab_snapshot():
+    """A/B compares MOD_KEYS[eq]; a mode or a bypass that A/B could not see
+    would make the comparison lie."""
+    js = _js()
+    assert 'eq: ["eq", "q", "eqMode", "eqOff"]' in js
+
+
+def test_listen_is_transient_and_leaves_no_history():
+    """Holding a band to listen is a question, not a change: it voices the
+    live chain directly and never goes through applyState, so it cannot
+    land in undo history or in a saved rack."""
+    js = _js()
+    assert "var eqSolo = -1;" in js
+    assert "function voiceLive() { if (live) voiceChain(live, ctx); }" in js
+    sw = js[js.index("function bandSwitch(i, b)"):js.index("function setEqModeButtons")]
+    listen = sw[sw.index("sw.listen = function"):sw.index("sw.release = function")]
+    assert "voiceLive();" in listen and "applyState" not in listen
+    # a TAP, by contrast, is a change and goes through the choke point
+    click = sw[sw.index('sw.addEventListener("click"'):]
+    assert "applyState();" in click and "histLabel" in click
+
+
+def test_racks_saved_before_mid_side_existed_still_load_as_stereo():
+    js = _js()
+    ens = js[js.index("function ensureFx(s)"):js.index("function ensureFx(s)") + 1400]
+    assert 'if (s.eqMode !== "mid" && s.eqMode !== "side") s.eqMode = "stereo";' in ens
+    assert "if (!s.eqOff || s.eqOff.length !== EQ_BANDS.length) s.eqOff = EQ_BANDS.map(function () { return false; });" in ens
+
+
+def test_the_eq_mode_switch_and_band_switches_are_on_the_page():
+    html, js = _html(), _js()
+    for mode in ("stereo", "mid", "side"):
+        assert 'data-eqmode="%s"' % mode in html, mode
+    assert 'aria-label="EQ mid/side mode"' in html
+    assert ".eq-band-sw {" in html
+    render = js[js.index("function renderEq()"):js.index("function bandSwitch")]
+    assert "var sw = bandSwitch(i, b);" in render and "k.el.appendChild(sw);" in render

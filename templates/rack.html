@@ -509,6 +509,22 @@
   [data-kn] > div > .k-value, #rk-eq > div > .k-value, #kn-q > div > .k-value { order: 3; }
   .rk-knob { display: block; }
   .rk-knob svg { display: block; }
+  /* EQ-12: one small latching switch under each band. Tap = bypass (LED dark,
+     column dims), hold = listen (LED green, gold halo). It is a JS-built button. */
+  #rk-eq > div > .eq-band-sw { order: 4; }
+  .eq-band-sw {
+    position: relative; width: 22px; height: 12px; margin-top: 2px; padding: 0; border-radius: 6px;
+    border: 1px solid var(--sb-line-strong); background: linear-gradient(180deg, #1E1A15, #12100C); cursor: pointer;
+  }
+  .eq-band-sw::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%;
+    transform: translate(-50%, -50%); background: var(--sb-gold); box-shadow: 0 0 5px rgba(232,185,80,.8);
+  }
+  .eq-band-sw[aria-pressed="true"]::after { background: var(--sb-line-strong); box-shadow: none; }
+  .eq-band-sw.is-listen { border-color: var(--sb-gold-bright); box-shadow: 0 0 0 1px var(--sb-gold-line), 0 0 10px rgba(232,185,80,.5); }
+  .eq-band-sw.is-listen::after { background: var(--sb-good); box-shadow: 0 0 6px rgba(121,180,115,.9); }
+  #rk-eq > div.is-bypassed > .rk-knob, #rk-eq > div.is-bypassed > .k-value { opacity: .38; }
+  @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
     text-transform: uppercase; color: var(--sb-ink-2); white-space: nowrap;
@@ -1433,6 +1449,11 @@ closing tag lines) ==== */
                 <div class="ru-title" role="heading" aria-level="2">Tone Bank</div>
                 <span class="ru-sub">EQ-12 Parametric · 12 Band</span>
                 <div class="ru-ctl">
+                  <div class="rk-segsw" role="group" aria-label="EQ mid/side mode">
+                    <button data-eqmode="stereo" class="rk-eqmode sw sw-lit">Stereo</button>
+                    <button data-eqmode="mid" class="rk-eqmode sw">Mid</button>
+                    <button data-eqmode="side" class="rk-eqmode sw">Side</button>
+                  </div>
                   <button id="rk-eq-flat" class="sw">Flat</button>
                   <button class="rk-pwr sw" data-mod="eq">ON</button>
                   <button class="rk-cmp sw" data-mod="eq" title="Compare — swap with your previous EQ curve">A/B</button>
@@ -2381,5 +2402,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=48"></script>
+<script src="/static/js/rackdsp.js?v=49"></script>
 {% endblock %}

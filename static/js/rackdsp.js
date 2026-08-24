@@ -72,6 +72,10 @@
     if (!s.dly) s.dly = {time: 0.3, fb: 0.3, tone: 5000, mix: 0};
     if (!s.rev) s.rev = {size: 1.6, damp: 5000, pre: 0.02, mix: 0};
     if (!s.sub) s.sub = {depth: 0, growl: 0, shake: 0};
+    // EQ-12 mid/side and per-band bypass arrived after every preset and
+    // most saved racks: default to the behaviour they were saved with.
+    if (s.eqMode !== "mid" && s.eqMode !== "side") s.eqMode = "stereo";
+    if (!s.eqOff || s.eqOff.length !== EQ_BANDS.length) s.eqOff = EQ_BANDS.map(function () { return false; });
     // Racks saved before SB-14 existed have no valves; give them silent
     // ones rather than colouring a mix the artist already signed off.
     if (!s.valves) { s.valves = defaultValves(); }
@@ -501,17 +505,79 @@
     cm.lr.gain.value = v[2]; cm.rr.gain.value = v[3];
   }
 
+  /* EQ-12 as a mid/side block. L/R are encoded to M = (L+R)/2 and
+     S = (L-R)/2, each runs through its own twelve biquads, and the pair
+     is decoded back to L = M+S, R = M-S. In STEREO both chains carry the
+     same gains, which is exactly the same as EQing L and R (the matrix
+     and the filters are all linear). In MID only the mid chain is voiced
+     and the side chain sits flat; in SIDE the reverse. A mono source has
+     no side at all, so SIDE does nothing to it - that is the truth of the
+     signal, not a bug.
+     LISTEN rides on the decoded output: while a band switch is held, a
+     band-pass at that band's centre (a low-pass for the low shelf, a
+     high-pass for the high shelf) replaces the through path, so you hear
+     the region the band is touching, already EQ'd. */
+  function buildEq(ac) {
+    var split = ac.createChannelSplitter(2), merge = ac.createChannelMerger(2);
+    var e = {inNode: ac.createGain(), outNode: ac.createGain(),
+             mL: ac.createGain(), mR: ac.createGain(), sL: ac.createGain(), sR: ac.createGain(),
+             dML: ac.createGain(), dSL: ac.createGain(), dMR: ac.createGain(), dSR: ac.createGain(),
+             thru: ac.createGain(), listen: ac.createBiquadFilter(), listenGain: ac.createGain()};
+    e.inNode.channelCount = 2; e.inNode.channelCountMode = "explicit";   // mono arrives as L = R
+    e.inNode.connect(split);
+    var mid = ac.createGain(), side = ac.createGain();
+    e.mL.gain.value = 0.5; e.mR.gain.value = 0.5; e.sL.gain.value = 0.5; e.sR.gain.value = -0.5;
+    split.connect(e.mL, 0); split.connect(e.mR, 1); e.mL.connect(mid); e.mR.connect(mid);
+    split.connect(e.sL, 0); split.connect(e.sR, 1); e.sL.connect(side); e.sR.connect(side);
+    function chain(from) {
+      var fs = EQ_BANDS.map(function (b) {
+        var f = ac.createBiquadFilter();
+        f.type = b.type; f.frequency.value = b.f; f.Q.value = state.q; f.gain.value = 0;
+        return f;
+      });
+      var n = from;
+      fs.forEach(function (f) { n.connect(f); n = f; });
+      return {filters: fs, out: n};
+    }
+    var cm = chain(mid), cs = chain(side);
+    e.filtersM = cm.filters; e.filtersS = cs.filters;
+    e.dML.gain.value = 1; e.dSL.gain.value = 1; e.dMR.gain.value = 1; e.dSR.gain.value = -1;
+    cm.out.connect(e.dML); cs.out.connect(e.dSL); cm.out.connect(e.dMR); cs.out.connect(e.dSR);
+    e.dML.connect(merge, 0, 0); e.dSL.connect(merge, 0, 0);
+    e.dMR.connect(merge, 0, 1); e.dSR.connect(merge, 0, 1);
+    merge.connect(e.thru); e.thru.connect(e.outNode);
+    merge.connect(e.listen); e.listen.connect(e.listenGain); e.listenGain.connect(e.outNode);
+    e.listen.type = "bandpass"; e.thru.gain.value = 1; e.listenGain.gain.value = 0;
+    return e;
+  }
+
+  var eqSolo = -1;   // the band held for LISTEN; transient, never saved, never in history
+  function voiceEq(e, eqOn) {
+    var mode = state.eqMode || "stereo";
+    var onM = eqOn && mode !== "side", onS = eqOn && mode !== "mid";
+    EQ_BANDS.forEach(function (b, i) {
+      var g = state.eqOff[i] ? 0 : state.eq[i];
+      e.filtersM[i].gain.value = onM ? g : 0; e.filtersM[i].Q.value = state.q;
+      e.filtersS[i].gain.value = onS ? g : 0; e.filtersS[i].Q.value = state.q;
+    });
+    var solo = eqSolo >= 0 ? EQ_BANDS[eqSolo] : null;
+    if (solo) {
+      e.listen.type = solo.type === "lowshelf" ? "lowpass" : solo.type === "highshelf" ? "highpass" : "bandpass";
+      e.listen.frequency.value = solo.type === "lowshelf" ? solo.f * 1.6
+                                : solo.type === "highshelf" ? solo.f / 1.6 : solo.f;
+      e.listen.Q.value = solo.type === "peaking" ? Math.max(1.2, state.q * 1.5) : 0.7;
+    }
+    e.thru.gain.value = solo ? 0 : 1;
+    e.listenGain.gain.value = solo ? 1 : 0;
+  }
+
   function buildChain(ac, dest) {
     var input = ac.createGain();
     // Mono sources must duplicate to both channels before the mid/side split.
     input.channelCount = 2;
     input.channelCountMode = "explicit";
-    var filters = EQ_BANDS.map(function (b, i) {
-      var f = ac.createBiquadFilter();
-      f.type = b.type; f.frequency.value = b.f;
-      f.Q.value = state.q; f.gain.value = state.eq[i];
-      return f;
-    });
+    var eq = buildEq(ac);
+    var filters = eq.filtersM;            // the chain the scope draws; voiceChain re-points it per mode
     var tube = ac.createWaveShaper();
     tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
     tube.oversample = "4x";
@@ -531,7 +597,7 @@
     voiceCenter(centerM);
     input.connect(centerM.input);
     var node = centerM.output;
-    filters.forEach(function (f) { node.connect(f); node = f; });
+    node.connect(eq.inNode); node = eq.outNode;
     var sub = buildSub(ac);
     voiceSub(sub);
     node.connect(sub.inNode);
@@ -553,7 +619,7 @@
     makeup.connect(fx.inNode);
     fx.outNode.connect(outGain);
     outGain.connect(dest);
-    return {input: input, filters: filters, tube: tube, wetTube: wetTube,
+    return {input: input, filters: filters, eq: eq, tube: tube, wetTube: wetTube,
             dryTube: dryTube, sum: sum, cabMic: cabMic, comp: comp,
             makeup: makeup, outGain: outGain, out: outGain, centerM: centerM,
             fx: fx, sub: sub, valves: valves};
@@ -577,7 +643,7 @@
    */
   function meterTaps(ch) {
     return {sub: ch.sub.outNode,
-            eq: ch.filters[ch.filters.length - 1],
+            eq: ch.eq.outNode,
             tube: ch.sum,
             vlv: ch.valves.outNode,
             cab: ch.cabMic.moduleOut,
@@ -661,9 +727,8 @@
   function voiceChain(c, ac) {
     if (c.valves) { voiceValves(c.valves); }
     var eqOn = modOn("eq"), tubeOn = modOn("tube"), compOn = modOn("comp");
-    c.filters.forEach(function (f, i) {
-      f.gain.value = eqOn ? state.eq[i] : 0; f.Q.value = state.q;
-    });
+    voiceEq(c.eq, eqOn);
+    c.filters = (state.eqMode === "side") ? c.eq.filtersS : c.eq.filtersM;   // what the scope draws
     c.tube.curve = tubeCurve(state.tube.drive, state.tube.bias);
     c.wetTube.gain.value = tubeOn ? state.tube.mix : 0;
     c.dryTube.gain.value = tubeOn ? 1 - state.tube.mix : 1;
@@ -1180,9 +1245,69 @@
         get: function () { return state.eq[i]; },
         set: function (v) { state.eq[i] = v; }
       });
+      var sw = bandSwitch(i, b);
+      k.el.appendChild(sw);
+      k.el.classList.toggle("is-bypassed", !!state.eqOff[i]);
+      k.el.addEventListener("keydown", function (e) {
+        if (e.target !== k.el.querySelector(".rk-knob")) return;
+        if (e.key === "b" || e.key === "B") { e.preventDefault(); sw.click(); }
+        else if ((e.key === "s" || e.key === "S") && !e.repeat) { e.preventDefault(); sw.listen(); }
+      });
+      k.el.addEventListener("keyup", function (e) {
+        if (e.key === "s" || e.key === "S") sw.release();
+      });
       eqWrap.appendChild(k.el);
     });
   }
+
+  /* Under each band: one small latching switch. TAP bypasses the band -
+     the knob keeps its value, the band just stops acting, and the column
+     dims. HOLD is LISTEN: while the switch is down the EQ output is
+     replaced by that band's region, which is how you find what a band is
+     actually touching. Keyboard, with the knob focused: B toggles bypass,
+     S held is listen. Listen is transient and leaves no history. */
+  var HOLD_MS = 260;
+  function voiceLive() { if (live) voiceChain(live, ctx); }
+  function bandSwitch(i, b) {
+    var sw = document.createElement("button");
+    sw.type = "button"; sw.className = "eq-band-sw";
+    sw.setAttribute("aria-pressed", state.eqOff[i] ? "true" : "false");
+    sw.setAttribute("aria-label", "Bypass the " + b.label + " band; hold to listen to it");
+    var timer = null, held = false;
+    sw.listen = function () { held = true; eqSolo = i; voiceLive(); sw.classList.add("is-listen"); };
+    sw.release = function () { if (eqSolo === i) { eqSolo = -1; voiceLive(); } sw.classList.remove("is-listen"); };
+    sw.addEventListener("pointerdown", function (e) {
+      held = false; timer = setTimeout(sw.listen, HOLD_MS);
+      if (sw.setPointerCapture) { try { sw.setPointerCapture(e.pointerId); } catch (err) {} }
+    });
+    function up() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (held) { sw.release(); held = false; sw.dataset.skipClick = "1"; }
+    }
+    sw.addEventListener("pointerup", up); sw.addEventListener("pointercancel", up);
+    sw.addEventListener("click", function () {
+      if (sw.dataset.skipClick) { delete sw.dataset.skipClick; return; }   // a hold is not a tap
+      histLabel = (state.eqOff[i] ? "band on: " : "band off: ") + b.label;
+      state.eqOff[i] = !state.eqOff[i];
+      sw.setAttribute("aria-pressed", state.eqOff[i] ? "true" : "false");
+      sw.parentElement.classList.toggle("is-bypassed", state.eqOff[i]);
+      applyState();
+    });
+    return sw;
+  }
+
+  function setEqModeButtons() {
+    document.querySelectorAll(".rk-eqmode").forEach(function (x) {
+      x.classList.toggle("sw-lit", x.dataset.eqmode === (state.eqMode || "stereo"));
+    });
+  }
+  document.querySelectorAll(".rk-eqmode").forEach(function (b) {
+    b.addEventListener("click", function () {
+      histLabel = "EQ " + b.dataset.eqmode;
+      state.eqMode = b.dataset.eqmode;
+      setEqModeButtons(); applyState();
+    });
+  });
   document.getElementById("rk-eq-flat").addEventListener("click", function () {
     histLabel = "EQ flat";
     state.eq = state.eq.map(function () { return 0; });
@@ -1284,6 +1409,7 @@
     });
     syncCabPicks();
     setCenterButtons();
+    setEqModeButtons();
     syncValveUI();
   }
 
@@ -1758,7 +1884,7 @@
   // Every data-mod in rack.html needs an entry here: the A/B button reads
   // MOD_KEYS[mod] directly. "vlv" is the valve bank, whose state lives
   // under `valves`.
-  var MOD_KEYS = {tube: ["tube"], eq: ["eq", "q"], sub: ["sub"], comp: ["comp"],
+  var MOD_KEYS = {tube: ["tube"], eq: ["eq", "q", "eqMode", "eqOff"], sub: ["sub"], comp: ["comp"],
                   cab: ["cab"], dly: ["dly"], rev: ["rev"], out: ["out"],
                   vlv: ["valves"]};
 
