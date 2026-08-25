@@ -551,6 +551,39 @@
   .rk-jack.is-over { border-color: var(--sb-gold-bright); box-shadow: 0 0 0 1px var(--sb-gold-line); }
   .rk-jack.is-armed { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright);
     box-shadow: 0 0 0 1px var(--sb-gold-line), 0 0 10px rgba(232,185,80,.4); }
+  /* the manual drawer: a drawer front with pulls; the body is the manual */
+  .rk-man-front {
+    display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 18px;
+    border: 0; border-top: 1px solid var(--rk-seam); cursor: pointer; text-align: left;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.014) 0 1px, transparent 1px 4px),
+                linear-gradient(180deg, #1C1814, #120F0C 80%, #0C0A08);
+  }
+  .rk-man-front:hover .rk-man-label { color: var(--sb-ink); }
+  .rk-man-pull {
+    flex: 1; height: 6px; border-radius: 3px; max-width: 180px;
+    background: linear-gradient(180deg, #060504, #1E1A15 45%, #060504);
+    box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255,255,255,.05);
+  }
+  .rk-man-label { font-family: var(--sb-mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--sb-ink-2); }
+  .rk-man-front[aria-expanded="true"] .rk-man-label { color: var(--sb-gold); }
+  .rk-man-body { padding: 18px 22px 24px; border-top: 1px solid var(--rk-seam); }
+  .rk-man-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 18px; }
+  @media (max-width: 720px) { .rk-man-cols { grid-template-columns: 1fr; } }
+  .rk-man-head {
+    font-family: var(--sb-mono); font-size: 12px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--sb-gold); margin: 0 0 8px;
+  }
+  .rk-man-path { font-family: var(--sb-mono); font-size: 12px; color: var(--sb-ink); margin: 0 0 8px; }
+  .rk-man-note { font-family: var(--sb-display); font-size: 12.5px; line-height: 1.6; color: var(--sb-ink-2); margin: 0; max-width: 52ch; }
+  .rk-man-keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+  .rk-man-keys dt { font-family: var(--sb-mono); font-size: 12px; color: var(--sb-ink); white-space: nowrap; }
+  .rk-man-keys dd { font-family: var(--sb-display); font-size: 12.5px; line-height: 1.55; color: var(--sb-ink-2); margin: 0; }
+  .rk-man-units { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+  @media (max-width: 900px) { .rk-man-units { grid-template-columns: 1fr; } }
+  .rk-man-page { border-left: 2px solid var(--sb-gold-line); padding-left: 12px; }
+  .rk-man-page .rk-man-head { color: var(--sb-ink); margin-bottom: 4px; }
+  .rk-man-page .ru-ex-prose { font-size: 12.5px; }
+  .rk-man-page .ru-ex-prose p { margin: 0 0 .6em; }
   @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
@@ -2371,6 +2404,41 @@ closing tag lines) ==== */
             </div>
           </header>
         </section>
+            <!-- MANUAL · the drawer under the amp -->
+            <section class="ru" id="sb-manual">
+              <button id="rk-man-toggle" class="rk-man-front" aria-expanded="false" aria-controls="rk-man-body"
+                      title="The manual: the signal path as patched right now, every unit's card in one read, and every key the rack answers to">
+                <span class="rk-man-pull" aria-hidden="true"></span>
+                <span class="ru-tag">Manual</span>
+                <span class="rk-man-label">The drawer · signal path, every unit, every key</span>
+                <span class="rk-man-pull" aria-hidden="true"></span>
+              </button>
+              <div id="rk-man-body" class="rk-man-body" hidden>
+                <div class="rk-man-cols">
+                  <div class="rk-man-sec">
+                    <div class="rk-man-head" role="heading" aria-level="3">Signal path · as patched right now</div>
+                    <p id="rk-man-path" class="rk-man-path"></p>
+                    <p class="rk-man-note">Rewire it in the Patch Bay under the screen. The order is part of your rack and rides its saves, its A/B and its undo.</p>
+                  </div>
+                  <div class="rk-man-sec">
+                    <div class="rk-man-head" role="heading" aria-level="3">Every key the rack answers to</div>
+                    <dl class="rk-man-keys">
+                      <dt>Any knob</dt><dd>drag up or down · mouse wheel · double-click puts it back to its default</dd>
+                      <dt>Focused knob</dt><dd>arrows step · Shift+arrows fine (a fifth of a step) · PageUp / PageDown jump 10 · Home / End are the ends · Backspace, Delete or 0 reset</dd>
+                      <dt>EQ band, knob focused</dt><dd>B bypasses the band · S held is LISTEN — you hear the band's region while it is down</dd>
+                      <dt>EQ band switch</dt><dd>tap bypasses · hold is LISTEN</dd>
+                      <dt>Patch jack</dt><dd>arrows move it a slot · or press it, then press its new place</dd>
+                      <dt>Tubes</dt><dd>press the glass to switch its stage · the small fader is how much</dd>
+                      <dt>Undo</dt><dd>Ctrl/Cmd+Z · add Shift to redo · never while you are typing in a field</dd>
+                      <dt>Overlays</dt><dd>Escape closes the history, the library and this drawer</dd>
+                    </dl>
+                  </div>
+                </div>
+                <div class="rk-man-head" role="heading" aria-level="3">The units, in signal order of the rack face</div>
+                <div id="rk-man-units" class="rk-man-units"></div>
+              </div>
+            </section>
+
         <div id="rk-empty" class="rk-empty">
           <div class="rk-empty-card">
             <p class="rk-empty-h">Drop audio to activate the rack</p>
@@ -2453,5 +2521,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=52"></script>
+<script src="/static/js/rackdsp.js?v=53"></script>
 {% endblock %}

@@ -4806,6 +4806,54 @@
     if (e.shiftKey) histRedo(); else histUndo();
   });
 
+
+  /* ---------- the manual drawer ----------
+     The printed manual, in the drawer under the amp. Nothing in it is a
+     second copy that can drift: the signal path is read from the patch the
+     moment the drawer opens, and the unit pages are CLONES of the explain
+     cards on the units themselves - one source of truth, two places to
+     read it. */
+  (function manualDrawer() {
+    var toggle = document.getElementById("rk-man-toggle");
+    var body = document.getElementById("rk-man-body");
+    if (!toggle || !body) return;
+    function renderManual() {
+      var path = document.getElementById("rk-man-path");
+      if (path) {
+        path.textContent = "In \u203a " + patchOrder().map(function (k) { return PATCH_LABELS[k]; }).join(" \u203a ") + " \u203a Out";
+      }
+      var units = document.getElementById("rk-man-units");
+      if (!units) return;
+      units.innerHTML = "";
+      document.querySelectorAll("#sb14, .chassis .ru").forEach(function (sec) {
+        var tag = sec.querySelector(".ru-tag"), title = sec.querySelector(".ru-title");
+        var prose = sec.querySelector(".ru-explain .ru-ex-prose");
+        if (!tag || !title || !prose) return;
+        var page = document.createElement("div");
+        page.className = "rk-man-page";
+        var head = document.createElement("div");
+        head.className = "rk-man-head";
+        head.setAttribute("role", "heading"); head.setAttribute("aria-level", "4");
+        head.textContent = tag.textContent.trim() + " \u00b7 " + title.textContent.trim();
+        page.appendChild(head);
+        page.appendChild(prose.cloneNode(true));
+        units.appendChild(page);
+      });
+    }
+    toggle.addEventListener("click", function () {
+      var open = body.hidden;
+      if (open) renderManual();
+      body.hidden = !open;
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !body.hidden) {
+        body.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+  })();
+
   (function wireHistoryUi() {
     // Seed the baseline HERE rather than lazily on the first applyState.
     // applyState is not called during boot, so the lazy version consumed

@@ -718,3 +718,43 @@ def test_the_bay_is_on_the_page_and_reachable_without_a_mouse():
     assert '"ArrowLeft"' in rp and '"ArrowRight"' in rp, "arrow keys move the focused jack"
     assert "patchArmed" in rp, "tap one jack, tap its new place — no drag needed on touch"
     assert 'aria-label' in rp
+
+
+# --- the manual drawer ---------------------------------------------------
+
+
+def test_the_manual_drawer_clones_the_cards_rather_than_copying_the_words():
+    """The drawer is the printed manual under the amp. Nothing in it may be
+    a second copy that can drift: the unit pages are CLONES of the explain
+    cards on the units, made the moment the drawer opens, and the signal
+    path line is read from the patch at the same moment. Verified live: a
+    patch reorder changes the path line on the next open."""
+    js = _js()
+    d = js[js.index("function manualDrawer()"):js.index("function manualDrawer()") + 2400]
+    assert "prose.cloneNode(true)" in d.replace("appendChild(prose.cloneNode(true))", "prose.cloneNode(true)") or "cloneNode(true)" in d
+    assert 'document.querySelectorAll("#sb14, .chassis .ru")' in d, "the deck and every unit, in face order"
+    assert "patchOrder().map(function (k) { return PATCH_LABELS[k]; })" in d
+    assert "if (open) renderManual();" in d, "built at open, so it is always current"
+
+
+def test_the_manual_drawer_is_on_the_page_and_closes_like_the_other_overlays():
+    html, js = _html(), _js()
+    for hook in ('id="sb-manual"', 'id="rk-man-toggle"', 'id="rk-man-body"',
+                 'id="rk-man-path"', 'id="rk-man-units"'):
+        assert hook in html, hook
+    assert 'aria-expanded="false"' in html and 'aria-controls="rk-man-body"' in html
+    d = js[js.index("function manualDrawer()"):js.index("function manualDrawer()") + 2400]
+    assert '"Escape"' in d
+
+
+def test_the_key_map_tells_the_truth_about_the_handlers():
+    """Every line in the drawer's key map must describe a handler that
+    exists. The map says Shift is the fine grid, PageUp/Down jump ten,
+    Backspace/Delete/0 reset, and Ctrl/Cmd+Z undoes except while typing —
+    all of which are real lines in the script."""
+    html, js = _html(), _js()
+    assert "Shift+arrows fine" in html and 'e.shiftKey ? 0.2 : 1' in js
+    assert "PageUp / PageDown jump 10" in html and 'case "PageUp": nudge(10);' in js
+    assert "Backspace, Delete or 0 reset" in html and 'case "Backspace": case "Delete": case "0":' in js
+    assert "add Shift to redo" in html and "if (e.shiftKey) histRedo(); else histUndo();" in js
+    assert "never while you are typing" in html and "isContentEditable" in js
