@@ -4854,6 +4854,198 @@
     });
   })();
 
+
+  /* ---------- BOUNCE: render once, measure THAT render, hand over the file ----------
+     The page could already export a WAV, measure loudness, and convert
+     formats - but each of those rendered the rack again, so the numbers on
+     screen described a different pass than the file you kept. This renders
+     once and everything downstream reads that one buffer: the LUFS, the
+     true peak, the target table and the bytes you download are all the
+     same audio. It honours the patch order and the sidechain because it
+     goes through renderMasterBuffer, the same path the old export used.
+
+     Rate changes and the lossy formats stay in SB-12, which is built for
+     them; this bounces what the rack is playing, at its own rate. */
+  (function bounceModal() {
+    var back = document.getElementById("rk-bnc-back");
+    if (!back || !document.getElementById("rk-export")) return;
+    var bodyEl = document.getElementById("rk-bnc-body");
+    var statusEl2 = document.getElementById("rk-bnc-status");
+    var srcEl = document.getElementById("rk-bnc-src");
+    var planEl = document.getElementById("rk-bnc-plan");
+    var doneEl = document.getElementById("rk-bnc-done");
+    var rendered = null, measured = null, lastFocus = null, busy = false;
+    var fmt = "wav", depth = 24;
+
+    function say(t) { statusEl2.textContent = t || ""; }
+    function n1(v, suffix) { return v === null || v === undefined ? "\u2014" : v.toFixed(1) + (suffix || ""); }
+
+    function segs(wrap, items, current, pick) {
+      wrap.innerHTML = "";
+      items.forEach(function (it) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "sw" + (it.value === current ? " sw-lit" : "");
+        b.textContent = it.label;
+        b.setAttribute("aria-pressed", it.value === current ? "true" : "false");
+        b.addEventListener("click", function () { pick(it.value); });
+        wrap.appendChild(b);
+      });
+    }
+
+    function renderChoices() {
+      var specs = window.SBAudioConv ? window.SBAudioConv.FORMATS : null;
+      var containers = [{value: "wav", label: "WAV"}, {value: "aiff", label: "AIFF"}];
+      segs(document.getElementById("rk-bnc-fmt"), containers, fmt, function (v) {
+        fmt = v;
+        // AIFF here is 16 or 24; a 32-bit float AIFF is not what this writes.
+        if (fmt === "aiff" && depth === 32) depth = 24;
+        renderChoices(); planText();
+      });
+      var depths = (specs && specs[fmt] ? specs[fmt].depths : [16, 24]).map(function (d) {
+        return {value: d, label: d === 32 ? "32f" : String(d)};
+      });
+      segs(document.getElementById("rk-bnc-depth"), depths, depth, function (v) {
+        depth = v; renderChoices(); planText();
+      });
+      var dw = document.getElementById("rk-bnc-dither-wrap");
+      if (dw) { dw.hidden = depth !== 16; }
+    }
+
+    function planText() {
+      if (!rendered) { planEl.textContent = ""; return; }
+      var dither = depth === 16 && document.getElementById("rk-bnc-dither").checked;
+      var bytes = rendered.length * rendered.numberOfChannels * (depth === 32 ? 4 : depth / 8);
+      planEl.textContent = fmt.toUpperCase() + " \u00b7 " + depth + (depth === 32 ? "-bit float" : "-bit") +
+        " \u00b7 " + rendered.sampleRate + " Hz \u00b7 " +
+        (rendered.numberOfChannels === 1 ? "mono" : "stereo") + " \u00b7 " +
+        (bytes / 1048576).toFixed(1) + " MB" + (dither ? " \u00b7 TPDF dither" : "");
+    }
+
+    function paintTargets() {
+      var wrap = document.getElementById("rk-bnc-targets");
+      wrap.innerHTML = "";
+      if (!measured || measured.integrated === null || !window.SBLoudness) return;
+      window.SBLoudness.TARGETS.forEach(function (t) {
+        var a = window.SBLoudness.againstTarget(measured.integrated, measured.truePeak, t);
+        var row = document.createElement("div");
+        row.className = "rk-bnc-row" + (a.clipsIfRaised ? " is-clip" : a.over ? " is-over" : a.under ? " is-under" : " is-ok");
+        var name = document.createElement("span");
+        name.className = "bn-name"; name.textContent = a.name;
+        var tgt = document.createElement("span");
+        tgt.className = "bn-t"; tgt.textContent = a.lufs + " LUFS \u00b7 ceiling " + a.ceiling;
+        var d = document.createElement("span");
+        d.className = "bn-d";
+        d.textContent = a.delta === null ? "\u2014"
+          : a.clipsIfRaised ? "would clip if raised " + n1(a.gain, " dB")
+          : a.over ? "they turn it down " + n1(-a.gain, " dB")
+          : a.under ? "they leave it \u2014 " + n1(Math.abs(a.delta), " LU under")
+          : "on target";
+        row.appendChild(name); row.appendChild(tgt); row.appendChild(d);
+        wrap.appendChild(row);
+      });
+    }
+
+    function measure(buf) {
+      var chans = [];
+      for (var c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+      return window.SBLoudness.analyse(chans, buf.sampleRate);
+    }
+
+    function start() {
+      busy = true; rendered = null; measured = null;
+      bodyEl.hidden = true; doneEl.textContent = "";
+      say("Rendering the rack\u2026");
+      srcEl.textContent = stems.length ? stems.length + " stems \u00b7 " + patchOrder().length + " units"
+                                       : (loadedName || "loaded track") + " \u00b7 " + patchOrder().length + " units";
+      renderMasterBuffer().then(function (buf) {
+        rendered = buf;
+        say("Measuring that render\u2026");
+        return new Promise(function (r) { setTimeout(function () { r(measure(buf)); }, 30); });
+      }).then(function (res) {
+        measured = res;
+        document.getElementById("rk-bnc-i").textContent = n1(res.integrated);
+        document.getElementById("rk-bnc-tp").textContent = res.truePeak === null ? "\u2014" : res.truePeak.toFixed(2);
+        document.getElementById("rk-bnc-lra").textContent = n1(res.range);
+        paintTargets(); renderChoices(); planText();
+        bodyEl.hidden = false;
+        say(res.integrated === null ? "Too short to measure \u2014 loudness needs at least 400 ms. The file is still yours to take." : "");
+        busy = false;
+      }).catch(function (e) {
+        busy = false;
+        say("That render failed: " + (e && e.message ? e.message : e));
+      });
+    }
+
+    function openBnc() {
+      if (!buffer && !stems.length) return;
+      lastFocus = document.activeElement;
+      back.hidden = false;
+      document.getElementById("rk-bnc-x").focus();
+      start();
+    }
+    function closeBnc() {
+      back.hidden = true;
+      rendered = null; measured = null;      // never hand back a stale render
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    document.getElementById("rk-bnc-x").addEventListener("click", closeBnc);
+    back.addEventListener("click", function (e) { if (e.target === back) closeBnc(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !back.hidden) closeBnc();
+    });
+    document.getElementById("rk-bnc-dither").addEventListener("change", planText);
+
+    document.getElementById("rk-bnc-go").addEventListener("click", function () {
+      if (!rendered || busy) return;
+      var chans = [];
+      for (var c = 0; c < rendered.numberOfChannels; c++) chans.push(rendered.getChannelData(c));
+      var dither = depth === 16 && document.getElementById("rk-bnc-dither").checked;
+      var bytes = window.SBAudioConv.encode(fmt, chans, rendered.sampleRate, depth, {dither: dither});
+      var a = document.createElement("a");
+      a.download = (loadedName || (stems.length ? "rack-stem-bounce" : "rack-processed")) + "." + fmt;
+      a.href = URL.createObjectURL(new Blob([bytes], {type: fmt === "wav" ? "audio/wav" : "audio/aiff"}));
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      doneEl.textContent = "Bounced \u2014 the file matches the numbers above.";
+    });
+
+    var vault = document.getElementById("rk-bnc-vault");
+    if (vault) vault.addEventListener("click", function () {
+      var v = document.getElementById("rk-vault");
+      if (v) { closeBnc(); v.click(); }
+    });
+
+    /* BOTH export buttons open this - the one on SB-07 and its twin in the
+       power strip. Two buttons with the same word on them must do the same
+       thing, and the straight-to-WAV download they used to do is now the
+       Bounce button inside, one render later and with the numbers to go
+       with it. Capture phase, so the old handlers never fire. */
+    var intercepting = true;
+    ["rk-export", "rk-export2"].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.addEventListener("click", function (e) {
+        if (b.disabled || !intercepting) return;
+        /* Fail safe: Export worked before this modal existed and must keep
+           working if the modal ever throws. Only swallow the old handler
+           once this one has actually opened; if anything goes wrong, stop
+           intercepting for the rest of the session and let the original
+           straight-to-WAV export run. */
+        try {
+          openBnc();
+        } catch (err) {
+          intercepting = false;
+          try { back.hidden = true; } catch (e2) {}
+          return;                       // the old export handler runs next
+        }
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }, true);
+    });
+  })();
+
   (function wireHistoryUi() {
     // Seed the baseline HERE rather than lazily on the first applyState.
     // applyState is not called during boot, so the lazy version consumed

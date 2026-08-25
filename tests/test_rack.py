@@ -758,3 +758,68 @@ def test_the_key_map_tells_the_truth_about_the_handlers():
     assert "Backspace, Delete or 0 reset" in html and 'case "Backspace": case "Delete": case "0":' in js
     assert "add Shift to redo" in html and "if (e.shiftKey) histRedo(); else histUndo();" in js
     assert "never while you are typing" in html and "isContentEditable" in js
+
+
+# --- the bounce modal (SB-07 export + SB-15 loudness, one render) ---------
+
+
+def test_bounce_renders_once_and_measures_that_render():
+    """Export, loudness and convert each used to render the rack again, so
+    the numbers on screen described a different pass than the file you
+    kept. Bounce renders once and everything downstream reads that one
+    buffer: the LUFS, the true peak, the target table and the bytes are
+    all the same audio."""
+    js = _js()
+    b = js[js.index("function bounceModal()"):js.index("function wireHistoryUi")]
+    assert "renderMasterBuffer().then(function (buf) {" in b, "one render, through the same path the export used"
+    assert b.count("renderMasterBuffer()") == 1, "exactly one render per open"
+    assert "rendered = buf;" in b and "measure(buf)" in b
+    # the encode reads the SAME buffer, not a fresh render
+    go = b[b.index('getElementById("rk-bnc-go")'):]
+    assert "rendered.getChannelData(c)" in go and "renderMasterBuffer" not in go
+
+
+def test_bounce_honours_the_patch_and_the_sidechain_by_construction():
+    """It goes through renderMasterBuffer, which cables the patch order and
+    awaits the ducker worklet. Nothing about that is re-implemented here,
+    so it cannot drift from what playback does."""
+    js = _js()
+    b = js[js.index("function bounceModal()"):js.index("function wireHistoryUi")]
+    assert "buildChain" not in b and "loadDucker" not in b, "no second render path to keep in step"
+    assert "patchOrder()" in b, "the source line names the units it went through"
+
+
+def test_both_export_buttons_lead_to_the_same_place_and_fail_safe():
+    """Two buttons with the same word on them must do the same thing. And
+    Export worked before this modal existed: if the modal ever throws, the
+    interception stands down and the original straight-to-WAV export runs."""
+    js = _js()
+    b = js[js.index("function bounceModal()"):js.index("function wireHistoryUi")]
+    assert '["rk-export", "rk-export2"].forEach' in b
+    assert "var intercepting = true;" in b
+    assert "intercepting = false;" in b, "one throw and the old export takes over"
+    # the swallow happens AFTER the open succeeds, never before
+    assert b.index("openBnc();") < b.index("e.stopImmediatePropagation();")
+
+
+def test_bounce_never_hands_back_a_stale_render():
+    js = _js()
+    b = js[js.index("function bounceModal()"):js.index("function wireHistoryUi")]
+    close = b[b.index("function closeBnc()"):b.index("function closeBnc()") + 400]
+    assert "rendered = null; measured = null;" in close
+
+
+def test_bounce_says_what_it_is_and_is_not():
+    """The targets are published figures, not something this app verifies,
+    and the bounce does not normalise anything. The modal says both, and
+    points rate changes and lossy formats at SB-12 rather than half-doing
+    them here."""
+    html = _html()
+    assert "Measured on this exact render" in html
+    assert "not something this app checks with them" in html
+    assert "Nothing here changes your audio" in html
+    assert "SB-12 Format Bench" in html
+    for hook in ('id="rk-bnc-back"', 'id="rk-bnc-go"', 'id="rk-bnc-targets"',
+                 'id="rk-bnc-i"', 'id="rk-bnc-tp"', 'id="rk-bnc-lra"', 'id="rk-bnc-plan"'):
+        assert hook in html, hook
+    assert 'role="dialog"' in html and 'aria-modal="true"' in html

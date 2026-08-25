@@ -584,6 +584,53 @@
   .rk-man-page .rk-man-head { color: var(--sb-ink); margin-bottom: 4px; }
   .rk-man-page .ru-ex-prose { font-size: 12.5px; }
   .rk-man-page .ru-ex-prose p { margin: 0 0 .6em; }
+  /* the bounce modal: render once, measure that render, hand over the file */
+  .rk-bnc-back {
+    position: fixed; inset: 0; z-index: 70; display: flex; align-items: center;
+    justify-content: center; padding: 16px; background: rgba(4,4,3,.74);
+  }
+  .rk-bnc-back[hidden] { display: none; }
+  .rk-bnc {
+    width: min(620px, 100%); max-height: min(86vh, 760px); overflow-y: auto;
+    background: var(--sb-surface-1); border-radius: 10px;
+    border: 1px solid var(--sb-gold-line);
+    box-shadow: 0 24px 60px -16px rgba(0,0,0,.9);
+    padding: 16px 20px 20px;
+  }
+  .rk-bnc-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .rk-bnc-title {
+    font-family: var(--sb-display); font-size: 15px; font-weight: 800;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--sb-gold-bright);
+  }
+  .rk-bnc-src { margin: 0; font-family: var(--sb-mono); font-size: 11px; color: var(--sb-ink-3); }
+  .rk-bnc-x { margin-left: auto; }
+  .rk-bnc-status { margin: 6px 0 0; font-family: var(--sb-mono); font-size: 12px; color: var(--sb-ink-2); }
+  .rk-bnc-status:empty { display: none; }
+  .rk-bnc-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 10px; }
+  @media (max-width: 520px) { .rk-bnc-nums { grid-template-columns: 1fr; } }
+  .rk-bnc-head {
+    font-family: var(--sb-mono); font-size: 12px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--sb-gold); margin: 16px 0 8px;
+  }
+  .rk-bnc-note { margin: 0 0 4px; font-family: var(--sb-display); font-size: 12.5px; line-height: 1.55; color: var(--sb-ink-2); max-width: 58ch; }
+  .rk-bnc-targets { display: flex; flex-direction: column; gap: 3px; }
+  .rk-bnc-row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline;
+    padding: 6px 9px; border-radius: 5px; background: rgba(255,255,255,.03);
+    border: 1px solid transparent;
+  }
+  .rk-bnc-row .bn-name { font-family: var(--sb-mono); font-size: 12px; color: var(--sb-ink); }
+  .rk-bnc-row .bn-t { font-family: var(--sb-mono); font-size: 11px; color: var(--sb-ink-3); }
+  .rk-bnc-row .bn-d { font-family: var(--sb-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .rk-bnc-row.is-ok .bn-d { color: var(--sb-good); }
+  .rk-bnc-row.is-over .bn-d { color: var(--sb-gold-bright); }
+  .rk-bnc-row.is-under .bn-d { color: var(--sb-ink-2); }
+  .rk-bnc-row.is-clip { border-color: rgba(224,92,74,.5); }
+  .rk-bnc-row.is-clip .bn-d { color: var(--sb-crit); }
+  .rk-bnc-file { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .rk-bnc-plan { margin: 0 0 12px; font-family: var(--sb-mono); font-size: 11.5px; color: var(--sb-ink-2); }
+  .rk-bnc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .rk-bnc-done { font-family: var(--sb-mono); font-size: 11.5px; color: var(--sb-good); }
   @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
@@ -2498,6 +2545,51 @@ closing tag lines) ==== */
 <!-- The rack library. Named racks, kept server-side and scoped to the
      signed-in artist. Distinct from "Save my rack", which keeps only the
      one rack that loads with the page. -->
+<!-- BOUNCE · render once, measure that render, hand over the file -->
+<div id="rk-bnc-back" class="rk-bnc-back" hidden>
+  <div class="rk-bnc" role="dialog" aria-modal="true" aria-labelledby="rk-bnc-title">
+    <div class="rk-bnc-top">
+      <div id="rk-bnc-title" class="rk-bnc-title" role="heading" aria-level="2">Bounce</div>
+      <p id="rk-bnc-src" class="rk-bnc-src"></p>
+      <button id="rk-bnc-x" class="sw rk-bnc-x" type="button">Close</button>
+    </div>
+
+    <p id="rk-bnc-status" class="rk-bnc-status" role="status" aria-live="polite">Rendering the rack…</p>
+
+    <div id="rk-bnc-body" class="rk-bnc-body" hidden>
+      <div class="rk-bnc-nums">
+        <div class="rk-lcd"><span id="rk-bnc-i" class="rk-lcd-v">—</span><span class="rk-lcd-cap">Integrated · LUFS</span></div>
+        <div class="rk-lcd"><span id="rk-bnc-tp" class="rk-lcd-v">—</span><span class="rk-lcd-cap">True peak · dBTP</span></div>
+        <div class="rk-lcd"><span id="rk-bnc-lra" class="rk-lcd-v">—</span><span class="rk-lcd-cap">Range · LU</span></div>
+      </div>
+      <p class="rk-bnc-note">Measured on this exact render — not an earlier one, and not the file you loaded. The numbers describe the bounce you are about to take.</p>
+
+      <div class="rk-bnc-head" role="heading" aria-level="3">Against published targets</div>
+      <div id="rk-bnc-targets" class="rk-bnc-targets"></div>
+      <p class="rk-bnc-note">These are the figures the platforms publish. They are references for planning a master, not something this app checks with them, and they do move. Nothing here changes your audio: the bounce is your rack, at your level.</p>
+
+      <div class="rk-bnc-head" role="heading" aria-level="3">The file</div>
+      <div class="rk-bnc-file">
+        <span class="lg">Container</span>
+        <div class="rk-segsw" id="rk-bnc-fmt" role="group" aria-label="Container"></div>
+        <span class="lg">Depth</span>
+        <div class="rk-segsw" id="rk-bnc-depth" role="group" aria-label="Bit depth"></div>
+        <label id="rk-bnc-dither-wrap" class="sw" title="TPDF dither: a whisper of noise that stops 24-bit rounding turning into distortion on the way down to 16">
+          <input id="rk-bnc-dither" type="checkbox" checked> TPDF dither
+        </label>
+      </div>
+      <p id="rk-bnc-plan" class="rk-bnc-plan"></p>
+
+      <div class="rk-bnc-actions">
+        <button id="rk-bnc-go" class="sw sw-gold" type="button">Bounce WAV</button>
+        <button id="rk-bnc-vault" class="sw" type="button" title="Render is done — this archives the same bounce into your Asset Vault">→ Vault</button>
+        <span id="rk-bnc-done" class="rk-bnc-done" role="status" aria-live="polite"></span>
+      </div>
+      <p class="rk-bnc-note">Sample-rate changes and the compressed formats live in SB-12 Format Bench, which is built for exactly that. This drawer bounces what the rack is playing, at its own rate.</p>
+    </div>
+  </div>
+</div>
+
 <div id="rk-lib-back" class="rk-lib-back" hidden>
   <div class="rk-lib" role="dialog" aria-modal="true" aria-labelledby="rk-lib-title">
     <div class="rk-lib-top">
@@ -2521,5 +2613,5 @@ closing tag lines) ==== */
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=53"></script>
+<script src="/static/js/rackdsp.js?v=56"></script>
 {% endblock %}
