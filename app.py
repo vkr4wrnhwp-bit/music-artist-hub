@@ -1564,8 +1564,7 @@ def create_app():
                 "profile": bool((user.get("name") or "").strip()
                                 or (profile_data and profile_data not in ("{}", {}))),
                 "track": bool(store.list_os_tracks(uid)),
-                "link": bool(campaigns) or any(
-                    l.get("user_id") == uid for l in store.get_db_links()),
+                "link": bool(campaigns) or bool(store.get_db_links(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
                 "campaign": bool(campaigns),
@@ -1620,7 +1619,7 @@ def create_app():
             state = {
                 "profile": has_profile,
                 "track": bool(store.list_os_tracks(uid)),
-                "link": any(l.get("user_id") == uid for l in store.get_db_links()),
+                "link": bool(store.get_db_links(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
             }
@@ -2378,8 +2377,9 @@ def create_app():
         user = current_user()
         ctx["links_data"] = get_links_data(
             demo=_is_demo_email((user or {}).get("email") or ""))
-        # Real, persisted links with genuine click counts sit above the demo set.
-        ctx["real_links"] = store.get_db_links()
+        # Real, persisted links with genuine click counts sit above the demo
+        # set - this account's links, and only this account's.
+        ctx["real_links"] = store.get_db_links(user["id"]) if user else []
         ctx["links_user"] = user
         ctx["ml_campaigns"] = ([_ml_campaign_card(c) for c in mls.list_campaigns(user["id"])]
                                if user else [])

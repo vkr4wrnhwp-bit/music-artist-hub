@@ -1114,11 +1114,20 @@ def _link_row(d):
     return d
 
 
-def get_db_links():
+def get_db_links(user_id):
+    """Every smart link this account owns.
+
+    user_id is required, not optional with a default: this table went out
+    unfiltered once, and every signed-in account was served every other
+    account's link titles, slugs and destinations on /links. A required
+    argument means a caller that forgets it raises here rather than
+    quietly returning the whole table.
+    """
     with get_db() as db:
         rows = db.execute(
             "SELECT l.*, (SELECT COUNT(*) FROM link_clicks c WHERE c.slug = l.slug) AS clicks "
-            "FROM smart_links l ORDER BY created DESC"
+            "FROM smart_links l WHERE l.user_id = ? ORDER BY created DESC",
+            (user_id,)
         ).fetchall()
     return [_link_row(dict(r)) for r in rows]
 
