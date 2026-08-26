@@ -8,8 +8,9 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test'
  * session: a review grid with nothing to review proves nothing, and re-signing
  * in between steps would test the login form rather than the product.
  */
-const EMAIL = `e2e-${Date.now()}@masterclip.test`
-const PASSWORD = 'e2e-password-1234'
+// Shared with the other spec files: signup closes behind the first account,
+// so whichever file runs first bootstraps and the rest sign in with these.
+import { E2E_EMAIL as EMAIL, E2E_PASSWORD as PASSWORD } from './credentials.js'
 
 let context: BrowserContext
 let page: Page
@@ -153,4 +154,81 @@ test('masters states plainly what a delivery is and is not', async () => {
   await page.goto(`/#/masters/${projectId}`)
   await expect(page.getByRole('heading', { name: 'Masters' })).toBeVisible()
   await expect(page.getByText(/No AI upscaling|container and codec conversions/).first()).toBeVisible()
+})
+
+// ---------------------------------------------------------------- Live Lab --
+
+test('live lab is in the nav for the entitled org and builds a set', async () => {
+  await expect(page.getByRole('link', { name: 'Live Lab' })).toBeVisible()
+  await page.goto('/#/live-lab')
+  await expect(page.getByRole('heading', { name: 'Live Lab' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Start from blank set' }).click()
+  await page.getByLabel('Set name').fill('E2E Tour Set')
+  await page.getByRole('button', { name: 'Create live set' }).click()
+
+  // The workspace: transport, pad grid, setlist.
+  await expect(page.getByRole('heading', { name: 'E2E Tour Set' })).toBeVisible()
+  await expect(page.getByText('Pad grid')).toBeVisible()
+  await expect(page.locator('.pad')).toHaveCount(16)
+
+  // Build the setlist.
+  await page.getByLabel('Add item').fill('OPENING')
+  await page.getByRole('button', { name: 'Add to set' }).click()
+  await expect(page.locator('ol.setlist li')).toHaveCount(1)
+  await expect(page.locator('ol.setlist').getByText('OPENING')).toBeVisible()
+
+  // Add a scene to the selected song.
+  await page.getByLabel('New scene').fill('DROP')
+  await page.getByRole('button', { name: 'Add scene' }).click()
+  await expect(page.locator('.scene-row')).toHaveCount(1)
+})
+
+test('MIDI Learn maps a control from the mock controller', async () => {
+  // Still inside the live project from the previous test.
+  await page.getByRole('button', { name: 'MIDI', exact: true }).click()
+  await expect(page.getByRole('heading', { name: /^MIDI —/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Use mock controller' }).click()
+  // Scoped to the Devices card: the controller's name also appears in the
+  // keyboard-zone mapper's device picker.
+  const devicesCard = page.locator('.card').filter({ hasText: 'Devices' }).first()
+  await expect(devicesCard.getByText('Live Lab Mock Controller')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Learn', exact: true }).click()
+  await expect(page.getByText('Waiting for MIDI input…')).toBeVisible()
+
+  // Touch a hardware control (the mock sends real MIDI bytes).
+  await page.getByRole('button', { name: 'C2', exact: true }).click()
+  await expect(page.getByText('Mapped.')).toBeVisible()
+
+  // The mapping persists into the table.
+  await expect(page.locator('table').filter({ hasText: 'Device' }).getByText('mock-controller')).toBeVisible()
+})
+
+test('Learn refuses a target-less mapping instead of storing a dead one', async () => {
+  // A scene/stem mapping with no target saved happily, said "Mapped." and could
+  // never fire. Selecting a target type that needs one, with none chosen,
+  // must disable Learn rather than persist it.
+  await page.getByLabel('Target').selectOption('stem_mute')
+  const learn = page.getByRole('button', { name: 'Learn', exact: true })
+  await expect(learn).toBeDisabled()
+
+  // A target that stands alone needs nothing, and stays available.
+  await page.getByLabel('Target').selectOption('stop')
+  await expect(learn).toBeEnabled()
+})
+
+test('performance mode shows the stage surface with lock and emergency stop', async () => {
+  await page.getByRole('button', { name: 'Back to workspace' }).click()
+  await page.getByRole('button', { name: /Performance Mode/ }).click()
+  await expect(page.getByRole('button', { name: /EMERGENCY STOP/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'LOCK PERFORMANCE' })).toBeVisible()
+  await expect(page.locator('.pad')).toHaveCount(16)
+
+  // Locking blocks the exit until unlocked.
+  await page.getByRole('button', { name: 'LOCK PERFORMANCE' }).click()
+  await expect(page.getByRole('button', { name: 'Exit' })).toBeDisabled()
+  await page.getByRole('button', { name: /LOCKED/ }).click()
+  await expect(page.getByRole('button', { name: 'Exit' })).toBeEnabled()
 })
