@@ -8,7 +8,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 
-from flask import (Flask, Response, abort, jsonify, redirect, render_template,
+from flask import (Flask, Response, abort, g, jsonify, redirect, render_template,
                    request, session, url_for)
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -21,6 +21,8 @@ import inbox_engine
 import board
 import lights_store
 import operator_desk
+import partner_os
+import partner_store
 # NB: signal_hub, not signal - a module named `signal` in the repo root would
 # shadow the standard library module that gunicorn and Werkzeug import.
 import signal_hub
@@ -54,6 +56,13 @@ import valuation_engine
 # Set PUBLIC_BASE_URL in Render when the real domain lands.
 PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL")
                    or "https://street-banker.onrender.com").rstrip("/")
+
+# The host partner subdomains hang off: foxglove.street-banker.onrender.com
+# resolves the partner with slug "foxglove". Set PARTNER_ROOT_DOMAIN on a
+# deployment that owns a shorter apex. A partner with its own custom
+# domain never touches this - that is matched first, exactly.
+_PARTNER_ROOT = (os.environ.get("PARTNER_ROOT_DOMAIN")
+                 or PUBLIC_BASE_URL.split("//")[-1].split("/")[0]).strip().lower()
 
 
 def public_url(path=""):
@@ -2786,6 +2795,55 @@ def create_app():
         presented = (request.headers.get("X-Backup-Token")
                      or request.form.get("token") or "")
         return hmac.compare_digest(presented, token)
+
+    def resolve_partner():
+        """Which reseller's front door is this request standing at?
+
+        Order matters. The host is the strongest signal because it is the
+        thing the artist actually typed, and a partner's own domain must
+        never resolve to somebody else's tenant. The seat is the fallback
+        for staff reaching the app on the plain address. None means
+        Street Banker itself, which is every request today.
+
+        Read-only and side-effect free: it sets g and returns nothing, so
+        it cannot bounce a request. Enforcement belongs to the decorator.
+        """
+        g.partner = None
+        g.partner_member = None
+        host = (request.host or "").split(":")[0].lower()
+        try:
+            if not partner_store.any_partners():
+                return          # no resellers on this instance: nothing to resolve
+            p = partner_store.partner_by_domain(host)
+            if p is None and host.endswith(_PARTNER_ROOT) and host != _PARTNER_ROOT:
+                p = partner_store.partner_by_slug(host[:-len(_PARTNER_ROOT) - 1])
+            if p is None:
+                uid = session.get("user_id")
+                seat = partner_store.member_for_user(uid) if uid else None
+                if seat:
+                    p = partner_store.get_partner(seat["partner_id"])
+                    g.partner_member = seat
+            if p and p.get("status") == "active":
+                g.partner = p
+                if g.partner_member is None:
+                    uid = session.get("user_id")
+                    user = store.get_user(uid) if uid else None
+                    if user:
+                        g.partner_member = partner_store.get_member(
+                            p["id"], user_id=user["id"], email=user.get("email"))
+        except Exception:
+            # A partner table that is missing or mid-migration must not
+            # take down every page. No tenant resolved is a safe answer.
+            g.partner = None
+            g.partner_member = None
+
+    @app.before_request
+    def _resolve_partner():
+        """Registered BEFORE plan_gate, so g.partner is set by the time
+        the login wall runs. Never returns a response - resolution
+        must not be able to bounce a request."""
+        resolve_partner()
+        return None
 
     @app.before_request
     def plan_gate():
@@ -8661,6 +8719,12 @@ def create_app():
     signal_hub.init(app, base_url=lambda: PUBLIC_BASE_URL,
                     is_owner_email=_is_owner_email)
     lights_store.init_lights()
+    # Partner OS: resellers who put their own name on this software.
+    # users.partner_id is the spine - scoping the ACCOUNT to a partner
+    # scopes everything the account owns without touching the tables
+    # underneath, all of which are already scoped by user_id.
+    partner_store.init_partners()
+    partner_os.init(app)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
