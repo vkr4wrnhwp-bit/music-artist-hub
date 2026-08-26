@@ -27,6 +27,7 @@ import time
 from flask import (abort, jsonify, redirect, render_template, request,
                    url_for)
 
+import audio_agent as agent
 import audio_jobs
 import audio_meetings as meetings
 import audio_policy
@@ -48,6 +49,11 @@ MAX_MEETING_BYTES = 200 * 1024 * 1024      # 200 MB
 def _audio_on():
     return audio_policy.flag("AUDIO_INTELLIGENCE_ENABLED") and \
         audio_policy.flag("MEETING_INTELLIGENCE_ENABLED")
+
+
+def _agent_on():
+    return audio_policy.flag("AUDIO_INTELLIGENCE_ENABLED") and \
+        audio_policy.flag("AUDIO_OPERATOR_ENABLED")
 
 
 _registered = False
@@ -266,6 +272,85 @@ def register(bp, require, ctx, save_file, desk_prefix):
 
         return redirect(back)
 
+    # --- the voice agent --------------------------------------------------
+
+    @bp.route("/agents")
+    @require("view")
+    def agents_index(me):
+        return render_template("desk/agents.html", **ctx(
+            me, profiles=agent.list_profiles(),
+            unmet=agent.unmet_human_requests(),
+            sessions=agent.list_sessions(limit=25),
+            agent_on=_agent_on()))
+
+    @bp.route("/agents/new", methods=["POST"])
+    @require("manage_users")
+    def agent_new(me):
+        """Creating an agent is an owner action. It is the one thing in the
+        Desk that can speak to the public in the company's name."""
+        if not _agent_on():
+            return render_template("desk/denied.html",
+                                   message="The voice agent is switched off "
+                                           "on this deployment."), 404
+        try:
+            agent.create_profile(_agent_fields(), created_by=me.get("name") or "",
+                                 known_person_names=_known_people())
+        except agent.GuardrailRefusal as refusal:
+            return render_template("desk/denied.html", message=refusal.reason), 400
+        return redirect(url_for("desk.agents_index"))
+
+    @bp.route("/agents/<profile_id>/activate", methods=["POST"])
+    @require("manage_users")
+    def agent_activate(me, profile_id):
+        try:
+            agent.activate(profile_id, known_person_names=_known_people())
+        except agent.GuardrailRefusal as refusal:
+            return render_template("desk/denied.html", message=refusal.reason), 400
+        return redirect(url_for("desk.agents_index"))
+
+    @bp.route("/agents/<profile_id>/suspend", methods=["POST"])
+    @require("manage_users")
+    def agent_suspend(me, profile_id):
+        agent.suspend(profile_id)
+        return redirect(url_for("desk.agents_index"))
+
+    @bp.route("/agents/<profile_id>/delete", methods=["POST"])
+    @require("delete")
+    def agent_delete(me, profile_id):
+        agent.delete_profile(profile_id)
+        return redirect(url_for("desk.agents_index"))
+
+    @bp.route("/agents/sessions/<session_id>")
+    @require("view")
+    def agent_session(me, session_id):
+        session = agent.get_session(session_id)
+        if session is None:
+            abort(404)
+        return render_template("desk/agent_session.html", **ctx(
+            me, session=session,
+            profile=agent.get_profile(session["profile_id"])))
+
+    @bp.route("/agents/sessions/<session_id>/escalate", methods=["POST"])
+    @require("note_add")
+    def agent_escalate(me, session_id):
+        """Somebody asked for a person and did not get one. This is a person
+        picking it up, and it becomes a task so it cannot be forgotten."""
+        session = agent.get_session(session_id)
+        if session is None:
+            abort(404)
+        profile = agent.get_profile(session["profile_id"]) or {}
+        task_id = desk_store.add_task(
+            me, title="Call back: agent could not resolve a request for a person",
+            description="Agent: %s\nCaller reference: %s\n\n%s"
+                        % (profile.get("name") or "unknown",
+                           session.get("caller_ref") or "not recorded",
+                           _transcript_text(session.get("transcript"))),
+            category="Follow-Up", priority="High")
+        agent.record_outcome(session_id, status="escalated",
+                             escalated_to=me.get("name") or "",
+                             outcome="Picked up by a person")
+        return redirect(url_for("desk.agent_session", session_id=session_id))
+
     # --- delete -----------------------------------------------------------
 
     @bp.route("/meetings/<meeting_id>/delete", methods=["POST"])
@@ -323,3 +408,57 @@ def _harvest(meeting_id, job, audio_asset_id=None):
     if not meetings.list_candidates(meeting_id):
         meetings.save_candidates(
             meeting_id, meetings.extract_candidates(result.get("segments")))
+
+
+def _agent_fields():
+    """The form, as the guardrails expect it.
+
+    Lists arrive one per line rather than comma-separated: a comma box turns
+    "Discuss deal terms, including advances" into two rules that each say
+    half of something.
+    """
+    def lines(field):
+        raw = request.form.get(field) or ""
+        return [ln.strip() for ln in raw.splitlines() if ln.strip()][:40]
+
+    return {
+        "name": request.form.get("name") or "",
+        "purpose": request.form.get("purpose") or "",
+        "greeting": request.form.get("greeting") or "",
+        "human_contact": request.form.get("human_contact") or "",
+        "persona_note": request.form.get("persona_note") or "",
+        "knowledge": lines("knowledge"),
+        "may_not": lines("may_not"),
+        "record_calls": (request.form.get("record_calls") or "") == "1",
+    }
+
+
+def _known_people():
+    """Names the guardrail should refuse a persona from taking.
+
+    Everybody this instance actually knows about - the roster and the leads -
+    because those are the people a voice agent here could plausibly be made
+    to imitate, and they are the ones with something to lose by it.
+    """
+    names = set()
+    try:
+        for row in desk_store.list_leads():
+            for key in ("artist_name", "contact_name", "manager_name"):
+                value = (row.get(key) or "").strip()
+                if len(value) >= 3:
+                    names.add(value)
+    except Exception:
+        pass
+    try:
+        names.update(n for n in (desk_store.TEAM_NAMES or []) if len(n or "") >= 3)
+    except Exception:
+        pass
+    return sorted(names)
+
+
+def _transcript_text(transcript):
+    lines = []
+    for turn in transcript or []:
+        lines.append("%s: %s" % ((turn.get("role") or "?").title(),
+                                 turn.get("text") or ""))
+    return "\n".join(lines) or "No transcript was recorded."

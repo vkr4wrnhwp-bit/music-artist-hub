@@ -591,9 +591,11 @@ def init(app, is_owner_email):
     # it inherits the roster guard, the denied page and the URL prefix rather
     # than growing a second permission system beside the first. Its routes
     # must exist before the blueprint is registered.
+    import audio_agent
     import audio_desk
     import audio_meetings
     audio_meetings.init_meetings()
+    audio_agent.init_agents()
     audio_desk.register(bp, require, _ctx, _save_desk_file, DESK_PREFIX)
 
     app.register_blueprint(bp)
