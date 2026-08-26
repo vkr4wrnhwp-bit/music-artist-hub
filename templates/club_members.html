@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Members — {{ club.name or 'Fan Club' }} · {{ artist_name }}</title>
   <meta name="robots" content="noindex">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=26">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
   {% include "_fonts.html" %}
 </head>
 <body class="min-h-screen bg-sb-ground text-gray-100 antialiased">
@@ -13,7 +13,7 @@
     <div class="text-center">
       <div class="sb-label text-sb-gold-bright">{{ artist_name }}</div>
       <h1 class="mt-2 text-3xl font-black leading-tight">{{ club.name or 'Fan Club' }}</h1>
-      <div class="mt-3 inline-flex items-center gap-2 rounded-full border border-sb-line-strong-bright/40 bg-transparent-bright/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright"
+      <div class="mt-3 inline-flex items-center gap-2 rounded-full border border-sb-gold/40 bg-sb-gold/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright">
         ★ Members Only
       </div>
     </div>

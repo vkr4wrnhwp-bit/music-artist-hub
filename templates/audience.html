@@ -59,7 +59,7 @@
         {% for a in au.age_brackets %}
         <div>
           <div class="flex justify-between text-xs"><span class="text-gray-200">{{ a.label }}</span><span class="font-semibold text-gray-200">{{ a.pct }}%</span></div>
-          <div class="mt-1 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-transparent border" style="width: {{ a.pct }}%;"</div></div>
+          <div class="mt-1 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-sb-gold" style="width: {{ a.pct }}%;"></div></div>
         </div>
         {% endfor %}
       </div>

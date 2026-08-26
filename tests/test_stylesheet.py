@@ -148,3 +148,121 @@ def test_the_pages_that_draw_charts_still_load_chart_js():
         assert "new Chart(" in s, name
         assert "chart.js" in s.lower(), \
             "%s draws a chart but no longer loads Chart.js" % name
+
+
+# --- utilities that resolve to nothing -----------------------------------
+#
+# test_the_stylesheet_is_not_stale above only looks at arbitrary-value
+# classes, on the reasoning that nothing but Tailwind produces a class with
+# brackets in it. That is true, and it is also why the check missed the
+# worst stylesheet regression this repo has had.
+#
+# The design-system-v1 sweep (90754c4) rewrote every raw hex in the markup
+# into a token class. Where it could not resolve one it wrote a class that
+# does not exist - bg-transparent-bright, border-sb-line-strong-bright,
+# text-sb-ink-deep - and in 27 places that class was the fill of a
+# proportion bar, so every bar in the royalty, capital and analytics pages
+# rendered as an empty outline. The raw-hex lock passed, because the hex
+# really was gone. The staleness check passed, because none of the broken
+# classes had brackets. Nothing else looked.
+#
+# So: a class in the markup that looks like a utility must resolve to a
+# rule somewhere. Hand-written class names are out of scope - one with no
+# rule may be a JavaScript hook rather than a defect, and telling those
+# apart is a lint concern, not a question about whether the build is
+# current.
+
+_SELECTOR = re.compile(r'\.((?:\\[0-9a-fA-F]{1,6} ?|\\.|[A-Za-z0-9_-])+)')
+_SCRIPT = re.compile(r"<script[^>]*>.*?</script>", re.S)
+_STYLE = re.compile(r"<style[^>]*>(.*?)</style>", re.S)
+
+
+def _templates():
+    import glob
+    return glob.glob(os.path.join(HERE, "templates", "**", "*.html"),
+                     recursive=True)
+
+
+def _unescape_selector(tok):
+    """Recover a class name from its CSS selector spelling.
+
+    Tailwind escapes / [ ] # . % and : one way and commas another, so both
+    forms have to be reversed to get back to what the template wrote.
+    """
+    out, i = [], 0
+    while i < len(tok):
+        if tok[i] == "\\":
+            m = re.match(r'\\([0-9a-fA-F]{1,6}) ?', tok[i:])
+            if m:
+                out.append(chr(int(m.group(1), 16)))
+                i += m.end()
+                continue
+            if i + 1 < len(tok):
+                out.append(tok[i + 1])
+                i += 2
+                continue
+            i += 1
+            continue
+        out.append(tok[i])
+        i += 1
+    return "".join(out)
+
+
+def _defined_classes():
+    """Every class name carrying a rule: the built sheet, the hand-written
+    stylesheets, and the <style> blocks a few pages inline."""
+    import glob
+    blobs = [io.open(p, encoding="utf8", errors="replace").read()
+             for p in glob.glob(os.path.join(HERE, "static", "css", "*.css"))]
+    for p in _templates():
+        blobs += _STYLE.findall(io.open(p, encoding="utf8",
+                                        errors="replace").read())
+    names = set()
+    for b in blobs:
+        for m in _SELECTOR.finditer(b):
+            names.add(_unescape_selector(m.group(1)))
+    return names
+
+
+def _looks_like_a_utility(token):
+    base = token.split(":")[-1].lstrip("!")
+    return (base.startswith(TW_PREFIXES) or base in TW_BARE
+            or ("[" in base and "]" in base))
+
+
+def _class_tokens(blob):
+    """The class names a class="..." attribute can put on the element.
+
+    A conditional attribute - class="{{ 'bg-good' if ok else 'bg-crit' }}" -
+    still names real classes, and skipping those attributes outright is how
+    two dead `bg-white/8` meters survived the first pass of this check. Only
+    the quoted literals inside the expression are read; the surrounding
+    Jinja is not a class name and reading it as one invents orphans.
+    """
+    if "{" not in blob:
+        return blob.split()
+    out = []
+    for lit in re.findall(r"'([^']*)'", blob):
+        out += lit.split()
+    return out
+
+
+def test_no_utility_class_in_the_markup_resolves_to_nothing():
+    defined = _defined_classes()
+    orphans = {}
+    for p in _templates():
+        s = _STYLE.sub("", _SCRIPT.sub(
+            "", io.open(p, encoding="utf8", errors="replace").read()))
+        for blob in re.findall(r'class="([^"]*)"', s):
+            for t in _class_tokens(blob):
+                if not _looks_like_a_utility(t):
+                    continue
+                if t in defined or t.split(":")[-1].lstrip("!") in defined:
+                    continue
+                orphans.setdefault(t, set()).add(os.path.basename(p))
+    assert not orphans, (
+        "%d utility classes in the markup have no rule in any stylesheet - "
+        "either the class name is wrong or the build is stale:\n%s"
+        % (len(orphans), "\n".join(
+            "  %-32s %s" % (c, ", ".join(sorted(f)))
+            for c, f in sorted(orphans.items()))))

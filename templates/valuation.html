@@ -101,7 +101,7 @@
         {% for m in vv.monthly[-12:] %}
         <div class="flex items-center gap-3 text-xs">
           <span class="w-20 shrink-0 font-semibold text-gray-100">{{ m.period }}</span>
-          <span class="h-2 flex-1 overflow-hidden rounded-full bg-white/5"><span class="block h-full rounded-full bg-transparent border" style="width: {{ (100 * m.amount / (peak or 1)) | round }}%;"</span></span>
+          <span class="h-2 flex-1 overflow-hidden rounded-full bg-white/5"><span class="block h-full rounded-full bg-sb-gold" style="width: {{ (100 * m.amount / (peak or 1)) | round }}%;"></span></span>
           <span class="w-24 shrink-0 text-right font-bold sb-num text-gray-100">${{ "{:,.2f}".format(m.amount) }}</span>
         </div>
         {% endfor %}

@@ -98,7 +98,7 @@
             <span class="truncate text-gray-200">{{ s.source }}</span>
             <span class="ml-2 shrink-0 font-semibold sb-num text-gray-100">${{ "{:,.2f}".format(s.amount) }}</span>
           </div>
-          <div class="mt-1 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-transparent border" style="width: {{ (s.amount / max_src * 100) if max_src else 0 }}%;"</div></div>
+          <div class="mt-1 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-sb-gold" style="width: {{ (s.amount / max_src * 100) if max_src else 0 }}%;"></div></div>
         </div>
         {% endfor %}
       </div>

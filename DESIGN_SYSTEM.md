@@ -14,8 +14,25 @@ npx tailwindcss -c tools/tailwind.config.js -i tools/tailwind-input.css \
     -o static/css/tailwind.css --minify
 ```
 
+**No network needed** — tailwindcss 3.4.19 already sits two levels up, so
+this runs offline and skips `npx`'s install prompt entirely:
+
+```
+node ../../node_modules/tailwindcss/lib/cli.js \
+    -c tools/tailwind.config.js -i tools/tailwind-input.css \
+    -o static/css/tailwind.css --minify
+```
+
 Then bump the `?v=` on the stylesheet link and `VERSION` in
 `static/js/sw.js`, or browsers keep serving the old sheet.
+
+**A rebuild is not expected to be byte-identical to the committed sheet.**
+The committed one can lag the templates, so a diff is not automatically a
+regression — compare the *class sets*, not the file sizes, and confirm
+that anything the rebuild drops is genuinely unused. The last rebuild
+dropped eleven classes (all dead) and added three that templates were
+already using and the stale sheet did not carry, including the
+`border-sb-line` that Partner OS phase 1 shipped its panels with.
 
 `tests/test_design_system.py` fails the build on raw hex outside the
 token set, type below 12px, a radius that is not one of the three, an ink
@@ -124,6 +141,38 @@ edit 650 of them, `tailwind.config.js` redefines the families —
 → crit, `blue`/`sky` → info, `gray`/`slate`/`zinc`/`neutral`/`stone` →
 the ink ramp. There is no `amber-500` that is Tailwind's `#F59E0B` any
 more, so the wrong colour is unreachable rather than merely discouraged.
+
+### What the sweep broke, and the two tests that now stand where it broke
+
+The sweep that removed raw hex from the markup (`90754c4`) did its stated
+job — no hex survived — and quietly destroyed 29 elements on the way.
+Where it could not map a hex to a token it wrote a class that does not
+exist (`bg-transparent-bright`, `border-sb-line-strong-bright`,
+`text-sb-ink-deep`), appended a stray `border`, and in nineteen places ate
+the `>` off the opening tag: `<div class="…" style="width: 40%;"</div>`.
+
+Every proportion bar in the royalty, capital, tax, territory and analytics
+pages rendered as an empty outline, and because an unclosed element
+swallows its following siblings, whole stacks of rows collapsed onto one
+line. It shipped and sat there, because each lock covered its own concern
+and nothing covered the gap between them: the raw-hex lock passed (the hex
+really was gone), the staleness check passed (it only reads
+arbitrary-value classes, and none of the broken names had brackets), and
+HTML has no way to be invalid, so the parser never complained.
+
+Two checks now cover that gap, and the lesson generalises past this
+sweep: **a lock that proves the old thing is gone proves nothing about
+what replaced it.**
+
+- `test_no_utility_class_in_the_markup_resolves_to_nothing` — every
+  utility-shaped class in a template must carry a rule in some stylesheet.
+  It reads conditional attributes too, since two dead meters hid inside
+  `{{ 'a' if x else 'b' }}` where the first pass could not see them.
+- `test_no_opening_tag_is_missing_its_closing_bracket` — walks each tag,
+  stepping over quoted values, and fails if a `<` arrives before a `>`.
+
+Both are cheap. Run them before trusting any future sweep, and prefer a
+sweep that fails loudly on a hex it cannot map over one that guesses.
 
 ## Type
 

@@ -93,7 +93,7 @@
         <ol class="mt-4 space-y-2">
           {% for t in e.top_tracks %}
           <li class="flex items-baseline justify-between gap-4 border-b border-sb-surface-2/5 pb-2 last:border-0">
-            <span class="flex min-w-0 items-baseline gap-3 font-semibold"><span class="w-5 shrink-0 text-right text-sm sb-num text-sb-ink-deep">{{ loop.index }}</span><span class="truncate">{{ t.title }}</span></span>
+            <span class="flex min-w-0 items-baseline gap-3 font-semibold"><span class="w-5 shrink-0 text-right text-sm sb-num text-sb-gold-deep">{{ loop.index }}</span><span class="truncate">{{ t.title }}</span></span>
             <span class="shrink-0 text-sm sb-num text-sb-surface-2/60">{{ t.streams_compact }} streams</span>
           </li>
           {% endfor %}

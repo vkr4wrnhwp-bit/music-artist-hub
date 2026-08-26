@@ -344,7 +344,16 @@ def test_no_template_has_an_unterminated_tag():
     `tools/gold_discipline.py` did not, and thirteen demoted chips became
     `<span class="..."</span>` - unterminated tags that swallow whatever
     follows them, including the unread notification count. Nothing throws;
-    the content just vanishes."""
+    the content just vanishes.
+
+    NARROW ON PURPOSE, AND NOT THE GENERAL CHECK. This only sees a tag
+    whose `class` is the LAST attribute, which was the exact shape
+    gold_discipline produced. The v1 colour sweep broke the same way one
+    attribute later - `<div class="..." style="width: 40%;"</div>` - and
+    this regex passed all nineteen of them, because `class="..."` there is
+    followed by a space. The structural walk that catches any shape is
+    `tests/test_template_markup.py`; keep this one for the regression it
+    names, but do not read it as coverage."""
     bad = re.compile(r'<(\w+)([^<>]*?)class="([^"{}]*)"(?![\s>/])')
     offenders = []
     for p in glob.glob(os.path.join(HERE, "templates", "**", "*.html"),

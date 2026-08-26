@@ -44,7 +44,7 @@
       <div class="flex items-center gap-3">
         <span class="w-28 shrink-0 truncate text-xs font-bold text-gray-200">{{ terr }}</span>
         <div class="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
-          <div class="h-full rounded-full bg-transparent-bright/70 border" style="width: {{ (amt / tr.total * 100) if tr.total else 0 }}%;"</div>
+          <div class="h-full rounded-full bg-sb-gold/70" style="width: {{ (amt / tr.total * 100) if tr.total else 0 }}%;"></div>
         </div>
         <span class="w-24 shrink-0 text-right text-xs font-bold sb-num">${{ "{:,.2f}".format(amt) }}</span>
       </div>
