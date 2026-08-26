@@ -21,6 +21,9 @@ import inbox_engine
 import board
 import lights_store
 import operator_desk
+import audio_providers
+import audio_store
+import audio_webhooks
 import partner_os
 import partner_store
 # NB: signal_hub, not signal - a module named `signal` in the repo root would
@@ -8725,6 +8728,15 @@ def create_app():
     # underneath, all of which are already scoped by user_id.
     partner_store.init_partners()
     partner_os.init(app)
+    # Audio Intelligence: the provider seam plus its policy, jobs and
+    # usage ledger. Adapters register themselves on import; the mock is
+    # the default, so the app runs with no vendor and no key.
+    audio_store.init_audio()
+    audio_providers.bootstrap()   # adapters register here; mock is the default
+    # Slow audio work answers on the vendor's clock. /webhooks/ is already a
+    # public prefix, so this endpoint carries its own signature check and is
+    # 404 unless the feature and a signing secret are both configured.
+    audio_webhooks.init(app)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
