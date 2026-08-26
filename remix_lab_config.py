@@ -118,6 +118,17 @@ BANNED_PATTERNS = [
     r"\bcopy\s+the\s+vocals?\b",
     r"\bsame\s+flow\s+as\b",
     r"\bsame\s+voice\s+as\b",
+    # "<somebody> type beat" is the native idiom for this request in music,
+    # and leaving it out screened the wording rather than the ask: naming an
+    # artist after "in the style of" was refused, while the same artist
+    # before "type beat" - the way somebody in this industry actually types
+    # it - went straight through.
+    #
+    # It also catches genre uses like "trap type beat". That is deliberate and
+    # consistent with the entry above it, which refuses "in the style of"
+    # whatever follows. The warning says what to write instead, and
+    # "trap-influenced, 140 bpm, sparse hi-hats" is a better brief anyway.
+    r"\b[\w'-]+\s+type\s+beat\b",
 ]
 _BANNED = [re.compile(p, re.IGNORECASE) for p in BANNED_PATTERNS]
 

@@ -23,6 +23,7 @@ import lights_store
 import operator_desk
 import audio_admin
 import audio_providers
+import audio_studio
 import audio_store
 import audio_webhooks
 import partner_os
@@ -8747,6 +8748,10 @@ def create_app():
     # predicate as every other internal surface; no name lives in code.
     audio_admin.init(app, is_owner_email=_is_owner_email,
                      current_user=current_user)
+    # The artist-facing lanes: dubbing, campaign audio, stems, voice vault.
+    # Every lane is off until its own flag is set, and the page says so per
+    # lane rather than hiding what the product does.
+    audio_studio.init(app, current_user=current_user)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
