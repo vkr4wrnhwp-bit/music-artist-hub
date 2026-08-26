@@ -380,38 +380,104 @@ def test_every_class_a_script_selects_still_exists():
     of layout utilities, which threw away everything it did not
     recognise - including `kit-copy` and `add-to-catalog`, the classes
     those pages' scripts use to find their buttons. The features went
-    dead and nothing logged. If a template's script selects a class, the
-    template has to contain it."""
+    dead and nothing logged. If a script selects a class, something in
+    the tree has to be able to put that class on an element.
+
+    WIDENED, AND EVERY WIDENING WAS EARNED BY A MISS
+    ------------------------------------------------
+    The first version matched only a selector string that ENDED at the
+    class name - `querySelectorAll(".song-row")` - and then looked the
+    name up in the raw text of every template. Both halves let the same
+    dead selector through, and they covered for each other:
+
+      * `document.querySelector(`.song-row[data-song-id="${id}"]`)` was
+        invisible three times over. The pattern `querySelectorAll?`
+        makes only the final `l` optional, so it matched
+        `querySelectorAll(` and the nonexistent `querySelectorAl(` but
+        never a singular `querySelector(`. The argument is a template
+        literal, not a quoted string. And the class name is followed by
+        an attribute filter rather than by the closing quote the
+        pattern demanded.
+      * Because that occurrence never matched, it was never stripped out
+        of the corpus either. So `song-row` was still sitting in the text
+        the check searched, and the plain `.song-row` selector three
+        dozen lines above it passed - by finding its own dead sibling.
+
+    Hence: parse class names out of the WHOLE selector, whatever follows
+    them, and check them against the classes the markup can actually
+    CARRY - class attributes, classList writes, className assignments -
+    instead of against raw file text, where a selector string counts as
+    evidence of itself. The carry set has no such circularity to strip:
+    a `querySelector` call is not a place a class can be applied, so it
+    never enters the set to begin with.
+    """
     # Selectors that were already dead before this migration - the markup
     # they target was removed at some point and the handler was left
     # behind. Recorded rather than silently passed; they are pre-existing
     # dead code, not something a sweep broke.
-    ALREADY_DEAD = {"song-view-btn", "smart-rec-row"}
+    #
+    # The three `.vlv-*` elements lost their markup in the Rack refinish
+    # (cac5d4d) while every read of them stayed null-guarded. (`song-row`,
+    # `song-view-btn`, `smart-rec-row` and `alert-card` belonged here too.
+    # They were the song drawer's only entry points, so the drawer could
+    # not be opened from any page; it has been deleted along with them.)
+    ALREADY_DEAD = {"vlv-fil", "vlv-halo", "vlv-plate"}
 
-    sel = re.compile(r'querySelectorAll?\(\s*["\']\.([A-Za-z][\w-]*)["\']')
+    # The selector argument, whichever quote style it uses - backticks
+    # included, which is where the template-literal case hid.
+    SEL_CALL = re.compile(r'querySelector(?:All)?\(\s*(["\'`])(.*?)\1', re.S)
+    # Attribute VALUES are not selector syntax, and a dot inside one
+    # (`[data-x="a.b"]`) is not a class. Drop them before reading classes.
+    ATTR_VAL = re.compile(r'''=\s*(["'])(?:(?!\1).)*\1''', re.S)
+    CLASS_IN_SEL = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
+
+    # The four ways a class actually gets onto an element.
+    CLASS_ATTR = re.compile(r'class\s*=\s*(["\'])(.*?)\1', re.S)
+    CLASS_LIST = re.compile(
+        r'classList\s*\.\s*(?:add|remove|toggle|replace)\s*\((.*?)\)', re.S)
+    CLASS_NAME = re.compile(r'className\s*\+?=\s*(["\'`])(.*?)\1', re.S)
+    SET_ATTR = re.compile(
+        r'setAttribute\(\s*(["\'])class\1\s*,\s*(["\'`])(.*?)\2', re.S)
+    STR_LIT = re.compile(r'(["\'`])(.*?)\1', re.S)
+    TOKEN = re.compile(r'[A-Za-z_][\w-]*')
+
+    def _selected(src):
+        for m in SEL_CALL.finditer(src):
+            for c in CLASS_IN_SEL.finditer(ATTR_VAL.sub("=", m.group(2))):
+                yield c.group(1)
 
     # Look across the whole template tree and the scripts, not per file: a
     # partial can render the element a different template's script binds
     # to, which is how `.check-row` works.
-    corpus = []
+    sources = []
     for pat in ("templates/**/*.html", "static/js/*.js"):
         for f in glob.glob(os.path.join(HERE, pat), recursive=True):
-            corpus.append(_read(f))
-    # Strip the selector calls themselves: a name appearing ONLY inside
-    # `querySelectorAll('.x')` exists nowhere the class can be applied.
-    rest = sel.sub("", "\n".join(corpus))
+            sources.append((_rel(f), _read(f)))
+
+    carried = set()
+    for _, s in sources:
+        for m in CLASS_ATTR.finditer(s):
+            carried.update(TOKEN.findall(m.group(2)))
+        for m in CLASS_LIST.finditer(s):
+            for lit in STR_LIT.finditer(m.group(1)):
+                carried.update(TOKEN.findall(lit.group(2)))
+        for m in CLASS_NAME.finditer(s):
+            carried.update(TOKEN.findall(m.group(2)))
+        for m in SET_ATTR.finditer(s):
+            carried.update(TOKEN.findall(m.group(3)))
 
     missing = []
-    for p in glob.glob(os.path.join(HERE, "templates", "**", "*.html"),
-                       recursive=True):
-        s = _read(p)
-        for m in sel.finditer(s):
-            name = m.group(1)
-            if name not in ALREADY_DEAD and name not in rest:
-                missing.append("%s selects .%s" % (_rel(p), name))
+    for rel, s in sources:
+        for name in _selected(s):
+            if name not in ALREADY_DEAD and name not in carried:
+                entry = "%s selects .%s" % (rel, name)
+                if entry not in missing:
+                    missing.append(entry)
     assert not missing, (
-        "scripts select classes their template no longer contains: %s"
-        % missing)
+        "scripts select classes nothing in the markup can carry - no "
+        "class attribute, classList write or className assignment ever "
+        "applies them, so the handler binds to nothing and no error is "
+        "logged: %s" % missing)
 
 
 def test_every_page_that_reads_a_token_also_defines_it():

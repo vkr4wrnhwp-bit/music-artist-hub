@@ -531,13 +531,6 @@ def test_sidebar_shows_the_users_real_plan_not_the_mock_one():
         "the hardcoded $%s payout is rendering again" % mock["next_payout"]
 
 
-def test_base_includes_song_drawer():
-    client = _demo()
-    for route in ["/overview", "/royalties", "/catalog"]:
-        body = client.get(route).get_data(as_text=True)
-        assert 'id="song-drawer"' in body
-
-
 def test_song_detail_endpoint_returns_full_payload():
     client = _demo()
     response = client.get("/songs/midnight-drive")
@@ -653,14 +646,6 @@ def test_toggle_split_unknown_song_returns_404():
     client = _demo()
     response = client.post("/songs/not-a-real-song/splits/0/toggle")
     assert response.status_code == 404
-
-
-def test_base_includes_split_manager_ui():
-    client = _demo()
-    body = client.get("/overview").get_data(as_text=True)
-    assert 'id="add-split-form"' in body
-    assert 'id="split-collaborator"' in body
-    assert 'id="song-drawer-split-warning"' in body
 
 
 def test_base_includes_collapsible_section_script():
@@ -4616,8 +4601,6 @@ def test_ecosystem_hubs():
     assert "data-hub=" not in fnav and "Community" in fnav
     # Discover polish: playing visualizer CSS + suggestion empty states.
     assert "preview-play.playing .viz" in fnav
-    # The creator song drawer can never flash on fan pages pre-Tailwind.
-    assert 'id="song-drawer" style="display:none"' in fnav
 
 
 def test_network_upgrades_and_outreach_pipeline():
