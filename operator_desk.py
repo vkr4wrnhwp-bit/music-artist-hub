@@ -586,6 +586,16 @@ def init(app, is_owner_email):
     _is_owner_email = is_owner_email
     desk_store.init_desk()
     desk_store.seed_if_empty()
+
+    # Meeting Intelligence lives in its own module but on THIS blueprint, so
+    # it inherits the roster guard, the denied page and the URL prefix rather
+    # than growing a second permission system beside the first. Its routes
+    # must exist before the blueprint is registered.
+    import audio_desk
+    import audio_meetings
+    audio_meetings.init_meetings()
+    audio_desk.register(bp, require, _ctx, _save_desk_file, DESK_PREFIX)
+
     app.register_blueprint(bp)
 
     @app.route("/admin")

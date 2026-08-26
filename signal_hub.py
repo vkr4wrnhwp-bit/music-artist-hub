@@ -106,6 +106,7 @@ def _ctx(org, member, **extra):
         "nav_items": [
             ("/signal", "Dashboard"),
             ("/signal/breaking", "Breaking Now"),
+            ("/signal/briefs", "Audio Briefs"),
             ("/signal/early", "Early Signal"),
             ("/signal/cities", "City Ignition"),
             ("/signal/undervalued", "Undervalued Infrastructure"),
@@ -779,4 +780,13 @@ def init(app, base_url, is_owner_email):
     _base_url = base_url
     _is_owner_email = is_owner_email
     sstore.init_signal()
+
+    # Audio Briefs live in their own module but on THIS blueprint, so they
+    # inherit the org guard and the roster check rather than growing a second
+    # access system beside them. Routes must exist before registration.
+    import audio_briefs
+    import audio_signal
+    audio_briefs.init_briefs()
+    audio_signal.register(bp, require, _ctx, sstore)
+
     app.register_blueprint(bp)

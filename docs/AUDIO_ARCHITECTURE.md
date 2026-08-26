@@ -38,6 +38,17 @@ this repo. See [Why the SDK](#why-the-sdk-and-not-urllib).
 | `tests/test_audio_retention.py` | Destruction, and never lying about it. |
 | `tests/test_audio_admin.py` | Access, credential non-leakage, safe defaults. |
 
+**Phase 2 — the first two products above the seam:**
+
+| File | Role |
+| --- | --- |
+| `audio_meetings.py` | Meeting schema, the extraction rules, approval records. |
+| `audio_desk.py` | Meeting routes, on the Operator Desk's own blueprint. |
+| `audio_briefs.py` | Brief schema and `compose_script()` — no I/O, testable directly. |
+| `audio_signal.py` | Brief routes, on Signal's own blueprint. |
+| `tests/test_audio_meetings.py` | 18 tests. See `AUDIO_MEETING_INTELLIGENCE.md`. |
+| `tests/test_audio_briefs.py` | 15 tests. See `AUDIO_SIGNAL_BRIEFS.md`. |
+
 ## The shape
 
 ```
@@ -201,7 +212,9 @@ confirming every capability still resolves.
 | Retention sweep | Real |
 | Operator admin page | Real |
 | ElevenLabs adapter | Written against the real SDK; **not yet exercised against a live key** |
-| The eight products above this layer | Not built — phases 2–6 |
+| Meeting Intelligence (phase 2) | Real — extraction is rule-based, not understood |
+| Signal Audio Briefs (phase 2) | Real — script composed from rows, never generated |
+| The six remaining products | Not built — phases 3–6 |
 
 Nothing above this layer exists yet. The mock adapters return well-formed
 results so the products can be built and tested without a key, a network or a
@@ -225,3 +238,28 @@ Two buttons touch real state. `Advance waiting jobs` polls anything still
 running. `Preview a sweep` never passes `confirm`, so pressing the wrong
 button cannot destroy anything; only `Destroy expired audio` asks, and only
 after saying how many assets it is about to remove.
+
+## Products register onto the host's blueprint, never their own
+
+Meeting Intelligence lives on the Operator Desk's blueprint; Audio Briefs live
+on Signal's. Each inherits the host's guard, roster check and denied page.
+
+A second permission system beside the first is how two of them end up
+disagreeing — and the one that disagrees quietly is the one that leaks.
+
+Both `register()` functions run **at most once per process**, because these
+blueprints are module-level singletons and `app.py` builds an app at import.
+A second `create_app()` would otherwise try to add routes to an
+already-registered blueprint, which Flask refuses.
+
+## Where the honesty line falls
+
+Two products, two different answers to "can we claim this":
+
+* **Meetings** — the transcript is real; the extraction is regex over phrasing
+  and says so, with the source sentence attached and a human approving before
+  anything is written.
+* **Briefs** — the script is assembled from rows by a template, so every
+  sentence traces to data. Nothing is summarised, because a summary is a claim.
+
+Neither product has a language model behind it, and neither pretends to.

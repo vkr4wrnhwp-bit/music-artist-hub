@@ -181,6 +181,15 @@
 /* --- empty ----------------------------------------------------------------- */
 .sg-empty { border: 1px dashed var(--sg-rule); border-radius: var(--sb-r-control); padding: 26px; text-align: center; color: var(--sg-muted); font-size: 13px; line-height: 1.6; background: var(--sg-panel); }
 
+/* A brief's script, shown verbatim beside its audio. Monospaced and
+   pre-wrapped because it is a transcript of what was said, not prose to be
+   reflowed: the line breaks are where the voice pauses. */
+.sg-script { font-family: var(--sb-mono); font-size: 13px; line-height: 1.7;
+  white-space: pre-wrap; word-break: break-word; margin: 8px 0 0;
+  padding: 16px; border: 1px solid var(--sg-rule);
+  border-radius: var(--sb-r-control); background: var(--sg-panel);
+  color: var(--sg-ink); }
+
 /* --- misc ------------------------------------------------------------------ */
 .sg-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .sg-list li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
