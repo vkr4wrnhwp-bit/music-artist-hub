@@ -29,6 +29,32 @@ Render suits CANVAS better than a serverless host in two ways: it runs a
 long-lived Node process, so there are no cold starts on the 3D viewport, and
 its filesystem survives the life of the instance rather than a single request.
 
+### Verified against real PostgreSQL (2026-08-23)
+
+The blueprint is not just declared, it is exercised. Against PostgreSQL 16,
+with `NODE_ENV=production` set the way Render sets it:
+
+| Check | Result |
+|---|---|
+| `npm ci --include=dev && npm run deploy:build` (the exact buildCommand) | exit 0 |
+| `prisma migrate deploy` — the committed postgres migration set | 18 applied, none pending |
+| `prisma db seed` | 3 parts, 10 tools, 9 instruments, 9 turning tools |
+| `healthCheckPath: /sign-in` — what Render polls | 200 |
+| 16 workspace routes on Postgres, authenticated | all 200 |
+| Engine output on Postgres, not just SQLite | chamfer warning, worst-gate readiness correct |
+
+**A redeploy does not wipe shop data.** `autoDeployTrigger: commit` means every
+push to the branch redeploys and re-runs `prisma db seed`. The seed is
+idempotent — it detects the demo org and leaves everything untouched unless
+`CANVAS_FORCE_RESEED=1` is set. Verified explicitly: a part created after the
+first seed survived a full re-seed. Pushing a fix mid-beta is safe.
+
+**Before a beta session, wake the service.** On the free plan the instance
+sleeps after inactivity and the first request takes ~30 seconds. Hit the URL
+yourself a minute before the machinist walks up; do not let a cold start be
+their first impression. If the beta is more than a one-off, the paid instance
+type removes the sleep and enables the durable-uploads disk below.
+
 **Free plan caveats.** The service sleeps after inactivity, so the first
 request after a quiet period takes ~30 seconds to wake. Render's free
 PostgreSQL instances expire after a fixed period — check the current terms
