@@ -10,6 +10,9 @@ import { registerProjectRoutes } from './routes/projects.js'
 import { registerRenderRoutes } from './routes/render.js'
 import { registerOpsRoutes } from './routes/ops.js'
 import { registerAssetRoutes } from './routes/assets.js'
+import { registerAudioRoutes } from './routes/audio/index.js'
+import { registerLiveLabRoutes } from './routes/live-lab.js'
+import { registerSongLabRoutes } from './routes/song-lab/index.js'
 import { registerRateLimit, type RateLimitHandle } from './security/rate-limit.js'
 import { registerCsrf } from './security/csrf.js'
 
@@ -99,6 +102,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     dialect: runtime.db.dialect,
     storage: runtime.storage.name,
     agents: runtime.agents.available,
+    // Which build is actually serving. Without this, confirming a deploy meant
+    // inferring the version from which routes happened to 404. Empty when the
+    // host injects no commit variable — an honest blank, never a guess.
+    commit: runtime.config.commit,
+    commitShort: runtime.config.commit.slice(0, 7),
+    branch: runtime.config.branch,
     time: runtime.clock.isoNow(),
   }))
 
@@ -106,6 +115,9 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   await registerProjectRoutes(app, runtime)
   await registerAssetRoutes(app, runtime)
   await registerRenderRoutes(app, runtime)
+  await registerAudioRoutes(app, runtime)
+  await registerSongLabRoutes(app, runtime)
+  await registerLiveLabRoutes(app, runtime)
 
   if (opts.webRoot && existsSync(opts.webRoot)) {
     await app.register(fastifyStatic, { root: resolve(opts.webRoot), prefix: '/' })

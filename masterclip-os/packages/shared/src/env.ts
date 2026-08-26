@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { parseEnv } from 'node:util'
 import { z } from 'zod'
 import { registerSecret } from './redact.js'
 import { usdToMicros, type MicroUsd } from './money.js'
@@ -44,7 +46,12 @@ const EnvSchema = z.object({
   /** Multiplies every rate-limit budget. Raise it for a busy shared deployment. */
   RATE_LIMIT_SCALE: num(1),
   WEB_PORT: num(4311),
-  /** Externally reachable origin, used to build provider webhook callback URLs. */
+  /**
+   * Externally reachable origin, used to build provider webhook callback URLs.
+   * Read `config.publicBaseUrl` rather than this: a managed host usually knows
+   * its own external URL and supplies it, so the resolved value falls back to
+   * the host's when this is unset.
+   */
   PUBLIC_BASE_URL: z.string().default(''),
 
   // --- persistence ---------------------------------------------------------
@@ -93,12 +100,105 @@ const EnvSchema = z.object({
   COMFYUI_BASE_URL: z.string().default(''),
   COMFYUI_API_KEY: z.string().default(''),
 
+  // --- Street Banker Audio Intelligence -----------------------------------
+  /** Umbrella switch for the whole audio layer. */
+  AUDIO_INTELLIGENCE_ENABLED: bool(true),
+  ELEVENLABS_ENABLED: bool(true),
+  MEETING_INTELLIGENCE_ENABLED: bool(true),
+  SIGNAL_AUDIO_BRIEFS_ENABLED: bool(true),
+  AUDIO_OPERATOR_ENABLED: bool(true),
+  GLOBAL_RELEASE_PACK_ENABLED: bool(true),
+  CAMPAIGN_AUDIO_TOOLKIT_ENABLED: bool(true),
+  REMIX_LAB_AUDIO_ENGINE_ENABLED: bool(true),
+  ARTIST_VOICE_VAULT_ENABLED: bool(true),
+  WHITE_LABEL_AUDIO_OPERATOR_ENABLED: bool(true),
+  DUBBING_ENABLED: bool(true),
+  /** Generation-heavy, rights-sensitive features default OFF; enable deliberately. */
+  MUSIC_GENERATION_ENABLED: bool(false),
+  MUSIC_INPAINTING_ENABLED: bool(false),
+  STEM_SEPARATION_ENABLED: bool(true),
+  VOICE_ISOLATION_ENABLED: bool(true),
+  SOUND_EFFECTS_ENABLED: bool(true),
+  VOICE_CLONING_ENABLED: bool(false),
+  /** Deployment-wide floor: force every org's policy to require zero retention. */
+  ZERO_RETENTION_REQUIRED: bool(false),
+
+  ELEVENLABS_API_KEY: z.string().default(''),
+  ELEVENLABS_BASE_URL: z.string().default('https://api.elevenlabs.io'),
+  ELEVENLABS_STT_MODEL: z.string().default('scribe_v2'),
+  ELEVENLABS_TTS_MODEL: z.string().default('eleven_multilingual_v2'),
+  /** No default voice on purpose: a voice is an account decision, never guessed. */
+  ELEVENLABS_TTS_VOICE_ID: z.string().default(''),
+  ELEVENLABS_MUSIC_MODEL: z.string().default(''),
+  ELEVENLABS_SFX_MODEL: z.string().default(''),
+  ELEVENLABS_WEBHOOK_SECRET: z.string().default(''),
+  /**
+   * Operator attestation that the ElevenLabs account tier supports
+   * enable_logging=false (zero-retention). Never inferred.
+   */
+  ELEVENLABS_ZERO_RETENTION_CAPABLE: bool(false),
+  /**
+   * Operator-maintained estimate rates as JSON, e.g.
+   * {"transcription_per_minute_usd":0.006,"tts_per_1k_chars_usd":0.05}.
+   * Estimates only — final cost comes from provider usage reconciliation.
+   * Empty means "no estimate", never a guessed price.
+   */
+  AUDIO_RATE_CARD: z.string().default(''),
+
   ANTHROPIC_API_KEY: z.string().default(''),
   ANTHROPIC_BASE_URL: z.string().default('https://api.anthropic.com'),
   /** Model used for reasoning-heavy producer agents. */
   ANTHROPIC_MODEL: z.string().default('claude-sonnet-5'),
   /** Cheaper model used for first-pass visual QC over extracted frames. */
   ANTHROPIC_QC_MODEL: z.string().default('claude-haiku-4-5'),
+
+  // --- build identity ------------------------------------------------------
+  /**
+   * The commit this build was produced from, surfaced on /api/health so
+   * "which version is deployed?" is answerable without guessing from which
+   * routes happen to exist. Set explicitly, or inherited from whichever
+   * variable the host injects (Render, Vercel, Fly, Heroku, generic CI).
+   */
+  GIT_COMMIT: z.string().default(''),
+  RENDER_GIT_COMMIT: z.string().default(''),
+  RENDER_GIT_BRANCH: z.string().default(''),
+  /**
+   * Render sets this to the service's own external origin at runtime. The URL
+   * is not knowable when the blueprint is written — the service does not exist
+   * yet — so it cannot be hardcoded in render.yaml, and webhooks would be dead
+   * on a fresh deploy without this fallback.
+   */
+  RENDER_EXTERNAL_URL: z.string().default(''),
+  VERCEL_GIT_COMMIT_SHA: z.string().default(''),
+  SOURCE_VERSION: z.string().default(''),
+
+  // --- Live Lab ------------------------------------------------------------
+  /**
+   * AI audio provider for the Live Lab scene builder. `mock-audio` synthesizes
+   * real WAVs locally at zero cost; a hosted music-model adapter (e.g. an
+   * ElevenLabs integration) registers under its own id and is selected here.
+   */
+  LIVE_AI_PROVIDER: z.string().default('mock-audio'),
+
+  // --- Song Lab ------------------------------------------------------------
+  /** Umbrella kill switch. Off means no Song Lab route or job runs at all. */
+  SONG_LAB_ENABLED: bool(true),
+  SONG_LAB_BENCHMARKS_ENABLED: bool(true),
+  SONG_LAB_EXPERIMENTS_ENABLED: bool(true),
+  SONG_LAB_LYRICS_ENABLED: bool(true),
+  SONG_LAB_AR_VIEW_ENABLED: bool(true),
+  /**
+   * Analysis provider. `local-dsp` runs the in-process DSP engine at zero cost;
+   * `mock-song-analysis` produces deterministic placeholders and is what a
+   * deployment without ffmpeg falls back to for compressed uploads.
+   */
+  SONG_LAB_ANALYSIS_PROVIDER: z.enum(['local-dsp', 'mock-song-analysis']).default('local-dsp'),
+  /** Benchmark data provider. Swap for a licensed provider id once contracted. */
+  SONG_LAB_BENCHMARK_PROVIDER: z.string().default('reference-distribution'),
+  /** Cap on analysed audio length, so one long upload cannot occupy a worker. */
+  SONG_LAB_MAX_ANALYSIS_SECONDS: num(900),
+  /** Experiment previews are derived, not masters: they expire by default. */
+  SONG_LAB_PREVIEW_RETENTION_DAYS: num(30),
 
   // --- media ---------------------------------------------------------------
   FFMPEG_PATH: z.string().default('ffmpeg'),
@@ -157,10 +257,39 @@ function assertProductionSecrets(env: RawEnv): void {
   }
 }
 
+/**
+ * The audio capability flags, as opposed to the product flags above them.
+ *
+ * A product flag hides a whole surface; these seven each gate one thing a
+ * provider can be asked to do, and a request for a switched-off one is refused
+ * at the gate with a code that reads like a bug to anyone who does not know the
+ * flag exists. `masterclip doctor` names the off ones for exactly that reason,
+ * and reads them from here so a flag added later cannot be silently missed —
+ * the test in this package fails if the list and the schema drift apart.
+ */
+export const AUDIO_CAPABILITY_FLAGS = [
+  ['music generation', 'MUSIC_GENERATION_ENABLED'],
+  ['music inpainting', 'MUSIC_INPAINTING_ENABLED'],
+  ['voice cloning', 'VOICE_CLONING_ENABLED'],
+  ['dubbing', 'DUBBING_ENABLED'],
+  ['stem separation', 'STEM_SEPARATION_ENABLED'],
+  ['voice isolation', 'VOICE_ISOLATION_ENABLED'],
+  ['sound effects', 'SOUND_EFFECTS_ENABLED'],
+] as const satisfies ReadonlyArray<readonly [string, keyof RawEnv]>
+
 export interface AppConfig extends RawEnv {
   liveSpendCapMicros: MicroUsd
   isSandbox: boolean
   isTest: boolean
+  /** Resolved commit SHA for this build, or '' when the host provides none. */
+  commit: string
+  /** Resolved branch name, or '' when unknown. */
+  branch: string
+  /**
+   * Externally reachable origin: the explicit setting, else whatever the host
+   * reports about itself, else '' when nothing is reachable from outside.
+   */
+  publicBaseUrl: string
 }
 
 let cached: AppConfig | null = null
@@ -182,6 +311,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, force = fals
     'LUMA_API_KEY',
     'REPLICATE_API_TOKEN',
     'ANTHROPIC_API_KEY',
+    'ELEVENLABS_API_KEY',
+    'ELEVENLABS_WEBHOOK_SECRET',
     'S3_SECRET_ACCESS_KEY',
     'SESSION_SECRET',
     'ASSET_SIGNING_SECRET',
@@ -196,10 +327,59 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, force = fals
     liveSpendCapMicros: usdToMicros(env.LIVE_SPEND_CAP_USD),
     isSandbox: env.MASTERCLIP_MODE === 'sandbox',
     isTest: env.NODE_ENV === 'test',
+    // First non-empty wins: an explicit GIT_COMMIT overrides the host's, and
+    // a deployment that reports nothing says so rather than inventing a value.
+    commit: firstNonEmpty(env.GIT_COMMIT, env.RENDER_GIT_COMMIT, env.VERCEL_GIT_COMMIT_SHA, env.SOURCE_VERSION),
+    branch: firstNonEmpty(env.RENDER_GIT_BRANCH),
+    // An explicit setting wins; otherwise take the host's own idea of where it
+    // is reachable. Trailing slashes are stripped so callers can join paths
+    // without doubling the separator.
+    publicBaseUrl: firstNonEmpty(env.PUBLIC_BASE_URL, env.RENDER_EXTERNAL_URL).replace(/\/+$/, ''),
   }
   return cached
 }
 
+function firstNonEmpty(...values: string[]): string {
+  for (const value of values) {
+    const trimmed = value.trim()
+    if (trimmed.length > 0) return trimmed
+  }
+  return ''
+}
+
 export function resetConfigCache(): void {
   cached = null
+}
+
+/**
+ * Applies a `.env` file to `target` (normally `process.env`), skipping every
+ * variable that is already set — the same precedence as `node --env-file`, so
+ * a properly configured environment can never be overridden by a checkout's
+ * local file.
+ *
+ * Nothing loads `.env` on its own: Node only reads one under an explicit
+ * `--env-file` flag, which NODE_OPTIONS refuses to carry through pnpm and tsx.
+ * Until the entry points called this, the file `masterclip init` creates and
+ * `.env.example` documents was silently ignored — `providers health` reported
+ * a key "not set" while the operator could see it sitting in `.env`.
+ * Deployments are unaffected: `.dockerignore` keeps `.env` out of every image,
+ * and real environment variables win regardless.
+ *
+ * Returns the names of the variables applied, never their values, so callers
+ * can report what happened without a secret reaching a log.
+ */
+export function applyEnvFile(path = '.env', target: NodeJS.ProcessEnv = process.env): string[] {
+  let content: string
+  try {
+    content = readFileSync(path, 'utf8')
+  } catch {
+    return []
+  }
+  const applied: string[] = []
+  for (const [key, value] of Object.entries(parseEnv(content))) {
+    if (target[key] !== undefined) continue
+    target[key] = value
+    applied.push(key)
+  }
+  return applied
 }

@@ -65,6 +65,67 @@ export type IdPrefix =
   | 'model'
   | 'run'
   | 'key'
+  // Street Banker Audio Intelligence
+  | 'apol' // audio data policy
+  | 'aent' // audio entitlement
+  | 'akey' // keyterm
+  | 'acon' // consent record
+  | 'aast' // audio asset
+  | 'agen' // audio generation lineage
+  | 'ajob' // audio job
+  | 'atrs' // transcript
+  | 'aseg' // transcript segment
+  | 'aspk' // transcript speaker
+  | 'lead' // operator lead
+  | 'note' // operator note
+  | 'task' // operator task
+  | 'meet' // meeting intelligence
+  | 'mai' // meeting action item
+  | 'mdv' // meeting deal variable
+  | 'brf' // signal brief
+  | 'bsch' // brief schedule
+  | 'aagt' // audio agent
+  | 'akdc' // agent knowledge doc
+  | 'acnv' // agent conversation
+  | 'voice' // voice profile
+  | 'dub' // dubbing project
+  | 'camp' // campaign audio project
+  | 'rmx' // remix project
+  | 'rver' // remix version
+  | 'ause' // audio usage ledger entry
+  | 'abud' // audio budget
+  | 'pwh' // provider webhook event
+  // Live Lab (Street Banker live-performance module)
+  | 'lproj'
+  | 'lset'
+  | 'lscn'
+  | 'lclip'
+  | 'lstem'
+  | 'lmap'
+  | 'lout'
+  | 'laij'
+  | 'lpkg'
+  | 'lpev'
+  | 'last'
+  | 'ent'
+  // Street Banker Song Lab
+  | 'slp' // song lab project
+  | 'sv' // song version
+  | 'sa' // song analysis
+  | 'ssec' // song section
+  | 'ssf' // song section feature
+  | 'sll' // song lyric line
+  | 'bcoh' // benchmark cohort
+  | 'bsf' // benchmark song feature
+  | 'bprov' // benchmark provenance
+  | 'sbr' // song benchmark result
+  | 'sobs' // song observation
+  | 'srec' // song recommendation
+  | 'sexp' // song experiment
+  | 'sar' // song A&R review
+  | 'sout' // song outcome link
+  | 'shof' // song lab handoff
+  | 'vst' // song lab vocal stem
 
 export function newId(prefix: IdPrefix, now: number = Date.now()): string {
   return `${prefix}_${encodeTime(now)}${encodeBase32(randomBytes(10))}`

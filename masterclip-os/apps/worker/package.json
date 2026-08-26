@@ -10,6 +10,7 @@
   "dependencies": {
     "@masterclip/agents": "workspace:*",
     "@masterclip/asset-storage": "workspace:*",
+    "@masterclip/audio-engine": "workspace:*",
     "@masterclip/cost-engine": "workspace:*",
     "@masterclip/database": "workspace:*",
     "@masterclip/domain": "workspace:*",
@@ -18,6 +19,8 @@
     "@masterclip/qc-engine": "workspace:*",
     "@masterclip/queue": "workspace:*",
     "@masterclip/runtime": "workspace:*",
-    "@masterclip/shared": "workspace:*"
+    "@masterclip/shared": "workspace:*",
+    "@masterclip/song-lab-domain": "workspace:*",
+    "@masterclip/song-lab-engine": "workspace:*"
   }
 }
