@@ -24,3 +24,17 @@ What "known by construction" means here:
   went in. It also proves dither perturbs a 16-bit DC level, never
   touches 32-bit float, and that over-range input clamps instead of
   wrapping.
+
+## Parse checks
+
+`check_inline_scripts.js` is a different kind of thing living in the same
+folder: it compiles JavaScript without running it, so `vm.Script` throws
+on a syntax error and nothing else happens. `tests/test_inline_scripts.py`
+drives it over every inline `<script>` in `templates/` and every file in
+`static/js/`, in one Node process rather than one per source.
+
+It exists because a class-rewriting sweep put an opening quote a token
+late in `templates/catalog.html` and killed that page's entire script
+block — drawers, tabs and filters all at once — with every Python test
+still green. Parsing is not behaviour, and it says nothing about whether
+a block does the right thing; it only proves the parser reaches the end.
