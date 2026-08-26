@@ -21,6 +21,7 @@ import inbox_engine
 import board
 import lights_store
 import operator_desk
+import audio_admin
 import audio_providers
 import audio_store
 import audio_webhooks
@@ -357,6 +358,11 @@ def _internal_tools():
             out.append({"href": "/signal", "label": "Signal"})
     except Exception:
         pass
+    # Owner only, and offered even when audio is switched off: a page whose
+    # whole job is explaining why a surface is refusing is most useful
+    # exactly when it is refusing.
+    if owner:
+        out.append({"href": "/admin/audio", "label": "Audio Intelligence"})
     return out
 
 
@@ -8737,6 +8743,10 @@ def create_app():
     # public prefix, so this endpoint carries its own signature check and is
     # 404 unless the feature and a signing secret are both configured.
     audio_webhooks.init(app)
+    # The operator's window on all of the above. Owner-gated on the same
+    # predicate as every other internal surface; no name lives in code.
+    audio_admin.init(app, is_owner_email=_is_owner_email,
+                     current_user=current_user)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)

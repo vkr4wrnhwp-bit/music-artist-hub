@@ -82,6 +82,13 @@ without checking the vendor's current list.
 Roll back by unsetting `ELEVENLABS_ENABLED`. Work falls back to the mocks;
 nothing in the schema changes.
 
+## Where to look
+
+`/admin/audio` — owner only, linked from the sidebar for accounts that can
+open it. Every state below is shown there, alongside jobs, webhook
+deliveries, usage and anything past its retention date. Start there before
+reading logs.
+
 ## Health states
 
 | State | Meaning |

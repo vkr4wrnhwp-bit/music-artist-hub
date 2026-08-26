@@ -30,8 +30,13 @@ this repo. See [Why the SDK](#why-the-sdk-and-not-urllib).
 | `audio_store.py` | Schema, migrations, policy, consent, jobs, usage, transcripts. |
 | `audio_jobs.py` | `submit()` / `poll()` — the only way work reaches an adapter. |
 | `audio_webhooks.py` | The signed inbound edge for work that finishes late. |
+| `audio_retention.py` | The sweep that makes the retention numbers true. |
+| `audio_admin.py` | `/admin/audio` — the operator's window. Owner-gated. |
+| `templates/audio_admin.html` | That page. Component library only, no bespoke CSS. |
 | `tests/test_audio_jobs.py` | Gate, runner and schema, against real databases. |
 | `tests/test_audio_webhooks.py` | Signature, dedup, tenancy, over real HTTP. |
+| `tests/test_audio_retention.py` | Destruction, and never lying about it. |
+| `tests/test_audio_admin.py` | Access, credential non-leakage, safe defaults. |
 
 ## The shape
 
@@ -193,6 +198,8 @@ confirming every capability still resolves.
 | Gate — flags, entitlement, consent, rights, retention, budget | Real |
 | Job runner, idempotency, usage ledger | Real |
 | Signed webhook edge, dedup, tenancy | Real |
+| Retention sweep | Real |
+| Operator admin page | Real |
 | ElevenLabs adapter | Written against the real SDK; **not yet exercised against a live key** |
 | The eight products above this layer | Not built — phases 2–6 |
 
@@ -200,3 +207,21 @@ Nothing above this layer exists yet. The mock adapters return well-formed
 results so the products can be built and tested without a key, a network or a
 bill, and every result carries `is_mock=True` so nothing here can be mistaken
 for a real transcription of real audio.
+
+## The operator's window
+
+`/admin/audio`, owner-gated on the same hashed-email predicate as every other
+internal surface, and offered in the sidebar only to accounts that can open it
+— a link that answers 404 is worse than no link.
+
+It shows the serving adapter per capability (not per *adapter*: the raw health
+report renders as nineteen rows carrying the same sentence nine times, which
+buries the only question an operator has), every feature flag, which
+credentials are **set** — never their values — recent jobs with the reason a
+rejected one was refused, webhook deliveries including the rejected ones, the
+usage ledger in units, and what is past its retention date.
+
+Two buttons touch real state. `Advance waiting jobs` polls anything still
+running. `Preview a sweep` never passes `confirm`, so pressing the wrong
+button cannot destroy anything; only `Destroy expired audio` asks, and only
+after saying how many assets it is about to remove.
