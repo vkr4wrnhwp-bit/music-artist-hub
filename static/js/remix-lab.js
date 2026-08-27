@@ -102,8 +102,9 @@
     }
     chosenFile = file;
     if (fileName) {
-      fileName.textContent = file.name +
-        " — ready. Nothing is uploaded in this preview.";
+      fileName.textContent = file.name + (CFG.engineLive
+        ? " — ready."
+        : " — ready. Nothing is uploaded in this preview.");
     }
     track("remix_lab_track_selected", {ext: extOf(file.name)});
   }
@@ -207,24 +208,39 @@
   }
 
   root.addEventListener("submit", function (event) {
-    event.preventDefault();
+    /* Every check below blocks the submit either way, so each one cancels
+       the event itself. preventDefault() used to sit at the top and cancel
+       it unconditionally - which was fine while this page was a preview and
+       became a real bug the moment the form got an action: the server never
+       saw a submission from any browser with JavaScript on. */
+    function stop(message) { event.preventDefault(); say(message); }
 
     if (!gateOpen()) {
-      say("Confirm both rights statements first — the upload stays off until you do.");
+      stop("Confirm both rights statements first — the upload stays off until you do.");
       return;
     }
     if (screenRefs()) {
-      say("Rewrite the flagged reference using musical descriptors, then try again.");
+      stop("Rewrite the flagged reference using musical descriptors, then try again.");
       return;
     }
     if (!chosenFile) {
-      say("Choose an audio file — WAV, MP3, AIFF or FLAC.");
+      stop("Choose an audio file — WAV, MP3, AIFF or FLAC.");
       return;
     }
     var lane = checkedValue("remixLane");
-    if (!lane) { say("Pick a remix lane."); return; }
+    if (!lane) { stop("Pick a remix lane."); return; }
     var use = checkedValue("targetUse");
-    if (!use) { say("Pick a target use."); return; }
+    if (!use) { stop("Pick a target use."); return; }
+
+    /* Engine live: hand the form to the browser. The server screens every
+       reference again and re-checks both rights confirmations - this screen
+       is convenience, that one is enforcement. */
+    if (CFG.engineLive) {
+      say("Reading your track — this takes a moment.");
+      track("remix_lab_brief_submitted", {lane: lane, use: use});
+      return;
+    }
+    event.preventDefault();
 
     /* The contract the backend will receive when generation is wired.
        Built and held in memory; nothing here transmits it. */
@@ -251,6 +267,7 @@
     };
     window.sbrlSubmission = submission;   /* inspectable, not transmitted */
 
+    /* Preview path only - the live path returned above. */
     say("Example brief shown below — generation is not connected yet.");
     track("remix_lab_brief_started", {lane: lane, use: use});
 

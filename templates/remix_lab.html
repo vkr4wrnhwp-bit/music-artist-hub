@@ -33,7 +33,7 @@
   {# --- hero ----------------------------------------------------------- #}
   <section class="sbrl-hero">
     <p class="sbrl-eyebrow">{{ rl.eyebrow }}
-      <span class="sbrl-chip">Preview — generation coming soon</span>
+      <span class="sbrl-chip">{{ "Reads your track and composes a brief" if rl.engine_live else "Preview — generation coming soon" }}</span>
     </p>
     <h1 class="sbrl-h1">
       {% for line in rl.hero_headline %}<span>{{ line }}</span>{% endfor %}
@@ -287,6 +287,6 @@
 </footer>
 
 <script type="application/json" id="sbrl-config">{{ remix_json | js_json }}</script>
-<script src="/static/js/remix-lab.js?v=1" defer></script>
+<script src="/static/js/remix-lab.js?v=2" defer></script>
 </body>
 </html>

@@ -263,3 +263,93 @@ def test_the_page_states_what_it_did_not_do(artist):
     text = re.sub(r"\s+", " ", body).lower()
     assert "no key detection" in text
     assert "did not listen to your record" in text
+
+
+# --- the claims the page makes about itself --------------------------------
+#
+# Every one of these was a single unconditional string that became FALSE the
+# moment the engine was switched on for a real deployment. They were found by
+# probing the live site after the flags were set, not by any test.
+
+def test_the_example_panel_note_stops_saying_generation_is_off(monkeypatch):
+    monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
+    monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
+    assert "not yet connected" not in rlc.get_remix_lab_config()["example_note"]
+
+    monkeypatch.delenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", raising=False)
+    assert "not yet connected" in rlc.get_remix_lab_config()["example_note"]
+
+
+def test_the_capability_status_flips_with_the_flags(monkeypatch):
+    import capability_status
+
+    monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
+    monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
+    assert capability_status.resolve("remix_lab")["status"] == capability_status.LIVE
+
+    monkeypatch.delenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", raising=False)
+    assert capability_status.resolve("remix_lab")["status"] == \
+        capability_status.COMING_SOON
+
+
+def test_the_hero_chip_stops_saying_coming_soon(application, monkeypatch):
+    monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
+    monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
+    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    assert "generation coming soon" not in body
+
+    monkeypatch.delenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", raising=False)
+    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    assert "generation coming soon" in body
+
+
+# --- the bug the whole suite missed ----------------------------------------
+
+def test_the_browser_is_told_whether_the_engine_is_live(application, monkeypatch):
+    """Without this the script cannot know, and the form's action attribute
+    is decoration."""
+    import json
+
+    monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
+    monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
+    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    blob = re.search(r'id="sbrl-config">(.*?)</script>', body, re.S).group(1)
+    assert json.loads(blob)["engineLive"] is True
+
+
+def test_the_submit_handler_does_not_cancel_unconditionally():
+    """The bug this file exists to prevent a repeat of.
+
+    preventDefault() sat at the TOP of the submit handler, which was correct
+    while the page was a preview and became a real defect the moment the form
+    got an action: with JavaScript on - every actual visitor - the submission
+    never reached the server. Every test here uses the Flask test client,
+    which runs no JavaScript, so the whole suite passed while the live page
+    was broken.
+
+    This reads the source because the suite has no browser. It is a weaker
+    check than driving the page, and it is the one that would have caught it.
+    """
+    script = open("static/js/remix-lab.js", encoding="utf-8").read()
+    handler = script[script.index('addEventListener("submit"'):]
+
+    guard = handler.index("CFG.engineLive")
+    cancels = [m.start() for m in re.finditer(r"event\.preventDefault\(\)", handler)]
+    assert cancels, "the preview path must still cancel the submit"
+
+    # Every cancel before the engine check has to be inside a validation
+    # branch that also returns - never a bare cancel at the top.
+    head = handler[:guard]
+    assert "function stop(message)" in head, \
+        "cancels before the engine check must go through the guarded helper"
+    assert not re.search(r"submit\",\s*function \(event\) \{\s*event\.preventDefault\(\)",
+                         handler), "preventDefault is unconditional again"
+
+
+def test_the_preview_path_still_cancels():
+    """With the engine off the form must NOT post - the route would 404 and
+    the visitor would lose what they typed."""
+    script = open("static/js/remix-lab.js", encoding="utf-8").read()
+    handler = script[script.index('addEventListener("submit"'):]
+    after_guard = handler[handler.index("CFG.engineLive"):]
+    assert "event.preventDefault()" in after_guard

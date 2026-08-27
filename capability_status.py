@@ -71,6 +71,13 @@ def _billing():
     return _env("STRIPE_SECRET_KEY")
 
 
+def _remix_lab():
+    """The Remix Lab engine reads a track for tempo, section boundaries and an
+    energy curve. Both flags, because audio_policy.gate() checks both - the
+    umbrella alone leaves the feature refusing."""
+    return _env("AUDIO_INTELLIGENCE_ENABLED", "REMIX_LAB_AUDIO_ENGINE_ENABLED")
+
+
 def _press_sending():
     """Stricter than the fan-email probe on purpose. A provider key alone
     leaves the shared test sender in place, and that one delivers only to
@@ -180,10 +187,19 @@ CAPABILITIES = {
     "print_separations": {"status": COMING_SOON, "name": "Print-ready separations"},
     "release_signal": {"status": COMING_SOON, "name": "Release Signal"},
     "remix_lab": {
-        "status": COMING_SOON, "name": "Remix Lab generation",
-        "note": ("The brief builder, rights gate and likeness screen are "
-                 "built; concept generation is not connected, and the page "
-                 "shows a worked example labelled as one."),
+        "name": "Remix Lab generation",
+        "probe": _remix_lab,
+        "when_true": LIVE,
+        "when_false": COMING_SOON,
+        "note_true": ("A track is read for tempo, section boundaries and an "
+                      "energy curve, and the brief is composed from those "
+                      "measurements plus the choices made on the page. Every "
+                      "line is marked measured, convention or chosen. It does "
+                      "not detect key and makes no musical judgement."),
+        "note_false": ("The brief builder, rights gate and likeness screen "
+                       "are built; the engine is not switched on for this "
+                       "deployment, and the page shows a worked example "
+                       "labelled as one."),
     },
 
     # --- never asserted without a person ---

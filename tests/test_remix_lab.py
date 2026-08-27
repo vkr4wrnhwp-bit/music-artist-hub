@@ -149,7 +149,10 @@ def test_the_five_vibe_controls_render_with_their_options(page):
 
 def test_the_results_are_labelled_a_worked_example(page):
     assert rl.EXAMPLE_TAG in page
-    assert rl.EXAMPLE_NOTE in page
+    # Conditional for the same reason as the preview note below: the
+    # unconditional string claimed generation was not connected on a
+    # deployment where it was.
+    assert rl.get_remix_lab_config()["example_note"] in page
     # The note is conditional now that the engine can actually be wired: it
     # says "generation is not yet connected" when it is not, and describes
     # what is measured when it is. Asserting the CURRENT note keeps the

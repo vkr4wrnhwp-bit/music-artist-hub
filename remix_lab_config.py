@@ -13,11 +13,14 @@ Two rules govern everything here:
      runs in the browser AND must run again server-side when generation
      is wired up; the pattern list below is the single source for both.
 
-  2. No faking. Generation is not connected, so the page says so. The
-     results panel is a worked example labelled EXAMPLE OUTPUT, nothing
-     the visitor selects is uploaded or stored in this preview, and the
-     "worth making" read is bands describing fit and effort - it
-     predicts no streams, no placement and no revenue.
+  2. No faking. Whether generation is connected is now a FACT about the
+     deployment, read from engine_live(), and every claim on the page is
+     conditional on it: the hero chip, the note by the form, the note on
+     the example panel, and capability_status. When it is off the page
+     says so and the results panel is a worked example labelled EXAMPLE
+     OUTPUT; when it is on the page says what is actually measured. The
+     "worth making" read stays bands describing fit and effort in both
+     states - it predicts no streams, no placement and no revenue.
 
 No real artist, producer or celebrity is named anywhere in this file,
 including in the examples of what not to do.
@@ -197,6 +200,16 @@ EXAMPLE_NOTE = ("A worked example of what a Remix Lab brief looks like — "
                 "not generated from your track. Generation is not yet "
                 "connected on this deployment.")
 
+# The same sentence, for a deployment where generation IS connected. The panel
+# is still a worked example and still says so - what changes is the reason it
+# is an example. Left as one unconditional string, this claimed "generation is
+# not yet connected" on a deployment where it was, which is the exact class of
+# stale claim the rest of this file exists to avoid.
+EXAMPLE_NOTE_LIVE = ("A worked example of what a Remix Lab brief looks like — "
+                     "not generated from your track. Run one above and your "
+                     "own brief comes back with every line marked as measured, "
+                     "convention, or your own choice.")
+
 EXAMPLE_BRIEF = [
     ("BPM / key notes", "Original sits around 92 BPM in A minor. The club "
                         "lane reads best lifted to 122–126; keep the hook "
@@ -338,7 +351,7 @@ def get_remix_lab_config():
         "safety_warning": SAFETY_WARNING,
         "allowed_examples": ALLOWED_EXAMPLES,
         "example_tag": EXAMPLE_TAG,
-        "example_note": EXAMPLE_NOTE,
+        "example_note": EXAMPLE_NOTE_LIVE if engine_live() else EXAMPLE_NOTE,
         # Whether generation is actually wired on THIS deployment. The
         # page has always said it was not; now that can be true or false,
         # and it must be read from the gate rather than assumed either way.
@@ -362,4 +375,9 @@ def get_remix_lab_client_config():
         "max_mb": UPLOAD_MAX_MB,
         "formats": UPLOAD_FORMATS,
         "reference_max": REFERENCE_MAX,
+        # The script must know this. With the engine live the form posts to
+        # the server, and the submit handler has to STOP calling
+        # preventDefault - otherwise the action attribute is decoration and
+        # the form never reaches the route.
+        "engineLive": engine_live(),
     }
