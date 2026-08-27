@@ -121,6 +121,19 @@ FEATURES = {
         "cap": "audio.music_generation", "policy": "allow_music_generation",
         "consent": None, "rights": True,
     },
+    # The Remix Lab engine. This is what REMIX_LAB_AUDIO_ENGINE_ENABLED was
+    # declared for and never wired to - it sat in FLAGS gating nothing, so an
+    # operator could set it and watch nothing happen.
+    #
+    # It reads a track and reports what is measurable in it: tempo, section
+    # boundaries, an energy curve. It generates NOTHING, which is why it is
+    # separate from music_generation and why an artist can run it without
+    # switching generation on.
+    "remix_plan": {
+        "flag": "REMIX_LAB_AUDIO_ENGINE_ENABLED", "capability": ap.MUSIC,
+        "cap": "audio.remix_lab", "policy": None,
+        "consent": None, "rights": True,
+    },
     "music_inpainting": {
         "flag": "MUSIC_INPAINTING_ENABLED", "capability": ap.MUSIC,
         "cap": "audio.music_inpainting", "policy": "allow_music_generation",

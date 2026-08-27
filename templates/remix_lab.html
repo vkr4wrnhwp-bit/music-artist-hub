@@ -64,17 +64,18 @@
     <h2 class="sbrl-h2" id="sbrl-brief-h">Start a remix brief</h2>
     <p class="sbrl-preview-note">{{ rl.preview_note }}</p>
 
-    <form id="sbrl-form" novalidate>
+    <form id="sbrl-form" novalidate
+            {%- if rl.engine_live %} method="post" action="/remix-lab/brief" enctype="multipart/form-data"{% endif %}>
 
       {# 0 · the rights gate: nothing uploads until both are true #}
       <fieldset class="sbrl-block sbrl-rights-gate">
         <legend class="sbrl-block-label">Rights confirmation <span class="sbrl-req">required</span></legend>
         <label class="sbrl-check">
-          <input type="checkbox" id="sbrl-rights-own" required>
+          <input type="checkbox" id="sbrl-rights-own" name="rights_own" value="1" required>
           <span>&ldquo;{{ rl.rights_checkbox }}&rdquo;</span>
         </label>
         <label class="sbrl-check">
-          <input type="checkbox" id="sbrl-rights-likeness" required>
+          <input type="checkbox" id="sbrl-rights-likeness" name="rights_likeness" value="1" required>
           <span>&ldquo;{{ rl.likeness_checkbox }}&rdquo;</span>
         </label>
       </fieldset>
@@ -83,7 +84,7 @@
       <div class="sbrl-block">
         <p class="sbrl-block-label">Upload audio <span class="sbrl-req">required</span></p>
         <div class="sbrl-drop is-locked" id="sbrl-drop">
-          <input type="file" id="sbrl-file"
+          <input type="file" id="sbrl-file" name="file"
                  accept="{{ rl.upload_formats | join(',') }},audio/wav,audio/mpeg,audio/aiff,audio/flac"
                  disabled aria-describedby="sbrl-drop-note">
           <label class="sbrl-drop-inner" for="sbrl-file">
@@ -115,9 +116,9 @@
         <p class="sbrl-block-label">Reference direction</p>
         <p class="sbrl-helper">{{ rl.reference_helper }}</p>
         <div id="sbrl-refs">
-          <input type="text" class="sbrl-input sbrl-ref" maxlength="300"
+          <input type="text" class="sbrl-input sbrl-ref" name="reference" maxlength="300"
                  placeholder="A reference link, or a direction in words — tempo, energy, instrumentation, mood">
-          <input type="text" class="sbrl-input sbrl-ref" maxlength="300"
+          <input type="text" class="sbrl-input sbrl-ref" name="reference" maxlength="300"
                  placeholder="Another direction (optional)">
         </div>
         <button type="button" class="sbrl-add-ref" id="sbrl-add-ref">+ Add another (up to {{ rl.reference_max }})</button>

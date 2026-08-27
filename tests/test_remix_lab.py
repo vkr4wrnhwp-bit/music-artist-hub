@@ -150,7 +150,12 @@ def test_the_five_vibe_controls_render_with_their_options(page):
 def test_the_results_are_labelled_a_worked_example(page):
     assert rl.EXAMPLE_TAG in page
     assert rl.EXAMPLE_NOTE in page
-    assert rl.PREVIEW_NOTE in page
+    # The note is conditional now that the engine can actually be wired: it
+    # says "generation is not yet connected" when it is not, and describes
+    # what is measured when it is. Asserting the CURRENT note keeps the
+    # original intent - the page states which of the two it is - without
+    # pinning it to the state the deployment happens to be in.
+    assert rl.get_remix_lab_config()["preview_note"] in page
     # The worth-making read is bands with the caveat beside it.
     assert rl.WORTH_NOTE in page
 

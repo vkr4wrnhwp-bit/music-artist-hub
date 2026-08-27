@@ -8216,6 +8216,112 @@ def create_app():
             "remix_lab.html", remix=get_remix_lab_config(),
             remix_json=json.dumps(get_remix_lab_client_config()))
 
+    @app.route("/remix-lab/brief", methods=["POST"])
+    def remix_lab_brief():
+        """Run a real remix brief on a track the artist owns.
+
+        The page shipped saying generation was not connected. It now can be,
+        because a MusicProvider exposes composition_plan() - tempo, section
+        boundaries and an energy curve, measured rather than guessed.
+
+        This is also the server-side likeness screen that remix_lab_config
+        asked for in as many words: "the authoritative copy the server must
+        call before any generation request leaves the building". It runs on
+        every reference line before anything is uploaded or spent.
+        """
+        import audio_retention
+        import audio_store as astore
+        import audio_studio
+        import audio_works as works
+        import remix_lab_config as rlc
+        import remix_lab_engine as rle
+
+        user = current_user()
+        if user is None:
+            return redirect(url_for("login", next="/remix-lab"))
+        if not rlc.engine_live():
+            abort(404)
+
+        def refuse(message, offending=None):
+            return render_template("remix_lab_refused.html", message=message,
+                                   offending=offending,
+                                   warning=rlc.SAFETY_WARNING,
+                                   examples=rlc.ALLOWED_EXAMPLES), 400
+
+        # 1. The screen, first, on every reference line. Before the upload is
+        #    read, before an asset exists, before anything is spent.
+        references = [r.strip() for r in request.form.getlist("reference") if r.strip()]
+        for line in references:
+            offending = works.screen_reference(line)
+            if offending:
+                return refuse("That reference asks for an imitation of a real "
+                              "person, so the brief was not run.", offending)
+
+        # 2. Both rights confirmations, which the page has always required.
+        if request.form.get("rights_own") != "1" or                 request.form.get("rights_likeness") != "1":
+            return refuse("Both rights confirmations are needed before a track "
+                          "is uploaded.")
+
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            return refuse("Choose the track you want a brief for.")
+        ext = os.path.splitext(upload.filename)[1].lower()
+        if ext not in set(rlc.UPLOAD_FORMATS):
+            return refuse("Remix Lab reads %s."
+                          % ", ".join(f.upper().lstrip(".") for f in rlc.UPLOAD_FORMATS))
+        data = upload.read()
+        if not data:
+            return refuse("That file is empty.")
+        if len(data) > rlc.UPLOAD_MAX_MB * 1024 * 1024:
+            return refuse("That track is larger than the %d MB limit."
+                          % rlc.UPLOAD_MAX_MB)
+
+        # 3. Stored privately - never the public uploads tree. A master an
+        #    artist uploaded is the most valuable file they own.
+        path = audio_studio._save(
+            "remix_%d%s" % (int(time.time() * 1000), ext), data,
+            upload.mimetype or "audio/mpeg")
+        asset_id = astore.create_asset(
+            None, user["id"], path, file_name=upload.filename[:200],
+            mime_type=upload.mimetype or "audio/mpeg", file_size=len(data),
+            rights_status="confirmed",
+            retention_days=audio_retention.retention_days(None, "source"))
+
+        choices = {
+            "lane": request.form.get("remixLane") or "",
+            "targetUse": request.form.get("targetUse") or "",
+            "energy": request.form.get("energy") or "",
+            "tempoDirection": request.form.get("tempoDirection") or "",
+            "vocalTreatment": request.form.get("vocalTreatment") or "",
+            "instrumentation": request.form.get("instrumentation") or "",
+            "riskLevel": request.form.get("riskLevel") or "",
+        }
+
+        item = works.create_work(
+            user["id"], "remix_plan",
+            title=upload.filename[:120],
+            brief=" ".join(references)[:2000],
+            options=choices, source_asset_id=asset_id)
+        works.confirm_rights(item["id"], user.get("name") or user.get("email") or "")
+
+        plan, error = {}, None
+        try:
+            _item, result = works.submit_work(item["id"])
+            plan = result or {}
+        except works.WorkRefusal as refusal:
+            # The item carries the reason; the page shows it rather than a
+            # stack trace, and the brief still composes from the choices with
+            # every line marked as not measured.
+            error = refusal.reason
+
+        brief = rle.compose_brief(plan, choices, track_name=upload.filename)
+        return render_template(
+            "remix_lab_brief.html", rl=rlc.get_remix_lab_config(),
+            brief=brief, plan=plan, choices=choices, error=error,
+            grounded=rle.brief_is_grounded(brief),
+            is_mock=bool(plan.get("is_mock")),
+            track_name=upload.filename, work_id=item["id"])
+
     @app.route("/release-check")
     def release_check():
         """DISTRIBUTE NOW - the public release-readiness check.

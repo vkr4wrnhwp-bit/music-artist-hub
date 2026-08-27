@@ -45,6 +45,17 @@ PREVIEW_NOTE = ("Preview build. Nothing you choose here is uploaded or "
                 "below is a worked example of what a Remix Lab brief looks "
                 "like.")
 
+# When the engine IS wired, the note has to stop saying it is not. It also has
+# to be honest about what the engine actually does: it MEASURES the track -
+# tempo, section boundaries, an energy curve - and composes a brief from those
+# facts plus the choices made on this page. It does not listen to the record
+# and form an opinion about it, and no wording here should suggest it does.
+LIVE_NOTE = ("Your track is read for tempo, section boundaries and an energy "
+             "curve, and the brief is built from those measurements plus the "
+             "choices you make below. Every line says where it came from. "
+             "The audio is stored privately and destroyed on your retention "
+             "schedule.")
+
 FEATURES = [
     ("Remix Briefs", "Turn a track into clear creative directions for "
                      "producers, DJs, editors, and rollout teams."),
@@ -144,6 +155,24 @@ ALLOWED_EXAMPLES = [
     "Percussion-heavy global rhythm direction with clean DJ intro/outro.",
     "Cinematic version for trailer or sync pitch.",
 ]
+
+
+def engine_live():
+    """Is the Remix Lab engine actually available on this deployment?
+
+    Both flags, because audio_policy.gate() checks both and a page that
+    offered a real button the gate would refuse is worse than one that
+    honestly says it is a preview.
+
+    Imported lazily: this module is pure configuration and is read by tests
+    that have no app around them.
+    """
+    try:
+        import audio_policy
+    except Exception:
+        return False
+    return (audio_policy.flag("AUDIO_INTELLIGENCE_ENABLED")
+            and audio_policy.flag("REMIX_LAB_AUDIO_ENGINE_ENABLED"))
 
 
 def check_reference_text(text):
@@ -293,7 +322,7 @@ def get_remix_lab_config():
         "hero_subline": HERO_SUBLINE,
         "primary_cta": PRIMARY_CTA,
         "secondary_cta": SECONDARY_CTA,
-        "preview_note": PREVIEW_NOTE,
+        "preview_note": LIVE_NOTE if engine_live() else PREVIEW_NOTE,
         "features": FEATURES,
         "rights_checkbox": RIGHTS_CHECKBOX,
         "likeness_checkbox": LIKENESS_CHECKBOX,
@@ -310,6 +339,10 @@ def get_remix_lab_config():
         "allowed_examples": ALLOWED_EXAMPLES,
         "example_tag": EXAMPLE_TAG,
         "example_note": EXAMPLE_NOTE,
+        # Whether generation is actually wired on THIS deployment. The
+        # page has always said it was not; now that can be true or false,
+        # and it must be read from the gate rather than assumed either way.
+        "engine_live": engine_live(),
         "example_brief": EXAMPLE_BRIEF,
         "example_social": EXAMPLE_SOCIAL,
         "example_producer": EXAMPLE_PRODUCER,

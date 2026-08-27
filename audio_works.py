@@ -43,6 +43,9 @@ WORK_KINDS = {
     "campaign_voiceover": ("speech", "Campaign voiceover", False),
     "music_generation": ("music", "Generated music", False),
     "voice_vault": ("voice_identity", "Voice registration", False),
+    # Reads a track and reports what is measurable in it. Generates nothing,
+    # which is why Remix Lab can run without music generation switched on.
+    "remix_plan": ("music", "Composition plan", True),
 }
 
 WORK_STATUSES = ("draft", "queued", "running", "ready", "refused", "failed")
@@ -334,6 +337,11 @@ def _build_request(work, capability, ap):
         return {"source_asset_id": work.get("source_asset_id"),
                 "operation": "isolate"}
     if capability == "music":
+        # remix_plan analyses; music_generation creates. Same capability,
+        # different verb, and only one of them costs a generation.
+        if work.get("kind") == "remix_plan":
+            return {"source_asset_id": work.get("source_asset_id"),
+                    "prompt": brief, "operation": "composition_plan"}
         return {"prompt": brief, "operation": "generate"}
     if capability == "voice_identity":
         return {"owner_person_id": options.get("owner_person_id") or "",
