@@ -667,6 +667,10 @@ def init_tour():
                 pass
         db.execute("CREATE INDEX IF NOT EXISTS idx_tour_shows_tour ON tour_shows(tour_id)")
 
+    # The bill and its per-act line checks. Called from here rather than
+    # given its own init hook, so a tour database is never half-migrated.
+    init_lineup()
+
 
 # --- tours ------------------------------------------------------------------
 
@@ -2229,3 +2233,210 @@ def fan_capture_summary(tour_id):
         row = db.execute("SELECT COUNT(*) AS n, SUM(consented) AS c FROM tour_fan_captures "
                          "WHERE tour_id=?", (tour_id,)).fetchone()
     return {"records": row["n"] or 0, "consented": row["c"] or 0}
+
+
+# --- the bill, and a line check for each act on it ---------------------------
+#
+# On a package tour the running order is the organising fact of the whole day:
+# load-in, line checks, changeovers, set times and curfew all hang off it, and
+# it changes show to show. `tour_shows.support` already held it as a comma
+# string, which is fine for printing a day sheet and useless for scheduling -
+# there is nowhere to put "EX LOVER line-checks at 16:40".
+#
+# So the bill becomes rows. `support` is KEPT IN STEP from those rows rather
+# than left to drift, because the band share link and the day sheet read it
+# and a second source of truth that disagrees is worse than the string alone.
+
+LINEUP_FIELDS = ["act_name", "running_order", "is_headliner", "line_check",
+                 "set_start", "set_end", "notes"]
+
+
+def init_lineup():
+    with get_db() as db:
+        db.executescript("""
+            CREATE TABLE IF NOT EXISTS tour_lineup (
+                id TEXT PRIMARY KEY,
+                tour_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                act_name TEXT NOT NULL,
+                running_order INTEGER NOT NULL DEFAULT 0,
+                is_headliner INTEGER NOT NULL DEFAULT 0,
+                line_check TEXT NOT NULL DEFAULT '',
+                set_start TEXT NOT NULL DEFAULT '',
+                set_end TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_tour_lineup_show
+                ON tour_lineup(show_id, running_order);
+        """)
+
+
+def list_lineup(tour_id, show_id):
+    """The bill in running order. Order 1 opens; the headliner is last."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM tour_lineup WHERE tour_id=? AND show_id=? "
+            "ORDER BY running_order ASC, act_name ASC",
+            (tour_id, show_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_lineup(tour_id, show_id, act_names, headliner=None):
+    """Replace the bill, KEEPING the times already set for acts that stay.
+
+    Re-ordering a five-act bill is an everyday act on a package tour, and
+    losing four line-check times because one opener was added is the kind of
+    thing that makes somebody stop using the tool.
+    """
+    existing = {r["act_name"].strip().lower(): r for r in list_lineup(tour_id, show_id)}
+    cleaned, seen = [], set()
+    for name in act_names or []:
+        name = (name or "").strip()
+        key = name.lower()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(name)
+
+    now = _now()
+    with get_db() as db:
+        db.execute("DELETE FROM tour_lineup WHERE tour_id=? AND show_id=?",
+                   (tour_id, show_id))
+        for position, name in enumerate(cleaned, start=1):
+            prior = existing.get(name.lower(), {})
+            db.execute(
+                "INSERT INTO tour_lineup (id, tour_id, show_id, act_name, "
+                "running_order, is_headliner, line_check, set_start, set_end, "
+                "notes, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (_new_id(), tour_id, show_id, name, position,
+                 1 if (headliner and name.strip().lower() == headliner.strip().lower())
+                 else (1 if position == len(cleaned) and not headliner else 0),
+                 prior.get("line_check") or "", prior.get("set_start") or "",
+                 prior.get("set_end") or "", prior.get("notes") or "",
+                 prior.get("created_at") or now))
+    _sync_support(tour_id, show_id)
+    return list_lineup(tour_id, show_id)
+
+
+def update_lineup_act(tour_id, show_id, lineup_id, fields):
+    sets, args = [], []
+    for key in ("line_check", "set_start", "set_end", "notes", "act_name"):
+        if key in fields:
+            sets.append("%s = ?" % key)
+            args.append((fields.get(key) or "").strip()[:200])
+    if "running_order" in fields:
+        try:
+            sets.append("running_order = ?")
+            args.append(int(fields["running_order"]))
+        except (TypeError, ValueError):
+            sets.pop()
+    if not sets:
+        return None
+    args.extend([lineup_id, tour_id, show_id])
+    with get_db() as db:
+        db.execute("UPDATE tour_lineup SET %s WHERE id=? AND tour_id=? AND show_id=?"
+                   % ", ".join(sets), args)
+    _sync_support(tour_id, show_id)
+    return list_lineup(tour_id, show_id)
+
+
+def _sync_support(tour_id, show_id):
+    """Write the bill back to tour_shows.support, in running order.
+
+    The share link and the printed day sheet read that column. Letting the
+    two drift would mean the band sees one running order and the production
+    sheet another, on the same day, from the same tool.
+    """
+    # Through update_show_ext, not raw SQL: `support` lives on
+    # tour_show_ext, and that function is the one place that knows it.
+    names = [r["act_name"] for r in list_lineup(tour_id, show_id)]
+    update_show_ext(tour_id, show_id, {"support": ", ".join(names)})
+
+
+def seed_lineup_from_support(tour_id, show):
+    """First open of a show that already has a comma-separated bill.
+
+    Returns the rows, seeding them once from the string so existing tours
+    carry their running order into the new view instead of appearing empty.
+    """
+    rows = list_lineup(tour_id, show["id"])
+    if rows:
+        return rows
+    raw = (show.get("support") or "").strip()
+    if not raw:
+        return []
+    names = [part.strip() for part in raw.split(",") if part.strip()]
+    return set_lineup(tour_id, show["id"], names) if names else []
+
+
+def lineup_schedule_items(tour_id, user_id, show):
+    """Turn the line-check times into real schedule entries.
+
+    Skips acts with no time set rather than inventing one - a line check
+    nobody has advanced is not a 16:00 line check. Returns the number added.
+    """
+    rows = [r for r in list_lineup(tour_id, show["id"]) if (r.get("line_check") or "").strip()]
+    if not rows:
+        return 0
+    existing = {(s.get("title") or "").strip().lower()
+                for s in list_schedule(tour_id, show_id=show["id"])}
+    added = 0
+    for row in rows:
+        title = "%s line check" % row["act_name"]
+        if title.strip().lower() in existing:
+            continue
+        add_schedule_item(tour_id, user_id, {
+            "show_id": show["id"], "day_date": show["date"], "title": title,
+            "category": "soundcheck", "start_time": row["line_check"],
+            "precision": "approx", "location": show.get("venue") or ""})
+        added += 1
+    return added
+
+
+def lineup_warnings(rows, fmt_time=None):
+    """What is wrong with this bill, in words a tour manager would use.
+
+    Re-ordering a bill keeps each act's advanced line check, which is right -
+    the time was agreed with that act, not with a slot. The consequence is
+    that after a re-order the times can run backwards against the new order,
+    and nobody would notice from a list that is sorted by order and shows the
+    times as plain text.
+
+    `fmt_time` is injected rather than imported. Every time in this product
+    is displayed as "5:00 PM" by tour_engine.fmt_time, and a warning that
+    said "17:00" beside a field showing "05:00 PM" would read as a different
+    time. The engine imports this module, so importing it back would be a
+    cycle - the caller passes the formatter instead.
+
+    Returns [] when the bill is fine, so a caller can render nothing.
+    """
+    show_time = fmt_time or (lambda value: value)
+    out = []
+    timed = [r for r in rows if (r.get("line_check") or "").strip()]
+    missing = [r for r in rows if not (r.get("line_check") or "").strip()]
+
+    if missing and timed:
+        names = ", ".join(r["act_name"] for r in missing[:4])
+        out.append("No line check yet for %s." % names)
+
+    # Out of sequence against the running order.
+    previous = None
+    for row in timed:
+        current = (row.get("line_check") or "").strip()
+        if previous and current < previous[1]:
+            out.append("%s line-checks at %s, before %s at %s, but goes on later. "
+                       "Re-ordering the bill keeps each act's time, so these may "
+                       "need swapping."
+                       % (row["act_name"], show_time(current),
+                          previous[0], show_time(previous[1])))
+            break
+        previous = (row["act_name"], current)
+
+    headliners = [r for r in rows if r.get("is_headliner")]
+    if rows and not headliners:
+        out.append("No act is marked as the headliner.")
+    elif len(headliners) > 1:
+        out.append("More than one act is marked as the headliner.")
+
+    return out

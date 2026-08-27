@@ -162,3 +162,76 @@ passed it, in a file that passes on its own.
 
 And point verification scripts at a throwaway database. The dev DB at
 `instance/streetbanker.db` is the one the suite uses.
+
+## The bill, and a line check for each act on it
+
+The queue's remaining item on the routing pass: *support lineup and per-act
+line-check UI on the show page*. Built from the PRAYERS / DEVORA
+**No Tengo Calma Tour 2026** itinerary, where five acts — DEVORA, EX LOVER,
+HALLOWS, CHRIZ AMAYA and PRAYERS — share a stage every night.
+
+### Why it lives on the show
+
+On a package tour the running order is the organising fact of the day. Load-in,
+line checks, changeovers, set times and curfew all hang off it, and it changes
+show to show — which is exactly why it cannot live on the tour.
+
+`tour_shows.support` already held it as a comma string. That is fine for
+printing a day sheet and useless for scheduling: there is nowhere to put
+*"EX LOVER line-checks at 16:40"*.
+
+### `support` is kept in step, not replaced
+
+The band share link and the printed day sheet read that column. A second source
+of truth that disagreed would mean the band sees one running order and
+production another, on the same day, from the same tool. So `_sync_support()`
+writes the bill back through `update_show_ext` on every change.
+
+An existing tour's comma bill **seeds the new view once**, so a tour that
+already had a running order does not appear to have lost it.
+
+### Re-ordering must not lose advanced work
+
+Re-ordering a five-act bill is an everyday act. `set_lineup()` keeps each act's
+already-advanced times when the order changes — the time was agreed with *that
+act*, not with a slot.
+
+The consequence is that after a re-order the times can run **backwards** against
+the new order, and nobody spots that in a list sorted by order with the times as
+plain text. `lineup_warnings()` says so in words a tour manager would use:
+
+> CHRIZ AMAYA line-checks at 4:00 PM, before HALLOWS at 4:20 PM, but goes on
+> later. Re-ordering the bill keeps each act's time, so these may need swapping.
+
+It also names acts with no line check yet, and flags a bill with no headliner or
+more than one.
+
+`lineup_warnings(rows, fmt_time=...)` takes the formatter as an argument rather
+than importing it: every time in this product renders as `5:00 PM`, a warning
+saying `17:00` beside a field showing `05:00 PM` reads as a different time, and
+`tour_engine` imports `tour_store`, so importing it back would be a cycle.
+
+### Only advanced times reach the day sheet
+
+`lineup_schedule_items()` skips acts with no time rather than defaulting one. A
+line check nobody has advanced is not a 16:00 line check, and a day sheet that
+says otherwise sends somebody to the venue at the wrong time. Running it twice
+adds nothing.
+
+### One form, one Save
+
+The first cut gave each act a `<details>` disclosure. That put an empty row
+under every line, turned a five-act bill into a ten-row table, and buried the
+one thing the panel exists to show. It was also the wrong shape: an advance
+arrives as **one email with all the times in it**, not five separate
+conversations.
+
+The times are now edited in place across the whole bill with a single Save.
+Fields are named `<field>:<lineup id>`, and an id that is not on this show's
+bill is **ignored rather than trusted** — the id comes from a form.
+
+### What was not invented
+
+The itinerary carries the 35 dates, the cities, the venues and the five acts.
+It carries **no** load-in times, contacts, hotels or addresses — it says those
+"should be confirmed with each promoter/venue". Nothing here fills them in.

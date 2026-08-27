@@ -731,6 +731,11 @@ def show(user, tour, viewer, tour_id, show_id):
     if tab in ("overview", "schedule"):
         data["schedule"] = _visible(viewer, ts.list_schedule(tour_id, show_id=show_id))
         data["people_names"] = [p["name"] for p in ts.list_people(tour_id)]
+        # Seeded from the comma bill on first open, so a tour that already
+        # has a running order does not appear to have lost it.
+        data["lineup"] = ts.seed_lineup_from_support(tour_id, show)
+        data["lineup_warnings"] = ts.lineup_warnings(
+            data["lineup"], fmt_time=eng.fmt_time)
     if tab in ("overview", "advance", "production"):
         data["advance"] = ts.list_advance(tour_id, show_id)
         data["advance_progress"] = ts.advance_progress(tour_id, show_id)
@@ -930,6 +935,77 @@ def standard_day(user, tour, viewer, tour_id, show_id):
     if n:
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "schedule", show_id, show["venue"],
                       "standard_day", "", "%d items" % n, "info")
+    return redirect(_show_url(tour, show, "schedule"))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/lineup", methods=["POST"])
+@require_tour("schedule", "edit")
+def lineup_set(user, tour, viewer, tour_id, show_id):
+    """Set the bill for this date, in running order, one act per line.
+
+    One box rather than a row of inputs: a tour manager pastes the running
+    order out of an email, and re-typing five acts into five fields to move
+    one of them is the reason people keep using a spreadsheet instead.
+    """
+    show = _show_or_404(tour, show_id)
+    raw = request.form.get("acts") or ""
+    acts = [line.strip() for line in raw.splitlines() if line.strip()][:20]
+    ts.set_lineup(tour_id, show_id, acts,
+                  headliner=request.form.get("headliner") or None)
+    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "schedule", show_id,
+                  show["venue"], "lineup", "", ", ".join(acts), "info")
+    return redirect(_show_url(tour, show, "schedule"))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/lineup/times", methods=["POST"])
+@require_tour("schedule", "edit")
+def lineup_times(user, tour, viewer, tour_id, show_id):
+    """Save every act's times in one submit.
+
+    An advance arrives as one email with all the times in it, not five
+    separate conversations, so the whole bill is one form. Fields are named
+    `<field>:<lineup id>`; anything whose id is not on this show's bill is
+    ignored rather than trusted, because the id comes from a form.
+    """
+    show = _show_or_404(tour, show_id)
+    known = {row["id"] for row in ts.list_lineup(tour_id, show_id)}
+
+    updates = {}
+    for key, value in request.form.items():
+        if ":" not in key:
+            continue
+        field, _, lineup_id = key.partition(":")
+        if field not in ("line_check", "set_start", "set_end", "notes"):
+            continue
+        if lineup_id not in known:
+            continue
+        updates.setdefault(lineup_id, {})[field] = value or ""
+
+    for lineup_id, fields in updates.items():
+        ts.update_lineup_act(tour_id, show_id, lineup_id, fields)
+
+    if updates:
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "schedule", show_id,
+                      show["venue"], "line_checks", "",
+                      "%d act%s" % (len(updates), "" if len(updates) == 1 else "s"),
+                      "info")
+    return redirect(_show_url(tour, show, "schedule"))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/lineup/schedule", methods=["POST"])
+@require_tour("schedule", "edit")
+def lineup_to_schedule(user, tour, viewer, tour_id, show_id):
+    """Put the advanced line checks on the day sheet.
+
+    Acts with no time are skipped rather than given a default - a line check
+    nobody has advanced is not a 16:00 line check, and a day sheet that says
+    otherwise sends somebody to the venue at the wrong time.
+    """
+    show = _show_or_404(tour, show_id)
+    added = ts.lineup_schedule_items(tour_id, tour["user_id"], show)
+    if added:
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "schedule", show_id,
+                      show["venue"], "line_checks", "", "%d added" % added, "info")
     return redirect(_show_url(tour, show, "schedule"))
 
 
