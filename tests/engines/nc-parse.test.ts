@@ -213,3 +213,83 @@ test("a clean program refuses nothing", () => {
   assert.deepEqual(p.refusals, []);
   assert.ok(p.segments.length > 0);
 });
+
+/* ------------------------------------------------------------------ */
+/* Canned cycles repeat at a new position — Z, R and Q are all modal   */
+/* ------------------------------------------------------------------ */
+
+test("a drilling cycle repeated across a hole pattern drills every hole", () => {
+  // The classic Fanuc/Haas idiom: state the cycle once, then give bare XY
+  // positions. Z, R and Q are modal to the cycle. Only R was kept modal —
+  // the depth was re-read from the CURRENT Z, which after the first hole is
+  // the retract plane, so `while (depth > finalZ)` was `while (0.1 > 0.1)`
+  // and every repeat drilled nothing. The program lost 2 of 3 holes and
+  // said nothing about it.
+  const nc = [
+    "G20 G90 G17",
+    "T2 M06",
+    "S2200 M03",
+    "G00 X1.0 Y1.0",
+    "G83 Z-0.75 R0.1 Q0.15 F9.",
+    "X2.0",
+    "X3.0",
+    "G80",
+    "M30",
+  ].join("\n");
+  const p = parseNC(nc);
+  assert.deepEqual(p.refusals, []);
+  const cuts = p.segments.filter((s) => s.kind === "CUT" && s.feed !== null);
+  const spots = new Set(cuts.map((s) => `${s.x1.toFixed(2)},${s.y1.toFixed(2)}`));
+  assert.equal(spots.size, 3, `drilled ${spots.size} of 3 positions`);
+  // Every hole reaches the modal depth, not the retract plane.
+  for (const spot of spots) {
+    const atSpot = cuts.filter((s) => `${s.x1.toFixed(2)},${s.y1.toFixed(2)}` === spot);
+    assert.ok(Math.min(...atSpot.map((s) => s.z1)) <= -0.75 + 1e-9, `${spot} never reached depth`);
+    // And pecks, not one plunge: Q0.15 over 0.85" of travel is several.
+    assert.ok(atSpot.length >= 5, `${spot} pecked ${atSpot.length} times — Q was not modal`);
+  }
+});
+
+test("the peck increment stays modal across repeats, and G80 clears the cycle", () => {
+  const nc = "G20 G90\nG00 X0 Y0\nG83 Z-0.6 R0.1 Q0.2 F9.\nX1.0\nG80\nX2.0\nM30";
+  const p = parseNC(nc);
+  const cuts = p.segments.filter((s) => s.kind === "CUT" && s.feed !== null);
+  // Two positions drilled; the move after G80 is not a third hole.
+  assert.equal(new Set(cuts.map((s) => s.x1.toFixed(2))).size, 2);
+  assert.ok(!cuts.some((s) => s.x1 === 2.0), "a move after G80 was still treated as a cycle");
+});
+
+test("a new cycle after G80 does not inherit the cancelled cycle's depth", () => {
+  // G80 cancels the cycle, so its depth is gone with it. A later G83 that
+  // omits Z has no depth of its own, and silently drilling to the PREVIOUS
+  // cycle's depth is how a 0.6" hole appears where a through-hole was
+  // meant — or worse, where a shallow one was. Refuse and name it.
+  const nc = [
+    "G20 G90",
+    "G00 X0 Y0",
+    "G83 Z-0.6 R0.1 Q0.2 F9.",
+    "G80",
+    "G00 X1.0",
+    "G83 R0.1 Q0.2 F9.",
+    "X2.0",
+    "M30",
+  ].join("\n");
+  const p = parseNC(nc);
+  assert.equal(p.refusals.length, 1, "the depthless second cycle was accepted");
+  assert.match(p.refusals[0].reason, /no depth/i);
+  // And nothing was drilled at the second position on a stale depth.
+  const cuts = p.segments.filter((s) => s.kind === "CUT" && s.feed !== null);
+  assert.ok(!cuts.some((s) => s.x1 >= 1.0), "drilled on a depth that belonged to a cancelled cycle");
+});
+
+test("a cycle with no depth anywhere is refused rather than drilled to nothing", () => {
+  // No Z on the line and none modal from an earlier cycle: there is no
+  // depth to drill to, and inventing one is how a hole ends up at the
+  // retract plane while the report claims it was drilled.
+  // The cycle line itself carries no X/Y/Z so it is skipped as a
+  // non-motion line; the refusal lands on the first position that tries to
+  // use the cycle, which is where a machinist would look for it.
+  const p = parseNC("G20 G90\nG00 X0 Y0\nG83 R0.1 Q0.1 F9.\nX1.0\nM30");
+  assert.equal(p.refusals.length, 1);
+  assert.match(p.refusals[0].reason, /no depth/i);
+});

@@ -72,6 +72,12 @@ export function parseNC(text: string): ParsedNC {
   let comped = false;
   let plane: 17 | 18 | 19 = 17;
   let retractR = 0; // canned cycle R plane
+  // The cycle's depth is modal too, and used to be re-read from the current
+  // Z on every repeat. After the first hole the current Z IS the retract
+  // plane, so a repeat position drilled from R to R — nothing — and the
+  // program silently lost every hole after the first.
+  let cycleZ: number | null = null;
+  let cycleQ: number | null = null;
   let retractMode: 98 | 99 = 98;
   let initialZ = 0;
 
@@ -113,7 +119,7 @@ export function parseNC(text: string): ParsedNC {
       else if (g === 0 || g === 1 || g === 2 || g === 3) motion = g;
       else if (g === 81 || g === 83) motion = g;
       else if (g === 84 || g === 74) motion = 84;
-      else if (g === 80) motion = null;
+      else if (g === 80) { motion = null; cycleZ = null; cycleQ = null; }
       else if (g === 41 || g === 42) { comped = true; warnings.add("Cutter compensation active (G41/G42) — findings inside comped regions are REVIEW only."); }
       else if (g === 40) comped = false;
       else if (g === 43 || g === 49 || g === 94 || g === 98 || g === 99) {
@@ -182,7 +188,14 @@ export function parseNC(text: string): ParsedNC {
       // Canned cycle at this XY. R plane and final Z are modal to the cycle.
       const rr = get("R");
       if (rr !== undefined) retractR = rr * scale();
-      const finalZ = get("Z") !== undefined ? nz : z;
+      if (get("Z") !== undefined) cycleZ = nz;
+      const qq = get("Q");
+      if (qq !== undefined && qq > 0) cycleQ = qq * scale();
+      if (cycleZ === null) {
+        refusals.push({ line: lineNo, reason: "Canned cycle with no depth — no Z on this line and none modal from a previous cycle" });
+        break;
+      }
+      const finalZ = cycleZ;
       if (initialZ === 0) initialZ = z;
       const tapping = motion === 84;
       const cycleFeed = tapping && feed === null && rpm > 0 ? null : feed;
@@ -190,8 +203,8 @@ export function parseNC(text: string): ParsedNC {
       segments.push({ line: lineNo, kind: "RAPID", x0: x, y0: y, z0: z, x1: nx, y1: ny, z1: z, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
       segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: z, x1: nx, y1: ny, z1: retractR, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
       if (motion === 83) {
-        const q = get("Q");
-        const peck = q !== undefined && q > 0 ? q * scale() : Math.abs(retractR - finalZ);
+        // Q is modal to the cycle exactly as Z and R are.
+        const peck = cycleQ ?? Math.abs(retractR - finalZ);
         let depth = retractR;
         while (depth > finalZ + 1e-9) {
           depth = Math.max(finalZ, depth - peck);
