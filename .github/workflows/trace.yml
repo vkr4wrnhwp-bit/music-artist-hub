@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    name: domain tests, typecheck & build
+    name: TRACE domain tests, typecheck & build
     runs-on: ubuntu-latest
     defaults:
       run:

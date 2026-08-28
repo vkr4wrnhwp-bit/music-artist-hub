@@ -38,7 +38,7 @@ on:
 
 jobs:
   test:
-    name: tests & lint
+    name: Royalty Sweep tests & lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
