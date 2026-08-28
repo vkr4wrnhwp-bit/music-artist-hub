@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Projects - Street Banker Studio{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <div>
+      <p class="sb-label sb-label-gold">
+        <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+      </p>
+      <h1 class="sb-h1 mt-1">Projects</h1>
+    </div>
+    {{ sb.btn("Start a session", variant="primary", size="sm",
+              href=url_for("studio.studio_new")) }}
+  </div>
+
+  <section class="sb-panel p-4">
+    {% if projects %}
+      {% call sb.table(["Project", "Artist", "Type", "Status", "Updated"]) %}
+        {% for p in projects %}
+          <tr>
+            <td><a class="underline" href="{{ url_for('studio.studio_session', project_id=p.id) }}">{{ p.title }}</a></td>
+            <td>{{ p.artist_name or "—" }}</td>
+            <td class="whitespace-nowrap">{{ p.project_type|replace("_"," ") }}</td>
+            <td class="whitespace-nowrap">{{ p.status|replace("_"," ") }}</td>
+            <td class="whitespace-nowrap">{{ (p.updated_at or "")[:10] }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    {% else %}
+      <p class="text-sm text-gray-300">Nothing here yet.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

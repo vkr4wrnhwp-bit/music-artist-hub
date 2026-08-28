@@ -507,3 +507,83 @@ def provenance(partner_id, project_id, limit=200):
             " WHERE project_id = ? AND partner_key = ?"
             " ORDER BY created_at DESC, rowid DESC LIMIT ?",
             (project_id, _pk(partner_id), limit)).fetchall()]
+
+
+# --- assets ------------------------------------------------------------------
+
+def create_studio_asset(partner_id, user_id, project_id, storage_key,
+                        file_name="", mime_type="", file_size=0, sha256="",
+                        asset_role="original", parent_asset_id="",
+                        version_label="", sample_rate=None, channels=None,
+                        bit_depth=None, lossless=0, duration_ms=None):
+    """One asset row, in the table the rest of the audio product already uses.
+
+    asset_role is the Studio question - is this the source, a mix, a master,
+    an instrumental - and it is what the whole Deliver checklist is built on.
+    audio_assets.asset_type stays as it was for Audio Studio rows.
+    """
+    import audio_store as astore
+
+    if asset_role not in ASSET_ROLES:
+        asset_role = "other"
+    asset_id = astore.create_asset(
+        partner_id, user_id, storage_key, file_name=file_name,
+        mime_type=mime_type, file_size=file_size, duration_ms=duration_ms,
+        checksum=sha256, asset_type="source", project_type="studio",
+        project_id=project_id)
+    with get_db() as db:
+        db.execute(
+            "UPDATE audio_assets SET parent_asset_id = ?, asset_role = ?,"
+            " version_label = ?, sha256 = ?, sample_rate = ?, channels = ?,"
+            " bit_depth = ?, lossless = ? WHERE id = ?",
+            (parent_asset_id, asset_role, version_label, sha256, sample_rate,
+             channels, bit_depth, 1 if lossless else 0, asset_id))
+    record_event(partner_id, project_id, asset_id, "asset.uploaded",
+                 actor_id=user_id)
+    return asset_id
+
+
+def get_studio_asset(partner_id, user_id, asset_id):
+    """Ownership re-checked here rather than trusted from the caller. A
+    separated vocal is the artist's master taken apart; an asset id is not an
+    authorisation to hear it."""
+    with get_db() as db:
+        return _row(db.execute(
+            "SELECT * FROM audio_assets"
+            " WHERE id = ? AND owner_user_id = ? AND deleted_at IS NULL"
+            "   AND COALESCE(partner_id, '') = ?",
+            (asset_id, user_id, _pk(partner_id))).fetchone())
+
+
+def list_project_assets(partner_id, user_id, project_id):
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT * FROM audio_assets"
+            " WHERE project_id = ? AND owner_user_id = ?"
+            "   AND COALESCE(partner_id, '') = ? AND deleted_at IS NULL"
+            " ORDER BY created_at",
+            (project_id, user_id, _pk(partner_id))).fetchall()]
+
+
+def project_summary(partner_id, user_id, project_id):
+    """Everything the Session page states as fact, computed rather than
+    asserted. A page that hard-codes "no unresolved notes" is wrong the moment
+    somebody leaves one."""
+    versions = list_versions(partner_id, project_id)
+    assets = list_project_assets(partner_id, user_id, project_id)
+    with get_db() as db:
+        open_notes = db.execute(
+            "SELECT COUNT(*) AS n FROM studio_comments"
+            " WHERE project_id = ? AND partner_key = ? AND status = 'open'",
+            (project_id, _pk(partner_id))).fetchone()["n"]
+    approved = [v for v in versions if v["status"] in ("approved", "locked")]
+    return {
+        "versions": versions,
+        "assets": assets,
+        "open_notes": open_notes,
+        "approved_mix": next(
+            (v for v in approved if v["asset_role"] in ("mix", "approved_mix")), None),
+        "approved_master": next(
+            (v for v in approved if v["asset_role"] in ("master", "approved_master")), None),
+        "source": next((a for a in assets if a["asset_role"] == "original"), None),
+    }

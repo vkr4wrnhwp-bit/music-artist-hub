@@ -212,3 +212,39 @@ def get_hub(key):
         if hkey == key:
             return {"key": hkey, "name": name, "tagline": tagline, "modules": items}
     return None
+
+
+# --- Studio (flag-gated) -----------------------------------------------------
+# Not a literal inside HUBS. studio_v1 is off by default and every Studio route
+# 404s while it is, so a sidebar entry baked into the list would be a link to
+# nothing on every deployment that has not switched it on. Remix Lab taught the
+# same lesson from the other direction: a flag-gated page listed as a literal
+# went on describing itself wrongly across four surfaces.
+_STUDIO_ITEM = (
+    "studio", "/studio",
+    "M3 5h14v10H3z|M3 15h14|M6 8v4|M9 7v6|M12 9v3|M15 8v4",
+    "Studio",
+    "Sessions, versions and approvals for the record you are finishing.",
+)
+
+
+def nav_hubs():
+    """HUBS, plus Studio when this deployment has switched it on.
+
+    Called per request rather than computed at import, for the same reason
+    live_keys() is: the flag comes from the environment, and a module-level
+    list would freeze whatever was set when the process booted.
+    """
+    try:
+        import studio_config
+        if not studio_config.enabled():
+            return HUBS
+    except Exception:
+        return HUBS
+
+    out = []
+    for hkey, name, tagline, items in HUBS:
+        if hkey == "studio" and not any(i[0] == "studio" for i in items):
+            items = [_STUDIO_ITEM] + list(items)
+        out.append((hkey, name, tagline, items))
+    return out

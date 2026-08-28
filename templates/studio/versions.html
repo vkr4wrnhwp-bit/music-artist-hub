@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% import "studio/_console.html" as console %}
+{% block title %}Versions - {{ project.title }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+  <p class="sb-label sb-label-gold">
+    <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+  </p>
+
+  {{ console.top_bar(project, summary) }}
+  {{ console.rooms(project, room, summary) }}
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Version Vault</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      Every version is kept. A new one never overwrites the one before it, and
+      a locked version cannot be changed at all &mdash; that is what makes
+      &ldquo;this is the file that ships&rdquo; mean something.
+    </p>
+
+    {% if summary.versions %}
+      {% call sb.table(["#", "Name", "Role", "Status", "What changed", "Created"]) %}
+        {% for v in summary.versions %}
+          <tr>
+            <td class="whitespace-nowrap">{{ v.version_number }}</td>
+            <td>{{ v.version_name }}</td>
+            <td class="whitespace-nowrap">{{ v.asset_role|replace("_"," ") }}</td>
+            <td class="whitespace-nowrap">
+              {%- set tone = {"approved": "good", "locked": "good", "rejected": "crit",
+                              "in_review": "info", "delivered": "good"} -%}
+              {{ sb.badge(v.status|replace("_"," "), tone.get(v.status, "idle")) }}
+            </td>
+            <td>{{ v.change_summary or "&mdash;" }}</td>
+            <td class="whitespace-nowrap">{{ (v.created_at or "")[:10] }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    {% else %}
+      <p class="mt-3 text-sm text-gray-300">
+        Nothing yet. Upload a source on the Session page.
+      </p>
+    {% endif %}
+  </section>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Provenance</h2>
+    <p class="mt-2 text-sm text-gray-300">
+      Append-only. It records what happened even when what happened was a mistake.
+    </p>
+    <ul class="mt-3 space-y-1 font-mono text-xs text-sb-ink-3">
+      {% for e in events %}
+        <li>{{ (e.created_at or "")[:16]|replace("T"," ") }} &middot; {{ e.event_type|replace("."," ") }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

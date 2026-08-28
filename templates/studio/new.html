@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Start a session - Street Banker Studio{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[760px] space-y-5">
+  <div>
+    <p class="sb-label sb-label-gold">
+      <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+    </p>
+    <h1 class="sb-h1 mt-1">Start a session</h1>
+  </div>
+
+  {% if error %}
+    <section class="sb-panel p-4">
+      <p class="text-sm text-gray-300">{{ error }}</p>
+    </section>
+  {% endif %}
+
+  <form method="post" class="space-y-5">
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">What is it</h2>
+      <div class="mt-3 space-y-3">
+        {{ sb.field("title", "Song or project title", placeholder="Signal Fire") }}
+        {{ sb.field("artist_name", "Artist", placeholder="Who it is for") }}
+      </div>
+    </section>
+
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">What are you doing to it</h2>
+      <p class="mt-2 text-sm text-gray-300">
+        This sets what the session asks you for. It can be changed later.
+      </p>
+      <div class="mt-3 space-y-2">
+        {% for key, label, note in types %}
+          <label class="flex gap-3 rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+            <input type="radio" name="project_type" value="{{ key }}"
+                   {{ "checked" if loop.first }} class="mt-1">
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-white">{{ label }}</span>
+              <span class="mt-0.5 block text-sm text-gray-300">{{ note }}</span>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    {{ sb.btn("Create the session", variant="primary", type="submit") }}
+  </form>
+</div>
+{% endblock %}

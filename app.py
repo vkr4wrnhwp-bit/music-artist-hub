@@ -25,6 +25,7 @@ import audio_admin
 import audio_providers
 import audio_studio
 import audio_store
+import studio
 import studio_store
 import audio_webhooks
 import partner_os
@@ -2702,7 +2703,7 @@ def create_app():
     def inject_hub_context():
         # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
         # sidebar and the /desk/<hub> landing pages.
-        return {"hubs_nav": hub_defs.HUBS, "hubs_label": hub_defs.LABEL_GROUP,
+        return {"hubs_nav": hub_defs.nav_hubs(), "hubs_label": hub_defs.LABEL_GROUP,
                 "hubs_community": hub_defs.COMMUNITY_GROUP,
                 "hubs_account": hub_defs.ACCOUNT_GROUP,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
@@ -8951,6 +8952,10 @@ def create_app():
     # Every lane is off until its own flag is set, and the page says so per
     # lane rather than hiding what the product does.
     audio_studio.init(app, current_user=current_user)
+    # Street Banker Studio. Every route re-checks studio_v1 rather than
+    # trusting registration time: blueprints are module-level singletons
+    # and this factory runs at import, so a flag read here would freeze.
+    studio.init(app, current_user=current_user)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% import "studio/_console.html" as console %}
+{% block title %}{{ project.title }} - Street Banker Studio{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  <p class="sb-label sb-label-gold">
+    <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+  </p>
+
+  {{ console.top_bar(project, summary) }}
+  {{ console.rooms(project, room, summary) }}
+
+  {% if error %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">That did not go through</h2>
+      <p class="mt-2 text-sm text-gray-300">{{ error }}</p>
+    </section>
+  {% endif %}
+
+  {# Rights first, and nothing can be uploaded before it. Confirmation is a
+     row with a name and a timestamp, not a checkbox: the question asked
+     later is what exactly was confirmed and when. #}
+  {% if not project.rights_confirmed_at %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Before anything is uploaded</h2>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">
+        Everything in Studio works on audio you own or control, and you confirm
+        that for each project &mdash; not once for the account.
+      </p>
+      <form method="post" action="{{ url_for('studio.studio_rights', project_id=project.id) }}"
+            class="mt-3 space-y-3">
+        {{ sb.field("confirmed_by", "I confirm I own, control, or am authorised to process this recording. Your name:", placeholder="Your full name") }}
+        {{ sb.btn("Confirm and continue", variant="primary", type="submit") }}
+      </form>
+    </section>
+  {% else %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Rights</h2>
+      <p class="mt-2 text-sm text-gray-300">
+        Confirmed by {{ project.rights_confirmed_by }} on
+        {{ (project.rights_confirmed_at or "")[:10] }}, for this project.
+      </p>
+    </section>
+  {% endif %}
+
+  {% if project.rights_confirmed_at and not summary.source %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Upload the source</h2>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">
+        WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. The source is
+        written once and never rewritten &mdash; every version after this one
+        points back to it, so the chain from what you sent to what ships stays
+        intact.
+      </p>
+      <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3"
+            action="{{ url_for('studio.studio_upload', project_id=project.id) }}">
+        <input type="file" name="file" accept=".wav,.aiff,.aif,.flac,.mp3,.m4a"
+               class="block w-full text-sm text-gray-300">
+        {{ sb.btn("Upload", variant="primary", type="submit") }}
+      </form>
+    </section>
+  {% endif %}
+
+  {% if summary.source %}
+    <section class="sb-panel p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="sb-label sb-label-gold">Source</h2>
+        <p class="font-mono text-xs text-sb-ink-3">{{ summary.source.file_name }}</p>
+      </div>
+
+      {# Drawn from the file itself, not from a stored picture of it. #}
+      <canvas id="sb-wave" height="120"
+              class="mt-3 w-full rounded-lg border border-sb-line bg-black/20"
+              aria-label="Waveform of the uploaded source"></canvas>
+
+      <audio id="sb-audio" controls preload="metadata" class="mt-3 w-full"
+             src="{{ url_for('studio.studio_asset', asset_id=summary.source.id) }}"></audio>
+
+      {# Measured here, in this browser, by the same BS.1770-4 engine the Rack
+         uses. No provider is involved, which is why this part works on a
+         deployment with nothing configured at all. #}
+      <div class="mt-4 grid gap-3">
+        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Integrated loudness</p>
+          <p class="mt-1 text-sm text-white"><span id="sb-lufs">measuring&hellip;</span></p>
+        </div>
+        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">True peak</p>
+          <p class="mt-1 text-sm text-white"><span id="sb-tp">measuring&hellip;</span></p>
+        </div>
+        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Loudness range</p>
+          <p class="mt-1 text-sm text-white"><span id="sb-lra">measuring&hellip;</span></p>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-gray-300">
+        Measured in your browser to ITU-R BS.1770-4, K-weighted for this file's
+        own sample rate, with true peak found by 4x oversampling. Nothing was
+        sent to a vendor to produce these numbers.
+      </p>
+    </section>
+
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Asset map</h2>
+      <p class="mt-2 text-sm text-gray-300">What exists so far, and what it came from.</p>
+      {% call sb.table(["Version", "Role", "What changed", "Status"]) %}
+        {% for v in summary.versions %}
+          <tr>
+            <td class="whitespace-nowrap">{{ v.version_name }}</td>
+            <td class="whitespace-nowrap">{{ v.asset_role|replace("_"," ") }}</td>
+            <td>{{ v.change_summary or "&mdash;" }}</td>
+            <td class="whitespace-nowrap">{{ v.status }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    </section>
+  {% endif %}
+
+  {{ console.readiness_panel(readiness) }}
+
+  {% if events %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Activity</h2>
+      <ul class="mt-3 space-y-1 font-mono text-xs text-sb-ink-3">
+        {% for e in events %}
+          <li>{{ (e.created_at or "")[:16]|replace("T"," ") }} &middot; {{ e.event_type|replace("."," ") }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+</div>
+
+{% if summary.source %}
+<script src="/static/js/loudness.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+  var url = {{ url_for('studio.studio_asset', asset_id=summary.source.id)|tojson }};
+  var canvas = document.getElementById("sb-wave");
+  var out = {
+    lufs: document.getElementById("sb-lufs"),
+    tp: document.getElementById("sb-tp"),
+    lra: document.getElementById("sb-lra")
+  };
+
+  function say(node, text) { if (node) { node.textContent = text; } }
+
+  function fail(message) {
+    say(out.lufs, message);
+    say(out.tp, "—");
+    say(out.lra, "—");
+  }
+
+  /* Peak-per-column rather than every sample: a four-minute file is about ten
+     million samples and the canvas is about nine hundred pixels wide, so
+     drawing them all would cost a second and look identical. */
+  function draw(buffer) {
+    if (!canvas || !canvas.getContext) { return; }
+    var width = canvas.clientWidth || 900;
+    canvas.width = width;
+    var height = canvas.height;
+    var ctx = canvas.getContext("2d");
+    var data = buffer.getChannelData(0);
+    var step = Math.max(1, Math.floor(data.length / width));
+    var mid = height / 2;
+    ctx.clearRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(245, 158, 11, 0.85)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var x = 0; x < width; x++) {
+      var lo = 1.0, hi = -1.0;
+      var start = x * step;
+      var end = Math.min(data.length, start + step);
+      for (var i = start; i < end; i++) {
+        var v = data[i];
+        if (v < lo) { lo = v; }
+        if (v > hi) { hi = v; }
+      }
+      if (lo > hi) { lo = 0; hi = 0; }
+      ctx.moveTo(x + 0.5, mid - hi * mid);
+      ctx.lineTo(x + 0.5, mid - lo * mid);
+    }
+    ctx.stroke();
+  }
+
+  function measure(buffer) {
+    if (!window.SBLoudness) { fail("The loudness engine did not load."); return; }
+    var channels = [];
+    for (var c = 0; c < buffer.numberOfChannels; c++) {
+      channels.push(buffer.getChannelData(c));
+    }
+    var res = window.SBLoudness.analyse(channels, buffer.sampleRate);
+    say(out.lufs, res.integrated === null
+        ? "Too quiet to measure"
+        : res.integrated.toFixed(1) + " LUFS");
+    say(out.tp, res.truePeak === null ? "—" : res.truePeak.toFixed(2) + " dBTP");
+    say(out.lra, res.range === null ? "—" : res.range.toFixed(1) + " LU");
+  }
+
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || !window.fetch) {
+    fail("This browser cannot decode audio here.");
+    return;
+  }
+
+  fetch(url, { credentials: "same-origin" })
+    .then(function (r) {
+      if (!r.ok) { throw new Error("fetch failed"); }
+      return r.arrayBuffer();
+    })
+    .then(function (bytes) {
+      var ctx = new Ctx();
+      return new Promise(function (resolve, reject) {
+        ctx.decodeAudioData(bytes, resolve, reject);
+      });
+    })
+    .then(function (buffer) {
+      draw(buffer);
+      measure(buffer);
+    })
+    .catch(function () {
+      fail("Could not decode this file in the browser.");
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
