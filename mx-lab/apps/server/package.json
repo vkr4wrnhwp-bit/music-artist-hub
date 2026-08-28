@@ -1,0 +1,15 @@
+{
+  "name": "@mxlab/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@mxlab/domain": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
