@@ -212,9 +212,9 @@ each vendor's own client library or machine-readable spec — see
 
 ```bash
 pnpm dev              # API + worker + web, one log stream
-pnpm test             # 165 unit + integration tests
-pnpm test:e2e         # 10 Playwright browser tests
-pnpm typecheck        # tsc --noEmit across 27 packages
+pnpm test             # 663 unit + integration tests
+pnpm test:e2e         # 47 Playwright browser tests
+pnpm typecheck        # tsc --noEmit across 44 projects
 pnpm lint             # secret scan + shell/SQL guards + typecheck
 pnpm build            # esbuild bundles + the web build
 pnpm seed             # demo project
