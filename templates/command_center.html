@@ -162,8 +162,8 @@
                 target="target 70",
                 value_tone="good" if summary.links_score >= 70 else none) }}
     {% else %}
-      {{ sb.kpi("Smart link score", href="/links/builder",
-                first="Create your first campaign", first_href="/links/builder") }}
+      {{ sb.kpi("Smart link score", href="/links/new",
+                first="Create your first campaign", first_href="/links/new") }}
     {% endif %}
 
     {% if summary.next_release %}
@@ -172,7 +172,7 @@
                 value_tone="good" if summary.next_release.score >= 70 else none) }}
     {% else %}
       {{ sb.kpi("Release readiness", href="/releases/clean-release",
-                first="Set a release date to start", first_href="/links/builder") }}
+                first="Set a release date to start", first_href="/links/new") }}
     {% endif %}
 
     {% if summary.catalog_count %}
@@ -198,7 +198,7 @@
       {{ sb.kpi("Link traffic", value=summary.visits, href="/links",
                 delta=summary.clicks ~ " service clicks") }}
     {% else %}
-      {{ sb.kpi("Link traffic", first="Publish a link to start counting", first_href="/links/builder") }}
+      {{ sb.kpi("Link traffic", first="Publish a link to start counting", first_href="/links/new") }}
     {% endif %}
 
     {{ sb.kpi("SB qualification", value=summary.qualification, scale="/ 100", href="/qualification",

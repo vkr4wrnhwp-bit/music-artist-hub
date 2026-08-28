@@ -89,10 +89,24 @@
         needs both the umbrella and its own.
       </p>
       <div class="mt-3 flex flex-wrap gap-2">
-        {% for flag in flags %}
+        {%- for flag in flags if flag.wired %}
           {{ sb.badge(flag.name, "good" if flag.on else "idle") }}
-        {% endfor %}
+        {%- endfor %}
       </div>
+      {%- set unwired = flags | rejectattr("wired") | list %}
+      {% if unwired %}
+        {#- Named separately. A switch that reports its own state and changes
+            nothing is worse than an absent one: an operator sets it, sees
+            "on", and concludes the feature is running. -#}
+        <p class="mt-4 text-sm text-gray-300">
+          Declared but wired to nothing — setting these changes no behaviour:
+        </p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          {%- for flag in unwired %}
+            {{ sb.badge(flag.name, "warn") }}
+          {%- endfor %}
+        </div>
+      {% endif %}
     </section>
 
     <!-- Credentials --------------------------------------------------- -->

@@ -40,9 +40,23 @@
         <p class="mt-2 text-sm text-gray-300">{{ lane.note }}</p>
 
         {% if not lane.on %}
-          <p class="mt-3 text-sm text-gray-300">
-            Needs <code>{{ lane.flag }}</code>.
-          </p>
+          {% if lane.key == 'voice_vault' %}
+            {#- Not a flag problem. The gate wants a recorded owner-verification
+                consent and nothing in the app can write one yet, so the lane
+                would refuse every submission. Saying "needs a flag" would send
+                an operator to switch something on that changes nothing. -#}
+            <p class="mt-3 max-w-2xl text-sm text-gray-300">
+              <strong class="text-white">Not connected yet.</strong> A voice can
+              only be registered by the person whose voice it is, verified
+              through the provider's own process. That verification step is not
+              built here, so this lane is switched off rather than accepting a
+              registration it would refuse.
+            </p>
+          {% else %}
+            <p class="mt-3 text-sm text-gray-300">
+              Needs <code>{{ lane.flag }}</code>.
+            </p>
+          {% endif %}
         {% elif lane.key == 'voice_vault' %}
           {# The Vault is not an upload. It records a reference to a voice the
              OWNER verified through the vendor's own process. A manager

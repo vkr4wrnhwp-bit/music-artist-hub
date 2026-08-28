@@ -71,6 +71,18 @@ LANES = [
 LANE_BY_KEY = {lane[0]: lane for lane in LANES}
 
 
+# Lanes whose gate demands a consent record that NOTHING in this app can
+# write yet. audio_policy.gate() requires a "voice_owner" consent row for the
+# Vault, and astore.record_consent() has no caller anywhere - so the lane
+# would advertise itself, take a submission, create a work row and then refuse
+# every single time.
+#
+# A lane that can never complete must not read as available. This is the same
+# rule the rest of the product follows: do not offer what cannot work. Remove
+# a key from here the moment its consent flow exists.
+_CONSENT_FLOW_MISSING = {"voice_vault"}
+
+
 def _on(flag, kind=None):
     """Is this lane genuinely usable?
 
@@ -88,6 +100,8 @@ def _on(flag, kind=None):
     if not audio_policy.flag("AUDIO_INTELLIGENCE_ENABLED"):
         return False
     if not audio_policy.flag(flag):
+        return False
+    if kind in _CONSENT_FLOW_MISSING:
         return False
     spec = audio_policy.FEATURES.get(kind) if kind else None
     if spec and not audio_policy.flag(spec["flag"]):

@@ -82,10 +82,29 @@ def _provider_rows():
 
 
 def _flag_rows():
-    """Every flag and whether it is on, so an operator can see at a glance
-    why a feature is refusing. Values are never shown - only on or off - and
-    no credential appears in this list."""
-    return [{"name": name, "on": audio_policy.flag(name)}
+    """Every flag, whether it is on, and whether it gates anything at all.
+
+    Values are never shown - only on or off - and no credential appears here.
+
+    `wired` matters: some names in FLAGS gate NOTHING. An operator could switch
+    one on, watch this page report it "on", and nothing whatsoever would change.
+    A switch that reports its own state and has no effect is worse than an
+    absent one, so the page says which is which.
+    """
+    gated = {spec["flag"] for spec in audio_policy.FEATURES.values()}
+    # Read directly by their own modules rather than through FEATURES.
+    gated |= {"AUDIO_INTELLIGENCE_ENABLED", "ELEVENLABS_ENABLED"}
+    # The Studio's lanes carry their own advertising flag, which is not always
+    # the one the gate checks - GLOBAL_RELEASE_PACK_ENABLED shows the dubbing
+    # lane while the gate reads DUBBING_ENABLED. Reading FEATURES alone called
+    # it unwired, which would have been a new false statement on this page.
+    try:
+        import audio_studio
+        gated |= {lane[2] for lane in audio_studio.LANES}
+    except Exception:
+        pass
+    return [{"name": name, "on": audio_policy.flag(name),
+             "wired": name in gated}
             for name in audio_policy.FLAGS]
 
 

@@ -214,12 +214,43 @@ confirming every capability still resolves.
 | ElevenLabs adapter | Written against the real SDK; **not yet exercised against a live key** |
 | Meeting Intelligence (phase 2) | Real — extraction is rule-based, not understood |
 | Signal Audio Briefs (phase 2) | Real — script composed from rows, never generated |
-| The six remaining products | Not built — phases 3–6 |
+| Operator Voice Agent (phase 3) | Profiles, guardrails, sessions and escalation real. **The live call is not built.** |
+| Global Release Pack, Campaign Toolkit, stems/isolation (phases 4–5) | Real, at `/audio-studio` |
+| Remix Lab engine | Real — measures tempo, sections, energy. See `REMIX_LAB_ENGINE.md` |
+| Artist Voice Vault (phase 6) | **Cannot complete.** See below |
+| White-Label Audio Operator | **Not built.** A flag and nothing else |
 
-Nothing above this layer exists yet. The mock adapters return well-formed
-results so the products can be built and tested without a key, a network or a
-bill, and every result carries `is_mock=True` so nothing here can be mistaken
-for a real transcription of real audio.
+The mock adapters return well-formed results so the products can be built and
+tested without a key, a network or a bill, and every result carries
+`is_mock=True` so nothing here can be mistaken for a real transcription of real
+audio.
+
+### The Voice Vault cannot complete, and the lane is switched off
+
+`gate()` requires a recorded `voice_owner` consent before a voice may be
+registered. **`audio_store.record_consent()` has no caller anywhere in the
+app** — so the Vault would advertise itself, accept a submission, create a work
+row, and refuse every single time.
+
+A lane that can never complete must not read as available, so
+`audio_studio._CONSENT_FLOW_MISSING` holds it off and the page says the real
+reason rather than naming a flag that would change nothing. Remove the key from
+that set the moment an owner-verification route exists that calls
+`record_consent`.
+
+The same gap applies in principle to `recording` and `agent_disclosure`
+consent, neither of which any route records either. Those are not currently
+reachable — meeting uploads gate on `meeting_intelligence`, not
+`meeting_recording` — but a route that starts using either feature key will hit
+the same wall.
+
+### Three flags gate nothing
+
+`WHITE_LABEL_AUDIO_OPERATOR_ENABLED`, `VOICE_CLONING_ENABLED` and
+`ZERO_RETENTION_REQUIRED` appear in `FLAGS` and are checked by no code. An
+operator could set one, see `/admin/audio` report it **on**, and nothing would
+change — which is worse than an absent switch. That page now lists them under
+*"declared but wired to nothing"* rather than beside the real ones.
 
 ## The operator's window
 

@@ -18,7 +18,8 @@ HUBS = [
     ]),
     ("studio", "Studio & Assets", "Make the record and keep its paperwork straight — audio, art, files, and passports.", [
         ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Real browser DSP: EQ, tube, comp, hooks, WAV export."),
-        ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, remix directions back. Preview today."),
+        ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, a measured remix brief back."),
+        ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Asset Vault", "Stems, bounces, and press assets in one place."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
@@ -123,7 +124,13 @@ HUB_ICONS = {
 }
 
 # Features that genuinely work today; everything else shows a lock.
-LIVE_KEYS = ["apparel", "beats", "statements", "notifications", "documents", "identifiers", "cases",
+#
+# Anything gated on a deployment flag CANNOT be a literal here. Remix Lab was,
+# and once its engine was connected the sidebar badge, the hub-desk tile, the
+# hub-desk footnote and the command palette all went on calling a live page
+# "example data, not yours" - four surfaces wrong from one stale list entry.
+# Flag-gated keys are appended by live_keys() instead.
+_BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "identifiers", "cases",
              "deal-room", "sync-packs", "deal-simulator", "artist-twin",
              "revenue-os", "trust-score", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
@@ -136,6 +143,34 @@ LIVE_KEYS = ["apparel", "beats", "statements", "notifications", "documents", "id
              "lights", "tracks", "royalty-lanes", "money-queue", "certified",
              "press-desk",
              "hours"]
+
+
+def live_keys():
+    """LIVE_KEYS, plus whatever the deployment's flags have actually switched on.
+
+    Called per request rather than computed at import: the flags are read from
+    the environment, and a module-level list would freeze whatever was set when
+    the process booted.
+    """
+    keys = list(_BASE_LIVE)
+    try:
+        import remix_lab_config
+        if remix_lab_config.engine_live():
+            keys.append("remix-lab")
+    except Exception:
+        pass
+    try:
+        import audio_studio
+        if any(lane["on"] for lane in audio_studio._lanes_for_render()):
+            keys.append("audio-studio")
+    except Exception:
+        pass
+    return keys
+
+
+# Kept as a name because templates and tests read it. It is the BASE list -
+# call live_keys() for the flag-aware answer.
+LIVE_KEYS = _BASE_LIVE
 
 
 def command_index():

@@ -2646,7 +2646,9 @@ def create_app():
                 "hubs_account": hub_defs.ACCOUNT_GROUP,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
-                "live_keys": hub_defs.LIVE_KEYS,
+                # Flag-aware: a page whose engine is on must not be
+                # badged "example data, not yours".
+                "live_keys": hub_defs.live_keys(),
                 # One flat list for the command palette, derived from the
                 # same definitions - so it cannot list a page the nav has
                 # dropped, or miss one the nav has gained. Filtered to the
