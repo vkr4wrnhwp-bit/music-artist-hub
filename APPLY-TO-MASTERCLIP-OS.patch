@@ -1,0 +1,261 @@
+From f7973ceeaaaa45fbe4beb80dfd761bde9fefcbc2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 28 Aug 2026 05:21:43 +0000
+Subject: [PATCH] Make sandbox a fact about the provider, not the deployment
+ posture
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+`isSandboxProvider()` read:
+
+    return providerId === 'mock' || this.rt.config.isSandbox
+
+`sandbox: true` is the flag CostController.authorize() reads to decide NOT to
+enforce. It gates five separate denials: the unknown-price denial, the
+zero-price denial, `mode.sandbox_required` itself, the live-spend cap, and the
+human-approval gate (controller.ts:104,114,128,198,219).
+
+So in MASTERCLIP_MODE=sandbox — the default, and what render.yaml deploys, since
+it never sets the variable — every real-provider request was stamped sandbox and
+every rail was skipped. Sandbox mode disabled the guard rails instead of
+refusing the work. Adding a provider key to the deployment would have spent real
+money with nothing checking it, and the charge would have been written to the
+ledger as sandbox = 1, so the cap would not have counted it afterwards either.
+
+Two things let this survive a review aimed directly at it. The predicate was
+private, so nothing could test it. And cost-engine's own
+`blocks every billable submission while the mode is sandbox` hands the
+controller `sandbox: false` by hand: it proves the gate works and never proves
+anything reaches the gate. A green test that guards nothing is worse than no
+test, because it answers the question.
+
+The fix is the deletion. The predicate is now `isFreeProvider()`, exported so it
+can be tested, and a pure function of the provider id.
+
+Ported from the music-artist-hub copy of this tree, where it was committed as
+9d0f814 while render.yaml still deployed masterclip from that directory. The
+risk-register edits are the sandbox rows only; row 23 is left at the newer
+wording this repository already had.
+---
+ docs/risk-register.md                         | 38 +++++++-
+ packages/runtime/src/render.ts                | 28 +++++-
+ packages/runtime/test/sandbox-posture.test.ts | 97 +++++++++++++++++++
+ 3 files changed, 160 insertions(+), 3 deletions(-)
+ create mode 100644 packages/runtime/test/sandbox-posture.test.ts
+
+diff --git a/docs/risk-register.md b/docs/risk-register.md
+index 9332b0a..4eed216 100644
+--- a/docs/risk-register.md
++++ b/docs/risk-register.md
+@@ -7,7 +7,7 @@ Ordered by expected cost of being wrong.
+ | 1 | **Google's "per 1 count" pricing unit is per-clip, not per-second** | low-medium | 8× cost error either way | quotes marked `estimated`; warning surfaced in the UI and in every quote's `raw`; global live-spend cap bounds it. Re-checked 2026-08-18 against Vertex's published card, now reachable: prices confirmed to the cent, and "count" shown to be Google's generic unit word (used for images, video inputs, and 1,000-count tokens), which argues against the per-clip reading | **open** — narrowed, not settled; one cheap live render reads the charge and ends it |
+ | 2 | **Provider API drift** (renamed models, changed fields) | high | submissions fail after a shot is planned | capabilities and prices carry `retrievedAt` + `sourceUrl`; live catalogues preferred; contract battery per adapter; static fallbacks labelled `source: 'static'` | ongoing — re-run `masterclip providers contract` on a schedule |
+ | 3 | **No live provider call has ever been made from this build** | certain | adapters are spec-correct but unproven on the wire | every host was egress-blocked during development; adapters written from vendors' own client source, not memory | **open** — first live run needs a sandbox key and `masterclip providers contract --submit` |
+-| 4 | **A routing bug spends at scale** | low | unbounded | sandbox default; global `LIVE_SPEND_CAP_USD`; batch-aware authorization; re-authorization at submit; attempt caps; contract battery gated on the cost controller. An adversarial review on 2026-08-18 found the caps were largely inert and fixed it: `sandbox` is now a provider fact rather than the deployment posture (it previously exempted every real provider from every cap), completions with no provider-reported cost are charged at estimate rather than not at all, in-flight jobs hold a reservation, and a zero or negative price is refused | low |
++| 4 | **A routing bug spends at scale** | low | unbounded | sandbox default; global `LIVE_SPEND_CAP_USD`; batch-aware authorization; re-authorization at submit; attempt caps; contract battery gated on the cost controller. An adversarial review on 2026-08-18 found the caps were largely inert. **Its most important finding was written up as fixed and was not fixed**: `isSandboxProvider()` still ORed the deployment posture into a per-provider fact until 2026-08-28, so in the default `MASTERCLIP_MODE=sandbox` every real-provider request was stamped `sandbox: true` — the exact flag the controller reads to skip the live-spend cap, the approval gate and both price denials. Genuinely fixed on 2026-08-28, with `isFreeProvider()` exported and mutation-tested so a re-introduction fails CI. The rest of that review's findings were real: completions with no provider-reported cost are charged at estimate rather than not at all, in-flight jobs hold a reservation, and a zero or negative price is refused | low |
+ | 5 | **Acceptance-rate learning overfits a tiny sample** | medium | bad routing that looks data-driven | Beta prior with 8 pseudo-observations; confidence reported on every decision; UI says when a ranking rests on priors | low |
+ | 6 | **Identity misuse** — generating a real person without consent | low | serious | consent recorded at upload; `requireAuthorizedForIdentity` refuses unless explicitly authorized and unexpired; rights changes audited | low |
+ | 7 | **A vision-QC false negative passes a bad clip** | medium | wasted finishing work | auto-rejection restricted to *demonstrated* technical failures; low confidence routes to a human; nothing auto-promotes | low |
+@@ -30,6 +30,40 @@ Ordered by expected cost of being wrong.
+ 
+ ---
+ 
++## The safety claim that was not true (2026-08-28)
++
++A seven-dimension audit of the deployed tree found that the single most
++load-bearing claim in this document was false. `isSandboxProvider()` read
++
++    return providerId === 'mock' || this.rt.config.isSandbox
++
++so in the default posture — the one `render.yaml` deploys, since it never sets
++`MASTERCLIP_MODE` — every real-provider request carried `sandbox: true`. That is
++the flag `CostController.authorize()` reads to decide **not** to enforce, and it
++gates five separate denials: the unknown-price denial, the zero-price denial,
++`mode.sandbox_required` itself, the live-spend cap, and the human-approval gate.
++Sandbox mode therefore disabled the guard rails rather than refusing the work: a
++provider key added to the deployment would have spent real money with every rail
++off, and the charge would have been ledgered `sandbox = 1` so the cap never saw
++it afterwards either.
++
++Two things made it survive a review that was looking directly at it:
++
++- The predicate was `private`, so nothing could test it.
++- cost-engine's `blocks every billable submission while the mode is sandbox`
++  passes `sandbox: false` to the controller by hand. It proves the gate works;
++  it never proves anything reaches the gate. A test can be green, honest about
++  its own scope, and still guard nothing.
++
++Fixed by making it a pure fact about the provider, exported as `isFreeProvider()`
++and covered by `packages/runtime/test/sandbox-posture.test.ts`, which asserts the
++classification for all seven paid providers under both modes *and* that a request
++so classified is actually refused. Mutation-tested: restoring the original
++expression fails three of its four cases.
++
++**The lesson worth keeping**: this document asserted the fix for ten days. A risk
++register is only as good as the last time someone checked it against the code.
++
+ ## Deployed 2026-08-18
+ 
+ Live on Render in `sandbox` mode with no provider keys set. That closes #18 (the
+@@ -64,7 +98,7 @@ candidates survived.** The four that mattered most, all fixed:
+ 
+ | Defect | Why it mattered |
+ |---|---|
+-| `isSandboxProvider()` returned true for every provider whenever `MASTERCLIP_MODE=sandbox` | the default, documented-as-safe posture marked real fal/Google/Runway requests `sandbox: true`, which skipped the live-spend cap, human approval and attempt caps — and wrote ledger rows `sandbox = 1` so they never counted later either. A verifier reproduced 30 real submissions with the cap never once consulted |
++| `isSandboxProvider()` returned true for every provider whenever `MASTERCLIP_MODE=sandbox` — **documented as fixed on 2026-08-18, actually fixed on 2026-08-28** | the default, documented-as-safe posture marked real fal/Google/Runway requests `sandbox: true`, which skipped the live-spend cap, human approval and attempt caps — and wrote ledger rows `sandbox = 1` so they never counted later either. A verifier reproduced 30 real submissions with the cap never once consulted |
+ | Five of seven adapters return `actualMicros: null`, and no charge was recorded without one | every budget, including the global cap, read $0 for ever. Unpriced completions are now charged at estimate and labelled, because a cap fed slightly wrong numbers refuses too early while a cap fed nothing never refuses at all |
+ | The live cap counted only settled charges | N concurrent submissions each authorized against a balance none had moved; in-flight jobs now hold a reservation from `authorizing` through `downloading` |
+ | A $0 or negative quote satisfied every cap | zero passes every budget by arithmetic and slides under the approval threshold; a billable request now needs a positive price, and `unknown` confidence is the honest way to report no price |
+diff --git a/packages/runtime/src/render.ts b/packages/runtime/src/render.ts
+index fa7ca03..2ad92d4 100644
+--- a/packages/runtime/src/render.ts
++++ b/packages/runtime/src/render.ts
+@@ -58,6 +58,32 @@ export interface PlanResult {
+  * {@link RenderService.submitRender}, and that method cannot reach the provider
+  * without passing the cost controller first.
+  */
++/**
++ * Whether requests to this provider are free, and therefore exempt from the
++ * spend rails.
++ *
++ * This is a fact about the PROVIDER, not about the deployment posture, and the
++ * distinction is the whole safety property. `sandbox: true` is the flag the
++ * cost controller reads to decide **not** to enforce: it skips the live-spend
++ * cap, the human-approval gate, the unknown-price denial and the zero-price
++ * denial (packages/cost-engine/src/controller.ts:104,114,128,198,219).
++ *
++ * This function previously also returned true whenever `MASTERCLIP_MODE=sandbox`.
++ * That inverted every one of those rails in the default, documented-as-safe
++ * posture: a real fal/Google/Runway request was stamped `sandbox: true`, so
++ * `mode.sandbox_required` could never fire, the HTTP call went out, the money
++ * was spent, and the charge was written to the ledger as `sandbox = 1` — where
++ * the cap would never count it again either. Sandbox mode disabled the guard
++ * rails instead of refusing the request.
++ *
++ * Keep this a pure function of the provider id. If a deployment should refuse
++ * billable work, that is `MASTERCLIP_MODE` reaching the controller with
++ * `sandbox: false` — which is exactly what `mode.sandbox_required` is for.
++ */
++export function isFreeProvider(providerId: string): boolean {
++  return providerId === 'mock'
++}
++
+ export class RenderService {
+   constructor(private readonly rt: Runtime) {}
+ 
+@@ -244,7 +270,7 @@ export class RenderService {
+   }
+ 
+   private isSandboxProvider(providerId: string): boolean {
+-    return providerId === 'mock' || this.rt.config.isSandbox
++    return isFreeProvider(providerId)
+   }
+ 
+   /** Builds a provider-agnostic request, resolving reference assets to inputs. */
+diff --git a/packages/runtime/test/sandbox-posture.test.ts b/packages/runtime/test/sandbox-posture.test.ts
+new file mode 100644
+index 0000000..0f42565
+--- /dev/null
++++ b/packages/runtime/test/sandbox-posture.test.ts
+@@ -0,0 +1,97 @@
++import { describe, expect, it } from 'vitest'
++import { CostController } from '@masterclip/cost-engine'
++import { createTestDb, insertRow, type Db } from '@masterclip/database'
++import { quoteFromProvider, sampleRequest } from '@masterclip/provider-core'
++import { fixedClock, loadConfig, usdToMicros } from '@masterclip/shared'
++import { isFreeProvider } from '../src/render.js'
++
++const clock = fixedClock(Date.UTC(2026, 7, 28, 12, 0, 0))
++
++/**
++ * The safety property: `sandbox: true` means "this request cannot cost money",
++ * and it is the flag the cost controller reads to decide NOT to enforce.
++ *
++ * `isFreeProvider` once also returned true whenever MASTERCLIP_MODE=sandbox.
++ * That inverted every rail in the default posture — a real provider request was
++ * stamped sandbox, so the live-spend cap, the approval gate and both price
++ * denials were skipped, the HTTP call went out, and the charge was ledgered as
++ * sandbox so the cap would never see it later either.
++ *
++ * cost-engine's own "blocks every billable submission while the mode is
++ * sandbox" test passed throughout, because it hands the controller
++ * `sandbox: false` by hand — it proves the gate works, never that anything
++ * reaches it. These tests close that gap from both ends.
++ */
++
++const REAL_PROVIDERS = ['muapi', 'google', 'fal', 'runway', 'luma', 'replicate', 'selfhosted']
++
++describe('sandbox is a provider fact, not a deployment posture', () => {
++  it('classifies only the mock provider as free', () => {
++    expect(isFreeProvider('mock')).toBe(true)
++    for (const providerId of REAL_PROVIDERS) {
++      expect(isFreeProvider(providerId), `${providerId} bills real money`).toBe(false)
++    }
++  })
++
++  // The regression itself: re-adding `|| config.isSandbox` flips every provider
++  // below to free, and this fails.
++  it('does not change with MASTERCLIP_MODE', () => {
++    for (const mode of ['sandbox', 'live']) {
++      loadConfig({ MASTERCLIP_MODE: mode } as NodeJS.ProcessEnv, true)
++      expect(isFreeProvider('mock'), `mock under ${mode}`).toBe(true)
++      expect(isFreeProvider('google'), `google under ${mode}`).toBe(false)
++    }
++    loadConfig({} as NodeJS.ProcessEnv, true)
++  })
++})
++
++describe('a request classified by that fact is actually refused', () => {
++  const ORG = 'org_t'
++  const PROJECT = 'proj_t'
++  const SHOT = 'shot_t'
++
++  async function controllerInSandbox(): Promise<{ db: Db; controller: CostController }> {
++    const db = await createTestDb()
++    await insertRow(db, 'orgs', { id: ORG, name: 'Test', created_at: clock.isoNow() })
++    await insertRow(db, 'projects', {
++      id: PROJECT, org_id: ORG, name: 'P', slug: 'p', brief: '', style_bible: '{}',
++      status: 'active', created_at: clock.isoNow(), updated_at: clock.isoNow(), archived_at: null,
++    })
++    const config = loadConfig({ NODE_ENV: 'test', MASTERCLIP_MODE: 'sandbox', LIVE_SPEND_CAP_USD: '2' }, true)
++    return { db, controller: new CostController(db, config, clock) }
++  }
++
++  // The request carries whatever the classifier decided — that is the value
++  // under test, not a hand-set boolean.
++  function authorizationFor(providerId: string) {
++    const request = sampleRequest({
++      durationSeconds: 4,
++      maxCostMicros: usdToMicros(5),
++      providerId,
++      sandbox: isFreeProvider(providerId),
++    })
++    const quote = quoteFromProvider({
++      providerId, request, micros: usdToMicros(0.4), nowMs: clock.now(), raw: {},
++    })
++    return { request, quote }
++  }
++
++  it('refuses a real provider under MASTERCLIP_MODE=sandbox', async () => {
++    const { controller } = await controllerInSandbox()
++    const { request, quote } = authorizationFor('google')
++    const result = await controller.authorize({
++      orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true,
++    })
++    expect(result.allowed).toBe(false)
++    expect(result.denials.map((d) => d.code)).toContain('mode.sandbox_required')
++  })
++
++  it('still lets the free mock provider through', async () => {
++    const { controller } = await controllerInSandbox()
++    const { request, quote } = authorizationFor('mock')
++    const result = await controller.authorize({
++      orgId: ORG, projectId: PROJECT, shotId: SHOT, request, quote, tier: 'standard', humanApproved: true,
++    })
++    expect(result.denials.map((d) => d.code)).not.toContain('mode.sandbox_required')
++  })
++})
+-- 
+2.43.0
+
