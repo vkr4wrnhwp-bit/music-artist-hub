@@ -6,11 +6,14 @@
 # Each has its own rootDir, its own runtime and its own disk; syncing the
 # blueprint creates or updates them independently.
 #
-#   trace       — mx-lab/         motocross session tracking (Node)
-#   reach       — reach-app/      music discovery and outreach (Python)
-#   masterclip  — masterclip-os/  cinematic AI-video render factory (Docker)
+#   trace          — mx-lab/         motocross session tracking (Node)
+#   reach          — reach-app/      music discovery and outreach (Python)
+#   masterclip     — masterclip-os/  cinematic AI-video render factory (Docker)
+#   royalty-sweep  — repo root/      royalty dashboard (Python/Flask)
+#   holeshot-tuner — fuel-map-tool/  single-file fuel-map worksheet (static)
 #
-# Details: mx-lab/docs/architecture/deployment.md and reach-app/README.md.
+# Details: mx-lab/docs/architecture/deployment.md, reach-app/README.md and
+# DEPLOY.md (which app is which, and what each costs to run).
 services:
   - type: web
     name: trace
@@ -152,3 +155,42 @@ services:
       name: masterclip-data
       mountPath: /var/data
       sizeGB: 5
+
+  # ROYALTY SWEEP — the royalty dashboard that this repository started as.
+  # Lives at the repository root (app.py + templates/ + royalty_data.py), so it
+  # takes no rootDir. Its data is in-process demo data, so it needs no disk and
+  # runs honestly on a free instance: nothing is lost on a restart because
+  # nothing is written. `/` redirects to `/dashboard`, which is the health check.
+  - type: web
+    name: royalty-sweep
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /dashboard
+    buildFilter:
+      paths:
+        - app.py
+        - royalty_data.py
+        - music_utils/**
+        - templates/**
+        - requirements.txt
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+  # HOLESHOT TUNER — the original fuel-map worksheet, one self-contained HTML
+  # file with no build step and no server. A static site: free, instant, and
+  # the rewrite keeps every path serving the tool rather than 404ing.
+  - type: web
+    name: holeshot-tuner
+    runtime: static
+    staticPublishPath: fuel-map-tool
+    buildCommand: ""
+    buildFilter:
+      paths:
+        - fuel-map-tool/**
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

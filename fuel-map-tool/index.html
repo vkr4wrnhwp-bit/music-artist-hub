@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
 <title>Holeshot Tuner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
@@ -1085,7 +1088,33 @@ document.getElementById('delSetupBtn').addEventListener('click', () => {
 });
 
 // ----- Import / export ------------------------------------------------
+let __downloadsNs = null;
+function downloadsCapability() {
+  if (!__downloadsNs) {
+    __downloadsNs = (window.claude && typeof window.claude.use === 'function')
+      ? window.claude.use('downloads').catch(() => null)
+      : Promise.resolve(null);
+  }
+  return __downloadsNs;
+}
+// Hosted viewers block plain download links, so save through the host
+// capability when it is available and fall back to a link everywhere else
+// (a file opened from disk, another host).
 function download(name, text, type) {
+  downloadsCapability().then((dl) => {
+    if (!dl) { linkDownload(name, text, type); return; }
+    dl.save({ filename: name, data: text }).catch((e) => {
+      const code = e && e.code;
+      if (code === 'declined' || code === 'rate_limited') return;
+      if (code === 'rejected_extension' || code === 'extension_not_enabled' || code === 'too_large') {
+        alert('This export is not available here: ' + ((e && e.message) || code) + '.');
+        return;
+      }
+      linkDownload(name, text, type);
+    });
+  });
+}
+function linkDownload(name, text, type) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name;
