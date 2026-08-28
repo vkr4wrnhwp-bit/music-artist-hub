@@ -28,8 +28,9 @@ const probe = (f) => {
 /** Mux a music bed under a silent picture render, trimmed to picture length. */
 function withAudio(silent, score, out) {
   if (!existsSync(silent)) return false
+  // No filtergraph: the score was mastered in full (loudnorm, fades, exact
+  // length) when it was generated, so this stage only muxes and encodes.
   ff(['-i', silent, '-i', score,
-      '-filter_complex', '[1:a]afade=t=out:st=0:d=0[a]',  // placeholder chain keeps filtergraph explicit
       '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out])
   return true
 }
