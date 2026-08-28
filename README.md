@@ -12,7 +12,9 @@ repo and `render.yaml`.
 | **Royalty Sweep** | Royalty dashboard — platform balances, payout calendar, catalog value, leak alerts, advance eligibility. The app this repo started as. | repo root | Ready to deploy |
 | **[Holeshot Tuner](fuel-map-tool/)** | Single-file fuel-map worksheet for motocross bikes. No server, no build step. | `fuel-map-tool/` | Ready to deploy |
 
-**Deploying any of them: [DEPLOY.md](DEPLOY.md)** — one Blueprint apply brings up
+**[▶ Deploy all five to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)** — one click; reads `render.yaml`.
+
+**Details, costs and first-run steps: [DEPLOY.md](DEPLOY.md)** — one Blueprint apply brings up
 all five, and it lists what each costs and what Render will prompt you for.
 
 ## Honest state

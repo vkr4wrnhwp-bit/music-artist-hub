@@ -11,7 +11,18 @@ Five separate products live here. They share nothing but the repository and
 | `royalty-sweep` | Royalty Sweep — the royalty dashboard this repo started as | Python web service | free |
 | `holeshot-tuner` | Holeshot Tuner — single-file fuel-map worksheet | Static site | free |
 
-## Deploy (desktop, ~10 minutes)
+## One-click deploy
+
+**[▶ Deploy all five services to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)**
+
+That link opens Render's Blueprint flow already pointed at this repository — it
+reads `render.yaml` and lists the five services. It works from a phone. You
+still choose the plans and fill in the values Render will not invent (step 3
+below), then Apply.
+
+If you would rather drive it by hand, or the link misbehaves:
+
+## Deploy by hand (~10 minutes)
 
 1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**.
 2. Connect this GitHub repository. Render reads `render.yaml` and lists all
