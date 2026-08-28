@@ -59,16 +59,21 @@ takes ~30–60 seconds to wake. Normal, not a fault.
 
 ## First run of TRACE (do this in one sitting)
 
-1. Open the `trace` URL. The page **is** the app.
-2. Sign in as an admin or manager (Alex Ferro / Sam Calloway). The first
-   sign-in **sets that account's password** and claims the organization.
-3. **More → Team Sync** — the server URL is prefilled with the site's own
-   origin. Enter the password, **Sign in to server**, then **Sync now**.
-   The footer reading `synced to team server (rev 1)` means it worked.
-4. From then on the bootstrap door is closed: new accounts need one-time
-   invite codes from **More → Team & roles → Invite**. External tuners never
-   get accounts — mint a grant token on the Remote Tuner Access screen and
-   send them the URL / org id / token trio for `#/grantview`.
+A hosted TRACE asks who you are — there is no persona picker on a public URL.
+
+1. Open the `trace` URL. The page **is** the app, and it opens on a sign-in.
+2. Choose yourself from the list, set a password, **Sign in**. That first
+   sign-in **sets your password, claims the organization, and syncs the team
+   database** in one step — no separate Team Sync visit needed.
+3. From then on the door is closed: new accounts need a one-time invite code
+   from **More → Team & roles → Invite**. Anyone without an account can still
+   press **Explore the demo**, which runs the seeded simulation entirely in
+   their browser and never touches the server.
+4. External tuners never get accounts. Mint a grant token on the Remote Tuner
+   Access screen and send them the URL / org id / token trio for `#/grantview`.
+
+Leaving step 2 undone means the organization sits unclaimed on a public URL.
+Do it immediately after the service goes live.
 
 ## Smoke test after deploy
 

@@ -73,11 +73,22 @@ docs/testing       known unknowns requiring physical verification
 docs/IMPLEMENTATION-REPORT.md   COMPLETED / SIMULATED / DISABLED / FUTURE
 ```
 
-## Demo accounts
+## Signing in
 
-Sign-in is simulated (production maps to real auth behind the same permission
-matrix). Twelve fictional users cover all eleven roles — tuner Jules Ortiz,
-mechanic Casey Trần, and rider Blake Harmon walk the full workflow.
+The front door depends on where TRACE is running:
+
+- **Hosted** (a real URL, with the sync server behind it): a real sign-in —
+  pick who you are, enter your password, and the app claims-or-joins the
+  organization and pulls the team database in one step. The first sign-in sets
+  that account's password and claims the org; every account after it needs a
+  one-time invite code from an admin. Visitors without an account can press
+  **Explore the demo**, which runs the seeded simulation in their browser and
+  never reaches the server — the app says DEMO MODE while it is on.
+- **Offline** (the single-file build opened from disk, or local dev): there is
+  no server to ask, so the twelve seeded users are pickable directly.
+
+Twelve fictional users cover all eleven roles — tuner Jules Ortiz, mechanic
+Casey Trần, and rider Blake Harmon walk the full workflow.
 
 ## Safety invariants (enforced in code and tests)
 
