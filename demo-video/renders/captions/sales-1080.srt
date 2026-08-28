@@ -1,0 +1,29 @@
+1
+00:00:00,167 --> 00:00:02,670
+[TRACE — Telemetry & Tuning Platform]
+
+2
+00:00:02,957 --> 00:00:05,460
+A rider says it hit too hard on the exit.
+Then what?
+
+3
+00:00:05,930 --> 00:00:12,280
+[RANKED CAUSES, COMPUTED CONFIDENCE]
+It shows its work
+Confidence comes from the data — capped when a channel is degraded, never certain.
+
+4
+00:00:12,750 --> 00:00:19,100
+[WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT]
+The rider preferred it. The data disagreed.
+Rider confidence rose 3 points while the best lap went 1.79s slower — and the uncontrolled variable is flagged.
+
+5
+00:00:19,425 --> 00:00:22,510
+Most tools would have shipped that change.
+The rider liked it. TRACE showed the lap times anyway.
+
+6
+00:00:22,872 --> 00:00:26,540
+[TRACE] Evidence, not opinion — on every change. trace-4qya.onrender.com. Phase 1 runs on simulated telemetry, labeled on every screen. No ECU write path exists in this build.

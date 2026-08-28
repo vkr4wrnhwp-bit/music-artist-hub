@@ -1,0 +1,34 @@
+{
+  "name": "demo-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable product-demo film system: Playwright capture + Remotion editorial.",
+  "scripts": {
+    "capture": "node scripts/capture.mjs",
+    "audio": "tsx scripts/make-audio.ts",
+    "studio": "remotion studio src/index.ts",
+    "render:hero": "remotion render src/index.ts HeroLandscape renders/hero-1080.mp4 --codec=h264 --crf=16",
+    "render:hero4k": "remotion render src/index.ts HeroLandscape renders/hero-2160.mp4 --codec=h264 --crf=16 --scale=2",
+    "render:sales": "remotion render src/index.ts SalesLandscape renders/sales-1080.mp4 --codec=h264 --crf=16",
+    "render:social": "remotion render src/index.ts SocialVertical renders/social-1080x1920.mp4 --codec=h264 --crf=16",
+    "render:clean": "remotion render src/index.ts CleanScreenOnly renders/clean-1080.mp4 --codec=h264 --crf=16",
+    "still": "remotion still src/index.ts HeroLandscape renders/thumb.png"
+  },
+  "dependencies": {
+    "@fontsource/archivo": "^5.0.0",
+    "@fontsource/ibm-plex-mono": "^5.0.0",
+    "@fontsource/ibm-plex-sans": "^5.0.0",
+    "@remotion/cli": "4.0.518",
+    "@remotion/media-utils": "4.0.518",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.518"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "^4.0.518",
+    "@remotion/renderer": "^4.0.518",
+    "@types/react": "^19.0.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.6.0"
+  }
+}
