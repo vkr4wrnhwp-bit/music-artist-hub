@@ -6,10 +6,17 @@ from royalty_data import (
     add_split,
     advance_claim,
     assess_advance_eligibility,
+    catalog_completeness_score,
+    complete_registration_step,
     estimate_catalog_value,
+    generate_report,
+    get_available_reports,
+    get_catalog_value_tracker,
     get_claims,
     get_dashboard_story,
+    get_documents_vault,
     get_earnings_trend,
+    get_fixes_queue,
     get_health_factors,
     get_health_recommendations,
     get_kpis,
@@ -17,21 +24,31 @@ from royalty_data import (
     get_platform_balances,
     get_platform_catalog,
     get_recent_payouts,
+    get_registration_wizard,
+    get_rights_conflicts,
+    get_royalty_forecast,
     get_royalty_goal,
     get_royalty_leak_alerts,
+    get_since_last_login_summary,
     get_smart_recommendations,
     get_song,
     get_songs,
+    get_top_royalty_leaks,
     get_payout_calendar,
+    get_upcoming_releases,
+    WIZARD_TARGETS,
+    WIZARD_TARGET_LABELS,
     live_song,
     meter_lit_segments,
     metadata_completion_score,
+    money_left_on_table,
     registration_checklist_score,
     reject_claim,
     remove_split,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
+    set_fix_status,
     song_check_status,
     song_missing_issues,
     split_total_percentage,
@@ -83,8 +100,25 @@ def build_dashboard_context():
         earnings_trend, payout_calendar, catalog_value["mid"], total
     )
 
+    documents_vault = get_documents_vault(songs)
+    value_tracker = get_catalog_value_tracker(earnings_trend)
+
     return {
         "story": get_dashboard_story(total, missing_findings, catalog_value, smart_recommendations),
+        "money_left": money_left_on_table(missing_findings),
+        "fixes_queue": get_fixes_queue(catalog, songs, missing_findings),
+        "top_leaks": get_top_royalty_leaks(missing_findings),
+        "documents_vault": documents_vault,
+        "completeness_score": catalog_completeness_score(songs, catalog, documents_vault),
+        "releases": get_upcoming_releases(),
+        "forecast": get_royalty_forecast(earnings_trend),
+        "value_tracker": value_tracker,
+        "available_reports": get_available_reports(),
+        "since_last_login": get_since_last_login_summary(catalog, songs, value_tracker["pct_change"]),
+        "conflicts": get_rights_conflicts(songs),
+        "registration_wizards": [get_registration_wizard(s) for s in songs],
+        "wizard_targets": WIZARD_TARGETS,
+        "wizard_target_labels": WIZARD_TARGET_LABELS,
         "alerts": alerts,
         "smart_recommendations": smart_recommendations,
         "platform_catalog": catalog,
@@ -252,6 +286,36 @@ def create_app():
         if new_status is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "status": new_status})
+
+    @app.route("/fixes/<item_id>/status", methods=["POST"])
+    def update_fix_status(item_id):
+        data = request.get_json(silent=True) or {}
+        status = data.get("status")
+        result = set_fix_status(item_id, status)
+        if result is None:
+            return jsonify({"ok": False}), 400
+        return jsonify({"ok": True, "status": result})
+
+    @app.route("/songs/<song_id>/registration-wizard")
+    def registration_wizard(song_id):
+        song = get_song(song_id)
+        if song is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "wizard": get_registration_wizard(song)})
+
+    @app.route("/songs/<song_id>/registration-wizard/<target>/complete", methods=["POST"])
+    def complete_registration_wizard_step(song_id, target):
+        wizard = complete_registration_step(song_id, target)
+        if wizard is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "wizard": wizard})
+
+    @app.route("/reports/<report_id>/generate", methods=["POST"])
+    def generate_report_route(report_id):
+        report = generate_report(report_id)
+        if report is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "report": report})
 
     @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
     def resolve_alert(alert_id):

@@ -49,6 +49,23 @@ from royalty_data import (
     splits_fully_confirmed,
     total_royalties,
     upcoming_payout_total,
+    catalog_completeness_score,
+    complete_registration_step,
+    generate_report,
+    get_available_reports,
+    get_catalog_value_tracker,
+    get_documents_vault,
+    get_fixes_queue,
+    get_registration_wizard,
+    get_rights_conflicts,
+    get_royalty_forecast,
+    get_since_last_login_summary,
+    get_top_royalty_leaks,
+    get_upcoming_releases,
+    money_left_on_table,
+    reset_fix_status_state,
+    reset_registration_wizard_state,
+    set_fix_status,
 )
 
 
@@ -659,3 +676,166 @@ def test_dashboard_story_catalog_value_passthrough():
     assert story["catalog_value_low"] == 111.0
     assert story["catalog_value_mid"] == 222.0
     assert story["catalog_value_high"] == 333.0
+
+
+def test_money_left_on_table_buckets_by_confidence():
+    findings = [
+        Finding("a", "SrcA", "Issue A", 100.0, "High", "Fix A"),
+        Finding("b", "SrcB", "Issue B", 40.0, "Medium", "Fix B"),
+        Finding("c", "SrcC", "Issue C", 10.0, "Low", "Fix C"),
+    ]
+    result = money_left_on_table(findings)
+    assert result == {"high": 100.0, "medium": 40.0, "low": 10.0, "total": 150.0}
+
+
+def test_get_top_royalty_leaks_respects_limit():
+    catalog = get_platform_catalog()
+    findings = get_missing_royalty_findings(catalog)
+    top = get_top_royalty_leaks(findings, limit=2)
+    assert top == findings[:2]
+
+
+def test_get_fixes_queue_includes_all_categories():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    findings = get_missing_royalty_findings(catalog)
+    items = get_fixes_queue(catalog, songs, findings, limit=50)
+    categories = {item.category for item in items}
+    assert {"Royalty", "Metadata", "Registration", "Connection"} <= categories
+    assert all(item.status == "Open" for item in items)
+
+
+def test_get_fixes_queue_respects_limit():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    findings = get_missing_royalty_findings(catalog)
+    items = get_fixes_queue(catalog, songs, findings, limit=3)
+    assert len(items) == 3
+
+
+def test_set_fix_status_updates_and_reflects_in_queue():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    findings = get_missing_royalty_findings(catalog)
+    items = get_fixes_queue(catalog, songs, findings, limit=50)
+    try:
+        set_fix_status(items[0].id, "Complete")
+        updated = get_fixes_queue(catalog, songs, findings, limit=50)
+        match = next(i for i in updated if i.id == items[0].id)
+        assert match.status == "Complete"
+    finally:
+        reset_fix_status_state()
+
+
+def test_set_fix_status_rejects_invalid_status():
+    assert set_fix_status("some-id", "NotAStatus") is None
+
+
+def test_catalog_completeness_score_in_range():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    docs = get_documents_vault(songs)
+    score = catalog_completeness_score(songs, catalog, docs)
+    assert 0 <= score <= 100
+
+
+def test_catalog_completeness_score_empty_songs_is_zero():
+    catalog = get_platform_catalog()
+    docs = get_documents_vault([])
+    assert catalog_completeness_score([], catalog, docs) == 0
+
+
+def test_get_documents_vault_counts_missing():
+    songs = get_songs()
+    vault = get_documents_vault(songs)
+    velvet_entry = next(e for e in vault["entries"] if e["song"].id == "velvet-static")
+    assert velvet_entry["missing_count"] == len(velvet_entry["documents"])
+    assert 0.0 <= vault["completeness"] <= 1.0
+
+
+def test_get_upcoming_releases_have_future_dates():
+    from datetime import date
+    releases = get_upcoming_releases()
+    assert len(releases) >= 1
+    assert all(r.release_date > date.today() for r in releases)
+
+
+def test_get_royalty_forecast_expected_scales_with_horizon():
+    trend = [("Jan", 1000.0), ("Feb", 1000.0)]
+    forecast = get_royalty_forecast(trend)
+    assert forecast["expected"]["90_day"] == pytest.approx(forecast["expected"]["30_day"] * 3)
+    assert forecast["expected"]["12_month"] == pytest.approx(forecast["expected"]["30_day"] * 12)
+
+
+def test_get_catalog_value_tracker_scales_with_multiple():
+    trend = [("Jan", 1000.0), ("Feb", 2000.0)]
+    low = get_catalog_value_tracker(trend, multiple=12)
+    high = get_catalog_value_tracker(trend, multiple=24)
+    assert high["current_value"] == pytest.approx(low["current_value"] * 2)
+    assert high["available_multiples"] == [12, 15, 18, 24]
+
+
+def test_get_registration_wizard_reflects_song_registrations():
+    song = get_song("midnight-drive")
+    wizard = get_registration_wizard(song)
+    assert wizard["status"]["pro"] is True
+    assert wizard["status"]["tiktok_meta_rights"] is False
+    assert "publishing_admin" in wizard["missing"]
+
+
+def test_complete_registration_step_updates_status():
+    try:
+        result = complete_registration_step("midnight-drive", "publishing_admin")
+        assert result["status"]["publishing_admin"] is True
+        assert "publishing_admin" not in result["missing"]
+    finally:
+        reset_registration_wizard_state()
+
+
+def test_complete_registration_step_unknown_song_returns_none():
+    assert complete_registration_step("not-a-song", "pro") is None
+
+
+def test_complete_registration_step_unknown_target_returns_none():
+    assert complete_registration_step("midnight-drive", "not-a-target") is None
+
+
+def test_get_available_reports_have_ids_and_labels():
+    reports = get_available_reports()
+    assert len(reports) == 6
+    assert all("id" in r and "label" in r for r in reports)
+
+
+def test_generate_report_returns_metadata():
+    report = generate_report("royalty-report")
+    assert report["id"] == "royalty-report"
+    assert report["filename"].startswith("royalty-report-")
+
+
+def test_generate_report_unknown_id_returns_none():
+    assert generate_report("not-a-report") is None
+
+
+def test_get_since_last_login_summary_counts_connection_issues():
+    catalog = get_platform_catalog()
+    songs = get_songs()
+    summary = get_since_last_login_summary(catalog, songs, 5.0)
+    expected_issues = sum(1 for p in catalog if p.status in ("needs_login", "error"))
+    assert summary["connection_issues"] == expected_issues
+    assert summary["catalog_value_change_pct"] == 5.0
+
+
+def test_get_rights_conflicts_detects_missing_ownership():
+    songs = get_songs()
+    conflicts = get_rights_conflicts(songs)
+    assert any(c.conflict_type == "Missing Ownership Data" and "Velvet Static" in c.title for c in conflicts)
+
+
+def test_get_rights_conflicts_detects_disputed_publisher():
+    songs = get_songs()
+    conflicts = get_rights_conflicts(songs)
+    assert any(c.conflict_type == "Disputed Publisher Information" for c in conflicts)
+
+
+def test_get_rights_conflicts_empty_catalog():
+    assert get_rights_conflicts([]) == []
