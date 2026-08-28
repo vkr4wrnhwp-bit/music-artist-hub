@@ -22,7 +22,18 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
     reach: `/parts/${partId}/tooling?guide=tool-assignment`,
     corners: `/parts/${partId}/tooling?guide=tool-assignment`,
     tolerance: `/parts/${partId}/inspection?guide=inspection-plan`,
-    "inspection-capability": `/parts/${partId}/inspection?guide=inspection-plan`,
+    /*
+     * Capability and plan are different gates with different evidence, and
+     * they were pointed at the same page.
+     *
+     * The inspection PLAN gate is about sessions and readings, which live on
+     * the part. The CAPABILITY gate is a property of the instruments the shop
+     * owns — it moves when a more capable instrument is recorded, and nothing
+     * on the part's inspection page can move it. Sending a machinist there
+     * with a failing capability gate hands him the one screen that cannot
+     * help; the metrology library is where the answer is.
+     */
+    "inspection-capability": `/metrology`,
     inspection: `/parts/${partId}/inspection?guide=inspection-plan`,
     responsibility: `/parts/${partId}/responsibility`,
   };

@@ -52,12 +52,16 @@ test("the blocking tool-loading gate points at the changer, not at nothing", () 
   assert.equal(showMeHrefFor("p1", "tool-loading", "Tooling loaded"), "/machines");
 });
 
-test("substring matching cannot cross-wire the inspection family", () => {
-  // "inspection-capability" and "inspection" share a prefix; both must land
-  // on the inspection plan, and "tolerance" must not swallow either.
-  assert.match(showMeHrefFor("p1", "inspection-capability", "Inspection capability")!, /\/inspection\?/);
-  assert.match(showMeHrefFor("p1", "inspection", "Inspection plan")!, /\/inspection\?/);
-  assert.match(showMeHrefFor("p1", "tolerance", "Tolerance achievability")!, /\/inspection\?/);
+test("capability and plan are different gates and go to different scenes", () => {
+  // They share a prefix, and pointing both at the part's inspection page was
+  // wrong for the capability one: it is a property of the instruments the
+  // shop owns, and nothing on that page can change it. A machinist sent
+  // there with a failing capability gate gets the one screen that cannot
+  // help him.
+  assert.equal(showMeHrefFor("p1", "inspection-capability", "Inspection capability"), "/metrology");
+  // The plan gate is about sessions and readings, which do live on the part.
+  assert.match(showMeHrefFor("p1", "inspection", "Inspection plan")!, /\/parts\/p1\/inspection\?/);
+  assert.match(showMeHrefFor("p1", "tolerance", "Tolerance achievability")!, /\/parts\/p1\/inspection\?/);
 });
 
 test("an unknown gate returns null rather than a guessed page", () => {
