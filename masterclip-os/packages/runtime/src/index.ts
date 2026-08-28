@@ -97,7 +97,17 @@ export async function createRuntime(opts: CreateRuntimeOptions = {}): Promise<Ru
 
   // The mock provider is always registered: it is what makes the whole factory
   // exercisable with no credentials and no spend.
-  registry.register(createMockProvider({ ...deps, workDir: 'var/mock-provider' }))
+  // MOCK_GOOD_PATTERN lets demonstration capture art-direct the sandbox's
+  // non-defective takes. Unset — which is every normal run — the mock keeps its
+  // diagnostic colour bars.
+  const mockGoodPattern = process.env.MOCK_GOOD_PATTERN
+  registry.register(
+    createMockProvider({
+      ...deps,
+      workDir: 'var/mock-provider',
+      ...(mockGoodPattern === 'cinematic' ? { goodPattern: 'cinematic' as const } : {}),
+    }),
+  )
   if (!opts.mockOnly) {
     registry.register(createMuapiProvider({ ...deps, config }))
     registry.register(createGoogleProvider({ ...deps, config }))

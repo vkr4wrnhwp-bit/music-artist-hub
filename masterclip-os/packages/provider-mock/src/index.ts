@@ -46,6 +46,15 @@ export interface MockProviderOptions extends ProviderDeps {
   defectRate?: number
   /** Fraction of submissions that fail outright (provider-side error). */
   failureRate?: number
+  /**
+   * Pattern used for the takes that are *not* deliberately defective.
+   *
+   * Defaults to `motion` — diagnostic colour bars, chosen so a human can tell
+   * candidates apart at a glance. Demonstration capture sets `cinematic`
+   * instead, because colour bars misrepresent what the pipeline is for. Defect
+   * selection is unchanged either way, so QC still has real failures to catch.
+   */
+  goodPattern?: TestPattern
 }
 
 interface MockJobState {
@@ -186,6 +195,7 @@ export class MockProvider extends BaseProvider {
   private readonly latencyMs: number
   private readonly defectRate: number
   private readonly failureRate: number
+  private readonly goodPattern: TestPattern
   private readonly log: Logger
 
   constructor(opts: MockProviderOptions) {
@@ -194,6 +204,7 @@ export class MockProvider extends BaseProvider {
     this.latencyMs = opts.latencyMs ?? 1_500
     this.defectRate = clamp01(opts.defectRate ?? 0.25)
     this.failureRate = clamp01(opts.failureRate ?? 0.05)
+    this.goodPattern = opts.goodPattern ?? 'motion'
     this.log = opts.logger ?? silentLogger
   }
 
@@ -262,7 +273,7 @@ export class MockProvider extends BaseProvider {
       explicit ??
       (defectRoll < this.defectRate
         ? (DEFECT_PATTERNS[Math.floor(deterministicUnit(request.requestId, 'which') * DEFECT_PATTERNS.length)] ?? 'frozen')
-        : 'motion')
+        : this.goodPattern)
 
     const state: MockJobState = {
       externalJobId,

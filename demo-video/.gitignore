@@ -1,0 +1,4 @@
+node_modules/
+renders/
+recordings/*.webm
+public/recordings/

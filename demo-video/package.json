@@ -1,0 +1,24 @@
+{
+  "name": "masterclip-demo-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable product-demo film system: Playwright capture + Remotion composition.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:hero": "remotion render src/index.ts HeroLandscape renders/hero-landscape.mp4",
+    "render:sales": "remotion render src/index.ts SalesLandscape renders/sales-landscape.mp4",
+    "render:social": "remotion render src/index.ts SocialVertical renders/social-vertical.mp4",
+    "render:clean": "remotion render src/index.ts CleanScreenOnly renders/clean-screen-only.mp4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.518",
+    "@remotion/cli": "^4.0.518",
+    "@remotion/renderer": "^4.0.518",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.518",
+    "typescript": "^5.9.3"
+  }
+}
