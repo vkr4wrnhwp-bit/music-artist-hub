@@ -1,0 +1,23 @@
+{
+  "name": "mx-lab",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MX LAB \u2014 Vortex-first motocross mapping, telemetry, and AI race-engineering platform (Phase 1, simulation-only)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @mxlab/web",
+    "build": "npm run build -w @mxlab/web",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/domain && tsc -p apps/web --noEmit && tsc -p apps/server",
+    "server": "npm run server -w @mxlab/server",
+    "demo": "npm run build -w @mxlab/web && node scripts/demo.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}

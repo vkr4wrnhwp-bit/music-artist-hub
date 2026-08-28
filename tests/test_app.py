@@ -285,3 +285,18 @@ def test_dashboard_includes_story_hero():
     assert "What your catalog may be worth" in body
     assert "The next move" in body
     assert 'id="story-next-move"' in body
+
+
+def test_every_page_labels_the_data_as_a_demonstration():
+    """The figures are hardcoded samples; no screen may present them as real."""
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Demonstration data" in body
+    assert "not a real royalty balance" in body
+
+
+def test_dashboard_does_not_claim_live_data():
+    client = create_app().test_client()
+    body = client.get("/dashboard").get_data(as_text=True)
+    assert "Live royalty telemetry" not in body
+    assert "demonstration data, not connected to your accounts" in body
