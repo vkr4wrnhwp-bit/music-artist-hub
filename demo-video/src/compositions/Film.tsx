@@ -31,8 +31,11 @@ const VerticalScene: React.FC<{ scene: Scene; index: number; total: number }> = 
   if (scene.kind === 'close') return <CloseScene scene={scene} />
   return (
     <Ground>
-      <AbsoluteFill style={{ flexDirection: 'column', justifyContent: 'center', gap: 56 }}>
-        <div style={{ width: '100%', height: 620, padding: '0 40px' }}>
+      <AbsoluteFill style={{ flexDirection: 'column', justifyContent: 'center', gap: 64, paddingTop: 40 }}>
+        {/* Tall enough to own the frame: an earlier pass left ~470px of dead
+            air top and bottom, which reads as a landscape cut dropped into a
+            vertical canvas rather than a composition made for it. */}
+        <div style={{ width: '100%', height: 900, padding: '0 32px' }}>
           <ScreenPlate
             clip={scene.clip!}
             durationInFrames={durationInFrames}
@@ -41,7 +44,7 @@ const VerticalScene: React.FC<{ scene: Scene; index: number; total: number }> = 
             startFromS={scene.startFromS}
           />
         </div>
-        <div style={{ padding: `0 72px` }}>
+        <div style={{ padding: '0 64px' }}>
           <div style={{
             fontFamily: brand.font.display, fontWeight: 700, fontSize: 60, lineHeight: 1.1,
             color: brand.color.text, textWrap: 'balance',
