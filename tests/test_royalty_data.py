@@ -8,6 +8,8 @@ from royalty_data import (
     PlatformConnection,
     CLAIM_PIPELINE,
     Alert,
+    Finding,
+    Recommendation,
     ScheduledPayout,
     Song,
     SplitEntry,
@@ -16,6 +18,7 @@ from royalty_data import (
     assess_advance_eligibility,
     estimate_catalog_value,
     get_claims,
+    get_dashboard_story,
     get_song_splits,
     live_song,
     remove_split,
@@ -615,3 +618,44 @@ def test_reset_split_state_restores_original():
         assert len(song.splits) == 3
     finally:
         reset_split_state()
+
+
+def test_dashboard_story_sums_missing_total():
+    findings = [
+        Finding("a", "SrcA", "Issue A", 100.0, "High", "Fix A"),
+        Finding("b", "SrcB", "Issue B", 50.0, "Medium", "Fix B"),
+    ]
+    catalog_value = {"low": 1000.0, "mid": 2000.0, "high": 3000.0}
+    story = get_dashboard_story(500.0, findings, catalog_value, [])
+    assert story["made"] == 500.0
+    assert story["missing_total"] == 150.0
+    assert story["missing_count"] == 2
+
+
+def test_dashboard_story_picks_top_finding_and_recommendation():
+    findings = [
+        Finding("a", "SrcA", "Biggest Issue", 900.0, "High", "Fix A"),
+        Finding("b", "SrcB", "Smaller Issue", 50.0, "Medium", "Fix B"),
+    ]
+    recs = [Recommendation("r1", "Top reason", "High", 900.0, "Do it", "alert", "a")]
+    catalog_value = {"low": 1000.0, "mid": 2000.0, "high": 3000.0}
+    story = get_dashboard_story(500.0, findings, catalog_value, recs)
+    assert story["top_finding"].issue_type == "Biggest Issue"
+    assert story["top_recommendation"].reason == "Top reason"
+
+
+def test_dashboard_story_handles_no_findings_or_recommendations():
+    catalog_value = {"low": 0.0, "mid": 0.0, "high": 0.0}
+    story = get_dashboard_story(0.0, [], catalog_value, [])
+    assert story["missing_total"] == 0.0
+    assert story["missing_count"] == 0
+    assert story["top_finding"] is None
+    assert story["top_recommendation"] is None
+
+
+def test_dashboard_story_catalog_value_passthrough():
+    catalog_value = {"low": 111.0, "mid": 222.0, "high": 333.0}
+    story = get_dashboard_story(0.0, [], catalog_value, [])
+    assert story["catalog_value_low"] == 111.0
+    assert story["catalog_value_mid"] == 222.0
+    assert story["catalog_value_high"] == 333.0

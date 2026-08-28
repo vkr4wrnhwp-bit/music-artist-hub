@@ -8,6 +8,7 @@ from royalty_data import (
     assess_advance_eligibility,
     estimate_catalog_value,
     get_claims,
+    get_dashboard_story,
     get_earnings_trend,
     get_health_factors,
     get_health_recommendations,
@@ -73,6 +74,8 @@ def build_dashboard_context():
     payout_calendar = get_payout_calendar()
     claims = get_claims(catalog)
     alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
+    smart_recommendations = get_smart_recommendations(alerts, songs)
+    missing_findings = get_missing_royalty_findings(catalog)
 
     earnings_trend = get_earnings_trend()
     catalog_value = estimate_catalog_value(earnings_trend)
@@ -81,8 +84,9 @@ def build_dashboard_context():
     )
 
     return {
+        "story": get_dashboard_story(total, missing_findings, catalog_value, smart_recommendations),
         "alerts": alerts,
-        "smart_recommendations": get_smart_recommendations(alerts, songs),
+        "smart_recommendations": smart_recommendations,
         "platform_catalog": catalog,
         "health_score": royalty_health_score(health_factors),
         "health_factors": health_factors,
