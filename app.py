@@ -8,7 +8,10 @@ from royalty_data import (
     assess_advance_eligibility,
     catalog_completeness_score,
     complete_registration_step,
+    COLLABORATOR_ROLES,
     estimate_catalog_value,
+    get_collaborators,
+    invite_collaborator,
     generate_report,
     get_available_reports,
     get_catalog_value_tracker,
@@ -44,11 +47,13 @@ from royalty_data import (
     money_left_on_table,
     registration_checklist_score,
     reject_claim,
+    remove_collaborator,
     remove_split,
     royalty_health_score,
     royalty_progress,
     set_connection_status,
     set_fix_status,
+    update_collaborator_role,
     song_check_status,
     song_missing_issues,
     split_total_percentage,
@@ -119,6 +124,8 @@ def build_dashboard_context():
         "registration_wizards": [get_registration_wizard(s) for s in songs],
         "wizard_targets": WIZARD_TARGETS,
         "wizard_target_labels": WIZARD_TARGET_LABELS,
+        "collaborators": get_collaborators(),
+        "collaborator_roles": COLLABORATOR_ROLES,
         "alerts": alerts,
         "smart_recommendations": smart_recommendations,
         "platform_catalog": catalog,
@@ -332,6 +339,33 @@ def create_app():
         if report is None:
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True, "report": report})
+
+    @app.route("/collaborators/invite", methods=["POST"])
+    def invite_collaborator_route():
+        data = request.get_json(silent=True) or {}
+        name = (data.get("name") or "").strip()
+        email = (data.get("email") or "").strip()
+        role = data.get("role")
+        songs = data.get("songs") or []
+        collaborator = invite_collaborator(name, email, role, songs)
+        if collaborator is None:
+            return jsonify({"ok": False, "error": "Invalid name, email, or role"}), 400
+        return jsonify({"ok": True, "collaborator": asdict(collaborator)})
+
+    @app.route("/collaborators/<collaborator_id>/role", methods=["POST"])
+    def update_collaborator_role_route(collaborator_id):
+        data = request.get_json(silent=True) or {}
+        collaborator = update_collaborator_role(collaborator_id, data.get("role"))
+        if collaborator is None:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True, "collaborator": asdict(collaborator)})
+
+    @app.route("/collaborators/<collaborator_id>/remove", methods=["POST"])
+    def remove_collaborator_route(collaborator_id):
+        removed = remove_collaborator(collaborator_id)
+        if not removed:
+            return jsonify({"ok": False}), 404
+        return jsonify({"ok": True})
 
     @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
     def resolve_alert(alert_id):
