@@ -5,6 +5,13 @@ reads the blueprint at the repository root. These tests keep that file honest:
 each product stays declared, and REACH's standalone copy — kept for a future
 repository split — cannot silently drift away from the definition that really
 deploys.
+
+They also keep MASTERCLIP OS *out*. It has its own repository and its own
+blueprint; it was once vendored here as masterclip-os/ and deployed from this
+file, which meant production ran whatever had last been hand-copied across.
+That copy fell six days and seventeen packages behind before anyone noticed.
+`test_masterclip_is_not_vendored_back` is what makes re-adding it fail loudly
+rather than quietly restart the treadmill.
 """
 
 from pathlib import Path
@@ -23,7 +30,6 @@ def test_every_product_has_a_service():
     assert set(services) == {
         "trace",
         "reach",
-        "masterclip",
         "royalty-sweep",
         "holeshot-tuner",
     }
@@ -52,4 +58,25 @@ def test_reach_standalone_copy_matches_the_deploying_definition():
     assert standalone == deploying, (
         "reach-app/render.yaml has drifted from the root blueprint — "
         "the root file is the one Render reads"
+    )
+
+
+def test_masterclip_is_not_vendored_back():
+    """MASTERCLIP OS is its own repository; a copy here is the bug, not the fix.
+
+    Deploying it from this repo means every upstream commit reaches production
+    only once a human remembers to copy it. That is how the directory came to
+    be six days and seventeen whole packages behind the product (#55), and how
+    a cost-control fix ended up in the copy while the live service shipped
+    without it. If this fails, delete the directory rather than the test.
+    """
+    assert not (ROOT / "masterclip-os").exists(), (
+        "masterclip-os/ is back. It belongs to "
+        "github.com/vkr4wrnhwp-bit/masterclip-os, which deploys from its own "
+        "render.yaml; a copy here can only drift from it."
+    )
+    names = {s["name"] for s in _blueprint("render.yaml")["services"]}
+    assert "masterclip" not in names, (
+        "the masterclip service is back in this blueprint — it is declared in "
+        "the masterclip-os repository's own render.yaml"
     )

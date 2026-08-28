@@ -8,9 +8,16 @@
 #
 #   trace          — mx-lab/         motocross session tracking (Node)
 #   reach          — reach-app/      music discovery and outreach (Python)
-#   masterclip     — masterclip-os/  cinematic AI-video render factory (Docker)
 #   royalty-sweep  — repo root/      royalty dashboard (Python/Flask)
 #   holeshot-tuner — fuel-map-tool/  single-file fuel-map worksheet (static)
+#
+# MASTERCLIP OS is deliberately not here. It lives in its own repository,
+# github.com/vkr4wrnhwp-bit/masterclip-os, and is deployed from that repo's own
+# render.yaml. It used to be built from a masterclip-os/ directory here, which
+# meant every upstream commit had to be hand-copied into this repo before it
+# reached production; the copy silently fell six days and seventeen packages
+# behind once (see #55), and a cost-control fix later sat in the copy while the
+# real product shipped without it. One product, one repo, one blueprint.
 #
 # Details: mx-lab/docs/architecture/deployment.md, reach-app/README.md and
 # DEPLOY.md (which app is which, and what each costs to run).
@@ -80,81 +87,6 @@ services:
       name: reach-data
       mountPath: /var/data
       sizeGB: 1
-
-  # MASTERCLIP OS — cinematic AI-video render factory.
-  #
-  # Docker rather than the native Node runtime because ffmpeg and ffprobe are
-  # load-bearing here, not incidental: they render, probe, measure and transcode
-  # on the critical path, and QC is meaningless without them. The Dockerfile
-  # installs them properly instead of smuggling a static binary into a runtime
-  # that has no package manager.
-  #
-  # One container runs both processes. Generation never happens inside an HTTP
-  # request — the API queues work and a worker performs it — so a deployment
-  # that started only the API would accept renders and never run them.
-  # scripts/serve.mjs starts the worker and the API together and exits if either
-  # dies, so the platform restarts a half-running factory rather than leaving it
-  # accepting work it cannot do.
-  - type: web
-    name: masterclip
-    runtime: docker
-    rootDir: masterclip-os
-    dockerfilePath: ./Dockerfile
-    plan: starter # a paid instance is required for the disk below, and rendered
-    # video needs somewhere durable to live. On the free plan, delete the `disk:`
-    # block and the two /var/data paths: everything still runs, but the database
-    # and every rendered clip vanish on each deploy, restart and spin-down.
-    healthCheckPath: /api/health
-    # `rootDir` already stops a change under reach-app/ or mx-lab/ from
-    # rebuilding this service. What it does not stop is a documentation edit
-    # inside masterclip-os/ triggering the full ffmpeg-and-27-packages image
-    # build, which is several minutes of builder time to publish a paragraph.
-    # Build filter paths are relative to the repo root even though rootDir is
-    # set, so they are spelled out in full here.
-    buildFilter:
-      paths:
-        - masterclip-os/**
-      ignoredPaths:
-        - masterclip-os/docs/**
-        - masterclip-os/*.md
-        - masterclip-os/**/*.md
-    envVars:
-      # Render terminates TLS and proxies, so X-Forwarded-For is written by a
-      # proxy we control and can be believed. Without this every visitor shares
-      # one rate-limit bucket, because Fastify would report the proxy's address
-      # for all of them. It defaults to off precisely so that trusting it is a
-      # deliberate statement about the deployment.
-      - key: TRUST_PROXY
-        value: "true"
-      # The database and every rendered clip, thumbnail and master, on the disk
-      # mounted below so they outlive the container.
-      - key: SQLITE_PATH
-        value: /var/data/masterclip.sqlite
-      - key: STORAGE_LOCAL_ROOT
-        value: /var/data/storage
-      # SESSION_SECRET signs CSRF tokens. The session cookie itself is an
-      # opaque random token, so rotating this logs nobody out. The other one
-      # signs media URLs, and rotating that does invalidate every outstanding
-      # link. Render generates each once and keeps it. Neither may be blank:
-      # under NODE_ENV=production the application refuses to start rather than
-      # fall back to a value published in this repository.
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: ASSET_SIGNING_SECRET
-        generateValue: true
-      # The owner account, created at boot before anything is listening. The
-      # first account to reach /api/auth/signup bootstraps the organization and
-      # closes signup behind itself, which on a public URL is a race against the
-      # internet; seeding first means that race is already over. Render prompts
-      # for both when the blueprint is synced.
-      - key: SEED_EMAIL
-        sync: false
-      - key: SEED_PASSWORD
-        sync: false
-    disk:
-      name: masterclip-data
-      mountPath: /var/data
-      sizeGB: 5
 
   # ROYALTY SWEEP — the royalty dashboard that this repository started as.
   # Lives at the repository root (app.py + templates/ + royalty_data.py), so it

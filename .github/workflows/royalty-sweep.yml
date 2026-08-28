@@ -1,0 +1,52 @@
+# Royalty Sweep — the Flask royalty dashboard at the repository root.
+#
+# One workflow per product, each filtered to that product's paths, so a change
+# to REACH or TRACE does not run this suite and this suite does not gate their
+# pull requests. render.yaml is in the filter because tests/ contains the
+# blueprint guards, which are the only tests that read it.
+#
+# The path lists are duplicated between the two triggers rather than shared by
+# a YAML anchor: the Actions workflow parser does not resolve anchors.
+name: Royalty Sweep
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app.py
+      - royalty_data.py
+      - music_utils/**
+      - templates/**
+      - tests/**
+      - requirements.txt
+      - requirements-dev.txt
+      - pyproject.toml
+      - render.yaml
+      - .github/workflows/royalty-sweep.yml
+  pull_request:
+    paths:
+      - app.py
+      - royalty_data.py
+      - music_utils/**
+      - templates/**
+      - tests/**
+      - requirements.txt
+      - requirements-dev.txt
+      - pyproject.toml
+      - render.yaml
+      - .github/workflows/royalty-sweep.yml
+
+jobs:
+  test:
+    name: tests & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: python -m pytest -q
