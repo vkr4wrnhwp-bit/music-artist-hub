@@ -220,7 +220,7 @@ export async function extractAudio(videoPath: string, destPath: string, opts: Ru
   return destPath
 }
 
-export type TestPattern = 'motion' | 'black' | 'frozen' | 'truncated' | 'low_bitrate' | 'wrong_duration'
+export type TestPattern = 'motion' | 'cinematic' | 'black' | 'frozen' | 'truncated' | 'low_bitrate' | 'wrong_duration'
 
 export interface TestVideoOptions extends RunOptions {
   width: number
@@ -313,6 +313,53 @@ export async function generateTestVideo(destPath: string, opts: TestVideoOptions
       // Cut the tail so the moov/mdat pairing is incomplete: a real truncated download.
       await truncate(destPath, Math.max(1024, Math.floor(info.size * 0.55)))
       return destPath
+    }
+
+    case 'cinematic': {
+      // A night exterior: neon key, its reflection in wet ground, sodium spill
+      // from off-frame, drifting handheld float and grain.
+      //
+      // Every other pattern here is a *diagnostic* — colour bars chosen so a
+      // human can tell candidates apart, and defects chosen so QC can be proven
+      // to catch them. This one exists for demonstration capture, where colour
+      // bars misrepresent what the pipeline is for. It is still synthetic and
+      // still costs nothing; it is selected explicitly via
+      // `metadata.mock_pattern`, never at random, so no default behaviour
+      // changes and nothing about the shipped pipeline is faked.
+      const neon = `0x${['ff6ec7', 'ff8ad4', 'e45cb0', 'ff5cb0'][seed % 4]}`
+      const reflect = `0x${['93265f', 'a02d6b', '7d2050', '8e2266'][seed % 4]}`
+      const drift = 0.4 + (seed % 3) * 0.15
+      return ffmpeg(
+        [
+          '-f', 'lavfi', '-i', `gradients=s=${width}x${height}:r=${fps}:d=${duration}:c0=0x4a1440:c1=0x06050c:x0=${Math.round(width * 0.23)}:y0=${Math.round(height * 0.12)}:x1=${Math.round(width * 0.91)}:y1=${Math.round(height * 0.98)}:nb_colors=2:speed=0.02`,
+          '-f', 'lavfi', '-i', `gradients=s=${width}x${height}:r=${fps}:d=${duration}:c0=0xd4832a:c1=0x000000:x0=${width}:y0=${Math.round(height * 0.58)}:x1=${Math.round(width * 0.65)}:y1=${Math.round(height * 0.29)}:nb_colors=2:speed=0.015`,
+          ...(opts.withAudio ? ['-f', 'lavfi', '-i', `sine=frequency=${110 + (seed % 5) * 40}:duration=${duration}`] : []),
+          '-filter_complex',
+          [
+            '[0:v]format=gbrp[base]',
+            '[base][1:v]blend=all_mode=screen:all_opacity=0.38[lit]',
+            `color=c=black:s=${width}x${height}:r=${fps}:d=${duration},` +
+              `drawbox=x=${Math.round(width * 0.31)}:y=${Math.round(height * 0.18)}:w=${Math.round(width * 0.33)}:h=${Math.round(height * 0.042)}:color=${neon}@1:t=fill,` +
+              `drawbox=x=${Math.round(width * 0.28)}:y=${Math.round(height * 0.62)}:w=${Math.round(width * 0.38)}:h=${Math.round(height * 0.108)}:color=${reflect}@1:t=fill,` +
+              `boxblur=${Math.max(4, Math.round(width / 55))}:1:${Math.max(6, Math.round(height / 22))}:1[signs]`,
+            `color=c=black:s=${width}x${height}:r=${fps}:d=${duration},` +
+              "geq=lum='if(lt(mod(X*11+Y*5\,131)\,2)\,190\,0)':cb=128:cr=128," +
+              'boxblur=0:0:8:1,format=gray[streak]',
+            '[lit][signs]blend=all_mode=screen[a]',
+            '[a][streak]blend=all_mode=screen:all_opacity=0.13[b]',
+            `[b]crop=in_w-16:in_h-16:8+3*sin(t*${drift}):8+2*cos(t*${drift * 0.8}),scale=${width}:${height},` +
+              'vignette=PI/3.6,eq=contrast=1.18:saturation=1.28:brightness=-0.01,' +
+              'noise=alls=3:allf=t,format=yuv420p[out]',
+          ].join(';'),
+          '-map', '[out]',
+          ...(opts.withAudio ? ['-map', '2:a'] : []),
+          '-t', duration.toFixed(3),
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+          ...(opts.withAudio ? ['-c:a', 'aac', '-b:a', '128k', '-shortest'] : ['-an']),
+          destPath,
+        ],
+        opts,
+      ).then(() => destPath)
     }
 
     case 'motion':

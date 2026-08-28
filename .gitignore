@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 test-results/
+
+# Demo film system: generated audio and captured footage are rebuildable.
+demo-video/audio/*.wav
