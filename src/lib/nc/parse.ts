@@ -185,6 +185,27 @@ export function parseNC(text: string): ParsedNC {
     }
 
     if (!hasCoord || motion === null) continue;
+
+    /*
+     * A cutting move with no feed rate anywhere before it.
+     *
+     * The control would alarm on this; CANVAS used to emit the segment with
+     * a null feed, and everything downstream reads null as "rapid" — so a
+     * feed move was timed at the machine's rapid rate, the fastest number
+     * available. On a two-move program that was 0.004 minutes against 0.22:
+     * fifty-five times under, silently, with no assumption naming it.
+     *
+     * There is no honest number to substitute. The feed is the operator's
+     * decision and it is simply not in the file.
+     */
+    if ((motion === 1 || motion === 2 || motion === 3) && feed === null) {
+      refusals.push({
+        line: lineNo,
+        reason: "Cutting move with no feed rate — no F word on this line and none set earlier in the program. CANVAS will not time a cut at a guessed feed.",
+      });
+      break;
+    }
+
     if (plane !== 17 && (motion === 2 || motion === 3)) {
       refusals.push({ line: lineNo, reason: "Arc outside G17 (XY) plane — not supported in V1" });
       break;

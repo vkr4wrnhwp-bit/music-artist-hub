@@ -319,3 +319,31 @@ test("an unknown G-code with no coordinates of its own is only a warning", () =>
   assert.deepEqual(p.refusals, []);
   assert.ok(p.segments.some((s) => s.kind === "CUT"));
 });
+
+test("a cut with no feed rate is refused, not timed at the rapid rate", () => {
+  // Null feed reads as "rapid" everywhere downstream, so a feed move with
+  // no F was timed at the machine's rapid rate — the fastest number
+  // available. On a two-move program that is 0.004 minutes against 0.22:
+  // fifty-five times under, silently, with no assumption naming it. There
+  // is no honest number to substitute; the feed is simply not in the file.
+  const p = parseNC("G20 G90\nG00 X0 Y0 Z0.1\nG01 Z-0.1\nG01 X2.0\nM30");
+  assert.equal(p.refusals.length, 1);
+  assert.match(p.refusals[0].reason, /no feed rate/i);
+  assert.deepEqual(p.segments.filter((s) => s.kind === "CUT"), []);
+});
+
+test("feed stays modal across a tool change, and tapping is exempt", () => {
+  // The refusal must not fire on legitimate modal feed: an F set for tool 1
+  // still applies to tool 2 unless the program changes it.
+  const modal = parseNC(
+    "G20 G90\nT1 M06\nG00 X0 Y0 Z0.1\nG01 Z-0.1 F12.\nG01 X2.\nT2 M06\nG00 X0 Y1 Z0.1\nG01 Z-0.1\nG01 X2.\nM30",
+  );
+  assert.deepEqual(modal.refusals, []);
+  assert.equal(modal.segments.filter((s) => s.kind === "CUT").length, 4);
+
+  // A rigid tap's feed is the thread, and the cycle handles it — the
+  // refusal is scoped to G01/G02/G03 and must not catch it.
+  const tap = parseNC("G20 G90\nT3 M06\nS500 M03\nG00 X1 Y1 Z0.5\nG84 Z-0.5 R0.1 F25.\nX2.0\nG80\nM30");
+  assert.deepEqual(tap.refusals, []);
+  assert.ok(tap.segments.some((s) => s.tapping));
+});
