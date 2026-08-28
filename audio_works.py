@@ -310,9 +310,91 @@ def submit_work(work_id, partner_id=None, member=None, adapter_key=None):
     job = submission.job
     result = (job or {}).get("result") or {}
     status = "ready" if job.get("status") == "completed" else "queued"
+
+    # Keep whatever came back. Without this the column exists, the item page
+    # reads it, and every byte a provider returned is thrown away the moment
+    # the request ends - so a separated stem had nowhere to go and nothing to
+    # go there with.
+    outputs = harvest_outputs(work, result, partner_id)
+
     set_status(work_id, status, partner_id, job_id=job["id"],
-               is_mock=bool(result.get("is_mock")))
+               is_mock=bool(result.get("is_mock")),
+               output_asset_ids=outputs or None)
     return get_work(work_id, partner_id), result
+
+
+# Result shapes differ per capability, so the harvester names them rather
+# than guessing: a stem separation returns a LIST, everything else returns one
+# blob under "audio".
+def _audio_parts(result):
+    """[(label, bytes, mime)] for whatever this result actually carries."""
+    parts = []
+    for stem in (result.get("stems") or []):
+        parts.append(((stem.get("name") or "stem"), stem.get("audio"),
+                      stem.get("mime_type") or "audio/wav"))
+    if result.get("audio"):
+        label = result.get("language") or "output"
+        parts.append((label, result.get("audio"),
+                      result.get("mime_type") or "audio/wav"))
+    return parts
+
+
+def harvest_outputs(work, result, partner_id=None):
+    """Store what a provider returned as retrievable assets.
+
+    Empty audio is SKIPPED rather than stored. The mock adapters return
+    correctly-shaped results with no bytes - deliberately, so a demo cannot be
+    mistaken for real work - and writing those as files would leave an artist
+    with a Vault full of silent stems that look like output.
+    """
+    import audio_retention
+    import audio_store as astore
+    import blob_store
+
+    parts = [(label, blob, mime) for label, blob, mime in _audio_parts(result)
+             if blob]
+    if not parts:
+        return []
+
+    stored = []
+    for label, blob, mime in parts:
+        ext = "wav" if "wav" in (mime or "") else "mp3"
+        name = "%s_%s.%s" % (work["kind"], _safe(label), ext)
+        try:
+            path = _save_output(name, blob, mime)
+        except Exception:
+            continue
+        stored.append(astore.create_asset(
+            partner_id, work["user_id"], path,
+            file_name=name, mime_type=mime, file_size=len(blob),
+            asset_type="generated",
+            retention_days=audio_retention.retention_days(partner_id, "generated")))
+    return stored
+
+
+def _safe(label):
+    keep = [c if (c.isalnum() or c in "-_") else "-" for c in (label or "out")]
+    return "".join(keep).strip("-").lower()[:40] or "out"
+
+
+def _save_output(name, blob, mime):
+    """Private storage, never the public uploads tree - a separated vocal is
+    the artist's master, taken apart."""
+    import os
+    import time
+
+    import blob_store
+    fname = "out_%d_%s" % (int(time.time() * 1000), name)
+    if blob_store.configured():
+        try:
+            if blob_store.put("studio/" + fname, blob, mime):
+                return blob_store.PREFIX + "studio/" + fname
+        except Exception:
+            pass
+    import audio_studio
+    with open(os.path.join(audio_studio._studio_dir(), fname), "wb") as handle:
+        handle.write(blob)
+    return audio_studio.STUDIO_PREFIX + fname
 
 
 def _build_request(work, capability, ap):

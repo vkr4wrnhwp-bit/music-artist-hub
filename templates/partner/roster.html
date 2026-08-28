@@ -1,17 +1,60 @@
 {% extends "partner/_shell.html" %}
 {% block partner_body %}
 <section class="rounded-xl border border-sb-line bg-sb-surface-1 p-5">
-  <h2 class="mb-3 font-mono text-xs uppercase tracking-[0.16em] text-sb-gold">Roster</h2>
+  <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+    <h2 class="font-mono text-xs uppercase tracking-[0.16em] text-sb-gold">Roster</h2>
+    {% if roster %}
+      <span class="font-mono text-xs text-sb-ink-3">
+        {{ roster|length }} artist{{ "" if roster|length == 1 else "s" }}
+      </span>
+    {% endif %}
+  </div>
+
   {% if roster %}
     <ul class="space-y-2">
       {% for a in roster %}
-        <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-sb-line bg-black/20 px-3 py-2">
-          <span class="text-sm font-semibold text-sb-ink">{{ a.name }}</span>
-          <span class="font-mono text-xs text-sb-ink-3">{{ a.email }}</span>
-          <span class="ml-auto font-mono text-xs text-sb-ink-2">{{ a.plan }}</span>
+        <li class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span class="text-sm font-semibold text-sb-ink">{{ a.name }}</span>
+            <span class="font-mono text-xs text-sb-ink-3">{{ a.email }}</span>
+            <span class="ml-auto font-mono text-xs text-sb-ink-2">{{ a.plan }}</span>
+          </div>
+
+          {# What a partner decides against: has this account been used, and
+             is there anything in it. A list of names alone answers neither. #}
+          <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-sb-ink-3">
+            {% if a.never_signed_in %}
+              <span class="text-sb-gold">never signed in</span>
+            {% else %}
+              <span>last seen {{ (a.last_seen or "")[:10] }}</span>
+            {% endif %}
+            {# None means the module has no table on this deployment - not the
+               same as an artist with nothing, so it is not shown as a zero. #}
+            {% if a.songs is not none %}<span>{{ a.songs }} songs</span>{% endif %}
+            {% if a.links is not none %}<span>{{ a.links }} smart links</span>{% endif %}
+
+            {% if can('act_as_artist') %}
+              <form method="post" action="/partner/act/{{ a.id }}" class="ml-auto"
+                    onsubmit="return confirm('Open {{ a.name }}’s workspace? Everything you do there is recorded against your name.');">
+                <button type="submit"
+                        class="rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2 hover:text-sb-ink">
+                  Open workspace
+                </button>
+              </form>
+            {% endif %}
+          </div>
         </li>
       {% endfor %}
     </ul>
+
+    {% if can('act_as_artist') %}
+      <p class="mt-4 max-w-2xl text-xs text-sb-ink-3">
+        Opening a workspace puts you inside that artist's account. Every page
+        will say so while you are there, and the start, the end and your name
+        are written to the <a class="underline" href="/partner/audit">audit
+        trail</a> — which the artist is entitled to see.
+      </p>
+    {% endif %}
   {% else %}
     <p class="text-sm text-sb-ink-2">Nobody on the roster yet.</p>
   {% endif %}

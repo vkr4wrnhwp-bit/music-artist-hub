@@ -1828,8 +1828,12 @@ def _tour_dir():
 
 @bp.errorhandler(413)
 def _too_large(_err):
-    """A body over the request ceiling is refused by Werkzeug before the
-    handler runs; say so in the app's own voice rather than a bare 413."""
+    """Say so in the app's own voice rather than a bare 413.
+
+    Reached two ways: Werkzeug refusing a body over the app-wide ceiling
+    before any handler runs, and _store_upload refusing one over this
+    module's own smaller MAX_UPLOAD after it does.
+    """
     return render_template("tour/too_large.html", limit_mb=MAX_UPLOAD // (1024 * 1024),
                            active_page="tours"), 413
 
@@ -1840,8 +1844,15 @@ def _store_upload(tour, viewer, up, entity_type, entity_id, category, visibility
     if ext not in ALLOWED_FILE_EXTS:
         return None
     data = up.read(MAX_UPLOAD + 1)
-    if not data or len(data) > MAX_UPLOAD:
+    if not data:
         return None
+    if len(data) > MAX_UPLOAD:
+        # Raised rather than returned: this check only became reachable when
+        # the app's request ceiling was lifted above MAX_UPLOAD. Before that
+        # Werkzeug refused the body first and _too_large explained it, and
+        # returning None here instead would drop the file with a redirect and
+        # no message at all - the upload would look like it had worked.
+        abort(413)
     fname = "%s%s" % (uuid.uuid4().hex, ext)
     path = None
     if blob_store.configured():

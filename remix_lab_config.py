@@ -83,7 +83,10 @@ LIKENESS_CHECKBOX = ("I understand Remix Lab will not generate outputs using "
                      "style.")
 
 UPLOAD_FORMATS = [".wav", ".mp3", ".aiff", ".flac"]
-UPLOAD_MAX_MB = 250
+# Must stay UNDER app.config['MAX_CONTENT_LENGTH'] (210 MB): Werkzeug
+# rejects the request before this module ever sees it, so a higher
+# number here is advertised and never enforced.
+UPLOAD_MAX_MB = 200
 
 STEM_OPTIONS = ["Vocal", "Instrumental", "Drums", "Bass", "Other"]
 

@@ -17,7 +17,7 @@ HUBS = [
         ("artist-twin", "/artist-twin", "M10 3a4 4 0 100 8 4 4 0 000-8z|M4 17c0-3 2.5-5 6-5s6 2 6 5M14 4l1 1 2-2", "Artist Twin", "The strategist read on your next best moves."),
     ]),
     ("studio", "Studio & Assets", "Make the record and keep its paperwork straight — audio, art, files, and passports.", [
-        ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Real browser DSP: EQ, tube, comp, hooks, WAV export."),
+        ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Mix and master in the browser: EQ, tube, compressor, LUFS loudness against platform targets, WAV export."),
         ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, a measured remix brief back."),
         ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),

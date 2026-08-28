@@ -29,8 +29,8 @@ path in development rather than in production.
 import os
 import time
 
-from flask import (Blueprint, abort, redirect, render_template, request,
-                   send_file, url_for)
+from flask import (Blueprint, abort, jsonify, redirect, render_template,
+                   request, send_file, url_for)
 
 import audio_policy
 import audio_retention
@@ -111,8 +111,14 @@ def _on(flag, kind=None):
 
 def _needed_flags(lane_flag, kind):
     """Every flag this lane actually needs, so the page can name all of them
-    rather than the first one somebody thought of."""
-    names = [lane_flag]
+    rather than the first one somebody thought of.
+
+    AUDIO_INTELLIGENCE_ENABLED is listed FIRST because _on() checks it before
+    anything else. It used to be left out, which made these instructions
+    complete-looking and wrong: an operator could set every flag the page named
+    and still find all six lanes off, with nothing on the page to say why.
+    """
+    names = ["AUDIO_INTELLIGENCE_ENABLED", lane_flag]
     spec = audio_policy.FEATURES.get(kind)
     if spec and spec["flag"] not in names:
         names.append(spec["flag"])
@@ -231,10 +237,110 @@ def studio_item(work_id):
         # exists.
         abort(404)
     outputs = [astore.get_asset(None, aid) for aid in item["output_asset_ids"]]
+    outputs = [o for o in outputs if o and not o.get("deleted_at")]
     return render_template("audio_studio_item.html", item=item,
-                           outputs=[o for o in outputs if o],
+                           outputs=outputs,
                            lane=_lane_for_kind(item["kind"]),
+                           vaulted=request.args.get("vaulted"),
                            safety_warning=works.safety_warning())
+
+
+@bp.route("/audio-studio/<work_id>/outputs.json")
+def studio_outputs(work_id):
+    """What this item produced, as a manifest the Rack can load.
+
+    Named files with URLs rather than the bytes themselves: the Rack loads
+    stems into separate lanes, so it needs to know how many there are and what
+    each one is before it fetches anything.
+    """
+    user = _current_user()
+    if user is None:
+        return jsonify({"ok": False}), 401
+    item = works.get_work(work_id)
+    if item is None or item["user_id"] != user["id"]:
+        # Somebody else's work is a 404, not a 403.
+        return jsonify({"ok": False}), 404
+
+    out = []
+    for asset_id in item["output_asset_ids"]:
+        asset = astore.get_asset(None, asset_id)
+        if not asset or asset.get("deleted_at") or not asset.get("storage_key"):
+            continue
+        out.append({
+            "name": asset.get("file_name") or "audio",
+            "url": url_for("audio_studio.studio_output", work_id=work_id,
+                           asset_id=asset_id),
+        })
+    return jsonify({"ok": True, "title": item.get("title") or "", "files": out})
+
+
+@bp.route("/audio-studio/<work_id>/output/<asset_id>")
+def studio_output(work_id, asset_id):
+    """The bytes of one output, to its owner only.
+
+    Re-checks ownership on every request rather than handing out a URL that
+    works for anyone holding it - a separated vocal is the artist's master,
+    taken apart.
+    """
+    user = _current_user()
+    if user is None:
+        return redirect(url_for("login", next=request.path))
+    item = works.get_work(work_id)
+    if item is None or item["user_id"] != user["id"]:
+        abort(404)
+    if asset_id not in item["output_asset_ids"]:
+        abort(404)
+
+    asset = astore.get_asset(None, asset_id)
+    if asset is None or asset.get("deleted_at") or not asset.get("storage_key"):
+        # Destroyed on the retention schedule. Saying so beats a 500.
+        abort(410)
+
+    path = asset["storage_key"]
+    if blob_store.is_remote(path):
+        signed = blob_store.url_for(path, ttl=300)
+        if signed == path:
+            abort(503)
+        return redirect(signed)
+    if path.startswith(STUDIO_PREFIX):
+        return send_file(os.path.join(_studio_dir(), path[len(STUDIO_PREFIX):]),
+                         mimetype=asset.get("mime_type") or "audio/wav")
+    abort(404)
+
+
+@bp.route("/audio-studio/<work_id>/to-vault", methods=["POST"])
+def studio_to_vault(work_id):
+    """Put this item's outputs in the Asset Vault.
+
+    Before this, a separated stem existed as a row and nothing else: there was
+    no way to get it into the Vault, into the Rack, or onto a hard drive. The
+    Vault already had a "stems" kind waiting for exactly this.
+
+    The audio is not copied. The Vault records the same storage path the work
+    item already holds, so nothing is duplicated and deleting one does not
+    silently strip the other of its bytes.
+    """
+    import db as store
+
+    user = _current_user()
+    if user is None:
+        return redirect(url_for("login", next=request.path))
+    item = works.get_work(work_id)
+    if item is None or item["user_id"] != user["id"]:
+        abort(404)
+
+    kind = "stems" if item["kind"] in ("stem_separation", "voice_isolation") else "master"
+    added = 0
+    for asset_id in item["output_asset_ids"]:
+        asset = astore.get_asset(None, asset_id)
+        if not asset or asset.get("deleted_at") or not asset.get("storage_key"):
+            continue
+        store.add_vault_file(user["id"], asset["storage_key"],
+                             asset.get("file_name") or item["title"] or "Audio",
+                             kind)
+        added += 1
+    return redirect(url_for("audio_studio.studio_item", work_id=work_id,
+                            vaulted=added))
 
 
 @bp.route("/audio-studio/<work_id>/delete", methods=["POST"])

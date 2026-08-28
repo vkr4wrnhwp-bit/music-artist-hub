@@ -356,6 +356,44 @@ def roster(partner_id):
             "WHERE partner_id = ? ORDER BY created DESC", (partner_id,)).fetchall()]
 
 
+def roster_detail(partner_id):
+    """The roster, plus the few facts a partner actually manages against.
+
+    A list of names and emails answers "who is on this" and nothing else. What
+    a reseller needs before opening somebody's workspace is whether the
+    account has been used, whether there is anything in it yet, and what plan
+    it is on - so the roster is where you decide who to help, not just who
+    exists.
+
+    Counts are read per artist rather than joined, because the tables live
+    across modules and a join here would tie this file to their schemas. The
+    roster is tens of rows, not thousands.
+    """
+    rows = roster(partner_id)
+    for row in rows:
+        row["songs"] = _count("songs", row["id"])
+        row["links"] = _count("ml_campaigns", row["id"])
+        row["never_signed_in"] = not (row.get("last_seen") or "").strip()
+    return rows
+
+
+def _count(table, user_id):
+    """Rows this account owns in one table, or None when the table is absent.
+
+    None rather than 0: a module that has not initialised its schema on this
+    deployment is not the same as an artist with nothing, and showing a
+    confident zero for it would be a small lie on a management screen.
+    """
+    try:
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) AS n FROM %s WHERE user_id = ?" % table,
+                (user_id,)).fetchone()
+        return row["n"] if row else 0
+    except sqlite3.OperationalError:
+        return None
+
+
 def owns_user(partner_id, user_id):
     """The gate every act-on-behalf must pass before it does anything."""
     if not partner_id or not user_id:

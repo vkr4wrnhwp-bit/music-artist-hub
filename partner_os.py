@@ -99,7 +99,7 @@ def home(partner, member):
 def roster(partner, member):
     return render_template("partner/roster.html",
                            partner=partner, member=member,
-                           roster=pstore.roster(partner["id"]),
+                           roster=pstore.roster_detail(partner["id"]),
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"], member["role"]))
 
@@ -112,6 +112,68 @@ def audit(partner, member):
                            trail=pstore.audit_trail(partner["id"]),
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"], member["role"]))
+
+
+def acting_context(staff_user_id, subject_user_id):
+    """The artist a partner seat may act as right now, or None.
+
+    Every condition is re-checked, because each of them can be withdrawn
+    between one request and the next:
+
+      * the staff account still holds a seat at an ACTIVE partner
+        (member_for_user joins partners, so a suspended one grants nothing)
+      * that seat still holds act_as_artist
+      * the partner still owns this artist
+
+    Returning None is the safe answer for all of them, and the caller drops
+    the impersonation rather than falling back to the staff account - a
+    half-ended act-on-behalf is how somebody edits the wrong workspace.
+    """
+    if not staff_user_id or not subject_user_id:
+        return None
+    if staff_user_id == subject_user_id:
+        return None
+
+    member = pstore.member_for_user(staff_user_id)
+    if member is None or not pstore.can(member, "act_as_artist"):
+        return None
+    if not pstore.owns_user(member["partner_id"], subject_user_id):
+        return None
+    return store.get_user(subject_user_id)
+
+
+@bp.route("/act/<user_id>", methods=["POST"])
+@require("act_as_artist")
+def act_as(partner, member, user_id):
+    """Open an artist's workspace as their partner.
+
+    Written to the audit trail before the session changes, because an
+    impersonation that fails halfway should still be on the record.
+    """
+    artist = owned_user_or_404(partner, user_id)
+    # actor is the member ROW - audit reads id and email off it, and an
+    # impersonation record that loses the impersonator is not a record.
+    pstore.audit(partner["id"], "act_as.start", actor=member,
+                 subject_user_id=user_id,
+                 detail="Opened %s's workspace" % (artist.get("name") or artist["email"]))
+    session["acting_as"] = user_id
+    session["acting_as_name"] = artist.get("name") or artist.get("email") or ""
+    return redirect("/overview")
+
+
+@bp.route("/act/stop", methods=["POST"])
+def act_stop():
+    """Hand the workspace back. Deliberately NOT behind @require: a seat that
+    has just lost its permission still has to be able to stop."""
+    staff_id = session.get("user_id")
+    subject = session.pop("acting_as", None)
+    session.pop("acting_as_name", None)
+    if staff_id and subject:
+        member = pstore.member_for_user(staff_id)
+        if member:
+            pstore.audit(member["partner_id"], "act_as.stop", actor=member,
+                         subject_user_id=subject, detail="Closed the workspace")
+    return redirect("/partner/roster")
 
 
 def init(app):

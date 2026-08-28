@@ -105,7 +105,7 @@ MODULES = [
     ("/tour", "Tour Hub", "Your show pipeline: holds through settled, all in one table.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
     ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
-    ("/rack", "The Rack", "Real browser DSP: 12-band EQ, tube stage, cab & mic sim, compressor, WAV export \u2014 nothing is uploaded.", "live", None),
+    ("/rack", "The Rack", "Mix and master in the browser: 12-band EQ, tube stage, cab & mic sim, compressor, LUFS loudness against platform targets, WAV export \u2014 nothing is uploaded.", "live", None),
     ("/roster", "Label Mode", "Roster seats for the Label tier: invite artists, see the whole roster's real numbers.", "live", None),
     ("/referrals", "Referrals", "Give a month, get $9: your link, your signups, credits on your Stripe balance.", "live", None),
     ("/lights", "Light Studio", "Cue your light show to the song — stage preview plus real DMX out to an ENTTEC interface.", "live", None),

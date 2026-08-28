@@ -517,7 +517,32 @@ def create_app():
     # 8 MB, and Werkzeug enforces this cap before any handler's own check,
     # so it must be at least tour_os.MAX_UPLOAD (25 MB). Large parts are
     # spooled to disk by the form parser, not held in memory.
-    app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+    #
+    # It must also clear every cap the app ADVERTISES, or the advertised
+    # number is one this code prints and never enforces. That is exactly what
+    # happened: the Remix Lab offered 250 MB and the Audio Studio 200 MB
+    # against a 25 MB ceiling, so a normal WAV master was rejected by Werkzeug
+    # before routing and the artist got a bare "Request Entity Too Large" with
+    # no sentence telling them what to do. Raise this WITH the advertised caps,
+    # never past them. See audio_studio.MAX_UPLOAD_BYTES.
+    app.config["MAX_CONTENT_LENGTH"] = 210 * 1024 * 1024
+
+    @app.errorhandler(413)
+    def _too_large(_error):
+        """Werkzeug aborts oversize requests before any route runs, so this is
+        the only place that can explain one. Without it the artist sees the
+        server's bare error page and has no idea what the limit is."""
+        limit = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+        message = ("That file is over the %d MB limit. Bounce a smaller file - "
+                   "a 320 kbps MP3 of a full-length master is usually well "
+                   "under 20 MB - and upload that instead." % limit)
+        wants_json = (request.path.endswith(".json")
+                      or request.accept_mimetypes.best == "application/json"
+                      or request.headers.get("X-Requested-With") == "XMLHttpRequest")
+        if wants_json:
+            return jsonify({"ok": False, "error": message, "max_mb": limit}), 413
+        return render_template("too_large.html", message=message,
+                               limit_mb=limit), 413
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
     # The public header reads its links from landing_config. A callable
@@ -599,8 +624,36 @@ def create_app():
         _grant_owner_plan(_u)
 
     def current_user():
+        """The account this request is acting AS.
+
+        Normally the signed-in person. When a partner seat is acting on behalf
+        of an artist it owns, this returns the ARTIST, so every page, query and
+        permission check downstream sees the workspace it is meant to.
+
+        The staff member's own id stays in session["user_id"] and is never
+        overwritten - that is what the audit trail records, and an
+        impersonation that loses the impersonator is not an audit trail.
+
+        Ownership is re-checked on EVERY request rather than trusted from when
+        the session started. Detaching an artist, suspending the partner or
+        removing the seat has to end this immediately, not at next login.
+        """
         user_id = session.get("user_id")
-        return store.get_user(user_id) if user_id else None
+        if not user_id:
+            return None
+
+        acting_as = session.get("acting_as")
+        if acting_as:
+            actor = partner_os.acting_context(user_id, acting_as)
+            if actor is None:
+                # No longer permitted. Drop it rather than silently falling
+                # back to the staff account mid-journey.
+                session.pop("acting_as", None)
+                session.pop("acting_as_name", None)
+            else:
+                return actor
+
+        return store.get_user(user_id)
 
     def login_required_redirect():
         return redirect(url_for("login", next=request.path))
@@ -632,8 +685,12 @@ def create_app():
                                      "/referrals")
                     if request.form.get("account_type") == "fan":
                         store.set_user_plan(user_id, "fan")
+                        session.permanent = True
                         session["user_id"] = user_id
                         return redirect("/discover")
+                    # Somebody who just created an account should not be
+                    # signed out by closing the window.
+                    session.permanent = True
                     session["user_id"] = user_id
                     return redirect(url_for("onboarding"))
         # /signup?as=fan preselects the fan side. The login page offers a
@@ -661,6 +718,7 @@ def create_app():
             return redirect("/login")
         user = store.get_user_by_email(email)
         if user and check_password_hash(user["password_hash"], password):
+            session.permanent = True
             session["user_id"] = user["id"]
             session.pop("seen_rolled", None)
             if (user.get("plan") or "artist") == "fan":
@@ -687,8 +745,10 @@ def create_app():
                 _grant_owner_plan(user)
                 # "Remember this device": a real 31-day session, only when
                 # asked for. Unchecked keeps the browser-session cookie.
-                if request.form.get("remember"):
-                    session.permanent = True
+                # Explicit either way. Absent used to mean "browser session",
+                # which is a reasonable choice on a shared machine and a
+                # surprising default everywhere else.
+                session.permanent = bool(request.form.get("remember"))
                 is_demo = (email == "demo@streetbanker.io"
                            or email.startswith("demo-") and email.endswith("@streetbanker.io"))
                 if (user.get("plan") or "artist") == "fan":
@@ -2882,6 +2942,12 @@ def create_app():
     def _is_demo_email(email):
         return (email == "demo@streetbanker.io"
                 or (email.startswith("demo-") and email.endswith("@streetbanker.io")))
+
+    @app.context_processor
+    def _acting_as():
+        """Every template needs to know, so it is a context processor rather
+        than something each route remembers to pass."""
+        return {"acting_as_name": session.get("acting_as_name") or ""}
 
     @app.context_processor
     def _billing_flags():

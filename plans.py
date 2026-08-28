@@ -38,6 +38,11 @@ _ARTIST_PATHS = ("/links", "/rollout-studio", "/artwork", "/command-center",
                  "/actions", "/releases", "/audience", "/playlists", "/stats",
                  "/insights", "/benchmark", "/pulse", "/metadata-passport",
                  "/fan-club", "/tour", "/stage-plot", "/rack", "/lights", "/tracks", "/certified",
+                 # The rest of the mix-station family. /rack and /vault were
+                 # artist-tier and these two were not, so the same journey -
+                 # upload a master, work on it, keep the result - changed tier
+                 # halfway through depending on which door you came in by.
+                 "/beats", "/audio-studio",
                  "/qualification", "/artist-profile",
                  "/vault", "/artist-twin", "/trust-score")
 _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes",

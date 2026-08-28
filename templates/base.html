@@ -165,8 +165,12 @@
            With seventy destinations, the four you were just in beat any
            ordering we could guess. #}
         <div id="sb-recent" class="sb-hide-rail hidden space-y-1"></div>
-        {% macro nav_item(key, href, path, label) -%}
-          <a href="{{ href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-300 hover:bg-white/5 hover:text-white' }}"{% if key not in live_keys %} title="Open — but this page shows example data, not yours"{% endif %}>
+        {#- desc is the same one-line description the hub desks and the command
+            palette show. A label alone answers "what is this called"; somebody
+            hunting for a mixer or a loudness meter needs "what is this FOR",
+            and "The Rack" contains neither word. -#}
+        {% macro nav_item(key, href, path, label, desc="") -%}
+          <a href="{{ href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-300 hover:bg-white/5 hover:text-white' }}" title="{{ desc }}{% if key not in live_keys %}{{ ' · ' if desc }}Open — but this page shows example data, not yours{% endif %}">
             <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               {% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
             </svg>
@@ -190,11 +194,11 @@
         {# Fans keep their own simple world: Community + a slim Account. #}
         <div class="space-y-1">
           <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">{{ hubs_community[0] }}</div>
-          {% for key, href, path, label, _d in hubs_community[1] %}{{ nav_item(key, href, path, label) }}{% endfor %}
+          {% for key, href, path, label, _d in hubs_community[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
         </div>
         <div class="space-y-1">
           <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Account</div>
-          {% for key, href, path, label, _d in hubs_account[1] if key in fan_account_keys %}{{ nav_item(key, href, path, label) }}{% endfor %}
+          {% for key, href, path, label, _d in hubs_account[1] if key in fan_account_keys %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
         </div>
         {% else %}
         {# The Ecosystem Hub model: five hubs, each with a desk page. #}
@@ -216,7 +220,7 @@
             </button>
           </div>
           <div class="hub-items space-y-1">
-            {% for key, href, path, label, _d in hitems %}{{ nav_item(key, href, path, label) }}{% endfor %}
+            {% for key, href, path, label, _d in hitems %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
           </div>
         </div>
         {% endfor %}
@@ -230,7 +234,7 @@
           </a>
           <div class="sb-hide-rail px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">{{ hubs_label[0] }}</div>
           <div class="hub-items space-y-1">
-            {% for key, href, path, label, _d in hubs_label[1] %}{{ nav_item(key, href, path, label) }}{% endfor %}
+            {% for key, href, path, label, _d in hubs_label[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
           </div>
         </div>
         {% endif %}
@@ -250,7 +254,7 @@
             </button>
           </div>
           <div class="hub-items space-y-1">
-            {% for key, href, path, label, _d in hubs_account[1] %}{{ nav_item(key, href, path, label) }}{% endfor %}
+            {% for key, href, path, label, _d in hubs_account[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
           </div>
         </div>
         {% endif %}
@@ -368,6 +372,22 @@
     {% include "partials/public_header.html" %}
     {% endif %}
     <main class="flex-1 p-4 sm:p-6 lg:p-8">
+      {%- if acting_as_name %}
+      {#- Somebody is working inside another account. This is on EVERY page,
+          at the top, and it is not dismissible: an operator who forgets which
+          workspace they are in can change the wrong artist's release. It says
+          whose account, and offers the way out in the same breath. -#}
+      <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+        <span class="text-sm text-gray-100">
+          You are working in <strong class="text-white">{{ acting_as_name }}</strong>'s
+          account on behalf of your organisation. Everything you do here is
+          recorded against your name.
+        </span>
+        <form method="post" action="/partner/act/stop" class="ml-auto">
+          <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">Leave this account</button>
+        </form>
+      </div>
+      {%- endif %}
       {% block content %}{% endblock %}
     </main>
   </div>

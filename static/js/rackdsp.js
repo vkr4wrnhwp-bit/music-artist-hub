@@ -2065,6 +2065,50 @@
     });
   }
 
+  /* Stems handed over from the Audio Studio.
+     /rack?stems=<work id> asks the Studio for a manifest and loads each file
+     into its own lane, exactly as a drag-drop would. Before this a separated
+     stem could only be downloaded and dragged back in by hand, which is the
+     step a producer would rather not do four times per song.
+
+     Failure is quiet and non-blocking: the Rack is fully usable without this,
+     and an unreachable manifest must not stop it booting. */
+  function loadStemsFromStudio(workId) {
+    if (!workId) return;
+    fetch("/audio-studio/" + encodeURIComponent(workId) + "/outputs.json",
+          {credentials: "same-origin"})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.ok || !(data.files || []).length) return;
+        ensureCtx().resume();
+        return Promise.all(data.files.slice(0, 8).map(function (f) {
+          return fetch(f.url, {credentials: "same-origin"})
+            .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+            .then(function (ab) { return ab ? ctx.decodeAudioData(ab) : null; })
+            .then(function (buf) {
+              return buf ? {name: f.name, buffer: buf, gain: 1, mute: false,
+                            solo: false, playGain: null} : null;
+            })
+            .catch(function () { return null; });
+        })).then(function (loaded) {
+          var ok = loaded.filter(Boolean);
+          if (!ok.length) return;
+          stems = stems.concat(ok).slice(0, 8);
+          stop(); renderStems(); syncDeckInfo(); renderWave();
+          if (statusEl) {
+            statusEl.textContent = ok.length + " stem" +
+              (ok.length === 1 ? "" : "s") + " loaded from the Audio Studio.";
+          }
+        });
+      })
+      .catch(function () { /* the Rack works without it */ });
+  }
+
+  try {
+    loadStemsFromStudio(
+      new URLSearchParams(window.location.search).get("stems"));
+  } catch (e) { /* no URLSearchParams, no hand-off - the Rack still runs */ }
+
   document.getElementById("rk-stems-file").addEventListener("change", function (e) {
     var files = Array.prototype.slice.call(e.target.files || []);
     if (!files.length) return;

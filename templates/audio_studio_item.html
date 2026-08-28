@@ -60,7 +60,12 @@
 
   {% if outputs %}
     <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Result</h2>
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="sb-label sb-label-gold">Result</h2>
+        <p class="text-sm text-gray-300">
+          {{ outputs | length }} file{{ "" if outputs|length == 1 else "s" }}
+        </p>
+      </div>
       {% call sb.table(["File", "Type", "Size"]) %}
         {% for out in outputs %}
           <tr>
@@ -70,6 +75,31 @@
           </tr>
         {% endfor %}
       {% endcall %}
+
+      {#- Somewhere to put them. A separated stem used to exist as a row and
+          nothing else: no way into the Vault, the Rack, or a hard drive. -#}
+      {% if vaulted %}
+        <p class="mt-3 text-sm text-gray-300">
+          Saved {{ vaulted }} file{{ "" if vaulted == "1" else "s" }} to your
+          <a class="underline" href="/vault">Asset Vault</a>.
+        </p>
+      {% else %}
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <form method="post"
+                action="{{ url_for('audio_studio.studio_to_vault', work_id=item.id) }}">
+            {{ sb.btn("Save to the Asset Vault", variant="primary", type="submit") }}
+          </form>
+          {%- if item.kind in ("stem_separation", "voice_isolation") %}
+            {#- Straight into the Rack's stem lanes. The alternative was
+                downloading four files and dragging them back in by hand. -#}
+            {{ sb.btn("Open the stems in the Rack", variant="secondary",
+                      href="/rack?stems=" ~ item.id) }}
+          {%- endif %}
+        </div>
+        <p class="mt-2 text-sm text-gray-300">
+          Files are recorded, not copied — one set of bytes, listed in both places.
+        </p>
+      {% endif %}
     </section>
   {% elif item.status == 'ready' and item.is_mock %}
     <section class="sb-panel p-4">
