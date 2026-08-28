@@ -7,9 +7,64 @@
   <div class="flex items-end justify-between">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p class="mt-1 text-sm text-gray-500">Manage your connected royalty platforms.</p>
+      <p class="mt-1 text-sm text-gray-500">Manage your profile, notifications, and connected royalty platforms.</p>
     </div>
   </div>
+
+  <section id="account-profile" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Account Profile</h2>
+    <p class="mt-1 text-sm text-gray-500">Your artist profile. Saved on this device.</p>
+    <form id="profile-form" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="block text-xs text-gray-400">
+        Artist / display name
+        <input id="profile-name" type="text" required
+               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <label class="block text-xs text-gray-400">
+        Email
+        <input id="profile-email" type="email" required
+               class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <label class="block text-xs text-gray-400">
+        Plan
+        <select id="profile-plan"
+                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+          <option value="Free">Free</option>
+          <option value="Pro">Pro</option>
+          <option value="Label">Label</option>
+        </select>
+      </label>
+      <div class="flex items-end">
+        <button type="submit" class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
+          Save Profile
+        </button>
+        <span id="profile-saved" class="ml-3 hidden self-center text-[11px] font-semibold text-green-400">Saved</span>
+      </div>
+    </form>
+  </section>
+
+  <section id="notification-preferences" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
+    <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Notification Preferences</h2>
+    <p class="mt-1 text-sm text-gray-500">Choose what you want to be notified about. Saved on this device.</p>
+    <div id="notification-list" class="mt-4 space-y-2">
+      {% for key, label, detail in [
+        ('leak_high', 'High severity leak alerts', 'Urgent issues like sync failures or expired logins'),
+        ('leak_medium', 'Medium severity leak alerts', 'Uncollected royalties above $250'),
+        ('leak_low', 'Low severity leak alerts', 'Minor or low-value issues'),
+        ('weekly_summary', 'Weekly summary email', 'A recap of royalties, leaks, and catalog value'),
+        ('payout_received', 'Payout received', 'A platform confirms a payout has landed'),
+        ('new_song_detected', 'New song detected', 'A new recording shows up in a connected catalog'),
+      ] %}
+      <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5" data-key="{{ key }}">
+        <div class="min-w-0">
+          <div class="text-sm font-semibold">{{ label }}</div>
+          <div class="text-xs text-gray-500">{{ detail }}</div>
+        </div>
+        <button type="button" class="notification-toggle-btn shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"></button>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 
   <section id="platform-connections" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Platform Connections</h2>
@@ -39,6 +94,76 @@
 
 {% block scripts %}
 <script>
+  const PROFILE_KEY = "royaltySweep.profile";
+  const DEFAULT_PROFILE = { name: "Synthwave Surfer", email: "artist@streetbanker.io", plan: "Pro" };
+
+  function loadProfile() {
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      if (!raw) return DEFAULT_PROFILE;
+      const p = JSON.parse(raw);
+      return p && p.name ? p : DEFAULT_PROFILE;
+    } catch (err) {
+      return DEFAULT_PROFILE;
+    }
+  }
+
+  function renderProfile() {
+    const profile = loadProfile();
+    document.getElementById("profile-name").value = profile.name;
+    document.getElementById("profile-email").value = profile.email;
+    document.getElementById("profile-plan").value = profile.plan;
+  }
+  renderProfile();
+
+  document.getElementById("profile-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const profile = {
+      name: document.getElementById("profile-name").value.trim(),
+      email: document.getElementById("profile-email").value.trim(),
+      plan: document.getElementById("profile-plan").value,
+    };
+    if (!profile.name || !profile.email) return;
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    const savedEl = document.getElementById("profile-saved");
+    savedEl.classList.remove("hidden");
+    setTimeout(() => savedEl.classList.add("hidden"), 2000);
+  });
+
+  const NOTIFICATIONS_KEY = "royaltySweep.notifications";
+  const DEFAULT_NOTIFICATIONS = {
+    leak_high: true, leak_medium: true, leak_low: false,
+    weekly_summary: true, payout_received: true, new_song_detected: false,
+  };
+
+  function loadNotifications() {
+    try {
+      const raw = localStorage.getItem(NOTIFICATIONS_KEY);
+      const saved = raw ? JSON.parse(raw) : {};
+      return { ...DEFAULT_NOTIFICATIONS, ...saved };
+    } catch (err) {
+      return { ...DEFAULT_NOTIFICATIONS };
+    }
+  }
+
+  function renderNotificationRow(row, enabled) {
+    const btn = row.querySelector(".notification-toggle-btn");
+    btn.textContent = enabled ? "On" : "Off";
+    btn.className = "notification-toggle-btn shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors " +
+      (enabled ? "border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20" : "border-white/10 text-gray-500 hover:bg-white/5");
+  }
+
+  const notifications = loadNotifications();
+  document.querySelectorAll(".notification-row").forEach((row) => {
+    const key = row.dataset.key;
+    renderNotificationRow(row, notifications[key]);
+    row.querySelector(".notification-toggle-btn").addEventListener("click", () => {
+      notifications[key] = !notifications[key];
+      renderNotificationRow(row, notifications[key]);
+      localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+    });
+  });
+
   const CONN_UI = {
     connected:     { badge: "Connected",     dot: "bg-green-500 shadow-[0_0_5px_1px_rgba(34,197,94,0.75)]",  text: "text-green-400", btn: "Disconnect", btnCls: "border-white/10 text-gray-400 hover:bg-white/5 hover:text-gray-200", disabled: false },
     not_connected: { badge: "Not connected", dot: "bg-gray-600",                                             text: "text-gray-500",  btn: "Connect",    btnCls: "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20", disabled: false },
