@@ -58,9 +58,16 @@ node scripts/qc-stills.mjs SocialVertical 40,120,260
 node scripts/probe-mp4.mjs renders/*.mp4            # size, duration, fps, codec
 ```
 
+```bash
+node scripts/qc-report.mjs HeroLandscape 48       # numeric blank-frame check
+```
+
 `qc-stills` bundles once and renders stills directly, which is much faster than
 `remotion still` when you are reviewing a whole film. `probe-mp4` reads the MP4
-boxes, because there is no usable `ffprobe` here.
+boxes, because there is no usable `ffprobe` here. `qc-report` samples frames
+across a composition and measures each one's luminance spread, so a dropped or
+blank frame in the middle of a 2880-frame film is caught numerically rather
+than hoped away — it exits non-zero if any sample looks empty.
 
 The same caution applies as for audio: **do not re-run `npm run capture` while
 a render is in progress.** The rig clears `public/recordings` first, and
@@ -93,6 +100,10 @@ caption generator and the audio synthesiser are product-agnostic.
   async prep(page) { /* optional clicks */ },
 }
 ```
+
+The shot list captures two shots the current film does not use — `analyze` and
+`pitboard`. They are kept because cutdowns and future scenes draw from the same
+library, and capturing is cheap next to re-running the rig.
 
 The rig reloads on every shot, so a shot never inherits state from the one
 before it — with a hash-routed SPA, a fragment change alone leaves component
