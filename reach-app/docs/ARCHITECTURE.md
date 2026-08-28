@@ -25,7 +25,7 @@ proven here, and it kept its own SQLite store because it always had one.
 | Tests | pytest, 109 passing in the sibling app at the start of this work, and still passing untouched |
 | CI | `.github/workflows/reach.yml` — one workflow per product, filtered to that product's paths |
 | Unrelated directories | `mx-lab/` (TRACE, a motocross telemetry product) shares the repo but is a separate product. **Untouched.** |
-| Deployment | The root `render.yaml` deploys TRACE only. REACH has its own blueprint in `reach-app/render.yaml` and does not touch it |
+| Deployment | The root `render.yaml` is the only blueprint Render reads, and it declares `reach` alongside the unrelated `trace` and `royalty-sweep` services. Each has its own `rootDir`, disk and env vars |
 
 ### Conflicts between the specification and the codebase, and how each was resolved
 
@@ -54,12 +54,11 @@ directory is imported, read or written at runtime.
 music-artist-hub/
 ├── app.py                     # Royalty Sweep — a separate product, untouched
 ├── royalty_data.py            # its catalog — untouched
-├── render.yaml                # deploys TRACE only — untouched
+├── render.yaml                # the one blueprint Render reads; declares `reach` among others
 ├── mx-lab/                    # TRACE — a separate product
 └── reach-app/                 # ← REACH, entirely self-contained
     ├── app.py                 # REACH's Flask entry point
     ├── requirements.txt       # REACH's dependencies
-    ├── render.yaml            # REACH's own Render blueprint
     ├── Dockerfile             # REACH's own container
     ├── pyproject.toml         # REACH's own lint and test config
     ├── reach/                 # the package

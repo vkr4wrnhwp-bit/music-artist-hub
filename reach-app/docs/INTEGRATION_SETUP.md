@@ -196,11 +196,13 @@ appears in the NEEDS YOU queue with the reason stated.
 * Start the background job worker with `reach.jobs.start_worker()` in a
   long-running process. The web `Run discovery` action drains the queue
   synchronously, which is fine for the fixture corpus and small live runs.
-* **Deploying REACH.** `reach-app/render.yaml` is REACH's own Render blueprint,
-  separate from the TRACE blueprint at the repository root — neither deploys the
-  other. `reach-app/Dockerfile` is the container equivalent. Both need
-  `REACH_DB_PATH` pointing at a mounted disk so the SQLite store survives a
-  restart; without one REACH still runs, but its data resets on every deploy.
+* **Deploying REACH.** The blueprint at the repository root is the only one
+  Render reads, and it declares the `reach` service alongside the unrelated
+  `trace` and `royalty-sweep` ones; each is scoped by its own `rootDir`.
+  `reach-app/Dockerfile` is the container equivalent, independent of Render.
+  Either way `REACH_DB_PATH` must point at a mounted disk so the SQLite store
+  survives a restart; without one REACH still runs, but its data resets on
+  every deploy.
 * **`REACH_ENCRYPTION_KEY` is not optional in production.** Without it the
   process encrypts with an ephemeral key, which means contact records written
   before a restart cannot be read after one. Provider Health says so on screen.

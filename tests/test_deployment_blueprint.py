@@ -2,9 +2,14 @@
 
 Every product in this repository is a separate application, but Render only
 reads the blueprint at the repository root. These tests keep that file honest:
-each product stays declared, and REACH's standalone copy — kept for a future
-repository split — cannot silently drift away from the definition that really
-deploys.
+each product stays declared, and each points at a directory that exists.
+
+There is deliberately only one copy of each service definition. `reach-app/`
+used to carry its own `render.yaml` "for a future repository split", which
+nothing deployed from and a test had to hold in step with the real one; it also
+left three documents claiming the root blueprint deployed TRACE only. A config
+that nothing reads is a config nobody notices going wrong, so it was deleted
+rather than guarded.
 
 They also keep MASTERCLIP OS *out*. It has its own repository and its own
 blueprint; it was once vendored here as masterclip-os/ and deployed from this
@@ -55,15 +60,18 @@ def test_royalty_sweep_serves_the_root_flask_app():
     assert (ROOT / "app.py").is_file()
 
 
-def test_reach_standalone_copy_matches_the_deploying_definition():
-    """reach-app/render.yaml is never what deploys; it must not drift from what is."""
-    deploying = next(
-        s for s in _blueprint("render.yaml")["services"] if s["name"] == "reach"
-    )
-    standalone = _blueprint("reach-app/render.yaml")["services"][0]
-    assert standalone == deploying, (
-        "reach-app/render.yaml has drifted from the root blueprint — "
-        "the root file is the one Render reads"
+def test_reach_has_no_second_service_definition():
+    """One definition per service. A copy nothing deploys from only drifts.
+
+    `reach-app/render.yaml` was kept "for a future repository split" and had to
+    be held in step with the root blueprint by a test, because nothing deployed
+    from it. It is the same shape as the masterclip directory above, one size
+    down: a second copy of an active config, kept honest by hand.
+    """
+    assert not (ROOT / "reach-app" / "render.yaml").exists(), (
+        "reach-app/render.yaml is back. The root blueprint declares the `reach` "
+        "service and is the only file Render reads; reach-app/README.md "
+        "documents standing REACH up without a blueprint at all."
     )
 
 

@@ -63,9 +63,10 @@ tracks are in, or start empty with `REACH_SEED_SAMPLE_TRACKS=0`.
 
 **On Render, sync the blueprint at the repository root.** Render only reads
 `render.yaml` from the root of a repo, so the root file is what declares the
-`reach` service (alongside the unrelated `trace` one). The copy in this
-directory is not what gets deployed while REACH lives here — see the note at the
-top of it.
+`reach` service, alongside the unrelated `trace` and `royalty-sweep` ones.
+There is deliberately no second copy of that definition in this directory: a
+duplicate config that nothing deploys from is a config that goes quietly wrong.
+To stand REACH up without a blueprint at all, use the table below.
 
     New → Blueprint → this repository → Apply
 
