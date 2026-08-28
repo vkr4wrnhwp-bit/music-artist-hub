@@ -1,14 +1,21 @@
-# TRACE — one-service deployment: the sync server serves the built app
-# from the same origin. Connect this repo on Render as a Blueprint.
-# Details: mx-lab/docs/architecture/deployment.md (Render section).
+# Render Blueprint — deploys every app in this repo in one apply.
+#
+#   trace           TRACE telemetry & tuning platform (app + sync server, one origin)
+#   royalty-sweep   Royalty Sweep dashboard (Flask)
+#   holeshot-tuner  Holeshot Tuner single-file fuel-map tool (static)
+#
+# On Render: New → Blueprint → connect this repo → Apply.
+# Full notes: mx-lab/docs/architecture/deployment.md and DEPLOY.md.
 services:
+  # ---------------------------------------------------------------- TRACE
   - type: web
     name: trace
     runtime: node
     rootDir: mx-lab
     plan: starter # a paid instance is required for the persistent disk below;
-    # on the free plan, delete the `disk:` block — the server runs, but its
-    # data resets on every deploy/restart (browsers keep local data and re-push)
+    # on the free plan, delete the `disk:` block AND this `plan:` line — the
+    # server runs, but its data resets on every deploy/restart (browsers keep
+    # their local databases and re-push on the next sync)
     buildCommand: npm install && npm run build
     startCommand: npx tsx apps/server/src/main.ts
     healthCheckPath: /
@@ -21,3 +28,26 @@ services:
       name: trace-data
       mountPath: /var/data
       sizeGB: 1
+
+  # -------------------------------------------------------- Royalty Sweep
+  - type: web
+    name: royalty-sweep
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /dashboard
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+  # ------------------------------------------------------- Holeshot Tuner
+  - type: web
+    name: holeshot-tuner
+    runtime: static
+    staticPublishPath: fuel-map-tool
+    buildCommand: ""
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
