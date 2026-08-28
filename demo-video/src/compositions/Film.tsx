@@ -43,12 +43,18 @@ export const Film: React.FC<FilmProps> = ({
   return (
     <AbsoluteFill style={{ background: c.ground }}>
       {withAudio && <Audio src={staticFile('audio/bed.wav')} volume={0.5} />}
-      {list.map((s) => {
+      {list.map((s, i) => {
         const dur = sceneFrames(s, fps, pace);
-        const from = cursor;
+        // Scenes overlap by a few frames and the incoming one fades up over
+        // that window. Without it every cut lands on a frame of bare ground —
+        // each scene paints an opaque background and its content starts at
+        // zero opacity — which reads as a dropped frame, not as an edit.
+        const lead = i === 0 ? 0 : OVERLAP;
+        const from = cursor - lead;
         cursor += dur;
         return (
-          <Sequence key={s.id} from={from} durationInFrames={dur} name={s.id}>
+          <Sequence key={s.id} from={from} durationInFrames={dur + lead} name={s.id}>
+            <SceneFade frames={lead}>
             {s.kind === 'title' && <TitleCard />}
             {s.kind === 'end' && <EndCard />}
             {s.kind === 'statement' && (
@@ -80,6 +86,7 @@ export const Film: React.FC<FilmProps> = ({
                   </AbsoluteFill>
                 )
             )}
+            </SceneFade>
           </Sequence>
         );
       })}
@@ -94,6 +101,22 @@ export const Film: React.FC<FilmProps> = ({
  * above, the interface in the middle at a size where its type still reads,
  * the headline below on clean ground.
  */
+/** frames of cross-dissolve between scenes */
+const OVERLAP = 6;
+
+/**
+ * Fades a whole scene up over the overlap window. It has to wrap the scene
+ * rather than live inside it: each scene paints its own opaque ground, so
+ * fading only the contents would still hide the outgoing scene instantly.
+ */
+const SceneFade: React.FC<{ frames: number; children: React.ReactNode }> = ({ frames, children }) => {
+  const frame = useCurrentFrame();
+  const o = frames === 0 ? 1 : interpolate(frame, [0, frames], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE),
+  });
+  return <AbsoluteFill style={{ opacity: o }}>{children}</AbsoluteFill>;
+};
+
 // The portrait capture is square (1080x1080 CSS at 2x). The card shows its
 // full width — cropping horizontally would slice the metric columns, which is
 // the one thing the vertical cut must not do.

@@ -24,10 +24,15 @@ const BROWSER = '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/head
 const compId = process.argv[2] ?? 'HeroLandscape';
 const samples = Number(process.argv[3] ?? 48);
 
-// A frame darker than this with essentially no variation is either blank or a
-// failed image load. Title and end cards are legitimately dark but always
-// carry type, which shows up as spread.
+// A frame with essentially no variation is either blank or a failed image
+// load. Title and end cards are legitimately dark but always carry type,
+// which shows up as spread.
 const MIN_SPREAD = 3.0;
+
+// The film opens on a fade from black, so the first frames are legitimately
+// near-empty. Those are reported but do not fail the run; a blank frame
+// anywhere else does.
+const LEAD_FRAMES = 10;
 
 const stats = (file) => {
   const png = PNG.sync.read(readFileSync(file));
@@ -53,6 +58,7 @@ const composition = await selectComposition({
 const total = composition.durationInFrames;
 const dir = mkdtempSync(join(tmpdir(), 'qc-'));
 const suspect = [];
+const lead = [];
 
 console.log(`${compId}: ${composition.width}x${composition.height}, ${total} frames, sampling ${samples}`);
 for (let i = 0; i < samples; i++) {
@@ -63,16 +69,21 @@ for (let i = 0; i < samples; i++) {
     browserExecutable: BROWSER, chromiumOptions: { gl: 'swangle' }, logLevel: 'error',
   });
   const { mean, spread } = stats(output);
-  const bad = spread < MIN_SPREAD;
-  if (bad) suspect.push({ frame, mean: mean.toFixed(2), spread: spread.toFixed(2) });
-  process.stdout.write(bad ? 'X' : '.');
+  const empty = spread < MIN_SPREAD;
+  const inLead = frame < LEAD_FRAMES;
+  if (empty) (inLead ? lead : suspect).push({ frame, mean: mean.toFixed(2), spread: spread.toFixed(2) });
+  process.stdout.write(empty ? (inLead ? 'o' : 'X') : '.');
 }
 rmSync(dir, { recursive: true, force: true });
 
 console.log();
+if (lead.length) {
+  console.log(`opening fade (frames < ${LEAD_FRAMES}, expected to be near-black):`);
+  console.table(lead);
+}
 if (suspect.length) {
-  console.log(`SUSPECT FRAMES (spread < ${MIN_SPREAD}):`);
+  console.log(`SUSPECT FRAMES (spread < ${MIN_SPREAD}, outside the opening fade):`);
   console.table(suspect);
   process.exit(1);
 }
-console.log(`ok — all ${samples} sampled frames carry content`);
+console.log(`ok — every sampled frame outside the opening fade carries content`);
