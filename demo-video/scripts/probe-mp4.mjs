@@ -56,10 +56,12 @@ const probe = (file) => {
   const dur = v === 1 ? Number(mvhd.readBigUInt64BE(24)) : mvhd.readUInt32BE(16);
   const seconds = dur / timescale;
 
-  // widest tkhd is the video track; dimensions are 16.16 fixed point
+  // tkhd: after version+flags come the times, track id, duration, then
+  // reserved/layer/group/volume and a 36-byte matrix; width and height are the
+  // last two fields, as 16.16 fixed point. v1 widens three times to 64 bits.
+  // Only the video track carries non-zero dimensions.
   const dims = (boxes.tkhd ?? []).map((b) => {
-    const version = b.readUInt8(0);
-    const off = version === 1 ? 84 : 72;
+    const off = b.readUInt8(0) === 1 ? 88 : 76;
     return { w: b.readUInt32BE(off) / 65536, h: b.readUInt32BE(off + 4) / 65536 };
   }).filter((d) => d.w > 0 && d.h > 0);
 
