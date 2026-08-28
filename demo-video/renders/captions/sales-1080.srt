@@ -17,7 +17,7 @@ Confidence comes from the data — capped when a channel is degraded, never cert
 00:00:12,750 --> 00:00:19,100
 [WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT]
 The rider preferred it. The data disagreed.
-Confidence rose 3 points while best lap fell 1.79s — and the uncontrolled variable is flagged.
+Rider confidence rose 3 points while the best lap went 1.79s slower — and the uncontrolled variable is flagged.
 
 5
 00:00:19,425 --> 00:00:22,510

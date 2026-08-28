@@ -4,21 +4,33 @@
  * A restrained electronic bed: a low drone that breathes, a quiet pulse to
  * carry momentum, and a soft mark at each scene boundary. Deliberately not
  * trailer music — it must never compete with reading the interface.
+ *
+ *   npx tsx scripts/make-audio.ts [seconds]
+ *
+ * Length and scene boundaries are read from the scene script, so the bed
+ * cannot drift out of step with the film when a scene's duration changes.
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scenes } from '../src/script';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RATE = 48000;
-const SECONDS = Number(process.argv[2] ?? 100);
+
+/** cumulative scene starts — the bed lifts where the film cuts */
+const BOUNDARIES: number[] = [];
+const filmSeconds = scenes.reduce((t, s) => {
+  BOUNDARIES.push(t);
+  return t + s.seconds;
+}, 0);
+
+// a little tail past the last frame so the fade-out is never clipped
+const SECONDS = Number(process.argv[2] ?? Math.ceil(filmSeconds + 4));
 const N = RATE * SECONDS;
 
-// scene boundaries (seconds) so the bed lifts where the film cuts
-const BOUNDARIES = [0, 4.5, 9, 16, 24, 34, 45, 50, 58, 66, 77, 84, 89.5];
-
-const lerp = (a, b, t) => a + (b - a) * t;
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 const left = new Float64Array(N);
 const right = new Float64Array(N);

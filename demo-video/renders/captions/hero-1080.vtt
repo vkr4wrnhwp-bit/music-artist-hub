@@ -34,7 +34,7 @@ Only a person with the right role can approve a change.
 00:00:50.350 --> 00:00:57.880
 [A BOUNDED CHANGE]
 Inside the validated envelope
-Revision B moves one region within tuner-set limits. Everything else is held constant.
+Revision B moves the partial-throttle region within tuner-set limits — 26 cells, nothing else.
 
 00:00:58.350 --> 00:01:05.880
 [NO PATH TO THE ECU]
@@ -44,7 +44,7 @@ TRACE never writes to an ECU. It issues a change sheet a person performs in the 
 00:01:06.350 --> 00:01:16.880
 [WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT]
 The rider preferred it. The data disagreed.
-Confidence rose 3 points while best lap fell 1.79s — and the uncontrolled variable is flagged.
+Rider confidence rose 3 points while the best lap went 1.79s slower — and the uncontrolled variable is flagged.
 
 00:01:17.350 --> 00:01:23.880
 [THE DECISION IS RECORDED]

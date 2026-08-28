@@ -35,6 +35,8 @@ npm install
 npm run capture
 
 # 3. make the audio bed (synthesised, no licensing to clear)
+#    Do not regenerate it while a render is running — Remotion reads it from
+#    disk as it renders, and replacing it mid-run fails the render.
 npm run audio
 
 # 4. render
@@ -53,10 +55,16 @@ npm run studio
 ```bash
 node scripts/qc-stills.mjs HeroLandscape            # 24 stills across the film
 node scripts/qc-stills.mjs SocialVertical 40,120,260
+node scripts/probe-mp4.mjs renders/*.mp4            # size, duration, fps, codec
 ```
 
-Bundles once and renders stills directly, which is much faster than
-`remotion still` when you are reviewing a whole film.
+`qc-stills` bundles once and renders stills directly, which is much faster than
+`remotion still` when you are reviewing a whole film. `probe-mp4` reads the MP4
+boxes, because there is no usable `ffprobe` here.
+
+The same caution applies as for audio: **do not re-run `npm run capture` while
+a render is in progress.** The rig clears `public/recordings` first, and
+Remotion serves those stills from disk as it renders.
 
 ---
 
@@ -136,17 +144,19 @@ These are constraints on the film, not stylistic preferences.
 
 ## Audio
 
-`scripts/make-audio.mjs` synthesises the bed from scratch (a low drone, a slow
+`scripts/make-audio.ts` synthesises the bed from scratch (a low drone, a slow
 pad swell, a 1.5 s pulse, and marks on the scene boundaries) and writes a
 48 kHz stereo WAV normalised to about −10 dBFS. Nothing is sampled or
 downloaded, so there is no licence to clear and no attribution to carry.
 
 ```bash
-node scripts/make-audio.mjs 100     # seconds
+npm run audio          # length and cut points come from src/script.ts
+npm run audio -- 120   # or force a length in seconds
 ```
 
-Scene-boundary marks are listed in `BOUNDARIES` in that file; they match the
-hero cut. Re-run it if you change scene durations.
+It reads the scene list, so the marks land on the film's cuts and the bed
+cannot drift when a scene's duration changes. Re-run it after editing
+durations.
 
 ## Environment notes
 

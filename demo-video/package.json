@@ -5,7 +5,7 @@
   "description": "Reusable product-demo film system: Playwright capture + Remotion editorial.",
   "scripts": {
     "capture": "node scripts/capture.mjs",
-    "audio": "node scripts/make-audio.mjs",
+    "audio": "tsx scripts/make-audio.ts",
     "studio": "remotion studio src/index.ts",
     "render:hero": "remotion render src/index.ts HeroLandscape renders/hero-1080.mp4 --codec=h264 --crf=16",
     "render:hero4k": "remotion render src/index.ts HeroLandscape renders/hero-2160.mp4 --codec=h264 --crf=16 --scale=2",

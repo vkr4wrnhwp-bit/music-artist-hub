@@ -83,7 +83,7 @@ export const scenes: Scene[] = [
     focus: { x: 0.0, y: 0.18, w: 0.8, h: 0.7 },
     label: 'A BOUNDED CHANGE',
     headline: 'Inside the validated envelope',
-    why: 'Revision B moves one region within tuner-set limits. Everything else is held constant.',
+    why: 'Revision B moves the partial-throttle region within tuner-set limits — 26 cells, nothing else.',
   },
 
   {
@@ -103,7 +103,7 @@ export const scenes: Scene[] = [
     focusTall: { x: 0, y: 0, w: 1, h: 0.76 },
     label: 'WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT',
     headline: 'The rider preferred it. The data disagreed.',
-    why: 'Confidence rose 3 points while best lap fell 1.79s — and the uncontrolled variable is flagged.',
+    why: 'Rider confidence rose 3 points while the best lap went 1.79s slower — and the uncontrolled variable is flagged.',
   },
 
   {
