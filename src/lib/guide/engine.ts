@@ -78,6 +78,20 @@ export interface GuideContext {
   /** Head of the real nextActions() queue, when one exists. */
   nextAction: { action: string; href: string | null } | null;
   training: boolean;
+  /**
+   * Shop inventory snapshot — present on the shop-setup flow's pages.
+   * Counts of what the shop has actually recorded, never what CANVAS
+   * assumes it owns.
+   */
+  shop?: {
+    machines: number;
+    tools: number;
+    materials: number;
+    instruments: number;
+    workholding: number;
+    /** Tools whose changer pocket is mapped on some machine. */
+    toolsInChanger: number;
+  };
   /** NC analyzer snapshot — present only on Run It Past CANVAS pages. */
   nca?: {
     uploads: number;

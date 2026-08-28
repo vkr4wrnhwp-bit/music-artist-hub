@@ -11,6 +11,21 @@ possible: the shop records were read-only and every "Add" button was a
 dead link. They are all editable now, and the loop below assumes this is
 done. Budget an hour or two, once.
 
+### Week zero is now guided
+
+Sign up at `/sign-up` — a real organisation, a real OWNER account, a real
+session. The home page then carries the **Set up the shop** walkthrough,
+which is the list below with the reason attached to each step: what refuses
+without it. It completes from recorded counts, so a shop that is already
+set up sees it finished rather than being asked to redo it, and the last
+step — bring in a part you have already run — stays open because it is a
+judgement no count can close.
+
+The demo shop (`demo@canvas.local` / `canvas-demo`) still exists for a tour
+without data entry. Use a real account for a real evaluation: the demo
+shop's instruments and machines are not yours, and every verdict CANVAS
+gives is only as good as the shop record behind it.
+
 0. **Smoke the install.** `npm run build && npm run db:seed && npm run
    smoke` — boots the built app, requests every workspace route with a
    real session, and asserts the assemblies assemble (seconds, no

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getMachines, getParts, getTools, getWorkholding } from "@/lib/data";
+import { getMachines, getMaterials, getMetrology, getParts, getTools, getWorkholding } from "@/lib/data";
+import { GuideCard } from "@/components/guide/guide-card";
+import type { GuideContext } from "@/lib/guide/engine";
 import { TopBar } from "@/components/nav";
 import { CommandBar } from "@/components/command-bar";
 import { AxisTriad, Dot, EmptyState, LinkButton, Panel, StatusChip } from "@/components/ui";
@@ -21,8 +23,47 @@ export default async function HomePage() {
     }),
     buildInsights(user.organizationId),
   ]);
+  const [materials, instruments, pocketCount] = await Promise.all([
+    getMaterials(user.organizationId),
+    getMetrology(user.organizationId),
+    db.tool.count({ where: { organizationId: user.organizationId, machineId: { not: null }, pocket: { not: null } } }),
+  ]);
 
   const shopReady = machines.length > 0 && tools.length > 0 && workholding.length > 0;
+
+  /*
+   * The shop-setup walkthrough. Every other guide flow assumes a shop that
+   * has already said what it owns; a new organisation has said nothing, and
+   * the engines below are all written to refuse rather than assume. This is
+   * week zero from the beta runbook, guided — and it completes from the
+   * recorded counts, so a shop that was set up before the guide existed
+   * sees it already finished rather than being asked to redo it.
+   */
+  const guideCtx: GuideContext = {
+    partId: "",
+    hasStock: false,
+    hasMachine: machines.length > 0,
+    hasMaterial: materials.length > 0,
+    featureCount: 0,
+    pendingProposals: 0,
+    setupCount: 0,
+    workholdingAssessed: false,
+    toolpathCount: 0,
+    simulationRecorded: false,
+    approvalExists: false,
+    ncProgramExists: false,
+    blockingGates: [],
+    nextAction: null,
+    training: false,
+    shop: {
+      machines: machines.length,
+      tools: tools.length,
+      materials: materials.length,
+      instruments: instruments.length,
+      workholding: workholding.length,
+      toolsInChanger: pocketCount,
+    },
+  };
 
   return (
     <>
@@ -191,6 +232,10 @@ export default async function HomePage() {
           />
         </Panel>
       </main>
+      {/* Week zero, guided. Mounted on the home page because that is where
+          a new shop lands, and it completes from recorded counts rather
+          than from clicks. */}
+      <GuideCard ctx={guideCtx} flowId="SET_UP_THE_SHOP" />
     </>
   );
 }

@@ -356,7 +356,98 @@ export const RUN_IT_PAST: GuideFlowDef = {
   ],
 };
 
+/**
+ * SET_UP_THE_SHOP — week zero, guided.
+ *
+ * The other four flows all assume a shop that has already told CANVAS what
+ * it owns. A new organisation has told it nothing, and every engine
+ * downstream is written to refuse rather than assume: no material window,
+ * no speeds; no instrument, no capability verdict; no machine, no envelope
+ * check. So the first hour is data entry, and until now it was unguided —
+ * the runbook described it in prose and the product left you on an empty
+ * screen.
+ *
+ * Order is not arbitrary. It runs from what blocks the most engines to what
+ * blocks the fewest: a machine and a material unlock speeds and feeds at
+ * all; tools unlock reach and corner checks; workholding unlocks the hold
+ * analysis; instruments unlock every inspection verdict. Nothing here
+ * completes from a click — each step reads the count of what the shop has
+ * actually recorded.
+ */
+export const SET_UP_THE_SHOP: GuideFlowDef = {
+  id: "SET_UP_THE_SHOP",
+  title: "Set up the shop",
+  steps: [
+    {
+      id: "machine",
+      title: "Record the machine you will run this on",
+      body: "Travels, spindle range, changer capacity, rapid rate. Take them off the machine's own plate or its manual — not from memory of a similar model.",
+      why: "Every envelope check, every RPM clamp and every post validates against this record. Without it CANVAS cannot tell you a part does not fit, which is the cheapest mistake it can catch for you.",
+      camHint: "The machine definition other CAM systems keep in a post or a machine config.",
+      href: () => `/machines`,
+      done: (ctx) => (ctx.shop?.machines ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+    {
+      id: "material",
+      title: "Record what you actually cut",
+      body: "The grades that come through your door, with their surface-speed windows and specific cutting energy. Two or three real ones beat a library of forty you never touch.",
+      why: "Surface speed sets the spindle. With no window on file the CAM engine refuses to produce a toolpath at all rather than cut your material at another material's numbers — six times too fast, on the wrong alloy, is a destroyed tool.",
+      href: () => `/materials`,
+      done: (ctx) => (ctx.shop?.materials ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+    {
+      id: "tools",
+      title: "Fill the crib with real geometry",
+      body: "Diameter, flutes, corner radius, flute length and stickout as set in the holder. Chipload and surface-speed window from the manufacturer's data, not a rule of thumb.",
+      why: "Corner radius decides whether an internal corner is machinable at all. Stickout decides whether a depth is reachable. Both are refusals CANVAS makes before you find out at the machine.",
+      camHint: "Your tool library — the same fields, and the same consequences when they are wrong.",
+      href: () => `/tools`,
+      done: (ctx) => (ctx.shop?.tools ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+    {
+      id: "changer",
+      title: "Map the changer pockets",
+      body: "Which tool sits in which pocket, on which machine. A tool in the crib is not a tool in the spindle.",
+      why: "The tooling-loaded gate is about what is physically in the machine when the program runs. Without the map it cannot tell a tool you own from a tool you have loaded.",
+      href: () => `/machines`,
+      done: (ctx) => (ctx.shop?.toolsInChanger ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop) && (ctx.shop?.tools ?? 0) > 0,
+    },
+    {
+      id: "workholding",
+      title: "Record the vise or chuck",
+      body: "Jaw width and height, maximum opening, fixture height — and the clamp force it actually applies at your usual setting, if you know it.",
+      why: "The holding model refuses to invent a clamp force. Grip depth alone is a proxy and a poor one: it is the ratio of applied load to resisting load that decides whether a part stays in the jaws.",
+      href: () => `/workholding`,
+      done: (ctx) => (ctx.shop?.workholding ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+    {
+      id: "metrology",
+      title: "Record what you measure with",
+      body: "Every instrument you would reach for, with the uncertainty it actually achieves in your shop — not the brochure figure — and whether its calibration is recorded.",
+      why: "Inspection capability is a property of the instruments you own and nothing else. It is the one gate a human cannot clear by confirming it: the verdict moves when the instrument does.",
+      href: () => `/metrology`,
+      done: (ctx) => (ctx.shop?.instruments ?? 0) > 0,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+    {
+      id: "first-part",
+      title: "Bring in a part you have already run",
+      body: "Import a STEP file, describe it, or measure one on the bench. A part you know the answer to is the only fair way to judge what CANVAS tells you.",
+      why: "A new part teaches you nothing about whether the tool is right, because you have nothing to check it against. A part you have made tells you immediately where it agrees with you and where it does not — and where it does not is the useful part.",
+      href: () => `/parts`,
+      done: () => false,
+      applies: (ctx) => Boolean(ctx.shop),
+    },
+  ],
+};
+
 export const GUIDE_FLOWS: Record<string, GuideFlowDef> = {
+  SET_UP_THE_SHOP,
   MAKE_A_PART,
   TURN_A_SHAFT,
   REVERSE_A_PART,

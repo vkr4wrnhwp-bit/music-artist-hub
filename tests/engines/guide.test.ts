@@ -319,3 +319,66 @@ test("RUN_IT_PAST derived program stays incomplete while a gate blocks, and is n
   assert.equal(derived.done(ncaCtx({ uploads: 1, optimized: 1 })), true);
   assert.equal(derived.applies?.(ncaCtx({ uploads: 1 }, { training: true })), false);
 });
+
+/* ------------------------------------------------------------------ */
+/* SET_UP_THE_SHOP flow — week zero, guided                            */
+/* ------------------------------------------------------------------ */
+
+import { SET_UP_THE_SHOP } from "@/lib/guide/flows";
+
+const shopCtx = (over: Partial<NonNullable<GuideContext["shop"]>> = {}): GuideContext =>
+  ctx({
+    shop: { machines: 0, tools: 0, materials: 0, instruments: 0, workholding: 0, toolsInChanger: 0, ...over },
+  });
+
+test("the shop flow applies only where a shop snapshot exists, and starts at the machine", () => {
+  // Without the snapshot it is inapplicable — it does not coach shop setup
+  // from a part page that knows nothing about the crib.
+  const plain = ctx();
+  assert.ok(SET_UP_THE_SHOP.steps.every((s) => s.applies?.(plain) === false));
+  const s = startSession(SET_UP_THE_SHOP, shopCtx(), "t");
+  // Order runs from what blocks the most engines to the fewest: no machine
+  // means no envelope check, no RPM clamp and no post at all.
+  assert.equal(s.active, "machine");
+});
+
+test("every shop step completes from a recorded count, never from a click", () => {
+  const steps = Object.fromEntries(SET_UP_THE_SHOP.steps.map((s) => [s.id, s]));
+  assert.equal(steps.machine.done(shopCtx()), false);
+  assert.equal(steps.machine.done(shopCtx({ machines: 1 })), true);
+  assert.equal(steps.material.done(shopCtx({ materials: 2 })), true);
+  assert.equal(steps.tools.done(shopCtx({ tools: 9 })), true);
+  assert.equal(steps.workholding.done(shopCtx({ workholding: 1 })), true);
+  assert.equal(steps.metrology.done(shopCtx({ instruments: 4 })), true);
+  // A tool in the crib is not a tool in the spindle.
+  assert.equal(steps.changer.done(shopCtx({ tools: 9, toolsInChanger: 0 })), false);
+  assert.equal(steps.changer.done(shopCtx({ tools: 9, toolsInChanger: 5 })), true);
+});
+
+test("the changer step only appears once there are tools to map", () => {
+  assert.equal(SET_UP_THE_SHOP.steps.find((s) => s.id === "changer")!.applies?.(shopCtx()), false);
+  assert.equal(SET_UP_THE_SHOP.steps.find((s) => s.id === "changer")!.applies?.(shopCtx({ tools: 3 })), true);
+});
+
+test("a shop set up before the guide existed sees it already finished", () => {
+  // The flow reads counts, so it cannot demand that an established shop
+  // redo work it has already done. Only the final step — bring in a part
+  // you have already run — stays open, because it is a judgement, not a
+  // count, and nothing in the database can mark it done.
+  const stocked = shopCtx({ machines: 2, tools: 40, materials: 6, instruments: 9, workholding: 3, toolsInChanger: 20 });
+  const p = flowProgress(SET_UP_THE_SHOP, startSession(SET_UP_THE_SHOP, stocked, "t"), stocked);
+  assert.equal(p.completed, p.total - 1);
+  assert.equal(startSession(SET_UP_THE_SHOP, stocked, "t").active, "first-part");
+});
+
+test("the shop flow teaches the refusal behind each step, not just the field list", () => {
+  // Every step says what REFUSES without it — that is the reason a
+  // machinist should bother, and it is the product's actual behaviour.
+  for (const step of SET_UP_THE_SHOP.steps) {
+    assert.ok(step.why.length > 60, `${step.id} has no real reason attached`);
+  }
+  const material = SET_UP_THE_SHOP.steps.find((s) => s.id === "material")!;
+  assert.match(material.why, /refuses|surface speed/i);
+  const metrology = SET_UP_THE_SHOP.steps.find((s) => s.id === "metrology")!;
+  assert.match(metrology.why, /cannot clear|moves when the instrument/i);
+});
