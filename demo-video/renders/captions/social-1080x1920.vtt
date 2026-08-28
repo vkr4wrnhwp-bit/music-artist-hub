@@ -1,0 +1,17 @@
+WEBVTT
+
+00:00:00.135 --> 00:00:02.130
+A rider says it hit too hard on the exit.
+Then what?
+
+00:00:02.580 --> 00:00:07.630
+[WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT]
+The rider preferred it. The data disagreed.
+Confidence rose 3 points while best lap fell 1.79s — and the uncontrolled variable is flagged.
+
+00:00:07.915 --> 00:00:10.380
+Most tools would have shipped that change.
+The rider liked it. TRACE showed the lap times anyway.
+
+00:00:10.695 --> 00:00:13.630
+[TRACE] Evidence, not opinion — on every change. trace-4qya.onrender.com. Phase 1 runs on simulated telemetry, labeled on every screen. No ECU write path exists in this build.

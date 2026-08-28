@@ -1,0 +1,10 @@
+node_modules/
+
+# Rendered masters are large binaries — regenerate them with `npm run render:*`.
+# The captions and poster stills are small and travel with the repo.
+renders/*.mp4
+renders/qc/
+
+# The synthesised audio bed is ~19 MB and fully reproducible:
+#   node scripts/make-audio.mjs 100
+public/audio/

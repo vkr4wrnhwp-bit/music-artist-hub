@@ -1,0 +1,59 @@
+WEBVTT
+
+00:00:00.270 --> 00:00:04.380
+[TRACE — Telemetry & Tuning Platform]
+
+00:00:04.770 --> 00:00:08.880
+A rider says it hit too hard on the exit.
+Then what?
+
+00:00:09.350 --> 00:00:15.880
+[THE DAY HAS ONE QUESTION]
+One objective, one team
+Every role opens to the same test objective — not twelve competing dashboards.
+
+00:00:16.350 --> 00:00:23.880
+[RIDER MARKS THE MOMENT]
+Anchored to the track, not memory
+The report is pinned to a corner and a lap, so it can be found in the data.
+
+00:00:24.350 --> 00:00:33.880
+[THE TRACE IS READ, NOT ASSUMED]
+Every lap at that corner
+Throttle, slip and RPM are correlated across the whole session — not one lucky lap.
+
+00:00:34.350 --> 00:00:44.880
+[RANKED CAUSES, COMPUTED CONFIDENCE]
+It shows its work
+Confidence comes from the data — capped when a channel is degraded, never certain.
+
+00:00:45.300 --> 00:00:49.880
+The engineer recommends. It never decides.
+Only a person with the right role can approve a change.
+
+00:00:50.350 --> 00:00:57.880
+[A BOUNDED CHANGE]
+Inside the validated envelope
+Revision B moves one region within tuner-set limits. Everything else is held constant.
+
+00:00:58.350 --> 00:01:05.880
+[NO PATH TO THE ECU]
+The bike stays protected
+TRACE never writes to an ECU. It issues a change sheet a person performs in the manufacturer's own software.
+
+00:01:06.350 --> 00:01:16.880
+[WHAT CHANGED · WHAT HAPPENED · WHAT CAUSED IT]
+The rider preferred it. The data disagreed.
+Confidence rose 3 points while best lap fell 1.79s — and the uncontrolled variable is flagged.
+
+00:01:17.350 --> 00:01:23.880
+[THE DECISION IS RECORDED]
+A feeling never becomes the baseline
+Every revision keeps its status, its evidence and its lineage — so next season knows why.
+
+00:01:24.330 --> 00:01:29.380
+Most tools would have shipped that change.
+The rider liked it. TRACE showed the lap times anyway.
+
+00:01:29.850 --> 00:01:35.880
+[TRACE] Evidence, not opinion — on every change. trace-4qya.onrender.com. Phase 1 runs on simulated telemetry, labeled on every screen. No ECU write path exists in this build.
