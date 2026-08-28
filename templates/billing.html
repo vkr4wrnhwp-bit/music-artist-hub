@@ -5,6 +5,23 @@
 {% set b = billing %}
 
 {% block content %}
+{#- Whether real money is involved. Computed ONCE, at the top, because the
+    block below it is a showcase: an invented renewal date, three
+    fabricated "Paid" invoices, usage tiles read from royalty_data's
+    seed rather than this account, and a line reading "Demo only - no
+    payment method is stored or charged".
+
+    All of that used to render ABOVE a live Stripe Checkout. An artist
+    paying every month was shown somebody else's invoices and told
+    nothing was charged, thirty lines above the button that charges them.
+
+    So it is not a disclaimer that needed rewording - the whole block is
+    for a deployment with no Stripe, and it is hidden outright when there
+    is one. The real section below carries its own plan state, and the
+    Stripe billing portal carries the real invoices. -#}
+{% set real_checkout = stripe_live and not is_demo_account %}
+
+{% if not real_checkout %}
 <div class="mx-auto max-w-[1200px] space-y-5">
   <div>
     <h1 class="sb-h1">Billing</h1>
@@ -82,8 +99,19 @@
   </section>
   <p class="px-1 text-xs text-gray-300 font-medium">Demo only — no payment method is stored or charged. Plan changes are not billed.</p>
 </div>
+{% endif %}
 
-  {% set real_checkout = stripe_live and not is_demo_account %}
+<div class="mx-auto max-w-[1200px] space-y-5">
+  {% if real_checkout %}
+  <div>
+    <h1 class="sb-h1">Billing</h1>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">
+      Your plan and your card, handled by Stripe. Invoices, receipts and
+      cancellation live in the billing portal — this page never stores a
+      card number.
+    </p>
+  </div>
+  {% endif %}
 
   {% if request.args.get('upgraded') %}
   <section class="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-center">
@@ -157,4 +185,5 @@
     </div>
     {% endif %}
   </section>
+</div>
 {% endblock %}

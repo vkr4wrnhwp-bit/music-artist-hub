@@ -7210,8 +7210,27 @@ def create_app():
 
     @app.route("/fans")
     def fans():
+        """Real fan records for a real account; the showcase only for the demo.
+
+        This page used to hand community_config's invented figures - 1,240
+        superfans, a leaderboard of made-up handles and spend - to every
+        account, under a line reading "the app doesn't track individual fans".
+        Both halves were wrong: the numbers were nobody's, and the Fan CRM at
+        /links/fans has held named fans with intent scores since smart links
+        shipped.
+
+        Same rule as the royalty dashboard, for the same reason: showcase data
+        handed to a real artist reads as their own.
+        """
+        import fan_dashboard
+
         ctx = build_dashboard_context()
-        ctx["fans"] = get_fan_dashboard_data()
+        user = current_user()
+        if _session_is_demo() or user is None:
+            ctx["fans"] = get_fan_dashboard_data()
+            ctx["fans"]["is_real"] = False
+        else:
+            ctx["fans"] = fan_dashboard.fan_dashboard_for(user["id"])
         return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/capital")

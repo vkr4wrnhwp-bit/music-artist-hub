@@ -182,7 +182,13 @@ CAPABILITIES = {
 
     # --- not built ---
     "sms_capture": {"status": COMING_SOON, "name": "SMS capture"},
-    "qr_codes": {"status": COMING_SOON, "name": "QR codes"},
+    # Real since smart links shipped: /links/<cid>/qr.svg renders a segno QR
+    # pointing at the campaign with ?src=qr, and every scan writes a qr_scan
+    # row to ml_events. No external dependency, so no probe - it either
+    # generates or the request fails.
+    "qr_codes": {"status": LIVE, "name": "QR codes",
+                 "note": ("Every smart link has a QR. Scans arrive tagged, so "
+                          "they are counted separately from ordinary visits.")},
     "motion_assets": {"status": COMING_SOON, "name": "Motion and video assets"},
     "print_separations": {"status": COMING_SOON, "name": "Print-ready separations"},
     "release_signal": {"status": COMING_SOON, "name": "Release Signal"},

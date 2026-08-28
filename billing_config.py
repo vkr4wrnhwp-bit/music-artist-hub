@@ -1,9 +1,25 @@
 """Config-driven data for the Billing / subscription page.
 
-Shows the current plan (from the shared account config), usage this
-period derived from real catalog/connection counts, past invoices, and
-the available plans to compare. Invoices and prices are illustrative;
-this is a demo — no payment method is ever entered or charged.
+Shows the current plan (from the shared account config), usage this period,
+past invoices, and the available plans to compare.
+
+EVERYTHING HERE IS ILLUSTRATIVE, AND IT IS NOT ALWAYS SHOWN
+-----------------------------------------------------------
+The invoices are three hardcoded rows. `renews_on` is a literal date. The
+usage tiles read royalty_data's seed catalogue, which belongs to the showcase
+rather than to the signed-in account.
+
+None of that is a problem on a deployment with no payment provider, which is
+what this module was written for. It became one when Stripe was configured:
+templates/billing.html rendered this block, invented invoices and the line
+"Demo only - no payment method is stored or charged", directly ABOVE a live
+Stripe Checkout. An artist paying every month read that they were not being
+charged.
+
+So the template now hides this entire block whenever `real_checkout` is true,
+and the real section carries its own plan state while Stripe's billing portal
+carries the real invoices. Do not call this from a path that a paying account
+can reach.
 """
 
 from royalty_data import get_songs, get_platform_catalog
