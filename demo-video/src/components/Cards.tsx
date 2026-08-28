@@ -4,15 +4,10 @@ import { brand } from '../brand.config';
 import { c, type as T, EASE } from '../theme';
 import { Rule, TraceMark, TraceWordmark } from './Marks';
 
-const fadeOut = (frame: number, duration: number, tail = 16) =>
-  interpolate(frame, [duration - tail, duration], [1, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE),
-  });
-
 /** Opening: the mark draws, the wordmark arrives, the promise lands. */
 export const TitleCard: React.FC = () => {
   const frame = useCurrentFrame();
-  const { durationInFrames, width } = useVideoConfig();
+  const { width } = useVideoConfig();
   // the vertical cut is 1080 wide; the lockup is sized for 1920, but scaling
   // it strictly by width leaves the mark too small to carry a 9:16 frame
   const k = Math.max(0.78, Math.min(1, width / 1920));
@@ -20,7 +15,7 @@ export const TitleCard: React.FC = () => {
   const word = interpolate(frame, [46, 76], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
   const tag = interpolate(frame, [66, 92], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
   return (
-    <AbsoluteFill style={{ background: c.ground, alignItems: 'center', justifyContent: 'center', opacity: fadeOut(frame, durationInFrames) }}>
+    <AbsoluteFill style={{ background: c.ground, alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 26 }}>
         <TraceMark size={248 * k} progress={draw} />
         <div style={{ opacity: word, transform: `translateY(${(1 - word) * 14}px)` }}>
@@ -35,14 +30,17 @@ export const TitleCard: React.FC = () => {
 /** A full-screen statement: the film's voice, used sparingly. */
 export const StatementCard: React.FC<{ headline: string; why?: string }> = ({ headline, why }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, width } = useVideoConfig();
+  const { width } = useVideoConfig();
   const k = Math.min(1, width / 1920);
   const pad = Math.round(160 * Math.max(0.45, k));
-  const a = interpolate(frame, [4, 32], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
-  const b = interpolate(frame, [22, 50], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
+  // Content rises from frame 0, not from a beat of empty ground: the scene
+  // cross-dissolves in over six frames, and anything still invisible at the
+  // end of that window leaves the frame bare.
+  const a = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
+  const b = interpolate(frame, [12, 34], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
   return (
-    <AbsoluteFill style={{ background: c.ground, justifyContent: 'center', padding: `0 ${pad}px`, opacity: fadeOut(frame, durationInFrames) }}>
-      <div style={{ marginBottom: 34, opacity: a }}><Rule width={110} delay={6} /></div>
+    <AbsoluteFill style={{ background: c.ground, justifyContent: 'center', padding: `0 ${pad}px` }}>
+      <div style={{ marginBottom: 34, opacity: a }}><Rule width={110} delay={0} /></div>
       <div style={{ ...T.headline, fontSize: Math.round(76 * Math.max(0.78, k)), color: c.ink, maxWidth: 1420, opacity: a, transform: `translateY(${(1 - a) * 18}px)` }}>
         {headline}
       </div>
@@ -60,9 +58,9 @@ export const EndCard: React.FC = () => {
   const frame = useCurrentFrame();
   const { width } = useVideoConfig();
   const k = Math.max(0.78, Math.min(1, width / 1920));
-  const a = interpolate(frame, [4, 34], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
-  const b = interpolate(frame, [30, 62], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
-  const d = interpolate(frame, [56, 88], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
+  const a = interpolate(frame, [0, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
+  const b = interpolate(frame, [18, 46], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
+  const d = interpolate(frame, [40, 72], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(...EASE) });
   return (
     <AbsoluteFill style={{ background: c.ground, alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, opacity: a }}>
