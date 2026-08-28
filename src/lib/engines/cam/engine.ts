@@ -6,6 +6,7 @@ import type {
   Move,
   OperationRequest,
   Toolpath,
+  ToolpathError,
   ToolpathResult,
 } from "./types";
 import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
@@ -359,6 +360,7 @@ function faceToolpath(
 
   moves.push({ type: "RAPID", x: -halfX - lead, y: -halfY + d / 2, z: req.clearanceZ, feed: null });
 
+  let prevZ = req.topZ;
   for (let pass = 1; pass <= passes; pass++) {
     const z = req.topZ - (totalDepth * pass) / passes;
     let y = -halfY + d / 2;
@@ -450,13 +452,18 @@ function pocketToolpath(
 
   moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
 
+  // Each pass helixes down from the previous depth, not from the top: the
+  // material above it is already gone.
+  let prevZ = req.topZ;
   for (let pass = 1; pass <= passes; pass++) {
     const z = req.topZ - (totalDepth * pass) / passes;
 
     if (circular) {
-      // Helical entry at centre, then concentric rings outward.
-      moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
-      moves.push({ type: "PLUNGE", x: cx, y: cy, z, feed: p.plungeFeed });
+      // Helical entry at centre, then concentric rings outward. The helix
+      // must fit inside the finished wall, less the tool radius.
+      const entry = helicalEntry(cx, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, diameter / 2 - r - leave);
+      if (!entry) return helixRefusal(d, `⌀${diameter.toFixed(4)} pocket`);
+      moves.push(...entry);
       const maxRadius = diameter / 2 - r - leave;
       for (let rad = stepover; rad <= maxRadius + 1e-6; rad += stepover) {
         ringMoves(moves, cx, cy, Math.min(rad, maxRadius), z, p.feed);
@@ -470,8 +477,9 @@ function pocketToolpath(
       const innerW = width - d - 2 * leave;
       const innerL = length - d - 2 * leave;
       const rings = Math.max(1, Math.ceil(Math.min(innerW, innerL) / 2 / stepover));
-      moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
-      moves.push({ type: "PLUNGE", x: cx, y: cy, z, feed: p.plungeFeed });
+      const entry = helicalEntry(cx, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, Math.min(innerW, innerL) / 2);
+      if (!entry) return helixRefusal(d, `${width.toFixed(3)} × ${length.toFixed(3)} pocket`);
+      moves.push(...entry);
       for (let i = rings; i >= 1; i--) {
         const w = (innerW * i) / rings;
         const l = (innerL * i) / rings;
@@ -482,6 +490,7 @@ function pocketToolpath(
       }
     }
     moves.push({ type: "RETRACT", x: cx, y: cy, z: req.retractZ, feed: null });
+    prevZ = z;
   }
 
   if (leave > 0 && passes > 1) {
@@ -490,6 +499,79 @@ function pocketToolpath(
 
   const area = circular ? Math.PI * (diameter / 2) ** 2 : width * length;
   return { moves, removed: area * totalDepth, warnings };
+}
+
+/**
+ * HELICAL ENTRY — the only way an end mill gets into solid material.
+ *
+ * A standard end mill has no cutting edge at its centre: the flutes stop
+ * short of the axis. Plunged straight down it does not cut, it rubs — the
+ * centre heats, the flutes load up, and the tool snaps. Only a
+ * centre-cutting mill (a 2-flute, or a 3+ flute with the special grind) can
+ * plunge, and CANVAS has no record of which tools those are, so it does not
+ * gamble on it.
+ *
+ * A helix sidesteps the question entirely: every point on the path is a
+ * peripheral cut, which any end mill can make. The adaptive engine already
+ * did this — "full depth means no straight plunge" — while the pocket
+ * routine beside it plunged straight down at the pocket centre, under a
+ * comment claiming a helical entry it did not perform.
+ *
+ * Returns null when the pocket is too tight to turn a helix in. That is a
+ * refusal, not a fallback to plunging: the caller says so by name.
+ */
+const MIN_HELIX_RADIUS = 0.015;
+
+/**
+ * A pocket too tight to turn a helix in. Entering it needs a straight
+ * plunge, which needs a centre-cutting mill — and CANVAS holds no record of
+ * which tools are centre-cutting, so it refuses rather than assuming.
+ */
+function helixRefusal(toolDiameter: number, what: string): { error: Omit<ToolpathError, "operationId"> } {
+  return {
+    error: {
+      reason: `The ${what} leaves no room to helix a ⌀${toolDiameter.toFixed(4)} end mill in, and entering it straight down needs a centre-cutting mill. CANVAS does not record which tools cut on centre, so it will not plunge one on the assumption.`,
+      recommendations: [
+        "Use a smaller end mill so the helix fits",
+        "Drill a start hole at the entry point and pocket from there",
+        "Plunge-mill or ramp in manually, with a tool you know cuts on centre",
+      ],
+    },
+  };
+}
+
+function helicalEntry(
+  cx: number,
+  cy: number,
+  toolDiameter: number,
+  fromZ: number,
+  toZ: number,
+  clearanceZ: number,
+  plungeFeed: number,
+  /** Largest radius the helix may swing, from the pocket's own geometry. */
+  maxRadius: number,
+): Move[] | null {
+  const radius = Math.min(toolDiameter * 0.4, 0.4, maxRadius);
+  if (radius < MIN_HELIX_RADIUS) return null;
+  const depth = fromZ - toZ;
+  if (depth <= 0) return [];
+  const pitch = Math.max(0.02, toolDiameter * 0.05);
+  const revs = Math.max(1, Math.ceil(depth / pitch));
+  const steps = revs * 24;
+  const out: Move[] = [{ type: "RAPID", x: cx + radius, y: cy, z: clearanceZ, feed: null }];
+  for (let i = 1; i <= steps; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    out.push({
+      type: "PLUNGE",
+      x: cx + radius * Math.cos(a),
+      y: cy + radius * Math.sin(a),
+      z: Math.max(toZ, fromZ - (depth * i) / steps),
+      feed: plungeFeed,
+    });
+  }
+  // Close to centre at depth so the clearing pattern starts where it expects.
+  out.push({ type: "CUT", x: cx, y: cy, z: toZ, feed: plungeFeed });
+  return out;
 }
 
 function ringMoves(moves: Move[], cx: number, cy: number, radius: number, z: number, feed: number) {

@@ -311,3 +311,76 @@ test("where the windows do not overlap the tool's own rating wins, not a number 
   // And the emitted spindle speed follows from it rather than from the cap.
   assert.ok(r.toolpath.parameters.rpm < 800, `rpm ${r.toolpath.parameters.rpm} is the tapping cap, not the tap's rating`);
 });
+
+/* ------------------------------------------------------------------ */
+/* Pocket entry — no end mill is plunged into solid material           */
+/* ------------------------------------------------------------------ */
+
+const rectPocket = {
+  id: "fp", kind: "RECT_POCKET", label: "pocket", functionalRole: "CLEARANCE", critical: false,
+  centerX: 0, centerY: 0, width: 2.0, length: 1.5, depth: 0.5, cornerRadius: 0.25, top: 0,
+} as unknown as Feature;
+
+const roundPocket = {
+  id: "fc", kind: "CIRC_POCKET", label: "round pocket", functionalRole: "CLEARANCE", critical: false,
+  centerX: 0, centerY: 0, diameter: 1.5, depth: 0.5, top: 0,
+} as unknown as Feature;
+
+/** Straight-down moves: same X and Y as the move before, going deeper. */
+const straightPlunges = (moves: { type: string; x: number; y: number; z: number }[]) =>
+  moves.filter((m, i) => i > 0 && m.type === "PLUNGE" && m.x === moves[i - 1].x && m.y === moves[i - 1].y && m.z < moves[i - 1].z);
+
+test("a pocket is entered by helix, never plunged straight into solid material", () => {
+  // A standard end mill has no cutting edge at its centre — the flutes stop
+  // short of the axis. Plunged straight down it rubs rather than cuts, the
+  // centre heats, and the tool snaps. The adaptive engine already knew this
+  // ("full depth means no straight plunge"); the pocket routine beside it
+  // plunged at the pocket centre under a comment claiming a helix it did
+  // not perform.
+  for (const [name, feature] of [["rect", rectPocket], ["circular", roundPocket]] as const) {
+    const r = generateToolpath(req("POCKET_2D"), feature, ctx(endmill), stock);
+    assert.equal(r.ok, true, r.ok ? "" : r.error.reason);
+    if (!r.ok) return;
+    assert.deepEqual(
+      straightPlunges(r.toolpath.moves),
+      [],
+      `${name} pocket plunges straight down — that is a broken end mill`,
+    );
+    // And the entry is a real helix: plunge moves that change X/Y while
+    // descending, around the pocket centre.
+    const helical = r.toolpath.moves.filter(
+      (m, i) => i > 0 && m.type === "PLUNGE" && (m.x !== r.toolpath.moves[i - 1].x || m.y !== r.toolpath.moves[i - 1].y),
+    );
+    assert.ok(helical.length > 10, `${name} pocket has no helical entry (${helical.length} moves)`);
+  }
+});
+
+test("adaptive clearing keeps the rule it already had", () => {
+  const r = generateToolpath(req("ADAPTIVE_2D"), rectPocket, ctx(endmill), stock);
+  assert.equal(r.ok, true, r.ok ? "" : r.error.reason);
+  if (!r.ok) return;
+  assert.deepEqual(straightPlunges(r.toolpath.moves), []);
+});
+
+test("a pocket too tight to helix is refused, not plunged on an assumption", () => {
+  // CANVAS records no centre-cutting flag, so entering straight down is a
+  // gamble on the tool. It says that rather than taking it.
+  // 0.530 leaves a 0.005" swing for a 0.5" mill — under the 0.015" floor.
+  // (0.560 was the first guess and still helixes fine at 0.020".)
+  const tight = { ...(rectPocket as unknown as Record<string, unknown>), width: 0.53, length: 0.53 } as unknown as Feature;
+  const r = generateToolpath(req("POCKET_2D"), tight, ctx(endmill), stock);
+  assert.equal(r.ok, false);
+  assert.ok(!r.ok && /centre-cutting/i.test(r.error.reason), r.ok ? "" : r.error.reason);
+  assert.ok(!r.ok && r.error.recommendations.some((x) => /start hole/i.test(x)));
+});
+
+test("the helix descends only from the depth already cleared", () => {
+  // Each pass helixes from the previous pass's floor, not from the top of
+  // the stock — re-cutting air is slow, and re-entering at full depth is
+  // the straight plunge this fix exists to prevent.
+  const r = generateToolpath({ ...req("POCKET_2D"), finalZ: -0.5 }, rectPocket, ctx(endmill), stock);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const deepest = Math.min(...r.toolpath.moves.map((m) => m.z));
+  assert.ok(deepest >= -0.5 - 1e-9, `cut past the requested depth to ${deepest}`);
+});
