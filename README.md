@@ -24,9 +24,23 @@ python app.py
 
 Then visit `http://127.0.0.1:5000/dashboard`.
 
+## Other products in this repository
+
+Each of these is a separate application with its own dependencies, tests, CI
+job and deployment. They share the repository and nothing else.
+
+| Directory | Product |
+| --- | --- |
+| `reach-app/` | **REACH** — global music discovery, opportunity intelligence and submission management ([README](reach-app/README.md)) |
+| `mx-lab/` | **TRACE** — motocross session tracking |
+| `fuel-map-tool/` | Fuel mapping tool |
+
 ## Development
 
 ```
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
+ruff check .
 pytest
 ```
+
+Both run in CI.
