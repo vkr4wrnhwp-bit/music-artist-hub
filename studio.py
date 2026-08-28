@@ -35,8 +35,8 @@ palette, in command_center, and it is the target of the Audio Studio's
 import hashlib
 import os
 
-from flask import (Blueprint, abort, redirect, render_template, request,
-                   send_file, url_for)
+from flask import (Blueprint, abort, jsonify, redirect, render_template,
+                   request, send_file, url_for)
 
 import blob_store
 import studio_config
@@ -200,6 +200,122 @@ def studio_versions(project_id):
                            summary=sstore.project_summary(_partner(user),
                                                           user["id"], project_id),
                            events=sstore.provenance(_partner(user), project_id, 50))
+
+
+# --- Mix Station and Master Station ------------------------------------------
+# Both work with no vendor and no worker, because everything they show is
+# MEASURED rather than generated: the browser decodes the file with the same
+# BS.1770-4 engine the Rack uses, plus the tempo and key detectors, and posts
+# the numbers back. audio_readiness turns those into rulings. Nothing is sent
+# anywhere, and nothing is claimed that was not measured.
+
+
+@bp.route("/studio/session/<project_id>/measure", methods=["POST"])
+def studio_measure(project_id):
+    """Receive one measurement run from the browser.
+
+    The numbers are recomputed into rulings server-side rather than trusted as
+    conclusions: the page may send `integrated`, but whether -6.2 LUFS is a
+    problem is a threshold decision, and thresholds belong in one place.
+    """
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    payload = request.get_json(silent=True) or {}
+    asset_id = (payload.get("asset_id") or "").strip()
+    asset = sstore.get_studio_asset(_partner(user), user["id"], asset_id)
+    if asset is None:
+        abort(404)
+
+    numeric = {}
+    for key in ("integrated", "true_peak", "sample_peak", "lra", "bpm",
+                "bpm_confidence", "key_fit", "short_term_max", "momentary_max",
+                "first_beat", "grid_confidence", "duration_seconds"):
+        value = payload.get(key)
+        if isinstance(value, (int, float)):
+            numeric[key] = float(value)
+    if isinstance(payload.get("key"), str):
+        numeric["key"] = payload["key"][:24]
+    numeric["measured_at"] = payload.get("measured_at") or True
+
+    sstore.save_analysis(_partner(user), user["id"], project_id, asset_id, numeric)
+    return jsonify({"ok": True})
+
+
+def _room(project_id, room, template):
+    user = _user()
+    project = _project_or_404(user, project_id)
+    summary = sstore.project_summary(_partner(user), user["id"], project_id)
+    source = summary["source"]
+    analysis = findings = comments = None
+    verdict = None
+    if source:
+        analysis = sstore.latest_analysis(_partner(user), source["id"])
+        findings = sstore.list_findings(_partner(user), source["id"])
+        comments = sstore.list_comments(_partner(user), source["id"])
+        if analysis:
+            import audio_readiness
+            verdict = audio_readiness.assess(analysis["measurements"])
+    return render_template(
+        template, active_page="studio", room=room, project=project,
+        summary=summary, source=source, analysis=analysis, verdict=verdict,
+        findings=findings or [], comments=comments or [],
+        targets=__import__("audio_readiness").PLATFORM_TARGETS,
+        readiness=studio_config.readiness())
+
+
+@bp.route("/studio/session/<project_id>/mix")
+def studio_mix(project_id):
+    _live()
+    return _room(project_id, "mix", "studio/mix.html")
+
+
+@bp.route("/studio/session/<project_id>/master")
+def studio_master(project_id):
+    _live()
+    return _room(project_id, "master", "studio/master.html")
+
+
+@bp.route("/studio/session/<project_id>/comment", methods=["POST"])
+def studio_comment(project_id):
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    asset_id = (request.form.get("asset_id") or "").strip()
+    asset = sstore.get_studio_asset(_partner(user), user["id"], asset_id)
+    if asset is None:
+        abort(404)
+    analysis = sstore.latest_analysis(_partner(user), asset_id)
+    duration = None
+    if analysis:
+        duration = analysis["measurements"].get("duration_seconds")
+    sstore.add_comment(
+        _partner(user), user["id"], project_id, asset_id,
+        author_name=user.get("name") or "", body=request.form.get("body") or "",
+        start_seconds=request.form.get("start_seconds") or 0,
+        duration_seconds=duration)
+    return redirect(url_for("studio.studio_mix", project_id=project_id))
+
+
+@bp.route("/studio/session/<project_id>/comment/<comment_id>/resolve",
+          methods=["POST"])
+def studio_resolve_comment(project_id, comment_id):
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    sstore.resolve_comment(_partner(user), user["id"], comment_id,
+                           reopen=bool(request.form.get("reopen")))
+    return redirect(url_for("studio.studio_mix", project_id=project_id))
+
+
+@bp.route("/studio/session/<project_id>/finding/<finding_id>/resolve",
+          methods=["POST"])
+def studio_resolve_finding(project_id, finding_id):
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    sstore.resolve_finding(_partner(user), user["id"], finding_id)
+    return redirect(url_for("studio.studio_mix", project_id=project_id))
 
 
 @bp.route("/studio/session/<project_id>/rack")

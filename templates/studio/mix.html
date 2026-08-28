@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% import "studio/_console.html" as console %}
+{% block title %}Mix - {{ project.title }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  <p class="sb-label sb-label-gold">
+    <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+  </p>
+
+  {{ console.top_bar(project, summary) }}
+  {{ console.rooms(project, room, summary) }}
+
+  {% if not source %}
+    <section class="sb-panel p-4">
+      <p class="text-sm text-gray-300">
+        Upload a source on the
+        <a class="underline" href="{{ url_for('studio.studio_session', project_id=project.id) }}">Session</a>
+        page first. There is nothing to review yet.
+      </p>
+    </section>
+  {% else %}
+
+    <section class="sb-panel p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="sb-label sb-label-gold">Mix readiness</h2>
+        <p id="sb-measure" class="text-sm text-gray-300">&nbsp;</p>
+      </div>
+
+      {% if verdict and verdict.measured %}
+        <p class="mt-2 max-w-2xl text-sm text-white">{{ verdict.summary }}</p>
+        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-sb-ink-3">
+          {%- set m = analysis.measurements %}
+          {% if m.integrated is not none %}<span>{{ "%.1f"|format(m.integrated) }} LUFS</span>{% endif %}
+          {% if m.true_peak is not none %}<span>{{ "%.2f"|format(m.true_peak) }} dBTP</span>{% endif %}
+          {% if m.lra is not none %}<span>{{ "%.1f"|format(m.lra) }} LU range</span>{% endif %}
+          {% if m.bpm is not none %}<span>{{ "%.1f"|format(m.bpm) }} BPM</span>{% endif %}
+          {% if m.key %}<span>{{ m.key }}</span>{% endif %}
+          {% if m.duration_seconds is not none %}<span>{{ "%.0f"|format(m.duration_seconds) }}s</span>{% endif %}
+        </div>
+        <p class="mt-3 text-sm text-gray-300">
+          Measured in your browser to ITU-R BS.1770-4. Tempo is onset
+          autocorrelation and key is chroma against the Krumhansl-Schmuckler
+          profiles &mdash; both come with a confidence, because a key estimate
+          on a finished mix is a guess with a number attached.
+        </p>
+        {{ sb.btn("Measure again", variant="secondary", size="sm", id="sb-measure-go") }}
+      {% else %}
+        <p class="mt-2 max-w-2xl text-sm text-gray-300">
+          Nothing has been measured yet. Nothing below is a guess &mdash; the
+          page waits for real numbers rather than showing placeholders.
+        </p>
+        {{ sb.btn("Measure this mix", variant="primary", size="sm", id="sb-measure-go") }}
+      {% endif %}
+    </section>
+
+    {# Mix Doctor. Every card carries the measurement it came from, so a
+       finding can be argued with rather than just obeyed. #}
+    {% if findings %}
+      <section class="sb-panel p-4">
+        <h2 class="sb-label sb-label-gold">Mix Doctor</h2>
+        <p class="mt-2 text-sm text-gray-300">
+          {{ findings|selectattr("status","equalto","open")|list|length }} open
+          of {{ findings|length }}.
+        </p>
+
+        {% for f in findings %}
+          <div class="mt-3 rounded-lg border border-sb-line bg-black/20 p-3">
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              {%- set tone = {"blocking": "crit", "review": "warn"} -%}
+              {{ sb.badge(f.severity, tone.get(f.severity, "idle")) }}
+              <span class="text-sm font-semibold text-white">{{ f.category|replace("_"," ")|title }}</span>
+              <span class="font-mono text-xs text-sb-ink-3">
+                {{ f.evidence_source }} &middot; {{ f.confidence }} confidence
+              </span>
+              {% if f.status != "open" %}
+                <span class="font-mono text-xs text-sb-good">{{ f.status }}</span>
+              {% endif %}
+            </div>
+            <p class="mt-2 text-sm text-gray-300">{{ f.explanation }}</p>
+            {% if f.measured_evidence.evidence %}
+              <p class="mt-1 font-mono text-xs text-sb-ink-3">{{ f.measured_evidence.evidence }}</p>
+            {% endif %}
+            {% if f.recommendation %}
+              <p class="mt-2 text-sm text-white">{{ f.recommendation }}</p>
+            {% endif %}
+            {% if f.status == "open" %}
+              <form method="post" class="mt-2"
+                    action="{{ url_for('studio.studio_resolve_finding', project_id=project.id, finding_id=f.id) }}">
+                {{ sb.btn("Mark resolved", variant="secondary", size="sm", type="submit") }}
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+    {% elif verdict and verdict.measured %}
+      <section class="sb-panel p-4">
+        <h2 class="sb-label sb-label-gold">Mix Doctor</h2>
+        <p class="mt-2 text-sm text-gray-300">
+          Nothing to flag. Safe peak, sensible loudness, normal dynamic range.
+        </p>
+      </section>
+    {% endif %}
+
+    {# Notes are pinned to a time and to THIS asset, so a note about 1:42 of
+       Mix 3 does not silently re-point at Mix 4. #}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Notes</h2>
+
+      {% for c in comments %}
+        <div class="mt-3 rounded-lg border border-sb-line bg-black/20 p-3">
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span class="font-mono text-xs text-sb-gold">
+              {{ "%d:%02d"|format((c.start_seconds // 60)|int, (c.start_seconds % 60)|int) }}
+            </span>
+            <span class="text-sm text-white">{{ c.author_name or "Someone" }}</span>
+            {% if c.status == "resolved" %}
+              <span class="font-mono text-xs text-sb-good">resolved</span>
+            {% endif %}
+          </div>
+          <p class="mt-1 text-sm text-gray-300">{{ c.body }}</p>
+          <form method="post" class="mt-2"
+                action="{{ url_for('studio.studio_resolve_comment', project_id=project.id, comment_id=c.id) }}">
+            {% if c.status == "resolved" %}<input type="hidden" name="reopen" value="1">{% endif %}
+            {{ sb.btn("Reopen" if c.status == "resolved" else "Resolve",
+                      variant="secondary", size="sm", type="submit") }}
+          </form>
+        </div>
+      {% endfor %}
+
+      <form method="post" class="mt-4 flex flex-wrap items-end gap-2"
+            action="{{ url_for('studio.studio_comment', project_id=project.id) }}">
+        <input type="hidden" name="asset_id" value="{{ source.id }}">
+        <label>
+          <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">At</span>
+          <input name="start_seconds" type="number" step="0.1" min="0" value="0"
+                 class="mt-1 w-24 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+        </label>
+        <label class="min-w-0 flex-1">
+          <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Note</span>
+          <input name="body" required placeholder="Vocal disappears under the synth"
+                 class="mt-1 w-full rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+        </label>
+        {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
+      </form>
+      <p class="mt-2 text-sm text-gray-300">
+        A note past the end of the recording is refused rather than stored
+        &mdash; it would send somebody looking for a problem that is not there.
+      </p>
+    </section>
+
+    <audio controls preload="metadata" class="w-full"
+           src="{{ url_for('studio.studio_asset', asset_id=source.id) }}"></audio>
+  {% endif %}
+</div>
+
+{% if source %}{% include "studio/_measure.html" %}{% endif %}
+{% endblock %}

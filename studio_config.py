@@ -3,9 +3,12 @@
 WHY A FLAG AT ALL
 -----------------
 Studio adds routes, schema and navigation to a product people are using
-today. Off by default means a deployment gets it deliberately, and means the
-schema can land in one release and the surface in another - which is the only
-safe order when the migration has to run on a live database.
+today, so a deployment needs a way to switch it off. It started OFF by
+default, which was right while it was an empty shell and wrong once it
+worked: the owner of the product had to ask three separate times where his
+own features had gone. It is now ON unless a deployment sets the variable to
+0/false/no/off. The schema still lands independently of the surface, which is
+the only safe order when a migration has to run against a live database.
 
 WHY THE FLAG IS READ PER REQUEST
 --------------------------------
@@ -40,39 +43,50 @@ one that gated them all.
 """
 import os
 
-_TRUE = ("1", "true", "yes", "on")
+_FALSE = ("0", "false", "no", "off")
 
 
-def _flag(name):
-    return (os.environ.get(name) or "").strip().lower() in _TRUE
+def _explicitly_off(*names):
+    """On by default; off only when a deployment says so.
+
+    These started off-by-default, which is right for a surface nobody has seen
+    yet and wrong once it works: the owner of the product had to ask three
+    times where his own features were. An unset variable now means "on", and
+    turning it off is still one variable away.
+    """
+    for name in names:
+        value = (os.environ.get(name) or "").strip().lower()
+        if value in _FALSE:
+            return True
+    return False
 
 
 def enabled():
-    """The studio_v1 flag.
+    """The studio_v1 flag. ON unless a deployment turns it off.
 
-    Two names accepted: STUDIO_V1_ENABLED matches the flag's name in the
-    build plan, STUDIO_ENABLED matches the environment-variable list in the
-    same document. Accepting both costs one `or` and saves an afternoon.
+    Two names accepted: STUDIO_V1_ENABLED matches the flag's name in the build
+    plan, STUDIO_ENABLED matches the environment-variable list in the same
+    document. Either set to 0/false/no/off switches the whole product off.
     """
-    return _flag("STUDIO_V1_ENABLED") or _flag("STUDIO_ENABLED")
+    return not _explicitly_off("STUDIO_V1_ENABLED", "STUDIO_ENABLED")
 
 
 # Sub-flags, each gating one room. All require enabled() as well, so turning
 # the product off turns every room off without touching seventeen variables.
 def mix_doctor_enabled():
-    return enabled() and _flag("STUDIO_MIX_DOCTOR_ENABLED")
+    return enabled() and not _explicitly_off("STUDIO_MIX_DOCTOR_ENABLED")
 
 
 def master_station_enabled():
-    return enabled() and _flag("STUDIO_MASTER_STATION_ENABLED")
+    return enabled() and not _explicitly_off("STUDIO_MASTER_STATION_ENABLED")
 
 
 def album_mode_enabled():
-    return enabled() and _flag("STUDIO_ALBUM_MASTER_ENABLED")
+    return enabled() and not _explicitly_off("STUDIO_ALBUM_MASTER_ENABLED")
 
 
 def delivery_enabled():
-    return enabled() and _flag("STUDIO_DELIVERY_ENABLED")
+    return enabled() and not _explicitly_off("STUDIO_DELIVERY_ENABLED")
 
 
 def max_upload_bytes():

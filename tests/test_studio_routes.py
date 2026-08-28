@@ -82,11 +82,13 @@ def test_every_route_is_absent_while_the_flag_is_off(application):
     client, _user = _artist(application)
     project_id = _project(client)
 
-    os.environ.pop("STUDIO_V1_ENABLED", None)
+    os.environ["STUDIO_V1_ENABLED"] = "0"
     try:
         for path in ("/studio", "/studio/new", "/studio/projects",
                      "/studio/session/%s" % project_id,
-                     "/studio/session/%s/versions" % project_id):
+                     "/studio/session/%s/versions" % project_id,
+                     "/studio/session/%s/mix" % project_id,
+                     "/studio/session/%s/master" % project_id):
             assert client.get(path).status_code == 404, path
     finally:
         os.environ["STUDIO_V1_ENABLED"] = "1"
@@ -97,7 +99,7 @@ def test_the_sidebar_entry_follows_the_flag(application):
     client, _user = _artist(application)
     assert 'href="/studio"' in client.get("/overview").get_data(as_text=True)
 
-    os.environ.pop("STUDIO_V1_ENABLED", None)
+    os.environ["STUDIO_V1_ENABLED"] = "0"
     try:
         assert 'href="/studio"' not in client.get("/overview").get_data(as_text=True)
     finally:
@@ -261,13 +263,23 @@ def test_the_page_says_what_this_deployment_cannot_do(application, ready):
     assert "No processing provider" in body
 
 
-def test_unbuilt_rooms_are_disabled_with_a_reason(application, ready):
+def test_a_room_with_nothing_behind_it_says_so(application, ready):
     """A disabled control with a reason is information. A tab that opens an
-    empty page is a bug report."""
+    empty page is a bug report. Mix and Master are built now; Deliver is not,
+    and the tab says which."""
     body = ready["client"].get(
         "/studio/session/%s" % ready["project_id"]).get_data(as_text=True)
-    assert "Mix Station is not built yet" in body
-    assert "Master Station is not built yet" in body
+    assert "Deliver is not built yet" in body
+    assert "Mix Station is not built yet" not in body
+
+
+def test_mix_and_master_need_a_source_before_they_open(application):
+    """Both rooms are about a recording. Opening one with nothing uploaded
+    would be a page that cannot answer its own question."""
+    client, _user = _artist(application)
+    project_id = _project(client)
+    body = client.get("/studio/session/%s" % project_id).get_data(as_text=True)
+    assert "Upload a source first" in body
 
 
 # --- the Rack, still there ---------------------------------------------------

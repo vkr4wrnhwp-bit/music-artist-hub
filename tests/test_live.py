@@ -74,8 +74,26 @@ def rig(application):
 
 # --- the flag ----------------------------------------------------------------
 
+def test_live_is_on_unless_a_deployment_turns_it_off():
+    """It was off by default and the owner could not find his own stage rig.
+    An unset variable now means on; LIVE_LAB_ENABLED=0 still switches it off."""
+    import live
+
+    saved = os.environ.get("LIVE_LAB_ENABLED")
+    try:
+        os.environ.pop("LIVE_LAB_ENABLED", None)
+        assert live.enabled()
+        os.environ["LIVE_LAB_ENABLED"] = "0"
+        assert not live.enabled()
+    finally:
+        if saved is None:
+            os.environ.pop("LIVE_LAB_ENABLED", None)
+        else:
+            os.environ["LIVE_LAB_ENABLED"] = saved
+
+
 def test_every_route_is_absent_while_the_section_is_locked(application, rig):
-    os.environ.pop("LIVE_LAB_ENABLED", None)
+    os.environ["LIVE_LAB_ENABLED"] = "0"
     try:
         for path in ("/live", "/live/%s" % rig["set_id"],
                      "/live/%s/perform" % rig["set_id"],
@@ -89,7 +107,7 @@ def test_the_sidebar_entry_follows_the_flag(application, rig):
     body = rig["client"].get("/overview").get_data(as_text=True)
     assert 'href="/live"' in body
 
-    os.environ.pop("LIVE_LAB_ENABLED", None)
+    os.environ["LIVE_LAB_ENABLED"] = "0"
     try:
         assert 'href="/live"' not in rig["client"].get("/overview").get_data(as_text=True)
     finally:

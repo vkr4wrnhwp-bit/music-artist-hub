@@ -1,0 +1,125 @@
+{#- Measure this asset in the browser, then hand the numbers to the server.
+
+    Why here and not on the server: the audio is already in the browser, the
+    engines are the Rack's own and already load in a page, and this deployment
+    has no worker - so measuring here is not a compromise, it is the only place
+    it can happen inside a request. Nothing is uploaded to a vendor.
+
+    Why the RULINGS are not computed here: whether -6.2 LUFS is a problem is a
+    threshold decision, and thresholds belong in audio_readiness.py where there
+    is one copy of them. The page sends measurements; the server decides what
+    they mean.
+-#}
+<script src="/static/js/loudness.js?v=1"></script>
+<script src="/static/js/tempokey.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+
+  var ASSET_URL = {{ url_for('studio.studio_asset', asset_id=source.id)|tojson }};
+  var ASSET_ID = {{ source.id|tojson }};
+  var POST_URL = {{ url_for('studio.studio_measure', project_id=project.id)|tojson }};
+  var HAS_ANALYSIS = {{ "true" if analysis else "false" }};
+
+  var el = document.getElementById("sb-measure");
+  if (!el) { return; }
+
+  function say(text, tone) {
+    el.textContent = text;
+    el.className = "text-sm " + (tone === "bad" ? "text-sb-crit" : "text-gray-300");
+  }
+
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || !window.fetch || !window.SBLoudness) {
+    say("This browser cannot measure audio here.", "bad");
+    return;
+  }
+
+  function measure() {
+    say("Decoding the file…");
+    fetch(ASSET_URL, { credentials: "same-origin" })
+      .then(function (r) {
+        if (!r.ok) { throw new Error("could not read the audio"); }
+        return r.arrayBuffer();
+      })
+      .then(function (bytes) {
+        var ctx = new Ctx();
+        return new Promise(function (resolve, reject) {
+          ctx.decodeAudioData(bytes, resolve, reject);
+        });
+      })
+      .then(function (buffer) {
+        say("Measuring…");
+        var channels = [];
+        for (var c = 0; c < buffer.numberOfChannels; c++) {
+          channels.push(buffer.getChannelData(c));
+        }
+        var loud = window.SBLoudness.analyse(channels, buffer.sampleRate);
+        var payload = {
+          asset_id: ASSET_ID,
+          measured_at: new Date().toISOString(),
+          duration_seconds: buffer.duration,
+          integrated: loud.integrated,
+          true_peak: loud.truePeak,
+          sample_peak: loud.samplePeak,
+          lra: loud.range,
+          short_term_max: loud.shortTermMax,
+          momentary_max: loud.momentaryMax
+        };
+
+        /* Tempo, beat phase and key are separate engines with separate
+           confidences. They take the CHANNEL ARRAY, not one channel - passing
+           a single Float32Array makes them return null, which reads as "no
+           tempo in this recording" rather than "called wrongly". Each is sent
+           only when it was actually produced: a missing measurement reads as
+           unknown on the other side, which is the truth, where a zero would
+           read as a finding. */
+        if (window.SBTempoKey) {
+          try {
+            var tempo = window.SBTempoKey.detectBpm(channels, buffer.sampleRate);
+            if (tempo && typeof tempo.bpm === "number") {
+              payload.bpm = tempo.bpm;
+              payload.bpm_confidence = tempo.confidence;
+            }
+            var grid = window.SBTempoKey.beatGrid(channels, buffer.sampleRate);
+            if (grid && typeof grid.firstBeat === "number") {
+              payload.first_beat = grid.firstBeat;
+              payload.grid_confidence = grid.confidence;
+            }
+            var key = window.SBTempoKey.detectKey(channels, buffer.sampleRate);
+            if (key && key.key) {
+              payload.key = key.key;
+              payload.key_fit = key.score;
+            }
+          } catch (err) {
+            /* A tempo or key failure must not lose the loudness reading. */
+          }
+        }
+
+        return fetch(POST_URL, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      })
+      .then(function (r) {
+        if (!r.ok) { throw new Error("the server refused the measurement"); }
+        say("Measured. Reloading…");
+        window.location.reload();
+      })
+      .catch(function (err) {
+        say("Could not measure this file: "
+            + (err && err.message ? err.message : "unknown error"), "bad");
+      });
+  }
+
+  var button = document.getElementById("sb-measure-go");
+  if (button) { button.addEventListener("click", measure); }
+
+  /* Measured once automatically, never again without being asked. A silent
+     re-measure on every page view would burn a phone battery and quietly
+     overwrite findings somebody had already worked through. */
+  if (!HAS_ANALYSIS) { measure(); }
+})();
+</script>

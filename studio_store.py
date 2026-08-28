@@ -587,3 +587,143 @@ def project_summary(partner_id, user_id, project_id):
             (v for v in approved if v["asset_role"] in ("master", "approved_master")), None),
         "source": next((a for a in assets if a["asset_role"] == "original"), None),
     }
+
+
+# --- analysis and findings ---------------------------------------------------
+
+def save_analysis(partner_id, user_id, project_id, asset_id, measurements,
+                  analyzer_name="rack/loudness.js+tempokey.js",
+                  analyzer_version="BS.1770-4"):
+    """Store one measurement run, and derive its findings.
+
+    The numbers arrive from the browser because that is where the audio is
+    decoded - the same BS.1770-4 engine the Rack uses, plus the tempo and key
+    detectors. The RULINGS are derived here rather than in the page, so the
+    thresholds live in one place and a finding cannot be softened by whoever
+    is rendering it.
+    """
+    import audio_readiness
+    import json as _json
+
+    analysis_id = _uid()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO studio_analysis (id, project_id, asset_id, partner_key,"
+            " analyzer_name, analyzer_version, analysis_type, measurements,"
+            " findings, confidence, warnings, created_at)"
+            " VALUES (?,?,?,?,?,?,'technical',?,?,?,?,?)",
+            (analysis_id, project_id, asset_id, _pk(partner_id), analyzer_name,
+             analyzer_version, _json.dumps(measurements), "[]", "{}", "[]",
+             _now()))
+
+        # Findings are replaced, not appended: they describe THIS measurement
+        # of THIS asset, and stale ones would read as current.
+        db.execute("DELETE FROM studio_findings WHERE asset_id = ?"
+                   "  AND partner_key = ?", (asset_id, _pk(partner_id)))
+        verdict = audio_readiness.assess(measurements)
+        for ruling in verdict["rulings"]:
+            if ruling["level"] == "ok":
+                continue
+            db.execute(
+                "INSERT INTO studio_findings (id, project_id, asset_id,"
+                " partner_key, category, severity, evidence_source, confidence,"
+                " measured_evidence, explanation, recommendation, status,"
+                " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,'open',?)",
+                (_uid(), project_id, asset_id, _pk(partner_id), ruling["key"],
+                 {"problem": "blocking", "watch": "review",
+                  "unknown": "informational"}.get(ruling["level"], "informational"),
+                 "measured" if ruling["level"] != "unknown" else "inferred",
+                 "strong" if ruling["level"] != "unknown" else "limited",
+                 _json.dumps({"evidence": ruling["evidence"]}),
+                 ruling["headline"] + " " + (ruling["detail"] or ""),
+                 ruling["action"] or "", _now()))
+    record_event(partner_id, project_id, asset_id, "analysis.completed",
+                 actor_id=user_id)
+    return analysis_id
+
+
+def latest_analysis(partner_id, asset_id):
+    import json as _json
+
+    with get_db() as db:
+        row = _row(db.execute(
+            "SELECT * FROM studio_analysis WHERE asset_id = ? AND partner_key = ?"
+            " ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (asset_id, _pk(partner_id))).fetchone())
+    if row:
+        try:
+            row["measurements"] = _json.loads(row["measurements"] or "{}")
+        except ValueError:
+            row["measurements"] = {}
+    return row
+
+
+def list_findings(partner_id, asset_id):
+    import json as _json
+
+    with get_db() as db:
+        rows = [dict(r) for r in db.execute(
+            "SELECT * FROM studio_findings WHERE asset_id = ? AND partner_key = ?"
+            " ORDER BY CASE severity WHEN 'blocking' THEN 0"
+            "   WHEN 'review' THEN 1 ELSE 2 END, created_at",
+            (asset_id, _pk(partner_id))).fetchall()]
+    for row in rows:
+        try:
+            row["measured_evidence"] = _json.loads(row["measured_evidence"] or "{}")
+        except ValueError:
+            row["measured_evidence"] = {}
+    return rows
+
+
+def resolve_finding(partner_id, user_id, finding_id, status="resolved"):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE studio_findings SET status = ? WHERE id = ? AND partner_key = ?",
+            (status, finding_id, _pk(partner_id)))
+    return cur.rowcount > 0
+
+
+# --- comments ----------------------------------------------------------------
+
+def add_comment(partner_id, user_id, project_id, asset_id, author_name, body,
+                start_seconds=0.0, category="note", duration_seconds=None):
+    """A comment is pinned to an ASSET and a time.
+
+    Refused if the timestamp is outside the recording: a note at 4:12 of a
+    three-minute mix is a note nobody can act on, and letting it through means
+    somebody goes looking for a problem that is not there.
+    """
+    start = max(0.0, float(start_seconds or 0))
+    if duration_seconds and start > float(duration_seconds):
+        return None
+    if not (body or "").strip():
+        return None
+    comment_id = _uid()
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO studio_comments (id, project_id, asset_id, partner_key,"
+            " author_id, author_name, start_seconds, body, category, status,"
+            " created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'open',?,?)",
+            (comment_id, project_id, asset_id, _pk(partner_id), user_id,
+             author_name[:120], start, body.strip()[:2000], category, now, now))
+    return comment_id
+
+
+def list_comments(partner_id, asset_id):
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT * FROM studio_comments WHERE asset_id = ? AND partner_key = ?"
+            " ORDER BY start_seconds",
+            (asset_id, _pk(partner_id))).fetchall()]
+
+
+def resolve_comment(partner_id, user_id, comment_id, reopen=False):
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE studio_comments SET status = ?, resolved_by = ?,"
+            " resolved_at = ?, updated_at = ? WHERE id = ? AND partner_key = ?",
+            ("open" if reopen else "resolved", "" if reopen else user_id,
+             None if reopen else _now(), _now(), comment_id, _pk(partner_id)))
+    return cur.rowcount > 0

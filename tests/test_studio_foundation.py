@@ -210,28 +210,35 @@ def test_provenance_is_scoped_too(application, project):
 
 # --- the flag ----------------------------------------------------------------
 
-def test_studio_is_off_unless_a_deployment_says_otherwise(env):
+def test_studio_is_on_unless_a_deployment_turns_it_off(env):
+    """It was off by default and that cost the owner three rounds of looking
+    for his own features. An unset variable now means on."""
+    assert studio_config.enabled()
+
+
+def test_either_flag_name_switches_it_off(env):
+    """Both names still work, and either one can disable the whole product."""
+    env["STUDIO_V1_ENABLED"] = "0"
+    assert not studio_config.enabled()
+    del env["STUDIO_V1_ENABLED"]
+    env["STUDIO_ENABLED"] = "false"
     assert not studio_config.enabled()
 
 
-def test_either_flag_name_switches_it_on(env):
-    env["STUDIO_V1_ENABLED"] = "1"
-    assert studio_config.enabled()
-    del env["STUDIO_V1_ENABLED"]
-    env["STUDIO_ENABLED"] = "true"
-    assert studio_config.enabled()
+def test_turning_the_product_off_turns_every_room_off(env):
+    """One variable, not seventeen. A room that stayed on after the product
+    was switched off would be a page nobody expected to be reachable."""
+    assert studio_config.mix_doctor_enabled()
+    env["STUDIO_V1_ENABLED"] = "0"
+    assert not studio_config.mix_doctor_enabled()
+    assert not studio_config.master_station_enabled()
 
 
-def test_a_room_flag_alone_does_not_switch_a_room_on(env):
-    """The Audio Studio listed six flags and omitted the one that gated all of
-    them, so an operator could set everything the page named and find every
-    lane exactly as dead as before. A sub-flag that works without its parent
-    would be the same trap in the other direction."""
-    env["STUDIO_MIX_DOCTOR_ENABLED"] = "1"
+def test_one_room_can_be_switched_off_on_its_own(env):
+    env["STUDIO_MIX_DOCTOR_ENABLED"] = "0"
     try:
         assert not studio_config.mix_doctor_enabled()
-        env["STUDIO_V1_ENABLED"] = "1"
-        assert studio_config.mix_doctor_enabled()
+        assert studio_config.master_station_enabled()
     finally:
         env.pop("STUDIO_MIX_DOCTOR_ENABLED", None)
 

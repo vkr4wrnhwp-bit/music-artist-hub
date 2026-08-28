@@ -43,7 +43,7 @@ import live_store as lstore
 
 bp = Blueprint("live", __name__)
 
-_TRUE = ("1", "true", "yes", "on")
+_FALSE = ("0", "false", "no", "off")
 _current_user = None
 
 # Audio the engine can decode. The browser does the decoding, so this is the
@@ -52,7 +52,13 @@ STEM_EXTS = (".wav", ".aiff", ".aif", ".flac", ".mp3", ".m4a", ".ogg")
 
 
 def enabled():
-    return (os.environ.get("LIVE_LAB_ENABLED") or "").strip().lower() in _TRUE
+    """ON unless a deployment turns it off.
+
+    Live Lab works and is tested, so hiding it behind a variable nobody had
+    been told about only meant the owner could not find his own stage rig.
+    LIVE_LAB_ENABLED=0 still switches it off.
+    """
+    return (os.environ.get("LIVE_LAB_ENABLED") or "").strip().lower() not in _FALSE
 
 
 def _live():

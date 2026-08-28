@@ -48,8 +48,10 @@
       ("session",  "Session",  url_for("studio.studio_session",  project_id=project.id), none),
       ("rack",     "Rack",     url_for("studio.studio_rack",     project_id=project.id),
        none if summary.source else "Upload a source first"),
-      ("mix",      "Mix",      none, "Mix Station is not built yet"),
-      ("master",   "Master",   none, "Master Station is not built yet"),
+      ("mix",      "Mix",      url_for("studio.studio_mix",    project_id=project.id),
+       none if summary.source else "Upload a source first"),
+      ("master",   "Master",   url_for("studio.studio_master", project_id=project.id),
+       none if summary.source else "Upload a source first"),
       ("versions", "Versions", url_for("studio.studio_versions", project_id=project.id), none),
       ("deliver",  "Deliver",  none, "Deliver is not built yet"),
   ] -%}
