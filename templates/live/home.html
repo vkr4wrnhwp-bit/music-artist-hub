@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Live - Street Banker{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  <div>
+    <p class="sb-label sb-label-gold">Live Stage Suite</p>
+    <h1 class="sb-h1 mt-1">Live</h1>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      Your set, your stems, your triggers. Scenes launch on the bar, stems go
+      to separate outputs so each player gets their own mix, and the whole show
+      is cached in the browser so a reload at the venue does not end it.
+    </p>
+  </div>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Build a set</h2>
+    <form method="post" action="{{ url_for('live.live_new') }}" class="mt-3 space-y-3">
+      {{ sb.field("name", "Set name", placeholder="Friday headline") }}
+      <div class="grid gap-3">
+        {{ sb.field("venue", "Venue", placeholder="Where it is") }}
+        {{ sb.field("tempo_bpm", "Tempo", value="120", type="number") }}
+      </div>
+      {{ sb.btn("Create the set", variant="primary", type="submit") }}
+    </form>
+  </section>
+
+  {% if sets %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Your sets</h2>
+      {% call sb.table(["Set", "Venue", "Tempo", "Updated"]) %}
+        {% for s in sets %}
+          <tr>
+            <td><a class="underline" href="{{ url_for('live.live_set', set_id=s.id) }}">{{ s.name }}</a></td>
+            <td>{{ s.venue or "&mdash;" }}</td>
+            <td class="whitespace-nowrap">{{ s.tempo_bpm|round(0)|int }} BPM</td>
+            <td class="whitespace-nowrap">{{ (s.updated_at or "")[:10] }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    </section>
+  {% endif %}
+
+  {# Stated before somebody relies on it at a venue. setSinkId is Chromium-only
+     and finding that out during soundcheck is worse than reading it here. #}
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">What your browser needs</h2>
+    <ul class="mt-3 space-y-2.5">
+      {% for key, name, detail in readiness %}
+        <li>
+          <p class="text-sm font-semibold text-white">{{ name }}</p>
+          <p class="mt-0.5 text-sm text-gray-300">{{ detail }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ live_set.name }} - Performance</title>
+<link rel="stylesheet" href="/static/css/tailwind.css">
+{% include "_fonts.html" %}
+</head>
+{#- Deliberately outside the app shell: no sidebar, no navigation, nothing to
+    hit by accident in the dark. The only way out is the labelled exit. -#}
+<body class="min-h-screen bg-black text-gray-200">
+<div class="mx-auto max-w-[1100px] p-4">
+
+  <header class="flex flex-wrap items-baseline gap-x-4 gap-y-2 border-b border-sb-line pb-3">
+    <div class="min-w-0">
+      <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-gold">Performance</p>
+      <h1 class="mt-1 text-xl font-semibold text-white">{{ live_set.name }}</h1>
+    </div>
+    <div class="ml-auto flex items-center gap-3">
+      <span id="lv-clock" class="font-mono text-2xl text-white">1.1</span>
+      <span id="lv-bpm" class="font-mono text-xs text-sb-ink-3">{{ live_set.tempo_bpm|round(0)|int }} BPM</span>
+      <a href="/live/{{ live_set.id }}"
+         class="rounded-lg border border-sb-line px-3 py-2 text-sm text-sb-ink-2">Exit</a>
+    </div>
+  </header>
+
+  {# State before capability. Somebody about to walk on stage needs to know
+     what is loaded and what this browser cannot do, in that order. #}
+  <section id="lv-status" class="mt-4 rounded-lg border border-sb-line bg-black/40 px-3 py-2.5">
+    <p class="text-sm text-gray-300">Loading the set&hellip;</p>
+  </section>
+
+  <section class="mt-4">
+    <h2 class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Scenes</h2>
+    <div id="lv-pads" class="mt-2 grid gap-2"></div>
+  </section>
+
+  <section class="mt-5">
+    <h2 class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Stems</h2>
+    <div id="lv-stems" class="mt-2 space-y-1"></div>
+  </section>
+
+  <section class="mt-5 flex flex-wrap items-center gap-2 border-t border-sb-line pt-4">
+    <button id="lv-stop" type="button"
+            class="rounded-lg border border-sb-crit/15 px-4 py-3 text-sm font-bold uppercase tracking-[0.12em] text-sb-crit">
+      Stop everything
+    </button>
+    <button id="lv-click" type="button"
+            class="rounded-lg border border-sb-line px-3 py-3 text-sm text-sb-ink-2">Click</button>
+    <span id="lv-midi" class="ml-auto font-mono text-xs text-sb-ink-3">MIDI: checking&hellip;</span>
+  </section>
+</div>
+
+<script src="/static/js/livelab.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+
+  var MANIFEST_URL = {{ manifest_url|tojson }};
+  var statusEl = document.getElementById("lv-status");
+  var padsEl = document.getElementById("lv-pads");
+  var stemsEl = document.getElementById("lv-stems");
+  var clockEl = document.getElementById("lv-clock");
+  var midiEl = document.getElementById("lv-midi");
+
+  function say(html) { statusEl.innerHTML = html; }
+
+  function fail(message) {
+    say('<p class="text-sm text-sb-crit">' + message + "</p>");
+  }
+
+  if (!window.SBLive) {
+    fail("The live engine did not load. Nothing here will play.");
+    return;
+  }
+  var SB = window.SBLive;
+
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) {
+    fail("This browser has no Web Audio. A stage rig cannot run here.");
+    return;
+  }
+
+  var engine = null;
+  var manifest = null;
+  var ticker = null;
+
+  /* The engine schedules ahead of the audio clock, so it needs to be asked
+     regularly what is due. 25ms is the interval the original rig used - fast
+     enough that a launch lands on the bar, slow enough not to fight the page. */
+  function startTicking() {
+    if (ticker) { return; }
+    ticker = window.setInterval(function () {
+      try {
+        engine.tick();
+        var beat = engine.beatNow();
+        if (typeof beat === "number" && isFinite(beat)) {
+          var bpb = 4;
+          var bar = Math.floor(beat / bpb) + 1;
+          var inBar = Math.floor(beat % bpb) + 1;
+          clockEl.textContent = bar + "." + inBar;
+        }
+      } catch (err) {
+        /* One bad tick must not stop the clock for the rest of the show. */
+      }
+    }, 25);
+  }
+
+  function renderPads() {
+    padsEl.innerHTML = "";
+    padsEl.className = "mt-2 grid grid-cols-2 gap-2";
+    manifest.project.scenes.forEach(function (scene) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rounded-lg border border-sb-line bg-black/40 px-3 py-4 text-left";
+      b.innerHTML =
+        '<span class="block text-sm font-semibold text-white"></span>' +
+        '<span class="block font-mono text-xs text-sb-ink-3"></span>';
+      b.children[0].textContent = scene.name;
+      b.children[1].textContent = scene.quantization + " · then " + scene.followAction;
+      b.addEventListener("click", function () { launch(scene.id); });
+      b.setAttribute("data-scene", scene.id);
+      padsEl.appendChild(b);
+    });
+  }
+
+  function launch(sceneId) {
+    try {
+      var res = engine.triggerScene(sceneId);
+      mark(sceneId, res && res.queued ? "queued" : "playing");
+    } catch (err) {
+      fail("That scene did not launch: " + (err && err.message ? err.message : "unknown"));
+    }
+  }
+
+  function mark(sceneId, state) {
+    var nodes = padsEl.querySelectorAll("[data-scene]");
+    for (var i = 0; i < nodes.length; i++) {
+      var on = nodes[i].getAttribute("data-scene") === sceneId;
+      nodes[i].className = "rounded-lg border px-3 py-4 text-left "
+        + (on
+            ? (state === "queued"
+                ? "border-sb-gold bg-amber-500/10"
+                : "border-sb-good bg-black/40")
+            : "border-sb-line bg-black/40");
+    }
+  }
+
+  function renderStems() {
+    stemsEl.innerHTML = "";
+    manifest.project.stems.forEach(function (stem) {
+      var row = document.createElement("div");
+      row.className = "flex flex-wrap items-center gap-2 rounded-lg border border-sb-line bg-black/40 px-3 py-2";
+      var name = document.createElement("span");
+      name.className = "text-sm text-white";
+      name.textContent = stem.label;
+      var bus = document.createElement("span");
+      bus.className = "font-mono text-xs text-sb-ink-3";
+      bus.textContent = stem.outputId || "master";
+      var mute = document.createElement("button");
+      mute.type = "button";
+      mute.className = "ml-auto rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2";
+      mute.textContent = stem.muted ? "unmute" : "mute";
+      mute.addEventListener("click", function () {
+        var next = mute.textContent === "mute";
+        if (engine.setStemMuted(stem.id, next)) {
+          mute.textContent = next ? "unmute" : "mute";
+        }
+      });
+      var solo = document.createElement("button");
+      solo.type = "button";
+      solo.className = "rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2";
+      solo.textContent = "solo";
+      solo.addEventListener("click", function () {
+        engine.setStemSolo(stem.id, solo.getAttribute("data-on") !== "1");
+        solo.setAttribute("data-on", solo.getAttribute("data-on") === "1" ? "0" : "1");
+      });
+      row.appendChild(name);
+      row.appendChild(bus);
+      row.appendChild(mute);
+      row.appendChild(solo);
+      stemsEl.appendChild(row);
+    });
+  }
+
+  /* Web MIDI is Chromium-only, and the constructor is private - WebMidiSource
+     is created through its async factory, which is what rejects when the
+     permission prompt is refused. The parsed message field is
+     `noteOrController`, not `data1`; the stored mapping uses data1 because
+     that is what a form posts. */
+  function wireMidi() {
+    if (!SB.midi || !SB.midi.WebMidiSource || !navigator.requestMIDIAccess) {
+      midiEl.textContent = "MIDI: not available in this browser";
+      return;
+    }
+    var maps = manifest.midi || [];
+    SB.midi.WebMidiSource.create().then(function (source) {
+      source.onMessage(function (_deviceId, message) {
+        for (var i = 0; i < maps.length; i++) {
+          var m = maps[i];
+          if (m.messageType === message.type
+              && m.channel === message.channel
+              && m.data1 === message.noteOrController) {
+            if (m.target === "scene_launch" && m.targetId) { launch(m.targetId); }
+            else if (m.target === "panic" || m.target === "transport_stop") { stopAll(); }
+            else if (m.target === "click_toggle") { toggleClick(); }
+            return;
+          }
+        }
+      });
+      var count = source.devices().length;
+      midiEl.textContent = "MIDI: " + count + " device"
+        + (count === 1 ? "" : "s") + " · " + maps.length + " mapped";
+    }).catch(function (err) {
+      midiEl.textContent = "MIDI: "
+        + (err && err.message ? err.message : "unavailable");
+    });
+  }
+
+  function stopAll() {
+    try { engine.stopAll(); } catch (err) { /* stop must never throw at a show */ }
+    mark("", "");
+  }
+
+  var clickOn = false;
+  function toggleClick() {
+    clickOn = !clickOn;
+    try { engine.setClickEnabled(clickOn); } catch (err) { clickOn = !clickOn; }
+    document.getElementById("lv-click").className = clickOn
+      ? "rounded-lg border border-sb-gold bg-amber-500/10 px-3 py-3 text-sm text-amber-400"
+      : "rounded-lg border border-sb-line px-3 py-3 text-sm text-sb-ink-2";
+  }
+
+  document.getElementById("lv-stop").addEventListener("click", stopAll);
+  document.getElementById("lv-click").addEventListener("click", toggleClick);
+
+  fetch(MANIFEST_URL, { credentials: "same-origin" })
+    .then(function (r) {
+      if (!r.ok) { throw new Error("could not load the set"); }
+      return r.json();
+    })
+    .then(function (data) {
+      manifest = data;
+      var backend = new SB.engine.WebAudioBackend();
+      engine = new SB.engine.LiveAudioEngine(backend);
+      engine.loadProject(manifest.project);
+      renderPads();
+      renderStems();
+      wireMidi();
+      startTicking();
+
+      var ids = Object.keys(manifest.assets || {});
+      if (!ids.length) {
+        say('<p class="text-sm text-gray-300">The set has no stems yet. '
+            + 'Add audio from your Asset Vault before the show.</p>');
+        return;
+      }
+      say('<p class="text-sm text-gray-300">Loading ' + ids.length
+          + ' stem' + (ids.length === 1 ? "" : "s") + '&hellip;</p>');
+
+      /* Loaded up front, not on launch. A stem that starts downloading when
+         somebody hits the pad is a stem that arrives after the bar. */
+      var done = 0, failed = 0;
+      ids.forEach(function (assetId) {
+        fetch(manifest.assets[assetId], { credentials: "same-origin" })
+          .then(function (r) {
+            if (!r.ok) { throw new Error("stem fetch failed"); }
+            return r.arrayBuffer();
+          })
+          .then(function (bytes) { return engine.loadAudio(assetId, bytes); })
+          .then(function () { done++; report(); })
+          .catch(function () { failed++; report(); });
+
+        function report() {
+          if (done + failed < ids.length) { return; }
+          if (failed) {
+            say('<p class="text-sm text-sb-crit">' + done + ' of ' + ids.length
+                + ' stems loaded. ' + failed + ' failed — those scenes will '
+                + 'be silent.</p>');
+          } else {
+            say('<p class="text-sm text-sb-good">Ready. ' + done + ' stem'
+                + (done === 1 ? "" : "s") + ' loaded and held in memory.</p>');
+          }
+        }
+      });
+    })
+    .catch(function (err) {
+      fail("Could not load this set: "
+           + (err && err.message ? err.message : "unknown error"));
+    });
+})();
+</script>
+</body>
+</html>

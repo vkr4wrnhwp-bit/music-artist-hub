@@ -238,13 +238,41 @@ def nav_hubs():
     try:
         import studio_config
         if not studio_config.enabled():
-            return HUBS
+            return _with_live(HUBS)
     except Exception:
-        return HUBS
+        return _with_live(HUBS)
 
     out = []
     for hkey, name, tagline, items in HUBS:
         if hkey == "studio" and not any(i[0] == "studio" for i in items):
             items = [_STUDIO_ITEM] + list(items)
+        out.append((hkey, name, tagline, items))
+    return _with_live(out)
+
+
+# --- Live (flag-gated) -------------------------------------------------------
+# Same reasoning as Studio's entry: LIVE_LAB_ENABLED is off by default and
+# every /live route 404s while it is, so a literal in HUBS would be a sidebar
+# link to nothing on most deployments.
+_LIVE_ITEM = (
+    "live", "/live",
+    "M4 14a2 2 0 104 0 2 2 0 00-4 0z|M12 14a2 2 0 104 0 2 2 0 00-4 0z"
+    "|M6 14V5l10-2v9|M6 8l10-2",
+    "Live",
+    "Set, stems and triggers. Scenes launch on the bar; stems go to separate outputs.",
+)
+
+
+def _with_live(hubs):
+    try:
+        import live
+        if not live.enabled():
+            return hubs
+    except Exception:
+        return hubs
+    out = []
+    for hkey, name, tagline, items in hubs:
+        if hkey == "stage" and not any(i[0] == "live" for i in items):
+            items = [_LIVE_ITEM] + list(items)
         out.append((hkey, name, tagline, items))
     return out

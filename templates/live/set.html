@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}{{ live_set.name }} - Live{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  <p class="sb-label sb-label-gold">
+    <a href="{{ url_for('live.live_home') }}">&larr; Live</a>
+  </p>
+
+  <div class="rounded-xl border border-sb-line bg-sb-surface-1 p-4">
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+      <div class="min-w-0">
+        <h1 class="sb-h1">{{ live_set.name }}</h1>
+        <p class="mt-1 font-mono text-xs text-sb-ink-3">
+          {{ live_set.venue or "No venue set" }} &middot;
+          {{ live_set.tempo_bpm|round(0)|int }} BPM &middot;
+          {{ live_set.time_sig_num }}/{{ live_set.time_sig_den }} &middot;
+          {{ scenes|length }} scene{{ "" if scenes|length == 1 else "s" }}
+        </p>
+      </div>
+      <div class="ml-auto">
+        {{ sb.btn("Performance mode", variant="primary",
+                  href=url_for("live.live_perform", set_id=live_set.id)) }}
+      </div>
+    </div>
+  </div>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Scenes</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      A scene launches on the bar you choose, not the instant you press it.
+      Follow action decides what happens when it ends.
+    </p>
+
+    {% for scene in scenes %}
+      <div class="mt-3 rounded-lg border border-sb-line bg-black/20 p-3">
+        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span class="text-sm font-semibold text-white">{{ scene.position + 1 }}. {{ scene.name }}</span>
+          <span class="font-mono text-xs text-sb-ink-3">
+            {% if scene.bars %}{{ scene.bars }} bars &middot; {% endif %}
+            {{ scene.scene_type|replace("_"," ") }} &middot; quantize {{ scene.quantization }} &middot;
+            then {{ scene.follow_action }}
+          </span>
+          <form method="post" class="ml-auto"
+                action="{{ url_for('live.live_delete_scene', set_id=live_set.id, scene_id=scene.id) }}"
+                onsubmit="return confirm('Delete this scene and its stem list?');">
+            {{ sb.btn("Delete", variant="secondary", size="sm", type="submit") }}
+          </form>
+        </div>
+
+        {% if scene.stems %}
+          <ul class="mt-2 space-y-1">
+            {% for stem in scene.stems %}
+              <li class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-sb-ink-3">
+                <span class="text-sb-ink-2">{{ stem.name }}</span>
+                <span>{{ stem.output_bus }}</span>
+                {% if stem.muted %}<span class="text-sb-gold">muted</span>{% endif %}
+                {% if stem.soloed %}<span class="text-sb-gold">solo</span>{% endif %}
+                <form method="post" class="ml-auto"
+                      action="{{ url_for('live.live_delete_stem', stem_id=stem.id) }}">
+                  <input type="hidden" name="back" value="{{ url_for('live.live_set', set_id=live_set.id) }}">
+                  {{ sb.btn("Remove", variant="secondary", size="sm", type="submit") }}
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {# Stems come from the Asset Vault as a pointer, never a copy. #}
+        {% if vault %}
+          <form method="post" class="mt-2 flex flex-wrap items-end gap-2"
+                action="{{ url_for('live.live_add_stem', set_id=live_set.id, scene_id=scene.id) }}">
+            <label class="min-w-0">
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Add a stem from the Vault</span>
+              <select name="vault_file_id" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                {% for f in vault %}
+                  <option value="{{ f.id }}">{{ f.label or f.path }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Output</span>
+              <select name="output_bus" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                <option value="master">Master</option>
+                <option value="cue">Cue / in-ear</option>
+                <option value="click">Click</option>
+              </select>
+            </label>
+            {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
+          </form>
+        {% else %}
+          <p class="mt-2 text-sm text-gray-300">
+            No audio in your <a class="underline" href="/vault">Asset Vault</a> yet.
+            Stems are added from there rather than uploaded twice.
+          </p>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="mt-3 text-sm text-gray-300">No scenes yet.</p>
+    {% endfor %}
+
+    <form method="post" class="mt-4 flex flex-wrap items-end gap-2"
+          action="{{ url_for('live.live_add_scene', set_id=live_set.id) }}">
+      <label class="min-w-0 flex-1">
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">New scene</span>
+        <input name="name" placeholder="Intro" required
+               class="mt-1 w-full rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+      </label>
+      <label>
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Quantize</span>
+        <select name="quantization" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+          {% for q in quantizations %}<option value="{{ q }}"{{ " selected" if q == "1bar" }}>{{ q }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Then</span>
+        <select name="follow_action" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+          {% for action in follow_actions %}<option value="{{ action }}">{{ action }}</option>{% endfor %}
+        </select>
+      </label>
+      {{ sb.btn("Add scene", variant="secondary", size="sm", type="submit") }}
+    </form>
+  </section>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Triggers</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      Map a pad or a footswitch to a scene. The same control cannot be mapped
+      twice &mdash; a duplicate would behave differently depending on which
+      mapping was checked first.
+    </p>
+
+    {% if mappings %}
+      {% call sb.table(["Control", "Message", "Does what"]) %}
+        {% for m in mappings %}
+          <tr>
+            <td>{{ m.label or "&mdash;" }}</td>
+            <td class="whitespace-nowrap font-mono text-xs">
+              {{ m.message_type }} ch{{ m.channel }} #{{ m.data1 }}
+            </td>
+            <td class="whitespace-nowrap">{{ m.target|replace("_"," ") }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    {% endif %}
+
+    <form method="post" class="mt-3 flex flex-wrap items-end gap-2"
+          action="{{ url_for('live.live_add_mapping', set_id=live_set.id) }}">
+      <label class="min-w-0">
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Label</span>
+        <input name="label" placeholder="Pad 1"
+               class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+      </label>
+      <label>
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Channel</span>
+        <input name="channel" type="number" value="0" min="0" max="15"
+               class="mt-1 w-20 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+      </label>
+      <label>
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Note / CC</span>
+        <input name="data1" type="number" value="60" min="0" max="127"
+               class="mt-1 w-24 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+      </label>
+      <label>
+        <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Does what</span>
+        <select name="target" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+          {% for t in targets %}<option value="{{ t }}">{{ t|replace("_"," ") }}</option>{% endfor %}
+        </select>
+      </label>
+      {{ sb.btn("Map it", variant="secondary", size="sm", type="submit") }}
+    </form>
+  </section>
+</div>
+{% endblock %}

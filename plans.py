@@ -34,7 +34,7 @@ WORLDS = [
 
 # Path-prefix tier gates. Public pages (/l/, /epk/<slug>, uploads, auth)
 # are never listed here, so they stay open.
-_ARTIST_PATHS = ("/links", "/rollout-studio", "/artwork", "/command-center",
+_ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-center",
                  "/actions", "/releases", "/audience", "/playlists", "/stats",
                  "/insights", "/benchmark", "/pulse", "/metadata-passport",
                  "/fan-club", "/tour", "/stage-plot", "/rack", "/lights", "/tracks", "/certified",

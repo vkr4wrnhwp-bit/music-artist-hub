@@ -25,6 +25,8 @@ import audio_admin
 import audio_providers
 import audio_studio
 import audio_store
+import live
+import live_store
 import studio
 import studio_store
 import audio_webhooks
@@ -8940,6 +8942,11 @@ def create_app():
     # one release ahead of the surface; the surface itself is behind studio_v1
     # and every route re-checks that flag.
     studio_store.init_studio()
+    # Street Banker Live: the stage rig. The engine is browser code -
+    # bundled at static/js/livelab.js - so the server's whole job is the
+    # set, the stems and one manifest. Schema lands unconditionally;
+    # the section itself is behind LIVE_LAB_ENABLED.
+    live_store.init_live()
     # Slow audio work answers on the vendor's clock. /webhooks/ is already a
     # public prefix, so this endpoint carries its own signature check and is
     # 404 unless the feature and a signing secret are both configured.
@@ -8956,6 +8963,7 @@ def create_app():
     # trusting registration time: blueprints are module-level singletons
     # and this factory runs at import, so a flag read here would freeze.
     studio.init(app, current_user=current_user)
+    live.init(app, current_user=current_user)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
