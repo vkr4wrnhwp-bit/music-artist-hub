@@ -68,7 +68,11 @@
 
   <section id="collaborator-access" class="rounded-2xl border border-white/5 bg-[#111113] p-5">
     <h2 class="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Collaborator Access</h2>
-    <p class="mt-1 text-sm text-gray-500">Invite collaborators and control what they can see or edit on specific songs.</p>
+    <p class="mt-1 text-sm text-gray-500">Record who collaborates on which songs, and the access each is intended to have.</p>
+    <p class="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300">
+      <span class="font-semibold uppercase tracking-[0.12em]">Not enforced</span>
+      <span class="text-amber-200/80">Royalty Sweep has no sign-in yet, so these roles are a record of intent, not access control. Nothing here restricts what anyone can open.</span>
+    </p>
 
     <div id="collaborator-list" class="mt-4 space-y-2">
       {% for c in collaborators %}

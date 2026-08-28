@@ -1,3 +1,14 @@
+"""Royalty Sweep's demonstration dataset.
+
+Every figure this module returns is illustrative sample data defined in this
+file — platform balances, payouts, songs, claims and KPIs are not read from any
+royalty provider and are not anyone's real earnings. The dashboard says so on
+every screen; keep that label in place for as long as this remains the source.
+
+Connecting a real provider means replacing these module-level tables with a
+data source behind the same accessor functions, and removing the banner.
+"""
+
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 

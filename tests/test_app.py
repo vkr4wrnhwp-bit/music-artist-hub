@@ -559,3 +559,32 @@ def test_remove_collaborator_unknown_id_returns_404():
     client = create_app().test_client()
     response = client.post("/collaborators/not-a-real-id/remove")
     assert response.status_code == 404
+
+
+def test_every_page_labels_the_data_as_a_demonstration():
+    """The figures are hardcoded samples; no screen may present them as real."""
+    client = create_app().test_client()
+    for path in ("/dashboard", "/royalties", "/catalog", "/valuation", "/settings"):
+        body = client.get(path).get_data(as_text=True)
+        assert "Demonstration data" in body, f"{path} is missing the demo banner"
+        assert "not a real royalty balance" in body, f"{path} is missing the demo banner"
+
+
+def test_no_page_claims_live_data():
+    client = create_app().test_client()
+    for path in ("/dashboard", "/royalties", "/catalog", "/valuation", "/settings"):
+        body = client.get(path).get_data(as_text=True)
+        assert "Live royalty telemetry" not in body, f"{path} claims live data"
+    overview = client.get("/dashboard").get_data(as_text=True)
+    assert "demonstration data, not connected to your accounts" in overview
+
+
+def test_collaborator_access_states_it_is_not_enforced():
+    """There is no authentication in this app; the roles must not read as access control."""
+    client = create_app().test_client()
+    body = client.get("/settings").get_data(as_text=True)
+    assert "Not enforced" in body
+    assert "no sign-in yet" in body
+    assert "not access control" in body
+    # and it must not promise enforcement it cannot deliver
+    assert "control what they can see or edit" not in body
