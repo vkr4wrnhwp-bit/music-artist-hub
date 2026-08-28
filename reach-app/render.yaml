@@ -32,6 +32,11 @@ services:
       # Who REACH treats as the acting principal until it has real sessions.
       - key: REACH_PRINCIPAL_EMAIL
         sync: false
+      # The access gate. Give it a value in the dashboard and every /reach
+      # screen requires it once per browser; leave it empty and the app stays
+      # open. The public landing page and /healthz are never gated.
+      - key: REACH_ACCESS_KEY
+        sync: false
       - key: REACH_PRINCIPAL_ROLE
         value: OWNER
     disk:
