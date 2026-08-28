@@ -25,6 +25,7 @@ import audio_admin
 import audio_providers
 import audio_studio
 import audio_store
+import studio_store
 import audio_webhooks
 import partner_os
 import partner_store
@@ -8933,6 +8934,11 @@ def create_app():
     # the default, so the app runs with no vendor and no key.
     audio_store.init_audio()
     audio_providers.bootstrap()   # adapters register here; mock is the default
+    # Street Banker Studio: the project record that connects a bounce to the
+    # release it becomes. Schema lands unconditionally so a migration can ship
+    # one release ahead of the surface; the surface itself is behind studio_v1
+    # and every route re-checks that flag.
+    studio_store.init_studio()
     # Slow audio work answers on the vendor's clock. /webhooks/ is already a
     # public prefix, so this endpoint carries its own signature check and is
     # 404 unless the feature and a signing secret are both configured.
