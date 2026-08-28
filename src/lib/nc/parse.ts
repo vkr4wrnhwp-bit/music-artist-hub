@@ -106,6 +106,7 @@ export function parseNC(text: string): ParsedNC {
     }));
     if (words.length === 0) continue;
 
+    let unknownG: number | null = null;
     const gs = words.filter((w) => w.letter === "G").map((w) => w.value);
     const get = (l: string) => words.find((w) => w.letter === l)?.value;
 
@@ -133,7 +134,16 @@ export function parseNC(text: string): ParsedNC {
       } else if (g === 53) {
         warnings.add("G53 machine-coordinate moves are skipped — machine zero is unknown to the analyzer.");
         continue outer;
+      } else if (g === 28 || g === 30) {
+        // Reference return. Its coordinates name an intermediate point in
+        // MACHINE space, which the analyzer cannot place — but it is
+        // housekeeping at a tool change or the end of a program, not
+        // cutting. Skip the line outright: neither refuse the program over
+        // it, nor let a stale modal motion consume its Z.
+        warnings.add(`G${g} reference return skipped — machine zero is unknown to the analyzer.`);
+        continue outer;
       } else {
+        unknownG = g;
         warnings.add(`G${g} ignored — outside the V1 subset.`);
       }
     }
@@ -147,6 +157,33 @@ export function parseNC(text: string): ParsedNC {
     if (words.some((w) => w.letter === "M" && w.value === 6)) toolChanges.push({ line: lineNo, toolNumber: tool });
 
     const hasCoord = ["X", "Y", "Z"].some((l) => get(l) !== undefined);
+
+    /*
+     * An unrecognised G-code on a line that also carries coordinates is a
+     * REFUSAL, not a warning.
+     *
+     * Ignoring the word does not ignore the line: the coordinates are still
+     * consumed by whatever motion mode happened to be modal, which is
+     * usually the G00 that positioned over the hole. A `G82 Z-0.2 R0.1 P100`
+     * then became a RAPID from clearance straight down to Z-0.2, and the
+     * bare `X2.0` after it a RAPID across the part at that depth — a
+     * modelled crash, reported as a warning, with the replay, the cycle time
+     * and every air-cutting finding computed over it.
+     *
+     * The cycles that land here are real and common: G73 high-speed peck,
+     * G82 spot/counterbore with dwell, G85/G86/G89 boring and reaming, G76
+     * fine boring. CANVAS does not expand them, and the honest response to
+     * a motion it cannot model is to stop reading rather than to model a
+     * different one.
+     */
+    if (unknownG !== null && hasCoord) {
+      refusals.push({
+        line: lineNo,
+        reason: `G${unknownG} is not in the analyzer's motion vocabulary, and this line carries coordinates. Reading them under the previous motion mode would invent a move this program does not contain.`,
+      });
+      break;
+    }
+
     if (!hasCoord || motion === null) continue;
     if (plane !== 17 && (motion === 2 || motion === 3)) {
       refusals.push({ line: lineNo, reason: "Arc outside G17 (XY) plane — not supported in V1" });

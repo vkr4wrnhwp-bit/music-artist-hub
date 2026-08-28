@@ -293,3 +293,29 @@ test("a cycle with no depth anywhere is refused rather than drilled to nothing",
   assert.equal(p.refusals.length, 1);
   assert.match(p.refusals[0].reason, /no depth/i);
 });
+
+test("an unreadable cycle stops interpretation instead of rapiding through the part", () => {
+  // Ignoring a G-word does not ignore its line. The coordinates are still
+  // consumed by whatever motion was modal — usually the G00 that positioned
+  // over the hole. A G82 spot cycle became a RAPID from clearance straight
+  // down to depth, and the bare X after it a RAPID across the part at that
+  // depth: a modelled crash, reported as a warning, with the replay and the
+  // cycle time computed over it.
+  for (const g of ["G82 Z-0.2 R0.1 P100 F5.", "G73 Z-0.6 R0.1 Q0.1 F9.", "G85 Z-0.5 R0.1 F6."]) {
+    const nc = `G20 G90\nG00 X1 Y1 Z1.0\n${g}\nX2.0\nG80\nM30`;
+    const p = parseNC(nc);
+    assert.equal(p.refusals.length, 1, `${g} was not refused`);
+    assert.match(p.refusals[0].reason, /motion vocabulary/i);
+    // Nothing below the clearance plane was ever emitted.
+    const belowStock = p.segments.filter((s) => s.z1 < 0);
+    assert.deepEqual(belowStock, [], `${g} emitted motion into the part`);
+  }
+});
+
+test("an unknown G-code with no coordinates of its own is only a warning", () => {
+  // G28 on its own line takes no coordinates that a stale motion mode could
+  // swallow, so refusing the whole program over it would be wrong.
+  const p = parseNC("G20 G90\nG00 X1 Y1\nG01 Z-0.1 F10.\nG01 X2.0\nM30\nG91 G28 Z0");
+  assert.deepEqual(p.refusals, []);
+  assert.ok(p.segments.some((s) => s.kind === "CUT"));
+});
