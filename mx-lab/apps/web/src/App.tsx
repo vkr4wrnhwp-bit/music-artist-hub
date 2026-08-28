@@ -29,7 +29,10 @@ import {
 } from './screens/RaceOps';
 import { SyncScreen } from './screens/SyncScreen';
 import { GrantView } from './screens/GrantView';
-import { loadSyncConfig } from './syncClient';
+import {
+  defaultServerUrl, demoModeOn, isHostedDeployment, loadSyncConfig, saveSyncConfig,
+  serverLogin, setDemoMode, syncNow, type SyncConfig,
+} from './syncClient';
 
 const AREAS = [
   { id: 'garage', label: 'Garage', path: 'garage' },
@@ -59,6 +62,106 @@ const SUBNAV: Record<string, Array<[string, string]>> = {
   more: [['more', 'Overview'], ['knowledge', 'Knowledge'], ['pitboard', 'Pit Board'], ['crew', 'Crew'], ['brief', 'Brief'], ['audit', 'Audit']],
 };
 
+
+/**
+ * The front door of a hosted TRACE. Real accounts live on the sync server —
+ * scrypt passwords, invite codes, roles read from the team database — so this
+ * asks for them rather than letting anyone pick a persona. A visitor with no
+ * account can still look around, but only by explicitly choosing demo mode,
+ * which never touches the server.
+ */
+function Gate() {
+  const { db, signIn, update } = useApp();
+  const [userId, setUserId] = useState(db.users[0]?.id ?? '');
+  const [password, setPassword] = useState('');
+  const [invite, setInvite] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const who = db.users.find((u) => u.id === userId);
+    if (!who || !password) return;
+    setBusy(true);
+    setStatus('');
+    try {
+      const serverUrl = defaultServerUrl();
+      const { token, firstLogin } = await serverLogin(
+        serverUrl, db.org.id, who.id, who.role, password, invite.trim() || undefined,
+      );
+      const cfg: SyncConfig = {
+        serverUrl, token, userLabel: `${who.name} (${who.role})`,
+        lastRev: loadSyncConfig()?.lastRev ?? 0, auto: true,
+      };
+      saveSyncConfig(cfg);
+      setStatus(firstLogin ? 'Password set — pulling the team database…' : 'Signed in — pulling the team database…');
+      await syncNow(db, cfg);
+      update(() => {});
+      signIn(who.id);
+    } catch (err) {
+      setStatus((err as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="wrap" style={{ maxWidth: 460, margin: '0 auto', padding: '0 20px' }}>
+      <div style={{ textAlign: 'center', margin: '56px 0 10px' }}>
+        <TraceIcon size={72} />
+        <div style={{ marginTop: 12 }}><TraceWordmark height={26} /></div>
+        <p style={{ color: 'var(--muted)', fontSize: 11.5, letterSpacing: '0.28em', textTransform: 'uppercase', margin: '10px 0 0' }}>
+          Telemetry &amp; Tuning Platform
+        </p>
+      </div>
+
+      <Panel title="Sign in">
+        <form onSubmit={submit}>
+          <div className="field"><label>Who are you</label>
+            <select value={userId} onChange={(e) => setUserId(e.target.value)}>
+              {db.users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name} — {u.role.replaceAll('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field"><label>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="min 8 characters" autoComplete="current-password" />
+          </div>
+          <div className="field"><label>Invite code <span className="hint">— first sign-in on an established team</span></label>
+            <input className="mono" value={invite} onChange={(e) => setInvite(e.target.value)}
+              placeholder="leave empty if you have signed in before" />
+          </div>
+          <div className="btn-row">
+            <button className="btn primary" type="submit" disabled={busy || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </div>
+        </form>
+        {status && <p className="hint" style={{ marginTop: 10 }}>{status}</p>}
+        <p className="hint">
+          Your first sign-in sets your password and claims this organization. After that, new accounts
+          need a one-time invite code from an admin.
+        </p>
+      </Panel>
+
+      <Panel title="No account?">
+        <p className="hint" style={{ marginTop: 0 }}>
+          Explore the full platform on the seeded simulation. Nothing you do reaches the team server —
+          it stays in this browser, and you can clear it at any time.
+        </p>
+        <button className="btn" onClick={() => { setDemoMode(true); nav('garage'); window.location.reload(); }}>
+          Explore the demo
+        </button>
+      </Panel>
+
+      <p className="hint" style={{ textAlign: 'center' }}>
+        External tuner with an access token? <a href="#/grantview">Open the read-only grant view</a>
+      </p>
+      <BrandValues />
+    </div>
+  );
+}
+
 function SignIn() {
   const { db, signIn } = useApp();
   return (
@@ -71,6 +174,19 @@ function SignIn() {
         </p>
         <p className="hint" style={{ marginTop: 18 }}>Phase 1 · simulation · pick a demo role to sign in</p>
       </div>
+      {isHostedDeployment() && demoModeOn() && (
+        <Panel>
+          <p style={{ margin: 0, fontSize: 13.5 }}>
+            <Pill tone="sim">DEMO MODE</Pill> You are exploring the seeded simulation. Nothing here
+            reaches the team server, and everything stays in this browser.
+          </p>
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button className="btn small ghost" onClick={() => { setDemoMode(false); window.location.reload(); }}>
+              Back to sign in
+            </button>
+          </div>
+        </Panel>
+      )}
       <Panel>
         {db.users.map((u) => (
           <button
@@ -121,7 +237,11 @@ function Shell() {
       </>
     );
   }
-  if (!user) return <><div className="sim-banner">{DEMO_BANNER}</div><SignIn /></>;
+  if (!user) {
+    // A hosted TRACE asks who you are; the offline build has no server to ask.
+    const gated = isHostedDeployment() && !demoModeOn();
+    return <><div className="sim-banner">{DEMO_BANNER}</div>{gated ? <Gate /> : <SignIn />}</>;
+  }
 
   const area = AREA_OF[head] ?? 'garage';
 
@@ -233,14 +353,21 @@ function Shell() {
 
       <footer className="app no-print">
         <span>
-          {loadSyncConfig()?.token
-            ? `TRACE — local-first · synced to team server (rev ${loadSyncConfig()?.lastRev ?? 0})`
-            : 'TRACE — offline-first; all data stays on this device until synced.'}
+          {demoModeOn()
+            ? 'TRACE — DEMO MODE · seeded simulation, nothing leaves this browser'
+            : loadSyncConfig()?.token
+              ? `TRACE — local-first · synced to team server (rev ${loadSyncConfig()?.lastRev ?? 0})`
+              : 'TRACE — offline-first; all data stays on this device until synced.'}
         </span>
         <span>No ECU write paths exist in this build.</span>
         <button className="btn small ghost" onClick={() => { if (confirm('Reset all demo data to the seeded state?')) { resetDemo(); nav('garage'); } }}>
           Reset demo data
         </button>
+        {isHostedDeployment() && demoModeOn() && (
+          <button className="btn small ghost" onClick={() => { setDemoMode(false); signOut(); window.location.reload(); }}>
+            Leave demo
+          </button>
+        )}
       </footer>
     </>
   );

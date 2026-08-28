@@ -20,13 +20,42 @@ const CFG_KEY = 'mx-lab-sync-cfg';
 const CONFLICTS_KEY = 'mx-lab-sync-conflicts';
 
 /**
+ * True when the app is being served from a real host rather than opened from
+ * a file or run on a dev machine. A hosted TRACE has a sync server behind it
+ * and must ask who you are; the single-file offline build cannot.
+ */
+export function isHostedDeployment(): boolean {
+  try {
+    const { protocol, hostname } = window.location;
+    if (!protocol.startsWith('http')) return false;        // file:// — the offline build
+    return hostname !== 'localhost' && hostname !== '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * When the app is served by the sync server itself (Render, a pit laptop),
  * the team server IS this origin — prefill it. Local dev keeps :8787.
  */
 export function defaultServerUrl(): string {
-  const { protocol, hostname, origin } = window.location;
-  if (protocol.startsWith('http') && hostname !== 'localhost' && hostname !== '127.0.0.1') return origin;
-  return 'http://localhost:8787';
+  return isHostedDeployment() ? window.location.origin : 'http://localhost:8787';
+}
+
+/**
+ * Demo mode is an explicit choice a visitor makes at the front door: explore
+ * the seeded simulation without an account. It never touches the team server —
+ * everything stays in this browser — and the app says so while it is on.
+ */
+const DEMO_KEY = 'mx-lab-demo-mode';
+export function demoModeOn(): boolean {
+  try { return localStorage.getItem(DEMO_KEY) === '1'; } catch { return false; }
+}
+export function setDemoMode(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(DEMO_KEY, '1');
+    else localStorage.removeItem(DEMO_KEY);
+  } catch { /* private mode — demo simply does not persist */ }
 }
 
 export function loadSyncConfig(): SyncConfig | null {
