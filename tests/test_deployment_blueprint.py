@@ -12,6 +12,13 @@ file, which meant production ran whatever had last been hand-copied across.
 That copy fell six days and seventeen packages behind before anyone noticed.
 `test_masterclip_is_not_vendored_back` is what makes re-adding it fail loudly
 rather than quietly restart the treadmill.
+
+Holeshot Tuner is kept out for a different reason. It was not a separate
+repository, it was a second implementation of a tool TRACE already had — the
+same RPM x throttle grid, without the revisions, approval gates and per-bike
+ECU axes TRACE wraps around it. Its editing tools were folded into TRACE and
+the standalone worksheet retired, so a `fuel-map-tool/` directory reappearing
+means the fork is back.
 """
 
 from pathlib import Path
@@ -31,7 +38,6 @@ def test_every_product_has_a_service():
         "trace",
         "reach",
         "royalty-sweep",
-        "holeshot-tuner",
     }
     # each service points at a directory that exists (or the repo root)
     for name, service in services.items():
@@ -79,4 +85,24 @@ def test_masterclip_is_not_vendored_back():
     assert "masterclip" not in names, (
         "the masterclip service is back in this blueprint — it is declared in "
         "the masterclip-os repository's own render.yaml"
+    )
+
+
+def test_holeshot_tuner_is_not_vendored_back():
+    """The fuel-map worksheet was folded into TRACE; a copy here is the fork again.
+
+    `fuel-map-tool/index.html` and the `trackside` repository were two
+    implementations of the same tuner, drifting apart from each other and from
+    TRACE's own map editor. TRACE now owns that grid — with heatmap editing,
+    smooth, interpolate, undo/redo, air density and condition presets — so a
+    standalone copy has nothing to add and everything to drift from.
+    """
+    assert not (ROOT / "fuel-map-tool").exists(), (
+        "fuel-map-tool/ is back. Fuel and ignition map editing lives in "
+        "mx-lab/ (TRACE); see mx-lab/packages/domain/src/mapEditing.ts"
+    )
+    names = {s["name"] for s in _blueprint("render.yaml")["services"]}
+    assert "holeshot-tuner" not in names, (
+        "the holeshot-tuner service is back — the tuner is a screen inside "
+        "TRACE now, not its own deployment"
     )

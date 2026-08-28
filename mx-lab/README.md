@@ -7,13 +7,44 @@ is labeled as such.**
 
 Banner shown on every screen: `SIMULATED DEMONSTRATION DATA — NOT A VALID TUNE`
 
+## Map editing
+
+Fuel and ignition tables are edited in **Tune → a revision**. The grid is
+driven by the bike's verified ECU definition — its own axis breakpoints, its
+own allowed range and precision — and cells are only writable while the
+revision is a `DRAFT` and your role holds `map.editDraft`.
+
+- **Select** — click, drag to paint a region, shift for a rectangle from the
+  anchor, ctrl/⌘-click to add a single cell. Arrow keys move; `+` and `−`
+  nudge the selection; `0` zeroes it; ctrl/⌘-Z and ctrl/⌘-shift-Z undo and redo.
+- **Shape** — step buttons, set, % change, zero, **smooth** (each selected cell
+  becomes the mean of its 3×3 neighbourhood) and **interpolate** (fill a region
+  bilinearly from its four corners).
+- **Condition presets** — starting shapes for hardpack, sand, mud, altitude and
+  cold air. They are resampled onto *this* ECU definition's axes by breakpoint
+  value, not by index, so "richer just off the bottom" lands at the throttle
+  position it names on any bike. They only apply to `offset` tables, and they
+  are labelled as simulated starting points every time they are offered.
+- **Air density** — elevation, temperature, humidity and altimeter setting give
+  density altitude, density ratio and a suggested trim. Suggested, never
+  applied: like everything advisory here it is offered next to a plug reading,
+  not written into a table.
+
+This is where the **Holeshot Tuner** and **Trackside** worksheets went. They
+were two separate implementations of the same RPM × throttle grid, drifting
+apart from each other and from this one, and neither had revisions, approval
+gates or real ECU axes. The editing tools came here; the worksheets are gone.
+The operations themselves are pure functions in
+`packages/domain/src/mapEditing.ts`, `air.ts` and `mapPresets.ts`, tested
+independently of the screen.
+
 ## Run it
 
 ```bash
 cd mx-lab
 npm install
 npm run dev        # dev server
-npm test           # 76 tests: domain units + sync engine + server integration
+npm test           # 122 tests: domain units + map editing + sync engine + server integration
 npm run typecheck  # strict TS across all three packages
 npm run build      # single-file offline build → apps/web/dist/index.html
 npm run server     # optional self-hosted team sync server (default :8787)

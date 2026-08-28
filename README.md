@@ -1,13 +1,13 @@
 # music-artist-hub
 
-Four separate products share this repository. They have their own runtimes,
+Three separate products share this repository. They have their own runtimes,
 their own tests and their own deployments — the only thing they share is this
 repo and `render.yaml`.
 
-A fifth, **MASTERCLIP OS**, used to live here and now has
-[its own repository](https://github.com/vkr4wrnhwp-bit/masterclip-os). It is
-listed below so this table stays a complete index of the products, but nothing
-of it is stored here.
+Two others used to. **MASTERCLIP OS** now has
+[its own repository](https://github.com/vkr4wrnhwp-bit/masterclip-os), and
+**Holeshot Tuner** is no longer a product at all — its fuel and ignition map
+editing was folded into TRACE, which already owned that grid.
 
 | Product | What it is | Where | State |
 |---|---|---|---|
@@ -15,12 +15,11 @@ of it is stored here.
 | **[REACH](reach-app/)** | Music discovery and outreach — finds playlists, blogs, radio and sync outlets that fit a track, keeps evidence behind every claim, routes each opportunity to an approved email or a human task. | `reach-app/` | Ready to deploy |
 | **[TRACE](mx-lab/)** | Motocross telemetry and tuning platform — sessions, map workflow, race-day ops, an AI race engineer that recommends but never decides, plus a self-hosted team sync server. | `mx-lab/` | Ready to deploy |
 | **Royalty Sweep** | Royalty dashboard — platform balances, payout calendar, catalog value, leak alerts, advance eligibility. The app this repo started as. | repo root | Ready to deploy |
-| **[Holeshot Tuner](fuel-map-tool/)** | Single-file fuel-map worksheet for motocross bikes. No server, no build step. | `fuel-map-tool/` | Ready to deploy |
 
-**[▶ Deploy all four to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)** — one click; reads `render.yaml`.
+**[▶ Deploy all three to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)** — one click; reads `render.yaml`.
 
 **Details, costs and first-run steps: [DEPLOY.md](DEPLOY.md)** — one Blueprint apply brings up
-all four, and it lists what each costs and what Render will prompt you for.
+all three, and it lists what each costs and what Render will prompt you for.
 MASTERCLIP OS deploys separately, from its own repository's `render.yaml`.
 
 ## Honest state
@@ -36,19 +35,17 @@ Each product labels what is real and what is not, in its own UI and its own docs
 - **Royalty Sweep** — every figure is demonstration data defined in
   `royalty_data.py`, labeled on every screen. Not connected to any royalty
   provider.
-- **Holeshot Tuner** — a worksheet. It calculates what you type in; it talks to
-  no bike.
 
 ## Running the root app (Royalty Sweep)
 
 ```bash
 pip install -r requirements.txt
 python app.py            # http://localhost:5000
-pytest                   # 169 tests
+pytest                   # 170 tests
 ruff check .
 ```
 
-The other three here have their own READMEs and their own commands — start with
+The other two here have their own READMEs and their own commands — start with
 the links in the table above. MASTERCLIP OS is in its own repository.
 
 ## Repository layout
@@ -56,16 +53,14 @@ the links in the table above. MASTERCLIP OS is in its own repository.
 ```
 app.py, royalty_data.py, templates/, music_utils/, tests/   Royalty Sweep
 reach-app/                                                  REACH
-mx-lab/                                                     TRACE
-fuel-map-tool/                                              Holeshot Tuner
-render.yaml                                                 all four services
+mx-lab/                                                     TRACE (incl. the fuel-map tuner)
+render.yaml                                                 all three services
 DEPLOY.md                                                   how to deploy them
 .github/workflows/                                          one workflow per product
 ```
 
 Each product has its own workflow, filtered to its own paths, so a change to
-REACH does not run TRACE's build and cannot fail its pull request. Editing the
-fuel-map worksheet runs nothing: it is one HTML file with no build step.
+REACH does not run TRACE's build and cannot fail its pull request.
 
 ## Why MASTERCLIP OS is not here
 

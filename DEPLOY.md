@@ -1,25 +1,27 @@
 # Deploying everything in this repository
 
-Four separate products live here. They share nothing but the repository and
+Three separate products live here. They share nothing but the repository and
 `render.yaml`, which deploys all of them in one Blueprint apply.
 
-MASTERCLIP OS is **not** one of them any more. It has its own repository and
+MASTERCLIP OS and Holeshot Tuner are **not** among them any more. It has its own repository and
 its own blueprint — see [Moving MASTERCLIP OS off this blueprint](#moving-masterclip-os-off-this-blueprint)
-below, which matters if you already have it deployed from here.
+below, which matters if you already have it deployed from here. Holeshot Tuner
+is simply gone: its map editing is a screen inside TRACE now, so if you have a
+`holeshot-tuner` service running, delete it after this blueprint is synced.
+Nothing is lost with it — the worksheet held no server-side data.
 
 | Service | What it is | Render type | Cost |
 |---|---|---|---|
 | `trace` | TRACE — motocross telemetry & tuning platform; app **and** team sync server on one origin | Node web service | paid (persistent disk) or free without it |
 | `reach` | REACH — music discovery, opportunity intelligence and outreach | Python web service | paid (SQLite on disk) |
 | `royalty-sweep` | Royalty Sweep — the royalty dashboard this repo started as | Python web service | free |
-| `holeshot-tuner` | Holeshot Tuner — single-file fuel-map worksheet | Static site | free |
 
 ## One-click deploy
 
-**[▶ Deploy all four services to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)**
+**[▶ Deploy all three services to Render](https://render.com/deploy?repo=https://github.com/vkr4wrnhwp-bit/music-artist-hub)**
 
 That link opens Render's Blueprint flow already pointed at this repository — it
-reads `render.yaml` and lists the four services. It works from a phone. You
+reads `render.yaml` and lists the three services. It works from a phone. You
 still choose the plans and fill in the values Render will not invent (step 3
 below), then Apply.
 
@@ -29,7 +31,7 @@ If you would rather drive it by hand, or the link misbehaves:
 
 1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**.
 2. Connect this GitHub repository. Render reads `render.yaml` and lists all
-   four services.
+   three services.
 3. Render prompts for the values it will not invent (`sync: false` in the
    blueprint). Have these ready:
    - **REACH** — `REACH_PRINCIPAL_EMAIL` (who REACH acts as) and
@@ -44,7 +46,7 @@ If you would rather drive it by hand, or the link misbehaves:
 ### Cost, stated plainly
 `trace` and `reach` each request a persistent disk, which requires Render's
 cheapest paid instance type — two paid instances if you deploy both.
-`royalty-sweep` and `holeshot-tuner` are free.
+`royalty-sweep` is free.
 
 To trial the paid ones at zero cost, delete that service's `disk:` block and
 `plan:` line before applying. Everything still runs, but server-side data
@@ -80,7 +82,6 @@ Do it immediately after the service goes live.
   `https://<trace>/orgs/x/db` returns a JSON 401 — the API is gated.
 - `https://<reach>/healthz` returns OK.
 - `https://<royalty-sweep>/` redirects to `/dashboard` and renders.
-- `https://<holeshot-tuner>/` renders the tuner.
 
 ## Moving MASTERCLIP OS off this blueprint
 

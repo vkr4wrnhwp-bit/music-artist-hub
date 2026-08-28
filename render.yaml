@@ -9,7 +9,11 @@
 #   trace          — mx-lab/         motocross session tracking (Node)
 #   reach          — reach-app/      music discovery and outreach (Python)
 #   royalty-sweep  — repo root/      royalty dashboard (Python/Flask)
-#   holeshot-tuner — fuel-map-tool/  single-file fuel-map worksheet (static)
+#
+# Holeshot Tuner is not here either. Its fuel and ignition map editing now
+# lives inside TRACE, which already carried the same grid as a workflow with
+# revisions, approval and per-bike ECU axes; keeping a second copy of the same
+# tool alongside it was the same mistake as the one below, one product earlier.
 #
 # MASTERCLIP OS is deliberately not here. It lives in its own repository,
 # github.com/vkr4wrnhwp-bit/masterclip-os, and is deployed from that repo's own
@@ -110,19 +114,3 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
-
-  # HOLESHOT TUNER — the original fuel-map worksheet, one self-contained HTML
-  # file with no build step and no server. A static site: free, instant, and
-  # the rewrite keeps every path serving the tool rather than 404ing.
-  - type: web
-    name: holeshot-tuner
-    runtime: static
-    staticPublishPath: fuel-map-tool
-    buildCommand: ""
-    buildFilter:
-      paths:
-        - fuel-map-tool/**
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
