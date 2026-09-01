@@ -24,14 +24,16 @@ HEADLINE = ["Your music. Everywhere.", "On your terms."]
 SUPPORT = ("Prepare and deliver your release to supported platforms while "
            "keeping control of your masters, metadata, timing, territories "
            "and release information.")
-TRUST = "Your masters. Your metadata. Your release plan."
+# Not a tri-possessive: that riff belongs to the sweep and the
+# closing frame. This line says the one thing only this section can.
+TRUST = "Delivered through SummitArts on Symphonic Distribution."
 
 # Two buttons need two destinations. Both pointed at /distribution,
 # which made the primary CTA a no-op next to the guide button. The
 # release checklist that used to be printed on the homepage lives at
 # /release-check, where it can actually be ticked - so that is what
 # "Distribute now" opens.
-PRIMARY_CTA = {"label": "Distribute now", "href": "/release-check"}
+PRIMARY_CTA = {"label": "Check release readiness", "href": "/release-check"}
 GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
 
 # "copy" would resolve to dict.copy in a Jinja attribute lookup and print
@@ -53,15 +55,12 @@ CAPABILITIES = [
     ("02", "Ownership Control",
      "Keep ownership and control of masters and catalog information according "
      "to your agreement and the Street Banker lane you are on."),
+    # Delivery-scoped on purpose. The old 04 (Reporting) and 05 (Splits
+    # and Credits) re-pitched the Royalty Sweep and Metadata Passport
+    # sections that sandwich this one; their copy lives there, in full.
     ("03", "Release Control",
-     "Manage release dates, territories, versions, metadata, credits, artwork "
-     "and delivery status from one release workspace."),
-    ("04", "Reporting",
-     "Organise available performance reports, royalty statements, delivery "
-     "updates and release activity in one place."),
-    ("05", "Splits and Credits",
-     "Confirm contributors, ownership splits, identifiers, performer roles, "
-     "publishing information and required release credits."),
+     "Manage release dates, territories, versions and delivery status from "
+     "one release workspace."),
 ]
 
 WORKFLOW = [

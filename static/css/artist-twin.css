@@ -7,6 +7,9 @@
  */
 
 .sbtw {
+  /* The sticky header is 86px tall; without this, anchor
+     navigation lands the section top underneath it. */
+  scroll-margin-top: 110px;
   --tw-ink: var(--sb-ground);
   --tw-raised: var(--sb-surface-1);
   --tw-second: var(--sb-surface-1);

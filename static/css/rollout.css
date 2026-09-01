@@ -7,6 +7,9 @@
  */
 
 .sbro {
+  /* The sticky header is 86px tall; without this, anchor
+     navigation lands the section top underneath it. */
+  scroll-margin-top: 110px;
   --ro-black: #08080750;
   --ro-ink: var(--sb-ground);
   --ro-brass: var(--sb-gold);

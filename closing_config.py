@@ -18,7 +18,10 @@ SUPPORT = ("Street Banker helps artists build, protect, distribute, promote "
            "and grow the work from one connected system.")
 TRUST_LINE = "Your music. Your data. Your decisions."
 
-PRIMARY_CTA = {"label": "Build my Street Banker", "href": "/start"}
+# "Start ..." rather than "Build my ...": the EQ's plan CTA is
+# "Build my Street Banker plan", and two near-identical labels were
+# routing to two different funnels (/plan vs /start).
+PRIMARY_CTA = {"label": "Start Street Banker", "href": "/start"}
 SECONDARY_CTA = {"label": "Explore the platform", "href": "/product-tour"}
 
 IMAGE = {

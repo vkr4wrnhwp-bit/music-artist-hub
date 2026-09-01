@@ -87,10 +87,15 @@
           <p class="sbro-flow-detail" id="sbro-flow-detail" aria-live="polite">
             <span class="sbro-flow-text">{{ ro.workflow[0][1] }}</span>
           </p>
-          {# The same detail, readable with no pointer and no script. #}
-          <dl class="sbro-flow-fallback">
-            {% for step, detail in ro.workflow %}<dt>{{ step }}</dt><dd>{{ detail }}</dd>{% endfor %}
-          </dl>
+          {# The same detail, for the no-script visitor ONLY. Outside
+             noscript this list double-printed every stage to a screen
+             reader - the exact defect the distribution section's own
+             comment records removing from itself. #}
+          <noscript>
+            <dl class="sbro-flow-fallback">
+              {% for step, detail in ro.workflow %}<dt>{{ step }}</dt><dd>{{ detail }}</dd>{% endfor %}
+            </dl>
+          </noscript>
         </div>
 
         {# The example campaign. Hidden, not absent. #}

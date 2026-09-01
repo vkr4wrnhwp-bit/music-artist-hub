@@ -62,11 +62,11 @@ def test_closing_ctas_point_at_public_routes(client, home):
 
 
 # --- 11.5 trust band --------------------------------------------------------
-def test_trust_band_shows_all_four_promises(home):
-    assert closing_config.BAND_TITLE in home
-    for title, body in closing_config.BAND:
-        assert title in home
-        assert body in home
+def test_the_trust_band_stays_cut(home):
+    """Cut 2026-09-01: its four columns restated promises already made at
+    their point of claim, and the gathered version lives at
+    /artist-control. If the band comes back, this test asks why."""
+    assert closing_config.BAND_TITLE not in home
 
 
 def test_artist_control_policy_is_public_and_complete(client):

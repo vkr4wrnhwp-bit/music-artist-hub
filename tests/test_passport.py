@@ -38,8 +38,8 @@ def _css():
 def test_the_section_sits_after_distribution_and_displaces_nothing():
     body = _home()
     assert body.index('id="global-distribution"') < body.index('id="metadata-passport"')
-    assert body.index('id="metadata-passport"') < body.index("Built for artist control.")
-    for kept in ["Built for artist control.", "Your catalog is the ",
+    assert body.index('id="metadata-passport"') < body.index('id="closing"')
+    for kept in ["Your catalog is the ",
                  "Your music. Everywhere.", "Find what&#39;s yours.",
                  "Choose your lane."]:
         assert kept in body, kept
@@ -53,7 +53,7 @@ def test_the_copy_is_the_approved_copy():
             "assets, versions and release history in one living record." in eq)
     assert "Open Metadata Passport" in eq
     assert "See how it connects" in eq
-    assert "Your credits. Your rights. Your record." in eq
+    assert "The record that outlives the release." in eq
     assert "control what is confirmed, shared or submitted" in eq
 
 

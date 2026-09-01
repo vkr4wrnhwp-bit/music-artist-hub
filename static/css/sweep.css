@@ -32,12 +32,19 @@
 
 .sbsw-eyebrow {
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 600;
   letter-spacing: 0.34em;
   text-transform: uppercase;
   color: var(--sw-brass);
 }
+/* The section number, restored: the page counts 07, 08, 09, 10, 11. */
+.sbsw-sec-num { font-size: 1.15em; letter-spacing: 0.1em; }
+.sbsw-sec-rule { flex: 0 0 26px; height: 1px; background: var(--sw-line); }
 
 .sbsw-title {
   margin: 18px auto 0;

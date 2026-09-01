@@ -134,24 +134,24 @@
           </div>
         </div>
 
-        <div class="sbeq-out-block">
-          <div class="sbeq-panel-label">Recommended lane</div>
-          <a class="sbeq-lane" id="sbeq-lane" href="{{ eq.default_plan.lane.href }}">
-            <span class="sbeq-lane-name" id="sbeq-lane-name">{{ eq.default_plan.lane.name }}</span>
-            <span class="sbeq-lane-why" id="sbeq-lane-why">{{ eq.default_plan.lane.why }}</span>
-          </a>
-        </div>
+        {# No recommended-lane card: the Three Lanes section owns that
+           answer three screens down, and the EQ card printed the same
+           lane names and rationale a second time. The plan CTA carries
+           the whole recommendation to /plan.
 
-        {# Rendered from the same engine the script uses, so the panel is
-           already correct with JavaScript off and never flashes empty. #}
+           Modules and actions are ROWS, not links: this panel put eight
+           outbound exits in the page's second screen, all variants of
+           the same /plan destination. One CTA carries the click now.
+           Rendered from the same engine the script uses, so the panel
+           is already correct with JavaScript off. #}
         <div class="sbeq-out-block">
           <div class="sbeq-panel-label">Recommended modules</div>
           <ul class="sbeq-modules" id="sbeq-modules">
             {% for m in eq.default_plan.modules %}
-            <li><a class="sbeq-module" href="{{ eq.cta.href }}?{{ eq.default_query }}#{{ m.slug }}">
+            <li><span class="sbeq-module">
               <span class="sbeq-module-name">{{ m.name }}</span>
               <span class="sbeq-module-note">{{ m.note }}</span>
-            </a></li>
+            </span></li>
             {% endfor %}
           </ul>
         </div>
@@ -160,7 +160,7 @@
           <div class="sbeq-panel-label">Top 3 actions</div>
           <ol class="sbeq-actions" id="sbeq-actions">
             {% for a in eq.default_plan.actions %}
-            <li><a class="sbeq-action" href="{{ eq.cta.href }}?{{ eq.default_query }}#{{ a.slug }}-action">{{ a.label }}</a></li>
+            <li><span class="sbeq-action">{{ a.label }}</span></li>
             {% endfor %}
           </ol>
           <p class="sbeq-setup">Estimated setup time:

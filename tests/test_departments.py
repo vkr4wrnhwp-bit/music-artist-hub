@@ -40,8 +40,8 @@ def test_the_section_sits_after_the_eq_and_displaces_nothing():
     assert body.index('id="artist-eq"') < body.index('id="departments"')
     assert body.index('id="departments"') < body.index('id="lanes"')
     # Everything that was on the page before it is still on it.
-    for kept in ["Choose your lane.", "Built for artist control.",
-                 "TUNE YOUR ARTIST SYSTEM.", "sbhero-veil", "Run a Royalty Sweep",
+    for kept in ["Choose your lane.",
+                 "TUNE YOUR ARTIST SYSTEM.", "sbhero-veil", "Run a Free Royalty Sweep",
                  "Your catalog is the "]:
         assert kept in body, kept
 
@@ -53,22 +53,22 @@ def test_the_copy_is_the_approved_copy():
     # The headline that was dropped stays dropped.
     assert "Every part of your career" not in _home()
     departments = [
-        ("01", "AI Artist Twin", "Evaluate and plan."),
-        ("02", "Creative Studio", "Build the visual world."),
-        ("03", "Rollout Engine", "Turn the release into a campaign."),
-        ("04", "Royalty Sweep", "Find potential missing income."),
-        ("05", "Rights", "Protect ownership and metadata."),
-        ("06", "Fan Intelligence", "Understand and grow the audience."),
+        ("01", "AI Artist Twin"),
+        ("02", "Creative Studio"),
+        ("03", "Rollout Engine"),
+        ("04", "Royalty Sweep"),
+        ("05", "Rights"),
+        ("06", "Fan Intelligence"),
     ]
     names = re.findall(r'sbdept-name">([^<]+)<', eq)
-    descs = re.findall(r'sbdept-desc">([^<]+)<', eq)
     nums = re.findall(r'sbdept-num">([^<]+)<', eq)
     assert nums == [d[0] for d in departments]
     assert names == [d[1] for d in departments]
-    assert descs == [d[2] for d in departments]
-    # One line each: the brief asks for a line, not a paragraph.
-    for d in descs:
-        assert len(d) <= 40 and d.count(".") == 1, d
+    # The strip is an index since 2026-09-01: no description lines.
+    # Each slice's sentence re-pitched the section it anchors to — one
+    # verbatim (the Creative Studio headline). If a desc comes back,
+    # this test asks what it says that the section below doesn't.
+    assert 'sbdept-desc">' not in eq
 
 
 def test_it_is_one_photograph_and_one_description():

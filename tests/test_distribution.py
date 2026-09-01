@@ -37,8 +37,8 @@ def _css():
 def test_the_section_sits_after_the_sweep_and_displaces_nothing():
     body = _home()
     assert body.index('id="royalty-sweep-section"') < body.index('id="global-distribution"')
-    assert body.index('id="global-distribution"') < body.index("Built for artist control.")
-    for kept in ["Built for artist control.", "Your catalog is the ",
+    assert body.index('id="global-distribution"') < body.index('id="closing"')
+    for kept in ["Your catalog is the ",
                  "Find what&#39;s yours.", "Plan it.", "Choose your lane."]:
         assert kept in body, kept
 
@@ -50,9 +50,9 @@ def test_the_copy_is_the_approved_copy():
     assert ("Prepare and deliver your release to supported platforms while "
             "keeping control of your masters, metadata, timing, territories "
             "and release information." in eq)
-    assert "Distribute now" in eq
+    assert "Check release readiness" in eq
     assert "View distribution guide" in eq
-    assert "Your masters. Your metadata. Your release plan." in eq
+    assert "Delivered through SummitArts on Symphonic Distribution." in eq
     assert "Ready to release?" not in eq
     assert "Start a release" not in eq        # closing block removed
 
@@ -145,9 +145,11 @@ def test_five_capabilities_with_the_reviewed_wording():
     eq = _section()
     nums = re.findall(r'sbds-cap-num">([^<]+)<', eq)
     names = re.findall(r'sbds-cap-name">([^<]+)<', eq)
-    assert nums == ["01", "02", "03", "04", "05"]
-    assert names == ["Platform Delivery", "Ownership Control", "Release Control",
-                     "Reporting", "Splits and Credits"]
+    # 04 Reporting and 05 Splits and Credits were cut 2026-09-01: they
+    # re-pitched the Royalty Sweep and Metadata Passport sections that
+    # sandwich this one. Delivery-scoped capabilities only.
+    assert nums == ["01", "02", "03"]
+    assert names == ["Platform Delivery", "Ownership Control", "Release Control"]
     for _num, _name, detail in CAPABILITIES:
         assert detail[:40] in eq, detail[:40]
     # Ownership is qualified, not promised.

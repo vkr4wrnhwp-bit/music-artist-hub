@@ -413,20 +413,19 @@
     if (el.laneWhy) { el.laneWhy.textContent = chosenLane.why; }
     if (el.lane) { el.lane.setAttribute("href", chosenLane.href); }
 
+    /* Rows, not links: the panel used to place eight outbound exits in
+       the page's second screen, all variants of the same /plan
+       destination. The one CTA below carries the click. */
     if (el.modules) {
       el.modules.innerHTML = "";
       mods.forEach(function (m) {
         var li = document.createElement("li");
-        var a = document.createElement("a");
-        a.className = "sbeq-module";
-        a.href = planHref("/plan") + "#" + m.slug;
-        a.innerHTML = '<span class="sbeq-module-name"></span><span class="sbeq-module-note"></span>';
-        a.querySelector(".sbeq-module-name").textContent = m.name;
-        a.querySelector(".sbeq-module-note").textContent = m.note;
-        a.addEventListener("click", function () {
-          track("artist_eq_module_clicked", {module: m.slug, preset: state.preset});
-        });
-        li.appendChild(a);
+        var row = document.createElement("span");
+        row.className = "sbeq-module";
+        row.innerHTML = '<span class="sbeq-module-name"></span><span class="sbeq-module-note"></span>';
+        row.querySelector(".sbeq-module-name").textContent = m.name;
+        row.querySelector(".sbeq-module-note").textContent = m.note;
+        li.appendChild(row);
         el.modules.appendChild(li);
       });
     }
@@ -435,16 +434,10 @@
       el.actions.innerHTML = "";
       acts.forEach(function (a) {
         var li = document.createElement("li");
-        var link = document.createElement("a");
-        link.className = "sbeq-action";
-        /* /plan gives an action id="<slug>-action": a slug can name both a
-           module and an action, and two elements cannot share an id. */
-        link.href = planHref("/plan") + "#" + a.slug + "-action";
-        link.textContent = a.label;
-        link.addEventListener("click", function () {
-          track("artist_eq_action_clicked", {action: a.slug, preset: state.preset});
-        });
-        li.appendChild(link);
+        var row = document.createElement("span");
+        row.className = "sbeq-action";
+        row.textContent = a.label;
+        li.appendChild(row);
         el.actions.appendChild(li);
       });
     }

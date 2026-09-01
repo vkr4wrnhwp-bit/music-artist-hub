@@ -47,7 +47,9 @@
         <span class="sbdept-body">
           <span class="sbdept-num">{{ d.num }}</span>
           <span class="sbdept-name">{{ d.name }}</span>
-          <span class="sbdept-desc">{{ d.desc }}</span>
+          {# No description line: each slice's sentence re-pitched the
+             section it anchors to (one verbatim - the Creative Studio
+             headline). The strip is an index; the sections pitch. #}
         </span>
       </a>
       {% endfor %}

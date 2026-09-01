@@ -41,9 +41,16 @@
     <span class="sbsw-scrim" aria-hidden="true"></span>
     <div class="sbsw-over">
     <header class="sbsw-head">
-    <p class="sbsw-eyebrow">{{ sw.eyebrow }}</p>
+    <p class="sbsw-eyebrow">
+      <span class="sbsw-sec-num">{{ sw.number }}</span>
+      <span class="sbsw-sec-rule" aria-hidden="true"></span>
+      {{ sw.eyebrow }}
+    </p>
+    {# A space between the spans: the sentences are inline so the layout
+       chooses the break, but without whitespace the browser could
+       neither space nor break them - "yours.Keep" ran together. #}
     <h2 class="sbsw-title" id="sbsw-heading">
-      {% for line in sw.headline %}<span>{{ line }}</span>{% endfor %}
+      {% for line in sw.headline %}<span>{{ line }}</span>{{ ' ' if not loop.last }}{% endfor %}
     </h2>
     <p class="sbsw-support">{{ sw.support }}</p>
     </header>

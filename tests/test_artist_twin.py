@@ -37,7 +37,7 @@ def test_the_section_sits_after_the_departments_and_displaces_nothing():
     assert body.index('id="departments"') < body.index('id="artist-twin-section"')
     assert body.index('id="artist-twin-section"') < body.index('id="lanes"')
     for kept in ["One system. Six departments.", "TUNE YOUR ARTIST SYSTEM.",
-                 "Choose your lane.", "Built for artist control.",
+                 "Choose your lane.",
                  "sbhero-veil", "Your catalog is the "]:
         assert kept in body, kept
 

@@ -42,7 +42,7 @@ def test_the_section_sits_after_the_lanes_and_displaces_nothing():
     assert body.index('id="lanes"') < body.index('id="creative-studio"')
     assert body.index('id="creative-studio"') < body.index('id="royalty-sweep-section"')
     for kept in ["Choose your lane.", "Find what&#39;s yours.",
-                 "Built for artist control.", "Your catalog is the ",
+                 "Your catalog is the ",
                  "One system. Six departments.", "TUNE YOUR ARTIST SYSTEM."]:
         assert kept in body, kept
 

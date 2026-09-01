@@ -15,7 +15,9 @@ NUMBER = "11"
 HEADLINE = ["One release.", "Every detail connected."]
 SUPPORT = ("Organise credits, splits, identifiers, ownership, agreements, "
            "assets, versions and release history in one living record.")
-TRUST = "Your credits. Your rights. Your record."
+# Not a tri-possessive: that riff is rationed to the sweep and the
+# closing frame so it keeps its force.
+TRUST = "The record that outlives the release."
 TRUST_COPY = ("Street Banker organises the information. Artists and authorised "
               "collaborators control what is confirmed, shared or submitted.")
 

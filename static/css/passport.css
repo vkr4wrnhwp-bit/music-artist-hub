@@ -8,6 +8,9 @@
  */
 
 .sbmp {
+  /* The sticky header is 86px tall; without this, anchor
+     navigation lands the section top underneath it. */
+  scroll-margin-top: 110px;
   --mp-ink: var(--sb-ground);
   --mp-raised: var(--sb-surface-1);
   --mp-brass: var(--sb-gold);

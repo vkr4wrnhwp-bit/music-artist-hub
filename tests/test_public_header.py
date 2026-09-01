@@ -78,7 +78,7 @@ def test_no_navigation_item_bounces_a_visitor_to_login():
 
 def test_the_cta_says_what_it_does():
     body = _home()
-    assert "Run a Free Catalog Sweep" in body
+    assert "Run a Free Royalty Sweep" in body
     assert 'href="/catalog-sweep"' in body
     assert "Free Sweep" in body                     # the phone's short form
     for vague in ("Start Free", "Get Started", "Learn More", "Explore Now"):
@@ -418,7 +418,9 @@ def test_the_console_is_already_correct_before_any_script_runs():
     eq = eq[:eq.index("</section>")]
     assert '<span class="sbeq-score" id="sbeq-score">%d<' % plan["score"] in eq
     assert '<p class="sbeq-band" id="sbeq-band">%s<' % plan["band"] in eq
-    assert plan["lane"]["name"] in eq and plan["lane"]["why"] in eq
+    # The recommended-lane card was cut 2026-09-01: the Three Lanes
+    # section owns that answer, and /plan renders the full lane text.
+    assert plan["lane"]["name"] not in eq
     assert plan["setup_time"] in eq
     for module in plan["modules"]:
         assert module["name"].replace("&", "&amp;") in eq, module["name"]

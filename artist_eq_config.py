@@ -109,7 +109,10 @@ LANES = [
      "keys": ["release", "creative", "rights"],
      "why": "Your highest priorities are getting the record out clean, on time and correctly registered."},
     {"id": "development", "name": "Development — Build the Artist",
-     "href": "/catalog-sweep",
+     # /lanes#development, not /catalog-sweep: the label promises artist
+     # development, so the link must open the development lane, not the
+     # sweep intake.
+     "href": "/lanes#development",
      "keys": ["creative", "audience", "growth"],
      "why": "Your highest priorities are creative work and audience, which is artist development."},
     {"id": "partnership", "name": "Partnership — Build the Asset",

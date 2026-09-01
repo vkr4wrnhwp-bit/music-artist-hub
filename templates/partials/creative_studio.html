@@ -93,12 +93,16 @@
       <p class="sbcs-feature-line" id="sbcs-feature-line" aria-live="polite">
         <span class="sbcs-feature-text">{{ cs.features[0].line }}</span>
       </p>
-      {# The same lines, readable with no pointer and no script. #}
-      <dl class="sbcs-feature-fallback">
-        {% for f in cs.features %}
-        <dt>{{ f.label }}</dt><dd>{{ f.line }}</dd>
-        {% endfor %}
-      </dl>
+      {# The same lines, for the no-script visitor ONLY - outside
+         noscript this list read every label and line twice to a
+         screen reader. #}
+      <noscript>
+        <dl class="sbcs-feature-fallback">
+          {% for f in cs.features %}
+          <dt>{{ f.label }}</dt><dd>{{ f.line }}</dd>
+          {% endfor %}
+        </dl>
+      </noscript>
     </div>
   </div>
 </section>

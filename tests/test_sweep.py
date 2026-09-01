@@ -38,13 +38,13 @@ def test_the_section_replaces_the_old_sweep_band_and_keeps_its_anchor():
     body = _home()
     assert 'id="royalty-sweep"' in body                  # the header links at it
     assert body.index('id="rollout-engine"') < body.index('id="royalty-sweep-section"')
-    assert body.index('id="royalty-sweep-section"') < body.index("Built for artist control.")
+    assert body.index('id="royalty-sweep-section"') < body.index('id="closing"')
     # The old band is gone, and its photograph with it.
     assert "FIND WHAT YOU EARNED." not in body
     assert "FIX WHAT IS MISSING." not in body
     assert "sb-band-sweep.jpg" not in body
     # Everything below is untouched.
-    for kept in ["Built for artist control.", "Your catalog is the ",
+    for kept in ["Your catalog is the ",
                  "closing-wide-1672", "Plan it.", "Choose your lane."]:
         assert kept in body, kept
 
@@ -57,7 +57,7 @@ def test_the_copy_is_the_approved_copy():
     assert ("Connect the catalog, trace missing registrations and income "
             "sources, and turn every potential gap into a trackable recovery "
             "case." in eq)
-    assert "Run a Royalty Sweep" in eq
+    assert "Run a Free Royalty Sweep" in eq
     assert "See how the sweep works" in eq
     assert "Your catalog. Your data. Your approval." in eq
     assert "Every finding requires verification before submission." in eq
@@ -136,7 +136,8 @@ def test_no_money_appears_anywhere_in_the_section():
     for banned in ("$", "£", "€", "%", "USD"):
         assert banned not in text, banned
     # The only digits are the stage numbers.
-    assert set(re.findall(r"\d+", text)) <= {"01", "02", "03", "04", "05"}
+    # 09 is the section's own eyebrow number, restored 2026-09-01.
+    assert set(re.findall(r"\d+", text)) <= {"09", "01", "02", "03", "04", "05"}
 
 
 def test_the_example_case_is_labelled_and_carries_no_figure():
@@ -221,7 +222,7 @@ def test_the_photograph_carries_no_invented_registration():
     eq = _section()
     # Nothing in the section depends on reading the table.
     for word in ("Detect", "Match", "Verify", "Claim", "Track",
-                 "Run a Royalty Sweep"):
+                 "Run a Free Royalty Sweep"):
         assert word in eq, word
 
 

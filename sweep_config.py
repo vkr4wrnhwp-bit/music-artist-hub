@@ -17,7 +17,8 @@ SUPPORT = ("Connect the catalog, trace missing registrations and income "
            "sources, and turn every potential gap into a trackable recovery "
            "case.")
 
-PRIMARY_CTA = {"label": "Run a Royalty Sweep", "href": "/catalog-sweep"}
+# The one canonical conversion label, shared with the header and hero.
+PRIMARY_CTA = {"label": "Run a Free Royalty Sweep", "href": "/catalog-sweep"}
 SECONDARY_CTA = {"label": "See how the sweep works"}
 METHOD_LINK = {"label": "How Royalty Sweep works", "href": "/royalty-sweep"}
 

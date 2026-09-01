@@ -9,6 +9,9 @@
  */
 
 .sbcs {
+  /* The sticky header is 86px tall; without this, anchor
+     navigation lands the section top underneath it. */
+  scroll-margin-top: 110px;
   --cs-ink: #09090880;
   --cs-black: var(--sb-ground);
   --cs-brass: var(--sb-gold);

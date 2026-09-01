@@ -20,7 +20,7 @@ def test_index_renders_landing_page():
     assert "BUILD THE RELEASE." in body and "OWN THE MOMENT." in body
     assert "hero-band-wide-1342.avif" in body     # the responsive set
     assert "Explore Street Banker" in body
-    assert "Run a Royalty Sweep" in body
+    assert "Run a Free Royalty Sweep" in body
     assert "ROYALTY SWEEP" in body                # the sweep section below
 
 
@@ -143,7 +143,7 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     assert body.index("sbhero") < body.index("TUNE YOUR ARTIST SYSTEM.")
     assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("Choose your lane.")
     # Every section that was on the page before is still on it.
-    for kept in ["Choose your lane.", "Built for artist control.",
+    for kept in ["Choose your lane.",
                  "Your catalog is the ", "closing-wide-1672"]:
         assert kept in body, kept
 
@@ -253,7 +253,6 @@ def test_landing_is_the_twelve_approved_sections_in_order():
         'id="royalty-sweep-section"',   # 9  Royalty Sweep
         'id="global-distribution"',     # 10 Global Distribution
         'id="metadata-passport"',       # 11 Metadata Passport + Rights
-        'id="artist-control"',          # 11.5 trust band
         'id="closing"',                 # 12 closing statement
     ]
     positions = []
@@ -3758,11 +3757,13 @@ def test_backup_download(monkeypatch):
 
 
 def test_homepage_distribution_links():
-    # Lane 01 and the footer route into the distribution page.
+    # The lanes section routes into distribution; the services page
+    # stays public. (The EQ's recommended-lane card, which carried the
+    # /services/distribution link, was cut 2026-09-01 — the Lanes
+    # section owns that answer now.)
     app_obj = create_app()
     client = app_obj.test_client()
     home = client.get("/").get_data(as_text=True)
-    assert 'href="/services/distribution"' in home
     assert "Explore Distribution" in home
     assert client.get("/services/distribution").status_code == 200
 
@@ -5372,14 +5373,14 @@ def test_homepage_carries_the_signal_profile_hooks():
     for gone in ["data-artist-mode", "sb-hero-adaptive", "sb-mode-banner",
                  "sb-final-cta", "sb-adaptive-layer"]:
         assert gone not in body, gone
-    assert 'id="sbeq-score"' in body and 'id="sbeq-lane"' in body
+    assert 'id="sbeq-score"' in body
     # The hero's own fade is now the Section 2 veil: the same idea (the
     # photograph falling off into the page rather than ending at an edge)
     # on the rebuilt hero rather than the old white-page one.
     assert "sbhero-veil" in body
     assert 'class="min-h-screen bg-white' in body
-    assert "Run a Royalty Sweep" in body
-    assert "Build my Street Banker" in body
+    assert "Run a Free Royalty Sweep" in body
+    assert "Start Street Banker" in body
 
 
 def test_artist_signal_profile_api_validates():

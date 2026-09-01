@@ -57,7 +57,11 @@ def get_landing_config():
                 {"label": "For Labels", "href": "/services"},
             ],
             "login": {"label": "Log in", "href": "/login"},
-            "cta": {"label": "Run a Free Catalog Sweep",
+            # One canonical conversion label, everywhere the sweep is
+            # offered: hero, sweep section and footer import this exact
+            # wording. "Catalog Sweep" read as a second product beside
+            # the Royalty Sweep sections; the product's name won.
+            "cta": {"label": "Run a Free Royalty Sweep",
                     "short": "Free Sweep", "href": "/catalog-sweep"},
         },
 
@@ -72,10 +76,13 @@ def get_landing_config():
                         "intelligence, artist development, rights "
                         "management, fan data, and royalty recovery into "
                         "one platform."),
+            # The conversion wears the gold; the self-scroll is the
+            # secondary. It was the other way around, which spent the
+            # hero's one primary button on scrolling the page.
             "ctas": [
-                {"label": "Explore Street Banker", "href": "#platform",
+                {"label": "Run a Free Royalty Sweep", "href": "/catalog-sweep",
                  "variant": "primary"},
-                {"label": "Run a Royalty Sweep", "href": "/catalog-sweep",
+                {"label": "Explore Street Banker", "href": "#platform",
                  "variant": "outline"},
             ],
             # One photograph, two crops: a wide editorial frame for
@@ -108,10 +115,11 @@ def get_landing_config():
         # now carries only the account that exists - x.com, youtube.com and
         # linkedin.com were the bare domains, not profiles.
         "footer": {
+            # No description paragraph: it was the closing section's
+            # support sentence reshuffled, rendered one screen later.
+            # The closing owns that sentence; the footer identifies.
             "logo": {"primary": "STREET BANKER",
                      "secondary": "The Artist Operating System"},
-            "description": ("One connected system to build, protect, "
-                            "distribute, promote and grow the work."),
             "columns": [
                 {"title": "Platform", "links": [
                     {"label": "Product tour", "href": "/product-tour"},
@@ -128,7 +136,7 @@ def get_landing_config():
                 {"title": "Solutions", "links": [
                     {"label": "Start a plan", "href": "/start"},
                     {"label": "Find your lane", "href": "/lanes"},
-                    {"label": "Free catalog sweep", "href": "/catalog-sweep"},
+                    {"label": "Run a Free Royalty Sweep", "href": "/catalog-sweep"},
                     {"label": "For labels", "href": "/services"},
                 ]},
                 {"title": "Trust", "links": [
