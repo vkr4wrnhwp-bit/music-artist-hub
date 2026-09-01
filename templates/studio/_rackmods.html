@@ -1,0 +1,114 @@
+{#- The Rack chain as knob-rendered modules, per the owner's mockup.
+
+    Every needle position is computed server-side from the REAL saved preset -
+    the same JSON the Rack loads - using the cos/sin Jinja globals the
+    homepage's VU meters already use. Nothing here is decorative state: a knob
+    at 2 o'clock is at 2 o'clock because that is what the artist saved.
+
+    Read-only by design, and each module says so the useful way: "edit" deep
+    links into that module's own unit in the Rack (#sb01..#sb08 anchors),
+    where the DSP engine actually lives. A knob you could drag here would
+    either lie (no engine loaded to hear it) or fork the state two ways.
+
+    The power LED is truthful too: lit only when the module is doing
+    something to the signal - a tube at mix 0 is dark, a compressor at 1:1
+    is dark - because a lit lamp on an inert module is a tiny lie that
+    compounds at 2 a.m. before a deadline.
+-#}
+
+{% macro knob(label, value, unit, lo, hi) -%}
+  {%- set span = (hi - lo) if hi != lo else 1 -%}
+  {%- set frac = ((value - lo) / span) -%}
+  {%- set frac = 0.0 if frac < 0 else (1.0 if frac > 1 else frac) -%}
+  {%- set rad = (frac * 270 - 135) * pi / 180 -%}
+  <span class="inline-flex flex-col items-center gap-1" title="{{ label }} {{ value }}{{ unit }}">
+    <svg viewBox="0 0 44 44" class="h-11 w-11" role="img"
+         aria-label="{{ label }} {{ value }}{{ unit }}" data-knob="{{ label }}">
+      <circle cx="22" cy="22" r="17" fill="none" stroke="currentColor"
+              class="text-sb-ink-3" stroke-width="2"/>
+      <circle cx="22" cy="22" r="13" fill="none" stroke="currentColor"
+              class="text-sb-ink-3" stroke-width="7" opacity="0.25"/>
+      <line x1="22" y1="22" x2="{{ "%.2f"|format(22 + 12 * sin(rad)) }}"
+            y2="{{ "%.2f"|format(22 - 12 * cos(rad)) }}"
+            stroke="currentColor" class="text-amber-400" stroke-width="2.5"
+            stroke-linecap="round" data-needle="1"/>
+      <circle cx="22" cy="22" r="2.4" fill="currentColor" class="text-amber-400"/>
+    </svg>
+    <span class="font-mono text-xs tabular-nums text-white">{{ value }}{{ unit }}</span>
+    <span class="font-mono text-xs uppercase tracking-[0.12em] text-sb-ink-3">{{ label }}</span>
+  </span>
+{%- endmacro %}
+
+{% macro module(tag, title, active, anchor, rack_href) -%}
+  <div class="rounded-lg border border-sb-line bg-black/40 px-3 pb-3 pt-2"
+       data-module="{{ tag }}">
+    <div class="flex items-center gap-2">
+      <span class="ru-tag">{{ tag }}</span>
+      <span class="font-mono text-xs uppercase tracking-[0.12em] text-gray-300">{{ title }}</span>
+      <span class="ml-auto h-2 w-2 rounded-full
+                   {% if active %}bg-emerald-400{% else %}border border-sb-line{% endif %}"
+            data-led="{{ 'on' if active else 'off' }}"
+            title="{{ 'in the signal path' if active else 'not doing anything to the signal' }}"></span>
+      <a class="font-mono text-xs text-sb-ink-3 underline"
+         href="{{ rack_href }}{{ anchor }}" title="Open this module in the Rack, where the engine is.">edit</a>
+    </div>
+    <div class="mt-2 flex items-end gap-3">{{ caller() }}</div>
+  </div>
+{%- endmacro %}
+
+{% macro strip(chain, rack_href) -%}
+  {%- set sub = chain.get("sub") or {} -%}
+  {%- set eq = chain.get("eq") or [] -%}
+  {%- set tube = chain.get("tube") or {} -%}
+  {%- set comp = chain.get("comp") or {} -%}
+  {%- set cab = chain.get("cab") or {} -%}
+  {%- set moved = eq|select("ne", 0)|list|length -%}
+  <div class="flex flex-wrap gap-2">
+
+    {% call module("INPUT", "SUB-1", (sub.get("depth", 0) or sub.get("growl", 0) or sub.get("shake", 0)) > 0, "#sb02", rack_href) %}
+      {{ knob("depth", sub.get("depth", 0)|round(2), "", 0, 1) }}
+      {{ knob("growl", sub.get("growl", 0)|round(2), "", 0, 1) }}
+    {% endcall %}
+
+    {% call module("SHAPE", "EQ-12", moved > 0, "#sb03", rack_href) %}
+      {#- The curve is the real 12 bands on a ±12 dB scale. -#}
+      <span class="inline-flex flex-col items-center gap-1"
+            title="{{ moved }} band{{ '' if moved == 1 else 's' }} moved">
+        <svg viewBox="0 0 96 44" class="h-11 w-24" role="img"
+             aria-label="EQ curve, {{ moved }} bands moved" data-eqcurve="1">
+          <line x1="0" y1="22" x2="96" y2="22" stroke="currentColor"
+                class="text-sb-ink-3" stroke-width="1" opacity="0.5"/>
+          {%- if eq|length > 1 -%}
+          <polyline fill="none" stroke="currentColor" class="text-sky-400"
+                    stroke-width="2" stroke-linejoin="round"
+                    points="{% for g in eq %}{{ "%.1f"|format(loop.index0 * (96 / (eq|length - 1))) }},{{ "%.1f"|format(22 - (12 if g > 12 else (-12 if g < -12 else g)) * 1.6) }} {% endfor %}"/>
+          {%- endif -%}
+        </svg>
+        <span class="font-mono text-xs tabular-nums text-white">{{ moved }} band{{ "" if moved == 1 else "s" }}</span>
+        <span class="font-mono text-xs uppercase tracking-[0.12em] text-sb-ink-3">curve</span>
+      </span>
+    {% endcall %}
+
+    {% call module("DYN", "DYN-1", comp.get("ratio", 1) != 1, "#sb04", rack_href) %}
+      {{ knob("ratio", comp.get("ratio", 1), ":1", 1, 10) }}
+      {{ knob("thresh", comp.get("thr", 0), "dB", -40, 0) }}
+    {% endcall %}
+
+    {% call module("COLOR", "TS-1", (tube.get("mix", 0) or 0) > 0, "#sb01", rack_href) %}
+      {{ knob("drive", tube.get("drive", 0), "", 0, 6) }}
+      {{ knob("mix", (tube.get("mix", 0) * 100)|round|int, "%", 0, 100) }}
+    {% endcall %}
+
+    {% call module("SPACE", "CAB-3", cab.get("on") and cab.get("cab") != "direct", "#sb08", rack_href) %}
+      {{ knob("dist", (cab.get("dist", 0) * 100)|round|int, "%", 0, 100) }}
+      <span class="inline-flex flex-col items-center gap-1">
+        <span class="rk-lcd"><span class="rk-lcd-v">{{ cab.get("cab", "direct") }}</span>
+        <span class="rk-lcd-cap">{{ cab.get("mic", "-") }}</span></span>
+      </span>
+    {% endcall %}
+
+    {% call module("OUTPUT", "TRIM", true, "#sb07", rack_href) %}
+      {{ knob("out", chain.get("out", 0), "dB", -12, 12) }}
+    {% endcall %}
+  </div>
+{%- endmacro %}

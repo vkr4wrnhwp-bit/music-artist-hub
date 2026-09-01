@@ -300,3 +300,69 @@ def test_the_bare_rack_still_works_with_no_project(application):
     client, _user = _artist(application)
     assert client.get("/rack").status_code == 200
     assert client.get("/rack?stems=abc123").status_code == 200
+
+
+# --- the knob-rendered rack strip --------------------------------------------
+
+def _preset(application, user, **over):
+    import db as store
+
+    chain = {"eq": [2, 1, 0, -1.5, 0, 0, 0, 0, 0, 0.5, 1, 0.5], "q": 1,
+             "sub": {"depth": 0.4, "growl": 0.1, "shake": 0},
+             "tube": {"drive": 3, "bias": 0.25, "mix": 0.35},
+             "comp": {"thr": -18, "ratio": 2, "att": 0.03, "rel": 0.3,
+                      "makeup": 1},
+             "out": 1.5,
+             "cab": {"cab": "closed412", "mic": "dynamic", "axis": "on",
+                     "dist": 0.15, "on": True}}
+    chain.update(over)
+    with application.app_context():
+        store.save_rack_preset(user["id"], chain)
+
+
+def test_the_rack_strip_renders_real_knobs_from_the_saved_chain(application):
+    """Every needle position comes from the preset the Rack actually loads.
+    Six modules, each deep-linking into its own unit in the Rack - a viewer
+    with knobs, never knobs that pretend to be an engine."""
+    import re
+
+    client, user = _artist(application)
+    project_id = _project(client)
+    client.post("/studio/session/%s/rights" % project_id,
+                data={"confirmed_by": "Artist"})
+    client.post("/studio/session/%s/upload" % project_id,
+                data={"file": (io.BytesIO(_wav()), "m.wav")},
+                content_type="multipart/form-data")
+    _preset(application, user)
+
+    body = client.get("/studio/session/%s" % project_id).get_data(as_text=True)
+    assert re.findall(r'data-module="([A-Z]+)"', body) ==         ["INPUT", "SHAPE", "DYN", "COLOR", "SPACE", "OUTPUT"]
+    assert len(re.findall(r"data-needle=", body)) >= 6
+    assert 'data-eqcurve="1"' in body and "points=" in body
+    for anchor in ("#sb01", "#sb02", "#sb03", "#sb04", "#sb07", "#sb08"):
+        assert anchor in body, anchor
+    assert "2:1" in body                       # the compressor's real ratio
+
+
+def test_the_module_leds_go_dark_when_a_module_does_nothing(application):
+    """A lit lamp on an inert module is a tiny lie. Tube at mix 0 and a 1:1
+    compressor must read off."""
+    import re
+
+    client, user = _artist(application)
+    project_id = _project(client)
+    client.post("/studio/session/%s/rights" % project_id,
+                data={"confirmed_by": "Artist"})
+    client.post("/studio/session/%s/upload" % project_id,
+                data={"file": (io.BytesIO(_wav()), "m.wav")},
+                content_type="multipart/form-data")
+    _preset(application, user,
+            tube={"drive": 3, "bias": 0.25, "mix": 0},
+            comp={"thr": -18, "ratio": 1, "att": 0.03, "rel": 0.3, "makeup": 0})
+
+    body = client.get("/studio/session/%s" % project_id).get_data(as_text=True)
+    leds = dict(zip(re.findall(r'data-module="([A-Z]+)"', body),
+                    re.findall(r'data-led="(on|off)"', body)))
+    assert leds["COLOR"] == "off"
+    assert leds["DYN"] == "off"
+    assert leds["OUTPUT"] == "on"              # trim is always in the path

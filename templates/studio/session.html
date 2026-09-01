@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
 {% import "studio/_console.html" as console %}
+{% import "studio/_rackmods.html" as rackmods %}
 {% block title %}{{ project.title }} - Street Banker Studio{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/rack.css?v=1">
@@ -101,35 +102,8 @@
                     href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}</span>
         </header>
         {% if rack_chain %}
-          <div class="p-4 flex flex-wrap gap-2">
-            {%- set eq = rack_chain.get("eq") %}
-            {%- set tube = rack_chain.get("tube") or {} %}
-            {%- set comp = rack_chain.get("comp") or {} %}
-            {%- set cab = rack_chain.get("cab") or {} %}
-            {% if eq %}
-              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
-                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Shape &middot; EQ-12</span>
-                {{ eq|select("ne", 0)|list|length }} band{{ "" if eq|select("ne", 0)|list|length == 1 else "s" }} moved
-              </span>
-            {% endif %}
-            {% if tube.get("mix") %}
-              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
-                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Colour &middot; TS-1</span>
-                drive {{ tube.get("drive") }} &middot; mix {{ (tube.get("mix", 0) * 100)|round|int }}%
-              </span>
-            {% endif %}
-            {% if comp.get("ratio", 1) != 1 %}
-              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
-                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Dynamics &middot; DYN-1</span>
-                {{ comp.get("ratio") }}:1 at {{ comp.get("thr") }} dB
-              </span>
-            {% endif %}
-            {% if cab.get("on") and cab.get("cab") != "direct" %}
-              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
-                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Space &middot; CAB-3</span>
-                {{ cab.get("cab") }} &middot; {{ cab.get("mic") }}
-              </span>
-            {% endif %}
+          <div class="p-4">
+            {{ rackmods.strip(rack_chain, "/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
           </div>
         {% else %}
           <p class="p-4 text-sm text-gray-300">No chain saved yet &mdash; what you save in the Rack shows here.</p>
