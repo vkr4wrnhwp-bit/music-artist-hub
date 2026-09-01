@@ -165,6 +165,21 @@ def live_keys():
             keys.append("audio-studio")
     except Exception:
         pass
+    # Studio and Live are real working product, not example data. Leaving
+    # them off this list stamped both with the "Sample" badge - the sidebar
+    # itself telling the owner his mix and master rooms were a demo.
+    try:
+        import studio_config
+        if studio_config.enabled():
+            keys.append("studio")
+    except Exception:
+        pass
+    try:
+        import live
+        if live.enabled():
+            keys.append("live")
+    except Exception:
+        pass
     return keys
 
 
@@ -193,9 +208,11 @@ def command_index():
         seen.add(key)
         out.append({"key": key, "href": href, "label": label,
                     "desc": desc, "group": group,
-                    "live": key in LIVE_KEYS})
+                    "live": key in live_now})
 
-    for _hkey, name, _tagline, items in HUBS:
+    live_now = live_keys()
+
+    for _hkey, name, _tagline, items in nav_hubs():
         for key, href, _icon, label, desc in items:
             add(key, href, label, desc, name)
     for group_name, items in (LABEL_GROUP, COMMUNITY_GROUP, ACCOUNT_GROUP):

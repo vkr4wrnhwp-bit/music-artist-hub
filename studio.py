@@ -111,9 +111,14 @@ def studio_home():
     user = _user()
     projects = sstore.list_projects(_partner(user), user["id"], limit=25)
     recent = []
+    continue_has_source = False
     if projects:
         recent = sstore.provenance(_partner(user), projects[0]["id"], limit=8)
+        continue_has_source = bool(
+            sstore.project_summary(_partner(user), user["id"],
+                                   projects[0]["id"])["source"])
     return render_template("studio/home.html",
+                           continue_has_source=continue_has_source,
                            active_page="studio",
                            projects=projects,
                            continue_project=projects[0] if projects else None,

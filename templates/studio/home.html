@@ -29,9 +29,22 @@
             updated {{ (continue_project.updated_at or "")[:16]|replace("T"," ") }}
           </p>
         </div>
-        <div class="ml-auto">
-          {{ sb.btn("Open session", variant="primary",
-                    href=url_for("studio.studio_session", project_id=continue_project.id)) }}
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          {#- The rooms, one click from the front door. The Mix and Master
+              consoles were reachable only through the session page, and the
+              owner reasonably concluded they did not exist. -#}
+          {% if continue_has_source %}
+            {{ sb.btn("Mix", variant="primary",
+                      href=url_for("studio.studio_mix", project_id=continue_project.id)) }}
+            {{ sb.btn("Master", variant="primary",
+                      href=url_for("studio.studio_master", project_id=continue_project.id)) }}
+            {{ sb.btn("Session", variant="secondary",
+                      href=url_for("studio.studio_session", project_id=continue_project.id)) }}
+          {% else %}
+            {{ sb.btn("Open session", variant="primary",
+                      href=url_for("studio.studio_session", project_id=continue_project.id)) }}
+            <span class="font-mono text-xs text-sb-ink-3">Mix and Master unlock when a source is uploaded</span>
+          {% endif %}
         </div>
       </div>
       {% if recent %}
