@@ -32,6 +32,12 @@
   var Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx || !window.fetch || !window.SBLoudness) {
     say("This browser cannot measure audio here.", "bad");
+    var dead = document.getElementById("sb-measure-go");
+    if (dead) {
+      dead.disabled = true;
+      dead.setAttribute("aria-disabled", "true");
+      dead.title = "This browser cannot decode audio, so there is nothing to measure with.";
+    }
     return;
   }
 

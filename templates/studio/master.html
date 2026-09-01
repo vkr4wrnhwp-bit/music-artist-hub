@@ -45,7 +45,7 @@
                class="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
                style="left:0%"></div>
         </div>
-        <p id="sb-console-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+        <p id="sb-console-status" aria-live="polite" class="mt-2 text-sm text-gray-300">&nbsp;</p>
         {% if masters %}
           <p class="mt-2 max-w-2xl text-sm text-gray-300">
             Pick a render as B on the transport and flip while it plays &mdash;
@@ -174,7 +174,7 @@
       <section class="sb-panel p-4">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="sb-label sb-label-gold">Premaster inspection</h2>
-          <p id="sb-measure" class="text-sm text-gray-300">&nbsp;</p>
+          <p id="sb-measure" aria-live="polite" class="text-sm text-gray-300">&nbsp;</p>
         </div>
 
         {% if verdict and verdict.measured %}

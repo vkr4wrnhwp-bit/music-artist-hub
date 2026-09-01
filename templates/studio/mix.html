@@ -48,7 +48,7 @@
                class="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
                style="left:0%"></div>
         </div>
-        <p id="sb-console-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+        <p id="sb-console-status" aria-live="polite" class="mt-2 text-sm text-gray-300">&nbsp;</p>
       </section>
 
       {# ------------------------------------------------------ Mix Doctor --- #}
@@ -166,8 +166,9 @@
           {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
         </form>
         <p class="mt-2 text-sm text-gray-300">
-          Notes pin to this exact file, and a note past the end of the
-          recording is refused rather than stored.
+          Notes pin to this exact file. Once the file has been measured, a
+          note past its end is refused rather than stored &mdash; before that,
+          the end is not known.
         </p>
       </section>
     </div>
@@ -177,7 +178,7 @@
       <section class="sb-panel p-4">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="sb-label sb-label-gold">Mix readiness</h2>
-          <p id="sb-measure" class="text-sm text-gray-300">&nbsp;</p>
+          <p id="sb-measure" aria-live="polite" class="text-sm text-gray-300">&nbsp;</p>
         </div>
 
         {% if verdict and verdict.measured %}
@@ -206,12 +207,18 @@
               <div class="rounded-lg border border-sb-line bg-black/40 px-3 py-2.5">
                 <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Tempo</p>
                 <p class="mt-1 font-mono text-lg tabular-nums text-white">{{ "%.1f"|format(m.get("bpm")) }}<span class="text-xs text-sb-ink-3"> BPM</span></p>
+                {% if m.get("bpm_confidence") is not none %}
+                  <p class="font-mono text-xs text-sb-ink-3">confidence {{ "%.2f"|format(m.get("bpm_confidence")) }}</p>
+                {% endif %}
               </div>
             {% endif %}
             {% if m.get("key") %}
               <div class="rounded-lg border border-sb-line bg-black/40 px-3 py-2.5">
                 <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Key</p>
                 <p class="mt-1 font-mono text-lg text-white">{{ m.get("key") }}</p>
+                {% if m.get("key_fit") is not none %}
+                  <p class="font-mono text-xs text-sb-ink-3">fit {{ "%.2f"|format(m.get("key_fit")) }}</p>
+                {% endif %}
               </div>
             {% endif %}
             {% if m.get("duration_seconds") is not none %}

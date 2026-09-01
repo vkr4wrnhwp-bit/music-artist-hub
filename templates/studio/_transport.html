@@ -50,11 +50,13 @@
     <div class="ml-auto flex min-w-0 flex-1 items-center gap-2">
       <span class="shrink-0 font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">out</span>
       <div class="h-2 min-w-0 flex-1 overflow-hidden rounded-full border border-sb-line bg-black/40"
-           role="meter" aria-label="Output level">
+           role="meter" aria-label="Output level in decibels below full scale"
+           aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60" id="sb-t-meterbox">
         <div id="sb-t-meter" class="h-full bg-emerald-400" style="width:0%"></div>
       </div>
       <span id="sb-t-db" class="w-16 shrink-0 text-right font-mono text-xs tabular-nums text-sb-ink-3">&minus;&infin;</span>
-      {# Red is reserved for clipping, so this is the only red on the console. #}
+      {# Red marks clipping here and unresolved BLOCKING findings on the
+         marker rail - the two things the design rules reserve it for. #}
       <span id="sb-t-clip" class="shrink-0 rounded border border-sb-line px-1.5 py-0.5 font-mono text-xs text-sb-ink-3"
             title="Lights only at genuine over-range on the output actually being heard.">clip</span>
     </div>
@@ -107,13 +109,16 @@
     onLevel: function (db, clipping) {
       var pct = db === -Infinity ? 0 : Math.max(0, Math.min(100, (db + 60) / 60 * 100));
       el.meter.style.width = pct + "%";
+      var box = document.getElementById("sb-t-meterbox");
+      if (box) { box.setAttribute("aria-valuenow",
+                                  db === -Infinity ? -60 : Math.round(db)); }
       el.meter.className = "h-full " + (clipping ? "bg-red-500" : "bg-emerald-400");
       el.db.textContent = db === -Infinity ? "−∞"
         : (db > -0.05 ? "0.0" : db.toFixed(1));
       if (clipping) { clipHeld = Date.now(); }
       var lit = Date.now() - clipHeld < 1500;   /* held so a 5 ms over-range is seeable */
       el.clip.className = "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs "
-        + (lit ? "border border-red-500 bg-red-500/25 text-white"
+        + (lit ? "border border-red-500/50 bg-red-500/25 text-white"
                : "border border-sb-line text-sb-ink-3");
     },
     onState: function (s) {
@@ -209,6 +214,18 @@
     con.toggle();
   });
 
+  /* Arrow keys nudge the playhead - the waveform itself is a mouse target,
+     and a console that cannot be driven without one fails the room. */
+  document.addEventListener("keydown", function (event) {
+    if (event.code !== "ArrowLeft" && event.code !== "ArrowRight") { return; }
+    var t = event.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"
+              || t.tagName === "SELECT" || t.isContentEditable)) { return; }
+    event.preventDefault();
+    var step = event.shiftKey ? 10 : 2;
+    con.seek(con.position() + (event.code === "ArrowLeft" ? -step : step));
+  });
+
   /* Anything on the page can carry data-seek="<seconds>" - the Mix Doctor's
      "Hear it" buttons, a note's timestamp - and the transport honours it. */
   document.addEventListener("click", function (event) {
@@ -277,7 +294,6 @@
       con.useB(el.ab.getAttribute("aria-pressed") !== "true");
     });
     el.match.addEventListener("change", function () { con.matchLoudness(el.match.checked); });
-    loadB(0);
   }
 
   /* --- go ------------------------------------------------------------------ */
@@ -286,7 +302,11 @@
     draw();
     renderMarkers();
     con.seek(0);
-    status("Ready. Space plays. Click the waveform to move; click a marker to hear it.");
+    status("Ready. Space plays; arrow keys move. Click a marker to hear it.");
+    /* B waits for A on purpose: loaded concurrently, B could resolve first
+       and read A's loudness as null - reporting a measurable pair as
+       "unmeasured" and disabling the match control for no reason. */
+    if (bOptions.length) { loadB(0); }
   }).catch(function () {
     status("Could not decode this file in the browser.", "bad");
   });
