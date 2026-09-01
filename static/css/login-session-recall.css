@@ -443,6 +443,23 @@ body.lsr {
 /* honeypot: physically removed from view, still in the DOM for bots */
 .lsr-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
+/* --- the other account pages (signup, forgot, reset) ------------------ */
+.lsr-workspaces--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lsr-workspaces.lsr-field { margin-top: 20px; }
+.lsr-legend {
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lsr-gold);
+}
+.lsr-fine { margin: 14px 0 0; font-size: 12px; line-height: 1.55; color: var(--lsr-faint); }
+.lsr-fine a { color: var(--lsr-gold-lit); text-decoration: underline; text-underline-offset: 3px; }
+.lsr-note { margin-top: 22px; line-height: 1.55; }
+a.lsr-gold-btn { margin-top: 24px; }
+
 /* --- security + footer ------------------------------------------------ */
 .lsr-security {
   margin: 22px 0 0;

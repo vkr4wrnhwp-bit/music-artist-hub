@@ -1,54 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  {% include "_fonts.html" %}
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in - Street Banker</title>
-  <meta name="description" content="Sign in to manage your releases, royalties, fans, and catalog.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  <link rel="stylesheet" href="/static/css/login-session-recall.css?v=8">
-</head>
-<body class="lsr">
-{# One console over one picture. The door was two pale racks on a black
-   void with no photograph; now the band in the backline owns the left of
-   the screen with one statement over it, and the sign-in is a single
-   black console on the right. Same routes, same field names, same ids
-   the script and the password managers look for - a new skin on the
-   same skeleton. #}
-  <main class="lsr-page">
+{% extends "auth_base.html" %}
+{% block title %}Sign in - Street Banker{% endblock %}
+{% block description %}Sign in to manage your releases, royalties, fans, and catalog.{% endblock %}
 
-    <aside class="lsr-photo" aria-hidden="true">
-      <picture>
-        <source media="(max-width: 860px)" type="image/avif"
-                srcset="/static/img/hero-band-tall-640.avif 640w, /static/img/hero-band-tall-900.avif 900w" sizes="100vw">
-        <source media="(max-width: 860px)" type="image/webp"
-                srcset="/static/img/hero-band-tall-640.webp 640w, /static/img/hero-band-tall-900.webp 900w" sizes="100vw">
-        <source media="(max-width: 860px)" type="image/jpeg"
-                srcset="/static/img/hero-band-tall-640.jpg 640w, /static/img/hero-band-tall-900.jpg 900w" sizes="100vw">
-        <source type="image/avif"
-                srcset="/static/img/hero-band-wide-900.avif 900w, /static/img/hero-band-wide-1100.avif 1100w, /static/img/hero-band-wide-1342.avif 1342w" sizes="55vw">
-        <source type="image/webp"
-                srcset="/static/img/hero-band-wide-900.webp 900w, /static/img/hero-band-wide-1100.webp 1100w, /static/img/hero-band-wide-1342.webp 1342w" sizes="55vw">
-        <img class="lsr-photo-img" src="/static/img/hero-band-wide-1100.jpg"
-             srcset="/static/img/hero-band-wide-900.jpg 900w, /static/img/hero-band-wide-1100.jpg 1100w, /static/img/hero-band-wide-1342.jpg 1342w"
-             sizes="55vw" width="1342" height="775" alt="" fetchpriority="high" decoding="async">
-      </picture>
-      <span class="lsr-veil"></span>
-      <div class="lsr-over">
-        <p class="lsr-eyebrow">Street Banker &middot; The Artist Operating System</p>
-        <p class="lsr-state"><span>Your music.</span><span>Your data.</span><em>Your decisions.</em></p>
-        <span class="lsr-over-rule"></span>
-        <p class="lsr-proof">Releases &middot; Royalties &middot; Rights &middot; The Studio &middot; The Rack</p>
-      </div>
-    </aside>
-
-    <section class="lsr-console">
-      <div class="lsr-console-inner">
-        <a href="/" class="lsr-brand">
-          <img src="/static/img/streetbanker-logo-light.svg" alt="Street Banker" width="920" height="250">
-        </a>
+{% block console %}
         <h1 class="lsr-title">Sign in</h1>
         <p class="lsr-support">Your releases, royalties, fans and catalog &mdash; one desk.</p>
 
@@ -66,21 +20,12 @@
         {% include "partials/login_demo_tour.html" %}
 
         <p class="lsr-security">Secure account access. Demo workspaces contain sample data.</p>
+{% endblock %}
 
-        <footer class="lsr-footer">
-          <nav aria-label="Legal">
-            <a href="/terms">Terms</a><span aria-hidden="true">&middot;</span>
-            <a href="/privacy">Privacy</a><span aria-hidden="true">&middot;</span>
-            <a href="/submit">Contact</a>
-          </nav>
-          <p>&copy; 2026 Street Banker LLC. All rights reserved.</p>
-        </footer>
-      </div>
-    </section>
-
+{% block live %}
     <p class="lsr-sr" id="lsr-live" aria-live="polite" role="status"></p>
-  </main>
+{% endblock %}
 
+{% block scripts %}
   <script src="/static/js/login-session-recall.js?v=4" defer></script>
-</body>
-</html>
+{% endblock %}
