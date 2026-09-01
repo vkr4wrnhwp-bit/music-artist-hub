@@ -44,26 +44,8 @@
        prefers-reduced-motion and while off screen; without JavaScript
        the server-drawn trace below stands alone. #}
     <div class="sbeq-trace">
-      <div class="sbeq-trace-head">
-        <div class="sbeq-panel-label">System output</div>
-        {# Hear the Rack: a house loop, synthesized on the spot, through
-           the Rack's own EQ, tube and compressor stages. Press play and
-           the strip becomes a live spectrum of what is actually playing;
-           the lamps run a light show cued to the loop's beat grid. The
-           faders are not touched by any of it. #}
-        <div class="sbeq-htr" id="sbeq-htr">
-          <button type="button" class="sbeq-htr-play" id="sbeq-htr-play" aria-pressed="false">Hear the Rack</button>
-          <button type="button" class="sbeq-htr-rack" id="sbeq-htr-rack" aria-pressed="true" disabled>Rack on</button>
-          <span class="sbeq-htr-status" id="sbeq-htr-status" aria-live="polite"></span>
-        </div>
-      </div>
-      <div class="sbeq-lights" id="sbeq-lights" aria-hidden="true">
-        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-      </div>
+      <div class="sbeq-panel-label">System output</div>
       <canvas id="sbeq-analyzer" class="sbeq-analyzer" aria-hidden="true"></canvas>
-      <p class="sbeq-htr-note">House loop, synthesized in-house - nobody&rsquo;s record, nothing uploaded.
-        The Rack&rsquo;s EQ, tube and compressor stages in miniature; the full desk is
-        <a class="sbeq-htr-link" href="/rack">The Rack</a>. Light show cued to the loop&rsquo;s beat grid.</p>
       {# The six values plotted straight, so the trace is drawn before
          the script runs; the script replaces it with the live strip. #}
       {% set pts = [] %}
