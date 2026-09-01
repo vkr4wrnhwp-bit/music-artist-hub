@@ -59,6 +59,13 @@
   max-width: 1152px;
   margin: 0 auto;
   padding: 0 clamp(40px, 6.2vw, 80px);
+  /* A column at every width so the analyzer strip, the console and the
+     preset rail can trade places between phone and desktop with `order`
+     instead of duplicated markup. The gap replaces the per-block
+     margins the blocks used to carry. */
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 /* --- heading ------------------------------------------------------------ */
@@ -291,16 +298,34 @@
   }
 }
 
-/* --- trace -------------------------------------------------------------- */
+/* --- system output: the analyzer strip ----------------------------------- */
+/* Runs the full width of the console instead of hiding inside the fader
+   column: on hardware the output display is the widest thing on the
+   face, and here it is the section's opening visual on desktop. The
+   canvas is the live strip; the server-drawn SVG underneath is the
+   no-JavaScript fallback and is hidden the moment the script takes
+   over (`is-live`). */
 .sbeq-trace {
-  margin-top: 16px;
-  padding: 12px 14px 6px;
+  order: 2;
+  padding: 12px 14px 12px;
   border: 1px solid var(--eq-line);
   border-radius: 8px;
   background: #100F0E;
+  box-shadow: inset 0 1px 8px rgb(0 0 0 / 0.5);
 }
-.sbeq-trace svg { display: block; width: 100%; height: 78px; }
+.sbeq-analyzer {
+  display: none;
+  width: 100%;
+  height: clamp(120px, 15vw, 180px);
+  margin-top: 10px;
+}
+.sbeq-trace.is-live .sbeq-analyzer { display: block; }
+.sbeq-trace.is-live svg { display: none; }
+.sbeq-trace svg { display: block; width: 100%; height: 78px; margin-top: 10px; }
 #sbeq-trace-line { transition: none; }
+@media (max-width: 900px) {
+  .sbeq-analyzer { height: 110px; }
+}
 
 /* --- output panel -------------------------------------------------------- */
 .sbeq-output { display: flex; flex-direction: column; gap: 16px; }
@@ -362,7 +387,7 @@
 
 /* --- presets and CTAs ---------------------------------------------------- */
 .sbeq-presets-wrap {
-  margin-top: 18px;
+  order: 1;
   border: 1px solid var(--eq-line);
   border-radius: 12px;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0.06)), var(--eq-plate);
@@ -414,12 +439,12 @@
   align-items: center;
 }
 
-/* Phone order, from the brief: heading, presets, channels, trace, output,
-   then the buttons — which the buttons now satisfy by sitting at the end
-   of the output panel. Desktop puts the preset rail back under the
-   console with `order`. */
+/* Phone order: presets, analyzer strip, channels, output. Desktop leads
+   with the full-width analyzer, then the console, then the preset rail
+   beneath it. */
+.sbeq-console { order: 3; }
 @media (min-width: 901px) {
-  .sbeq-inner { display: flex; flex-direction: column; }
+  .sbeq-trace { order: 1; }
   .sbeq-console { order: 2; }
   .sbeq-presets-wrap { order: 3; }
 }

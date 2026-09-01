@@ -36,6 +36,34 @@
       </div>
     </div>
 
+    {# --- system output: the analyzer strip ---------------------------
+       The envelope — the gold curve and the ghost ladder under it — is
+       drawn from the six channel values and nothing else. The moving
+       bars are signal-life beneath the curve the visitor set, not a
+       measurement of anything. It holds still under
+       prefers-reduced-motion and while off screen; without JavaScript
+       the server-drawn trace below stands alone. #}
+    <div class="sbeq-trace">
+      <div class="sbeq-panel-label">System output</div>
+      <canvas id="sbeq-analyzer" class="sbeq-analyzer" aria-hidden="true"></canvas>
+      {# The six values plotted straight, so the trace is drawn before
+         the script runs; the script replaces it with the live strip. #}
+      {% set pts = [] %}
+      {% for ch in eq.channels %}
+        {%- set _ = pts.append("%.1f,%.1f"|format(24 + loop.index0 * 110.4,
+                               80 - (eq.default_values[ch.key] / 10) * 64)) -%}
+      {% endfor %}
+      <svg id="sbeq-trace" viewBox="0 0 600 90" preserveAspectRatio="none"
+           role="img" aria-label="Signal trace across the six channel values.">
+        <polyline id="sbeq-trace-line" fill="none" stroke="#C9A24A"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+                  points="{{ pts | join(' ') }}"/>
+        <g id="sbeq-trace-dots">
+          {% for p in pts %}<circle cx="{{ p.split(',')[0] }}" cy="{{ p.split(',')[1] }}" r="2.6" fill="#C9A24A"/>{% endfor %}
+        </g>
+      </svg>
+    </div>
+
     <div class="sbeq-console">
       {# --- channels ---------------------------------------------------- #}
       <div class="sbeq-channels-wrap">
@@ -67,27 +95,6 @@
             <p class="sbeq-ch-desc" id="sbeq-desc-{{ ch.key }}">{{ ch.desc }}</p>
           </div>
           {% endfor %}
-        </div>
-
-        {# --- signal trace: a drawing of the six values, nothing else ---- #}
-        <div class="sbeq-trace">
-          <div class="sbeq-panel-label">System output</div>
-          {# The six values plotted straight, so the trace is drawn before
-             the script runs; the script redraws the same points smoothed. #}
-          {% set pts = [] %}
-          {% for ch in eq.channels %}
-            {%- set _ = pts.append("%.1f,%.1f"|format(24 + loop.index0 * 110.4,
-                                   80 - (eq.default_values[ch.key] / 10) * 64)) -%}
-          {% endfor %}
-          <svg id="sbeq-trace" viewBox="0 0 600 90" preserveAspectRatio="none"
-               role="img" aria-label="Signal trace across the six channel values.">
-            <polyline id="sbeq-trace-line" fill="none" stroke="#C9A24A"
-                      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
-                      points="{{ pts | join(' ') }}"/>
-            <g id="sbeq-trace-dots">
-              {% for p in pts %}<circle cx="{{ p.split(',')[0] }}" cy="{{ p.split(',')[1] }}" r="2.6" fill="#C9A24A"/>{% endfor %}
-            </g>
-          </svg>
         </div>
 
         {# Everything that used to sit above the console, and the note

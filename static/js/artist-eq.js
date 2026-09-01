@@ -128,10 +128,200 @@
     return CFG.setup_times[0];
   }
 
-  /* --- the trace: a drawing of the six numbers -------------------------- */
+  /* --- system output: the analyzer strip --------------------------------
+   *
+   * The ENVELOPE — the gold curve and the ghost ladder under it — is the
+   * six channel values and nothing else, interpolated exactly the way
+   * the old trace line was. The bars are signal-life beneath the curve
+   * the visitor set: decoration, never data. The strip holds still for
+   * prefers-reduced-motion, stops while the section is off screen, and
+   * on any browser without canvas the SVG fallback keeps the old
+   * behaviour untouched.
+   */
   var traceLine = document.getElementById("sbeq-trace-line");
   var traceDots = document.getElementById("sbeq-trace-dots");
 
+  function catmull(pts, x) {
+    var i = Math.max(0, Math.min(pts.length - 2, Math.floor(x)));
+    var t = x - i;
+    var p0 = pts[i === 0 ? 0 : i - 1], p1 = pts[i], p2 = pts[i + 1];
+    var p3 = pts[i + 2 < pts.length ? i + 2 : pts.length - 1];
+    var t2 = t * t, t3 = t2 * t;
+    return 0.5 * ((2 * p1) + (-p0 + p2) * t +
+      (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+      (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+  }
+
+  function makeAnalyzer(cv) {
+    if (!cv || typeof cv.getContext !== "function") { return null; }
+    var ctx = null;
+    try { ctx = cv.getContext("2d"); } catch (e) { return null; }
+    if (!ctx) { return null; }
+
+    var BARS = 48;
+    var env = [], caps = [];
+    for (var i = 0; i < BARS; i++) { env[i] = 0; caps[i] = 0; }
+    var visible = true, rafId = null, lastTs = 0;
+
+    var reduced = { matches: false };
+    try {
+      if (window.matchMedia) {
+        reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var onPref = function () { if (reduced.matches) { stop(); drawFrame(0, true); } else { kick(); } };
+        if (reduced.addEventListener) { reduced.addEventListener("change", onPref); }
+        else if (reduced.addListener) { reduced.addListener(onPref); }
+      }
+    } catch (e) { /* no matchMedia: animate; the CSS guard still stands */ }
+
+    function fit() {
+      var w = cv.clientWidth || 600, h = cv.clientHeight || 150;
+      var dpr = window.devicePixelRatio || 1;
+      var W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      return { w: w, h: h, dpr: dpr };
+    }
+
+    /* One organic motion model, deterministic on purpose: low bands sway
+       slowly like bass, high bands flicker faster, neighbours move
+       together because program material is correlated. Never above the
+       envelope — the bars live under the curve the visitor set. */
+    function life(i, t) {
+      var f = i / BARS;
+      var slow = Math.sin(t * (0.7 + f * 0.5) + i * 0.55);
+      var mid = Math.sin(t * (1.9 + f * 1.6) + i * 1.7);
+      var fast = Math.sin(t * (3.8 + f * 2.4) + i * 3.1);
+      var v = 0.63 + 0.21 * slow + 0.11 * mid + 0.05 * fast;
+      return Math.max(0.06, Math.min(1, v));
+    }
+
+    function drawFrame(t, still) {
+      var m = fit(), w = m.w, h = m.h;
+      ctx.setTransform(m.dpr, 0, 0, m.dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      var padX = 6, top = 8, base = h - 6;
+      var span = w - padX * 2;
+      var slot = span / BARS, gap = Math.max(1.5, slot * 0.22), bw = slot - gap;
+      var segP = 6, segH = 4;                      /* the LED ladder pitch */
+
+      /* faint grid so the strip reads as an instrument, not a chart */
+      ctx.strokeStyle = "rgba(242,238,230,0.06)";
+      ctx.lineWidth = 1;
+      for (var g = 1; g <= 3; g++) {
+        var gy = top + ((base - top) * g) / 4;
+        ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(w - padX, gy); ctx.stroke();
+      }
+
+      for (var i = 0; i < BARS; i++) {
+        var x = padX + i * slot + gap / 2;
+        var envPx = env[i] * (base - top);
+        var level = still ? env[i] : env[i] * life(i, t);
+        var levelPx = level * (base - top);
+
+        /* ghost ladder to the envelope: the region the visitor set */
+        ctx.fillStyle = "rgba(242,238,230,0.045)";
+        var nGhost = Math.floor(envPx / segP);
+        for (var s = 0; s < nGhost; s++) {
+          ctx.fillRect(x, base - (s + 1) * segP, bw, segH);
+        }
+        /* lit segments to the moving level */
+        var nLit = Math.floor(levelPx / segP);
+        for (var s2 = 0; s2 < nLit; s2++) {
+          ctx.fillStyle = s2 >= nLit - 2 ? "rgba(224,196,140,0.95)" : "rgba(201,168,106,0.66)";
+          ctx.fillRect(x, base - (s2 + 1) * segP, bw, segH);
+        }
+        /* peak-hold cap: rises instantly, falls slowly */
+        if (still) { caps[i] = env[i]; }
+        else if (level > caps[i]) { caps[i] = level; }
+        var capPx = caps[i] * (base - top);
+        if (capPx > 2) {
+          ctx.fillStyle = "rgba(224,196,140,0.9)";
+          ctx.fillRect(x, base - capPx - 2, bw, 2);
+        }
+      }
+
+      /* the envelope line — literally the curve the six faders set */
+      ctx.strokeStyle = "#C9A24A";
+      ctx.lineWidth = 1.6;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      for (var b = 0; b < BARS; b++) {
+        var lx = padX + b * slot + slot / 2;
+        var ly = base - env[b] * (base - top);
+        if (b === 0) { ctx.moveTo(lx, ly); } else { ctx.lineTo(lx, ly); }
+      }
+      ctx.stroke();
+      /* dots at the six anchors, on the same track the line runs */
+      ctx.fillStyle = "#C9A24A";
+      for (var k = 0; k < KEYS.length; k++) {
+        var ax = padX + slot / 2 + (k / (KEYS.length - 1)) * (span - slot);
+        var ay = base - Math.max(0, Math.min(1, sixNow[k])) * (base - top);
+        ctx.beginPath(); ctx.arc(ax, ay, 2.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    var sixNow = [0, 0, 0, 0, 0, 0];
+
+    function frame(ts) {
+      rafId = null;
+      var t = ts / 1000;
+      var dt = lastTs ? Math.min(0.1, t - lastTs) : 0.016;
+      lastTs = t;
+      for (var i = 0; i < BARS; i++) {           /* caps fall between frames */
+        caps[i] = Math.max(0, caps[i] - 0.22 * dt);
+      }
+      drawFrame(t, false);
+      if (visible && !reduced.matches) {
+        rafId = window.requestAnimationFrame(frame);
+      }
+    }
+
+    function kick() {
+      if (rafId === null && visible && !reduced.matches) {
+        rafId = window.requestAnimationFrame(frame);
+      }
+    }
+    function stop() {
+      if (rafId !== null && window.cancelAnimationFrame) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = null;
+    }
+
+    if ("IntersectionObserver" in window) {
+      var vObs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          visible = e.isIntersecting;
+          if (visible) { kick(); } else { stop(); }
+        });
+      }, { threshold: 0.05 });
+      vObs.observe(cv);
+    }
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(function () { drawFrame(lastTs, reduced.matches); }).observe(cv);
+    }
+
+    return {
+      setValues: function (values) {
+        sixNow = KEYS.map(function (k) { return clamp(values[k]) / 10; });
+        for (var i = 0; i < BARS; i++) {
+          var v = catmull(sixNow, (i / (BARS - 1)) * (KEYS.length - 1));
+          env[i] = Math.max(0, Math.min(1, v));
+        }
+        if (reduced.matches || !visible) { drawFrame(lastTs, true); }
+        else { kick(); }
+      },
+    };
+  }
+
+  var analyzer = makeAnalyzer(document.getElementById("sbeq-analyzer"));
+  if (analyzer) {
+    var traceWrap = root.querySelector(".sbeq-trace");
+    if (traceWrap && traceWrap.classList) { traceWrap.classList.add("is-live"); }
+  }
+
+  /* The SVG fallback: the old trace, redrawn the old way, for any
+     browser the canvas path declined. */
   function drawTrace(values) {
     if (!traceLine) { return; }
     var W = 600, H = 90, pad = 24;
@@ -262,7 +452,7 @@
     if (el.setup) { el.setup.textContent = setupTime(v); }
     if (el.cta) { el.cta.setAttribute("href", planHref("/plan")); }
 
-    drawTrace(v);
+    if (analyzer) { analyzer.setValues(v); } else { drawTrace(v); }
     save();
     if (interacted) { saveProfile(chosenLane, mods, acts); }
   }
