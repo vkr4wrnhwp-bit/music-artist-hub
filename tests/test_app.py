@@ -6028,7 +6028,9 @@ def test_command_palette_index_cannot_drift_from_the_nav():
     hrefs = [i["href"] for i in idx]
     assert len(set(hrefs)) == len(hrefs)
     nav_hrefs = set()
-    for _k, _name, _tag, items in hubs.HUBS:
+    # nav_hubs(), not the HUBS literal: flag-gated hubs (Studio, Live) are
+    # appended per request, and the sidebar renders nav_hubs() too.
+    for _k, _name, _tag, items in hubs.nav_hubs():
         for _key, href, _icon, _label, _desc in items:
             nav_hrefs.add(href)
     for group in (hubs.LABEL_GROUP, hubs.COMMUNITY_GROUP, hubs.ACCOUNT_GROUP):
