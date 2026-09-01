@@ -90,7 +90,7 @@
       <li class="sbmp-cat" data-category="{{ cat.slug }}">
         <span class="sbmp-cat-num">{{ cat.num }}</span>
         <span class="sbmp-cat-label">{{ cat.label }}</span>
-        <span class="sbmp-cat-short">{{ cat.short }}</span>
+        {% if cat.short %}<span class="sbmp-cat-short">{{ cat.short }}</span>{% endif %}
       </li>
       {% endfor %}
     </ol>

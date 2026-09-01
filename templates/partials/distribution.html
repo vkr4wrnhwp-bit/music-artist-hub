@@ -73,7 +73,7 @@
 
   <div class="sbds-body">
     {# Who actually delivers. Stated once, plainly, near the top. #}
-    <p class="sbds-partner">{{ ds.partner.line }}</p>
+    {% if ds.partner.line %}<p class="sbds-partner">{{ ds.partner.line }}</p>{% endif %}
 
     <ol class="sbds-caps">
       {% for num, name, detail in ds.capabilities %}

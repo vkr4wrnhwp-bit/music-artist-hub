@@ -54,9 +54,7 @@ def test_the_copy_is_the_approved_copy():
     assert "Royalty Sweep" in eq
     assert "Find what&#39;s yours." in eq or "Find what's yours." in eq
     assert "Keep what&#39;s earned." in eq or "Keep what's earned." in eq
-    assert ("Connect the catalog, trace missing registrations and income "
-            "sources, and turn every potential gap into a trackable recovery "
-            "case." in eq)
+    assert "Connect the catalog. Every potential gap becomes a case." in eq
     assert "Run a Free Royalty Sweep" in eq
     assert "See how the sweep works" in eq
     assert "Your catalog. Your data. Your approval." in eq

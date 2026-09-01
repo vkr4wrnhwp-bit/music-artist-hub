@@ -14,8 +14,7 @@ in one place where it can be read at a glance.
 EYEBROW = "Street Banker"
 NUMBER = "12"
 HEADLINE = [("Your music is the ", "product."), ("Your catalog is the ", "asset.")]
-SUPPORT = ("Street Banker helps artists build, protect, distribute, promote "
-           "and grow the work from one connected system.")
+SUPPORT = "Build, protect and grow the work from one connected system."
 TRUST_LINE = "Your music. Your data. Your decisions."
 
 # "Start ..." rather than "Build my ...": the EQ's plan CTA is

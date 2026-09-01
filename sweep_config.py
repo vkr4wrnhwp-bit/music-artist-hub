@@ -13,9 +13,7 @@ labelled an estimated value range and said to need checking.
 EYEBROW = "Royalty Sweep"
 NUMBER = "09"
 HEADLINE = ["Find what's yours.", "Keep what's earned."]
-SUPPORT = ("Connect the catalog, trace missing registrations and income "
-           "sources, and turn every potential gap into a trackable recovery "
-           "case.")
+SUPPORT = "Connect the catalog. Every potential gap becomes a case."
 
 # The one canonical conversion label, shared with the header and hero.
 PRIMARY_CTA = {"label": "Run a Free Royalty Sweep", "href": "/catalog-sweep"}
@@ -23,21 +21,16 @@ SECONDARY_CTA = {"label": "See how the sweep works"}
 METHOD_LINK = {"label": "How Royalty Sweep works", "href": "/royalty-sweep"}
 
 TRUST = "Your catalog. Your data. Your approval."
-TRUST_COPY = ("Royalty Sweep identifies potential gaps and organises recovery "
-              "work. Every finding requires verification before submission.")
+TRUST_COPY = "Every finding requires verification before submission."
 
 WORKFLOW = [
-    ("01", "Detect", "Scan the catalog for missing registrations, metadata "
-                     "conflicts, duplicate records and unexplained reporting "
-                     "gaps."),
-    ("02", "Match", "Cross-reference recordings, compositions, contributors, "
-                    "identifiers, ownership information and royalty sources."),
-    ("03", "Verify", "Review evidence, confirm ownership and identify the "
-                     "information required before a case can move forward."),
-    ("04", "Claim", "Prepare and track the appropriate registration "
-                    "correction, inquiry or recovery case."),
-    ("05", "Track", "Monitor progress, requests for information, resolutions "
-                    "and verified recovered income."),
+    # A few words each: the verbs are the stages, the detail is the
+    # method page's job (METHOD_LINK). Cut ~70% on the owner's call.
+    ("01", "Detect", "Missing registrations and gaps."),
+    ("02", "Match", "Recordings to royalty sources."),
+    ("03", "Verify", "Evidence and ownership, confirmed."),
+    ("04", "Claim", "The recovery case, filed."),
+    ("05", "Track", "Through to recovered income."),
 ]
 
 # What the sweep can read from, and how. "Connected" is reserved for a

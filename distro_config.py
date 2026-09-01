@@ -21,12 +21,11 @@ codebase or in the terms on file, so none of them is on the page.
 EYEBROW = "Global Distribution"
 NUMBER = "10"
 HEADLINE = ["Your music. Everywhere.", "On your terms."]
-SUPPORT = ("Prepare and deliver your release to supported platforms while "
-           "keeping control of your masters, metadata, timing, territories "
-           "and release information.")
+SUPPORT = ("Prepare, validate and deliver the release. Masters, timing "
+           "and territories stay under your control.")
 # Not a tri-possessive: that riff belongs to the sweep and the
 # closing frame. This line says the one thing only this section can.
-TRUST = "Delivered through SummitArts on Symphonic Distribution."
+TRUST = "Prepared here, delivered by the partner."
 
 # Two buttons need two destinations. Both pointed at /distribution,
 # which made the primary CTA a no-op next to the guide button. The
@@ -43,24 +42,19 @@ GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
 # saying who supports them.
 PARTNER = {
     "name": "SummitArts on Symphonic Distribution",
-    "line": ("Street Banker prepares and validates the release. Delivery to "
-             "stores and streaming platforms goes out through SummitArts on "
-             "Symphonic Distribution — the partnership on the services page."),
+    # The one place the partner is named: the trust line above it
+    # deliberately does not repeat the name.
+    "line": ("SummitArts on Symphonic Distribution delivers to stores and "
+             "streaming platforms."),
 }
 
 CAPABILITIES = [
-    ("01", "Platform Delivery",
-     "Prepare and deliver releases to supported streaming platforms and "
-     "digital stores through the Street Banker distribution partnership."),
-    ("02", "Ownership Control",
-     "Keep ownership and control of masters and catalog information according "
-     "to your agreement and the Street Banker lane you are on."),
+    ("01", "Platform Delivery", "Supported platforms and stores."),
+    ("02", "Ownership Control", "Yours, according to your agreement."),
     # Delivery-scoped on purpose. The old 04 (Reporting) and 05 (Splits
     # and Credits) re-pitched the Royalty Sweep and Metadata Passport
     # sections that sandwich this one; their copy lives there, in full.
-    ("03", "Release Control",
-     "Manage release dates, territories, versions and delivery status from "
-     "one release workspace."),
+    ("03", "Release Control", "Dates, territories, versions, status."),
 ]
 
 WORKFLOW = [

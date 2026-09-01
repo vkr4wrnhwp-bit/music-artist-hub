@@ -13,13 +13,13 @@ named for that so it can never be read as a forecast.
 EYEBROW = "Metadata Passport + Rights"
 NUMBER = "11"
 HEADLINE = ["One release.", "Every detail connected."]
-SUPPORT = ("Organise credits, splits, identifiers, ownership, agreements, "
-           "assets, versions and release history in one living record.")
+SUPPORT = ("Credits, splits, identifiers, agreements, versions and "
+           "history — one living record.")
 # Not a tri-possessive: that riff is rationed to the sweep and the
 # closing frame so it keeps its force.
 TRUST = "The record that outlives the release."
-TRUST_COPY = ("Street Banker organises the information. Artists and authorised "
-              "collaborators control what is confirmed, shared or submitted.")
+TRUST_COPY = ("Artists and authorised collaborators control what is "
+              "confirmed, shared or submitted.")
 
 PRIMARY_CTA = {"label": "Open Metadata Passport", "href": "/metadata"}
 SECONDARY_CTA = {"label": "See how it connects"}
@@ -34,7 +34,7 @@ CATEGORIES = [
     {
         "num": "01", "slug": "credits", "label": "Credits",
         "zone": (0.150, 0.105, 0.365, 0.325),
-        "short": "Record every contributor and role attached to the release.",
+        "short": "",
         "stored": ["Primary artist", "Featured artist", "Songwriters",
                    "Producers", "Engineers", "Musicians", "Photographers",
                    "Designers", "Additional contributors"],
@@ -49,8 +49,7 @@ CATEGORIES = [
     {
         "num": "02", "slug": "ownership", "label": "Ownership",
         "zone": (0.118, 0.335, 0.335, 0.545),
-        "short": ("Document who controls the recording and composition, and "
-                  "how ownership is divided."),
+        "short": "",
         "stored": ["Master owner", "Composition owners", "Publishing shares",
                    "Administration", "Territories", "Ownership percentages",
                    "Effective dates"],
@@ -65,8 +64,7 @@ CATEGORIES = [
     {
         "num": "03", "slug": "identifiers", "label": "Identifiers",
         "zone": (0.058, 0.575, 0.312, 0.870),
-        "short": ("Keep the identifiers that connect the release across "
-                  "platforms, organisations and payment systems."),
+        "short": "",
         "stored": ["ISRC", "UPC or EAN", "ISWC", "IPI or CAE", "ISNI",
                    "Catalog number", "Internal release ID"],
         "why": ("Identifiers connect the release to platforms, registrations, "
@@ -80,7 +78,7 @@ CATEGORIES = [
     {
         "num": "04", "slug": "versions", "label": "Versions",
         "zone": (0.383, 0.585, 0.612, 0.900),
-        "short": "Track every approved version of the recording.",
+        "short": "",
         "stored": ["Original", "Clean", "Explicit", "Instrumental", "Acapella",
                    "Radio edit", "Extended", "Live", "Remix",
                    "Alternate master"],
@@ -94,8 +92,7 @@ CATEGORIES = [
     {
         "num": "05", "slug": "agreements", "label": "Agreements",
         "zone": (0.618, 0.105, 0.882, 0.325),
-        "short": ("Connect the documents that establish permissions, "
-                  "obligations and chain of title."),
+        "short": "",
         "stored": ["Split sheets", "Producer agreements",
                    "Featured-artist agreements", "Work-for-hire agreements",
                    "Master-use licences", "Sample clearances",
@@ -109,7 +106,7 @@ CATEGORIES = [
     {
         "num": "06", "slug": "assets", "label": "Assets",
         "zone": (0.640, 0.335, 0.918, 0.560),
-        "short": "Organise the media and files connected to the release.",
+        "short": "",
         "stored": ["Audio masters", "Stems", "Artwork", "Artist photography",
                    "Lyrics", "Videos", "Canvas clips", "Campaign files",
                    "Press materials", "Supporting documents"],
@@ -123,7 +120,7 @@ CATEGORIES = [
     {
         "num": "07", "slug": "release-history", "label": "Release History",
         "zone": (0.648, 0.575, 0.932, 0.862),
-        "short": "Preserve the complete timeline of the release.",
+        "short": "",
         "stored": ["Original release", "Metadata updates", "Artwork changes",
                    "New territories", "Clean version added", "Remix added",
                    "Deluxe version", "Distribution transfer",

@@ -47,12 +47,11 @@ def test_the_copy_is_the_approved_copy():
     eq = _section()
     assert "Global Distribution" in eq and ">10<" in eq
     assert "Your music. Everywhere." in eq and "On your terms." in eq
-    assert ("Prepare and deliver your release to supported platforms while "
-            "keeping control of your masters, metadata, timing, territories "
-            "and release information." in eq)
+    assert ("Prepare, validate and deliver the release. Masters, timing "
+            "and territories stay under your control." in eq)
     assert "Check release readiness" in eq
     assert "View distribution guide" in eq
-    assert "Delivered through SummitArts on Symphonic Distribution." in eq
+    assert "Prepared here, delivered by the partner." in eq
     assert "Ready to release?" not in eq
     assert "Start a release" not in eq        # closing block removed
 
