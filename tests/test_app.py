@@ -1864,10 +1864,10 @@ def _pulse_http(url, data=None, headers=None):
 def test_login_page_has_partner_demo_box():
     client = create_app().test_client()
     body = client.get("/login").get_data(as_text=True)
-    # The Tour rack: four workspace radios, the demo password stays
+    # The demo strip: four workspace radios, the demo password stays
     # server-side until a lead requests it, and the have-password form
     # still drives the same demo sign-in.
-    assert "B. TOUR STREET BANKER" in body
+    assert "Tour with a sample workspace" in body
     assert body.count('name="lsr-workspace"') == 4
     assert "REQUEST DEMO ACCESS" in body
     assert "OPEN SAMPLE WORKSPACE" in body
@@ -5236,13 +5236,19 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
 # --- /login: Session Recall -----------------------------------------------
 
 def test_login_session_recall_page():
-    """The rebuilt /login: racks in order, real form, no invented claims."""
+    """The rebuilt /login (2026-09-01): one console over one picture -
+    the photograph, a single sign-in form, the demo strip - real form,
+    no invented claims."""
     body = create_app().test_client().get("/login").get_data(as_text=True)
-    assert "RETURN TO YOUR DESK." in body
-    assert "A. SESSION RECALL" in body
-    assert "RECALL MY DESK" in body
-    assert "B. TOUR STREET BANKER" in body
+    assert 'class="lsr-photo"' in body and "hero-band-wide-1100" in body
+    assert "Your decisions." in body           # the statement on the picture
+    assert 'id="lsr-submit"' in body and ">Sign in" in body
+    assert "Tour with a sample workspace" in body
     assert "YOUR MIX IS READY" in body          # rendered hidden until JS
+    # The rack cosplay stayed retired.
+    for gone in ("RECALL MY DESK", "SESSION RECALL", "RETURN TO YOUR DESK",
+                 "lsr-screw", "login-tex-", "ARTIST INFRASTRUCTURE"):
+        assert gone not in body, gone
     assert 'id="lsr-mix" hidden' in body
     # Real form wiring the backend already expects.
     assert 'name="email"' in body and 'name="password"' in body
@@ -5253,7 +5259,7 @@ def test_login_session_recall_page():
         assert w in body
     # One row, two named destinations - and the fan link arrives on the
     # fan side rather than on an artist-ticked form.
-    assert "CREATE ARTIST ACCOUNT" in body
+    assert "Create an artist account" in body
     assert 'href="/signup?as=fan"' in body
     assert "GO TO FAN EXPERIENCE" not in body
     assert "Secure account access. Demo workspaces contain sample data." in body

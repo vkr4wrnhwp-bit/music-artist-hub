@@ -8,66 +8,75 @@
   <meta name="description" content="Sign in to manage your releases, royalties, fans, and catalog.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  <link rel="stylesheet" href="/static/css/login-session-recall.css?v=7">
+  <link rel="stylesheet" href="/static/css/login-session-recall.css?v=8">
 </head>
 <body class="lsr">
-
+{# One console over one picture. The door was two pale racks on a black
+   void with no photograph; now the band in the backline owns the left of
+   the screen with one statement over it, and the sign-in is a single
+   black console on the right. Same routes, same field names, same ids
+   the script and the password managers look for - a new skin on the
+   same skeleton. #}
   <main class="lsr-page">
 
-    <!-- 1. wordmark + intro -->
-    <header class="lsr-intro">
-      <a href="/" class="lsr-brand">
-        <img src="/static/img/streetbanker-logo.svg" alt="Street Banker">
-        <span>ARTIST INFRASTRUCTURE</span>
-      </a>
-      <h1 class="lsr-title">RETURN TO YOUR DESK.</h1>
-      <p class="lsr-support">Sign in to manage your releases, royalties, fans, and catalog.</p>
-    </header>
+    <aside class="lsr-photo" aria-hidden="true">
+      <picture>
+        <source media="(max-width: 860px)" type="image/avif"
+                srcset="/static/img/hero-band-tall-640.avif 640w, /static/img/hero-band-tall-900.avif 900w" sizes="100vw">
+        <source media="(max-width: 860px)" type="image/webp"
+                srcset="/static/img/hero-band-tall-640.webp 640w, /static/img/hero-band-tall-900.webp 900w" sizes="100vw">
+        <source media="(max-width: 860px)" type="image/jpeg"
+                srcset="/static/img/hero-band-tall-640.jpg 640w, /static/img/hero-band-tall-900.jpg 900w" sizes="100vw">
+        <source type="image/avif"
+                srcset="/static/img/hero-band-wide-900.avif 900w, /static/img/hero-band-wide-1100.avif 1100w, /static/img/hero-band-wide-1342.avif 1342w" sizes="55vw">
+        <source type="image/webp"
+                srcset="/static/img/hero-band-wide-900.webp 900w, /static/img/hero-band-wide-1100.webp 1100w, /static/img/hero-band-wide-1342.webp 1342w" sizes="55vw">
+        <img class="lsr-photo-img" src="/static/img/hero-band-wide-1100.jpg"
+             srcset="/static/img/hero-band-wide-900.jpg 900w, /static/img/hero-band-wide-1100.jpg 1100w, /static/img/hero-band-wide-1342.jpg 1342w"
+             sizes="55vw" width="1342" height="775" alt="" fetchpriority="high" decoding="async">
+      </picture>
+      <span class="lsr-veil"></span>
+      <div class="lsr-over">
+        <p class="lsr-eyebrow">Street Banker &middot; The Artist Operating System</p>
+        <p class="lsr-state"><span>Your music.</span><span>Your data.</span><em>Your decisions.</em></p>
+        <span class="lsr-over-rule"></span>
+        <p class="lsr-proof">Releases &middot; Royalties &middot; Rights &middot; The Studio &middot; The Rack</p>
+      </div>
+    </aside>
 
-    <!-- 2. A. SESSION RECALL -->
-    {% include "partials/login_session_recall.html" %}
+    <section class="lsr-console">
+      <div class="lsr-console-inner">
+        <a href="/" class="lsr-brand">
+          <img src="/static/img/streetbanker-logo-light.svg" alt="Street Banker" width="920" height="250">
+        </a>
+        <h1 class="lsr-title">Sign in</h1>
+        <p class="lsr-support">Your releases, royalties, fans and catalog &mdash; one desk.</p>
 
-    <!-- 3. YOUR MIX IS READY - rendered hidden; the script reveals it only
-         when a valid saved Artist EQ mix exists in this browser. -->
-    {% include "partials/login_artist_eq_recall.html" %}
+        {% include "partials/login_session_recall.html" %}
 
-    <!-- 4. B. TOUR STREET BANKER -->
-    {% include "partials/login_demo_tour.html" %}
+        {# Rendered hidden; the script reveals it only when a valid saved
+           Artist EQ mix exists in this browser. #}
+        {% include "partials/login_artist_eq_recall.html" %}
 
-    <!-- 5. one row, because there is one question: which account -->
-    {# These were two rows of identical weight, and both buttons went to
-       the same /signup with the artist type already selected - so
-       "GO TO FAN EXPERIENCE" promised a different destination and
-       delivered the artist form. One row, two named choices, and the fan
-       link now actually arrives on the fan side. #}
-    <div class="lsr-rows">
-      <section class="lsr-row" aria-labelledby="lsr-new-h">
-        <div>
-          <h2 class="lsr-row-title" id="lsr-new-h">NO ACCOUNT YET?</h2>
-          <p class="lsr-row-sub">
-            Artists get the back office — royalties, releases, catalog.
-            Or <a class="lsr-row-alt" href="/signup?as=fan">Create a free fan account →</a>
-          </p>
-        </div>
-        <a class="lsr-row-btn" href="/signup">CREATE ARTIST ACCOUNT</a>
-      </section>
-    </div>
+        <p class="lsr-foot">
+          <span><strong>New here?</strong> <a href="/signup">Create an artist account</a></span>
+          <span><a href="/signup?as=fan">Fan account</a></span>
+        </p>
 
-    <!-- 6. security statement -->
-    <p class="lsr-security">
-      <span class="lsr-security-mark" aria-hidden="true"></span>
-      Secure account access. Demo workspaces contain sample data.
-    </p>
+        {% include "partials/login_demo_tour.html" %}
 
-    <!-- 7. minimal footer -->
-    <footer class="lsr-footer">
-      <nav aria-label="Legal">
-        <a href="/terms">Terms</a><span aria-hidden="true">·</span>
-        <a href="/privacy">Privacy</a><span aria-hidden="true">·</span>
-        <a href="/submit">Contact</a>
-      </nav>
-      <p>&copy; 2026 Street Banker LLC. All rights reserved.</p>
-    </footer>
+        <p class="lsr-security">Secure account access. Demo workspaces contain sample data.</p>
+
+        <footer class="lsr-footer">
+          <nav aria-label="Legal">
+            <a href="/terms">Terms</a><span aria-hidden="true">&middot;</span>
+            <a href="/privacy">Privacy</a><span aria-hidden="true">&middot;</span>
+            <a href="/submit">Contact</a>
+          </nav>
+          <p>&copy; 2026 Street Banker LLC. All rights reserved.</p>
+        </footer>
+      </div>
+    </section>
 
     <p class="lsr-sr" id="lsr-live" aria-live="polite" role="status"></p>
   </main>

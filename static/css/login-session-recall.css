@@ -1,19 +1,26 @@
-/* Street Banker /login — Session Recall.
+/* Street Banker /login — one console over one picture.
 
-   The chassis is real material from the approved mock: login-tex-silver.jpg
-   (brushed frame strip), login-tex-black.jpg (faceplate leather), and the
-   three engraved badge icons. Colors are sampled from the same file:
-   gold button 202,169,112 -> 176,139,81; LED 237,173,34; plate 31,32,31;
-   ivory 245,239,229. Textures are decorative layers over solid colors, so
-   the page reads identically if an image fails to load. */
+   The door used to be two pale aluminum racks on a black void with no
+   photograph. Now the band in the backline owns the left of the screen
+   with one statement over it, and the sign-in is a single black console
+   on the right: design system v1 straight - the warm near-black ground,
+   ivory copy, gold for labels, rules and the one button. Nothing here is
+   a texture tile or a screw; the material is the type and the picture.
+
+   Everything is tokens or rgb(); the 12px floor holds everywhere. */
 
 :root {
-  --lsr-ink: var(--sb-ink);          /* page text on the dark console */
+  --lsr-ground: var(--sb-ground);
+  --lsr-raised: var(--sb-surface-1);
+  --lsr-ink: var(--sb-ink);
   --lsr-muted: var(--sb-ink-2);
-  --lsr-page: var(--sb-ground);         /* black console, matching theme-color */
-  --lsr-gold: var(--sb-gold-bright);
-  --lsr-gold-dark: var(--sb-gold-deep);
-  --lsr-led: rgb(237, 173, 34);
+  --lsr-faint: var(--sb-ink-3);
+  --lsr-gold: var(--sb-gold);
+  --lsr-gold-lit: var(--sb-gold-bright);
+  --lsr-gold-deep: var(--sb-gold-deep);
+  --lsr-line: rgb(201 168 106 / 0.24);
+  --lsr-field: rgb(242 238 230 / 0.22);
+  --lsr-led: rgb(237 173 34);
 }
 
 * { box-sizing: border-box; }
@@ -21,527 +28,435 @@
 body.lsr {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 70% 40% at 50% -5%, rgba(216, 178, 90, 0.08), transparent 65%),
-    var(--lsr-page);
+  background: var(--lsr-ground);
   color: var(--lsr-ink);
   font-family: var(--sb-text);
   -webkit-font-smoothing: antialiased;
 }
 
 .lsr-page {
-  max-width: 66rem;
-  margin: 0 auto;
-  padding: 40px 20px 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+  min-height: 100vh;
+}
+@media (max-width: 860px) {
+  .lsr-page { grid-template-columns: 1fr; }
 }
 
-/* --- intro ------------------------------------------------------------ */
-.lsr-intro { text-align: center; }
-
-.lsr-brand {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
+/* --- the picture ------------------------------------------------------ */
+.lsr-photo {
+  position: relative;
+  overflow: hidden;
+  background: var(--lsr-ground);
+  min-height: 100vh;
 }
-.lsr-brand img { height: 40px; width: auto; }
-.lsr-brand span {
+@media (max-width: 860px) {
+  .lsr-photo { min-height: min(46vh, 420px); }
+}
+.lsr-photo picture, .lsr-photo-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 40% 30%;
+  display: block;
+}
+/* The veil: darker toward the console so the seam reads as one frame,
+   and darker at the foot so the statement sits on quiet ground. */
+.lsr-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(11 10 8 / 0.12), rgb(11 10 8 / 0.5) 70%, var(--lsr-ground) 100%),
+    linear-gradient(0deg, rgb(11 10 8 / 0.88), transparent 58%);
+}
+@media (max-width: 860px) {
+  .lsr-veil { background: linear-gradient(0deg, var(--lsr-ground), rgb(11 10 8 / 0.22) 62%); }
+}
+.lsr-over {
+  position: absolute;
+  left: clamp(22px, 4.5vw, 64px);
+  right: clamp(22px, 4.5vw, 64px);
+  bottom: clamp(22px, 4.5vw, 56px);
+}
+.lsr-eyebrow {
+  margin: 0;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  color: var(--lsr-gold);
-}
-
-.lsr-title {
-  margin: 34px 0 0;
-  font-size: clamp(2.1rem, 7vw, 3.9rem);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
+  color: var(--lsr-gold);
+  font-variation-settings: "wdth" 108;
 }
-
-.lsr-support {
-  margin: 14px auto 0;
-  max-width: 30rem;
-  font-size: 0.95rem;
-  line-height: 1.6;
+.lsr-state {
+  margin: 14px 0 0;
+  font-size: clamp(30px, 3.6vw, 48px);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  font-variation-settings: "wdth" 112;
+  color: var(--lsr-ink);
+}
+.lsr-state span, .lsr-state em { display: block; }
+.lsr-state em { font-style: normal; color: var(--lsr-gold-lit); }
+.lsr-over-rule {
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: 18px;
+  background: var(--lsr-gold);
+  transform-origin: left center;
+}
+.lsr-proof {
+  margin: 16px 0 0;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--lsr-muted);
 }
 
-/* --- rack chassis ----------------------------------------------------- */
-.lsr-rack {
-  position: relative;
-  display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
-  gap: 0;
-  margin-top: 30px;
-  padding: 18px 40px 18px 16px;
-  border-radius: var(--sb-r-control);
-  /* Satin-brushed aluminum: one continuous tonal sweep with chamfered
-     edges. No texture tile - repeating strips read as banding, and the
-     banding is exactly what got this plate redesigned. */
-  background:
-    linear-gradient(180deg, var(--sb-ink) 0%, var(--sb-ink) 38%, var(--sb-ink-2) 60%, var(--sb-ink) 100%);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55),
-              inset 0 2px 0 rgba(255, 255, 255, 0.9),
-              inset 0 -2px 3px rgba(0, 0, 0, 0.18),
-              inset 3px 0 4px -2px rgba(0, 0, 0, 0.14),
-              inset -3px 0 4px -2px rgba(0, 0, 0, 0.14),
-              0 18px 40px rgba(0, 0, 0, 0.55);
-}
-.lsr-intro + .lsr-rack { margin-top: 42px; }
-
-/* display:grid above would defeat the hidden attribute (author beats UA
-   stylesheet), so the conditional mix rack pins it explicitly: absent
-   means gone, no gap left behind. Same for the flip-state demo forms. */
-.lsr-rack[hidden],
-.lsr-demo-form[hidden] { display: none; }
-
-.lsr-screw {
-  position: absolute;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--sb-ink), var(--sb-ink-2) 58%, var(--sb-line-strong));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45),
-              0 1px 2px rgba(0, 0, 0, 0.35);
-}
-.lsr-screw::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 8px;
-  height: 1.6px;
-  background: rgba(20, 18, 16, 0.7);
-  transform: rotate(32deg);
-}
-.lsr-screw--tl { top: 12px; left: 13px; }
-.lsr-screw--bl { bottom: 12px; left: 13px; }
-.lsr-screw--tr { top: 12px; right: 13px; }
-.lsr-screw--br { bottom: 12px; right: 13px; }
-
-/* badge column: engraved icon lifted from the mock + HTML label */
-.lsr-badge {
+/* --- the console ------------------------------------------------------ */
+.lsr-console {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 10px 8px;
+  padding: clamp(32px, 4.5vw, 64px) clamp(22px, 4.5vw, 72px);
+  border-left: 1px solid var(--lsr-line);
+  background: var(--lsr-ground);
 }
-.lsr-badge img {
-  width: 58px;
-  height: 58px;
-  border-radius: var(--sb-r-control);
+@media (max-width: 860px) {
+  .lsr-console { border-left: 0; border-top: 1px solid var(--lsr-line); padding-top: 28px; }
 }
-.lsr-badge span {
-  font-size: 12px;
+.lsr-console-inner { width: 100%; max-width: 470px; }
+
+.lsr-brand { display: inline-block; }
+.lsr-brand img { width: 150px; height: auto; display: block; }
+
+.lsr-title {
+  margin: 34px 0 0;
+  font-size: clamp(32px, 3.6vw, 44px);
+  line-height: 0.96;
   font-weight: 800;
-  letter-spacing: 0.22em;
-  line-height: 1.7;
-  text-align: center;
-  color: var(--sb-line-strong);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);   /* engraved, not printed */
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  font-variation-settings: "wdth" 118;
+}
+.lsr-support {
+  margin: 12px 0 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--lsr-muted);
+  max-width: 40ch;
 }
 
-/* faceplate: the mock's leather-black tile over its sampled base color */
-.lsr-face {
-  border-radius: var(--sb-r-control);
-  background-color: rgb(31, 32, 31);
-  background-image: url("/static/img/login-tex-black.jpg?v=1");
-  box-shadow: inset 0 0 0 1px rgba(216, 178, 90, 0.28),
-              inset 0 2px 10px rgba(0, 0, 0, 0.85);
-  padding: 20px 26px 22px;
-  color: var(--sb-ink);
-}
+/* --- the form --------------------------------------------------------- */
+.lsr-form { margin-top: 26px; }
 
-.lsr-face-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.lsr-face-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--lsr-gold);
-  white-space: nowrap;
-}
-.lsr-face-rule { flex: 1; height: 1px; background: rgba(216, 178, 90, 0.35); }
-
-.lsr-led {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 38% 32%, var(--sb-gold-bright), var(--lsr-led) 60%, var(--sb-gold-deep));
-  box-shadow: 0 0 6px rgba(237, 173, 34, 0.7),
-              inset 0 0 0 1px rgba(0, 0, 0, 0.35);
-}
-
-.lsr-face-sub {
-  margin: 10px 0 0;
-  font-size: 12.5px;
-  color: var(--sb-ink-2);
-}
-
-.lsr-error {
-  margin: 14px 0 0;
-  padding: 9px 12px;
-  border: 1px solid rgba(237, 173, 34, 0.5);
-  border-left: 3px solid var(--lsr-led);
-  border-radius: var(--sb-r-control);
-  background: rgba(237, 173, 34, 0.08);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--sb-gold-bright);
-}
-
-/* --- session recall form ---------------------------------------------- */
-.lsr-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 30px;
-  margin-top: 16px;
-}
-
+.lsr-field + .lsr-field { margin-top: 20px; }
 .lsr-field label,
 .lsr-mix-col h3 {
   display: block;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.22em;
-  color: var(--sb-ink-2);
+  text-transform: uppercase;
+  color: var(--lsr-gold);
 }
-.lsr-field + .lsr-field { margin-top: 14px; }
-
 .lsr-field input,
 .lsr-demo-row input {
   width: 100%;
-  padding: 11px 12px;
-  border: 1px solid rgba(236, 232, 222, 0.22);
+  height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--lsr-field);
   border-radius: var(--sb-r-control);
-  background: rgba(0, 0, 0, 0.45);
-  color: var(--sb-ink);
+  background: rgb(0 0 0 / 0.45);
+  color: var(--lsr-ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-/* Under 16px iOS Safari zooms the viewport when the field takes focus and
-   never zooms back, stranding a phone user panning around a login form.
-   Desktop keeps the 14px console face. */
+/* Under 16px iOS Safari zooms the viewport on focus and never zooms back. */
 @media (pointer: coarse) {
-  .lsr-field input,
-  .lsr-demo-row input { font-size: 16px; }
+  .lsr-field input, .lsr-demo-row input { font-size: 16px; }
 }
 .lsr-field input::placeholder,
-.lsr-demo-row input::placeholder { color: var(--sb-ink-3); }
+.lsr-demo-row input::placeholder { color: var(--lsr-faint); }
 .lsr-field input:focus-visible,
 .lsr-demo-row input:focus-visible {
-  outline: 2px solid var(--lsr-gold);
-  outline-offset: 1px;
+  outline: none;
   border-color: var(--lsr-gold);
+  box-shadow: 0 0 0 1px var(--lsr-gold);
 }
 
 .lsr-pw { position: relative; }
-.lsr-pw input { padding-right: 44px; }
+.lsr-pw input { padding-right: 48px; }
 .lsr-pw-toggle {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 8px;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: var(--sb-r-control);
   background: transparent;
-  color: var(--sb-ink-2);
+  color: var(--lsr-muted);
   cursor: pointer;
 }
-.lsr-pw-toggle:hover { color: var(--lsr-gold); }
-.lsr-pw-toggle[aria-pressed="true"] { color: var(--lsr-gold); }
+.lsr-pw-toggle:hover, .lsr-pw-toggle[aria-pressed="true"] { color: var(--lsr-gold-lit); }
 .lsr-pw-toggle:focus-visible { outline: 2px solid var(--lsr-gold); }
 .lsr-pw-toggle svg { width: 18px; height: 18px; }
 
-.lsr-remember {
-  display: inline-flex;
+.lsr-row {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-  font-size: 12.5px;
-  color: var(--sb-ink);
-  cursor: pointer;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--lsr-muted);
 }
-.lsr-remember input { accent-color: var(--lsr-gold); width: 15px; height: 15px; }
+.lsr-remember { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; color: var(--lsr-muted); }
+.lsr-remember input { accent-color: var(--lsr-gold); width: 15px; height: 15px; margin: 0; }
 .lsr-remember input:focus-visible { outline: 2px solid var(--lsr-gold); }
 
-/* right column: the gold button + links */
-.lsr-form-side {
-  display: flex;
-  flex-direction: column;
+.lsr-link {
+  display: inline-block;
+  padding: 8px 2px;
+  margin: -8px -2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lsr-gold-lit);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgb(232 185 80 / 0.45);
+}
+.lsr-link:hover { text-decoration-color: var(--lsr-gold-lit); }
+.lsr-link:focus-visible { outline: 2px solid var(--lsr-gold); outline-offset: 2px; }
+
+/* The one gold button on the page. */
+.lsr-gold-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  text-align: center;
-}
-
-.lsr-gold-btn {
-  display: inline-block;
   width: 100%;
-  padding: 14px 18px;
-  border: 1px solid var(--sb-gold-deep);
+  min-height: 54px;
+  margin-top: 22px;
+  padding: 0 22px;
+  border: 1px solid var(--lsr-gold);
   border-radius: var(--sb-r-control);
-  /* sampled from the mock's RECALL MY DESK face */
-  background: linear-gradient(180deg, rgb(224, 194, 138) 0%,
-              rgb(202, 169, 112) 45%, rgb(176, 139, 81) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 248, 230, 0.75),
-              inset 0 -2px 4px rgba(90, 62, 12, 0.4),
-              0 3px 8px rgba(20, 18, 16, 0.5);
-  color: var(--sb-gold-deep);
+  background: var(--lsr-gold);
+  color: var(--sb-surface-2);
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  text-align: center;
   text-decoration: none;
   cursor: pointer;
-  transition: filter 120ms ease, transform 90ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 90ms ease;
 }
-.lsr-gold-btn:hover { filter: brightness(1.06); }
+.lsr-gold-btn svg { width: 16px; height: 16px; }
+.lsr-gold-btn:hover { background: var(--lsr-gold-lit); border-color: var(--lsr-gold-lit); }
 .lsr-gold-btn:active { transform: translateY(1px); }
-.lsr-gold-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.lsr-gold-btn[disabled] { filter: saturate(0.55) brightness(0.9); cursor: wait; }
-.lsr-gold-btn--slim { width: auto; padding: 12px 20px; font-size: 12px; white-space: nowrap; }
+.lsr-gold-btn:focus-visible { outline: 2px solid var(--lsr-ink); outline-offset: 2px; }
+.lsr-gold-btn[disabled] { opacity: 0.6; cursor: wait; }
+.lsr-gold-btn--outline { background: transparent; color: var(--lsr-gold-lit); }
+.lsr-gold-btn--outline:hover { background: var(--lsr-gold); color: var(--sb-surface-2); }
 
-.lsr-side-rule {
+.lsr-error {
   display: flex;
-  align-items: center;
-  width: 80%;
-  height: 1px;
-  background: rgba(216, 178, 90, 0.3);
-}
-.lsr-side-link {
-  /* Bare inline text with no box. Whoever needs this link is already
-     locked out; it should not also be hard to hit. */
-  display: inline-block;
-  padding: 10px 4px;
-  margin: -10px -4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--lsr-gold);
-  text-decoration: underline;
-  text-decoration-color: rgba(216, 178, 90, 0.5);
-}
-.lsr-side-link:hover { color: var(--sb-gold-bright); }
-.lsr-side-note { margin: 0; font-size: 12px; color: var(--sb-ink-2); }
-.lsr-side-note a { color: var(--lsr-gold); }
-
-/* --- mix rack ---------------------------------------------------------- */
-.lsr-mix-cols {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  margin-top: 16px;
-}
-.lsr-mix-lane { margin: 0; font-size: 15px; font-weight: 800; color: var(--sb-ink); }
-.lsr-mix-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--sb-ink);
-}
-.lsr-mix-list li::before { content: "· "; color: var(--lsr-gold); }
-
-.lsr-mix-cta {
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 10px;
-  margin-top: 20px;
+  margin: 20px 0 0;
+  padding: 10px 14px;
+  border: 1px solid rgb(237 173 34 / 0.5);
+  border-radius: var(--sb-r-control);
+  background: rgb(237 173 34 / 0.08);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lsr-gold-lit);
 }
-.lsr-mix-cta .lsr-gold-btn { max-width: 420px; }
+.lsr-led {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, var(--lsr-gold-lit), var(--lsr-led) 60%, var(--lsr-gold-deep));
+  box-shadow: 0 0 6px rgb(237 173 34 / 0.7);
+}
 
-/* --- tour rack --------------------------------------------------------- */
+.lsr-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 22px 0 0;
+  font-size: 13px;
+  color: var(--lsr-muted);
+}
+.lsr-foot strong { font-weight: 600; color: var(--lsr-ink); }
+.lsr-foot a { color: var(--lsr-gold-lit); text-decoration: underline; text-underline-offset: 3px; }
+.lsr-foot a:hover { color: var(--lsr-gold); }
+
+/* --- the saved-mix panel (hidden until the script has a real mix) ----- */
+.lsr-mix {
+  margin-top: 22px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--lsr-line);
+  border-radius: var(--sb-r-control);
+  background: var(--lsr-raised);
+}
+.lsr-mix[hidden] { display: none; }
+.lsr-mix-head { display: flex; align-items: center; gap: 10px; }
+.lsr-mix-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--lsr-gold);
+}
+.lsr-mix-sub { margin: 6px 0 0; font-size: 13px; color: var(--lsr-muted); }
+.lsr-mix-cols { display: grid; gap: 14px; margin-top: 14px; }
+.lsr-mix-lane { margin: 0; font-size: 15px; font-weight: 700; color: var(--lsr-ink); }
+.lsr-mix-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--lsr-ink); }
+.lsr-mix-list li::before { content: "\00b7 "; color: var(--lsr-gold); }
+.lsr-mix-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 16px; }
+.lsr-mix-cta .lsr-gold-btn { margin-top: 0; }
+
+/* --- the demo strip --------------------------------------------------- */
+.lsr-demo {
+  margin-top: 26px;
+  padding: 16px 18px 16px;
+  border: 1px solid var(--lsr-line);
+  border-radius: var(--sb-r-control);
+  background: var(--lsr-raised);
+}
+.lsr-demo-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.lsr-demo-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lsr-gold);
+}
+.lsr-demo-tag {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--lsr-faint);
+}
+
 .lsr-workspaces {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin: 16px 0 0;
+  gap: 8px;
+  margin: 12px 0 0;
   padding: 0;
   border: none;
 }
 .lsr-workspace { position: relative; cursor: pointer; }
-.lsr-workspace input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
+.lsr-workspace input { position: absolute; opacity: 0; pointer-events: none; }
 .lsr-workspace span {
   display: block;
-  padding: 13px 6px;
-  border: 1px solid rgba(236, 232, 222, 0.25);
+  padding: 11px 6px;
+  border: 1px solid rgb(242 238 230 / 0.2);
   border-radius: var(--sb-r-control);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.35));
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-align: center;
-  color: var(--sb-ink);
+  color: var(--lsr-ink);
   transition: border-color 120ms ease, background-color 120ms ease;
 }
-.lsr-workspace:hover span { border-color: rgba(216, 178, 90, 0.6); }
+.lsr-workspace:hover span { border-color: rgb(201 168 106 / 0.6); }
 /* selection: fill + weight + check mark, never gold alone */
 .lsr-workspace input:checked + span {
   border-color: var(--lsr-gold);
-  background: rgba(216, 178, 90, 0.16);
-  color: var(--sb-gold-bright);
+  background: rgb(201 168 106 / 0.14);
+  color: var(--lsr-gold-lit);
 }
-.lsr-workspace input:checked + span::before { content: "✓ "; }
+.lsr-workspace input:checked + span::before { content: "\2713 "; }
 .lsr-workspace input:focus-visible + span { outline: 2px solid var(--lsr-gold); outline-offset: 2px; }
 
-.lsr-demo-form { margin-top: 16px; }
-.lsr-demo-row {
-  display: flex;
-  gap: 10px;
+.lsr-demo-form { margin-top: 10px; }
+.lsr-demo-form[hidden] { display: none; }
+.lsr-demo-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.lsr-demo-row input { height: 44px; }
+.lsr-demo-btn {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--lsr-gold);
+  border-radius: var(--sb-r-control);
+  background: transparent;
+  color: var(--lsr-gold-lit);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
 }
-.lsr-demo-row input { flex: 1; }
+.lsr-demo-btn:hover { background: var(--lsr-gold); color: var(--sb-surface-2); }
+.lsr-demo-btn:focus-visible { outline: 2px solid var(--lsr-ink); outline-offset: 2px; }
 
 .lsr-demo-note {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   padding: 8px 12px;
   border-radius: var(--sb-r-control);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
 }
-.lsr-demo-note--ok {
-  border: 1px solid rgba(216, 178, 90, 0.45);
-  background: rgba(216, 178, 90, 0.1);
-  color: var(--sb-gold-bright);
-}
-.lsr-demo-note--err {
-  border: 1px solid rgba(237, 120, 60, 0.5);
-  background: rgba(237, 120, 60, 0.1);
-  color: var(--sb-warn);
-}
+.lsr-demo-note--ok { border: 1px solid rgb(201 168 106 / 0.45); background: rgb(201 168 106 / 0.1); color: var(--lsr-gold-lit); }
+.lsr-demo-note--err { border: 1px solid rgb(237 120 60 / 0.5); background: rgb(237 120 60 / 0.1); color: var(--sb-warn); }
 
-.lsr-demo-fine { margin: 10px 0 0; font-size: 12px; color: var(--sb-ink-3); }
-.lsr-demo-fine--center { text-align: center; margin-top: 14px; }
-
+.lsr-demo-fine { margin: 10px 0 0; font-size: 12px; line-height: 1.55; color: var(--lsr-faint); }
 .lsr-flip {
-  margin-top: 10px;
   padding: 0;
   border: none;
   background: none;
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
-  color: var(--lsr-gold);
+  color: var(--lsr-gold-lit);
   text-decoration: underline;
-  text-decoration-color: rgba(216, 178, 90, 0.5);
+  text-underline-offset: 3px;
   cursor: pointer;
 }
-.lsr-flip:hover { color: var(--sb-gold-bright); }
+.lsr-flip:hover { color: var(--lsr-gold); }
 .lsr-flip:focus-visible { outline: 2px solid var(--lsr-gold); }
 
 /* honeypot: physically removed from view, still in the DOM for bots */
-.lsr-hp {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-}
+.lsr-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-/* --- secondary rows ---------------------------------------------------- */
-.lsr-rows { margin-top: 34px; display: flex; flex-direction: column; gap: 12px; }
-.lsr-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 16px 22px;
-  border: 1px solid rgba(242, 238, 230, 0.16);
-  border-radius: var(--sb-r-control);
-  background: rgba(255, 255, 255, 0.04);
-}
-.lsr-row-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-}
-.lsr-row-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--lsr-muted); }
-/* The second way in. It is a real alternative, not a second primary, so
-   it reads as a line of the sentence rather than a rival button. */
-.lsr-row-alt {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 6px 2px;
-  font-weight: 700;
-  color: var(--lsr-gold);
-  text-decoration: underline;
-  text-decoration-color: rgba(216, 178, 90, 0.45);
-}
-.lsr-row-alt:hover { color: var(--sb-gold-bright); }
-.lsr-row-alt:focus-visible { outline: 2px solid var(--lsr-gold); outline-offset: 2px; }
-@media (pointer: coarse) {
-  /* An inline link is still a control someone has to hit with a thumb. */
-  .lsr-row-alt { padding: 13px 2px; margin: -7px 0; }
-}
-.lsr-row-btn {
-  flex: 0 0 auto;
-  padding: 11px 20px;
-  border: 1px solid rgba(242, 238, 230, 0.55);
-  border-radius: var(--sb-r-control);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: var(--lsr-ink);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-.lsr-row-btn:hover { background: var(--sb-ink); color: var(--sb-surface-2); }
-.lsr-row-btn:focus-visible { outline: 2px solid var(--lsr-gold); outline-offset: 2px; }
-
-/* --- security + footer -------------------------------------------------- */
+/* --- security + footer ------------------------------------------------ */
 .lsr-security {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 36px 0 0;
-  font-size: 12.5px;
-  color: var(--lsr-muted);
-  text-align: center;
-}
-.lsr-security-mark {
-  width: 26px;
-  height: 1px;
-  background: var(--lsr-gold-dark);
-  opacity: 0.6;
-}
-
-.lsr-footer { margin-top: 26px; text-align: center; }
-.lsr-footer nav {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
+  margin: 22px 0 0;
+  font-family: var(--sb-mono);
   font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--lsr-faint);
 }
+.lsr-footer { margin-top: 16px; }
+.lsr-footer nav { display: flex; gap: 10px; font-size: 12px; }
 .lsr-footer a { color: var(--lsr-muted); text-decoration: none; }
 .lsr-footer a:hover { color: var(--lsr-ink); text-decoration: underline; }
-.lsr-footer span { color: rgba(242, 238, 230, 0.25); }
-.lsr-footer p { margin: 10px 0 0; font-size: 12px; color: var(--sb-ink-3); }
+.lsr-footer span { color: var(--lsr-faint); }
+.lsr-footer p { margin: 8px 0 0; font-size: 12px; color: var(--lsr-faint); }
 
 .lsr-sr {
   position: absolute;
@@ -555,32 +470,27 @@ body.lsr {
   border: 0;
 }
 
-/* --- responsive --------------------------------------------------------- */
-@media (max-width: 860px) {
-  .lsr-form { grid-template-columns: 1fr; gap: 18px; }
-  .lsr-form-side { align-items: stretch; }
-  .lsr-mix-cols { grid-template-columns: 1fr; gap: 16px; }
+/* --- entry motion, once ----------------------------------------------- */
+@keyframes lsr-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
 }
-
-@media (max-width: 640px) {
-  .lsr-page { padding: 28px 14px 44px; }
-  .lsr-rack {
-    grid-template-columns: 1fr;
-    padding: 14px 18px;
-  }
-  .lsr-badge { flex-direction: row; gap: 12px; padding: 0 0 10px; }
-  .lsr-badge img { width: 40px; height: 40px; }
-  .lsr-badge span br { display: none; }
-  .lsr-screw { width: 11px; height: 11px; }
-  .lsr-screw--tl, .lsr-screw--bl { left: 7px; }
-  .lsr-screw--tr, .lsr-screw--br { right: 7px; }
-  .lsr-workspaces { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lsr-demo-row { flex-direction: column; }
-  .lsr-demo-row .lsr-gold-btn--slim { width: 100%; }
-  .lsr-row { flex-direction: column; align-items: flex-start; }
-  .lsr-row-btn { width: 100%; text-align: center; }
+@keyframes lsr-draw {
+  from { transform: scaleX(0); }
+  to   { transform: none; }
 }
+.lsr-console-inner > * { animation: lsr-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lsr-console-inner > :nth-child(2) { animation-delay: 60ms; }
+.lsr-console-inner > :nth-child(3) { animation-delay: 110ms; }
+.lsr-console-inner > :nth-child(4) { animation-delay: 160ms; }
+.lsr-console-inner > :nth-child(n+5) { animation-delay: 220ms; }
+.lsr-over { animation: lsr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lsr-over-rule { animation: lsr-draw 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lsr * { transition-duration: 0.01ms !important; }
+  .lsr *, .lsr *::before, .lsr *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
