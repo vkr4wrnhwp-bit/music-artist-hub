@@ -32,6 +32,12 @@
   <link rel="stylesheet" href="/static/css/back-office.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
+    /* The owner's call, 2026-09-01: the homepage's copy and photographs
+       read a shade too dark. One tenth brighter across every section -
+       the near-black ground barely moves, the ivory and the pictures
+       do. Scoped to the homepage sections; the header and footer keep
+       the system values. */
+    main > section { filter: brightness(1.1); }
   </style>
 </head>
 <body class="min-h-screen bg-white text-sb-surface-2 antialiased">

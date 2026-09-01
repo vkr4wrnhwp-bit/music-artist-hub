@@ -1,22 +1,29 @@
 /* Section 9 — the back office band.
  *
- * One ivory band where four dark sections used to be. Hand-written like
- * the other section sheets: the Tailwind build is checked in, and the
- * band needs exact values. Colours are the design-system tokens turned
- * around - ivory ground, near-black type, gold for the numbers and
- * rules only.
+ * One black-and-gold band where four sections used to be. Hand-written
+ * like the other section sheets: the Tailwind build is checked in, and
+ * the band needs exact values. Design system v1 straight: the warm
+ * near-black ground, ivory copy, gold for numbers, rules and buttons.
+ *
+ * Alignment is the point of the layout: the three columns share one set
+ * of rows (subgrid), so every eyebrow, headline, line, button and note
+ * sits on the same line as its neighbours instead of ragging to its own
+ * copy length.
  */
 
 .sbbo {
-  --bo-paper: var(--sb-ink);
-  --bo-ink: var(--sb-ground);
-  --bo-muted: rgb(11 10 8 / 0.64);
-  --bo-gold: var(--sb-gold-deep);
-  --bo-line: rgb(11 10 8 / 0.14);
+  --bo-ground: var(--sb-ground);
+  --bo-raised: var(--sb-surface-1);
+  --bo-ink: var(--sb-ink);
+  --bo-muted: var(--sb-ink-2);
+  --bo-gold: var(--sb-gold);
+  --bo-gold-lit: var(--sb-gold-bright);
+  --bo-line: rgb(201 168 106 / 0.22);
 
-  background: var(--bo-paper);
+  background: var(--bo-ground);
   color: var(--bo-ink);
-  padding: clamp(48px, 6.5vw, 92px) 0 clamp(44px, 5.5vw, 76px);
+  padding: clamp(52px, 6.5vw, 96px) 0 clamp(48px, 5.5vw, 80px);
+  border-top: 1px solid var(--bo-line);
 }
 
 .sbbo-inner {
@@ -25,16 +32,21 @@
   padding: 0 clamp(20px, 4vw, 56px);
 }
 
-/* --- head ---------------------------------------------------------------- */
-.sbbo-head { max-width: 62ch; }
+/* --- head: centred, like the other section openers ---------------------- */
+.sbbo-head {
+  max-width: 64ch;
+  margin: 0 auto;
+  text-align: center;
+}
 .sbbo-eyebrow {
   margin: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 600;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
   color: var(--bo-gold);
 }
@@ -42,42 +54,51 @@
 .sbbo-rule { flex: 0 0 26px; height: 1px; background: var(--bo-line); }
 
 .sbbo-title {
-  margin: 16px 0 0;
+  margin: 18px auto 0;
+  max-width: 22ch;
   font-size: clamp(1.9rem, 3.6vw, 3.4rem);
-  line-height: 1.02;
-  letter-spacing: -0.01em;
-  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.005em;
+  font-weight: 600;
   text-transform: uppercase;
   color: var(--bo-ink);
 }
 .sbbo-title span { display: block; }
-.sbbo-title em { font-style: normal; color: var(--bo-gold); }
+.sbbo-title em { font-style: normal; color: var(--bo-gold-lit); }
 .sbbo-support {
-  margin: 16px 0 0;
+  margin: 18px auto 0;
   max-width: 54ch;
-  font-size: clamp(14px, 1.05vw, 17px);
-  line-height: 1.6;
+  font-size: clamp(13.5px, 1vw, 16px);
+  line-height: 1.65;
   color: var(--bo-muted);
 }
 
-/* --- the three columns --------------------------------------------------- */
+/* --- the three columns, on shared rows ----------------------------------- */
 .sbbo-cols {
-  margin-top: clamp(30px, 4vw, 52px);
+  margin-top: clamp(32px, 4vw, 56px);
   display: grid;
   grid-template-columns: 1fr;
   border-top: 1px solid var(--bo-line);
 }
-@media (min-width: 900px) {
-  .sbbo-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 .sbbo-col {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto auto auto auto;
+  align-content: start;
+  row-gap: 0;
   padding: 26px 0 28px;
   border-bottom: 1px solid var(--bo-line);
 }
 @media (min-width: 900px) {
-  .sbbo-col { padding: 30px clamp(18px, 2.4vw, 36px) 32px; border-bottom: 0; }
+  .sbbo-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(5, auto);
+  }
+  .sbbo-col {
+    grid-row: span 5;
+    grid-template-rows: subgrid;
+    padding: 32px clamp(18px, 2.4vw, 36px) 34px;
+    border-bottom: 0;
+  }
   .sbbo-col:first-child { padding-left: 0; }
   .sbbo-col:last-child { padding-right: 0; }
   .sbbo-col + .sbbo-col { border-left: 1px solid var(--bo-line); }
@@ -86,7 +107,7 @@
   margin: 0;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--bo-gold);
 }
@@ -94,18 +115,19 @@
   margin: 12px 0 0;
   font-size: clamp(1.15rem, 1.5vw, 1.45rem);
   line-height: 1.12;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   color: var(--bo-ink);
 }
+.sbbo-col-title span { display: block; }
 .sbbo-col-line {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   font-size: clamp(13.5px, 1vw, 15.5px);
   line-height: 1.6;
   color: var(--bo-muted);
 }
 .sbbo-col-note {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   font-size: 12.5px;
   line-height: 1.6;
   color: var(--bo-muted);
@@ -115,51 +137,52 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.sbbo-col-link:hover { color: var(--bo-gold); }
+.sbbo-col-link:hover { color: var(--bo-gold-lit); }
 
-/* --- buttons ------------------------------------------------------------- */
+/* --- buttons: the sweep's gold outline, everywhere ----------------------- */
 .sbbo-cta {
-  margin-top: 18px;
-  align-self: flex-start;
+  margin-top: 22px;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
-  padding: 0 22px;
-  border: 1px solid var(--bo-ink);
+  min-height: 50px;
+  padding: 0 24px;
+  border: 1px solid var(--bo-gold);
   border-radius: var(--sb-r-control);
-  color: var(--bo-ink);
+  background: transparent;
+  color: var(--bo-gold-lit);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   text-decoration: none;
-  transition: background-color 180ms ease, color 180ms ease;
+  transition: background-color 200ms ease, color 200ms ease;
 }
-.sbbo-cta:hover { background: var(--bo-ink); color: var(--bo-paper); }
-.sbbo-cta svg { width: 15px; height: 15px; }
+.sbbo-cta:hover { background: var(--bo-gold); color: var(--sb-surface-2); }
+.sbbo-cta svg { width: 16px; height: 16px; }
 .sbbo-cta--primary {
   margin-top: 0;
-  background: var(--bo-ink);
-  color: var(--bo-paper);
+  background: var(--bo-gold);
+  color: var(--sb-surface-2);
 }
-.sbbo-cta--primary:hover { background: var(--sb-gold); color: var(--sb-surface-2); border-color: var(--sb-gold); }
+.sbbo-cta--primary:hover { background: var(--bo-gold-lit); border-color: var(--bo-gold-lit); }
 .sbbo-cta-2 {
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--bo-ink);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.sbbo-cta-2:hover { color: var(--bo-gold); }
+.sbbo-cta-2:hover { color: var(--bo-gold-lit); }
 
 /* --- the close ----------------------------------------------------------- */
 .sbbo-foot {
-  margin-top: clamp(28px, 3.6vw, 48px);
-  padding-top: clamp(22px, 2.8vw, 34px);
-  border-top: 1px solid var(--bo-ink);
+  margin-top: clamp(30px, 3.8vw, 52px);
+  padding-top: clamp(24px, 3vw, 36px);
+  border-top: 1px solid var(--bo-line);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -168,9 +191,9 @@
 }
 .sbbo-trust {
   margin: 0;
-  font-size: clamp(13px, 1vw, 15px);
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-size: clamp(12.5px, 0.95vw, 14px);
+  font-weight: 600;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--bo-ink);
 }
