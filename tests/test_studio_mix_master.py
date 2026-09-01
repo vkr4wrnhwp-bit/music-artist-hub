@@ -298,3 +298,89 @@ def test_notes_do_not_leak_between_accounts(application, loaded):
     with application.app_context():
         bodies = [c["body"] for c in sstore.list_comments(None, loaded["asset_id"])]
     assert bodies == ["private note"]
+
+
+# --- the master change report table ------------------------------------------
+
+def _render_with_report(loaded, report, label="Master · Warm · medium"):
+    import json
+
+    return loaded["client"].post(
+        "/studio/session/%s/render" % loaded["project_id"],
+        data={"file": (io.BytesIO(_wav()), "m.wav"),
+              "source_asset_id": loaded["asset_id"], "label": label,
+              "note": "prose note", "report": json.dumps(report)},
+        content_type="multipart/form-data")
+
+
+GOOD_REPORT = {"direction": "Warm", "intensity": "medium", "inLufs": -18.4,
+               "outLufs": -14.0, "inTp": -6.2, "outTp": -1.31,
+               "gainDb": 4.4, "maxReductionDb": 0.0, "capped": False,
+               "moves": ["low shelf +1.2 dB at 120 Hz"],
+               "basis": "engineering convention"}
+
+
+def test_a_render_report_is_stored_structured_and_tabled(application, loaded):
+    assert _render_with_report(loaded, GOOD_REPORT).status_code == 200
+    body = loaded["client"].get(
+        "/studio/session/%s/master" % loaded["project_id"]).get_data(as_text=True)
+    assert "MASTER CHANGE REPORT" in body
+    assert "-18.4" in body and "-14.0" in body        # LUFS in -> out
+    assert "-1.31" in body                            # measured TP out
+    assert "+4.4" in body                             # signed gain
+    assert "Warm" in body and "medium" in body
+
+
+def test_the_report_whitelist_drops_what_a_client_should_not_say(application, loaded):
+    """The browser computes the report, but the browser is a client. Unknown
+    keys, absurd numbers and non-numeric types must not reach the table."""
+    import studio_store as sstore
+
+    dirty = dict(GOOD_REPORT, outLufs="very loud", gainDb=99999,
+                 surprise="<script>", moves=["ok", 42, "x" * 500])
+    _render_with_report(loaded, dirty, label="Master · Dirty")
+    with application.app_context():
+        version = sstore.list_versions(None, loaded["project_id"])[0]
+        report = sstore.version_report(version)
+    assert "outLufs" not in report                    # wrong type, dropped
+    assert "gainDb" not in report                     # absurd, dropped
+    assert "surprise" not in report                   # unknown, dropped
+    assert report["moves"] == ["ok", "x" * 90]        # strings only, capped
+    assert report["inLufs"] == -18.4                  # the honest fields stay
+
+
+def test_a_malformed_report_loses_the_table_never_the_render(application, loaded):
+    import studio_store as sstore
+
+    response = loaded["client"].post(
+        "/studio/session/%s/render" % loaded["project_id"],
+        data={"file": (io.BytesIO(_wav()), "m.wav"),
+              "source_asset_id": loaded["asset_id"],
+              "label": "Master · Broken", "report": "{not json"},
+        content_type="multipart/form-data")
+    assert response.status_code == 200                # the render succeeded
+    with application.app_context():
+        version = sstore.list_versions(None, loaded["project_id"])[0]
+    assert sstore.version_report(version) is None
+
+
+def test_a_prose_era_render_says_so_instead_of_inventing_numbers(application, loaded):
+    loaded["client"].post(
+        "/studio/session/%s/render" % loaded["project_id"],
+        data={"file": (io.BytesIO(_wav()), "m.wav"),
+              "source_asset_id": loaded["asset_id"],
+              "label": "Master · Old", "note": "-6.2 to -14.0 LUFS"},
+        content_type="multipart/form-data")
+    body = loaded["client"].get(
+        "/studio/session/%s/master" % loaded["project_id"]).get_data(as_text=True)
+    assert "recorded as prose" in body
+
+
+def test_the_row_carries_the_output_checksum(application, loaded):
+    import hashlib
+
+    _render_with_report(loaded, GOOD_REPORT)
+    expected = hashlib.sha256(_wav()).hexdigest()[:8]
+    body = loaded["client"].get(
+        "/studio/session/%s/master" % loaded["project_id"]).get_data(as_text=True)
+    assert expected in body

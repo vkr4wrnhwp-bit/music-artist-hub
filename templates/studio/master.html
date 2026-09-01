@@ -167,27 +167,45 @@
 
       {# -------------------------------------------- master change report --- #}
       {% if masters %}
-        <section class="sb-panel p-4">
-          <h2 class="sb-label sb-label-gold">Master change report</h2>
-          <p class="mt-2 max-w-2xl text-sm text-gray-300">
-            Every render, with the numbers it was made with. &ldquo;Mastered&rdquo;
-            with no numbers is a claim; this is a record.
-          </p>
-          <ul class="mt-3 space-y-2">
-            {% for entry in masters %}
-              <li class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
-                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span class="text-sm font-semibold text-white">{{ entry.version.version_name }}</span>
-                  <span class="font-mono text-xs text-sb-ink-3">
-                    v{{ entry.version.version_number }} &middot;
-                    {{ (entry.version.created_at or "")[:16]|replace("T"," ") }}
-                  </span>
-                  {{ sb.badge(entry.version.status, "good" if entry.version.status in ("approved","locked") else "idle") }}
-                </div>
-                <p class="mt-1 font-mono text-xs text-sb-ink-3">{{ entry.version.change_summary }}</p>
-              </li>
-            {% endfor %}
-          </ul>
+        <section class="ru rounded-xl overflow-hidden">
+          <header class="ru-head">
+            <span class="ru-tag">SB-CR</span>
+            <div class="ru-title" role="heading" aria-level="2">MASTER CHANGE REPORT</div>
+            <span class="ru-sub">what each render did, in its own numbers</span>
+          </header>
+          <div class="p-4">
+            {% call sb.table(["Render", "Direction", "In", "Out", "TP in", "TP out", "Gain", "Max GR", "SHA", "Status"]) %}
+              {% for entry in masters %}
+                {%- set r = entry.report %}
+                <tr title="{% if r and r.moves %}{{ r.moves|join('; ') }}{% if r.get('basis') %} — {{ r.basis }}{% endif %}{% else %}{{ entry.version.change_summary }}{% endif %}">
+                  <td class="whitespace-nowrap">
+                    {{ entry.version.version_name }}
+                    <span class="block font-mono text-xs text-sb-ink-3">v{{ entry.version.version_number }} &middot; {{ (entry.version.created_at or "")[:10] }}</span>
+                  </td>
+                  {% if r %}
+                    <td class="whitespace-nowrap font-mono text-xs">{{ r.get("direction","?") }} &middot; {{ r.get("intensity","?") }}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums">{{ "%.1f"|format(r.get("inLufs")) if r.get("inLufs") is not none else "&mdash;"|safe }}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums text-white">{{ "%.1f"|format(r.get("outLufs")) if r.get("outLufs") is not none else "&mdash;"|safe }}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums">{{ "%.2f"|format(r.get("inTp")) if r.get("inTp") is not none else "&mdash;"|safe }}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums text-white">{{ "%.2f"|format(r.get("outTp")) if r.get("outTp") is not none else "&mdash;"|safe }}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums">{{ "%+.1f"|format(r.get("gainDb")) if r.get("gainDb") is not none else "&mdash;"|safe }}{% if r.get("capped") %} <span class="text-amber-400" title="Capped at the ceiling - it fell short of the target on purpose.">cap</span>{% endif %}</td>
+                    <td class="whitespace-nowrap font-mono text-xs tabular-nums">{{ "%.1f"|format(r.get("maxReductionDb")) if r.get("maxReductionDb") is not none and r.get("maxReductionDb") < -0.05 else "&mdash;"|safe }}</td>
+                  {% else %}
+                    {#- Renders from before the structured report: the prose
+                        is the record, and pretending to parse numbers back
+                        out of a sentence would be inventing data. -#}
+                    <td colspan="6" class="font-mono text-xs text-sb-ink-3">recorded as prose &mdash; hover for the note</td>
+                  {% endif %}
+                  <td class="whitespace-nowrap font-mono text-xs text-sb-ink-3"
+                      title="Output checksum {{ entry.sha }} · source {{ entry.src_sha }}">{{ entry.sha[:8] }}</td>
+                  <td class="whitespace-nowrap">{{ sb.badge(entry.version.status, "good" if entry.version.status in ("approved","locked") else "idle") }}</td>
+                </tr>
+              {% endfor %}
+            {% endcall %}
+            <p class="mt-2 font-mono text-xs text-sb-ink-3">
+              LUFS in/out &middot; dBTP in/out &middot; gain applied &middot; max limiter reduction &middot; hover a row for its moves &middot; SHA ties the row to the exact bytes
+            </p>
+          </div>
         </section>
       {% endif %}
     </div>

@@ -335,6 +335,12 @@ def _migrate(db):
     ):
         _add_column(db, "audio_assets", column, decl, applied, step)
 
+    # A render's numbers were recorded as prose in change_summary before the
+    # structured report existed. New renders store both; old rows keep their
+    # prose and the table says so instead of parsing sentences back apart.
+    _add_column(db, "studio_versions", "report_json",
+                "TEXT NOT NULL DEFAULT ''", applied, "version_report")
+
     return applied
 
 
@@ -1040,3 +1046,67 @@ def list_shared_projects(partner_id, user_id):
             " WHERE sm.partner_key = ?"
             " ORDER BY sp.updated_at DESC",
             (user_id, _pk(partner_id))).fetchall()]
+
+
+# --- the master change report ------------------------------------------------
+
+# What a stored report may contain, and nothing else. The browser computes
+# the report, but the browser is still a client - a whitelist here is the
+# difference between "the render recorded" and "somebody posted".
+_REPORT_NUMBERS = ("inLufs", "outLufs", "inTp", "outTp", "gainDb",
+                   "maxReductionDb")
+_REPORT_STRINGS = {"direction": 24, "intensity": 12, "basis": 220}
+
+
+def clean_report(raw):
+    """Validate a client-posted render report into the stored shape.
+
+    Returns a dict or None. Unknown keys are dropped, wrong types are
+    dropped, moves are capped - a report that cannot be trusted field by
+    field is not a report.
+    """
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for key in _REPORT_NUMBERS:
+        value = raw.get(key)
+        if isinstance(value, (int, float)) and abs(value) < 1000:
+            out[key] = round(float(value), 2)
+    for key, cap in _REPORT_STRINGS.items():
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()[:cap]
+    moves = raw.get("moves")
+    if isinstance(moves, list):
+        out["moves"] = [str(m)[:90] for m in moves if isinstance(m, str)][:8]
+    if isinstance(raw.get("capped"), bool):
+        out["capped"] = raw["capped"]
+    return out if out else None
+
+
+def attach_report(partner_id, project_id, version_id, report):
+    import json as _json
+
+    cleaned = clean_report(report)
+    if cleaned is None:
+        return False
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE studio_versions SET report_json = ?"
+            " WHERE id = ? AND project_id = ? AND partner_key = ?",
+            (_json.dumps(cleaned), version_id, project_id, _pk(partner_id)))
+    return cur.rowcount > 0
+
+
+def version_report(version_row):
+    """The structured report off a version row, or None for the prose era."""
+    import json as _json
+
+    raw = (version_row or {}).get("report_json") or ""
+    if not raw:
+        return None
+    try:
+        data = _json.loads(raw)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) and data else None

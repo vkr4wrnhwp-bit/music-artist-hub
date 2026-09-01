@@ -129,6 +129,7 @@
         form.append("label", "Master · " + rep.direction + " · "
                              + rep.intensity);
         form.append("note", note);
+        form.append("report", JSON.stringify(rep));
 
         return fetch(POST_URL, { method: "POST", credentials: "same-origin",
                                  body: form })

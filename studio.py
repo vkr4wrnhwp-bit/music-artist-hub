@@ -364,6 +364,9 @@ def _room(project_id, room, template, error=None, status_code=200):
                         "url": url_for("studio.studio_asset",
                                        asset_id=asset["id"]),
                         "version": version,
+                        "report": sstore.version_report(version),
+                        "sha": (asset.get("sha256") or "")[:12],
+                        "src_sha": (source.get("sha256") or "")[:12],
                     })
 
         # Markers: only things with a MEASURED or stated time. A whole-file
@@ -559,6 +562,14 @@ def studio_render(project_id):
         change_summary=note or ("Rendered from %s"
                                 % (source["file_name"] or "the source")),
         created_by=user["id"])
+    report_raw = request.form.get("report")
+    if report_raw:
+        try:
+            import json as _json
+            sstore.attach_report(_partner(user), project_id, version_id,
+                                 _json.loads(report_raw))
+        except ValueError:
+            pass          # a malformed report loses the table, never the render
     sstore.update_project(_partner(user), user["id"], project_id,
                           active_asset_id=asset_id, active_version_id=version_id)
     return jsonify({"ok": True, "asset_id": asset_id, "version_id": version_id})
