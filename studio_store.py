@@ -258,6 +258,25 @@ def init_studio():
             -- Append-only. Nothing in this module updates or deletes a
             -- provenance row; the point of the table is that it records what
             -- happened even when what happened was a mistake.
+            -- Who is on this record. A member row can bind to an accepted
+            -- team_members row (then that person can OPEN the project) or be
+            -- a named credit with no login. Access is re-checked per request
+            -- against BOTH rows, so removing either ends it immediately - the
+            -- Partner OS rule, applied here.
+            CREATE TABLE IF NOT EXISTS studio_members (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                partner_key TEXT NOT NULL DEFAULT '',
+                owner_user_id TEXT NOT NULL,
+                team_member_id TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
+                role TEXT NOT NULL DEFAULT 'collaborator',
+                added_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_st_members_project
+                ON studio_members(project_id, created_at);
+
             CREATE TABLE IF NOT EXISTS studio_provenance (
                 id TEXT PRIMARY KEY,
                 project_id TEXT NOT NULL,
@@ -702,7 +721,8 @@ def resolve_finding(partner_id, user_id, finding_id, status="resolved"):
 # --- comments ----------------------------------------------------------------
 
 def add_comment(partner_id, user_id, project_id, asset_id, author_name, body,
-                start_seconds=0.0, category="note", duration_seconds=None):
+                start_seconds=0.0, category="note", duration_seconds=None,
+                assigned_to=""):
     """A comment is pinned to an ASSET and a time.
 
     Refused if the timestamp is outside the recording: a note at 4:12 of a
@@ -720,10 +740,11 @@ def add_comment(partner_id, user_id, project_id, asset_id, author_name, body,
         db.execute(
             "INSERT INTO studio_comments (id, project_id, asset_id, partner_key,"
             " author_id, author_name, start_seconds, body, category, status,"
-            " created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,'open',?,?)",
+            " assigned_to, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'open',?,?,?)",
             (comment_id, project_id, asset_id, _pk(partner_id), user_id,
-             author_name[:120], start, body.strip()[:2000], category, now, now))
+             author_name[:120], start, body.strip()[:2000], category,
+             assigned_to[:64], now, now))
     return comment_id
 
 
@@ -925,3 +946,97 @@ def build_package(partner_id, user_id, project_id, read_bytes):
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-"
                    for ch in (project["title"] or "project"))[:60] or "project"
     return buffer.getvalue(), "%s-delivery.zip" % safe
+
+
+# --- the team ----------------------------------------------------------------
+
+MEMBER_ROLES = ("artist", "producer", "mix_engineer", "mastering_engineer",
+                "manager", "a_and_r", "label_admin", "viewer", "collaborator")
+
+
+def add_member(partner_id, owner_user_id, project_id, display_name, role,
+               team_member_id="", added_by=""):
+    """A member is a credit; a member bound to an accepted team row is also
+    ACCESS. The distinction is real and the panel says which is which."""
+    if role not in MEMBER_ROLES:
+        role = "collaborator"
+    member_id = _uid()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO studio_members (id, project_id, partner_key,"
+            " owner_user_id, team_member_id, display_name, role, added_by,"
+            " created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (member_id, project_id, _pk(partner_id), owner_user_id,
+             team_member_id, display_name[:120], role,
+             added_by or owner_user_id, _now()))
+    record_event(partner_id, project_id, "", "team.member_added",
+                 actor_id=added_by or owner_user_id)
+    return member_id
+
+
+def list_members(partner_id, project_id):
+    """Members with their live access state, joined against team_members so a
+    revoked team seat reads as credit-only THIS request, not eventually."""
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT sm.*, tm.email AS team_email, tm.status AS team_status,"
+            "       tm.member_user_id AS team_user_id"
+            " FROM studio_members sm"
+            " LEFT JOIN team_members tm ON tm.id = sm.team_member_id"
+            " WHERE sm.project_id = ? AND sm.partner_key = ?"
+            " ORDER BY sm.created_at",
+            (project_id, _pk(partner_id))).fetchall()]
+
+
+def remove_member(partner_id, owner_user_id, project_id, member_id):
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM studio_members WHERE id = ? AND project_id = ?"
+            "  AND partner_key = ? AND owner_user_id = ?",
+            (member_id, project_id, _pk(partner_id), owner_user_id))
+    if cur.rowcount:
+        record_event(partner_id, project_id, "", "team.member_removed",
+                     actor_id=owner_user_id)
+    return cur.rowcount > 0
+
+
+def get_project_shared(partner_id, user_id, project_id):
+    """The project, for its owner OR a live collaborator.
+
+    Returns (project, role) where role is "owner" or the member's role, or
+    (None, None). Collaborator access requires the WHOLE chain to be alive
+    right now - the studio_members row, the team_members row it binds to,
+    that row ACTIVE (the team system's word for accepted), and its member_user_id equal to the caller - so
+    removing any link ends access on the very next request.
+    """
+    project = get_project(partner_id, user_id, project_id)
+    if project is not None:
+        return project, "owner"
+    with get_db() as db:
+        row = db.execute(
+            "SELECT sm.role, sp.* FROM studio_members sm"
+            " JOIN team_members tm ON tm.id = sm.team_member_id"
+            "   AND tm.status = 'active' AND tm.member_user_id = ?"
+            " JOIN studio_projects sp ON sp.id = sm.project_id"
+            "   AND sp.archived_at IS NULL"
+            " WHERE sm.project_id = ? AND sm.partner_key = ?",
+            (user_id, project_id, _pk(partner_id))).fetchone()
+    if row is None:
+        return None, None
+    data = dict(row)
+    role = data.pop("role")
+    return data, role
+
+
+def list_shared_projects(partner_id, user_id):
+    """Projects shared WITH this account through a live team binding."""
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT sp.*, sm.role AS my_role FROM studio_members sm"
+            " JOIN team_members tm ON tm.id = sm.team_member_id"
+            "   AND tm.status = 'active' AND tm.member_user_id = ?"
+            " JOIN studio_projects sp ON sp.id = sm.project_id"
+            "   AND sp.archived_at IS NULL"
+            " WHERE sm.partner_key = ?"
+            " ORDER BY sp.updated_at DESC",
+            (user_id, _pk(partner_id))).fetchall()]

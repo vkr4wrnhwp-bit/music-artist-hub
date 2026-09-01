@@ -14,6 +14,22 @@
               href=url_for("studio.studio_new")) }}
   </div>
 
+  {% if shared %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label text-purple-400">Shared with you</h2>
+      {% call sb.table(["Project", "Artist", "Your role", "Updated"]) %}
+        {% for p in shared %}
+          <tr>
+            <td><a class="underline" href="{{ url_for('studio.studio_session', project_id=p.id) }}">{{ p.title }}</a></td>
+            <td>{{ p.artist_name or "&mdash;" }}</td>
+            <td class="whitespace-nowrap">{{ p.my_role|replace("_"," ") }}</td>
+            <td class="whitespace-nowrap">{{ (p.updated_at or "")[:10] }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    </section>
+  {% endif %}
+
   <section class="sb-panel p-4">
     {% if projects %}
       {% call sb.table(["Project", "Artist", "Type", "Status", "Updated"]) %}

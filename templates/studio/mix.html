@@ -130,6 +130,10 @@
                 {{ "%d:%02d"|format((c.start_seconds // 60)|int, (c.start_seconds % 60)|int) }}
               </button>
               <span class="text-sm text-white">{{ c.author_name or "Someone" }}</span>
+              {%- set assignee = (members|selectattr("id","equalto",c.assigned_to)|list|first) if c.assigned_to else none %}
+              {% if assignee %}
+                <span class="font-mono text-xs text-purple-400">&rarr; {{ assignee.display_name }}</span>
+              {% endif %}
               {% if c.status == "resolved" %}
                 <span class="font-mono text-xs text-sb-good">resolved</span>
               {% endif %}
@@ -158,6 +162,18 @@
                   title="Fill the time from where the playhead is now.">
             at playhead
           </button>
+          {% if members %}
+            <label>
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Assign</span>
+              <select name="assigned_to"
+                      class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                <option value="">Nobody</option>
+                {% for m in members %}
+                  <option value="{{ m.id }}">{{ m.display_name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          {% endif %}
           <label class="min-w-0 flex-1">
             <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Note</span>
             <input name="body" required placeholder="Vocal disappears under the synth"

@@ -47,6 +47,15 @@
 
   {{ console.rooms(project, room, summary) }}
 
+  {% if viewer_role != "owner" %}
+    <div class="rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2.5">
+      <p class="font-mono text-xs text-purple-400">
+        You are on this record as {{ viewer_role|replace("_"," ")|replace("a and r","A&R") }} &mdash;
+        listen, read, and leave notes. Changes stay with the owner.
+      </p>
+    </div>
+  {% endif %}
+
   {% if error %}
     <section class="sb-panel p-4">
       <h2 class="sb-label text-purple-400">That did not go through</h2>
@@ -55,7 +64,7 @@
   {% endif %}
 
   {# --------------------------------------------- rights, then the upload --- #}
-  {% if not project.rights_confirmed_at %}
+  {% if viewer_role == "owner" and not project.rights_confirmed_at %}
     <section class="sb-panel p-4">
       <h2 class="sb-label text-purple-400">Before anything is uploaded</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
@@ -69,7 +78,7 @@
     </section>
   {% endif %}
 
-  {% if project.rights_confirmed_at and not source %}
+  {% if viewer_role == "owner" and project.rights_confirmed_at and not source %}
     <section class="sb-panel p-4">
       <h2 class="sb-label text-purple-400">Upload the source</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
@@ -287,6 +296,75 @@
 
     {# ------------------------------------------------------ right rail ---- #}
     <div class="space-y-5">
+      <section class="ru rounded-xl overflow-hidden">
+        <header class="ru-head">
+          <span class="ru-tag">TEAM</span>
+          <div class="ru-title" role="heading" aria-level="2">ON THIS RECORD</div>
+        </header>
+        <div class="p-4">
+          {% if members %}
+            <ul class="space-y-2">
+              {% for m in members %}
+                <li class="flex items-center gap-2" data-member-role="{{ m.role }}">
+                  {#- Green dot = this person can OPEN the project right now,
+                      through an accepted team seat. Dark ring = a named
+                      credit, no login. Presence is not faked. -#}
+                  <span class="h-2 w-2 shrink-0 rounded-full
+                               {% if m.team_status == 'active' and m.team_user_id %}bg-emerald-400{% else %}border border-sb-line{% endif %}"
+                        data-access="{{ 'live' if m.team_status == 'active' and m.team_user_id else 'credit' }}"
+                        title="{{ 'Can open this project (accepted team seat)' if m.team_status == 'active' and m.team_user_id else 'Credit only - no sign-in access' }}"></span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-white">{{ m.display_name }}</span>
+                  <span class="shrink-0 font-mono text-xs text-purple-400">{{ m.role|replace("_"," ")|replace("a and r","A&R") }}</span>
+                  {% if viewer_role == "owner" %}
+                    <form method="post" class="shrink-0"
+                          action="{{ url_for('studio.studio_team_remove', project_id=project.id, member_id=m.id) }}">
+                      <button type="submit" aria-label="Remove {{ m.display_name }}"
+                              class="rounded border border-sb-line px-1.5 font-mono text-xs text-sb-ink-3">&times;</button>
+                    </form>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-sm text-gray-300">Just you so far.</p>
+          {% endif %}
+
+          {% if viewer_role == "owner" %}
+            <form method="post" class="mt-3 space-y-2"
+                  action="{{ url_for('studio.studio_team_add', project_id=project.id) }}">
+              {% if team_pool %}
+                <select name="team_member_id"
+                        class="w-full rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                  <option value="">Name only (credit, no access)&hellip;</option>
+                  {% for t in team_pool %}
+                    <option value="{{ t.id }}">{{ t.email }}{{ " · has access when added" if t.status == "active" else " · invite pending" }}</option>
+                  {% endfor %}
+                </select>
+              {% endif %}
+              <div class="flex gap-2">
+                <input name="display_name" placeholder="Name"
+                       class="min-w-0 flex-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                <select name="role"
+                        class="rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
+                  <option value="producer">Producer</option>
+                  <option value="mix_engineer">Mix engineer</option>
+                  <option value="mastering_engineer">Mastering eng.</option>
+                  <option value="manager">Manager</option>
+                  <option value="a_and_r">A&amp;R</option>
+                  <option value="label_admin">Label admin</option>
+                  <option value="viewer">Viewer</option>
+                  <option value="collaborator" selected>Collaborator</option>
+                </select>
+                {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
+              </div>
+            </form>
+            <p class="mt-2 font-mono text-xs text-sb-ink-3">
+              access comes from an <a class="underline" href="/team">accepted team invite</a> &middot; a name alone is a credit
+            </p>
+          {% endif %}
+        </div>
+      </section>
+
       <section class="sb-panel p-4" id="ask-the-room">
         <h2 class="sb-label text-purple-400">Ask the Room</h2>
         <p class="mt-2 font-mono text-xs text-sb-ink-3">

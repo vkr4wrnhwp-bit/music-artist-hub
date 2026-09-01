@@ -97,10 +97,23 @@ def _partner(user):
 
 
 def _project_or_404(user, project_id):
+    """OWNER access. Every route that changes the project keeps this one -
+    a collaborator can look and talk, never upload, render, approve or ship."""
     project = sstore.get_project(_partner(user), user["id"], project_id)
     if project is None:
         abort(404)
     return project
+
+
+def _project_shared_or_404(user, project_id):
+    """Owner or live collaborator. The membership chain is re-checked on
+    EVERY request - remove the member, or the team seat it binds to, and the
+    next request is a 404, the same rule Partner OS enforces."""
+    project, role = sstore.get_project_shared(_partner(user), user["id"],
+                                              project_id)
+    if project is None:
+        abort(404)
+    return project, role
 
 
 # --- home --------------------------------------------------------------------
@@ -120,6 +133,10 @@ def studio_home():
     if projects:
         return redirect(url_for("studio.studio_session",
                                 project_id=projects[0]["id"]))
+    shared = sstore.list_shared_projects(_partner(user), user["id"])
+    if shared:
+        return redirect(url_for("studio.studio_session",
+                                project_id=shared[0]["id"]))
     recent = []
     continue_has_source = False
     if projects:
@@ -144,7 +161,9 @@ def studio_projects():
     return render_template("studio/projects.html",
                            active_page="studio",
                            projects=sstore.list_projects(_partner(user),
-                                                         user["id"], limit=200))
+                                                         user["id"], limit=200),
+                           shared=sstore.list_shared_projects(_partner(user),
+                                                              user["id"]))
 
 
 # --- creating ----------------------------------------------------------------
@@ -234,6 +253,40 @@ def studio_versions(project_id):
 # anywhere, and nothing is claimed that was not measured.
 
 
+@bp.route("/studio/session/<project_id>/team", methods=["POST"])
+def studio_team_add(project_id):
+    """Owner adds a member: either bound to an accepted team seat (that
+    person can then OPEN the project) or a named credit with no login."""
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    team_member_id = (request.form.get("team_member_id") or "").strip()
+    display_name = (request.form.get("display_name") or "").strip()
+    role = request.form.get("role") or "collaborator"
+    if team_member_id:
+        import db as store
+        seat = next((t for t in store.list_team(user["id"])
+                     if str(t.get("id")) == team_member_id), None)
+        if seat is None:
+            abort(404)
+        display_name = display_name or seat.get("email", "")
+    if display_name:
+        sstore.add_member(_partner(user), user["id"], project_id,
+                          display_name, role, team_member_id=team_member_id,
+                          added_by=user["id"])
+    return redirect(url_for("studio.studio_session", project_id=project_id))
+
+
+@bp.route("/studio/session/<project_id>/team/<member_id>/remove",
+          methods=["POST"])
+def studio_team_remove(project_id, member_id):
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    sstore.remove_member(_partner(user), user["id"], project_id, member_id)
+    return redirect(url_for("studio.studio_session", project_id=project_id))
+
+
 @bp.route("/studio/session/<project_id>/room", methods=["POST"])
 def studio_room_ask(project_id):
     """Ask the Room. The answer is computed from project state by
@@ -241,7 +294,7 @@ def studio_room_ask(project_id):
     and incapable of claiming it heard anything."""
     _live()
     user = _user()
-    _project_or_404(user, project_id)
+    _project_shared_or_404(user, project_id)
     question = (request.form.get("q") or "").strip()[:300]
     return redirect(url_for("studio.studio_session", project_id=project_id,
                             q=question) + "#ask-the-room")
@@ -282,8 +335,9 @@ def studio_measure(project_id):
 
 def _room(project_id, room, template, error=None, status_code=200):
     user = _user()
-    project = _project_or_404(user, project_id)
-    summary = sstore.project_summary(_partner(user), user["id"], project_id)
+    project, viewer_role = _project_shared_or_404(user, project_id)
+    owner_id = project["user_id"]
+    summary = sstore.project_summary(_partner(user), owner_id, project_id)
     source = summary["source"]
     analysis = findings = comments = None
     verdict = None
@@ -302,7 +356,7 @@ def _room(project_id, room, template, error=None, status_code=200):
         # per request anyway.
         for version in summary["versions"]:
             if version["asset_role"] in ("master", "alternate_master")                     and version["asset_id"]                     and version["asset_id"] != source["id"]:
-                asset = sstore.get_studio_asset(_partner(user), user["id"],
+                asset = sstore.get_studio_asset(_partner(user), owner_id,
                                                 version["asset_id"])
                 if asset:
                     masters.append({
@@ -339,7 +393,7 @@ def _room(project_id, room, template, error=None, status_code=200):
     import studio_room
     import studio_score
 
-    checklist = sstore.delivery_checklist(_partner(user), user["id"], project_id)
+    checklist = sstore.delivery_checklist(_partner(user), owner_id, project_id)
     measurements = analysis["measurements"] if analysis else {}
     question = (request.args.get("q") or "").strip()[:300]
     room_answer = None
@@ -363,6 +417,10 @@ def _room(project_id, room, template, error=None, status_code=200):
         checklist=checklist,
         rail=studio_score.lifecycle(project, summary, checklist),
         room_question=question, room_answer=room_answer,
+        viewer_role=viewer_role,
+        members=sstore.list_members(_partner(user), project_id),
+        team_pool=(__import__("db").list_team(user["id"])
+                   if viewer_role == "owner" else []),
         mix_scores=studio_score.mix_readiness(measurements,
                                               summary["versions"]),
         master_scores=studio_score.master_intelligence(measurements),
@@ -390,9 +448,9 @@ def studio_master(project_id):
 def studio_comment(project_id):
     _live()
     user = _user()
-    _project_or_404(user, project_id)
+    project, _role = _project_shared_or_404(user, project_id)
     asset_id = (request.form.get("asset_id") or "").strip()
-    asset = sstore.get_studio_asset(_partner(user), user["id"], asset_id)
+    asset = sstore.get_studio_asset(_partner(user), project["user_id"], asset_id)
     if asset is None:
         abort(404)
     analysis = sstore.latest_analysis(_partner(user), asset_id)
@@ -403,7 +461,8 @@ def studio_comment(project_id):
         _partner(user), user["id"], project_id, asset_id,
         author_name=user.get("name") or "", body=request.form.get("body") or "",
         start_seconds=request.form.get("start_seconds") or 0,
-        duration_seconds=duration)
+        duration_seconds=duration,
+        assigned_to=(request.form.get("assigned_to") or "").strip())
     return redirect(url_for("studio.studio_mix", project_id=project_id))
 
 
@@ -412,7 +471,7 @@ def studio_comment(project_id):
 def studio_resolve_comment(project_id, comment_id):
     _live()
     user = _user()
-    _project_or_404(user, project_id)
+    _project_shared_or_404(user, project_id)
     sstore.resolve_comment(_partner(user), user["id"], comment_id,
                            reopen=bool(request.form.get("reopen")))
     return redirect(url_for("studio.studio_mix", project_id=project_id))
@@ -682,6 +741,13 @@ def studio_asset(asset_id):
     _live()
     user = _user()
     asset = sstore.get_studio_asset(_partner(user), user["id"], asset_id)
+    if asset is None:
+        import audio_store as astore
+        candidate = astore.get_asset(_partner(user), asset_id)
+        if candidate is None or not candidate.get("project_id"):
+            abort(404)
+        _project_shared_or_404(user, candidate["project_id"])
+        asset = candidate
     if asset is None:
         abort(404)
     key = asset["storage_key"] or ""
