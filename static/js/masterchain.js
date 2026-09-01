@@ -205,6 +205,46 @@
         };
       },
     },
+    open: {
+      label: "Open",
+      note: "More dynamic on purpose: an air shelf, NO limiter ever, and a "
+            + "deliberate landing under the target so the transients keep "
+            + "their height. Platforms normalise the level anyway; the "
+            + "dynamics are what survive the trip.",
+      recipe: function (intensity) {
+        var k = { light: 1.0, medium: 2.0, strong: 3.0 }[intensity] || 2.0;
+        var air = { light: 0.4, medium: 0.7, strong: 1.0 }[intensity] || 0.7;
+        return {
+          highShelf: { freq: 12000, gain: air },
+          undershootDb: k,
+          moves: [
+            "air shelf +" + air.toFixed(1) + " dB at 12 kHz",
+            "lands " + k.toFixed(1) + " LU under the target by design",
+            "no limiter - dynamics kept",
+          ],
+        };
+      },
+    },
+    club: {
+      label: "Club",
+      note: "Low-end weight with the ceiling held by the limiter, and a "
+            + "touch of snap. Check it on the Club / PA and Car chips - "
+            + "that is what the translation rail is for.",
+      recipe: function (intensity) {
+        var low = { light: 1.5, medium: 2.5, strong: 3.5 }[intensity] || 2.5;
+        var push = { light: 0.5, medium: 1.0, strong: 1.5 }[intensity] || 1.0;
+        return {
+          lowShelf: { freq: 90, gain: low },
+          presence: { freq: 2500, q: 1.0, gain: 0.6 },
+          limiterDriveDb: push,
+          moves: [
+            "low shelf +" + low.toFixed(1) + " dB at 90 Hz",
+            "presence +0.6 dB at 2.5 kHz",
+            "driven " + push.toFixed(1) + " dB into the limiter",
+          ],
+        };
+      },
+    },
   };
 
   function _applyGainInPlace(channels, db) {
@@ -256,8 +296,9 @@
     /* The loudness stage. For COMPETITIVE the wanted gain is pushed further
        and the limiter holds the ceiling - density instead of a cap. */
     var mid = measure.analyse(work, rate);
-    var wanted = targetLufs - (mid.integrated !== null ? mid.integrated
-                               : (before.integrated || -14));
+    var effectiveTarget = targetLufs - (recipe.undershootDb || 0);
+    var wanted = effectiveTarget - (mid.integrated !== null ? mid.integrated
+                                    : (before.integrated || -14));
     var capped = false;
     if (recipe.limiterDriveDb) {
       work = _applyGainInPlace(work, wanted + recipe.limiterDriveDb);

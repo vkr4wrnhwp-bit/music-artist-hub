@@ -237,12 +237,74 @@ check("competitive beats clean on peaky material, which is its whole claim", () 
 
 check("every direction's true peak is MEASURED under the ceiling", () => {
   const mix = stereoMix();
-  for (const key of ["clean", "warm", "competitive"]) {
+  for (const key of ["clean", "warm", "competitive", "open", "club"]) {
     const res = M.render(key, "strong",
                          mix.map(c => new Float32Array(c)), RATE, -10, -1, L);
     if (res.report.outTp !== null && res.report.outTp > -0.85) {
       throw new Error(key + " true peak " + res.report.outTp.toFixed(2));
     }
+  }
+});
+
+check("open never limits, and lands under the target on purpose", () => {
+  const mix = stereoMix();
+  const res = M.render("open", "medium",
+                       mix.map(c => new Float32Array(c)), RATE, -12, -1, L);
+  if (res.report.maxReductionDb < 0) {
+    throw new Error("open engaged the limiter: "
+                    + res.report.maxReductionDb.toFixed(1) + " dB GR");
+  }
+  const clean = M.render("clean", "medium",
+                         mix.map(c => new Float32Array(c)), RATE, -12, -1, L);
+  if (!(res.report.outLufs <= clean.report.outLufs + 0.2)) {
+    throw new Error("open " + res.report.outLufs.toFixed(1)
+                    + " louder than clean " + clean.report.outLufs.toFixed(1));
+  }
+  if (!res.report.moves.some(m => m.indexOf("under the target") >= 0)) {
+    throw new Error("the undershoot is not stated in the moves");
+  }
+});
+
+check("open keeps more dynamics than competitive on the same material", () => {
+  // LRA is the measured claim behind the word "open". Competitive limits the
+  // bursts; open leaves them standing.
+  const mix = stereoMix();
+  const open = M.render("open", "medium",
+                        mix.map(c => new Float32Array(c)), RATE, -12, -1, L);
+  const comp = M.render("competitive", "strong",
+                        mix.map(c => new Float32Array(c)), RATE, -12, -1, L);
+  const openCrest = (open.report.outTp || 0) - (open.report.outLufs || 0);
+  const compCrest = (comp.report.outTp || 0) - (comp.report.outLufs || 0);
+  if (!(openCrest > compCrest + 0.5)) {
+    throw new Error("open crest " + openCrest.toFixed(1)
+                    + " vs competitive " + compCrest.toFixed(1));
+  }
+});
+
+check("club actually lifts the low end, measured the same way warm was", () => {
+  const lo = [sine(60, 2, RATE, 0.2)];
+  const hi = [sine(11000, 2, RATE, 0.2)];
+  const clubLo = M.render("club", "medium", lo, RATE, -20, -1, L);
+  const cleanLo = M.render("clean", "medium", lo, RATE, -20, -1, L);
+  // A boosted low end needs LESS make-up gain to reach the same loudness.
+  if (!(clubLo.report.gainDb < cleanLo.report.gainDb - 0.8)) {
+    throw new Error("low shelf did nothing measurable");
+  }
+  const clubHi = M.render("club", "medium", hi, RATE, -20, -1, L);
+  const cleanHi = M.render("clean", "medium", hi, RATE, -20, -1, L);
+  if (Math.abs(clubHi.report.gainDb - cleanHi.report.gainDb) > 0.6) {
+    throw new Error("club moved the top end more than its recipe claims");
+  }
+});
+
+check("club holds the ceiling with the limiter on peaky material", () => {
+  const res = M.render("club", "strong", stereoMix(), RATE, -10, -1, L);
+  if (!(res.report.maxReductionDb < -0.5)) {
+    throw new Error("no gain reduction reported: "
+                    + res.report.maxReductionDb.toFixed(2));
+  }
+  if (res.report.outTp !== null && res.report.outTp > -0.85) {
+    throw new Error("true peak " + res.report.outTp.toFixed(2));
   }
 });
 

@@ -117,6 +117,8 @@
                 <option value="clean">Clean</option>
                 <option value="warm">Warm</option>
                 <option value="competitive">Competitive</option>
+                <option value="open">Open</option>
+                <option value="club">Club</option>
               </select>
             </label>
             <label>
@@ -137,8 +139,9 @@
           </div>
           <p id="sb-render-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
           <p class="mt-2 font-mono text-xs text-sb-ink-3">
-            clean = loudness only &middot; warm = shelves + slope-unity saturation &middot;
-            competitive = lookahead limiter, GR recorded &middot; 24-bit dithered &middot; named conventions
+            clean = loudness only &middot; warm = shelves + saturation &middot;
+            competitive = limiter, GR recorded &middot; open = no limiter, lands under target, dynamics kept &middot;
+            club = low shelf + limiter &middot; 24-bit dithered &middot; named conventions
           </p>
         </div>
 

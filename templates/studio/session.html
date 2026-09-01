@@ -217,10 +217,12 @@
               {{ sb.btn("Competitive", variant="primary", size="sm",
                         href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=competitive",
                         title="Driven into a lookahead limiter; the note records the gain reduction.") }}
-              {% for name in ("Open", "Club") %}
-                {{ sb.btn(name, variant="secondary", size="sm",
-                          disabled_reason="Not built yet") }}
-              {% endfor %}
+              {{ sb.btn("Open", variant="primary", size="sm",
+                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=open",
+                        title="No limiter ever; lands under the target on purpose - dynamics kept.") }}
+              {{ sb.btn("Club", variant="primary", size="sm",
+                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=club",
+                        title="Low-end weight, ceiling held by the limiter. Check it on the Club / PA chip.") }}
             </div>
 
             {% if masters %}
