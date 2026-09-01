@@ -29,10 +29,7 @@
   <link rel="stylesheet" href="/static/css/lanes.css?v=3">
   <link rel="stylesheet" href="/static/css/creative-studio.css?v=8">
   <link rel="stylesheet" href="/static/css/rollout.css?v=7">
-  <link rel="stylesheet" href="/static/css/sweep.css?v=5">
-  <link rel="stylesheet" href="/static/css/distribution.css?v=5">
-  <link rel="stylesheet" href="/static/css/passport.css?v=7">
-  <link rel="stylesheet" href="/static/css/closing.css?v=3">
+  <link rel="stylesheet" href="/static/css/back-office.css?v=1">
   <style>
     body { font-feature-settings: "ss01"; }
   </style>
@@ -168,26 +165,11 @@
 {% include "partials/rollout.html" %}
 
 <span id="royalty-sweep" class="block" style="scroll-margin-top: 110px;" aria-hidden="true"></span>
-<!-- 9. ROYALTY SWEEP — header, one archive photograph, five stages, one way
-     in. Full width like the dark run above it: the evidence table is the
-     argument, and it cannot be that from inside a narrow gutter. -->
-{% include "partials/sweep.html" %}
-
-<!-- 10. GLOBAL DISTRIBUTION — how a release is prepared, validated and
-     handed to the distribution partner. Additive: nothing below moves. -->
-{% include "partials/distribution.html" %}
-
-<!-- 11. METADATA PASSPORT + RIGHTS — one release in the middle of a floor
-     blueprint, seven connected records around it. Additive. -->
-{% include "partials/passport.html" %}
-
-<!-- The trust band was cut 2026-09-01: its four columns restated promises
-     already made at their point of claim, and the gathered version lives
-     at /artist-control (linked from the footer's Trust column). -->
-
-<!-- 12. CLOSING STATEMENT — the catalog as the asset. Last frame; nothing
-     after it but the footer. -->
-{% include "partials/closing.html" %}
+<!-- 9. THE BACK OFFICE — Royalty Sweep, Global Distribution and Metadata
+     Passport as three columns, and the closing statement as the foot.
+     One ivory band where sections 09-12 used to run; their stages,
+     capabilities and records live on their own public pages. -->
+{% include "partials/back_office.html" %}
 
   </main>
 
@@ -234,9 +216,5 @@
 <script src="/static/js/lanes.js?v=1" defer></script>
 <script src="/static/js/creative-studio.js?v=1" defer></script>
 <script src="/static/js/rollout.js?v=1" defer></script>
-<script src="/static/js/sweep.js?v=1" defer></script>
-<script src="/static/js/distribution.js?v=3" defer></script>
-<script src="/static/js/passport.js?v=3" defer></script>
-<script src="/static/js/closing.js?v=1" defer></script>
 </body>
 </html>

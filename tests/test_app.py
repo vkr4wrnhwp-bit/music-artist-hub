@@ -1,4 +1,4 @@
-from app import create_app
+﻿from app import create_app
 from royalty_data import (
     get_platform_balances,
     reset_claim_state,
@@ -21,7 +21,7 @@ def test_index_renders_landing_page():
     assert "hero-band-wide-1342.avif" in body     # the responsive set
     assert "Explore Street Banker" in body
     assert "Run a Free Royalty Sweep" in body
-    assert "ROYALTY SWEEP" in body                # the sweep section below
+    assert "Royalty Sweep" in body                # the back office band below
 
 
 def test_no_part_of_the_landing_page_links_into_the_gated_app():
@@ -144,7 +144,7 @@ def test_artist_eq_sits_between_the_hero_and_the_lanes():
     assert body.index("TUNE YOUR ARTIST SYSTEM.") < body.index("Choose your lane.")
     # Every section that was on the page before is still on it.
     for kept in ["Choose your lane.",
-                 "Your catalog is the ", "closing-wide-1672"]:
+                 "Your catalog is the ", "Start Street Banker"]:
         assert kept in body, kept
 
 

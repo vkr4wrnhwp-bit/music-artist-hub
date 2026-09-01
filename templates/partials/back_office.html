@@ -1,0 +1,86 @@
+{# Section 9 — the back office band, and the close.
+
+   Replaced sections 09 Royalty Sweep, 10 Global Distribution, 11
+   Metadata Passport and 12 the closing statement on 2026-09-01. The
+   owner's read of the page: after the images it became endless
+   scrolling of words - four sections, each with a photograph, a
+   workflow and a paragraph, all saying what their own public pages say
+   better. Now each module is its name, its headline, one line, one
+   button and its one honesty line, side by side; the closing sentence
+   and the way in close the band. The stages, capabilities and records
+   live on /royalty-sweep, /distribution and /metadata.
+
+   The ids the rest of the site anchors to (royalty-sweep-section,
+   global-distribution, metadata-passport, closing) sit on the columns
+   and the foot, so the header, the drawer and the section-order test
+   all still land where they did. Ivory ground on purpose: four dark
+   frames in a row read as one long night; a paper band before the
+   dark footer gives the page its last change of light. #}
+
+{% set sw = sweep %}
+{% set ds = distro %}
+{% set mp = passport %}
+{% set cl = closing %}
+<section class="sbbo" id="back-office" aria-labelledby="sbbo-heading">
+  <div class="sbbo-inner">
+    <header class="sbbo-head">
+      <p class="sbbo-eyebrow">
+        <span class="sbbo-num">09</span>
+        <span class="sbbo-rule" aria-hidden="true"></span>
+        The back office
+      </p>
+      <h2 class="sbbo-title" id="sbbo-heading">
+        {% for lead, tail in cl.headline %}<span>{{ lead }}<em>{{ tail }}</em></span>{% endfor %}
+      </h2>
+      <p class="sbbo-support">{{ cl.support }}</p>
+    </header>
+
+    <div class="sbbo-cols">
+      <article class="sbbo-col" id="royalty-sweep-section" aria-labelledby="sbbo-sweep-title">
+        <p class="sbbo-col-eyebrow">{{ sw.eyebrow }}</p>
+        <h3 class="sbbo-col-title" id="sbbo-sweep-title">
+          {% for line in sw.headline %}<span>{{ line }}</span>{{ ' ' if not loop.last }}{% endfor %}
+        </h3>
+        <p class="sbbo-col-line">{{ sw.support }}</p>
+        <a class="sbbo-cta" href="{{ sw.primary_cta.href }}">{{ sw.primary_cta.label }}</a>
+        <p class="sbbo-col-note">{{ sw.trust_copy }}
+          <a class="sbbo-col-link" href="{{ sw.method_link.href }}">{{ sw.method_link.label }}</a></p>
+      </article>
+
+      <article class="sbbo-col" id="global-distribution" aria-labelledby="sbbo-distro-title">
+        <p class="sbbo-col-eyebrow">{{ ds.eyebrow }}</p>
+        <h3 class="sbbo-col-title" id="sbbo-distro-title">
+          {% for line in ds.headline %}<span>{{ line }}</span>{{ ' ' if not loop.last }}{% endfor %}
+        </h3>
+        <p class="sbbo-col-line">{{ ds.support }}</p>
+        <a class="sbbo-cta" href="{{ ds.primary_cta.href }}">{{ ds.primary_cta.label }}</a>
+        {# Who actually delivers, named once - the line the honesty test
+           holds this section to. #}
+        <p class="sbbo-col-note sbds-partner">{{ ds.partner.line }}
+          <a class="sbbo-col-link" href="{{ ds.guide_cta.href }}">{{ ds.guide_cta.label }}</a></p>
+      </article>
+
+      <article class="sbbo-col" id="metadata-passport" aria-labelledby="sbbo-passport-title">
+        <p class="sbbo-col-eyebrow">{{ mp.eyebrow }}</p>
+        <h3 class="sbbo-col-title" id="sbbo-passport-title">
+          {% for line in mp.headline %}<span>{{ line }}</span>{{ ' ' if not loop.last }}{% endfor %}
+        </h3>
+        <p class="sbbo-col-line">{{ mp.support }}</p>
+        <a class="sbbo-cta" href="{{ mp.primary_cta.href }}">{{ mp.primary_cta.label }}</a>
+        <p class="sbbo-col-note">{{ mp.trust_copy }}
+          <a class="sbbo-col-link" href="{{ mp.trust_link.href }}">{{ mp.trust_link.label }}</a></p>
+      </article>
+    </div>
+
+    <div class="sbbo-foot" id="closing">
+      <p class="sbbo-trust">{{ cl.trust_line }}</p>
+      <div class="sbbo-ctas">
+        <a class="sbbo-cta sbbo-cta--primary" href="{{ cl.primary_cta.href }}">{{ cl.primary_cta.label }}
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+        </a>
+        <a class="sbbo-cta-2" href="{{ cl.secondary_cta.href }}">{{ cl.secondary_cta.label }}</a>
+      </div>
+    </div>
+  </div>
+</section>

@@ -46,7 +46,7 @@ def test_the_section_replaces_the_old_lanes_and_keeps_its_anchor():
         assert old not in body, old
     # Everything below it is untouched.
     for kept in ["Find what&#39;s yours.",
-                 "Your catalog is the ", "closing-wide-1672"]:
+                 "Your catalog is the ", "Start Street Banker"]:
         assert kept in body, kept
 
 

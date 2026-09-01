@@ -49,10 +49,11 @@ def test_closing_carries_no_numbers_or_claims(home):
         assert banned.lower() not in text.lower()
 
 
-def test_closing_image_is_present_at_both_crops(home):
-    assert "closing-wide-1672" in home
-    assert "closing-close-1070" in home
-    assert closing_config.IMAGE["alt"] in home
+def test_the_closing_photograph_stays_retired(home):
+    """Cut 2026-09-01 with the closing section: the two sentences and the
+    way in now close the back office band, and the road-case frame went
+    with the fourth dark section in a row."""
+    assert "closing-wide-1672" not in home
 
 
 def test_closing_ctas_point_at_public_routes(client, home):
