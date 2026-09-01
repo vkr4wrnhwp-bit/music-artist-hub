@@ -162,6 +162,10 @@
     var env = [], caps = [];
     for (var i = 0; i < BARS; i++) { env[i] = 0; caps[i] = 0; }
     var visible = true, rafId = null, lastTs = 0;
+    /* When Hear the Rack is playing it hands in a real spectrum every
+       frame; the bars follow that instead of the decorative motion. The
+       envelope line stays what it always was - the six values. */
+    var live = null;
 
     var reduced = { matches: false };
     try {
@@ -215,7 +219,7 @@
       for (var i = 0; i < BARS; i++) {
         var x = padX + i * slot + gap / 2;
         var envPx = env[i] * (base - top);
-        var level = still ? env[i] : env[i] * life(i, t);
+        var level = live ? live[i] : (still ? env[i] : env[i] * life(i, t));
         var levelPx = level * (base - top);
 
         /* ghost ladder to the envelope: the region the visitor set */
@@ -311,6 +315,15 @@
         if (reduced.matches || !visible) { drawFrame(lastTs, true); }
         else { kick(); }
       },
+      /* A real spectrum, 48 levels 0..1, or null to go back to the
+         drawing. Live audio is measured, so it draws even under
+         reduced motion - the visitor pressed play. */
+      setLive: function (levelsOrNull) {
+        live = levelsOrNull;
+        if (live) { if (rafId === null) { rafId = window.requestAnimationFrame(frame); } }
+        else if (reduced.matches || !visible) { drawFrame(lastTs, true); }
+        else { kick(); }
+      },
     };
   }
 
@@ -318,6 +331,9 @@
   if (analyzer) {
     var traceWrap = root.querySelector(".sbeq-trace");
     if (traceWrap && traceWrap.classList) { traceWrap.classList.add("is-live"); }
+    /* Hear the Rack feeds the strip through this. */
+    window.SBEQ = window.SBEQ || {};
+    window.SBEQ.analyzer = analyzer;
   }
 
   /* The SVG fallback: the old trace, redrawn the old way, for any
