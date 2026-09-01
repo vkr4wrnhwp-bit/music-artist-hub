@@ -77,6 +77,10 @@ EXEMPT = {
     "static/js/lights-engine.js",
     "static/js/lights-remote.js",
     "static/js/rackdsp.js",
+    # The Rack's own stylesheet, extracted from templates/rack.html so the
+    # Studio rooms can share the hardware units - the exemption follows the
+    # content it always covered.
+    "static/css/rack.css",
     "static/css/artist-eq.css",
     "static/css/tailwind.css",          # generated
     "tools/tailwind-input.css",         # the token source itself

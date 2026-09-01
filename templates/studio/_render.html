@@ -16,6 +16,7 @@
 -#}
 <script src="/static/js/loudness.js?v=1"></script>
 <script src="/static/js/wavwrite.js?v=1"></script>
+<script src="/static/js/masterchain.js?v=1"></script>
 <script>
 (function () {
   "use strict";
@@ -54,11 +55,29 @@
     pick.appendChild(option);
   });
 
+  var dirPick = document.getElementById("sb-render-direction");
+  var intPick = document.getElementById("sb-render-intensity");
+
+  /* The cockpit's direction buttons land here with ?direction= - honour it. */
+  try {
+    var wanted = new URLSearchParams(window.location.search).get("direction");
+    if (wanted && dirPick && dirPick.querySelector('option[value="' + wanted + '"]')) {
+      dirPick.value = wanted;
+    }
+  } catch (e) { /* no preselect, no problem */ }
+
   go.addEventListener("click", function () {
     var choice = pick.value.split("|");
     var targetName = choice[0];
     var targetLufs = parseFloat(choice[1]);
     var ceiling = parseFloat(choice[2]);
+    var direction = dirPick ? dirPick.value : "clean";
+    var intensity = intPick ? intPick.value : "medium";
+
+    if (!window.SBMasterChain) {
+      say("The mastering chain did not load.", "bad");
+      return;
+    }
 
     go.disabled = true;
     say("Decoding…");
@@ -69,8 +88,6 @@
         return r.arrayBuffer();
       })
       .then(function (bytes) {
-        /* Closed after the decode: Chrome caps live AudioContexts per tab,
-           and one leaked per click makes the fifth measurement fail. */
         var dctx = new Ctx();
         return new Promise(function (resolve, reject) {
           dctx.decodeAudioData(bytes, resolve, reject);
@@ -78,45 +95,39 @@
                 function (err) { dctx.close(); throw err; });
       })
       .then(function (buffer) {
-        say("Measuring…");
+        say("Processing " + direction + " · " + intensity + "…");
         var channels = [];
         for (var c = 0; c < buffer.numberOfChannels; c++) {
           channels.push(buffer.getChannelData(c));
         }
-        var loud = window.SBLoudness.analyse(channels, buffer.sampleRate);
-        if (loud.integrated === null) {
-          throw new Error("this file is too quiet to measure, so there is "
-                          + "nothing to normalise against");
-        }
 
-        var wanted = targetLufs - loud.integrated;
-        var applied = wanted;
-        var capped = false;
-        if (loud.truePeak !== null && (loud.truePeak + wanted) > ceiling) {
-          applied = ceiling - loud.truePeak;
-          capped = true;
-        }
+        var out = window.SBMasterChain.render(
+          direction, intensity, channels, buffer.sampleRate,
+          targetLufs, ceiling, window.SBLoudness);
+        var rep = out.report;
+        var res = window.SBWav.encode(out.channels, buffer.sampleRate, 24);
 
-        say("Applying " + applied.toFixed(2) + " dB…");
-        var gained = window.SBWav.applyGain(channels, applied);
-        var res = window.SBWav.encode(gained.channels, buffer.sampleRate, 24);
-
-        var note = "Normalised for " + targetName + ": "
-          + loud.integrated.toFixed(1) + " to "
-          + (loud.integrated + applied).toFixed(1) + " LUFS, "
-          + applied.toFixed(2) + " dB applied";
-        if (capped) {
-          note += " (capped at the " + ceiling.toFixed(1)
-            + " dBTP ceiling, " + (wanted - applied).toFixed(2)
-            + " dB short of the target)";
+        var note = rep.direction + " · " + rep.intensity + " for "
+          + targetName + ": "
+          + (rep.inLufs === null ? "?" : rep.inLufs.toFixed(1)) + " to "
+          + (rep.outLufs === null ? "?" : rep.outLufs.toFixed(1)) + " LUFS, "
+          + "true peak "
+          + (rep.outTp === null ? "?" : rep.outTp.toFixed(2)) + " dBTP";
+        if (rep.moves.length) { note += ". Moves: " + rep.moves.join(", "); }
+        if (rep.maxReductionDb < -0.1) {
+          note += ". Max gain reduction " + rep.maxReductionDb.toFixed(1) + " dB";
         }
-        note += ". 24-bit, dithered. Loudness only - no EQ or compression.";
+        if (rep.capped) {
+          note += ". Capped at the " + ceiling.toFixed(1) + " dBTP ceiling";
+        }
+        note += ". 24-bit, dithered. " + rep.basis + ".";
 
         var form = new FormData();
         form.append("file", new Blob([res.buffer], { type: "audio/wav" }),
                     "master.wav");
         form.append("source_asset_id", SOURCE_ID);
-        form.append("label", "Master · " + targetName);
+        form.append("label", "Master · " + rep.direction + " · "
+                             + rep.intensity);
         form.append("note", note);
 
         return fetch(POST_URL, { method: "POST", credentials: "same-origin",
@@ -127,7 +138,7 @@
             say(note + (res.clipped
                  ? "  " + res.clipped + " samples clipped on write."
                  : "") + " Saved as a new version.", "good");
-            window.setTimeout(function () { window.location.reload(); }, 1200);
+            window.setTimeout(function () { window.location.reload(); }, 1400);
           });
       })
       .catch(function (err) {

@@ -5,6 +5,7 @@ None of these were caught by a test because none of them are visible in a
 single file: two of the three are about what a name means once the whole
 IIFE has run, and the third is about the order of two script tags.
 """
+import io
 import os
 import re
 
@@ -19,6 +20,13 @@ HTML = os.path.join(ROOT, "templates", "rack.html")
 
 def _js():
     return open(JS, encoding="utf-8").read()
+
+
+def _css():
+    """The Rack's stylesheet, wherever it lives - it moved out of the
+    template so the Studio rooms could wear the same hardware."""
+    return io.open(os.path.join(ROOT, "static", "css", "rack.css"),
+                   encoding="utf-8").read()
 
 
 def _html():
@@ -155,7 +163,7 @@ def test_the_undo_controls_are_on_the_page():
     for el_id in ("rk-undo", "rk-redo", "rk-hist-btn", "rk-hist-pop", "rk-hist-list", "rk-live"):
         assert 'id="%s"' % el_id in html, el_id
     # The popover lives in a dock pinned to the bottom, so it opens upward.
-    assert "bottom: calc(100% + 8px)" in html
+    assert "bottom: calc(100% + 8px)" in _css()
     assert 'aria-haspopup="true"' in html and 'aria-expanded="false"' in html
 
 
@@ -290,9 +298,10 @@ def test_the_empty_state_guides_without_blocking_the_controls():
     inside it takes the mouse."""
     html = _html()
     assert 'id="rk-empty"' in html
-    css = html[html.index(".rk-empty {"):html.index(".rk-empty-h")]
+    sheet = _css()
+    css = sheet[sheet.index(".rk-empty {"):sheet.index(".rk-empty-h")]
     assert "pointer-events: none" in css, "the scrim must let clicks through"
-    card = html[html.index(".rk-empty-card {"):html.index(".rk-empty-h")]
+    card = sheet[sheet.index(".rk-empty-card {"):sheet.index(".rk-empty-h")]
     assert "pointer-events: auto" in card, "the card itself must be clickable"
 
 
@@ -510,7 +519,7 @@ def test_every_loaded_stem_lane_carries_its_own_waveform():
     assert "paintLaneWave(wave, st);" in body, "painted after append, when the lane has a width"
     dormant = js[js.index("function dormantLane"):start]
     assert "lane-wave" not in dormant and 'rail.className = "rail";' in dormant
-    assert ".lane-wave {" in _html()
+    assert ".lane-wave {" in _css()
 
 
 def test_stem_peaks_are_measured_once_and_cached_on_the_stem():
@@ -589,7 +598,7 @@ def test_the_eq_mode_switch_and_band_switches_are_on_the_page():
     for mode in ("stereo", "mid", "side"):
         assert 'data-eqmode="%s"' % mode in html, mode
     assert 'aria-label="EQ mid/side mode"' in html
-    assert ".eq-band-sw {" in html
+    assert ".eq-band-sw {" in _css()
     render = js[js.index("function renderEq()"):js.index("function bandSwitch")]
     assert "var sw = bandSwitch(i, b);" in render and "k.el.appendChild(sw);" in render
 
@@ -713,7 +722,7 @@ def test_the_bay_is_on_the_page_and_reachable_without_a_mouse():
     html, js = _html(), _js()
     for hook in ('id="sb-patch"', 'id="rk-patch-row"', 'id="rk-patch-reset"', 'id="rk-patch-note"'):
         assert hook in html, hook
-    assert ".rk-jack {" in html and ".rk-jack.is-armed" in html
+    assert ".rk-jack {" in _css() and ".rk-jack.is-armed" in _css()
     rp = js[js.index("function renderPatch()"):js.index("function focusPatch")]
     assert '"ArrowLeft"' in rp and '"ArrowRight"' in rp, "arrow keys move the focused jack"
     assert "patchArmed" in rp, "tap one jack, tap its new place — no drag needed on touch"

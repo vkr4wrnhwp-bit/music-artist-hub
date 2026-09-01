@@ -3,6 +3,7 @@
 {% import "studio/_console.html" as console %}
 {% block title %}Master - {{ project.title }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/rack.css?v=1">
 <div class="mx-auto max-w-[1100px] space-y-5">
 
   <p class="sb-label sb-label-gold">
@@ -98,13 +99,35 @@
       {% endif %}
 
       {# --------------------------------------------------------- render --- #}
-      <section class="sb-panel p-4">
-        <h2 class="sb-label sb-label-gold">Rendering a master</h2>
+      <section class="ru rounded-xl overflow-hidden p-4">
+        <header class="ru-head" style="padding-left:0;padding-right:0">
+          <span class="ru-tag">SB-MS</span>
+          <div class="ru-title" role="heading" aria-level="2">RENDER</div>
+          <span class="ru-sub">every render lands on target, capped at the measured ceiling</span>
+        </header>
         <div class="mt-3 rounded-lg border border-sb-line bg-black/20 p-3">
           <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">
             Normalise for a platform
           </p>
           <div class="mt-2 flex flex-wrap items-end gap-2">
+            <label>
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Direction</span>
+              <select id="sb-render-direction"
+                      class="mt-1 rounded-lg border border-sb-line bg-black/40 px-2 py-1.5 text-sm text-gray-300">
+                <option value="clean">Clean</option>
+                <option value="warm">Warm</option>
+                <option value="competitive">Competitive</option>
+              </select>
+            </label>
+            <label>
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Intensity</span>
+              <select id="sb-render-intensity"
+                      class="mt-1 rounded-lg border border-sb-line bg-black/40 px-2 py-1.5 text-sm text-gray-300">
+                <option value="light">Light</option>
+                <option value="medium" selected>Medium</option>
+                <option value="strong">Strong</option>
+              </select>
+            </label>
             <label class="min-w-0">
               <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Target</span>
               <select id="sb-render-target"
@@ -113,12 +136,9 @@
             {{ sb.btn("Render a master", variant="primary", size="sm", id="sb-render") }}
           </div>
           <p id="sb-render-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
-          <p class="mt-2 max-w-2xl text-sm text-gray-300">
-            The <strong class="text-white">loudness stage only</strong>: measure,
-            land on the target, cap at that platform's true-peak ceiling, write
-            a dithered 24-bit WAV as its own version. It does not EQ, compress
-            or add harmonic character &mdash; the Rack does those, with the
-            same engine this room measures with.
+          <p class="mt-2 font-mono text-xs text-sb-ink-3">
+            clean = loudness only &middot; warm = shelves + slope-unity saturation &middot;
+            competitive = lookahead limiter, GR recorded &middot; 24-bit dithered &middot; named conventions
           </p>
         </div>
 

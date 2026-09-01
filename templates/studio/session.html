@@ -3,6 +3,7 @@
 {% import "studio/_console.html" as console %}
 {% block title %}{{ project.title }} - Street Banker Studio{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/rack.css?v=1">
 {#- The Control Room cockpit. One console, per the owner's mockup: lifecycle
     rail, the Rack chain, waveform + transport, Mix Station and Master Station
     side by side, playback translation, the Version Vault strip, the Deliver
@@ -57,8 +58,7 @@
     <section class="sb-panel p-4">
       <h2 class="sb-label text-purple-400">Before anything is uploaded</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        Everything in Studio works on audio you own or control, and you confirm
-        that for each project &mdash; not once for the account.
+        Confirmed per project, recorded with your name and the date.
       </p>
       <form method="post" action="{{ url_for('studio.studio_rights', project_id=project.id) }}"
             class="mt-3 space-y-3">
@@ -72,9 +72,8 @@
     <section class="sb-panel p-4">
       <h2 class="sb-label text-purple-400">Upload the source</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. The source is
-        written once and never rewritten &mdash; every version after this one
-        points back to it.
+        WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. Written once,
+        never rewritten.
       </p>
       <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3"
             action="{{ url_for('studio.studio_upload', project_id=project.id) }}">
@@ -93,17 +92,16 @@
       {# The saved Rack chain, rendered read-only from the REAL preset the
          Rack stored - a viewer and a launcher, and it says so. Interactive
          modules live in the Rack itself, where the DSP engine is. #}
-      <section class="sb-panel p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="sb-label text-purple-400">Rack</h2>
-          {{ sb.btn("Open the Rack", variant="primary", size="sm",
-                    href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
-        </div>
+      <section class="ru rounded-xl overflow-hidden">
+        <header class="ru-head">
+          <span class="ru-tag">SB-RK</span>
+          <div class="ru-title" role="heading" aria-level="2">RACK</div>
+          <span class="ru-sub">saved chain, read-only &mdash; the knobs live in the Rack</span>
+          <span class="ml-auto">{{ sb.btn("Open the Rack", variant="primary", size="sm",
+                    href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}</span>
+        </header>
         {% if rack_chain %}
-          <p class="mt-2 text-sm text-gray-300">
-            Your saved chain, read-only here &mdash; the knobs live in the Rack.
-          </p>
-          <div class="mt-3 flex flex-wrap gap-2">
+          <div class="p-4 flex flex-wrap gap-2">
             {%- set eq = rack_chain.get("eq") %}
             {%- set tube = rack_chain.get("tube") or {} %}
             {%- set comp = rack_chain.get("comp") or {} %}
@@ -134,23 +132,17 @@
             {% endif %}
           </div>
         {% else %}
-          <p class="mt-2 text-sm text-gray-300">
-            No chain saved yet. The Rack is the mixer &mdash; EQ-12, tube,
-            compressor, cab &amp; mic, loudness &mdash; and what you save there
-            shows here.
-          </p>
+          <p class="p-4 text-sm text-gray-300">No chain saved yet &mdash; what you save in the Rack shows here.</p>
         {% endif %}
       </section>
 
       {# ------------------------------------------------------- waveform --- #}
-      <section class="sb-panel p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="sb-label text-purple-400">{{ source.file_name }}</h2>
-          <p class="font-mono text-xs text-sb-ink-3">
-            {{ (source.file_size / 1048576)|round(1) }} MB
-            {%- if source.lossless %} &middot; lossless{% endif %}
-          </p>
-        </div>
+      <section class="ru rounded-xl overflow-hidden p-4">
+        <header class="ru-head" style="padding-left:0;padding-right:0">
+          <span class="ru-tag">SB-TX</span>
+          <div class="ru-title" role="heading" aria-level="2">TRANSPORT DECK</div>
+          <span class="ru-sub">{{ source.file_name }} &middot; {{ (source.file_size / 1048576)|round(1) }} MB{% if source.lossless %} &middot; lossless{% endif %}</span>
+        </header>
         <div id="sb-console-markers" class="relative mt-3 h-3 select-none"></div>
         <div class="relative mt-1">
           <canvas id="sb-console-wave" height="150"
@@ -165,126 +157,116 @@
 
       {# --------------------------------------- Mix Station and Master ----- #}
       <div class="grid gap-5 md:grid-cols-2">
-        <section class="sb-panel p-4">
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="sb-label text-purple-400">Mix Station</h2>
-            {{ sb.btn("Open", variant="secondary", size="sm",
-                      href=url_for("studio.studio_mix", project_id=project.id)) }}
-          </div>
-
-          <p id="sb-measure" aria-live="polite" class="mt-1 text-sm text-gray-300">&nbsp;</p>
-          {% if mix_scores.overall is not none %}
-            <p class="mt-2 font-mono text-3xl tabular-nums text-white">{{ mix_scores.overall }}<span class="text-sm text-sb-ink-3">/100</span></p>
-            <p class="font-mono text-xs text-sb-ink-3">
-              from {{ mix_scores.measured_count }} measured of
-              {{ mix_scores.total_count }} categories &mdash; the rest say what
-              they need instead of guessing
-            </p>
-          {% else %}
-            <p class="mt-2 text-sm text-gray-300">Nothing measured yet.</p>
-            <div class="mt-2">
-              {{ sb.btn("Measure", variant="primary", size="sm", id="sb-measure-go") }}
-            </div>
-          {% endif %}
-
-          <ul class="mt-3 space-y-1.5">
-            {% for c in mix_scores.categories %}
-              <li class="flex items-baseline gap-2 text-sm"
-                  title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }} confidence)">
-                <span class="w-9 shrink-0 text-right font-mono text-xs tabular-nums
-                             {% if c.score is none %}text-sb-ink-3{% elif c.status == 'good' %}text-sb-good{% elif c.status == 'blocked' %}text-sb-crit{% else %}text-amber-400{% endif %}">
-                  {{ c.score if c.score is not none else "&mdash;"|safe }}
-                </span>
-                <span class="min-w-0 flex-1 truncate text-gray-300">{{ c.label }}</span>
-                {% if c.score is none %}
-                  <span class="shrink-0 font-mono text-xs text-sb-ink-3">needs {{ c.missing }}</span>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-
-          {# Mix Doctor, compact: the open findings, worst first. #}
-          {%- set open_findings = findings|selectattr("status","equalto","open")|list %}
-          {% if open_findings %}
-            <p class="mt-4 sb-label text-purple-400">Mix Doctor</p>
-            <ul class="mt-2 space-y-1.5">
-              {% for f in open_findings[:5] %}
-                <li class="flex items-center gap-2 text-sm">
-                  {{ sb.badge(f.severity, {"blocking":"crit","review":"warn"}.get(f.severity,"idle")) }}
-                  <span class="min-w-0 flex-1 truncate text-gray-300">{{ f.category|replace("_"," ")|title }}</span>
-                  {% if f.start_seconds is not none %}
-                    <button type="button" data-seek="{{ f.start_seconds }}"
-                            class="shrink-0 rounded border border-sb-line px-2 py-0.5 font-mono text-xs text-sb-ink-2">Hear it</button>
-                  {% endif %}
-                </li>
+        <section class="ru rounded-xl overflow-hidden">
+          <header class="ru-head">
+            <span class="ru-tag">SB-MX</span>
+            <div class="ru-title" role="heading" aria-level="2">MIX STATION</div>
+            {% if mix_scores.overall is not none %}
+              <span class="ru-sub">{{ mix_scores.overall }}/100 &middot; {{ mix_scores.measured_count }} of {{ mix_scores.total_count }} measured</span>
+            {% else %}
+              <span class="ru-sub">unmeasured</span>
+            {% endif %}
+            <span class="ml-auto">{{ sb.btn("Open", variant="secondary", size="sm",
+                      href=url_for("studio.studio_mix", project_id=project.id)) }}</span>
+          </header>
+          <div class="p-4">
+            <p id="sb-measure" aria-live="polite" class="text-sm text-gray-300">&nbsp;</p>
+            {% if mix_scores.overall is none %}
+              <div class="mt-1">{{ sb.btn("Measure", variant="primary", size="sm", id="sb-measure-go") }}</div>
+            {% endif %}
+            <div class="mt-2 flex flex-wrap gap-2">
+              {% for c in mix_scores.categories %}
+                <div class="rk-lcd" title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }})">
+                  <span class="rk-lcd-v {% if c.score is none %}text-sb-ink-3{% elif c.status == 'blocked' %}text-sb-crit{% endif %}">{{ c.score if c.score is not none else "&mdash;"|safe }}</span>
+                  <span class="rk-lcd-cap">{{ c.label }}</span>
+                  {% if c.score is none %}<span class="rk-lcd-sub">needs {{ c.missing }}</span>{% endif %}
+                </div>
               {% endfor %}
-            </ul>
-          {% endif %}
+            </div>
+
+            {%- set open_findings = findings|selectattr("status","equalto","open")|list %}
+            {% if open_findings %}
+              <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                <span class="ru-tag">DOCTOR</span>
+                {% for f in open_findings[:5] %}
+                  <button type="button" {% if f.start_seconds is not none %}data-seek="{{ f.start_seconds }}"{% endif %}
+                          class="rounded border px-2 py-1 font-mono text-xs
+                                 {% if f.severity == 'blocking' %}border-red-500/40 text-sb-crit{% else %}border-sb-line text-amber-400{% endif %}"
+                          title="{{ f.explanation }}">
+                    {{ f.category|replace("_"," ") }}{% if f.start_seconds is not none %} &middot; {{ "%d:%02d"|format((f.start_seconds // 60)|int, (f.start_seconds % 60)|int) }}{% endif %}
+                  </button>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
         </section>
 
-        <section class="sb-panel p-4">
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="sb-label text-purple-400">Master Station</h2>
-            {{ sb.btn("Open", variant="secondary", size="sm",
-                      href=url_for("studio.studio_master", project_id=project.id)) }}
-          </div>
-
-          {% if master_scores.overall is not none %}
-            <p class="mt-2 font-mono text-3xl tabular-nums text-white">{{ master_scores.overall }}<span class="text-sm text-sb-ink-3">/100</span></p>
-            <p class="font-mono text-xs text-sb-ink-3">
-              from {{ master_scores.measured_count }} measured of
-              {{ master_scores.total_count }}
-            </p>
-          {% else %}
-            <p class="mt-2 text-sm text-gray-300">Nothing measured yet.</p>
-          {% endif %}
-
-          <p class="mt-4 sb-label text-purple-400">Mastering direction</p>
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            {{ sb.btn("Clean", variant="primary", size="sm",
-                      href=url_for("studio.studio_master", project_id=project.id),
-                      title="Transparent loudness stage - measured, capped at the platform ceiling, dithered. Real, in the Master room.") }}
-            {% for name in ("Warm", "Competitive", "Open", "Club") %}
-              {{ sb.btn(name, variant="secondary", size="sm",
-                        disabled_reason="Needs the Rack's colour and dynamics chain, or a processing provider - nothing here fakes it") }}
-            {% endfor %}
-            {{ sb.btn("Streaming balanced", variant="secondary", size="sm",
-                      href=url_for("studio.studio_master", project_id=project.id),
-                      title="The -14 LUFS / -1 dBTP conservative render. Real, in the Master room.") }}
-          </div>
-
-          {# Master previews: the renders that exist, as B on the transport. #}
-          {% if masters %}
-            <p class="mt-4 sb-label text-purple-400">Previews</p>
-            <ul class="mt-2 space-y-1.5">
-              {% for entry in masters[:3] %}
-                <li class="flex items-center gap-2 text-sm">
-                  <span class="w-4 shrink-0 font-mono text-xs text-purple-400">{{ "ABC"[loop.index0] }}</span>
-                  <span class="min-w-0 flex-1 truncate text-gray-300">{{ entry.version.version_name }}</span>
-                  <button type="button" data-bpick="{{ loop.index0 }}"
-                          class="shrink-0 rounded border border-sb-line px-2 py-0.5 font-mono text-xs text-sb-ink-2">
-                    Set as B
-                  </button>
-                </li>
+        <section class="ru rounded-xl overflow-hidden">
+          <header class="ru-head">
+            <span class="ru-tag">SB-MS</span>
+            <div class="ru-title" role="heading" aria-level="2">MASTER STATION</div>
+            {% if master_scores.overall is not none %}
+              <span class="ru-sub">{{ master_scores.overall }}/100 &middot; {{ master_scores.measured_count }} of {{ master_scores.total_count }} measured</span>
+            {% else %}
+              <span class="ru-sub">unmeasured</span>
+            {% endif %}
+            <span class="ml-auto">{{ sb.btn("Open", variant="secondary", size="sm",
+                      href=url_for("studio.studio_master", project_id=project.id)) }}</span>
+          </header>
+          <div class="p-4">
+            <div class="flex flex-wrap gap-2">
+              {% for c in master_scores.categories %}
+                <div class="rk-lcd" title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }})">
+                  <span class="rk-lcd-v {% if c.score is none %}text-sb-ink-3{% elif c.status == 'blocked' %}text-sb-crit{% endif %}">{{ c.score if c.score is not none else "&mdash;"|safe }}</span>
+                  <span class="rk-lcd-cap">{{ c.label }}</span>
+                </div>
               {% endfor %}
-            </ul>
-            <p class="mt-1 font-mono text-xs text-sb-ink-3">
-              Flip A/B on the transport; tick match for equal loudness.
-            </p>
-          {% endif %}
+            </div>
+
+            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+              <span class="ru-tag">DIRECTION</span>
+              {{ sb.btn("Clean", variant="primary", size="sm",
+                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=clean",
+                        title="Loudness stage only.") }}
+              {{ sb.btn("Warm", variant="primary", size="sm",
+                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=warm",
+                        title="Low shelf up, top eased, slope-unity saturation.") }}
+              {{ sb.btn("Competitive", variant="primary", size="sm",
+                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=competitive",
+                        title="Driven into a lookahead limiter; the note records the gain reduction.") }}
+              {% for name in ("Open", "Club") %}
+                {{ sb.btn(name, variant="secondary", size="sm",
+                          disabled_reason="Not built yet") }}
+              {% endfor %}
+            </div>
+
+            {% if masters %}
+              <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                <span class="ru-tag">PREVIEWS</span>
+                {% for entry in masters[:3] %}
+                  <button type="button" data-bpick="{{ loop.index0 }}"
+                          class="rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2"
+                          title="{{ entry.version.change_summary }}">
+                    {{ "ABC"[loop.index0] }} &middot; {{ entry.version.version_name|replace("Master · ","") }} &middot; B
+                  </button>
+                {% endfor %}
+                <span class="font-mono text-xs text-sb-ink-3">flip A/B on the transport &middot; match = equal loudness</span>
+              </div>
+            {% endif %}
+          </div>
         </section>
       </div>
 
       {# --------------------------------------------- playback translation --- #}
-      <section class="sb-panel p-4">
-        <h2 class="sb-label text-purple-400">Playback translation</h2>
-        <p class="mt-2 max-w-2xl text-sm text-gray-300">
-          Listening simulations &mdash; engineering approximations of familiar
-          playback, <strong class="text-white">not measurements of any real
-          device</strong>, and no pass marks are invented for them: your ears
-          are the meter here. The transport meter keeps reading the master.
-        </p>
-        <div id="sb-sims" class="mt-3 flex flex-wrap gap-1.5"></div>
+      <section class="ru rounded-xl overflow-hidden">
+        <header class="ru-head">
+          <span class="ru-tag">SB-PT</span>
+          <div class="ru-title" role="heading" aria-level="2">PLAYBACK TRANSLATION</div>
+          <span class="ru-sub">simulations, not measurements of any real device &mdash; your ears are the meter</span>
+        </header>
+        <div class="p-4">
+          <div id="sb-sims" class="flex flex-wrap gap-1.5"></div>
+        </div>
       </section>
 
       {# ------------------------------------------------ Version Vault strip #}
@@ -316,10 +298,8 @@
         {%- set met = checklist|selectattr("ok")|list|length %}
         {%- set req = checklist|selectattr("required")|list %}
         {%- set req_met = req|selectattr("ok")|list|length %}
-        <p class="mt-2 text-sm text-gray-300">
-          {{ req_met }} of {{ req|length }} required checks met
-          ({{ met }} of {{ checklist|length }} overall). Every line is read off
-          the project, never ticked by hand.
+        <p class="mt-2 font-mono text-xs text-sb-ink-3">
+          {{ req_met }}/{{ req|length }} required &middot; {{ met }}/{{ checklist|length }} overall &middot; computed, never ticked by hand
         </p>
         <div class="mt-2 flex flex-wrap gap-1.5">
           {% for c in checklist if c.required %}
@@ -335,9 +315,8 @@
     <div class="space-y-5">
       <section class="sb-panel p-4" id="ask-the-room">
         <h2 class="sb-label text-purple-400">Ask the Room</h2>
-        <p class="mt-2 text-sm text-gray-300">
-          Answers come only from what this project holds &mdash; measurements,
-          findings, notes, versions, the checklist. It has no ears and says so.
+        <p class="mt-2 font-mono text-xs text-sb-ink-3">
+          answers only from what this project holds &mdash; it has no ears and says so
         </p>
         <form method="post" class="mt-3 flex gap-2"
               action="{{ url_for('studio.studio_room_ask', project_id=project.id) }}">
@@ -392,9 +371,8 @@
           </ul>
         {% else %}
           <p class="mt-2 text-sm text-gray-300">
-            No notes yet. They are added in the
-            <a class="underline" href="{{ url_for('studio.studio_mix', project_id=project.id) }}">Mix room</a>,
-            pinned to the playhead.
+            None yet &mdash; add them in the
+            <a class="underline" href="{{ url_for('studio.studio_mix', project_id=project.id) }}">Mix room</a>.
           </p>
         {% endif %}
       </section>

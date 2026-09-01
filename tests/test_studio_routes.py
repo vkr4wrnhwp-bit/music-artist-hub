@@ -252,7 +252,7 @@ def test_the_session_page_measures_rather_than_asserts(application, ready):
     assert 'id="sb-console-wave"' in body      # the console workspace canvas
     assert "SBLoudness" in body
     assert 'id="sb-measure"' in body           # the auto-measure mount point
-    assert "Nothing measured yet" in body      # honest empty state, no invented figures
+    assert "unmeasured" in body                # honest empty state, no invented figures
 
 
 def test_the_page_says_what_this_deployment_cannot_do(application, ready):
