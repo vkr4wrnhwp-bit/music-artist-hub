@@ -448,6 +448,16 @@
   .sbeq-console { order: 2; }
   .sbeq-presets-wrap { order: 3; }
 }
+/* On wide screens the analyzer breaks out of the console's measure and
+   bridges the desk, the way a master display spans real hardware. A flex
+   item may exceed its parent when told to; the section clips at its own
+   full-bleed edge, so nothing can push the page sideways. */
+@media (min-width: 1024px) {
+  .sbeq-trace {
+    align-self: center;
+    width: min(100vw - 64px, 1400px);
+  }
+}
 .sbeq-cta {
   display: inline-flex;
   align-items: center;
