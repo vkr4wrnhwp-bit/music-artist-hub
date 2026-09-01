@@ -231,7 +231,8 @@ def studio_measure(project_id):
     numeric = {}
     for key in ("integrated", "true_peak", "sample_peak", "lra", "bpm",
                 "bpm_confidence", "key_fit", "short_term_max", "momentary_max",
-                "first_beat", "grid_confidence", "duration_seconds"):
+                "first_beat", "grid_confidence", "duration_seconds",
+                "loudest_at", "peak_at"):
         value = payload.get(key)
         if isinstance(value, (int, float)):
             numeric[key] = float(value)
@@ -250,6 +251,8 @@ def _room(project_id, room, template):
     source = summary["source"]
     analysis = findings = comments = None
     verdict = None
+    console_config = None
+    masters = []
     if source:
         analysis = sstore.latest_analysis(_partner(user), source["id"])
         findings = sstore.list_findings(_partner(user), source["id"])
@@ -257,10 +260,50 @@ def _room(project_id, room, template):
         if analysis:
             import audio_readiness
             verdict = audio_readiness.assess(analysis["measurements"])
+
+        # Rendered masters become the transport's B side. Ownership was
+        # checked when the version list was built; the URL re-checks it again
+        # per request anyway.
+        for version in summary["versions"]:
+            if version["asset_role"] in ("master", "alternate_master")                     and version["asset_id"]                     and version["asset_id"] != source["id"]:
+                asset = sstore.get_studio_asset(_partner(user), user["id"],
+                                                version["asset_id"])
+                if asset:
+                    masters.append({
+                        "label": version["version_name"],
+                        "url": url_for("studio.studio_asset",
+                                       asset_id=asset["id"]),
+                        "version": version,
+                    })
+
+        # Markers: only things with a MEASURED or stated time. A whole-file
+        # ruling has no timestamp and stays a card; pinning it at 0:00 would
+        # send somebody listening for a problem at a place it is not.
+        markers = []
+        for finding in findings:
+            if finding["status"] == "open"                     and finding["start_seconds"] is not None:
+                markers.append({
+                    "at": finding["start_seconds"],
+                    "kind": finding["severity"]
+                            if finding["severity"] in ("blocking", "review")
+                            else "review",
+                    "label": finding["category"].replace("_", " "),
+                })
+        for comment in comments:
+            if comment["status"] == "open":
+                markers.append({"at": comment["start_seconds"], "kind": "note",
+                                "label": comment["body"][:60]})
+        console_config = {
+            "srcA": url_for("studio.studio_asset", asset_id=source["id"]),
+            "bOptions": [{"label": m["label"], "url": m["url"]}
+                         for m in masters],
+            "markers": markers,
+        }
     return render_template(
         template, active_page="studio", room=room, project=project,
         summary=summary, source=source, analysis=analysis, verdict=verdict,
-        findings=findings or [], comments=comments or [],
+        findings=findings or [], comments=comments or [], masters=masters,
+        console_config=console_config,
         targets=__import__("audio_readiness").PLATFORM_TARGETS,
         readiness=studio_config.readiness())
 

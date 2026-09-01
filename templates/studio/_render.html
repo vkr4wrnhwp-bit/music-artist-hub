@@ -69,10 +69,13 @@
         return r.arrayBuffer();
       })
       .then(function (bytes) {
-        var ctx = new Ctx();
+        /* Closed after the decode: Chrome caps live AudioContexts per tab,
+           and one leaked per click makes the fifth measurement fail. */
+        var dctx = new Ctx();
         return new Promise(function (resolve, reject) {
-          ctx.decodeAudioData(bytes, resolve, reject);
-        });
+          dctx.decodeAudioData(bytes, resolve, reject);
+        }).then(function (buffer) { dctx.close(); return buffer; },
+                function (err) { dctx.close(); throw err; });
       })
       .then(function (buffer) {
         say("Measuring…");

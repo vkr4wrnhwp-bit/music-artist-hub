@@ -1,0 +1,294 @@
+{#- The bottom transport, shared verbatim by Mix and Master.
+
+    One partial, fixed ids, one mount script - so the transport genuinely IS
+    the same control surface on both rooms rather than two lookalikes that
+    drift. It stays stuck to the bottom of the viewport while the room
+    scrolls, which is the difference between a console and a page.
+
+    Expects `console_config` in context:
+      { "srcA": url, "bOptions": [{"label","url"}...], "markers": [...] }
+    and the page to contain #sb-console-wave (+ #sb-console-markers rail).
+-#}
+<div id="sb-transport"
+     class="sticky bottom-0 z-30 mt-5 rounded-xl border border-sb-line bg-black/60 p-3 backdrop-blur">
+  <div class="flex flex-wrap items-center gap-3">
+
+    <button type="button" id="sb-t-play" aria-label="Play or pause" aria-keyshortcuts="Space"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-sb-line bg-black/40 text-lg leading-none text-white">
+      &#9654;
+    </button>
+
+    <div class="shrink-0 font-mono text-sm tabular-nums text-white">
+      <span id="sb-t-time">0:00.0</span><span class="text-sb-ink-3"> / <span id="sb-t-dur">0:00.0</span></span>
+    </div>
+
+    {# A/B lives on the transport because comparison IS transport: the whole
+       point is flipping while the music runs. Hidden until a B exists. #}
+    <div id="sb-t-bwrap" class="hidden items-center gap-2">
+      <select id="sb-t-bpick" aria-label="Compare against"
+              class="rounded-lg border border-sb-line bg-black/40 px-2 py-1.5 font-mono text-xs text-gray-300"></select>
+      <button type="button" id="sb-t-ab" aria-pressed="false"
+              class="rounded-lg border border-sb-line px-3 py-2 font-mono text-xs text-sb-ink-2">
+        Hearing: A
+      </button>
+      <label class="flex items-center gap-1.5 font-mono text-xs text-sb-ink-3" title="Compare at the same loudness. Louder reliably wins by being louder; matching applies the measured LUFS difference to B.">
+        <input type="checkbox" id="sb-t-match"> match
+      </label>
+      <span id="sb-t-matchdb" class="font-mono text-xs text-sb-ink-3"></span>
+    </div>
+
+    <label class="flex items-center gap-1.5 font-mono text-xs text-sb-ink-3" title="A real down-mix - the fold a phone speaker performs. A stereo element that vanishes here vanishes there.">
+      <input type="checkbox" id="sb-t-mono"> mono
+    </label>
+
+    <label class="flex items-center gap-1.5 font-mono text-xs text-sb-ink-3" title="Monitoring level only. It changes what you hear in this room, never the file.">
+      vol
+      <input type="range" id="sb-t-vol" min="0" max="100" value="100"
+             class="w-24" aria-label="Monitoring volume">
+    </label>
+
+    <div class="ml-auto flex min-w-0 flex-1 items-center gap-2">
+      <span class="shrink-0 font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">out</span>
+      <div class="h-2 min-w-0 flex-1 overflow-hidden rounded-full border border-sb-line bg-black/40"
+           role="meter" aria-label="Output level">
+        <div id="sb-t-meter" class="h-full bg-emerald-400" style="width:0%"></div>
+      </div>
+      <span id="sb-t-db" class="w-16 shrink-0 text-right font-mono text-xs tabular-nums text-sb-ink-3">&minus;&infin;</span>
+      {# Red is reserved for clipping, so this is the only red on the console. #}
+      <span id="sb-t-clip" class="shrink-0 rounded border border-sb-line px-1.5 py-0.5 font-mono text-xs text-sb-ink-3"
+            title="Lights only at genuine over-range on the output actually being heard.">clip</span>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/loudness.js?v=1"></script>
+<script src="/static/js/studioconsole.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+
+  var CFG = {{ console_config|tojson }};
+  var wave = document.getElementById("sb-console-wave");
+  var rail = document.getElementById("sb-console-markers");
+  var playhead = document.getElementById("sb-console-playhead");
+  var el = {
+    play: document.getElementById("sb-t-play"),
+    time: document.getElementById("sb-t-time"),
+    dur: document.getElementById("sb-t-dur"),
+    bwrap: document.getElementById("sb-t-bwrap"),
+    bpick: document.getElementById("sb-t-bpick"),
+    ab: document.getElementById("sb-t-ab"),
+    match: document.getElementById("sb-t-match"),
+    matchdb: document.getElementById("sb-t-matchdb"),
+    mono: document.getElementById("sb-t-mono"),
+    meter: document.getElementById("sb-t-meter"),
+    db: document.getElementById("sb-t-db"),
+    clip: document.getElementById("sb-t-clip"),
+    status: document.getElementById("sb-console-status")
+  };
+  if (!wave || !el.play || !window.SBConsole) { return; }
+
+  function status(text, tone) {
+    if (!el.status) { return; }
+    el.status.textContent = text;
+    el.status.className = "mt-2 text-sm "
+      + (tone === "bad" ? "text-sb-crit" : "text-gray-300");
+  }
+
+  var clipHeld = 0;
+  var con = window.SBConsole.create({
+    onTime: function (pos, dur) {
+      el.time.textContent = window.SBConsole.fmtTime(pos);
+      el.dur.textContent = window.SBConsole.fmtTime(dur);
+      if (playhead && dur > 0) {
+        playhead.style.left = window.SBConsole.markerPct(pos, dur) + "%";
+      }
+    },
+    onLevel: function (db, clipping) {
+      var pct = db === -Infinity ? 0 : Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+      el.meter.style.width = pct + "%";
+      el.meter.className = "h-full " + (clipping ? "bg-red-500" : "bg-emerald-400");
+      el.db.textContent = db === -Infinity ? "−∞"
+        : (db > -0.05 ? "0.0" : db.toFixed(1));
+      if (clipping) { clipHeld = Date.now(); }
+      var lit = Date.now() - clipHeld < 1500;   /* held so a 5 ms over-range is seeable */
+      el.clip.className = "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs "
+        + (lit ? "border border-red-500 bg-red-500/25 text-white"
+               : "border border-sb-line text-sb-ink-3");
+    },
+    onState: function (s) {
+      el.play.innerHTML = s.playing ? "&#10074;&#10074;" : "&#9654;";
+      if (!s.playing) {
+        /* onLevel only runs while playing, so pause must put the lamp and
+           the meter down itself - a clip lamp latched red across a pause
+           reads as a problem that is not happening. */
+        clipHeld = 0;
+        el.meter.style.width = "0%";
+        el.meter.className = "h-full bg-emerald-400";
+        el.clip.className = "shrink-0 rounded border border-sb-line px-1.5 py-0.5 font-mono text-xs text-sb-ink-3";
+        el.db.textContent = "-inf";
+      }
+      el.ab.textContent = "Hearing: " + (s.usingB ? "B" : "A");
+      el.ab.setAttribute("aria-pressed", s.usingB ? "true" : "false");
+      el.ab.className = "rounded-lg border px-3 py-2 font-mono text-xs "
+        + (s.usingB ? "border-sb-gold bg-amber-500/10 text-amber-400"
+                    : "border-sb-line text-sb-ink-2");
+    }
+  });
+  if (!con) { status("This browser has no Web Audio - the console cannot run.", "bad"); return; }
+
+  /* --- waveform ------------------------------------------------------------ */
+  function draw() {
+    var data = con.channelData();
+    if (!data || !wave.getContext) { return; }
+    var width = wave.clientWidth || 900;
+    wave.width = width;
+    var height = wave.height;
+    var ctx2d = wave.getContext("2d");
+    var cols = window.SBConsole.peaks(data, width);
+    var mid = height / 2;
+    ctx2d.clearRect(0, 0, width, height);
+    ctx2d.strokeStyle = "rgba(245, 158, 11, 0.8)";
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    for (var x = 0; x < width; x++) {
+      ctx2d.moveTo(x + 0.5, mid - cols[x][1] * mid);
+      ctx2d.lineTo(x + 0.5, mid - cols[x][0] * mid);
+    }
+    ctx2d.stroke();
+  }
+
+  function renderMarkers() {
+    if (!rail) { return; }
+    rail.innerHTML = "";
+    var dur = con.duration();
+    (CFG.markers || []).forEach(function (m) {
+      if (typeof m.at !== "number") { return; }
+      var b = document.createElement("button");
+      b.type = "button";
+      var tone = m.kind === "blocking" ? "bg-red-500"
+               : m.kind === "review" ? "bg-amber-400" : "bg-sb-gold";
+      b.className = "absolute h-3 w-3 rounded-full border border-black/60 " + tone;
+      b.style.left = "calc(" + window.SBConsole.markerPct(m.at, dur) + "% - 6px)";
+      b.title = window.SBConsole.fmtTime(m.at) + " · " + (m.label || "");
+      b.setAttribute("aria-label", b.title);
+      b.addEventListener("click", function () { seekPlay(m.at); });
+      rail.appendChild(b);
+    });
+  }
+
+  function seekPlay(at) {
+    con.seek(Math.max(0, at - 1.5));    /* land just before it, so you hear it arrive */
+    if (!con.playing()) { con.play(); }
+  }
+
+  wave.addEventListener("click", function (event) {
+    var box = wave.getBoundingClientRect();
+    var frac = (event.clientX - box.left) / box.width;
+    con.seek(frac * con.duration());
+  });
+
+  /* --- controls ------------------------------------------------------------ */
+  el.play.addEventListener("click", function () { con.toggle(); });
+  el.mono.addEventListener("change", function () { con.setMono(el.mono.checked); });
+  var vol = document.getElementById("sb-t-vol");
+  if (vol) {
+    vol.addEventListener("input", function () {
+      con.setVolume(parseInt(vol.value, 10) / 100);
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.code !== "Space") { return; }
+    if (event.repeat) { event.preventDefault(); return; }
+    var t = event.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"
+              || t.tagName === "SELECT" || t.tagName === "BUTTON"
+              || t.isContentEditable)) { return; }
+    event.preventDefault();
+    con.toggle();
+  });
+
+  /* Anything on the page can carry data-seek="<seconds>" - the Mix Doctor's
+     "Hear it" buttons, a note's timestamp - and the transport honours it. */
+  document.addEventListener("click", function (event) {
+    var node = event.target && event.target.closest
+      ? event.target.closest("[data-seek]") : null;
+    if (!node) { return; }
+    var at = parseFloat(node.getAttribute("data-seek"));
+    if (isFinite(at)) { seekPlay(at); }
+  });
+
+  /* The note form takes its time from the playhead - hearing the moment and
+     pressing "at playhead" beats typing seconds into a box. The box stays,
+     so the form still works with no JS at all. */
+  var atBtn = document.getElementById("sb-note-at");
+  var atField = document.getElementById("sb-note-seconds");
+  if (atBtn && atField) {
+    atBtn.addEventListener("click", function () {
+      atField.value = con.position().toFixed(1);
+    });
+  }
+
+  /* --- A/B ----------------------------------------------------------------- */
+  var bOptions = CFG.bOptions || [];
+  if (bOptions.length && el.bwrap) {
+    el.bwrap.className = "flex items-center gap-2";
+    bOptions.forEach(function (o, i) {
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = o.label;
+      el.bpick.appendChild(opt);
+    });
+    var loadedIndex = -1;
+    var loadB = function (i) {
+      status("Loading " + bOptions[i].label + "…");
+      con.loadB(bOptions[i].url).then(function () {
+        loadedIndex = i;
+        var ints = con.integrated();
+        if (ints.a === null || ints.b === null) {
+          /* Matching needs both sides measured. A checkbox that silently did
+             nothing would leave somebody thinking they compared at equal
+             loudness when they compared at whatever the files happened to be. */
+          el.match.checked = false;
+          el.match.disabled = true;
+          el.matchdb.textContent = "unmeasured";
+          el.matchdb.title = "Loudness could not be measured on one side, so "
+            + "matching is off rather than silently doing nothing.";
+        } else {
+          el.match.disabled = false;
+          el.matchdb.title = "";
+          var off = con.matchOffsetDb();
+          el.matchdb.textContent = (off > 0 ? "+" : "") + off.toFixed(1) + " dB";
+        }
+        status("A/B ready. Flip while it plays - the two stay in sync.");
+      }).catch(function () {
+        /* The select must not point at a version that is not the one loaded:
+           flipping to B would play the PREVIOUS render under the new label. */
+        if (loadedIndex >= 0) { el.bpick.value = String(loadedIndex); }
+        status("Could not load that version. Still comparing against "
+               + (loadedIndex >= 0 ? bOptions[loadedIndex].label : "nothing")
+               + ".", "bad");
+      });
+    };
+    el.bpick.addEventListener("change", function () { loadB(parseInt(el.bpick.value, 10)); });
+    el.ab.addEventListener("click", function () {
+      if (!con.hasB()) { return; }
+      con.useB(el.ab.getAttribute("aria-pressed") !== "true");
+    });
+    el.match.addEventListener("change", function () { con.matchLoudness(el.match.checked); });
+    loadB(0);
+  }
+
+  /* --- go ------------------------------------------------------------------ */
+  status("Loading the audio…");
+  con.loadA(CFG.srcA).then(function () {
+    draw();
+    renderMarkers();
+    con.seek(0);
+    status("Ready. Space plays. Click the waveform to move; click a marker to hear it.");
+  }).catch(function () {
+    status("Could not decode this file in the browser.", "bad");
+  });
+})();
+</script>

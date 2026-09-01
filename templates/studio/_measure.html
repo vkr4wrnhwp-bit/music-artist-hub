@@ -43,10 +43,13 @@
         return r.arrayBuffer();
       })
       .then(function (bytes) {
-        var ctx = new Ctx();
+        /* Closed after the decode: Chrome caps live AudioContexts per tab,
+           and one leaked per click makes the fifth measurement fail. */
+        var dctx = new Ctx();
         return new Promise(function (resolve, reject) {
-          ctx.decodeAudioData(bytes, resolve, reject);
-        });
+          dctx.decodeAudioData(bytes, resolve, reject);
+        }).then(function (buffer) { dctx.close(); return buffer; },
+                function (err) { dctx.close(); throw err; });
       })
       .then(function (buffer) {
         say("Measuring…");
@@ -66,6 +69,25 @@
           short_term_max: loud.shortTermMax,
           momentary_max: loud.momentaryMax
         };
+
+        /* WHERE the loudest moments are, not just how loud. The analyser
+           returns the whole short-term and momentary series, so the argmax
+           gives each ruling a measured place on the timeline - which is what
+           lets the Mix Doctor's "Hear it" seek somewhere real. */
+        function argmaxTime(series, seconds) {
+          if (!series || !series.length || !(seconds > 0)) { return null; }
+          var best = 0;
+          for (var i = 1; i < series.length; i++) {
+            if (series[i] !== null && (series[best] === null
+                || series[i] > series[best])) { best = i; }
+          }
+          if (series[best] === null) { return null; }
+          return ((best + 0.5) / series.length) * seconds;
+        }
+        var loudestAt = argmaxTime(loud.shortTerm, buffer.duration);
+        var peakAt = argmaxTime(loud.momentary, buffer.duration);
+        if (loudestAt !== null) { payload.loudest_at = loudestAt; }
+        if (peakAt !== null) { payload.peak_at = peakAt; }
 
         /* Tempo, beat phase and key are separate engines with separate
            confidences. They take the CHANNEL ARRAY, not one channel - passing

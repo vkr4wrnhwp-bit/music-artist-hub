@@ -191,8 +191,10 @@ def test_the_mix_page_shows_the_measured_numbers(loaded):
     _measure(loaded)
     body = loaded["client"].get(
         "/studio/session/%s/mix" % loaded["project_id"]).get_data(as_text=True)
-    assert "-6.2 LUFS" in body
-    assert "120.1 BPM" in body
+    # The LCD blocks style value and unit separately, so the assertion is on
+    # the measured NUMBERS being present, not on one text node's exact shape.
+    assert "-6.2" in body and "LUFS" in body
+    assert "120.1" in body and "BPM" in body
     assert "A minor" in body
     assert "Mix Doctor" in body
 

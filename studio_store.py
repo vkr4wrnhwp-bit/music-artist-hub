@@ -621,15 +621,31 @@ def save_analysis(partner_id, user_id, project_id, asset_id, measurements,
         db.execute("DELETE FROM studio_findings WHERE asset_id = ?"
                    "  AND partner_key = ?", (asset_id, _pk(partner_id)))
         verdict = audio_readiness.assess(measurements)
+        # Where a ruling has a measured moment - the loudest 3-second window,
+        # the hottest momentary block - it is pinned there, so the console can
+        # seek to it. A ruling with no time stays a whole-file card: pinning
+        # it at 0:00 would send somebody listening for a problem at a place
+        # it is not.
+        # true_peak is deliberately NOT pinned: peak_at is the centre of the
+        # loudest momentary block, which is where the ENERGY peaks - the true
+        # peak sample can sit anywhere, and a marker saying "true peak here"
+        # at the wrong bar sends somebody hunting in the wrong place.
+        ruling_times = {
+            "loudness": measurements.get("loudest_at"),
+            "peak_section": measurements.get("peak_at"),
+        }
         for ruling in verdict["rulings"]:
             if ruling["level"] == "ok":
                 continue
+            at = ruling_times.get(ruling["key"])
             db.execute(
                 "INSERT INTO studio_findings (id, project_id, asset_id,"
-                " partner_key, category, severity, evidence_source, confidence,"
+                " partner_key, category, start_seconds, severity,"
+                " evidence_source, confidence,"
                 " measured_evidence, explanation, recommendation, status,"
-                " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,'open',?)",
+                " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'open',?)",
                 (_uid(), project_id, asset_id, _pk(partner_id), ruling["key"],
+                 at if isinstance(at, (int, float)) else None,
                  {"problem": "blocking", "watch": "review",
                   "unknown": "informational"}.get(ruling["level"], "informational"),
                  "measured" if ruling["level"] != "unknown" else "inferred",

@@ -3,7 +3,7 @@
 {% import "studio/_console.html" as console %}
 {% block title %}Master - {{ project.title }}{% endblock %}
 {% block content %}
-<div class="mx-auto max-w-[900px] space-y-5">
+<div class="mx-auto max-w-[1100px] space-y-5">
 
   <p class="sb-label sb-label-gold">
     <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
@@ -22,140 +22,196 @@
     </section>
   {% else %}
 
-    {# Premaster inspection. Blocking / review / informational, and every line
-       carries the number it came from. #}
-    <section class="sb-panel p-4">
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="sb-label sb-label-gold">Premaster inspection</h2>
-        <p id="sb-measure" class="text-sm text-gray-300">&nbsp;</p>
-      </div>
+  <div class="grid gap-5 lg:grid-cols-3">
 
-      {% if verdict and verdict.measured %}
-        <p class="mt-2 max-w-2xl text-sm text-white">{{ verdict.summary }}</p>
-        <ul class="mt-3 space-y-2.5">
-          {% for r in verdict.rulings %}
-            <li class="flex gap-3">
-              {%- set tone = {"ok": "good", "watch": "warn",
-                              "problem": "crit", "unknown": "idle"} -%}
-              <span class="shrink-0">{{ sb.badge(r.level, tone.get(r.level, "idle")) }}</span>
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-white">{{ r.headline }}</p>
-                {% if r.detail %}<p class="mt-0.5 text-sm text-gray-300">{{ r.detail }}</p>{% endif %}
-                {% if r.evidence %}
-                  <p class="mt-0.5 font-mono text-xs text-sb-ink-3">{{ r.evidence }}</p>
-                {% endif %}
-                {% if r.action %}<p class="mt-1 text-sm text-white">{{ r.action }}</p>{% endif %}
-              </div>
-            </li>
-          {% endfor %}
-        </ul>
-        {{ sb.btn("Measure again", variant="secondary", size="sm", id="sb-measure-go") }}
-      {% else %}
-        <p class="mt-2 max-w-2xl text-sm text-gray-300">
-          Not measured yet. Nothing below is filled in with a placeholder.
-        </p>
-        {{ sb.btn("Inspect this master", variant="primary", size="sm", id="sb-measure-go") }}
-      {% endif %}
-    </section>
+    {# ------------------------------------------------ centre workspace --- #}
+    <div class="space-y-5 lg:col-span-2">
 
-    {# Where it lands on each platform. Published targets, not a house opinion,
-       and the gain is capped at the ceiling rather than allowed to clip. #}
-    {% if verdict and verdict.measured and analysis.measurements.integrated is not none %}
       <section class="sb-panel p-4">
-        <h2 class="sb-label sb-label-gold">Against the platforms</h2>
-        <p class="mt-2 max-w-2xl text-sm text-gray-300">
-          Every platform normalises by loudness. This is what each would do to
-          this file, and whether raising it would breach a safe ceiling.
-        </p>
-        {%- set m = analysis.measurements %}
-        {% call sb.table(["Platform", "Target", "Difference", "What happens"]) %}
-          {% for name, target in targets %}
-            {%- set delta = m.integrated - target %}
-            <tr>
-              <td class="whitespace-nowrap">{{ name }}</td>
-              <td class="whitespace-nowrap font-mono text-xs">{{ "%.1f"|format(target) }} LUFS</td>
-              <td class="whitespace-nowrap font-mono text-xs">
-                {{ "%+.1f"|format(delta) }} LU
-              </td>
-              <td>
-                {%- if delta > 0.5 %}
-                  Turned down {{ "%.1f"|format(delta) }} dB. Lossless &mdash; nothing clips.
-                {%- elif delta < -0.5 %}
-                  {%- if m.true_peak is not none and (m.true_peak - delta) > -1.0 %}
-                    Raising it {{ "%.1f"|format(-delta) }} dB would push the true peak
-                    past &minus;1 dBTP. It would be capped at the ceiling instead.
-                  {%- else %}
-                    Left as is, or raised {{ "%.1f"|format(-delta) }} dB with headroom to spare.
-                  {%- endif %}
-                {%- else %}
-                  Close enough that normalisation barely moves it.
-                {%- endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        {% endcall %}
-        <p class="mt-3 text-sm text-gray-300">
-          No single loudness target is universally required. These are the
-          figures each platform publishes, and turning a master down is
-          lossless &mdash; only turning one up can clip.
-        </p>
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label sb-label-gold">{{ source.file_name }}</h2>
+          {% if masters %}
+            <p class="font-mono text-xs text-sb-ink-3">
+              A: source &middot; B: {{ masters|length }} render{{ "" if masters|length == 1 else "s" }} on the transport
+            </p>
+          {% endif %}
+        </div>
+        <div id="sb-console-markers" class="relative mt-3 h-3 select-none"></div>
+        <div class="relative mt-1">
+          <canvas id="sb-console-wave" height="160"
+                  class="w-full cursor-pointer rounded-lg border border-sb-line bg-black/40"
+                  aria-label="Waveform. Click to move the playhead."></canvas>
+          <div id="sb-console-playhead"
+               class="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
+               style="left:0%"></div>
+        </div>
+        <p id="sb-console-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+        {% if masters %}
+          <p class="mt-2 max-w-2xl text-sm text-gray-300">
+            Pick a render as B on the transport and flip while it plays &mdash;
+            the two stay phase-locked. Tick <span class="font-mono text-xs">match</span>
+            to compare at the same loudness, because an unmatched comparison is
+            a volume test: louder reliably wins by being louder.
+          </p>
+        {% endif %}
       </section>
-    {% endif %}
 
-    {# Rendering. Honest about what this deployment can and cannot do. #}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Rendering a master</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        You can master this in the browser right now: the Rack's chain &mdash;
-        EQ-12, tube stage, compressor, output &mdash; renders offline to WAV
-        with the same code that plays it, and normalises to a platform target
-        while respecting the true-peak ceiling.
-      </p>
-      <div class="mt-4 rounded-lg border border-sb-line bg-black/20 p-3">
-        <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">
-          Normalise for a platform
-        </p>
-        <div class="mt-2 flex flex-wrap items-end gap-2">
-          <label class="min-w-0">
-            <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Target</span>
-            <select id="sb-render-target"
-                    class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300"></select>
-          </label>
-          {{ sb.btn("Render a master", variant="primary", size="sm", id="sb-render") }}
-        </div>
-        <p id="sb-render-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
-        <p class="mt-2 max-w-2xl text-sm text-gray-300">
-          This is the <strong class="text-white">loudness stage only</strong>:
-          it measures, works out the gain that lands on the target, caps that
-          gain if it would breach the ceiling, and writes a new dithered
-          24-bit WAV as its own version. It does not EQ, compress or add
-          harmonic character &mdash; the Rack does those.
-        </p>
-      </div>
-
-      <div class="mt-3 flex flex-wrap items-center gap-2">
-        {{ sb.btn("Open this in the Rack", variant="primary",
-                  href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
-      </div>
-
-      {%- set provider_ok = (readiness | selectattr("0","equalto","processing")
-                             | map(attribute=1) | list | first) %}
-      {% if not provider_ok %}
-        <p class="mt-4 text-sm text-gray-300">
-          A server-side mastering provider is <strong class="text-white">not
-          configured</strong> on this deployment, and there is no background
-          worker, so hosted rendering is disabled rather than offered. That is
-          the whole reason the Rack route above exists: it needs neither.
-        </p>
-        <div class="mt-2">
-          {{ sb.btn("Send to a mastering provider", variant="secondary",
-                    disabled_reason="No processing provider is configured on this deployment") }}
-        </div>
+      {# ------------------------------------------- against the platforms --- #}
+      {% if verdict and verdict.measured and analysis.measurements.get("integrated") is not none %}
+        <section class="sb-panel p-4">
+          <h2 class="sb-label sb-label-gold">Against the platforms</h2>
+          <p class="mt-2 max-w-2xl text-sm text-gray-300">
+            Every platform normalises by loudness. This is what each would do to
+            this file, and whether raising it would breach a safe ceiling.
+          </p>
+          {%- set m = analysis.measurements %}
+          {% call sb.table(["Platform", "Target", "Difference", "What happens"]) %}
+            {% for name, target in targets %}
+              {%- set delta = m.get("integrated") - target %}
+              <tr>
+                <td class="whitespace-nowrap">{{ name }}</td>
+                <td class="whitespace-nowrap font-mono text-xs">{{ "%.1f"|format(target) }} LUFS</td>
+                <td class="whitespace-nowrap font-mono text-xs">{{ "%+.1f"|format(delta) }} LU</td>
+                <td>
+                  {%- if delta > 0.5 %}
+                    Turned down {{ "%.1f"|format(delta) }} dB. Lossless &mdash; nothing clips.
+                  {%- elif delta < -0.5 %}
+                    {%- if m.get("true_peak") is not none and (m.get("true_peak") - delta) > -1.0 %}
+                      Raising it {{ "%.1f"|format(-delta) }} dB would push the true peak
+                      past &minus;1 dBTP. It would be capped at the ceiling instead.
+                    {%- else %}
+                      Left as is, or raised {{ "%.1f"|format(-delta) }} dB with headroom to spare.
+                    {%- endif %}
+                  {%- else %}
+                    Close enough that normalisation barely moves it.
+                  {%- endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% endcall %}
+          <p class="mt-3 text-sm text-gray-300">
+            No single loudness target is universally required. These are the
+            figures each platform publishes, and turning a master down is
+            lossless &mdash; only turning one up can clip.
+          </p>
+        </section>
       {% endif %}
-    </section>
 
-    <audio controls preload="metadata" class="w-full"
-           src="{{ url_for('studio.studio_asset', asset_id=source.id) }}"></audio>
+      {# --------------------------------------------------------- render --- #}
+      <section class="sb-panel p-4">
+        <h2 class="sb-label sb-label-gold">Rendering a master</h2>
+        <div class="mt-3 rounded-lg border border-sb-line bg-black/20 p-3">
+          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">
+            Normalise for a platform
+          </p>
+          <div class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="min-w-0">
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Target</span>
+              <select id="sb-render-target"
+                      class="mt-1 rounded-lg border border-sb-line bg-black/40 px-2 py-1.5 text-sm text-gray-300"></select>
+            </label>
+            {{ sb.btn("Render a master", variant="primary", size="sm", id="sb-render") }}
+          </div>
+          <p id="sb-render-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+          <p class="mt-2 max-w-2xl text-sm text-gray-300">
+            The <strong class="text-white">loudness stage only</strong>: measure,
+            land on the target, cap at that platform's true-peak ceiling, write
+            a dithered 24-bit WAV as its own version. It does not EQ, compress
+            or add harmonic character &mdash; the Rack does those, with the
+            same engine this room measures with.
+          </p>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          {{ sb.btn("Open this in the Rack", variant="primary",
+                    href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
+        </div>
+
+        {%- set provider_ok = (readiness | selectattr("0","equalto","processing")
+                               | map(attribute=1) | list | first) %}
+        {% if not provider_ok %}
+          <p class="mt-4 text-sm text-gray-300">
+            A server-side mastering provider is <strong class="text-white">not
+            configured</strong> on this deployment, so hosted rendering is
+            disabled rather than offered.
+          </p>
+          <div class="mt-2">
+            {{ sb.btn("Send to a mastering provider", variant="secondary",
+                      disabled_reason="No processing provider is configured on this deployment") }}
+          </div>
+        {% endif %}
+      </section>
+
+      {# -------------------------------------------- master change report --- #}
+      {% if masters %}
+        <section class="sb-panel p-4">
+          <h2 class="sb-label sb-label-gold">Master change report</h2>
+          <p class="mt-2 max-w-2xl text-sm text-gray-300">
+            Every render, with the numbers it was made with. &ldquo;Mastered&rdquo;
+            with no numbers is a claim; this is a record.
+          </p>
+          <ul class="mt-3 space-y-2">
+            {% for entry in masters %}
+              <li class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
+                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span class="text-sm font-semibold text-white">{{ entry.version.version_name }}</span>
+                  <span class="font-mono text-xs text-sb-ink-3">
+                    v{{ entry.version.version_number }} &middot;
+                    {{ (entry.version.created_at or "")[:16]|replace("T"," ") }}
+                  </span>
+                  {{ sb.badge(entry.version.status, "good" if entry.version.status in ("approved","locked") else "idle") }}
+                </div>
+                <p class="mt-1 font-mono text-xs text-sb-ink-3">{{ entry.version.change_summary }}</p>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </div>
+
+    {# --------------------------------------------------- right inspector --- #}
+    <div class="space-y-5">
+      <section class="sb-panel p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label sb-label-gold">Premaster inspection</h2>
+          <p id="sb-measure" class="text-sm text-gray-300">&nbsp;</p>
+        </div>
+
+        {% if verdict and verdict.measured %}
+          <p class="mt-2 text-sm text-white">{{ verdict.summary }}</p>
+          <ul class="mt-3 space-y-2.5">
+            {% for r in verdict.rulings %}
+              <li class="flex gap-3">
+                {%- set tone = {"ok": "good", "watch": "warn",
+                                "problem": "crit", "unknown": "idle"} -%}
+                <span class="shrink-0">{{ sb.badge(r.level, tone.get(r.level, "idle")) }}</span>
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-white">{{ r.headline }}</p>
+                  {% if r.detail %}<p class="mt-0.5 text-sm text-gray-300">{{ r.detail }}</p>{% endif %}
+                  {% if r.evidence %}
+                    <p class="mt-0.5 font-mono text-xs text-sb-ink-3">{{ r.evidence }}</p>
+                  {% endif %}
+                  {% if r.action %}<p class="mt-1 text-sm text-white">{{ r.action }}</p>{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+          <div class="mt-2">
+            {{ sb.btn("Measure again", variant="secondary", size="sm", id="sb-measure-go") }}
+          </div>
+        {% else %}
+          <p class="mt-2 text-sm text-gray-300">
+            Not measured yet. Nothing below is filled in with a placeholder.
+          </p>
+          <div class="mt-2">
+            {{ sb.btn("Inspect this master", variant="primary", size="sm", id="sb-measure-go") }}
+          </div>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+
+  {% include "studio/_transport.html" %}
   {% endif %}
 </div>
 
