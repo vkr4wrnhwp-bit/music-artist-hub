@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% import "studio/_console.html" as console %}
+{% block title %}Deliver - {{ project.title }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  <p class="sb-label sb-label-gold">
+    <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+  </p>
+
+  {{ console.top_bar(project, summary) }}
+  {{ console.rooms(project, room, summary) }}
+
+  {% if error %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Not yet</h2>
+      <p class="mt-2 text-sm text-gray-300">{{ error }}</p>
+    </section>
+  {% endif %}
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Delivery checklist</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      Every line here is read off the project rather than ticked by hand. A
+      checklist that hard-codes a tick says a thing is done at the exact
+      moment you stop being able to check it.
+    </p>
+
+    <ul class="mt-3 space-y-2.5">
+      {% for c in checklist %}
+        <li class="flex gap-3">
+          <span class="shrink-0">
+            {{ sb.badge("ok" if c.ok else ("required" if c.required else "optional"),
+                        "good" if c.ok else ("warn" if c.required else "idle")) }}
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-white">{{ c.label }}</p>
+            <p class="mt-0.5 text-sm text-gray-300">{{ c.detail }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">The package</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      A zip holding the locked audio, a metadata manifest, the approvals with
+      the checksum each one covers, and the full provenance log. The checksum
+      manifest is what lets whoever receives it prove the file they got is the
+      file that was approved.
+    </p>
+
+    {% if ready %}
+      <form method="post" class="mt-3"
+            action="{{ url_for('studio.studio_package', project_id=project.id) }}">
+        {{ sb.btn("Build the delivery package", variant="primary", type="submit") }}
+      </form>
+    {% else %}
+      <div class="mt-3">
+        {{ sb.btn("Build the delivery package", variant="secondary",
+                  disabled_reason="Every required line above has to be met first") }}
+      </div>
+      <p class="mt-2 text-sm text-gray-300">
+        Refusing is the point. A package that can be built before the version
+        is locked is a package that can ship the wrong file.
+      </p>
+    {% endif %}
+  </section>
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">What is not connected yet</h2>
+    <p class="mt-2 max-w-2xl text-sm text-gray-300">
+      The package downloads to you. It does not yet hand itself to
+      Distribution, create a Rollout milestone, or push the master into the
+      Metadata Passport &mdash; those are real connections and they are not
+      built, so nothing here pretends they happened.
+    </p>
+  </section>
+</div>
+{% endblock %}

@@ -53,7 +53,8 @@
       ("master",   "Master",   url_for("studio.studio_master", project_id=project.id),
        none if summary.source else "Upload a source first"),
       ("versions", "Versions", url_for("studio.studio_versions", project_id=project.id), none),
-      ("deliver",  "Deliver",  none, "Deliver is not built yet"),
+      ("deliver",  "Deliver",  url_for("studio.studio_deliver", project_id=project.id),
+       none if summary.source else "Upload a source first"),
   ] -%}
   {%- for key, label, href, disabled in items %}
     {%- if disabled %}

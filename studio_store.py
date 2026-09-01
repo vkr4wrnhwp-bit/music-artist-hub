@@ -727,3 +727,185 @@ def resolve_comment(partner_id, user_id, comment_id, reopen=False):
             ("open" if reopen else "resolved", "" if reopen else user_id,
              None if reopen else _now(), _now(), comment_id, _pk(partner_id)))
     return cur.rowcount > 0
+
+
+# --- approvals and delivery --------------------------------------------------
+
+def record_approval(partner_id, user_id, project_id, asset_id, version_id,
+                    checksum="", approval_type="master", note=""):
+    """An approval names the bytes it approved.
+
+    Storing the checksum is the whole point: "approved on the 3rd" is a memory,
+    "approved sha256 9f2c..." is a fact that survives somebody re-uploading a
+    different file under the same name.
+    """
+    approval_id = _uid()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO studio_approvals (id, project_id, asset_id, version_id,"
+            " partner_key, approval_type, status, note, asset_checksum,"
+            " requested_by, responded_at, created_at)"
+            " VALUES (?,?,?,?,?,?,'approved',?,?,?,?,?)",
+            (approval_id, project_id, asset_id, version_id, _pk(partner_id),
+             approval_type, note, checksum, user_id, _now(), _now()))
+    record_event(partner_id, project_id, asset_id, "version.approved",
+                 actor_id=user_id)
+    return approval_id
+
+
+def list_approvals(partner_id, project_id):
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT * FROM studio_approvals WHERE project_id = ?"
+            "  AND partner_key = ? ORDER BY created_at",
+            (project_id, _pk(partner_id))).fetchall()]
+
+
+def delivery_checklist(partner_id, user_id, project_id):
+    """Every line computed from what the project actually holds.
+
+    A checklist that hard-codes a tick is worse than no checklist: it says a
+    thing is done at the exact moment somebody stops being able to check.
+    Each entry is {key, label, ok, required, detail}.
+    """
+    project = get_project(partner_id, user_id, project_id)
+    if project is None:
+        return []
+    summary = project_summary(partner_id, user_id, project_id)
+    versions = summary["versions"]
+    locked = [v for v in versions if v["status"] == "locked"]
+    approved = [v for v in versions if v["status"] in ("approved", "locked")]
+
+    findings = []
+    analysis = None
+    if summary["source"]:
+        findings = list_findings(partner_id, summary["source"]["id"])
+        analysis = latest_analysis(partner_id, summary["source"]["id"])
+    blocking = [f for f in findings
+                if f["severity"] == "blocking" and f["status"] == "open"]
+    open_notes = summary["open_notes"]
+
+    def line(key, label, ok, required, detail):
+        return {"key": key, "label": label, "ok": bool(ok),
+                "required": required, "detail": detail}
+
+    return [
+        line("source", "A source is uploaded", summary["source"], True,
+             summary["source"]["file_name"] if summary["source"]
+             else "Nothing has been uploaded to this project."),
+        line("rights", "Rights are confirmed", project["rights_confirmed_at"],
+             True,
+             ("Confirmed by %s" % project["rights_confirmed_by"])
+             if project["rights_confirmed_at"]
+             else "Nobody has confirmed the rights to this recording."),
+        line("measured", "The audio has been measured", analysis, True,
+             "Measured to BS.1770-4 in the browser." if analysis
+             else "Run the measurement on the Mix or Master page."),
+        line("blocking", "No blocking problems are open", not blocking, True,
+             "Nothing blocking." if not blocking
+             else "%d blocking finding%s still open."
+                  % (len(blocking), "" if len(blocking) == 1 else "s")),
+        line("locked", "A version is locked", locked, True,
+             ("%s is locked." % locked[0]["version_name"]) if locked
+             else "Lock the version that ships, in the Version Vault."),
+        line("title", "The project has a title", (project["title"] or "").strip(),
+             True, project["title"] or "Untitled."),
+        line("artist", "An artist is named",
+             (project["artist_name"] or "").strip(), False,
+             project["artist_name"] or "No artist set on this project."),
+        line("approved_any", "Something is approved", approved, False,
+             "%d approved." % len(approved) if approved
+             else "Nothing has been approved yet."),
+        line("notes", "Notes are resolved", open_notes == 0, False,
+             "All resolved." if open_notes == 0
+             else "%d note%s still open." % (open_notes,
+                                             "" if open_notes == 1 else "s")),
+        line("release", "Linked to a release",
+             (project["release_id"] or "").strip(), False,
+             project["release_id"] or "Not linked to a release yet."),
+    ]
+
+
+def build_package(partner_id, user_id, project_id, read_bytes):
+    """A zip: the locked audio, a manifest, a checksum manifest, provenance.
+
+    `read_bytes` is passed in rather than imported, so this function does not
+    need to know where audio lives - the blueprint owns that, and this owns
+    what belongs in the package.
+
+    The checksum manifest is what makes the package checkable later. A
+    distributor who receives it can prove the file they got is the file that
+    was approved, which is the whole reason to record a checksum at approval
+    time rather than at delivery time.
+    """
+    import io as _io
+    import json as _json
+    import zipfile
+
+    project = get_project(partner_id, user_id, project_id)
+    summary = project_summary(partner_id, user_id, project_id)
+    versions = summary["versions"]
+    locked = [v for v in versions if v["status"] == "locked"]
+    approvals = list_approvals(partner_id, project_id)
+
+    buffer = _io.BytesIO()
+    included, checksums = [], []
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for version in locked:
+            asset = get_studio_asset(partner_id, user_id, version["asset_id"])
+            if asset is None:
+                continue
+            data = read_bytes(asset)
+            if not data:
+                # Recorded as missing rather than skipped in silence. A package
+                # that is quietly one file short is worse than one that says so.
+                included.append({"version": version["version_name"],
+                                 "file": asset["file_name"],
+                                 "included": False,
+                                 "reason": "the bytes could not be read"})
+                continue
+            name = "audio/%s" % (asset["file_name"] or "master.wav")
+            archive.writestr(name, data)
+            included.append({"version": version["version_name"],
+                             "file": name, "included": True,
+                             "asset_role": asset["asset_role"],
+                             "bytes": len(data)})
+            checksums.append("%s  %s" % (asset["sha256"] or "", name))
+
+        manifest = {
+            "project": {
+                "id": project["id"],
+                "title": project["title"],
+                "artist": project["artist_name"],
+                "type": project["project_type"],
+                "release_id": project["release_id"],
+                "track_id": project["track_id"],
+            },
+            "rights": {
+                "confirmed_by": project["rights_confirmed_by"],
+                "confirmed_at": project["rights_confirmed_at"],
+            },
+            "versions": [{
+                "number": v["version_number"], "name": v["version_name"],
+                "role": v["asset_role"], "status": v["status"],
+                "approved_by": v["approved_by"], "approved_at": v["approved_at"],
+                "locked_at": v["locked_at"], "change": v["change_summary"],
+            } for v in versions],
+            "approvals": [{
+                "type": a["approval_type"], "status": a["status"],
+                "checksum": a["asset_checksum"], "at": a["responded_at"],
+            } for a in approvals],
+            "files": included,
+            "generated_at": _now(),
+            "generated_by": "Street Banker Studio",
+        }
+        archive.writestr("manifest.json", _json.dumps(manifest, indent=2))
+        archive.writestr("checksums.sha256", "\n".join(checksums) + "\n")
+        archive.writestr("provenance.json", _json.dumps(
+            provenance(partner_id, project_id, limit=500), indent=2))
+
+    record_event(partner_id, project_id, "", "delivery.package_built",
+                 actor_id=user_id)
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-"
+                   for ch in (project["title"] or "project"))[:60] or "project"
+    return buffer.getvalue(), "%s-delivery.zip" % safe

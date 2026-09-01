@@ -16,11 +16,13 @@
     <p class="mt-2 max-w-2xl text-sm text-gray-300">
       Every version is kept. A new one never overwrites the one before it, and
       a locked version cannot be changed at all &mdash; that is what makes
-      &ldquo;this is the file that ships&rdquo; mean something.
+      &ldquo;this is the file that ships&rdquo; mean something. Approving
+      records the checksum of the exact bytes approved, so the approval
+      survives somebody re-uploading a different file under the same name.
     </p>
 
     {% if summary.versions %}
-      {% call sb.table(["#", "Name", "Role", "Status", "What changed", "Created"]) %}
+      {% call sb.table(["#", "Name", "Role", "Status", "What changed", "Action"]) %}
         {% for v in summary.versions %}
           <tr>
             <td class="whitespace-nowrap">{{ v.version_number }}</td>
@@ -32,7 +34,19 @@
               {{ sb.badge(v.status|replace("_"," "), tone.get(v.status, "idle")) }}
             </td>
             <td>{{ v.change_summary or "&mdash;" }}</td>
-            <td class="whitespace-nowrap">{{ (v.created_at or "")[:10] }}</td>
+            <td class="whitespace-nowrap">
+              {%- if v.status == "locked" %}
+                <span class="font-mono text-xs text-sb-ink-3">locked {{ (v.locked_at or "")[:10] }}</span>
+              {%- else %}
+                <form method="post" class="inline"
+                      action="{{ url_for('studio.studio_version_status', project_id=project.id, version_id=v.id) }}">
+                  <input type="hidden" name="status"
+                         value="{{ 'locked' if v.status == 'approved' else 'approved' }}">
+                  {{ sb.btn("Lock it" if v.status == "approved" else "Approve",
+                            variant="secondary", size="sm", type="submit") }}
+                </form>
+              {%- endif %}
+            </td>
           </tr>
         {% endfor %}
       {% endcall %}

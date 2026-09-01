@@ -1,0 +1,137 @@
+{#- Render a master in the browser.
+
+    WHAT THIS ACTUALLY DOES, stated plainly because the word "mastering" gets
+    used to mean anything: it measures the file to BS.1770-4, works out the
+    gain that lands it on the platform target you chose, caps that gain if it
+    would push the true peak past the ceiling, applies it, and writes a new
+    24-bit WAV with dither.
+
+    That is the loudness stage of mastering and nothing else. It does not
+    EQ, compress, or add harmonic character - the Rack does those, with the
+    same engine, and the page says so rather than implying this replaces it.
+
+    Turning a master down is lossless. Only turning one up can clip, which is
+    why the ceiling check exists and why the result says how much gain was
+    actually applied rather than how much was asked for.
+-#}
+<script src="/static/js/loudness.js?v=1"></script>
+<script src="/static/js/wavwrite.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+
+  var ASSET_URL = {{ url_for('studio.studio_asset', asset_id=source.id)|tojson }};
+  var SOURCE_ID = {{ source.id|tojson }};
+  var POST_URL = {{ url_for('studio.studio_render', project_id=project.id)|tojson }};
+
+  var go = document.getElementById("sb-render");
+  var out = document.getElementById("sb-render-status");
+  var pick = document.getElementById("sb-render-target");
+  if (!go || !out || !pick) { return; }
+
+  function say(text, tone) {
+    out.textContent = text;
+    out.className = "mt-2 text-sm " + (tone === "bad" ? "text-sb-crit"
+                                       : tone === "good" ? "text-sb-good"
+                                       : "text-gray-300");
+  }
+
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || !window.SBLoudness || !window.SBWav) {
+    go.disabled = true;
+    say("This browser cannot render here.", "bad");
+    return;
+  }
+
+  /* One source of truth for the targets: the same table the Rack normalises
+     against, which carries each platform's ceiling too. */
+  (window.SBLoudness.TARGETS || []).forEach(function (t) {
+    var option = document.createElement("option");
+    option.value = t.name + "|" + t.lufs + "|" + t.ceiling;
+    option.textContent = t.name + " · " + t.lufs + " LUFS · ceiling "
+      + t.ceiling + " dBTP";
+    if (t.key === "spotify") { option.selected = true; }
+    pick.appendChild(option);
+  });
+
+  go.addEventListener("click", function () {
+    var choice = pick.value.split("|");
+    var targetName = choice[0];
+    var targetLufs = parseFloat(choice[1]);
+    var ceiling = parseFloat(choice[2]);
+
+    go.disabled = true;
+    say("Decoding…");
+
+    fetch(ASSET_URL, { credentials: "same-origin" })
+      .then(function (r) {
+        if (!r.ok) { throw new Error("could not read the source"); }
+        return r.arrayBuffer();
+      })
+      .then(function (bytes) {
+        var ctx = new Ctx();
+        return new Promise(function (resolve, reject) {
+          ctx.decodeAudioData(bytes, resolve, reject);
+        });
+      })
+      .then(function (buffer) {
+        say("Measuring…");
+        var channels = [];
+        for (var c = 0; c < buffer.numberOfChannels; c++) {
+          channels.push(buffer.getChannelData(c));
+        }
+        var loud = window.SBLoudness.analyse(channels, buffer.sampleRate);
+        if (loud.integrated === null) {
+          throw new Error("this file is too quiet to measure, so there is "
+                          + "nothing to normalise against");
+        }
+
+        var wanted = targetLufs - loud.integrated;
+        var applied = wanted;
+        var capped = false;
+        if (loud.truePeak !== null && (loud.truePeak + wanted) > ceiling) {
+          applied = ceiling - loud.truePeak;
+          capped = true;
+        }
+
+        say("Applying " + applied.toFixed(2) + " dB…");
+        var gained = window.SBWav.applyGain(channels, applied);
+        var res = window.SBWav.encode(gained.channels, buffer.sampleRate, 24);
+
+        var note = "Normalised for " + targetName + ": "
+          + loud.integrated.toFixed(1) + " to "
+          + (loud.integrated + applied).toFixed(1) + " LUFS, "
+          + applied.toFixed(2) + " dB applied";
+        if (capped) {
+          note += " (capped at the " + ceiling.toFixed(1)
+            + " dBTP ceiling, " + (wanted - applied).toFixed(2)
+            + " dB short of the target)";
+        }
+        note += ". 24-bit, dithered. Loudness only - no EQ or compression.";
+
+        var form = new FormData();
+        form.append("file", new Blob([res.buffer], { type: "audio/wav" }),
+                    "master.wav");
+        form.append("source_asset_id", SOURCE_ID);
+        form.append("label", "Master · " + targetName);
+        form.append("note", note);
+
+        return fetch(POST_URL, { method: "POST", credentials: "same-origin",
+                                 body: form })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok) { throw new Error(data.error || "the server refused it"); }
+            say(note + (res.clipped
+                 ? "  " + res.clipped + " samples clipped on write."
+                 : "") + " Saved as a new version.", "good");
+            window.setTimeout(function () { window.location.reload(); }, 1200);
+          });
+      })
+      .catch(function (err) {
+        go.disabled = false;
+        say("Could not render: "
+            + (err && err.message ? err.message : "unknown error"), "bad");
+      });
+  });
+})();
+</script>

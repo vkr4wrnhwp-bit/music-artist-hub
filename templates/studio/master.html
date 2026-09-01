@@ -111,6 +111,28 @@
         with the same code that plays it, and normalises to a platform target
         while respecting the true-peak ceiling.
       </p>
+      <div class="mt-4 rounded-lg border border-sb-line bg-black/20 p-3">
+        <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">
+          Normalise for a platform
+        </p>
+        <div class="mt-2 flex flex-wrap items-end gap-2">
+          <label class="min-w-0">
+            <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Target</span>
+            <select id="sb-render-target"
+                    class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300"></select>
+          </label>
+          {{ sb.btn("Render a master", variant="primary", size="sm", id="sb-render") }}
+        </div>
+        <p id="sb-render-status" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+        <p class="mt-2 max-w-2xl text-sm text-gray-300">
+          This is the <strong class="text-white">loudness stage only</strong>:
+          it measures, works out the gain that lands on the target, caps that
+          gain if it would breach the ceiling, and writes a new dithered
+          24-bit WAV as its own version. It does not EQ, compress or add
+          harmonic character &mdash; the Rack does those.
+        </p>
+      </div>
+
       <div class="mt-3 flex flex-wrap items-center gap-2">
         {{ sb.btn("Open this in the Rack", variant="primary",
                   href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
@@ -137,5 +159,6 @@
   {% endif %}
 </div>
 
-{% if source %}{% include "studio/_measure.html" %}{% endif %}
+{% if source %}{% include "studio/_measure.html" %}
+{% include "studio/_render.html" %}{% endif %}
 {% endblock %}

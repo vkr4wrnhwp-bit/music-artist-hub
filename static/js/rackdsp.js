@@ -2104,9 +2104,34 @@
       .catch(function () { /* the Rack works without it */ });
   }
 
+  /* Street Banker Studio hands a whole master over as ?asset=, the way the
+     Audio Studio hands separated stems over as ?stems=. Without this the
+     Studio's "Open this in the Rack" button arrives with the parameter in the
+     address bar and no audio loaded, which looks like the Rack losing the
+     file rather than never being told about it. */
+  function loadAssetFromStudio(assetId) {
+    if (!assetId) return;
+    fetch("/studio/asset/" + encodeURIComponent(assetId),
+          {credentials: "same-origin"})
+      .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+      .then(function (ab) { return ab ? ensureCtx().decodeAudioData(ab) : null; })
+      .then(function (buf) {
+        if (!buf) return;
+        ctx.resume();
+        stems = [{name: "Studio master", buffer: buf, gain: 1, mute: false,
+                  solo: false, playGain: null}];
+        stop(); renderStems(); syncDeckInfo(); renderWave();
+        if (statusEl) {
+          statusEl.textContent = "Master loaded from Street Banker Studio.";
+        }
+      })
+      .catch(function () { /* the Rack works without it */ });
+  }
+
   try {
-    loadStemsFromStudio(
-      new URLSearchParams(window.location.search).get("stems"));
+    var handoff = new URLSearchParams(window.location.search);
+    loadStemsFromStudio(handoff.get("stems"));
+    loadAssetFromStudio(handoff.get("asset"));
   } catch (e) { /* no URLSearchParams, no hand-off - the Rack still runs */ }
 
   document.getElementById("rk-stems-file").addEventListener("change", function (e) {

@@ -263,14 +263,13 @@ def test_the_page_says_what_this_deployment_cannot_do(application, ready):
     assert "No processing provider" in body
 
 
-def test_a_room_with_nothing_behind_it_says_so(application, ready):
-    """A disabled control with a reason is information. A tab that opens an
-    empty page is a bug report. Mix and Master are built now; Deliver is not,
-    and the tab says which."""
+def test_no_room_claims_to_be_unbuilt_any_more(application, ready):
+    """Every room - Session, Rack, Mix, Master, Versions, Deliver - is real
+    now. A leftover "not built yet" label would disable a working feature,
+    which is the same dishonesty as enabling a broken one."""
     body = ready["client"].get(
         "/studio/session/%s" % ready["project_id"]).get_data(as_text=True)
-    assert "Deliver is not built yet" in body
-    assert "Mix Station is not built yet" not in body
+    assert "not built yet" not in body
 
 
 def test_mix_and_master_need_a_source_before_they_open(application):

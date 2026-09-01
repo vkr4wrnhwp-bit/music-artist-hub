@@ -33,6 +33,7 @@ palette, in command_center, and it is the target of the Audio Studio's
 "Open the stems in the Rack" button.
 """
 import hashlib
+import io
 import os
 
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
@@ -335,6 +336,159 @@ def studio_rack(project_id):
     if source:
         target += "&asset=%s" % source["id"]
     return redirect(target)
+
+
+@bp.route("/studio/session/<project_id>/render", methods=["POST"])
+def studio_render(project_id):
+    """Accept a master the browser rendered, as a NEW asset.
+
+    The source is never touched. The result carries parent_asset_id back to
+    what it came from, so the chain from what the artist sent to what ships
+    stays walkable in both directions - which is the whole point of keeping
+    versions rather than files.
+
+    The gain that was applied and the peak it landed on are recorded in the
+    version's change summary. "Mastered" with no numbers is a claim; "-6.2
+    to -14.0 LUFS, peak -1.0 dBTP" is a record.
+    """
+    _live()
+    user = _user()
+    project = _project_or_404(user, project_id)
+    if not project["rights_confirmed_at"]:
+        abort(403)
+
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        return jsonify({"ok": False, "error": "no audio was sent"}), 400
+    data = upload.read()
+    if not data or not data.startswith(b"RIFF"):
+        return jsonify({"ok": False, "error": "that is not a WAV"}), 400
+    cap = studio_config.max_upload_bytes()
+    if len(data) > cap:
+        return jsonify({"ok": False,
+                        "error": "the render is over the %d MB limit"
+                                 % (cap // (1024 * 1024))}), 413
+
+    source_id = (request.form.get("source_asset_id") or "").strip()
+    source = sstore.get_studio_asset(_partner(user), user["id"], source_id)
+    if source is None:
+        abort(404)
+
+    digest = hashlib.sha256(data).hexdigest()
+    label = (request.form.get("label") or "Master")[:80]
+    note = (request.form.get("note") or "")[:400]
+    name = "%s-%s.wav" % (project_id[:8], digest[:12])
+    storage_key = _save(name, data, "audio/wav")
+    asset_id = sstore.create_studio_asset(
+        _partner(user), user["id"], project_id, storage_key,
+        file_name="%s.wav" % label.replace(" ", "-").lower(),
+        mime_type="audio/wav", file_size=len(data), sha256=digest,
+        asset_role="master", parent_asset_id=source["id"],
+        version_label=label, lossless=True)
+    version_id = sstore.create_version(
+        _partner(user), user["id"], project_id, asset_id,
+        asset_role="master", version_name=label,
+        change_summary=note or ("Rendered from %s"
+                                % (source["file_name"] or "the source")),
+        created_by=user["id"])
+    sstore.update_project(_partner(user), user["id"], project_id,
+                          active_asset_id=asset_id, active_version_id=version_id)
+    return jsonify({"ok": True, "asset_id": asset_id, "version_id": version_id})
+
+
+# --- approval, locking and delivery -------------------------------------------
+
+@bp.route("/studio/session/<project_id>/version/<version_id>/status",
+          methods=["POST"])
+def studio_version_status(project_id, version_id):
+    """Approve or lock a version.
+
+    The lock is enforced in the store's WHERE clause rather than here, so a
+    second route added later cannot forget it. Approving records the asset's
+    checksum: an approval that does not say WHICH bytes were approved is not
+    an approval, it is a memory.
+    """
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    status = request.form.get("status") or ""
+    version = sstore.get_version(_partner(user), project_id, version_id)
+    if version is None:
+        abort(404)
+
+    if status == "approved":
+        asset = sstore.get_studio_asset(_partner(user), user["id"],
+                                        version["asset_id"])
+        sstore.record_approval(_partner(user), user["id"], project_id,
+                               version["asset_id"], version_id,
+                               checksum=(asset or {}).get("sha256", ""))
+    sstore.set_version_status(_partner(user), project_id, version_id, status,
+                              actor_id=user["id"])
+    return redirect(url_for("studio.studio_versions", project_id=project_id))
+
+
+@bp.route("/studio/session/<project_id>/deliver")
+def studio_deliver(project_id):
+    """The checklist, computed rather than asserted.
+
+    Every line is derived from what the project actually holds. A checklist
+    that hard-codes a tick is worse than no checklist: it tells somebody a
+    thing is done at the exact moment they stop being able to check.
+    """
+    _live()
+    user = _user()
+    project = _project_or_404(user, project_id)
+    summary = sstore.project_summary(_partner(user), user["id"], project_id)
+    checklist = sstore.delivery_checklist(_partner(user), user["id"], project_id)
+    return render_template("studio/deliver.html", active_page="studio",
+                           room="deliver", project=project, summary=summary,
+                           checklist=checklist,
+                           ready=all(c["ok"] for c in checklist
+                                     if c["required"]),
+                           readiness=studio_config.readiness())
+
+
+@bp.route("/studio/session/<project_id>/deliver/package", methods=["POST"])
+def studio_package(project_id):
+    """Build the package, or refuse and say which line is not met.
+
+    Refusing is the point. A package that can be produced before the master is
+    locked is a package that can ship the wrong file, and the whole reason
+    this product exists is that somebody has to be able to say which of the
+    eleven files on the drive is the one that ships.
+    """
+    _live()
+    user = _user()
+    project = _project_or_404(user, project_id)
+    checklist = sstore.delivery_checklist(_partner(user), user["id"], project_id)
+    missing = [c for c in checklist if c["required"] and not c["ok"]]
+    if missing:
+        summary = sstore.project_summary(_partner(user), user["id"], project_id)
+        return render_template(
+            "studio/deliver.html", active_page="studio", room="deliver",
+            project=project, summary=summary, checklist=checklist, ready=False,
+            readiness=studio_config.readiness(),
+            error="Not yet: " + missing[0]["label"].lower() + "."), 400
+
+    archive, name = sstore.build_package(_partner(user), user["id"], project_id,
+                                         _read_asset_bytes)
+    return send_file(io.BytesIO(archive), mimetype="application/zip",
+                     as_attachment=True, download_name=name)
+
+
+def _read_asset_bytes(asset):
+    """Bytes for one asset, wherever it actually lives."""
+    key = asset.get("storage_key") or ""
+    if blob_store.is_remote(key):
+        try:
+            return blob_store.fetch(key)
+        except Exception:
+            return None
+    path = os.path.join(_dir(), os.path.basename(key))
+    if os.path.exists(path):
+        with open(path, "rb") as handle:
+            return handle.read()
+    return None
 
 
 # --- the source upload -------------------------------------------------------

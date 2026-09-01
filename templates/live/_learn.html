@@ -1,0 +1,111 @@
+{#- MIDI Learn, driven by the engine's own MidiLearn rather than a re-write.
+
+    Typing note numbers into a form is not how anybody maps a controller. You
+    press the pad. This listens for the next message, fills the form from it,
+    and warns before you create a duplicate - a control mapped twice behaves
+    according to whichever mapping is checked first, which is not behaviour
+    anybody chose.
+
+    Note-off is ignored while learning: releasing the pad that started the
+    learn must not become the mapping. That rule is the engine's, not this
+    page's, which is the whole reason to use MidiLearn here.
+-#}
+<script src="/static/js/livelab.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+
+  var status = document.getElementById("lv-learn-status");
+  var button = document.getElementById("lv-learn");
+  if (!status || !button || !window.SBLive || !window.SBLive.midi) { return; }
+
+  var SB = window.SBLive.midi;
+  var fields = {
+    type: document.getElementById("lv-msg-type"),
+    channel: document.getElementById("lv-channel"),
+    data1: document.getElementById("lv-data1")
+  };
+  var existing = {{ mappings | map(attribute="id") | list | tojson }};
+  var existingKeys = {{ mappings
+      | map(attribute="message_type") | list | tojson }};
+  var existingChannels = {{ mappings | map(attribute="channel") | list | tojson }};
+  var existingData1 = {{ mappings | map(attribute="data1") | list | tojson }};
+
+  function say(text, tone) {
+    status.textContent = text;
+    status.className = "font-mono text-xs "
+      + (tone === "bad" ? "text-sb-crit"
+         : tone === "good" ? "text-sb-good" : "text-sb-ink-3");
+  }
+
+  if (!navigator.requestMIDIAccess) {
+    button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
+    say("Web MIDI is not available in this browser - type the values instead.");
+    return;
+  }
+
+  var learn = new SB.MidiLearn();
+  var source = null;
+  var unsubscribe = null;
+
+  function duplicateOf(message) {
+    for (var i = 0; i < existingKeys.length; i++) {
+      if (existingKeys[i] === message.type
+          && existingChannels[i] === message.channel
+          && existingData1[i] === message.noteOrController) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function stopListening() {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    learn.cancel();
+    button.textContent = "Learn";
+  }
+
+  function capture(deviceId, message) {
+    var candidate = learn.onMessage(deviceId, message);
+    if (!candidate) { return; }          // note-off, or not waiting
+    fields.type.value = candidate.messageType;
+    fields.channel.value = candidate.channel;
+    fields.data1.value = candidate.noteOrController;
+    stopListening();
+    if (duplicateOf(message)) {
+      say("That control is already mapped on this set. Saving would be "
+          + "refused - pick another pad.", "bad");
+    } else {
+      say("Captured " + candidate.messageType + " channel "
+          + candidate.channel + " #" + candidate.noteOrController
+          + ". Name it and save.", "good");
+    }
+  }
+
+  button.addEventListener("click", function () {
+    if (learn.current.phase === "waiting") { stopListening(); say("Cancelled."); return; }
+
+    say("Waiting - press the pad, key or footswitch you want to use…");
+    button.textContent = "Cancel";
+    learn.start({ targetType: "scene_launch", targetId: null });
+
+    var begin = function (src) {
+      source = src;
+      unsubscribe = src.onMessage(capture);
+      var count = src.devices().length;
+      if (!count) {
+        say("No MIDI device is connected. Plug one in and press Learn again.",
+            "bad");
+        stopListening();
+      }
+    };
+
+    if (source) { begin(source); return; }
+    SB.WebMidiSource.create().then(begin).catch(function (err) {
+      stopListening();
+      say(err && err.message ? err.message : "MIDI was refused.", "bad");
+    });
+  });
+})();
+</script>
