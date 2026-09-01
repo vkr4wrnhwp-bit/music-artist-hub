@@ -420,6 +420,7 @@ def _room(project_id, room, template, error=None, status_code=200):
         checklist=checklist,
         rail=studio_score.lifecycle(project, summary, checklist),
         room_question=question, room_answer=room_answer,
+        build=studio_config.build_version(),
         viewer_role=viewer_role,
         members=sstore.list_members(_partner(user), project_id),
         team_pool=(__import__("db").list_team(user["id"])

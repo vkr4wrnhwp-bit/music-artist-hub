@@ -170,3 +170,29 @@ def readiness():
          "reported queued - never reported finished."),
     ]
     return out
+
+
+_BUILD = None
+
+
+def build_version():
+    """The deployed build, read off the service worker's version stamp.
+
+    Shown on the cockpit so "is the site updated" is answered by the page
+    itself: if the stamp on screen matches the newest deploy, the browser is
+    current; if it is missing or older, the browser is showing a cached page
+    and no amount of server-side pushing will change what that tab renders.
+    """
+    global _BUILD
+    if _BUILD is None:
+        import os as _os
+        import re as _re
+        try:
+            path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                 "static", "js", "sw.js")
+            with open(path, encoding="utf-8") as handle:
+                match = _re.search(r"VERSION\s*=\s*.(sb-v\d+).", handle.read())
+            _BUILD = match.group(1) if match else "unknown"
+        except OSError:
+            _BUILD = "unknown"
+    return _BUILD

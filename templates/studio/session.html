@@ -20,6 +20,7 @@
       <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
     </p>
     <p class="font-mono text-xs text-sb-ink-3">
+      <span title="The build this page came from. If this does not match the newest deploy, your browser is showing a cached page.">build {{ build }}</span> &middot;
       Control Room &middot;
       <a class="underline" href="{{ url_for('studio.studio_visual') }}">Visual Room</a> &middot;
       <a class="underline" href="{{ url_for('studio.studio_remix') }}">Remix Lab</a>
