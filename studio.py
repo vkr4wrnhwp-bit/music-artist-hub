@@ -107,9 +107,19 @@ def _project_or_404(user, project_id):
 
 @bp.route("/studio")
 def studio_home():
+    """The front door opens onto the console.
+
+    The owner looked at /studio twice and saw "no updates" while the cockpit
+    sat one click away on a session URL nothing pointed at prominently. The
+    mockup's landing IS the console, so with a project in hand this route goes
+    straight to it. The project list stays at /studio/projects.
+    """
     _live()
     user = _user()
     projects = sstore.list_projects(_partner(user), user["id"], limit=25)
+    if projects:
+        return redirect(url_for("studio.studio_session",
+                                project_id=projects[0]["id"]))
     recent = []
     continue_has_source = False
     if projects:
@@ -224,6 +234,19 @@ def studio_versions(project_id):
 # anywhere, and nothing is claimed that was not measured.
 
 
+@bp.route("/studio/session/<project_id>/room", methods=["POST"])
+def studio_room_ask(project_id):
+    """Ask the Room. The answer is computed from project state by
+    studio_room.ask and rendered into the cockpit - grounded, structured,
+    and incapable of claiming it heard anything."""
+    _live()
+    user = _user()
+    _project_or_404(user, project_id)
+    question = (request.form.get("q") or "").strip()[:300]
+    return redirect(url_for("studio.studio_session", project_id=project_id,
+                            q=question) + "#ask-the-room")
+
+
 @bp.route("/studio/session/<project_id>/measure", methods=["POST"])
 def studio_measure(project_id):
     """Receive one measurement run from the browser.
@@ -313,10 +336,25 @@ def _room(project_id, room, template, error=None, status_code=200):
             "markers": markers,
         }
     import db as store
+    import studio_room
     import studio_score
 
     checklist = sstore.delivery_checklist(_partner(user), user["id"], project_id)
     measurements = analysis["measurements"] if analysis else {}
+    question = (request.args.get("q") or "").strip()[:300]
+    room_answer = None
+    if question:
+        room_answer = studio_room.ask(question, {
+            "measurements": measurements,
+            "findings": findings or [],
+            "comments": comments or [],
+            "versions": summary["versions"],
+            "checklist": checklist,
+            "rail": __import__("studio_score").lifecycle(project, summary,
+                                                         checklist),
+            "masters": masters,
+            "project": project,
+        })
     response = render_template(
         template, active_page="studio", room=room, project=project,
         summary=summary, source=source, analysis=analysis, verdict=verdict,
@@ -324,6 +362,7 @@ def _room(project_id, room, template, error=None, status_code=200):
         console_config=console_config, error=error,
         checklist=checklist,
         rail=studio_score.lifecycle(project, summary, checklist),
+        room_question=question, room_answer=room_answer,
         mix_scores=studio_score.mix_readiness(measurements,
                                               summary["versions"]),
         master_scores=studio_score.master_intelligence(measurements),
