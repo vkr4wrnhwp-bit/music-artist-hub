@@ -226,6 +226,47 @@
     con.seek(con.position() + (event.code === "ArrowLeft" ? -step : step));
   });
 
+  /* Playback translation chips, when the page has a rail for them. Built
+     from the engine's own SIMS table so the labels, the recipes and the
+     caveat never drift apart. */
+  var simRail = document.getElementById("sb-sims");
+  if (simRail && window.SBConsole.SIMS) {
+    window.SBConsole.SIMS.forEach(function (sim) {
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.title = sim.note;
+      chip.setAttribute("data-simkey", sim.key);
+      chip.textContent = sim.label;
+      chip.className = "rounded-lg border border-sb-line px-3 py-1.5 font-mono text-xs text-sb-ink-2";
+      chip.addEventListener("click", function () {
+        if (!con.setSim(sim.key)) { return; }
+        var chips = simRail.querySelectorAll("[data-simkey]");
+        for (var i = 0; i < chips.length; i++) {
+          var on = chips[i].getAttribute("data-simkey") === sim.key;
+          chips[i].className = "rounded-lg border px-3 py-1.5 font-mono text-xs "
+            + (on ? "border-purple-500/20 bg-purple-500/10 text-purple-400"
+                  : "border-sb-line text-sb-ink-2");
+        }
+      });
+      simRail.appendChild(chip);
+    });
+    var first = simRail.querySelector("[data-simkey=flat]");
+    if (first) {
+      first.className = "rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 font-mono text-xs text-purple-400";
+    }
+  }
+
+  /* A page can also nominate a B directly - the preview cards' "Set as B". */
+  document.addEventListener("click", function (event) {
+    var node = event.target && event.target.closest
+      ? event.target.closest("[data-bpick]") : null;
+    if (!node || !bOptions.length) { return; }
+    var i = parseInt(node.getAttribute("data-bpick"), 10);
+    if (!isFinite(i) || i < 0 || i >= bOptions.length) { return; }
+    el.bpick.value = String(i);
+    loadB(i);
+  });
+
   /* Anything on the page can carry data-seek="<seconds>" - the Mix Doctor's
      "Hear it" buttons, a note's timestamp - and the transport honours it. */
   document.addEventListener("click", function (event) {

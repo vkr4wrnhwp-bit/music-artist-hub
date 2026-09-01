@@ -184,15 +184,23 @@ def studio_new():
 @bp.route("/studio/session/<project_id>")
 def studio_session(project_id):
     _live()
-    user = _user()
-    project = _project_or_404(user, project_id)
-    summary = sstore.project_summary(_partner(user), user["id"], project_id)
-    return render_template("studio/session.html",
-                           active_page="studio", room="session",
-                           project=project, summary=summary,
-                           events=sstore.provenance(_partner(user), project_id, 12),
-                           readiness=studio_config.readiness(),
-                           max_mb=studio_config.max_upload_bytes() // (1024 * 1024))
+    return _room(project_id, "session", "studio/session.html")
+
+
+@bp.route("/studio/visual")
+def studio_visual():
+    """The Visual Room. Creative Studio's tools already live at /artwork and
+    /rollout-studio; this is the Studio-side door, not a second copy."""
+    _live()
+    _user()
+    return redirect("/artwork")
+
+
+@bp.route("/studio/remix")
+def studio_remix():
+    _live()
+    _user()
+    return redirect("/remix-lab")
 
 
 @bp.route("/studio/session/<project_id>/versions")
@@ -249,7 +257,7 @@ def studio_measure(project_id):
     return jsonify({"ok": True})
 
 
-def _room(project_id, room, template):
+def _room(project_id, room, template, error=None, status_code=200):
     user = _user()
     project = _project_or_404(user, project_id)
     summary = sstore.project_summary(_partner(user), user["id"], project_id)
@@ -304,13 +312,27 @@ def _room(project_id, room, template):
                          for m in masters],
             "markers": markers,
         }
-    return render_template(
+    import db as store
+    import studio_score
+
+    checklist = sstore.delivery_checklist(_partner(user), user["id"], project_id)
+    measurements = analysis["measurements"] if analysis else {}
+    response = render_template(
         template, active_page="studio", room=room, project=project,
         summary=summary, source=source, analysis=analysis, verdict=verdict,
         findings=findings or [], comments=comments or [], masters=masters,
-        console_config=console_config,
+        console_config=console_config, error=error,
+        checklist=checklist,
+        rail=studio_score.lifecycle(project, summary, checklist),
+        mix_scores=studio_score.mix_readiness(measurements,
+                                              summary["versions"]),
+        master_scores=studio_score.master_intelligence(measurements),
+        rack_chain=store.get_rack_preset(user["id"]),
+        events=sstore.provenance(_partner(user), project_id, 12),
+        max_mb=studio_config.max_upload_bytes() // (1024 * 1024),
         targets=__import__("audio_readiness").PLATFORM_TARGETS,
         readiness=studio_config.readiness())
+    return (response, status_code) if status_code != 200 else response
 
 
 @bp.route("/studio/session/<project_id>/mix")
@@ -554,13 +576,8 @@ def studio_upload(project_id):
     project = _project_or_404(user, project_id)
 
     def refuse(message, code=400):
-        summary = sstore.project_summary(_partner(user), user["id"], project_id)
-        return render_template(
-            "studio/session.html", active_page="studio", room="session",
-            project=project, summary=summary, error=message,
-            events=sstore.provenance(_partner(user), project_id, 12),
-            readiness=studio_config.readiness(),
-            max_mb=studio_config.max_upload_bytes() // (1024 * 1024)), code
+        return _room(project_id, "session", "studio/session.html",
+                     error=message, status_code=code)
 
     if not project["rights_confirmed_at"]:
         return refuse("Confirm you have the rights to this recording before "

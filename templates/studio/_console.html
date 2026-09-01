@@ -12,7 +12,8 @@
     </div>
     <div class="ml-auto flex flex-wrap items-center gap-2">
       {% if project.rights_confirmed_at %}
-        <span class="sb-badge sb-badge-good">Rights confirmed</span>
+        <span class="sb-badge sb-badge-good"
+              title="Confirmed by {{ project.rights_confirmed_by }} on {{ (project.rights_confirmed_at or '')[:10] }}">Rights confirmed by {{ project.rights_confirmed_by }}</span>
       {% else %}
         <span class="sb-badge sb-badge-warn">Rights not confirmed</span>
       {% endif %}

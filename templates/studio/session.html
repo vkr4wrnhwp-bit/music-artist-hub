@@ -3,28 +3,59 @@
 {% import "studio/_console.html" as console %}
 {% block title %}{{ project.title }} - Street Banker Studio{% endblock %}
 {% block content %}
-<div class="mx-auto max-w-[900px] space-y-5">
+{#- The Control Room cockpit. One console, per the owner's mockup: lifecycle
+    rail, the Rack chain, waveform + transport, Mix Station and Master Station
+    side by side, playback translation, the Version Vault strip, the Deliver
+    band, and the notes rail. Adapted, not reproduced: every number on this
+    page is computed from project state or a measurement, and anything the
+    mockup shows that cannot be measured from a stereo file says so instead
+    of wearing an invented score. Purple is Studio's accent; red appears only
+    on clipping and blocking findings. -#}
+<div class="mx-auto max-w-[1100px] space-y-5">
 
-  <p class="sb-label sb-label-gold">
-    <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
-  </p>
+  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    <p class="sb-label text-purple-400">
+      <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
+    </p>
+    <p class="font-mono text-xs text-sb-ink-3">
+      Control Room &middot;
+      <a class="underline" href="{{ url_for('studio.studio_visual') }}">Visual Room</a> &middot;
+      <a class="underline" href="{{ url_for('studio.studio_remix') }}">Remix Lab</a>
+    </p>
+  </div>
 
   {{ console.top_bar(project, summary) }}
+
+  {# ------------------------------------------------- the lifecycle rail --- #}
+  {# A report, not a decoration: a stage reads done only because the thing it
+     names actually happened, and a blocked stage carries its reason in the
+     tooltip. Market and Monetize say plainly that they are not wired yet. #}
+  <div class="rounded-xl border border-sb-line bg-sb-surface-1 p-3">
+    <div class="flex flex-wrap items-center gap-1">
+      {% for stage in rail %}
+        <span class="rounded-lg px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.12em]
+                     {% if stage.state == 'done' %}text-sb-good{% elif stage.state == 'current' %}border border-purple-500/20 bg-purple-500/10 text-purple-400{% else %}text-sb-ink-3{% endif %}"
+              {% if stage.why %}title="{{ stage.why }}"{% endif %}>
+          {{ "&#10003; "|safe if stage.state == "done" }}{{ stage.label }}
+        </span>
+        {% if not loop.last %}<span class="text-sb-ink-3">&rarr;</span>{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
   {{ console.rooms(project, room, summary) }}
 
   {% if error %}
     <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">That did not go through</h2>
+      <h2 class="sb-label text-purple-400">That did not go through</h2>
       <p class="mt-2 text-sm text-gray-300">{{ error }}</p>
     </section>
   {% endif %}
 
-  {# Rights first, and nothing can be uploaded before it. Confirmation is a
-     row with a name and a timestamp, not a checkbox: the question asked
-     later is what exactly was confirmed and when. #}
+  {# --------------------------------------------- rights, then the upload --- #}
   {% if not project.rights_confirmed_at %}
     <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Before anything is uploaded</h2>
+      <h2 class="sb-label text-purple-400">Before anything is uploaded</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
         Everything in Studio works on audio you own or control, and you confirm
         that for each project &mdash; not once for the account.
@@ -35,24 +66,15 @@
         {{ sb.btn("Confirm and continue", variant="primary", type="submit") }}
       </form>
     </section>
-  {% else %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Rights</h2>
-      <p class="mt-2 text-sm text-gray-300">
-        Confirmed by {{ project.rights_confirmed_by }} on
-        {{ (project.rights_confirmed_at or "")[:10] }}, for this project.
-      </p>
-    </section>
   {% endif %}
 
-  {% if project.rights_confirmed_at and not summary.source %}
+  {% if project.rights_confirmed_at and not source %}
     <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Upload the source</h2>
+      <h2 class="sb-label text-purple-400">Upload the source</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">
         WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. The source is
         written once and never rewritten &mdash; every version after this one
-        points back to it, so the chain from what you sent to what ships stays
-        intact.
+        points back to it.
       </p>
       <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3"
             action="{{ url_for('studio.studio_upload', project_id=project.id) }}">
@@ -63,167 +85,298 @@
     </section>
   {% endif %}
 
-  {% if summary.source %}
-    <section class="sb-panel p-4">
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="sb-label sb-label-gold">Source</h2>
-        <p class="font-mono text-xs text-sb-ink-3">{{ summary.source.file_name }}</p>
+  {% if source %}
+  <div class="grid gap-5 lg:grid-cols-3">
+    <div class="space-y-5 lg:col-span-2">
+
+      {# ------------------------------------------------------ RACK strip --- #}
+      {# The saved Rack chain, rendered read-only from the REAL preset the
+         Rack stored - a viewer and a launcher, and it says so. Interactive
+         modules live in the Rack itself, where the DSP engine is. #}
+      <section class="sb-panel p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label text-purple-400">Rack</h2>
+          {{ sb.btn("Open the Rack", variant="primary", size="sm",
+                    href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
+        </div>
+        {% if rack_chain %}
+          <p class="mt-2 text-sm text-gray-300">
+            Your saved chain, read-only here &mdash; the knobs live in the Rack.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            {%- set eq = rack_chain.get("eq") %}
+            {%- set tube = rack_chain.get("tube") or {} %}
+            {%- set comp = rack_chain.get("comp") or {} %}
+            {%- set cab = rack_chain.get("cab") or {} %}
+            {% if eq %}
+              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
+                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Shape &middot; EQ-12</span>
+                {{ eq|select("ne", 0)|list|length }} band{{ "" if eq|select("ne", 0)|list|length == 1 else "s" }} moved
+              </span>
+            {% endif %}
+            {% if tube.get("mix") %}
+              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
+                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Colour &middot; TS-1</span>
+                drive {{ tube.get("drive") }} &middot; mix {{ (tube.get("mix", 0) * 100)|round|int }}%
+              </span>
+            {% endif %}
+            {% if comp.get("ratio", 1) != 1 %}
+              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
+                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Dynamics &middot; DYN-1</span>
+                {{ comp.get("ratio") }}:1 at {{ comp.get("thr") }} dB
+              </span>
+            {% endif %}
+            {% if cab.get("on") and cab.get("cab") != "direct" %}
+              <span class="rounded-lg border border-sb-line bg-black/40 px-3 py-2 font-mono text-xs text-gray-300">
+                <span class="block uppercase tracking-[0.12em] text-sb-ink-3">Space &middot; CAB-3</span>
+                {{ cab.get("cab") }} &middot; {{ cab.get("mic") }}
+              </span>
+            {% endif %}
+          </div>
+        {% else %}
+          <p class="mt-2 text-sm text-gray-300">
+            No chain saved yet. The Rack is the mixer &mdash; EQ-12, tube,
+            compressor, cab &amp; mic, loudness &mdash; and what you save there
+            shows here.
+          </p>
+        {% endif %}
+      </section>
+
+      {# ------------------------------------------------------- waveform --- #}
+      <section class="sb-panel p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label text-purple-400">{{ source.file_name }}</h2>
+          <p class="font-mono text-xs text-sb-ink-3">
+            {{ (source.file_size / 1048576)|round(1) }} MB
+            {%- if source.lossless %} &middot; lossless{% endif %}
+          </p>
+        </div>
+        <div id="sb-console-markers" class="relative mt-3 h-3 select-none"></div>
+        <div class="relative mt-1">
+          <canvas id="sb-console-wave" height="150"
+                  class="w-full cursor-pointer rounded-lg border border-sb-line bg-black/40"
+                  aria-label="Waveform. Click to move the playhead."></canvas>
+          <div id="sb-console-playhead"
+               class="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
+               style="left:0%"></div>
+        </div>
+        <p id="sb-console-status" aria-live="polite" class="mt-2 text-sm text-gray-300">&nbsp;</p>
+      </section>
+
+      {# --------------------------------------- Mix Station and Master ----- #}
+      <div class="grid gap-5 md:grid-cols-2">
+        <section class="sb-panel p-4">
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="sb-label text-purple-400">Mix Station</h2>
+            {{ sb.btn("Open", variant="secondary", size="sm",
+                      href=url_for("studio.studio_mix", project_id=project.id)) }}
+          </div>
+
+          <p id="sb-measure" aria-live="polite" class="mt-1 text-sm text-gray-300">&nbsp;</p>
+          {% if mix_scores.overall is not none %}
+            <p class="mt-2 font-mono text-3xl tabular-nums text-white">{{ mix_scores.overall }}<span class="text-sm text-sb-ink-3">/100</span></p>
+            <p class="font-mono text-xs text-sb-ink-3">
+              from {{ mix_scores.measured_count }} measured of
+              {{ mix_scores.total_count }} categories &mdash; the rest say what
+              they need instead of guessing
+            </p>
+          {% else %}
+            <p class="mt-2 text-sm text-gray-300">Nothing measured yet.</p>
+            <div class="mt-2">
+              {{ sb.btn("Measure", variant="primary", size="sm", id="sb-measure-go") }}
+            </div>
+          {% endif %}
+
+          <ul class="mt-3 space-y-1.5">
+            {% for c in mix_scores.categories %}
+              <li class="flex items-baseline gap-2 text-sm"
+                  title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }} confidence)">
+                <span class="w-9 shrink-0 text-right font-mono text-xs tabular-nums
+                             {% if c.score is none %}text-sb-ink-3{% elif c.status == 'good' %}text-sb-good{% elif c.status == 'blocked' %}text-sb-crit{% else %}text-amber-400{% endif %}">
+                  {{ c.score if c.score is not none else "&mdash;"|safe }}
+                </span>
+                <span class="min-w-0 flex-1 truncate text-gray-300">{{ c.label }}</span>
+                {% if c.score is none %}
+                  <span class="shrink-0 font-mono text-xs text-sb-ink-3">needs {{ c.missing }}</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+
+          {# Mix Doctor, compact: the open findings, worst first. #}
+          {%- set open_findings = findings|selectattr("status","equalto","open")|list %}
+          {% if open_findings %}
+            <p class="mt-4 sb-label text-purple-400">Mix Doctor</p>
+            <ul class="mt-2 space-y-1.5">
+              {% for f in open_findings[:5] %}
+                <li class="flex items-center gap-2 text-sm">
+                  {{ sb.badge(f.severity, {"blocking":"crit","review":"warn"}.get(f.severity,"idle")) }}
+                  <span class="min-w-0 flex-1 truncate text-gray-300">{{ f.category|replace("_"," ")|title }}</span>
+                  {% if f.start_seconds is not none %}
+                    <button type="button" data-seek="{{ f.start_seconds }}"
+                            class="shrink-0 rounded border border-sb-line px-2 py-0.5 font-mono text-xs text-sb-ink-2">Hear it</button>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </section>
+
+        <section class="sb-panel p-4">
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="sb-label text-purple-400">Master Station</h2>
+            {{ sb.btn("Open", variant="secondary", size="sm",
+                      href=url_for("studio.studio_master", project_id=project.id)) }}
+          </div>
+
+          {% if master_scores.overall is not none %}
+            <p class="mt-2 font-mono text-3xl tabular-nums text-white">{{ master_scores.overall }}<span class="text-sm text-sb-ink-3">/100</span></p>
+            <p class="font-mono text-xs text-sb-ink-3">
+              from {{ master_scores.measured_count }} measured of
+              {{ master_scores.total_count }}
+            </p>
+          {% else %}
+            <p class="mt-2 text-sm text-gray-300">Nothing measured yet.</p>
+          {% endif %}
+
+          <p class="mt-4 sb-label text-purple-400">Mastering direction</p>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            {{ sb.btn("Clean", variant="primary", size="sm",
+                      href=url_for("studio.studio_master", project_id=project.id),
+                      title="Transparent loudness stage - measured, capped at the platform ceiling, dithered. Real, in the Master room.") }}
+            {% for name in ("Warm", "Competitive", "Open", "Club") %}
+              {{ sb.btn(name, variant="secondary", size="sm",
+                        disabled_reason="Needs the Rack's colour and dynamics chain, or a processing provider - nothing here fakes it") }}
+            {% endfor %}
+            {{ sb.btn("Streaming balanced", variant="secondary", size="sm",
+                      href=url_for("studio.studio_master", project_id=project.id),
+                      title="The -14 LUFS / -1 dBTP conservative render. Real, in the Master room.") }}
+          </div>
+
+          {# Master previews: the renders that exist, as B on the transport. #}
+          {% if masters %}
+            <p class="mt-4 sb-label text-purple-400">Previews</p>
+            <ul class="mt-2 space-y-1.5">
+              {% for entry in masters[:3] %}
+                <li class="flex items-center gap-2 text-sm">
+                  <span class="w-4 shrink-0 font-mono text-xs text-purple-400">{{ "ABC"[loop.index0] }}</span>
+                  <span class="min-w-0 flex-1 truncate text-gray-300">{{ entry.version.version_name }}</span>
+                  <button type="button" data-bpick="{{ loop.index0 }}"
+                          class="shrink-0 rounded border border-sb-line px-2 py-0.5 font-mono text-xs text-sb-ink-2">
+                    Set as B
+                  </button>
+                </li>
+              {% endfor %}
+            </ul>
+            <p class="mt-1 font-mono text-xs text-sb-ink-3">
+              Flip A/B on the transport; tick match for equal loudness.
+            </p>
+          {% endif %}
+        </section>
       </div>
 
-      {# Drawn from the file itself, not from a stored picture of it. #}
-      <canvas id="sb-wave" height="120"
-              class="mt-3 w-full rounded-lg border border-sb-line bg-black/20"
-              aria-label="Waveform of the uploaded source"></canvas>
+      {# --------------------------------------------- playback translation --- #}
+      <section class="sb-panel p-4">
+        <h2 class="sb-label text-purple-400">Playback translation</h2>
+        <p class="mt-2 max-w-2xl text-sm text-gray-300">
+          Listening simulations &mdash; engineering approximations of familiar
+          playback, <strong class="text-white">not measurements of any real
+          device</strong>, and no pass marks are invented for them: your ears
+          are the meter here. The transport meter keeps reading the master.
+        </p>
+        <div id="sb-sims" class="mt-3 flex flex-wrap gap-1.5"></div>
+      </section>
 
-      <audio id="sb-audio" controls preload="metadata" class="mt-3 w-full"
-             src="{{ url_for('studio.studio_asset', asset_id=summary.source.id) }}"></audio>
-
-      {# Measured here, in this browser, by the same BS.1770-4 engine the Rack
-         uses. No provider is involved, which is why this part works on a
-         deployment with nothing configured at all. #}
-      <div class="mt-4 grid gap-3">
-        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
-          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Integrated loudness</p>
-          <p class="mt-1 text-sm text-white"><span id="sb-lufs">measuring&hellip;</span></p>
+      {# ------------------------------------------------ Version Vault strip #}
+      <section class="sb-panel p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label text-purple-400">Version Vault</h2>
+          {{ sb.btn("Open", variant="secondary", size="sm",
+                    href=url_for("studio.studio_versions", project_id=project.id)) }}
         </div>
-        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
-          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">True peak</p>
-          <p class="mt-1 text-sm text-white"><span id="sb-tp">measuring&hellip;</span></p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          {% for v in summary.versions|reverse %}
+            <span class="rounded-lg border px-3 py-2 font-mono text-xs
+                         {% if v.status == 'locked' %}border-purple-500/20 bg-purple-500/10 text-purple-400{% elif v.status == 'approved' %}border-sb-line text-sb-good{% else %}border-sb-line text-gray-300{% endif %}"
+                  title="{{ v.change_summary }}">
+              {{ v.version_name }}
+              <span class="block text-sb-ink-3">{{ (v.created_at or "")[:10] }}{% if v.status in ("approved","locked") %} &middot; {{ v.status }}{% endif %}</span>
+            </span>
+          {% endfor %}
         </div>
-        <div class="rounded-lg border border-sb-line bg-black/20 px-3 py-2.5">
-          <p class="font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Loudness range</p>
-          <p class="mt-1 text-sm text-white"><span id="sb-lra">measuring&hellip;</span></p>
+      </section>
+
+      {# ------------------------------------------------------ Deliver band  #}
+      <section class="sb-panel p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="sb-label text-purple-400">Deliver</h2>
+          {{ sb.btn("Open", variant="secondary", size="sm",
+                    href=url_for("studio.studio_deliver", project_id=project.id)) }}
         </div>
-      </div>
-      <p class="mt-3 text-sm text-gray-300">
-        Measured in your browser to ITU-R BS.1770-4, K-weighted for this file's
-        own sample rate, with true peak found by 4x oversampling. Nothing was
-        sent to a vendor to produce these numbers.
-      </p>
-    </section>
+        {%- set met = checklist|selectattr("ok")|list|length %}
+        {%- set req = checklist|selectattr("required")|list %}
+        {%- set req_met = req|selectattr("ok")|list|length %}
+        <p class="mt-2 text-sm text-gray-300">
+          {{ req_met }} of {{ req|length }} required checks met
+          ({{ met }} of {{ checklist|length }} overall). Every line is read off
+          the project, never ticked by hand.
+        </p>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {% for c in checklist if c.required %}
+            <span class="rounded border px-2 py-0.5 font-mono text-xs
+                         {% if c.ok %}border-sb-line text-sb-good{% else %}border-sb-line text-amber-400{% endif %}"
+                  title="{{ c.detail }}">{{ c.label }}</span>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
 
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Asset map</h2>
-      <p class="mt-2 text-sm text-gray-300">What exists so far, and what it came from.</p>
-      {% call sb.table(["Version", "Role", "What changed", "Status"]) %}
-        {% for v in summary.versions %}
-          <tr>
-            <td class="whitespace-nowrap">{{ v.version_name }}</td>
-            <td class="whitespace-nowrap">{{ v.asset_role|replace("_"," ") }}</td>
-            <td>{{ v.change_summary or "&mdash;" }}</td>
-            <td class="whitespace-nowrap">{{ v.status }}</td>
-          </tr>
-        {% endfor %}
-      {% endcall %}
-    </section>
-  {% endif %}
+    {# ------------------------------------------------------ right rail ---- #}
+    <div class="space-y-5">
+      <section class="sb-panel p-4">
+        <h2 class="sb-label text-purple-400">Notes</h2>
+        {% if comments %}
+          <ul class="mt-3 space-y-2">
+            {% for c in comments[:8] %}
+              <li class="text-sm">
+                <button type="button" data-seek="{{ c.start_seconds }}"
+                        class="font-mono text-xs text-purple-400 underline">
+                  {{ "%d:%02d"|format((c.start_seconds // 60)|int, (c.start_seconds % 60)|int) }}
+                </button>
+                <span class="text-gray-300">{{ c.body }}</span>
+                {% if c.status == "resolved" %}
+                  <span class="font-mono text-xs text-sb-good">resolved</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="mt-2 text-sm text-gray-300">
+            No notes yet. They are added in the
+            <a class="underline" href="{{ url_for('studio.studio_mix', project_id=project.id) }}">Mix room</a>,
+            pinned to the playhead.
+          </p>
+        {% endif %}
+      </section>
 
-  {{ console.readiness_panel(readiness) }}
+      <section class="sb-panel p-4">
+        <h2 class="sb-label text-purple-400">Activity</h2>
+        <ul class="mt-3 space-y-1 font-mono text-xs text-sb-ink-3">
+          {% for e in events %}
+            <li>{{ (e.created_at or "")[:16]|replace("T"," ") }} &middot; {{ e.event_type|replace("."," ") }}</li>
+          {% endfor %}
+        </ul>
+      </section>
 
-  {% if events %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Activity</h2>
-      <ul class="mt-3 space-y-1 font-mono text-xs text-sb-ink-3">
-        {% for e in events %}
-          <li>{{ (e.created_at or "")[:16]|replace("T"," ") }} &middot; {{ e.event_type|replace("."," ") }}</li>
-        {% endfor %}
-      </ul>
-    </section>
+      {{ console.readiness_panel(readiness) }}
+    </div>
+  </div>
+
+  {% include "studio/_transport.html" %}
+  {% else %}
+    {{ console.readiness_panel(readiness) }}
   {% endif %}
 </div>
 
-{% if summary.source %}
-<script src="/static/js/loudness.js?v=1"></script>
-<script>
-(function () {
-  "use strict";
-  var url = {{ url_for('studio.studio_asset', asset_id=summary.source.id)|tojson }};
-  var canvas = document.getElementById("sb-wave");
-  var out = {
-    lufs: document.getElementById("sb-lufs"),
-    tp: document.getElementById("sb-tp"),
-    lra: document.getElementById("sb-lra")
-  };
-
-  function say(node, text) { if (node) { node.textContent = text; } }
-
-  function fail(message) {
-    say(out.lufs, message);
-    say(out.tp, "—");
-    say(out.lra, "—");
-  }
-
-  /* Peak-per-column rather than every sample: a four-minute file is about ten
-     million samples and the canvas is about nine hundred pixels wide, so
-     drawing them all would cost a second and look identical. */
-  function draw(buffer) {
-    if (!canvas || !canvas.getContext) { return; }
-    var width = canvas.clientWidth || 900;
-    canvas.width = width;
-    var height = canvas.height;
-    var ctx = canvas.getContext("2d");
-    var data = buffer.getChannelData(0);
-    var step = Math.max(1, Math.floor(data.length / width));
-    var mid = height / 2;
-    ctx.clearRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(245, 158, 11, 0.85)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (var x = 0; x < width; x++) {
-      var lo = 1.0, hi = -1.0;
-      var start = x * step;
-      var end = Math.min(data.length, start + step);
-      for (var i = start; i < end; i++) {
-        var v = data[i];
-        if (v < lo) { lo = v; }
-        if (v > hi) { hi = v; }
-      }
-      if (lo > hi) { lo = 0; hi = 0; }
-      ctx.moveTo(x + 0.5, mid - hi * mid);
-      ctx.lineTo(x + 0.5, mid - lo * mid);
-    }
-    ctx.stroke();
-  }
-
-  function measure(buffer) {
-    if (!window.SBLoudness) { fail("The loudness engine did not load."); return; }
-    var channels = [];
-    for (var c = 0; c < buffer.numberOfChannels; c++) {
-      channels.push(buffer.getChannelData(c));
-    }
-    var res = window.SBLoudness.analyse(channels, buffer.sampleRate);
-    say(out.lufs, res.integrated === null
-        ? "Too quiet to measure"
-        : res.integrated.toFixed(1) + " LUFS");
-    say(out.tp, res.truePeak === null ? "—" : res.truePeak.toFixed(2) + " dBTP");
-    say(out.lra, res.range === null ? "—" : res.range.toFixed(1) + " LU");
-  }
-
-  var Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx || !window.fetch) {
-    fail("This browser cannot decode audio here.");
-    return;
-  }
-
-  fetch(url, { credentials: "same-origin" })
-    .then(function (r) {
-      if (!r.ok) { throw new Error("fetch failed"); }
-      return r.arrayBuffer();
-    })
-    .then(function (bytes) {
-      var ctx = new Ctx();
-      return new Promise(function (resolve, reject) {
-        ctx.decodeAudioData(bytes, resolve, reject);
-      });
-    })
-    .then(function (buffer) {
-      draw(buffer);
-      measure(buffer);
-    })
-    .catch(function () {
-      fail("Could not decode this file in the browser.");
-    });
-})();
-</script>
-{% endif %}
+{% if source %}{% include "studio/_measure.html" %}{% endif %}
 {% endblock %}

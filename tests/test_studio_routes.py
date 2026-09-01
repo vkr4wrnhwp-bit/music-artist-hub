@@ -249,9 +249,10 @@ def test_the_session_page_measures_rather_than_asserts(application, ready):
         "/studio/session/%s" % ready["project_id"]).get_data(as_text=True)
 
     assert "loudness.js" in body
-    assert 'id="sb-wave"' in body
+    assert 'id="sb-console-wave"' in body      # the console workspace canvas
     assert "SBLoudness" in body
-    assert "measuring" in body          # the placeholder, not a fabricated value
+    assert 'id="sb-measure"' in body           # the auto-measure mount point
+    assert "Nothing measured yet" in body      # honest empty state, no invented figures
 
 
 def test_the_page_says_what_this_deployment_cannot_do(application, ready):

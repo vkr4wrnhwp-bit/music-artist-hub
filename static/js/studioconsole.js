@@ -87,6 +87,48 @@
     return pct > 100 ? 100 : pct;
   }
 
+  /* Playback translation - LISTENING simulations, and the table says so on
+     every entry. These are engineering approximations of familiar playback
+     situations, not measurements of any real device, and the UI must carry
+     that caveat. They sit AFTER the meter tap so the meter keeps reading the
+     master while your ears get the phone. */
+  var SIMS = [
+    { key: "flat", label: "Flat", note: "No simulation - the master as it is.",
+      filters: [], gainDb: 0 },
+    { key: "phone", label: "Phone",
+      note: "Small speaker: nothing below ~350 Hz survives.",
+      filters: [{ type: "highpass", frequency: 350, Q: 0.7 },
+                { type: "peaking", frequency: 2500, Q: 1.2, gain: 3 }],
+      gainDb: -3 },
+    { key: "laptop", label: "Laptop",
+      note: "Thin low end, a little presence bump.",
+      filters: [{ type: "highpass", frequency: 180, Q: 0.7 },
+                { type: "peaking", frequency: 3000, Q: 1.0, gain: 2 }],
+      gainDb: -2 },
+    { key: "bluetooth", label: "Small Bluetooth",
+      note: "Mid-forward with rolled extremes.",
+      filters: [{ type: "highpass", frequency: 120, Q: 0.7 },
+                { type: "lowpass", frequency: 9000, Q: 0.7 }],
+      gainDb: -2 },
+    { key: "earbuds", label: "Earbuds",
+      note: "Close and slightly bright.",
+      filters: [{ type: "peaking", frequency: 6000, Q: 1.0, gain: 2 }],
+      gainDb: 0 },
+    { key: "car", label: "Car-like",
+      note: "Lifted low end, softened top.",
+      filters: [{ type: "lowshelf", frequency: 120, gain: 4 },
+                { type: "highshelf", frequency: 8000, gain: -2 }],
+      gainDb: 0 },
+    { key: "club", label: "Club / PA",
+      note: "Big low end, hard mids.",
+      filters: [{ type: "lowshelf", frequency: 100, gain: 6 },
+                { type: "peaking", frequency: 1200, Q: 1.0, gain: 2 }],
+      gainDb: 0 },
+    { key: "lowvol", label: "Low volume",
+      note: "Quiet listening - what disappears first?",
+      filters: [], gainDb: -20 },
+  ];
+
   // --- the console -----------------------------------------------------------
 
   function create(opts) {
@@ -109,6 +151,9 @@
     var meterData = null;
 
     var listen = null;
+    var simIn = null;
+    var simNodes = [];
+    var simKey = "flat";
 
     function ensure() {
       if (ctx) { return ctx; }
@@ -121,8 +166,10 @@
          A monitor level is a comfort setting, and a meter that dropped when
          you turned the room down would be reading the knob, not the signal. */
       listen = ctx.createGain();
+      simIn = ctx.createGain();
       master.connect(analyser);
-      analyser.connect(listen);
+      analyser.connect(simIn);
+      simIn.connect(listen);
       listen.connect(ctx.destination);
       return ctx;
     }
@@ -316,6 +363,36 @@
         }
         emit();
       },
+      setSim: function (key) {
+        /* Rebuild the chain between the meter tap and the listen gain. */
+        var def = null;
+        for (var i = 0; i < SIMS.length; i++) {
+          if (SIMS[i].key === key) { def = SIMS[i]; }
+        }
+        if (!def || !ctx) { return false; }
+        simIn.disconnect();
+        simNodes.forEach(function (n) { try { n.disconnect(); } catch (e) {} });
+        simNodes = [];
+        var head = simIn;
+        def.filters.forEach(function (f) {
+          var node = ctx.createBiquadFilter();
+          node.type = f.type;
+          node.frequency.value = f.frequency;
+          if (f.Q !== undefined) { node.Q.value = f.Q; }
+          if (f.gain !== undefined) { node.gain.value = f.gain; }
+          head.connect(node);
+          simNodes.push(node);
+          head = node;
+        });
+        var trim = ctx.createGain();
+        trim.gain.value = Math.pow(10, (def.gainDb || 0) / 20);
+        head.connect(trim);
+        simNodes.push(trim);
+        trim.connect(listen);
+        simKey = key;
+        return true;
+      },
+      simKey: function () { return simKey; },
       setVolume: function (linear) {
         /* Monitoring level only, applied AFTER the meter tap - turning the
            room down changes what you hear, never what the meter reads. */
@@ -337,6 +414,7 @@
 
   var api = {
     create: create,
+    SIMS: SIMS,
     peaks: peaks,
     matchGainDb: matchGainDb,
     dbfs: dbfs,
