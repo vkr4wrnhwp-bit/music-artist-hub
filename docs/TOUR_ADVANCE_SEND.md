@@ -69,12 +69,25 @@ email says what is confirmed now.
 
 ## What it needs on the deployment
 
-`EMAIL_FROM` set to an address on a domain verified in Resend. As of 2
-September 2026 production has `RESEND_API_KEY` but no `EMAIL_FROM`, so the
-sender is `onboarding@resend.dev` and the tab reports that plainly. The
-Resend key on the account is restricted to sending, so `/mail/diag` cannot
-list the domain's DNS records; verify the domain in the Resend dashboard,
-then set the variable.
+`EMAIL_FROM` set to an address on a domain verified in Resend, and a
+`RESEND_API_KEY` minted in the **same** Resend account as that domain.
+
+Proven live on 2 September 2026: `mail.artiswarrecords.com` verified (three
+DNS records in Shopify, which manages that domain), `EMAIL_FROM` set to
+`Street Banker <advance@mail.artiswarrecords.com>`, a Full-access key from
+the team.summitarts Resend account in Render, and the first advance
+delivered to the owner's inbox with the plot and input list attached.
+
+Two things learned on the way, both now fixed in code: the send call had
+no User-Agent and Cloudflare refused it with "403 error code: 1010" before
+Resend ever saw it, so every send from this app had been failing silently;
+and a failed send recorded nothing but "failed", so the tab now keeps the
+vendor's response text on the row. The key-in-the-wrong-account case reads
+"The <domain> domain is not verified" there.
+
+Still on the other Resend account: the statement drop-box inbound domain
+and its webhook secret. Attachment download for emailed statements needs
+inbound rebuilt on the same account as the sending key.
 
 ## Files
 
