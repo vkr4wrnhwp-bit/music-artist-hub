@@ -2852,7 +2852,7 @@ def create_app():
                      "/start", "/artist-control",
                      "/product-tour", "/product-tour/smart-link",
                      "/about", "/contact", "/partners", "/release-check",
-                     "/release-signal", "/remix-lab",
+                     "/release-signal",
                      # Exact only. "/press" explains the desk to a stranger;
                      # "/press-desk" and everything under it stays gated,
                      # and "/press/<token>" is covered by the prefix above.

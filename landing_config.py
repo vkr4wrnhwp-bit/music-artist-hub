@@ -125,7 +125,6 @@ def get_landing_config():
                     {"label": "Product tour", "href": "/product-tour"},
                     {"label": "AI Artist Twin", "href": "/artist-twin/start"},
                     {"label": "Creative Studio", "href": "/creative-studio"},
-                    {"label": "Remix Lab", "href": "/remix-lab"},
                     {"label": "Rollout Engine", "href": "/rollout"},
                     {"label": "Royalty Sweep", "href": "/royalty-sweep"},
                     {"label": "Global Distribution", "href": "/distribution"},
