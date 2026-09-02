@@ -58,7 +58,9 @@ Tour: `/tours`, `/tours/new`, `/tours/<t>`, `/my-day`, `/calendar`
 Show Command: `/tours/<t>/shows/<s>?tab=` overview · schedule ·
 advance · inbox · travel · hotel · venue · people · guests · vip ·
 production · money · merch · marketing · content · setlist · files ·
-tasks · notes · activity. POST endpoints under the same prefix: `/ext`,
+tasks · notes · activity — since the date page (`TOUR_DATE_PAGE.md`)
+these are deep links into ONE page, not separate pages. POST endpoints
+under the same prefix: `/sections` (add or remove an optional section), `/ext`,
 `/notes`, `/delete`, `/standard-day`, `/copy-schedule`,
 `/advance/<key>`, `/advance-bulk`, `/inbox`, `/venue/from-advance`,
 `/guests/add`, `/guests/<g>`, `/guests.csv`, `/vip/add`, `/vip/<v>`,
@@ -72,7 +74,12 @@ Public: `/tour-share/<token>` (GET, POST for password / check-in) and
 ## Honesty rules that are enforced in code
 
 - Readiness % = done ÷ applicable checklist categories, per show; the
-  tour figure is the mean. Nothing is assumed complete.
+  tour figure is the mean. Nothing is assumed complete. Since the date
+  page, "applicable" means the nine core categories (confirmation,
+  contract, deposit, venue, promoter, advance, production, catering,
+  hospitality) plus the categories of any optional section that has been
+  added to the date or has rows — a date nobody said needs a hotel is not
+  "missing a hotel". Before, all 17 categories counted on every show.
 - Money cards read "no money entered" rather than zero; shows without
   numbers are excluded from tour totals, not counted as zero.
 - The extractor proposes; the review step writes; every write it

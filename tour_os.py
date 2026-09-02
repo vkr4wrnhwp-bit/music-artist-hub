@@ -65,6 +65,56 @@ TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
              "vip": "vip", "marketing": "marketing", "content": "content",
              "inbox": "advance", "send": "advance", "files": "files"}
 
+# --- the date page ----------------------------------------------------------
+# One date, one page. The six CORE sections always render, in this order;
+# every other former tab is OPTIONAL: a `+` chip until it is added to the
+# date, has rows, or is reached by its old ?tab= deep link. The opted keys
+# live in tour_show_ext.readiness_config (section keys), and readiness
+# follows the same rule: core categories always, an optional section's
+# categories only once it is on the page. SHOW_TABS stays as the deep-link
+# vocabulary (the service worker caches by full URL, query included).
+CORE_SECTIONS = [
+    ("times", "Times", "clock"), ("advance", "Advance", "tick"),
+    ("venue", "Venue & contacts", "compass"), ("deal", "Deal", "card"),
+    ("notes", "Notes", "pencil"), ("activity", "Activity", "pulse"),
+]
+OPTIONAL_SECTIONS = [
+    ("hotel", "Hotel", "bed", ("hotel",)),
+    ("travel", "Travel", "van", ("travel", "ground")),
+    ("guests", "Guest list", "people", ("guest_list",)),
+    ("vip", "VIP", "star", ("vip",)),
+    ("settlement", "Settlement", "receipt", ("settlement",)),
+    ("merch", "Merch counts", "tag", ()),
+    ("marketing", "Marketing", "megaphone", ("marketing",)),
+    ("content", "Content plan", "camera", ("content",)),
+    ("setlist", "Set list", "stems", ()),
+    ("files", "Files", "folder", ()),
+    ("tasks", "Tasks", "list-check", ()),
+]
+SECTION_KEYS = [k for k, _l, _i in CORE_SECTIONS] + [k for k, _l, _i, _c in OPTIONAL_SECTIONS]
+CORE_CATEGORIES = ["confirmation", "contract", "deposit", "venue", "promoter",
+                   "advance", "production", "catering", "hospitality"]
+# Reading a section needs the scope its old tab needed; the deal and the
+# settlement are the money tab.
+SECTION_VIEW_SCOPE = dict(TAB_SCOPE, deal="financials", settlement="financials")
+# Adding one needs `edit` or the scope that edits its rows.
+SECTION_ADD_SCOPE = {"hotel": "hotel", "travel": "travel", "guests": "guests", "vip": "vip",
+                     "settlement": "financials", "merch": "merch", "marketing": "marketing",
+                     "content": "content", "setlist": "production", "files": "files",
+                     "tasks": "schedule"}
+# Old tab keys that land inside a section. The page scrolls to the tab's
+# own id; this says which section it lives in.
+TAB_SECTION = {"overview": None, "schedule": "times", "inbox": "advance", "send": "advance",
+               "production": "advance", "people": "venue", "money": "deal"}
+ADD_LABELS = {"hotel": "Add a hotel", "travel": "Add travel", "guests": "Set the allocation and add guests",
+              "vip": "Add a VIP package", "merch": "Count merch for this date",
+              "marketing": "Enter tickets and the local push", "content": "Assign the content plan",
+              "setlist": "Start a set list", "files": "Attach a file", "tasks": "Add a task"}
+SETTLEMENT_FIELDS = ["ticket_gross", "adjusted_gross", "vip_gross", "merch_gross", "venue_merch_cut",
+                     "production_expenses", "local_expenses", "travel_allocation", "promoter_expenses",
+                     "settlement_amount", "collected"]
+PRODUCTION_FILE_CATEGORIES = ("stage_plot", "tech_pack", "rider", "production", "venue_map")
+
 TOUR_TABS = [
     ("home", "Tour Home", ""), ("my-day", "My Day", "my-day"),
     ("calendar", "Calendar", "calendar"), ("shows", "Shows", "shows"),
@@ -324,18 +374,82 @@ def _back(default):
     return redirect(default)
 
 
-def _readiness_for(tour, show, viewer=None):
+def _date_rows(tour, show, full=False):
+    """The rows that decide readiness and which optional sections have
+    data. `full` adds the sections that own no readiness category."""
+    tid, sid = tour["id"], show["id"]
+    rows = {
+        "travel": ts.list_travel(tid, show_id=sid) +
+                  [t for t in ts.list_travel(tid, day_date=show["date"]) if not t.get("show_id")],
+        "lodging": ts.list_lodging(tid, show_id=sid) or ts.list_lodging(tid, on_date=show["date"]),
+        "files": ts.list_files(tid, entity_type="show", entity_id=sid),
+        "guest_rows": ts.list_guests(tid, sid),
+        "vip_rows": ts.list_vip(tid, sid),
+        "content": ts.list_content(tid, show_id=sid),
+        "expenses": ts.list_expenses(tid, show_id=sid),
+    }
+    if full:
+        rows["counts"] = ts.list_merch_counts(tid, show_id=sid)
+        rows["setlists"] = ts.list_setlists(tid, show_id=sid)
+    return rows
+
+
+def _has_data(show, rows, viewer=None, tasks=None):
+    """Which optional sections have rows on this date. A section with
+    rows is on the page whether or not anybody added it, and its
+    readiness categories count."""
+    mk = show.get("marketing") or {}
+
+    def filled(*keys):
+        return any(str(show.get(k) or "").strip() for k in keys)
+
+    files = rows.get("files") or []
+    if viewer is not None:
+        files = _files_for(viewer, files)
+    return {
+        "hotel": bool(rows.get("lodging")),
+        "travel": bool(rows.get("travel")),
+        "guests": bool(rows.get("guest_rows")),
+        "vip": bool(rows.get("vip_rows")),
+        "settlement": filled(*SETTLEMENT_FIELDS) or bool(rows.get("expenses"))
+                      or (show.get("settlement_status") or "open") != "open",
+        "marketing": any(str(v or "").strip() for v in mk.values())
+                     or filled("ticket_url", "ticket_status", "tickets_sold"),
+        "content": any((c.get("assignee") or c.get("file_id") or c.get("due_time")
+                        or c.get("status") not in ("", "planned", None))
+                       for c in rows.get("content") or []),
+        "merch": bool(rows.get("counts")),
+        "setlist": bool(rows.get("setlists")),
+        "files": bool(files),
+        "tasks": bool(tasks),
+    }
+
+
+def _opted_sections(show):
+    return [k for k in (show.get("readiness_config") or []) if k in SECTION_KEYS]
+
+
+def _effective_categories(show, has):
+    """Core categories always; an optional section's categories once it
+    is opted in or has rows. Nothing else counts against the score, so a
+    date with no hotel entered is not 'missing a hotel' until somebody
+    says the date needs one."""
+    cats = list(CORE_CATEGORIES)
+    opted = set(_opted_sections(show))
+    for key, _label, _icon, owned in OPTIONAL_SECTIONS:
+        if owned and (key in opted or has.get(key)):
+            cats.extend(owned)
+    return cats
+
+
+def _readiness_for(tour, show, viewer=None, rows=None, has=None):
     ts.ensure_advance_items(tour["id"], tour["user_id"], show["id"])
     adv = ts.list_advance(tour["id"], show["id"])
-    travel = ts.list_travel(tour["id"], show_id=show["id"]) + \
-        [t for t in ts.list_travel(tour["id"], day_date=show["date"]) if not t.get("show_id")]
-    lodging = ts.list_lodging(tour["id"], show_id=show["id"]) or ts.list_lodging(tour["id"], on_date=show["date"])
-    files = ts.list_files(tour["id"], entity_type="show", entity_id=show["id"])
+    rows = rows or _date_rows(tour, show)
+    has = has or _has_data(show, rows)
     guests = ts.guest_summary(tour["id"], show["id"], show.get("guest_allocation"))
-    content = ts.list_content(tour["id"], show_id=show["id"])
-    vip = len(ts.list_vip(tour["id"], show["id"]))
-    return eng.show_readiness(show, adv, travel, lodging, files, guests, content, vip,
-                              show.get("readiness_config") or None)
+    return eng.show_readiness(show, adv, rows["travel"], rows["lodging"], rows["files"], guests,
+                              rows["content"], len(rows["vip_rows"]), _effective_categories(show, has))
 
 
 def _notify_members(tour, title, body, link, exclude_user_id=None, severity="info", scope=None):
@@ -721,93 +835,260 @@ def _tour_tasks(tour, shows, show_id=None):
 def show(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
     tab = request.args.get("tab") or "overview"
-    if tab not in dict(SHOW_TABS):
+    if tab not in dict(SHOW_TABS) and tab not in SECTION_KEYS:
         tab = "overview"
-    need = TAB_SCOPE.get(tab)
+    need = TAB_SCOPE.get(tab) or SECTION_VIEW_SCOPE.get(tab)
     if need and not can(viewer, need):
         return render_template("tour/denied.html", tour=tour, viewer=viewer, needed=(need,),
                                active_page="tours"), 403
-    shows = ts.list_shows(tour_id)
-    idx = next((i for i, s in enumerate(shows) if s["id"] == show_id), 0)
-    prev_show = shows[idx - 1] if idx > 0 else None
-    next_show = shows[idx + 1] if idx + 1 < len(shows) else None
-    readiness = _readiness_for(tour, show, viewer)
-    venue = ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None
-    data = {"show": _strip_money(viewer, show), "readiness": readiness, "venue": venue,
-            "prev_show": prev_show, "next_show": next_show, "tab": tab,
-            "guests": ts.guest_summary(tour_id, show_id, show.get("guest_allocation")) if can(viewer, "guests") else None,
-            "day_row": next((d for d in ts.list_days(tour_id) if d.get("show_id") == show_id), None)}
-    if tab in ("overview", "schedule"):
-        data["schedule"] = _visible(viewer, ts.list_schedule(tour_id, show_id=show_id))
-        data["people_names"] = [p["name"] for p in ts.list_people(tour_id)]
-        # Seeded from the comma bill on first open, so a tour that already
-        # has a running order does not appear to have lost it.
-        data["lineup"] = ts.seed_lineup_from_support(tour_id, show)
-        data["lineup_warnings"] = ts.lineup_warnings(
-            data["lineup"], fmt_time=eng.fmt_time)
-    if tab in ("overview", "advance", "production"):
-        data["advance"] = ts.list_advance(tour_id, show_id)
-        data["advance_progress"] = ts.advance_progress(tour_id, show_id)
-    if tab in ("overview", "travel"):
-        data["travel"] = _redact_travel(viewer, ts.list_travel(tour_id, show_id=show_id) +
-                                        [t for t in ts.list_travel(tour_id, day_date=show["date"]) if not t.get("show_id")])
-        data["people"] = _redact_people(viewer, ts.list_people(tour_id))
-    if tab in ("overview", "hotel"):
-        lodging = ts.list_lodging(tour_id, show_id=show_id) or ts.list_lodging(tour_id, on_date=show["date"])
-        data["lodging"] = _redact_lodging(viewer, lodging)
-        data["rooms"] = {l["id"]: _redact_rooms(viewer, ts.list_rooms(tour_id, l["id"])) for l in data["lodging"]}
-        data["people"] = _redact_people(viewer, ts.list_people(tour_id))
-    if tab == "venue":
-        data["venues"] = ts.list_venues(tour["user_id"])
-    if tab == "people":
-        data["people"] = _redact_people(viewer, [p for p in ts.list_people(tour_id)
-                                                 if not p.get("shows") or show_id in p["shows"]])
-    if tab == "guests":
-        data["guest_rows"] = ts.list_guests(tour_id, show_id)
-        data["contacts"] = press_store.list_contacts(tour["user_id"])[:200] if viewer["is_owner"] else []
-    if tab == "vip":
-        data["vip_rows"] = ts.list_vip(tour_id, show_id)
-        data["vip"] = ts.vip_summary(tour_id, show_id)
-    if tab == "production":
-        data["files"] = _files_for(viewer, [f for f in ts.list_files(tour_id, entity_type="show", entity_id=show_id)
-                                            if f["category"] in ("stage_plot", "tech_pack", "rider", "production", "venue_map")])
-        data["tour_files"] = _files_for(viewer, [f for f in ts.list_files(tour_id, entity_type="tour")
-                                                 if f["category"] in ("stage_plot", "tech_pack", "rider", "production")])
-    if tab == "money":
-        expenses = ts.list_expenses(tour_id, show_id=show_id)
-        data["expenses"] = expenses
-        data["money"] = eng.show_money(show, expenses)
-        data["receipts"] = ts.list_files(tour_id, entity_type="expense")
-    if tab == "merch":
-        data["products"] = ts.list_products(tour_id)
-        data["counts"] = {c["product_id"]: c for c in ts.list_merch_counts(tour_id, show_id=show_id)}
-    if tab == "content":
-        ts.ensure_content_plan(tour_id, tour["user_id"], show_id)
-        data["content"] = ts.list_content(tour_id, show_id=show_id)
-        data["people"] = _redact_people(viewer, ts.list_people(tour_id))
-    if tab == "setlist":
-        data["setlists"] = [ts.get_setlist(tour_id, s["id"]) for s in ts.list_setlists(tour_id, show_id=show_id)]
-        data["tour_setlists"] = [s for s in ts.list_setlists(tour_id) if not s.get("show_id")]
-        data["tracks"] = store.list_os_tracks(tour["user_id"])
-    if tab == "files":
-        data["files"] = _files_for(viewer, ts.list_files(tour_id, entity_type="show", entity_id=show_id))
-    if tab == "tasks":
-        data["tasks"] = _tour_tasks(tour, shows, show_id=show_id)
-    if tab == "activity":
-        sched_ids = {r["id"] for r in ts.list_schedule(tour_id, show_id=show_id)}
-        mine = [c for c in ts.list_changes(tour_id, limit=600)
-                if c["entity_id"] == show_id or c["entity_id"] in sched_ids]
-        data["changes"] = _changes_for(viewer, tour_id, mine)[:100]
-    if tab == "inbox":
-        data["imports"] = [i for i in ts.list_imports(tour_id) if i["summary"].get("show_id") == show_id][:10]
-    if tab == "send":
-        data.update(_send_context(tour, show, viewer, user))
-        data["sent"] = request.args.get("sent")
-        data["fail"] = request.args.get("fail")
-    if tab == "marketing":
-        data["marketing"] = show.get("marketing") or {}
-        data["ticket_progress"] = _ticket_progress(show)
-    return render_template("tour/show.html", **_ctx(user, tour, viewer, "shows", shows=shows, **data))
+    return _date_page(user, tour, viewer, show, tab)
+
+
+def _plural(n, word, plural=None):
+    return "%d %s" % (n, word if n == 1 else (plural or word + "s"))
+
+
+def _section_status(key, d, show, tour):
+    """The one line in a section head. Counts from rows, never a guess;
+    money says 'no numbers entered' rather than zero."""
+    if key == "times":
+        sched, acts = d["schedule"], d["lineup"]
+        if not sched and not acts:
+            return "No times yet"
+        parts = []
+        if sched:
+            parts.append("%s · %d confirmed" % (_plural(len(sched), "item"),
+                                               sum(1 for r in sched if r.get("confirmed"))))
+        if acts:
+            parts.append(_plural(len(acts), "act") + " on the bill")
+        return " · ".join(parts)
+    if key == "advance":
+        p = d["advance_progress"]
+        out = "%d of %d" % (p["done"], p["total"])
+        return out + (" · %d waiting" % p["waiting"] if p["waiting"] else "")
+    if key == "venue":
+        v = d["venue"]
+        head = (v["name"] + (", " + v["city"] if v.get("city") else "")) if v else "No venue record linked"
+        return "%s · %s" % (head, _plural(len(d["show_people"]), "contact"))
+    if key == "deal":
+        m = d.get("money")
+        if not m or not m["has_numbers"]:
+            return "No numbers entered"
+        out = (show.get("deal_type") or "flat").replace("_", " ")
+        if str(show.get("guarantee") or "").strip():
+            out += " · guarantee %s %s" % (show["guarantee"], show.get("currency") or tour["currency"])
+        return out
+    if key == "notes":
+        first = next((ln.strip() for ln in (show.get("notes") or "").splitlines() if ln.strip()), "")
+        return (first[:80] + ("…" if len(first) > 80 else "")) if first else "No notes yet"
+    if key == "activity":
+        n = len(d.get("changes") or [])
+        return _plural(n, "change") if n else "No activity yet"
+    if key == "hotel":
+        rows = d.get("lodging") or []
+        if not rows:
+            return "No hotel yet"
+        out = "%s · %s" % (rows[0]["property"], rows[0]["status"].replace("_", " "))
+        return out + (" · +%d more" % (len(rows) - 1) if len(rows) > 1 else "")
+    if key == "travel":
+        rows = d.get("travel") or []
+        if not rows:
+            return "No travel yet"
+        return "%s · %d confirmed" % (_plural(len(rows), "leg"),
+                                      sum(1 for t in rows if t.get("status") == "confirmed"))
+    if key == "guests":
+        g = d.get("guests")
+        if not d.get("guest_rows"):
+            return "No guests yet"
+        alloc = " of %d" % g["allocation"] if g and g.get("allocation") is not None else ""
+        return "%d%s approved · %d pending" % (g["used"], alloc, g["pending"])
+    if key == "vip":
+        v = d.get("vip") or {}
+        if not d.get("vip_rows"):
+            return "No VIP packages yet"
+        return "%s sold · %d checked in" % (_plural(v.get("sold", 0), "package"), v.get("checked_in", 0))
+    if key == "merch":
+        products = d.get("products") or []
+        if not products:
+            return "No products on this tour"
+        counted = len(d.get("counts") or {})
+        return "%d of %d products counted" % (counted, len(products)) if counted else "No counts yet"
+    if key == "marketing":
+        tp = d.get("ticket_progress")
+        if tp:
+            return "%d of %d tickets · %d%%" % (tp["sold"], tp["cap"], tp["pct"])
+        if str(show.get("ticket_url") or "").strip():
+            return "Ticket link set"
+        return "Nothing entered yet"
+    if key == "content":
+        rows = d.get("content") or []
+        if not rows:
+            return "No content plan yet"
+        return "%d of %d assigned" % (sum(1 for c in rows if c.get("assignee")), len(rows))
+    if key == "setlist":
+        rows = d.get("setlists") or []
+        return _plural(len(rows), "set list") if rows else "No set list yet"
+    if key == "files":
+        rows = d.get("show_files") or []
+        return _plural(len(rows), "file") if rows else "No files yet"
+    if key == "tasks":
+        rows = d.get("tasks") or []
+        if not rows:
+            return "No tasks yet"
+        open_n = sum(1 for t in rows if t.get("status") in ("new", "in_progress"))
+        return "%d open · %d done" % (open_n, len(rows) - open_n)
+    return ""
+
+
+def _date_page(user, tour, viewer, show, tab, **extra):
+    """Render one date as one page: every core section, the optional
+    sections that are on (opted, have rows, or deep-linked), and a `+`
+    chip for the rest. `tab` is the old deep link: it names the element
+    the page opens and scrolls to."""
+    tid, sid = tour["id"], show["id"]
+    shows = ts.list_shows(tid)
+    idx = next((i for i, s in enumerate(shows) if s["id"] == sid), 0)
+    rows = _date_rows(tour, show, full=True)
+    tasks = _tour_tasks(tour, shows, show_id=sid)
+    has = _has_data(show, rows, viewer, tasks)
+    readiness = _readiness_for(tour, show, viewer, rows=rows, has=has)
+    opted = _opted_sections(show)
+    people_all = _redact_people(viewer, ts.list_people(tid))
+    sched_ids = {r["id"] for r in ts.list_schedule(tid, show_id=sid)}
+    mine = [c for c in ts.list_changes(tid, limit=600) if c["entity_id"] == sid or c["entity_id"] in sched_ids]
+    d = {
+        "show": _strip_money(viewer, show), "readiness": readiness,
+        "open_target": None if tab == "overview" else tab, "show_url": _show_url(tour, show),
+        "venue": ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
+        "prev_show": shows[idx - 1] if idx > 0 else None,
+        "next_show": shows[idx + 1] if idx + 1 < len(shows) else None,
+        "guests": ts.guest_summary(tid, sid, show.get("guest_allocation")) if can(viewer, "guests") else None,
+        "day_row": next((dd for dd in ts.list_days(tid) if dd.get("show_id") == sid), None),
+        # times
+        "schedule": _visible(viewer, ts.list_schedule(tid, show_id=sid)),
+        "people_names": [p["name"] for p in people_all], "people": people_all,
+        "lineup": ts.seed_lineup_from_support(tid, show),
+        # advance, with the production pack and the mail behind disclosures
+        "advance": ts.list_advance(tid, sid), "advance_progress": ts.advance_progress(tid, sid),
+        "prod_files": _files_for(viewer, [f for f in rows["files"] if f["category"] in PRODUCTION_FILE_CATEGORIES]),
+        "prod_tour_files": _files_for(viewer, [f for f in ts.list_files(tid, entity_type="tour")
+                                               if f["category"] in ("stage_plot", "tech_pack", "rider", "production")]),
+        "sent": request.args.get("sent"), "fail": request.args.get("fail"),
+        # venue & contacts
+        "venues": ts.list_venues(tour["user_id"]),
+        "show_people": [p for p in people_all if not p.get("shows") or sid in p["shows"]],
+        # activity
+        "changes": _changes_for(viewer, tid, mine)[:100],
+    }
+    d["lineup_warnings"] = ts.lineup_warnings(d["lineup"], fmt_time=eng.fmt_time)
+    if can(viewer, "advance"):
+        d["imports"] = [i for i in ts.list_imports(tid) if i["summary"].get("show_id") == sid][:10]
+        d.update(_send_context(tour, show, viewer, user))
+    if can(viewer, "financials"):
+        d["expenses"] = rows["expenses"]
+        d["money"] = eng.show_money(show, rows["expenses"])
+        d["receipts"] = ts.list_files(tid, entity_type="expense")
+        d["settlement_on"] = "settlement" in opted or has["settlement"] or tab == "settlement"
+        d["settlement_removable"] = "settlement" in opted and not has["settlement"]
+    # optional sections: shown, or offered as a chip
+    shown, chips = [], []
+    for key, label, icon, _owned in OPTIONAL_SECTIONS:
+        need = SECTION_VIEW_SCOPE.get(key)
+        if need and not can(viewer, need):
+            continue
+        can_add = can(viewer, "edit") or can(viewer, SECTION_ADD_SCOPE[key])
+        on = key in opted or has[key] or tab == key
+        sec = {"key": key, "label": label, "icon": icon, "optional": True, "opted": key in opted,
+               "has_data": has[key], "target": tab == key, "open": True,
+               "add_label": ADD_LABELS.get(key, "Add"),
+               "removable": can_add and key in opted and not has[key]}
+        if not on:
+            if can_add:
+                chips.append(sec)
+            continue
+        if key == "hotel":
+            d["lodging"] = _redact_lodging(viewer, rows["lodging"])
+            d["rooms"] = {l["id"]: _redact_rooms(viewer, ts.list_rooms(tid, l["id"])) for l in d["lodging"]}
+            d["edit_hotel"] = (ts.get_lodging(tid, request.args.get("edit") or "")
+                               if tab == "hotel" and can(viewer, "hotel") else None)
+        elif key == "travel":
+            d["travel"] = _redact_travel(viewer, rows["travel"])
+            d["edit_travel"] = (ts.get_travel(tid, request.args.get("edit") or "")
+                                if tab == "travel" and can(viewer, "travel") else None)
+        elif key == "guests":
+            d["guest_rows"] = rows["guest_rows"]
+            d["contacts"] = press_store.list_contacts(tour["user_id"])[:200] if viewer["is_owner"] else []
+        elif key == "vip":
+            d["vip_rows"] = rows["vip_rows"]
+            d["vip"] = ts.vip_summary(tid, sid)
+        elif key == "merch":
+            d["products"] = ts.list_products(tid)
+            d["counts"] = {c["product_id"]: c for c in rows["counts"]}
+        elif key == "marketing":
+            d["marketing"] = show.get("marketing") or {}
+            d["ticket_progress"] = _ticket_progress(show)
+        elif key == "content":
+            ts.ensure_content_plan(tid, tour["user_id"], sid)
+            d["content"] = ts.list_content(tid, show_id=sid)
+        elif key == "setlist":
+            d["setlists"] = [ts.get_setlist(tid, x["id"]) for x in rows["setlists"]]
+            d["tour_setlists"] = [x for x in ts.list_setlists(tid) if not x.get("show_id")]
+            d["tracks"] = store.list_os_tracks(tour["user_id"])
+        elif key == "files":
+            d["show_files"] = _files_for(viewer, rows["files"])
+        elif key == "tasks":
+            d["tasks"] = tasks
+        if key != "settlement":          # the settlement lives inside Deal
+            sec["status"] = _section_status(key, d, show, tour)
+            shown.append(sec)
+    core = []
+    for key, label, icon in CORE_SECTIONS:
+        need = SECTION_VIEW_SCOPE.get(key)
+        if need and not can(viewer, need):
+            continue
+        core.append({"key": key, "label": label, "icon": icon, "optional": False, "opted": True,
+                     "has_data": True, "target": tab == key or TAB_SECTION.get(tab) == key,
+                     "open": key != "activity" or tab == "activity", "removable": False,
+                     "status": _section_status(key, d, show, tour)})
+    d["sections"] = [c for c in core if c["key"] != "activity"] + shown
+    d["tail_sections"] = [c for c in core if c["key"] == "activity"]
+    d["chips"] = chips
+    d.update(extra)
+    return render_template("tour/show.html", **_ctx(user, tour, viewer, "shows", shows=shows, tab=tab, **d))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/sections", methods=["POST"])
+@require_tour("edit", *sorted(set(SECTION_ADD_SCOPE.values())))
+def show_sections(user, tour, viewer, tour_id, show_id):
+    """Add an optional section to this date, or take an empty one off.
+    The opted keys are stored on the show; a section with rows is refused
+    removal, because its rows would keep it on the page anyway and its
+    readiness categories would keep counting."""
+    show = _show_or_404(tour, show_id)
+    key = request.form.get("key") or ""
+    action = request.form.get("action") or "add"
+    if key not in SECTION_ADD_SCOPE or action not in ("add", "remove"):
+        abort(404)
+    need = SECTION_VIEW_SCOPE.get(key)
+    if not (can(viewer, "edit") or can(viewer, SECTION_ADD_SCOPE[key])) or (need and not can(viewer, need)):
+        return render_template("tour/denied.html", tour=tour, viewer=viewer,
+                               needed=(SECTION_ADD_SCOPE[key],), active_page="tours"), 403
+    before = _opted_sections(show)
+    after = list(before)
+    if action == "add":
+        if key not in after:
+            after.append(key)
+    else:
+        has = _has_data(show, _date_rows(tour, show, full=True), viewer,
+                        _tour_tasks(tour, ts.list_shows(tour_id), show_id=show_id))
+        if has.get(key):
+            return redirect(_show_url(tour, show, key))      # rows keep it on the page
+        after = [k for k in after if k != key]
+    if after != before:
+        ts.update_show_ext(tour_id, show_id, {"readiness_config": after})
+        _log(tour, viewer, "show", show_id, show["venue"],
+             {"sections": (", ".join(before) or "—", ", ".join(after) or "—")})
+    return redirect(_show_url(tour, show, key if action == "add" else None))
 
 
 def _ticket_progress(show):
@@ -1100,18 +1381,12 @@ def inbox(user, tour, viewer, tour_id, show_id):
             text = raw.decode("latin-1", "ignore")
         if up.filename.lower().endswith(".pdf"):
             # No PDF text extraction library is installed; be honest.
-            return render_template("tour/show.html", **_ctx(
-                user, tour, viewer, "shows", show=_strip_money(viewer, show), tab="inbox",
-                readiness=_readiness_for(tour, show, viewer), venue=None, prev_show=None, next_show=None,
-                guests=None, day_row=None, imports=[], extract_error=(
-                    "PDF text extraction is not installed on this deployment. Open the PDF, "
-                    "copy its text and paste it here — the review step is the same.")))
+            return _date_page(user, tour, viewer, show, "inbox", extract_error=(
+                "PDF text extraction is not installed on this deployment. Open the PDF, "
+                "copy its text and paste it here — the review step is the same."))
     if action == "extract":
         result = eng.extract(text)
-        return render_template("tour/show.html", **_ctx(
-            user, tour, viewer, "shows", show=_strip_money(viewer, show), tab="inbox",
-            readiness=_readiness_for(tour, show, viewer), venue=None, prev_show=None, next_show=None,
-            guests=None, day_row=None, imports=[], extract=result, extract_text=text))
+        return _date_page(user, tour, viewer, show, "inbox", extract=result, extract_text=text)
     if action == "apply":
         ts.ensure_advance_items(tour_id, tour["user_id"], show_id)
         applied, skipped = [], 0

@@ -12,7 +12,7 @@
     <td data-k="Times">{% if t['dep_time'] %}dep {{ fmt_time(t['dep_time']) }}{% if t['dep_tz'] %} <span class="to-muted">{{ t['dep_tz'] }}</span>{% endif %}{% endif %}{% if t['arr_time'] %}<div>arr {{ fmt_time(t['arr_time']) }}{% if t['arr_tz'] %} <span class="to-muted">{{ t['arr_tz'] }}</span>{% endif %}</div>{% endif %}</td>
     <td data-k="Who">{% if 'all' in t['travelers'] %}everyone{% else %}{{ people|selectattr('id', 'in', t['travelers'])|map(attribute='name')|join(', ') }}{% endif %}</td>
     <td data-k="Status">{{ m.chip(t['status']) }}{% if t['visibility'] != 'all' %} <span class="to-chip to-chip--gold">{{ t['visibility'] }}</span>{% endif %}</td>
-    <td>{% if can('travel') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/travel?edit={{ t['id'] }}">Edit</a>{% endif %}</td>
+    <td>{% if can('travel') %}<a class="to-btn to-btn--ghost to-btn--small" href="{{ edit_base if edit_base is defined and edit_base else '/tours/' ~ tour['id'] ~ '/travel?edit=' }}{{ t['id'] }}">Edit</a>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>

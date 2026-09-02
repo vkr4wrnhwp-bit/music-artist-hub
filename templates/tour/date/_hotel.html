@@ -1,0 +1,17 @@
+{% import "tour/_macros.html" as m %}
+{#- The hotel for this date: the shared list (rooms, rooming list) and the
+    shared form behind an "Add a hotel" line. Edit links and Cancel stay
+    on the date page; the POST handlers redirect back to the referrer. -#}
+{% if lodging %}
+  {% with rows=lodging, edit_base=show_url ~ '?tab=hotel&edit=' %}{% include "tour/_hotel_list.html" %}{% endwith %}
+{% endif %}
+{% if can('hotel') %}
+<details class="to-add"{% if edit_hotel or tab == 'hotel' %} open{% endif %}>
+  <summary>{% if edit_hotel %}Edit {{ edit_hotel['property'] }}{% else %}Add a hotel{% endif %}</summary>
+  <div class="to-add-body">
+    {% with edit=edit_hotel, show_id=show['id'], checkin=show['date'], cancel_href=show_url ~ '?tab=hotel' %}{% include "tour/_hotel_form.html" %}{% endwith %}
+  </div>
+</details>
+{% elif not lodging %}
+  <p class="to-sub">No hotel entered for this date.</p>
+{% endif %}

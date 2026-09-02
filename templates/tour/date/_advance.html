@@ -1,0 +1,24 @@
+{% import "tour/_macros.html" as m %}
+{#- The Advance section: the meter and the six checklist categories, then
+    three disclosures that used to be tabs of their own - the inbox (paste
+    the venue's reply), the send (the packet out), and the production pack
+    (the read-only production rows plus the file attachments). Each keeps
+    its old id so ?tab=inbox / send / production still land on it. -#}
+{% include "tour/show/_advance.html" %}
+
+{% if can('advance') %}
+<details class="to-fold" id="inbox"{% if tab == 'inbox' or extract or extract_error %} open{% endif %}>
+  <summary><span class="to-fold-title">Paste an advance email</span><span class="to-fold-note">{% if imports %}{{ imports|length }} applied before{% else %}the venue's reply, turned into checklist rows{% endif %}</span></summary>
+  <div class="to-fold-body">{% include "tour/show/_inbox.html" %}</div>
+</details>
+<details class="to-fold" id="send"{% if tab == 'send' or sent or fail %} open{% endif %}>
+  <summary><span class="to-fold-title">Send advance</span><span class="to-fold-note">{% if sends %}{{ sends|length }} sent{% else %}not sent yet{% endif %}</span></summary>
+  <div class="to-fold-body">{% include "tour/show/_send.html" %}</div>
+</details>
+{% endif %}
+
+{% set prod_n = prod_files|length + prod_tour_files|length %}
+<details class="to-fold" id="production"{% if tab == 'production' %} open{% endif %}>
+  <summary><span class="to-fold-title">Production pack &amp; files</span><span class="to-fold-note">{% if prod_n %}{{ prod_n }} file{{ '' if prod_n == 1 else 's' }}{% else %}no files attached{% endif %}</span></summary>
+  <div class="to-fold-body">{% with files=prod_files, tour_files=prod_tour_files %}{% include "tour/show/_production.html" %}{% endwith %}</div>
+</details>

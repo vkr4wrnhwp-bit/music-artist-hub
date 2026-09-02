@@ -47,11 +47,17 @@
   <aside>
     <div class="to-bar" style="margin-top:0">
       <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/standard-day"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Stamp standard show day</button></form>
+      {% if shows|length > 1 %}
       <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/copy-schedule" class="to-inline">
         <select name="from_show_id" class="to-input" style="min-height:32px;padding:4px 8px;width:auto">{% for s in shows if s['id'] != show['id'] %}<option value="{{ s['id'] }}">{{ s['date'] }} {{ s['city'] or s['venue'] }}</option>{% endfor %}</select>
         <button class="to-btn to-btn--ghost to-btn--small" type="submit">Copy from</button>
       </form>
+      {% endif %}
     </div>
+    {#- The add form folds: on a fresh date the first move is the standard
+        day, and an always-open nine-field form beside an empty timeline was
+        most of the wall the owner described. -#}
+    <details class="to-add"><summary>Add an item</summary><div class="to-add-body">
     <form method="post" action="/tours/{{ tour['id'] }}/schedule/add" class="to-form">
       <input type="hidden" name="show_id" value="{{ show['id'] }}">
       <input type="hidden" name="day_date" value="{{ show['date'] }}">
@@ -69,6 +75,7 @@
       </div>
       <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
     </form>
+    </div></details>
   </aside>
   {% endif %}
 </div>

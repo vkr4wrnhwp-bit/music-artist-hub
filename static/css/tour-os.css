@@ -270,3 +270,79 @@
 /* --- touch ---------------------------------------------------------------- */
 @media (pointer: coarse) { .to-btn, .to-tab, .to-checks label { min-height: 44px; } .to-btn--small { min-height: 36px; } }
 @media (prefers-reduced-motion: reduce) { .to * { transition: none !important; } }
+
+/* --- the date page: one date, one page ----------------------------------
+   Six core sections, everything else behind a `+`. Sections are <details>
+   so the head (disc, title, one-line status) is the whole section until it
+   is wanted; sub-tabs that used to be tabs of their own (inbox, send,
+   production, settlement) are .to-fold disclosures inside their section.
+   (.to-sub is the muted paragraph, with a reading measure - not a fold.)
+
+   The shell's <main> is a flex item with min-width:auto, so the 24-link
+   tour bar's min-content width pushed every tour page past the viewport.
+   Let it shrink on tour pages; the bar scrolls inside its own overflow. */
+main:has(> .to) { min-width: 0; }
+/* The empty-state link colour must not reach a button inside it: amber on
+   the amber button was an unreadable pill. */
+.to-empty a.to-btn { color: var(--sb-on-gold); }
+.to-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; border: 1px solid var(--to-line); border-radius: var(--sb-r-panel); background: var(--to-panel-warm); padding: 12px 16px; margin-bottom: 14px; }
+.to-strip-score { display: flex; align-items: baseline; gap: 8px; flex: none; }
+.to-strip-main { flex: 1 1 320px; min-width: 0; }
+.to-strip-gaps { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--to-copy); }
+.to-strip-gaps b { color: var(--to-amber); font-weight: 700; }
+.to-strip-all { margin-top: 6px; }
+.to-strip-all > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--to-soft); min-height: 28px; }
+.to-strip-all > summary::-webkit-details-marker { display: none; }
+.to-strip-all > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-top: -3px; }
+.to-strip-all[open] > summary::after { transform: rotate(-135deg); margin-top: 3px; }
+.to-strip-all .to-check { margin-top: 6px; }
+.to-strip-status { display: flex; align-items: flex-end; gap: 8px; flex: none; }
+.to-strip-status .to-field { width: 150px; }
+.to-strip-status select { min-height: 36px; padding: 6px 10px; }
+
+.to-sec { border: 1px solid var(--to-rule); border-radius: var(--sb-r-panel); background: var(--to-panel); margin-bottom: 12px; scroll-margin-top: 16px; }
+.to-sec.is-target { border-color: var(--to-gold); box-shadow: 0 0 0 1px rgb(201 162 74 / 0.35); }
+.to-sec-d > summary { list-style: none; }
+.to-sec-d > summary::-webkit-details-marker { display: none; }
+.to-sec-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; min-height: 58px; }
+.to-sec-head:hover { background: rgb(255 255 255 / 0.02); }
+.to-sec-title { font-family: var(--sb-mono); font-size: 13px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--to-amber); flex: none; }
+.to-sec-status { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--to-soft); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.to-sec-caret { width: 16px; height: 16px; color: var(--to-soft); flex: none; transition: transform 0.15s; }
+.to-sec-d[open] > .to-sec-head .to-sec-caret { transform: rotate(180deg); }
+.to-sec-d[open] > .to-sec-head { border-bottom: 1px solid var(--to-rule); }
+.to-sec-body { padding: 12px 16px 16px; }
+.to-sec-body > .to-h2:first-child { margin-top: 0; }
+.to-sec-remove { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--to-rule); font-size: 12px; }
+
+/* a disclosure inside a section: a sub-tab that used to be a tab */
+.to-fold { border: 1px solid var(--to-rule); border-radius: var(--sb-r-panel); margin-top: 12px; background: rgb(255 255 255 / 0.015); }
+.to-fold > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; min-height: 44px; }
+.to-fold > summary::-webkit-details-marker { display: none; }
+.to-fold > summary::before { content: ""; width: 7px; height: 7px; margin: 0 4px 0 2px; border-right: 1.5px solid var(--to-soft); border-bottom: 1.5px solid var(--to-soft); transform: rotate(-45deg); flex: none; transition: transform 0.15s; }
+.to-fold[open] > summary::before { transform: rotate(45deg); margin-top: -3px; }
+.to-fold-title { font-size: 13px; font-weight: 800; color: var(--to-copy); }
+.to-fold-note { font-size: 12px; color: var(--to-soft); margin-left: auto; text-align: right; }
+.to-fold-body { padding: 4px 14px 14px; }
+.to-adv { margin-top: 10px; }
+.to-adv .to-table-wrap { margin-top: 4px; }
+
+/* the add form of an added-but-empty section: one line until it is used */
+.to-add { border: 1px dashed var(--to-line); border-radius: var(--sb-r-panel); margin-top: 10px; }
+.to-add > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 44px; cursor: pointer; font-size: 13px; font-weight: 800; color: var(--to-amber); }
+.to-add > summary::-webkit-details-marker { display: none; }
+.to-add > summary::before { content: "+"; font-size: 16px; font-weight: 900; line-height: 1; width: 14px; text-align: center; }
+.to-add[open] > summary::before { content: "–"; }
+.to-add-body { padding: 0 14px 14px; }
+
+/* the `+` row: everything this date does not have yet */
+.to-adds { border: 1px dashed var(--to-line); border-radius: var(--sb-r-panel); padding: 14px 16px; margin-bottom: 12px; background: rgb(201 162 74 / 0.04); }
+.to-adds-label { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--to-gold); margin-bottom: 10px; }
+.to-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.to-chips form { display: contents; }
+.to-chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px 0 11px; border-radius: var(--sb-r-pill); border: 1px solid var(--to-line); background: transparent; color: var(--to-copy); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.to-chip-btn:hover { border-color: var(--to-gold); color: var(--to-amber); background: rgb(201 162 74 / 0.10); }
+.to-chip-btn .plus { font-size: 16px; font-weight: 900; line-height: 1; color: var(--to-amber); }
+.to-adds p { margin: 10px 0 0; }
+@media (max-width: 640px) { .to-sec-status { display: none; } .to-sec-head { padding: 10px 12px; } .to-sec-body { padding: 10px 12px 14px; } .to-strip { padding: 12px; } }
+@media (pointer: coarse) { .to-chip-btn, .to-fold > summary, .to-add > summary { min-height: 44px; } }

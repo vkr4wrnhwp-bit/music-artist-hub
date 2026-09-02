@@ -1,0 +1,16 @@
+{% import "tour/_macros.html" as m %}
+{#- Travel on this date: the shared legs table and the shared form behind
+    an "Add travel" line. Edit links and Cancel stay on the date page. -#}
+{% if travel %}
+  {% with rows=travel, edit_base=show_url ~ '?tab=travel&edit=' %}{% include "tour/_travel_list.html" %}{% endwith %}
+{% endif %}
+{% if can('travel') %}
+<details class="to-add"{% if edit_travel or tab == 'travel' %} open{% endif %}>
+  <summary>{% if edit_travel %}Edit {{ edit_travel['mode']|capitalize }} {{ edit_travel['number'] or edit_travel['arr_loc'] or '' }}{% else %}Add travel{% endif %}</summary>
+  <div class="to-add-body">
+    {% with edit=edit_travel, show_id=show['id'], day_date=show['date'], cancel_href=show_url ~ '?tab=travel' %}{% include "tour/_travel_form.html" %}{% endwith %}
+  </div>
+</details>
+{% elif not travel %}
+  <p class="to-sub">No travel entered for this date.</p>
+{% endif %}

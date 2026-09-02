@@ -1,0 +1,6 @@
+{% import "tour/_macros.html" as m %}
+{#- Venue & contacts: the venue record and its link form, then the people
+    on this date (the old People tab, read-only) under their own anchor. -#}
+{% include "tour/show/_venue.html" %}
+<h3 class="to-h2" id="people">Contacts on this date</h3>
+{% with people=show_people %}{% include "tour/show/_people.html" %}{% endwith %}

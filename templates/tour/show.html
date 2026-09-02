@@ -2,6 +2,44 @@
 {% block title %}{{ show['venue'] }} · {{ show['date'] }} - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
+{#- One date, one page.
+
+    Six core sections always render: Times, Advance, Venue & contacts, Deal,
+    Notes, Activity. Every other former tab is optional - a `+` chip in the
+    "Add to this date" row until it is added, has rows, or is reached by its
+    old ?tab= deep link. The link still works; it opens and scrolls to the
+    section instead of swapping the page, so a bookmarked or cached URL
+    lands where it always did. The bodies are the same partials under
+    tour/show/ the tabs rendered (fields, names and hidden inputs
+    untouched); tour/date/ holds the four bodies that compose more than one
+    of them. -#}
+
+{% macro disc(name) -%}
+<span class="sb-disc sb-disc--sm" aria-hidden="true"><svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg></span>
+{%- endmacro %}
+
+{% macro sec(s) %}
+<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
+  <details class="to-sec-d"{% if s['open'] %} open{% endif %}>
+    <summary class="to-sec-head">
+      {{ disc(s['icon']) }}
+      <span class="to-sec-title">{{ s['label'] }}</span>
+      <span class="to-sec-status">{{ s['status'] }}</span>
+      <svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg>
+    </summary>
+    <div class="to-sec-body">
+      {{ caller() }}
+      {% if s['removable'] %}
+      <form method="post" action="{{ show_url }}/sections" class="to-sec-remove">
+        <input type="hidden" name="key" value="{{ s['key'] }}"><input type="hidden" name="action" value="remove">
+        <button class="to-btn to-btn--ghost to-btn--small" type="submit">Remove from this date</button>
+        <span class="to-muted">Nothing entered yet, so this takes {{ s['label']|lower }} off the page and out of readiness.</span>
+      </form>
+      {% endif %}
+    </div>
+  </details>
+</section>
+{% endmacro %}
 
 <div class="to-head">
   <div>
@@ -13,18 +51,117 @@
     {{ m.ready(readiness['pct']) }}
     {% if prev_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ prev_show['id'] }}?tab={{ tab }}">‹ {{ prev_show['city'] or prev_show['venue'] }}</a>{% endif %}
     {% if next_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ next_show['id'] }}?tab={{ tab }}">{{ next_show['city'] or next_show['venue'] }} ›</a>{% endif %}
-    <a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/day-sheet" target="_blank" rel="noopener">Day sheet</a>
+    <a class="to-btn to-btn--ghost to-btn--small" href="{{ show_url }}/day-sheet" target="_blank" rel="noopener">Day sheet</a>
+    {% if can('advance') %}<a class="to-btn to-btn--small" href="{{ show_url }}?tab=send" data-reveal="send">Send advance</a>{% endif %}
   </div>
 </div>
 
-<nav class="to-tabs" aria-label="Show sections" style="margin-top:-4px">
-  {% for key, label in show_tabs %}
-    {% set need = {'money':'financials','merch':'merch','guests':'guests','vip':'vip','marketing':'marketing','content':'content','inbox':'advance','send':'advance','files':'files'}[key] if key in ('money','merch','guests','vip','marketing','content','inbox','send','files') else None %}
-    {% if not need or can(need) %}
-    <a class="to-tab {{ 'is-on' if tab == key }}" href="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}?tab={{ key }}">{{ label }}</a>
-    {% endif %}
-  {% endfor %}
-</nav>
+{#- Readiness: the score, how many items it is out of, and the next three
+    gaps. The full list is one click away rather than a 17-row column. -#}
+<div class="to-strip" id="readiness">
+  <div class="to-strip-score">
+    {{ m.ready(readiness['pct']) }}
+    <span class="to-muted">{{ readiness['done'] }} of {{ readiness['total'] }} applicable</span>
+  </div>
+  <div class="to-strip-main">
+    <div class="to-meter"><i style="width:{{ readiness['pct'] }}%"></i></div>
+    <p class="to-strip-gaps">
+      {% if readiness['missing'] %}<b>Next:</b> {% for c in readiness['missing'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}{% if readiness['missing']|length > 3 %} <span class="to-muted">+{{ readiness['missing']|length - 3 }} more</span>{% endif %}
+      {% elif readiness['waiting'] %}<b>Waiting on:</b> {% for c in readiness['waiting'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}
+      {% elif readiness['total'] %}Everything that applies is done.
+      {% else %}Nothing applies yet.{% endif %}
+    </p>
+    <details class="to-strip-all">
+      <summary>Full checklist</summary>
+      <ul class="to-check">
+        {% for c in readiness['checks'] %}
+        <li class="{{ 'ok' if c['state'] is sameas true else ('warn' if c['state'] == 'waiting' else ('na' if c['state'] is none else 'no')) }}">
+          <span class="mark">{{ '✓' if c['state'] is sameas true else ('…' if c['state'] == 'waiting' else ('–' if c['state'] is none else '×')) }}</span>
+          <span>{{ c['label'] }}<small>{{ c['detail'] }}</small></span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="to-muted" style="margin:8px 0 0">The core items always count. Hotel, travel, guests, VIP, settlement, marketing and content count once they are added to this date or have rows.</p>
+    </details>
+  </div>
+  {% if can('edit') %}
+  <form method="post" action="{{ show_url }}/ext" class="to-strip-status">
+    <label class="to-field"><span>Status</span><select name="status">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == show['status'] %}selected{% endif %}>{{ st|capitalize }}</option>{% endfor %}</select></label>
+    <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
+  </form>
+  {% endif %}
+</div>
 
-{% include "tour/show/_" ~ tab ~ ".html" %}
+{% for s in sections %}
+{% call sec(s) %}
+  {% if s['key'] == 'times' %}
+    <div id="schedule">{% include "tour/show/_schedule.html" %}</div>
+  {% elif s['key'] == 'advance' %}
+    {% include "tour/date/_advance.html" %}
+  {% elif s['key'] == 'venue' %}
+    {% include "tour/date/_venue.html" %}
+  {% elif s['key'] == 'deal' %}
+    {% include "tour/show/_money.html" %}
+  {% elif s['key'] == 'notes' %}
+    {% include "tour/show/_notes.html" %}
+  {% elif s['key'] == 'hotel' %}
+    {% include "tour/date/_hotel.html" %}
+  {% elif s['key'] == 'travel' %}
+    {% include "tour/date/_travel.html" %}
+  {% elif s['key'] == 'files' %}
+    {% if s['has_data'] %}{% with files=show_files %}{% include "tour/show/_files.html" %}{% endwith %}
+    {% else %}<details class="to-add"{% if s['target'] %} open{% endif %}><summary>{{ s['add_label'] }}</summary><div class="to-add-body">{% with files=show_files %}{% include "tour/show/_files.html" %}{% endwith %}</div></details>{% endif %}
+  {% elif s['optional'] %}
+    {#- An added-but-empty section is one line tall until it is used. -#}
+    {% if s['has_data'] %}{% include "tour/show/_" ~ s['key'] ~ ".html" %}
+    {% else %}<details class="to-add"{% if s['target'] %} open{% endif %}><summary>{{ s['add_label'] }}</summary><div class="to-add-body">{% include "tour/show/_" ~ s['key'] ~ ".html" %}</div></details>{% endif %}
+  {% endif %}
+{% endcall %}
+{% endfor %}
+
+{% if chips %}
+<div class="to-adds" id="add-to-date">
+  <div class="to-adds-label">Add to this date</div>
+  <div class="to-chips">
+    {% for c in chips %}
+    <form method="post" action="{{ show_url }}/sections" data-chip="{{ c['key'] }}">
+      <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
+      <button class="to-chip-btn" type="submit"><span class="plus" aria-hidden="true">+</span> {{ c['label'] }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <p class="to-muted">Only what this date needs. Anything added here counts toward readiness; anything that already has rows is on the page above.</p>
+</div>
+{% endif %}
+
+{% for s in tail_sections %}
+{% call sec(s) %}
+  {% include "tour/show/_activity.html" %}
+{% endcall %}
+{% endfor %}
+
+<script>
+(function () {
+  /* ?tab=<key> and the header's Send button open the disclosure they name
+     and scroll to it. The server already marks the target open, so this
+     only has to do the scrolling - and the in-page reveal when the button
+     is used without a reload. */
+  var target = {{ open_target|tojson }};
+  function reveal(id, scroll) {
+    var el = id && document.getElementById(id);
+    if (!el) return false;
+    for (var p = el; p; p = p.parentElement) { if (p.tagName === "DETAILS") p.open = true; }
+    if (scroll) el.scrollIntoView({block: "start"});
+    return true;
+  }
+  var links = document.querySelectorAll("[data-reveal]");
+  for (var i = 0; i < links.length; i++) {
+    links[i].addEventListener("click", function (e) {
+      if (reveal(this.getAttribute("data-reveal"), true)) e.preventDefault();
+    });
+  }
+  if (target) reveal(target, true);
+  else if (location.hash) reveal(location.hash.slice(1), true);
+})();
+</script>
 {% endblock %}

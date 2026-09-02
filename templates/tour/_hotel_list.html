@@ -9,7 +9,7 @@
       {% if l['notes'] %}<div class="to-muted">{{ l['notes'] }}</div>{% endif %}</div>
     <div class="to-inline">
       {% if l['address'] %}<a class="to-btn to-btn--ghost to-btn--small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ (l['address'] ~ ' ' ~ l['city'])|urlencode }}">Directions</a>{% endif %}
-      {% if can('hotel') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/hotels?edit={{ l['id'] }}">Edit</a>
+      {% if can('hotel') %}<a class="to-btn to-btn--ghost to-btn--small" href="{{ edit_base if edit_base is defined and edit_base else '/tours/' ~ tour['id'] ~ '/hotels?edit=' }}{{ l['id'] }}">Edit</a>
       <a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/hotels/{{ l['id'] }}/rooming" target="_blank" rel="noopener">Rooming list</a>{% endif %}
     </div>
   </div>

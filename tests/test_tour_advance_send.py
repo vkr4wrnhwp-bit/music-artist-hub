@@ -214,7 +214,11 @@ def test_sending_delivers_the_packet_and_records_it(flask_app, live_mail):
 
     page = client.get("/tours/%s/shows/%s?tab=send" % (tid, sid)).get_data(as_text=True)
     assert 'value="jane@venue.example"' in page
-    assert "rider.txt" in page and "tech.txt" in page and "invoice.txt" not in page
+    # The date page also lists every file the owner may see in its Files
+    # section, so the invoice is judged on the attachment checklist: the
+    # rider and tech pack are offered, the invoice never is.
+    offered = page.split('name="attach"', 1)[1].split("</form>", 1)[0]
+    assert "rider.txt" in offered and "tech.txt" in offered and "invoice.txt" not in offered
     assert "Input list (3 channels" in page and "Stage plot (PNG" in page
     assert "created when you send" in page
 
