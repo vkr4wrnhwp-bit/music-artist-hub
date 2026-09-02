@@ -1,6 +1,6 @@
 import type { PartIntentExtraction } from "@/lib/domain/part-intent";
 import type { FeatureSuggestion } from "@/lib/domain/features";
-import type { AiProvider, CopilotContext, CopilotReply, MeasurementPlan, RiskSummary } from "./provider";
+import type { AiProvider, BearingStampReading, CopilotContext, CopilotReply, MeasurementPlan, RiskSummary } from "./provider";
 
 /**
  * DETERMINISTIC PROVIDER
@@ -374,6 +374,21 @@ export class DeterministicProvider implements AiProvider {
       summary: concerns.length === 0 ? "No outstanding structural gaps in the manufacturing package." : `${concerns.length} unresolved manufacturing conditions.`,
       concerns,
       questions: context.openQuestions ?? [],
+    };
+  }
+
+  /**
+   * The deterministic provider cannot look at an image, so it says so.
+   *
+   * The alternative — returning a plausible designation from nothing — is the
+   * exact failure principle 5 names: a feature that appears to work and does
+   * not, on a value that decides a bore diameter.
+   */
+  async readBearingStamp(): Promise<BearingStampReading> {
+    return {
+      connected: false,
+      readings: [],
+      note: "No vision model is connected. The photograph is stored against the feature so you can read the stamp yourself; nothing has been read from it.",
     };
   }
 

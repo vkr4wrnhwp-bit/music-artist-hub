@@ -3,7 +3,14 @@ import type { ZodType } from "zod";
 import type { PartIntentExtraction } from "@/lib/domain/part-intent";
 import type { FeatureSuggestion } from "@/lib/domain/features";
 import { DeterministicProvider } from "./deterministic";
-import { SCHEMAS, type AiProvider, type CopilotContext, type CopilotReply, type MeasurementPlan, type RiskSummary } from "./provider";
+import { z } from "zod";
+import { SCHEMAS, type AiProvider, type BearingStampReading, type CopilotContext, type CopilotReply, type MeasurementPlan, type RiskSummary } from "./provider";
+
+/** What a vision read may return. Characters and legibility — never dimensions. */
+const stampReadingSchema = z.object({
+  readings: z.array(z.object({ text: z.string(), confidence: z.number() })),
+  note: z.string(),
+});
 
 /**
  * ANTHROPIC PROVIDER
@@ -48,7 +55,24 @@ export class AnthropicProvider implements AiProvider {
     private model: string = process.env.CANVAS_AI_MODEL ?? DEFAULT_MODEL,
   ) {}
 
+  /** The same structured call, with an image in the message. */
+  private async structuredWithImage<T>(
+    schema: ZodType<T>,
+    jsonSchema: object,
+    userPrompt: string,
+    image: { mediaType: string; base64: string },
+  ): Promise<T | null> {
+    return this.structuredRequest(schema, jsonSchema, [
+      { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+      { type: "text", text: userPrompt },
+    ]);
+  }
+
   private async structured<T>(schema: ZodType<T>, jsonSchema: object, userPrompt: string): Promise<T | null> {
+    return this.structuredRequest(schema, jsonSchema, userPrompt);
+  }
+
+  private async structuredRequest<T>(schema: ZodType<T>, jsonSchema: object, content: unknown): Promise<T | null> {
     try {
       const res = await fetch(API_URL, {
         method: "POST",
@@ -69,7 +93,7 @@ export class AnthropicProvider implements AiProvider {
             },
           ],
           tool_choice: { type: "tool", name: "respond" },
-          messages: [{ role: "user", content: userPrompt }],
+          messages: [{ role: "user", content }],
         }),
       });
 
@@ -137,6 +161,48 @@ export class AnthropicProvider implements AiProvider {
       `Summarise the outstanding manufacturing risks for this part from the supplied context only.\n\n${JSON.stringify(context, null, 2)}`,
     );
     return result ?? this.fallback.summarizeRisk(context);
+  }
+
+  /**
+   * Reads the characters stamped on a bearing.
+   *
+   * The prompt asks for CHARACTERS, not for a bearing. The model is not asked
+   * what size it is and its answer is not trusted for dimensions: the reading
+   * is resolved against CANVAS's own catalogue afterwards, and a human
+   * confirms it against the bearing in their hand before anything is stored.
+   *
+   * An unreadable stamp comes back empty. A model that will not say it cannot
+   * read something is worse than no model here, because the value it invents
+   * decides a bore diameter.
+   */
+  async readBearingStamp(image: { mediaType: string; base64: string }): Promise<BearingStampReading> {
+    const result = await this.structuredWithImage(
+      stampReadingSchema,
+      {
+        type: "object",
+        properties: {
+          readings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                text: { type: "string", description: "The characters as stamped, exactly. Do not correct or expand them." },
+                confidence: { type: "number", description: "0 to 1, how legible those characters actually were." },
+              },
+              required: ["text", "confidence"],
+            },
+          },
+          note: { type: "string", description: "What made it hard to read, if anything." },
+        },
+        required: ["readings", "note"],
+      },
+      "Read the designation stamped on this bearing. Report the characters exactly as they appear, including any suffix. If the stamp is illegible or no stamp is visible, return an empty list and say so — do not guess a common bearing number. Do not state the bearing's dimensions.",
+      image,
+    );
+    if (!result) {
+      return { connected: true, readings: [], note: "The vision request failed. Nothing was read from the photograph." };
+    }
+    return { connected: true, readings: result.readings, note: result.note };
   }
 
   async answerCopilot(question: string, context: CopilotContext): Promise<CopilotReply> {

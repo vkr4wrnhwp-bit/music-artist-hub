@@ -489,6 +489,18 @@ model Feature {
   // whatever the worn original happened to measure.
   matingComponent   String?  // BEARING | BUSHING | SHAFT | SEAL | FASTENER | DOWEL | UNKNOWN
   matingDesignation String?  // e.g. "6203-2RS", when the operator knows it
+  // How the designation was established. A designation is dimensions —
+  // findBearing turns 6203 into a 17 mm bore and 6208 into a 40 mm one — so
+  // where it came from is part of the value.
+  //
+  // USER               typed by a machinist
+  // PHOTO_CONFIRMED    read off a photograph by a model AND confirmed by a
+  //                    human against the bearing in their hand. It stays an
+  //                    AI inference that a person accepted, never a reading
+  //                    the model was believed on its own.
+  matingDesignationSource String?
+  /** The photograph it was confirmed against, so the evidence is reachable. */
+  matingDesignationPhotoId String?
   interfaceSide     String?  // HOUSING (feature is the hole) | SHAFT (feature is the journal)
   rotatingUnderLoad Boolean  @default(false)
   // Fit class accepted by a human. Never written by inference alone.

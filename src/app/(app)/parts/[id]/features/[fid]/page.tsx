@@ -20,6 +20,7 @@ import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
+import { MatingDesignationField } from "@/components/mating-designation";
 import { recordPartDisagreement } from "../../disagree-actions";
 
 /**
@@ -124,6 +125,26 @@ export default async function FeatureDetailPage(props: {
     const nextComponent = String(formData.get("matingComponent") ?? "UNKNOWN");
     const nextSide = String(formData.get("interfaceSide") ?? "HOUSING");
     const designation = String(formData.get("matingDesignation") ?? "").trim() || null;
+    /*
+     * Where the designation came from. PHOTO_CONFIRMED means a model read it
+     * off a photograph AND a human accepted it against the bearing — it stays
+     * an inference somebody confirmed, never a reading believed on its own.
+     *
+     * The evidence link is only kept when there is a designation to attach it
+     * to and a photograph that belongs to this organisation. A photo id posted
+     * without a value, or one that is not this shop's, is dropped.
+     */
+    const sourceRaw = String(formData.get("matingDesignationSource") ?? "");
+    const photoRaw = String(formData.get("matingDesignationPhotoId") ?? "");
+    const designationSource =
+      designation === null ? null : sourceRaw === "PHOTO_CONFIRMED" ? "PHOTO_CONFIRMED" : "USER";
+    const photoId =
+      designation !== null && designationSource === "PHOTO_CONFIRMED" && photoRaw !== ""
+        ? (await db.uploadedAsset.findFirst({
+            where: { id: photoRaw, organizationId: currentUser.organizationId },
+            select: { id: true },
+          }))?.id ?? null
+        : null;
     const rotating = formData.get("rotatingUnderLoad") === "on";
 
     await db.feature.update({
@@ -132,6 +153,8 @@ export default async function FeatureDetailPage(props: {
         matingComponent: nextComponent,
         interfaceSide: nextSide,
         matingDesignation: designation,
+        matingDesignationSource: designationSource,
+        matingDesignationPhotoId: photoId,
         rotatingUnderLoad: rotating,
       },
     });
@@ -276,18 +299,11 @@ export default async function FeatureDetailPage(props: {
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="matingDesignation" className="tech-label mb-1 block">
-                    Designation, if known
-                  </label>
-                  <input
-                    id="matingDesignation"
-                    name="matingDesignation"
-                    defaultValue={row.matingDesignation ?? ""}
-                    placeholder="e.g. 6203-2RS"
-                    className={inputClass}
-                  />
-                </div>
+                <MatingDesignationField
+                  featureId={fid}
+                  initial={row.matingDesignation ?? ""}
+                  showPhoto={component === "BEARING"}
+                />
               </div>
 
               <label className="flex items-center gap-2 text-[12.5px] text-platinum-dim">

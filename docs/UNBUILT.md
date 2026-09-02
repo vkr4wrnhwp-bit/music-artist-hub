@@ -154,13 +154,19 @@ The copilot's reply contract is `{reply, references, needs}` — text plus two s
 
 > Bearing number? Allow: TYPE NUMBER UPLOAD PHOTO UNKNOWN
 
-The mating panel offers a free-text "Designation, if known" field and UNKNOWN as a mating component, but there is no photo upload on the feature page at all — a machinist holding a bearing whose stamp is easier to photograph than to read has no path in.
+Built, and the care it needs is not obvious from the ask. **A designation is dimensions, not a label.** `findBearing` turns 6203 into a 17 mm bore and 6208 into a 40 mm one, and `analyseMating` reasons about the fit from that. A misread stamp does not produce a wrong caption; it produces the wrong bore.
 
-`src/app/(app)/parts/[id]/features/[fid]/page.tsx:244-287 (radio row + text input only); `grep -n -i "photo\|upload\|file" src/app/(app)/parts/[id]/features/[fid]/page.tsx` returns nothing.`
+So the flow is: photograph → a model reads *characters* → CANVAS resolves them against its own catalogue → a machinist confirms one against the bearing in their hand → only then is anything stored. The reading is an AI inference and stays one (principle 3); the endpoint writes the photograph and nothing else, and a test asserts it never writes a designation.
 
+Specifics that matter:
 
-## DEFERRED BY ME
+- The vision prompt asks for the characters as stamped and explicitly forbids guessing a common bearing number or stating dimensions. The dimensions a machinist checks against come from CANVAS's catalogue, never from the model.
+- Confusable characters (`O`/`0`, `I`/`1`, `S`/`5`, `B`/`8`) are offered as **separate candidates**, never silently corrected — a correction would hide that the reading was ambiguous, and the machinist is holding the bearing. An alternative is always ranked below the reading it came from, and one that resolves to nothing in the catalogue is not offered at all.
+- A designation the catalogue does not hold is storable but gets no invented dimensions.
+- With no vision model connected the deterministic provider returns `connected: false` and an empty list — never a plausible guess. The photograph is still stored against the feature, so a machinist can read the stamp themselves. That is worth more than nothing, and it is what the panel says.
+- `Feature.matingDesignationSource` records USER or PHOTO_CONFIRMED with the photograph it was confirmed against. Edit the value after picking a candidate and it reverts to USER and drops the evidence link — otherwise a photograph would be attached to a number it does not show.
 
+`src/lib/engines/bearing-stamp.ts` (new), `src/lib/ai/{provider,anthropic,deterministic}.ts` (`readBearingStamp`, and a vision-capable request path), `src/app/api/features/[fid]/bearing-stamp/route.ts` (new), `src/components/{bearing-stamp,mating-designation}.tsx` (new), `prisma/schema.prisma` with both migration trees, `tests/engines/bearing-stamp.test.ts` (18 tests).
 ### Live Hardware Metrology Sync streaming instrument readings into feature detail records
 
 > **Live Hardware Metrology Sync:** Bluetooth/USB/MTConnect integration streaming digital caliper, micrometer, and CMM probe readings directly into feature detail records.

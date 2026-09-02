@@ -78,6 +78,26 @@ export interface AiProvider {
   recommendMissingMeasurements(context: { features: string[]; availableDevices: string[] }): Promise<MeasurementPlan>;
   summarizeRisk(context: CopilotContext): Promise<RiskSummary>;
   answerCopilot(question: string, context: CopilotContext): Promise<CopilotReply>;
+  /**
+   * Reads the characters stamped on a bearing from a photograph.
+   *
+   * Returns readings, not a designation: a designation is dimensions, and
+   * 6203 against 6208 is a 17 mm bore against a 40 mm one. What comes back is
+   * resolved against the catalogue in `bearing-stamp.ts` and confirmed by a
+   * human before anything is stored — principle 3, an inference stays
+   * inferred.
+   *
+   * `connected` is false for any provider that cannot actually look at an
+   * image, and then `readings` is empty. It never returns a plausible guess.
+   */
+  readBearingStamp(image: { mediaType: string; base64: string }): Promise<BearingStampReading>;
+}
+
+export interface BearingStampReading {
+  connected: boolean;
+  readings: { text: string; confidence: number }[];
+  /** Why there is nothing, when there is nothing. */
+  note: string;
 }
 
 /* ------------------------------------------------------------------ */
