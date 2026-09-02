@@ -676,11 +676,17 @@ def save_analysis(partner_id, user_id, project_id, asset_id, measurements,
                  "measured" if ruling["level"] != "unknown" else "inferred",
                  "strong" if ruling["level"] != "unknown" else "limited",
                  _json.dumps({"evidence": ruling["evidence"]}),
-                 ruling["headline"] + " " + (ruling["detail"] or ""),
+                 _sentence(ruling["headline"]) + " " + (ruling["detail"] or ""),
                  ruling["action"] or "", _now()))
     record_event(partner_id, project_id, asset_id, "analysis.completed",
                  actor_id=user_id)
     return analysis_id
+
+
+def _sentence(text):
+    """A headline with a full stop, so it can be joined to a detail."""
+    text = (text or "").strip()
+    return text if not text or text[-1] in ".!?" else text + "."
 
 
 def latest_analysis(partner_id, asset_id):

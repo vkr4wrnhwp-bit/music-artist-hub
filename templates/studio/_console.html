@@ -44,9 +44,10 @@
    rather than opening an empty page - a disabled control with a reason is
    information; a page that loads and does nothing is a bug report. #}
 {% macro rooms(project, room, summary) %}
-<nav class="flex flex-wrap gap-1" aria-label="Control Room">
+<link rel="stylesheet" href="/static/css/studio-room.css?v=1">
+<nav class="sr-tabs" aria-label="Control Room">
   {%- set items = [
-      ("session",  "Session",  url_for("studio.studio_session",  project_id=project.id), none),
+      ("session",  "Control Room", url_for("studio.studio_session",  project_id=project.id), none),
       ("rack",     "Rack",     url_for("studio.studio_rack",     project_id=project.id),
        none if summary.source else "Upload a source first"),
       ("mix",      "Mix",      url_for("studio.studio_mix",    project_id=project.id),
@@ -59,14 +60,11 @@
   ] -%}
   {%- for key, label, href, disabled in items %}
     {%- if disabled %}
-      <span class="rounded-lg border border-sb-line px-3 py-2 text-sm text-sb-ink-3"
-            title="{{ disabled }}" aria-disabled="true">{{ label }}</span>
+      <span class="sr-tab is-off" title="{{ disabled }}" aria-disabled="true">{{ label }}</span>
     {%- elif key == room %}
-      <span class="rounded-lg border border-sb-line bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-400"
-            aria-current="page">{{ label }}</span>
+      <span class="sr-tab is-on" aria-current="page">{{ label }}</span>
     {%- else %}
-      <a href="{{ href }}"
-         class="rounded-lg border border-sb-line px-3 py-2 text-sm text-sb-ink-2 hover:text-sb-ink">{{ label }}</a>
+      <a href="{{ href }}" class="sr-tab">{{ label }}</a>
     {%- endif %}
   {%- endfor %}
 </nav>

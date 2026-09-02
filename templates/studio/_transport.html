@@ -10,7 +10,7 @@
     and the page to contain #sb-console-wave (+ #sb-console-markers rail).
 -#}
 <div id="sb-transport"
-     class="sticky bottom-0 z-30 mt-5 rounded-xl border border-sb-line bg-black/60 p-3 backdrop-blur">
+     class="{{ 'sr-transport' if transport_inline else 'sticky bottom-0 z-30 mt-5 rounded-xl border border-sb-line bg-black/60 p-3 backdrop-blur' }}">
   <div class="flex flex-wrap items-center gap-3">
 
     <button type="button" id="sb-t-play" aria-label="Play or pause" aria-keyshortcuts="Space"
@@ -153,7 +153,7 @@
     var cols = window.SBConsole.peaks(data, width);
     var mid = height / 2;
     ctx2d.clearRect(0, 0, width, height);
-    ctx2d.strokeStyle = "rgba(245, 158, 11, 0.8)";
+    ctx2d.strokeStyle = "rgba(232, 185, 80, 0.85)";
     ctx2d.lineWidth = 1;
     ctx2d.beginPath();
     for (var x = 0; x < width; x++) {
@@ -229,8 +229,9 @@
   /* Playback translation chips, when the page has a rail for them. Built
      from the engine's own SIMS table so the labels, the recipes and the
      caveat never drift apart. */
-  var simRail = document.getElementById("sb-sims");
-  if (simRail && window.SBConsole.SIMS) {
+  function buildSims() {
+    var simRail = document.getElementById("sb-sims");
+    if (!simRail || !window.SBConsole.SIMS || simRail.children.length) { return; }
     window.SBConsole.SIMS.forEach(function (sim) {
       var chip = document.createElement("button");
       chip.type = "button";
@@ -238,22 +239,28 @@
       chip.setAttribute("data-simkey", sim.key);
       chip.textContent = sim.label;
       chip.className = "rounded-lg border border-sb-line px-3 py-1.5 font-mono text-xs text-sb-ink-2";
+      chip.setAttribute("aria-pressed", "false");
       chip.addEventListener("click", function () {
         if (!con.setSim(sim.key)) { return; }
         var chips = simRail.querySelectorAll("[data-simkey]");
         for (var i = 0; i < chips.length; i++) {
           var on = chips[i].getAttribute("data-simkey") === sim.key;
-          chips[i].className = "rounded-lg border px-3 py-1.5 font-mono text-xs "
-            + (on ? "border-purple-500/20 bg-purple-500/10 text-purple-400"
-                  : "border-sb-line text-sb-ink-2");
+          /* The selected state is an attribute, so the room's stylesheet
+             draws it in gold and a screen reader announces it. */
+          chips[i].setAttribute("aria-pressed", on ? "true" : "false");
         }
       });
       simRail.appendChild(chip);
     });
     var first = simRail.querySelector("[data-simkey=flat]");
-    if (first) {
-      first.className = "rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5 font-mono text-xs text-purple-400";
-    }
+    if (first) { first.setAttribute("aria-pressed", "true"); }
+  }
+  /* The rail may sit below this script in the document (the Control Room
+     puts the transport in the hero), so wait for the parse to finish. */
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", buildSims);
+  } else {
+    buildSims();
   }
 
   /* A page can also nominate a B directly - the preview cards' "Set as B". */

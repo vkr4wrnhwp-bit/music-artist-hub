@@ -41,6 +41,7 @@ from flask import (Blueprint, abort, jsonify, redirect, render_template,
 
 import blob_store
 import studio_config
+import studio_metrics
 import studio_store as sstore
 
 bp = Blueprint("studio", __name__)
@@ -412,27 +413,46 @@ def _room(project_id, room, template, error=None, status_code=200):
             "masters": masters,
             "project": project,
         })
+    # The Control Room's view models. Three readiness questions, kept
+    # apart: how the mix measures, how it stands as a master, whether the
+    # project can ship. The Doctor reads findings first, then the platform
+    # rulings, then the metrics; the lifecycle carries its conditions.
+    rail = studio_score.lifecycle(project, summary, checklist)
+    events = sstore.provenance(_partner(user), project_id, 12)
+    mix_metrics = studio_metrics.mix_metrics(measurements)
+    rulings = (verdict or {}).get("rulings") or []
+    mix_scores = studio_score.mix_readiness(measurements, summary["versions"])
+    readiness = studio_config.readiness()
     response = render_template(
         template, active_page="studio", room=room, project=project,
         summary=summary, source=source, analysis=analysis, verdict=verdict,
         findings=findings or [], comments=comments or [], masters=masters,
         console_config=console_config, error=error,
         checklist=checklist,
-        rail=studio_score.lifecycle(project, summary, checklist),
+        rail=rail,
+        stages=studio_metrics.lifecycle_detail(rail, project, summary, checklist),
         room_question=question, room_answer=room_answer,
         build=studio_config.build_version(),
         viewer_role=viewer_role,
         members=sstore.list_members(_partner(user), project_id),
+        team_state=studio_metrics.team_state,
         team_pool=(__import__("db").list_team(user["id"])
                    if viewer_role == "owner" else []),
-        mix_scores=studio_score.mix_readiness(measurements,
-                                              summary["versions"]),
+        mix_scores=mix_scores,
+        mix_score=studio_metrics.mix_score(mix_metrics),
         master_scores=studio_score.master_intelligence(measurements),
+        mix_metrics=mix_metrics,
+        master_metrics=studio_metrics.master_metrics(measurements),
+        doctor=studio_metrics.mix_doctor(findings or [], rulings, mix_metrics),
+        delivery=studio_metrics.delivery(checklist),
+        activity=studio_metrics.collapse_activity(events),
+        transport_inline=(room == "session"),
         rack_chain=store.get_rack_preset(user["id"]),
-        events=sstore.provenance(_partner(user), project_id, 12),
+        events=events,
         max_mb=studio_config.max_upload_bytes() // (1024 * 1024),
         targets=__import__("audio_readiness").PLATFORM_TARGETS,
-        readiness=studio_config.readiness())
+        readiness=readiness,
+        system_notes=studio_metrics.system_notes(readiness))
     return (response, status_code) if status_code != 200 else response
 
 

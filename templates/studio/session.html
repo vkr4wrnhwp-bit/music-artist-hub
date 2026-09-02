@@ -5,74 +5,126 @@
 {% block title %}{{ project.title }} - Street Banker Studio{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/rack.css?v=1">
-{#- The Control Room cockpit. One console, per the owner's mockup: lifecycle
-    rail, the Rack chain, waveform + transport, Mix Station and Master Station
-    side by side, playback translation, the Version Vault strip, the Deliver
-    band, and the notes rail. Adapted, not reproduced: every number on this
-    page is computed from project state or a measurement, and anything the
-    mockup shows that cannot be measured from a stereo file says so instead
-    of wearing an invented score. Purple is Studio's accent; red appears only
-    on clipping and blocking findings. -#}
-<div class="mx-auto max-w-[1100px] space-y-5">
+{#- The Control Room. The record first - its name, its waveform, its
+    transport - then where it is on the lifecycle, then one row of tabs, then
+    three columns of instruments. Three readiness questions stay apart: how
+    the MIX measures, how it stands as a MASTER, whether the PROJECT can
+    ship. Every figure is measured or computed; a thing that was not measured
+    says so. Red is for an over or a blocking finding, nothing else. -#}
+{%- macro metric_row(x) %}
+  <li class="sr-metric" data-metric="{{ x.key }}" data-state="{{ x.state }}">
+    <span class="sr-metric-label">{{ x.label }}</span>
+    <span class="sr-metric-value">{% if x.value %}{{ x.value }} &middot; {% endif %}<span class="sr-state sr-state--{{ x.tone }}">{{ x.state_label }}</span></span>
+    {% if x.note %}<span class="sr-metric-note">{{ x.note }}</span>{% endif %}
+  </li>
+{%- endmacro %}
+{%- macro room_href(key) -%}
+  {%- if key == "session" %}{{ url_for("studio.studio_session", project_id=project.id) }}
+  {%- elif key == "measure" %}#sb-measure
+  {%- elif key == "mix" %}{{ url_for("studio.studio_mix", project_id=project.id) }}
+  {%- elif key == "versions" %}{{ url_for("studio.studio_versions", project_id=project.id) }}
+  {%- elif key == "deliver" %}{{ url_for("studio.studio_deliver", project_id=project.id) }}
+  {%- else %}{{ url_for("studio.studio_session", project_id=project.id) }}{% endif -%}
+{%- endmacro %}
 
-  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-    <p class="sb-label text-purple-400">
-      <a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a>
-    </p>
-    <p class="font-mono text-xs text-sb-ink-3">
-      <span title="The build this page came from. If this does not match the newest deploy, your browser is showing a cached page.">build {{ build }}</span> &middot;
-      Control Room &middot;
-      <a class="underline" href="{{ url_for('studio.studio_visual') }}">Visual Room</a> &middot;
-      <a class="underline" href="{{ url_for('studio.studio_remix') }}">Remix Lab</a>
-    </p>
-  </div>
+<div class="sr">
 
-  {{ console.top_bar(project, summary) }}
-
-  {# ------------------------------------------------- the lifecycle rail --- #}
-  {# A report, not a decoration: a stage reads done only because the thing it
-     names actually happened, and a blocked stage carries its reason in the
-     tooltip. Market and Monetize say plainly that they are not wired yet. #}
-  <div class="rounded-xl border border-sb-line bg-sb-surface-1 p-3">
-    <div class="flex flex-wrap items-center gap-1">
-      {% for stage in rail %}
-        <span class="rounded-lg px-2.5 py-1.5 font-mono text-xs uppercase tracking-[0.12em]
-                     {% if stage.state == 'done' %}text-sb-good{% elif stage.state == 'current' %}border border-purple-500/20 bg-purple-500/10 text-purple-400{% else %}text-sb-ink-3{% endif %}"
-              {% if stage.why %}title="{{ stage.why }}"{% endif %}>
-          {{ "&#10003; "|safe if stage.state == "done" }}{{ stage.label }}
-        </span>
-        {% if not loop.last %}<span class="text-sb-ink-3">&rarr;</span>{% endif %}
-      {% endfor %}
+  {# ================================================================ hero #}
+  <section class="sr-hero" aria-labelledby="sr-title">
+    <div class="sr-hero-head">
+      <div class="sr-identity">
+        <p class="sr-eyebrow"><a href="{{ url_for('studio.studio_home') }}">Street Banker Studio</a> &middot; Control Room</p>
+        <h1 class="sr-title" id="sr-title">{{ project.title }}</h1>
+        <p class="sr-artist">{{ project.artist_name or "No artist set" }}</p>
+        <ul class="sr-meta">
+          {% if source %}
+            <li>{{ source.file_name }}</li>
+            {% if analysis and analysis.measurements.duration_seconds %}
+              <li>{{ "%d:%02d"|format((analysis.measurements.duration_seconds // 60)|int, (analysis.measurements.duration_seconds % 60)|int) }}</li>
+            {% endif %}
+            <li>{{ (source.file_size / 1048576)|round(1) }} MB</li>
+            <li class="{{ 'is-gold' if source.lossless else '' }}">{{ "Lossless" if source.lossless else "Lossy" }}</li>
+          {% else %}
+            <li class="is-gold">No source yet</li>
+          {% endif %}
+          {% if project.rights_confirmed_at %}
+            <li class="is-good" title="Confirmed by {{ project.rights_confirmed_by }} on {{ (project.rights_confirmed_at or '')[:10] }}">Rights confirmed by {{ project.rights_confirmed_by }}</li>
+          {% else %}
+            <li class="is-gold">Rights not confirmed</li>
+          {% endif %}
+          <li>{{ project.status|replace("_"," ")|title }}</li>
+          <li>{{ summary.versions|length }} version{{ "" if summary.versions|length == 1 else "s" }}</li>
+        </ul>
+      </div>
+      <div class="sr-hero-actions">
+        {% if source and viewer_role == "owner" %}
+          {{ sb.btn(delivery.cta.label, variant="primary", href=room_href(delivery.cta.room)|trim) }}
+          {{ sb.btn("Open the Rack", variant="secondary", href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
+        {% endif %}
+      </div>
     </div>
-  </div>
+
+    {% if source %}
+    <div class="sr-deck">
+      <div id="sb-console-markers" class="sr-markers" aria-hidden="true"></div>
+      <div class="sr-wave-wrap">
+        <canvas id="sb-console-wave" height="170" class="sr-wave"
+                role="img" aria-label="Waveform of {{ source.file_name }}. Click to move the playhead; the transport below reads the time."></canvas>
+        <div id="sb-console-playhead" class="sr-playhead" style="left:0%"></div>
+      </div>
+      <p id="sb-console-status" aria-live="polite" class="sr-status">&nbsp;</p>
+      {% include "studio/_transport.html" %}
+      <p class="sr-keys">Space plays &middot; &larr; &rarr; move 2 s, with Shift 10 s &middot; click a marker to hear it</p>
+    </div>
+    {% endif %}
+  </section>
+
+  {# ======================================================= lifecycle rail #}
+  {# A report, not a decoration: a stage reads done only because the thing
+     it names happened. Open a stage for the conditions behind it. #}
+  <nav class="sr-rail" aria-label="Lifecycle">
+    {% for stage in stages %}
+      <details class="sr-stage sr-stage--{{ stage.state }}" data-stage="{{ stage.key }}">
+        <summary aria-label="{{ stage.label }}: {{ stage.state }}">
+          <span class="sr-stage-mark" aria-hidden="true">{{ "&#10003;"|safe if stage.state == "done" else "&#9675;"|safe }}</span>{{ stage.label }}
+        </summary>
+        <div class="sr-stage-pop">
+          <b>{{ stage.label }}</b>
+          <ul>
+            {% for label, ok in stage.conditions %}
+              <li class="{{ 'ok' if ok else 'no' }}">{{ "&#10003;"|safe if ok else "&#9675;"|safe }} {{ label }}</li>
+            {% endfor %}
+          </ul>
+          {% if stage.next %}<p class="sr-stage-next">Next: {{ stage.next }}</p>{% endif %}
+          {% if stage.why and stage.state != 'done' %}<p class="sr-stage-next">{{ stage.why }}</p>{% endif %}
+        </div>
+      </details>
+      {% if not loop.last %}<span class="sr-rail-join" aria-hidden="true">&mdash;</span>{% endif %}
+    {% endfor %}
+  </nav>
 
   {{ console.rooms(project, room, summary) }}
 
   {% if viewer_role != "owner" %}
-    <div class="rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2.5">
-      <p class="font-mono text-xs text-purple-400">
-        You are on this record as {{ viewer_role|replace("_"," ")|replace("a and r","A&R") }} &mdash;
-        listen, read, and leave notes. Changes stay with the owner.
-      </p>
-    </div>
+    <p class="sr-note">
+      You are on this record as {{ viewer_role|replace("_"," ")|replace("a and r","A&R") }} &mdash;
+      listen, read, and leave notes. Changes stay with the owner.
+    </p>
   {% endif %}
 
   {% if error %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label text-purple-400">That did not go through</h2>
-      <p class="mt-2 text-sm text-gray-300">{{ error }}</p>
+    <section class="sr-panel">
+      <h2 class="sr-panel-title">That did not go through</h2>
+      <p class="sr-empty" style="margin-top:8px">{{ error }}</p>
     </section>
   {% endif %}
 
   {# --------------------------------------------- rights, then the upload --- #}
   {% if viewer_role == "owner" and not project.rights_confirmed_at %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label text-purple-400">Before anything is uploaded</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        Confirmed per project, recorded with your name and the date.
-      </p>
-      <form method="post" action="{{ url_for('studio.studio_rights', project_id=project.id) }}"
-            class="mt-3 space-y-3">
+    <section class="sr-panel">
+      <h2 class="sr-panel-title">Before anything is uploaded</h2>
+      <p class="sr-empty" style="margin-top:8px">Confirmed per project, recorded with your name and the date.</p>
+      <form method="post" action="{{ url_for('studio.studio_rights', project_id=project.id) }}" class="mt-3 space-y-3">
         {{ sb.field("confirmed_by", "I confirm I own, control, or am authorised to process this recording. Your name:", placeholder="Your full name") }}
         {{ sb.btn("Confirm and continue", variant="primary", type="submit") }}
       </form>
@@ -80,375 +132,326 @@
   {% endif %}
 
   {% if viewer_role == "owner" and project.rights_confirmed_at and not source %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label text-purple-400">Upload the source</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. Written once,
-        never rewritten.
-      </p>
+    <section class="sr-panel">
+      <h2 class="sr-panel-title">Upload the source</h2>
+      <p class="sr-empty" style="margin-top:8px">WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. Written once, never rewritten.</p>
       <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3"
             action="{{ url_for('studio.studio_upload', project_id=project.id) }}">
-        <input type="file" name="file" accept=".wav,.aiff,.aif,.flac,.mp3,.m4a"
-               class="block w-full text-sm text-gray-300">
+        <input type="file" name="file" accept=".wav,.aiff,.aif,.flac,.mp3,.m4a">
         {{ sb.btn("Upload", variant="primary", type="submit") }}
       </form>
     </section>
   {% endif %}
 
   {% if source %}
-  <div class="grid gap-5 lg:grid-cols-3">
-    <div class="space-y-5 lg:col-span-2">
+  <div class="sr-grid">
 
-      {# ------------------------------------------------------ RACK strip --- #}
-      {# The saved Rack chain, rendered read-only from the REAL preset the
-         Rack stored - a viewer and a launcher, and it says so. Interactive
-         modules live in the Rack itself, where the DSP engine is. #}
-      <section class="ru rounded-xl overflow-hidden">
-        <header class="ru-head">
-          <span class="ru-tag">SB-RK</span>
-          <div class="ru-title" role="heading" aria-level="2">RACK</div>
-          <span class="ru-sub">saved chain, read-only &mdash; the knobs live in the Rack</span>
-          <span class="ml-auto">{{ sb.btn("Open the Rack", variant="primary", size="sm",
-                    href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}</span>
-        </header>
-        {% if rack_chain %}
-          <div class="p-4">
-            {{ rackmods.strip(rack_chain, "/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
-          </div>
-        {% else %}
-          <p class="p-4 text-sm text-gray-300">No chain saved yet &mdash; what you save in the Rack shows here.</p>
+    {# ============================================================ left #}
+    <div class="sr-col">
+      <section class="sr-panel sr-o-overview" aria-labelledby="sr-overview-h">
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-overview-h">Session overview</h2></div>
+        <dl class="sr-facts">
+          <dt>Status</dt><dd>{{ project.status|replace("_"," ")|title }}</dd>
+          <dt>Last saved</dt><dd>{{ (project.updated_at or "")[:16]|replace("T"," ") }}</dd>
+          <dt>Source</dt><dd>{{ source.file_name }}</dd>
+          <dt>Format</dt><dd>{{ "Lossless" if source.lossless else "Lossy" }} &middot; {{ (source.file_size / 1048576)|round(1) }} MB</dd>
+          {% if analysis and analysis.measurements.duration_seconds %}
+            <dt>Length</dt><dd>{{ "%d:%02d"|format((analysis.measurements.duration_seconds // 60)|int, (analysis.measurements.duration_seconds % 60)|int) }}</dd>
+          {% endif %}
+          <dt>Versions</dt><dd>{{ summary.versions|length }}</dd>
+          <dt>Rights</dt><dd>{% if project.rights_confirmed_at %}Confirmed by {{ project.rights_confirmed_by }}{% else %}Not confirmed{% endif %}</dd>
+          <dt>Measured</dt><dd>{% if analysis %}{{ (analysis.measurements.measured_at or analysis.created_at or "")[:16]|replace("T"," ") }}{% else %}Not yet{% endif %}</dd>
+        </dl>
+      </section>
+
+      <section class="sr-panel sr-o-mix" aria-labelledby="sr-mix-h" data-panel="mix-readiness">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-mix-h">Mix readiness</h2>
+          {% if mix_score.summary %}
+            <span class="sr-panel-sub sr-panel-sub--{{ mix_score.tone }}" data-mix-summary>{{ mix_score.summary }}</span>
+          {% else %}
+            <span class="sr-panel-sub">unmeasured</span>
+          {% endif %}
+        </div>
+        <p id="sb-measure" aria-live="polite" class="sr-status" style="margin:0 0 8px">&nbsp;</p>
+        {% if not mix_score.measured %}
+          <div style="margin-bottom:12px">{{ sb.btn("Measure", variant="primary", size="sm", id="sb-measure-go") }}</div>
         {% endif %}
+        <ul class="sr-metrics">
+          {% for x in mix_metrics %}{{ metric_row(x) }}{% endfor %}
+        </ul>
+        <p class="sr-fine">Measured in this browser to BS.1770-4. A stereo file cannot say what stems would.</p>
       </section>
 
-      {# ------------------------------------------------------- waveform --- #}
-      <section class="ru rounded-xl overflow-hidden p-4">
-        <header class="ru-head" style="padding-left:0;padding-right:0">
-          <span class="ru-tag">SB-TX</span>
-          <div class="ru-title" role="heading" aria-level="2">TRANSPORT DECK</div>
-          <span class="ru-sub">{{ source.file_name }} &middot; {{ (source.file_size / 1048576)|round(1) }} MB{% if source.lossless %} &middot; lossless{% endif %}</span>
-        </header>
-        <div id="sb-console-markers" class="relative mt-3 h-3 select-none"></div>
-        <div class="relative mt-1">
-          <canvas id="sb-console-wave" height="150"
-                  class="w-full cursor-pointer rounded-lg border border-sb-line bg-black/40"
-                  aria-label="Waveform. Click to move the playhead."></canvas>
-          <div id="sb-console-playhead"
-               class="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
-               style="left:0%"></div>
-        </div>
-        <p id="sb-console-status" aria-live="polite" class="mt-2 text-sm text-gray-300">&nbsp;</p>
-      </section>
-
-      {# --------------------------------------- Mix Station and Master ----- #}
-      <div class="grid gap-5 md:grid-cols-2">
-        <section class="ru rounded-xl overflow-hidden">
-          <header class="ru-head">
-            <span class="ru-tag">SB-MX</span>
-            <div class="ru-title" role="heading" aria-level="2">MIX STATION</div>
-            {% if mix_scores.overall is not none %}
-              <span class="ru-sub">{{ mix_scores.overall }}/100 &middot; {{ mix_scores.measured_count }} of {{ mix_scores.total_count }} measured</span>
-            {% else %}
-              <span class="ru-sub">unmeasured</span>
-            {% endif %}
-            <span class="ml-auto">{{ sb.btn("Open", variant="secondary", size="sm",
-                      href=url_for("studio.studio_mix", project_id=project.id)) }}</span>
-          </header>
-          <div class="p-4">
-            <p id="sb-measure" aria-live="polite" class="text-sm text-gray-300">&nbsp;</p>
-            {% if mix_scores.overall is none %}
-              <div class="mt-1">{{ sb.btn("Measure", variant="primary", size="sm", id="sb-measure-go") }}</div>
-            {% endif %}
-            <div class="mt-2 flex flex-wrap gap-2">
-              {% for c in mix_scores.categories %}
-                <div class="rk-lcd" title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }})">
-                  <span class="rk-lcd-v {% if c.score is none %}text-sb-ink-3{% elif c.status == 'blocked' %}text-sb-crit{% endif %}">{{ c.score if c.score is not none else "&mdash;"|safe }}</span>
-                  <span class="rk-lcd-cap">{{ c.label }}</span>
-                  {% if c.score is none %}<span class="rk-lcd-sub">needs {{ c.missing }}</span>{% endif %}
-                </div>
-              {% endfor %}
-            </div>
-
-            {%- set open_findings = findings|selectattr("status","equalto","open")|list %}
-            {% if open_findings %}
-              <div class="mt-3 flex flex-wrap items-center gap-1.5">
-                <span class="ru-tag">DOCTOR</span>
-                {% for f in open_findings[:5] %}
-                  <button type="button" {% if f.start_seconds is not none %}data-seek="{{ f.start_seconds }}"{% endif %}
-                          class="rounded border px-2 py-1 font-mono text-xs
-                                 {% if f.severity == 'blocking' %}border-red-500/40 text-sb-crit{% else %}border-sb-line text-amber-400{% endif %}"
-                          title="{{ f.explanation }}">
-                    {{ f.category|replace("_"," ") }}{% if f.start_seconds is not none %} &middot; {{ "%d:%02d"|format((f.start_seconds // 60)|int, (f.start_seconds % 60)|int) }}{% endif %}
-                  </button>
-                {% endfor %}
-              </div>
-            {% endif %}
-          </div>
-        </section>
-
-        <section class="ru rounded-xl overflow-hidden">
-          <header class="ru-head">
-            <span class="ru-tag">SB-MS</span>
-            <div class="ru-title" role="heading" aria-level="2">MASTER STATION</div>
-            {% if master_scores.overall is not none %}
-              <span class="ru-sub">{{ master_scores.overall }}/100 &middot; {{ master_scores.measured_count }} of {{ master_scores.total_count }} measured</span>
-            {% else %}
-              <span class="ru-sub">unmeasured</span>
-            {% endif %}
-            <span class="ml-auto">{{ sb.btn("Open", variant="secondary", size="sm",
-                      href=url_for("studio.studio_master", project_id=project.id)) }}</span>
-          </header>
-          <div class="p-4">
-            <div class="flex flex-wrap gap-2">
-              {% for c in master_scores.categories %}
-                <div class="rk-lcd" title="{{ c.evidence }}{% if c.missing %} Needs: {{ c.missing }}.{% endif %} ({{ c.source }}, {{ c.confidence }})">
-                  <span class="rk-lcd-v {% if c.score is none %}text-sb-ink-3{% elif c.status == 'blocked' %}text-sb-crit{% endif %}">{{ c.score if c.score is not none else "&mdash;"|safe }}</span>
-                  <span class="rk-lcd-cap">{{ c.label }}</span>
-                </div>
-              {% endfor %}
-            </div>
-
-            <div class="mt-3 flex flex-wrap items-center gap-1.5">
-              <span class="ru-tag">DIRECTION</span>
-              {{ sb.btn("Clean", variant="primary", size="sm",
-                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=clean",
-                        title="Loudness stage only.") }}
-              {{ sb.btn("Warm", variant="primary", size="sm",
-                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=warm",
-                        title="Low shelf up, top eased, slope-unity saturation.") }}
-              {{ sb.btn("Competitive", variant="primary", size="sm",
-                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=competitive",
-                        title="Driven into a lookahead limiter; the note records the gain reduction.") }}
-              {{ sb.btn("Open", variant="primary", size="sm",
-                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=open",
-                        title="No limiter ever; lands under the target on purpose - dynamics kept.") }}
-              {{ sb.btn("Club", variant="primary", size="sm",
-                        href=url_for("studio.studio_master", project_id=project.id) ~ "?direction=club",
-                        title="Low-end weight, ceiling held by the limiter. Check it on the Club / PA chip.") }}
-            </div>
-
-            {% if masters %}
-              <div class="mt-3 flex flex-wrap items-center gap-1.5">
-                <span class="ru-tag">PREVIEWS</span>
-                {% for entry in masters[:3] %}
-                  <button type="button" data-bpick="{{ loop.index0 }}"
-                          class="rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2"
-                          title="{{ entry.version.change_summary }}">
-                    {{ "ABC"[loop.index0] }} &middot; {{ entry.version.version_name|replace("Master · ","") }} &middot; B
-                  </button>
-                {% endfor %}
-                <span class="font-mono text-xs text-sb-ink-3">flip A/B on the transport &middot; match = equal loudness</span>
-              </div>
-            {% endif %}
-          </div>
-        </section>
-      </div>
-
-      {# --------------------------------------------- playback translation --- #}
-      <section class="ru rounded-xl overflow-hidden">
-        <header class="ru-head">
-          <span class="ru-tag">SB-PT</span>
-          <div class="ru-title" role="heading" aria-level="2">PLAYBACK TRANSLATION</div>
-          <span class="ru-sub">simulations, not measurements of any real device &mdash; your ears are the meter</span>
-        </header>
-        <div class="p-4">
-          <div id="sb-sims" class="flex flex-wrap gap-1.5"></div>
-        </div>
-      </section>
-
-      {# ------------------------------------------------ Version Vault strip #}
-      <section class="sb-panel p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="sb-label text-purple-400">Version Vault</h2>
-          {{ sb.btn("Open", variant="secondary", size="sm",
-                    href=url_for("studio.studio_versions", project_id=project.id)) }}
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          {% for v in summary.versions|reverse %}
-            <span class="rounded-lg border px-3 py-2 font-mono text-xs
-                         {% if v.status == 'locked' %}border-purple-500/20 bg-purple-500/10 text-purple-400{% elif v.status == 'approved' %}border-sb-line text-sb-good{% else %}border-sb-line text-gray-300{% endif %}"
-                  title="{{ v.change_summary }}">
-              {{ v.version_name }}
-              <span class="block text-sb-ink-3">{{ (v.created_at or "")[:10] }}{% if v.status in ("approved","locked") %} &middot; {{ v.status }}{% endif %}</span>
-            </span>
+      <section class="sr-panel sr-o-activity" aria-labelledby="sr-activity-h">
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-activity-h">Recent activity</h2></div>
+        {% if activity %}
+        <ul class="sr-activity">
+          {% for e in activity %}
+            <li><time datetime="{{ e.created_at }}">{{ (e.created_at or "")[11:16] or (e.created_at or "")[:10] }}</time>{{ e.event_type|replace("."," ")|replace("_"," ")|capitalize }}{% if e.count > 1 %}<span class="sr-count">&times;{{ e.count }}</span>{% endif %}</li>
           {% endfor %}
-        </div>
-      </section>
-
-      {# ------------------------------------------------------ Deliver band  #}
-      <section class="sb-panel p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="sb-label text-purple-400">Deliver</h2>
-          {{ sb.btn("Open", variant="secondary", size="sm",
-                    href=url_for("studio.studio_deliver", project_id=project.id)) }}
-        </div>
-        {%- set met = checklist|selectattr("ok")|list|length %}
-        {%- set req = checklist|selectattr("required")|list %}
-        {%- set req_met = req|selectattr("ok")|list|length %}
-        <p class="mt-2 font-mono text-xs text-sb-ink-3">
-          {{ req_met }}/{{ req|length }} required &middot; {{ met }}/{{ checklist|length }} overall &middot; computed, never ticked by hand
-        </p>
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          {% for c in checklist if c.required %}
-            <span class="rounded border px-2 py-0.5 font-mono text-xs
-                         {% if c.ok %}border-sb-line text-sb-good{% else %}border-sb-line text-amber-400{% endif %}"
-                  title="{{ c.detail }}">{{ c.label }}</span>
-          {% endfor %}
-        </div>
+        </ul>
+        {% else %}<p class="sr-empty">Nothing yet.</p>{% endif %}
       </section>
     </div>
 
-    {# ------------------------------------------------------ right rail ---- #}
-    <div class="space-y-5">
-      <section class="ru rounded-xl overflow-hidden">
-        <header class="ru-head">
-          <span class="ru-tag">TEAM</span>
-          <div class="ru-title" role="heading" aria-level="2">ON THIS RECORD</div>
-        </header>
-        <div class="p-4">
-          {% if members %}
-            <ul class="space-y-2">
-              {% for m in members %}
-                <li class="flex items-center gap-2" data-member-role="{{ m.role }}">
-                  {#- Green dot = this person can OPEN the project right now,
-                      through an accepted team seat. Dark ring = a named
-                      credit, no login. Presence is not faked. -#}
-                  <span class="h-2 w-2 shrink-0 rounded-full
-                               {% if m.team_status == 'active' and m.team_user_id %}bg-emerald-400{% else %}border border-sb-line{% endif %}"
-                        data-access="{{ 'live' if m.team_status == 'active' and m.team_user_id else 'credit' }}"
-                        title="{{ 'Can open this project (accepted team seat)' if m.team_status == 'active' and m.team_user_id else 'Credit only - no sign-in access' }}"></span>
-                  <span class="min-w-0 flex-1 truncate text-sm text-white">{{ m.display_name }}</span>
-                  <span class="shrink-0 font-mono text-xs text-purple-400">{{ m.role|replace("_"," ")|replace("a and r","A&R") }}</span>
-                  {% if viewer_role == "owner" %}
-                    <form method="post" class="shrink-0"
-                          action="{{ url_for('studio.studio_team_remove', project_id=project.id, member_id=m.id) }}">
-                      <button type="submit" aria-label="Remove {{ m.display_name }}"
-                              class="rounded border border-sb-line px-1.5 font-mono text-xs text-sb-ink-3">&times;</button>
-                    </form>
-                  {% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="text-sm text-gray-300">Just you so far.</p>
-          {% endif %}
-
-          {% if viewer_role == "owner" %}
-            <form method="post" class="mt-3 space-y-2"
-                  action="{{ url_for('studio.studio_team_add', project_id=project.id) }}">
-              {% if team_pool %}
-                <select name="team_member_id"
-                        class="w-full rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
-                  <option value="">Name only (credit, no access)&hellip;</option>
-                  {% for t in team_pool %}
-                    <option value="{{ t.id }}">{{ t.email }}{{ " · has access when added" if t.status == "active" else " · invite pending" }}</option>
-                  {% endfor %}
-                </select>
-              {% endif %}
-              <div class="flex gap-2">
-                <input name="display_name" placeholder="Name"
-                       class="min-w-0 flex-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
-                <select name="role"
-                        class="rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
-                  <option value="producer">Producer</option>
-                  <option value="mix_engineer">Mix engineer</option>
-                  <option value="mastering_engineer">Mastering eng.</option>
-                  <option value="manager">Manager</option>
-                  <option value="a_and_r">A&amp;R</option>
-                  <option value="label_admin">Label admin</option>
-                  <option value="viewer">Viewer</option>
-                  <option value="collaborator" selected>Collaborator</option>
-                </select>
-                {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
-              </div>
-            </form>
-            <p class="mt-2 font-mono text-xs text-sb-ink-3">
-              access comes from an <a class="underline" href="/team">accepted team invite</a> &middot; a name alone is a credit
-            </p>
-          {% endif %}
+    {# ========================================================== center #}
+    <div class="sr-col">
+      <section class="sr-panel sr-o-rack" aria-labelledby="sr-rack-h" data-panel="rack">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-rack-h">Rack chain</h2>
+          <span class="sr-panel-sub">saved chain, read-only</span>
         </div>
-      </section>
-
-      <section class="sb-panel p-4" id="ask-the-room">
-        <h2 class="sb-label text-purple-400">Ask the Room</h2>
-        <p class="mt-2 font-mono text-xs text-sb-ink-3">
-          answers only from what this project holds &mdash; it has no ears and says so
-        </p>
-        <form method="post" class="mt-3 flex gap-2"
-              action="{{ url_for('studio.studio_room_ask', project_id=project.id) }}">
-          <input name="q" required maxlength="300"
-                 value="{{ room_question or '' }}"
-                 placeholder="What is blocking the release?"
-                 class="min-w-0 flex-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
-          {{ sb.btn("Ask", variant="primary", size="sm", type="submit") }}
-        </form>
-
-        {% if room_answer %}
-          <div class="mt-3 rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
-            <p class="font-mono text-xs uppercase tracking-[0.16em] text-purple-400">Observation</p>
-            <p class="mt-1 text-sm text-white">{{ room_answer.observation }}</p>
-            <p class="mt-2 font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Why it matters</p>
-            <p class="mt-1 text-sm text-gray-300">{{ room_answer.why }}</p>
-            <p class="mt-2 font-mono text-xs text-sb-ink-3">
-              Confidence: {{ room_answer.confidence }}
-              {%- if room_answer.missing %} &middot; missing: {{ room_answer.missing }}{% endif %}
-            </p>
-            {% if room_answer.action %}
-              <p class="mt-2 text-sm text-white">{{ room_answer.action }}</p>
-            {% endif %}
-            {% if room_answer.links %}
-              <div class="mt-2 flex flex-wrap gap-1.5">
-                {% for label, room_key in room_answer.links %}
-                  {{ sb.btn(label, variant="secondary", size="sm",
-                            href=url_for("studio.studio_" ~ ("session" if room_key == "session" else room_key), project_id=project.id)) }}
-                {% endfor %}
-              </div>
-            {% endif %}
-          </div>
+        {% if rack_chain %}
+          {{ rackmods.strip(rack_chain, "/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}
+          <div class="sr-actions">{{ sb.btn("Open full Rack", variant="secondary", size="sm", href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}</div>
+        {% else %}
+          <p class="sr-empty"><b>No chain saved.</b> Build and save a signal chain in the Rack and it shows here, knob for knob.</p>
+          <div class="sr-actions">{{ sb.btn("Open the Rack", variant="primary", size="sm", href="/rack?project=" ~ project.id ~ "&asset=" ~ source.id) }}</div>
         {% endif %}
       </section>
 
-      <section class="sb-panel p-4">
-        <h2 class="sb-label text-purple-400">Notes</h2>
-        {% if comments %}
-          <ul class="mt-3 space-y-2">
-            {% for c in comments[:8] %}
-              <li class="text-sm">
-                <button type="button" data-seek="{{ c.start_seconds }}"
-                        class="font-mono text-xs text-purple-400 underline">
-                  {{ "%d:%02d"|format((c.start_seconds // 60)|int, (c.start_seconds % 60)|int) }}
-                </button>
-                <span class="text-gray-300">{{ c.body }}</span>
-                {% if c.status == "resolved" %}
-                  <span class="font-mono text-xs text-sb-good">resolved</span>
+      <section class="sr-panel sr-o-doctor" aria-labelledby="sr-doctor-h" data-panel="mix-doctor" data-doctor="{{ doctor.kind }}">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-doctor-h">Mix Doctor</h2>
+          <span class="sr-panel-sub">primary observation</span>
+        </div>
+        <p class="sr-doctor-head">{{ doctor.headline }}</p>
+        {% if doctor.body %}<p class="sr-doctor-body">{{ doctor.body }}</p>{% endif %}
+        <div class="sr-doctor-meta">
+          <span>Confidence: {{ doctor.confidence }}</span>
+          <span>Source: {{ doctor.source }}</span>
+          {% if doctor.at is not none %}
+            <button type="button" data-seek="{{ doctor.at }}" class="sr-x">Hear it at {{ "%d:%02d"|format((doctor.at // 60)|int, (doctor.at % 60)|int) }}</button>
+          {% endif %}
+        </div>
+        {% if doctor.kind not in ("unmeasured",) %}
+        <details class="sr-why">
+          <summary><span class="sb-btn sb-btn-secondary sb-btn-sm">See why</span></summary>
+          <div class="sr-why-body">
+            <p><b>Why this was flagged</b></p>
+            {% if doctor.measured %}
+              <p><b>Measured:</b> {% for k, v in doctor.measured.items() %}{% if k != "evidence" %}{{ k|replace("_"," ") }} {% endif %}{{ v }}{{ "; " if not loop.last }}{% endfor %}</p>
+            {% endif %}
+            <p><b>Confidence:</b> {{ doctor.confidence }} &middot; <b>Source:</b> {{ doctor.source }}</p>
+            {% if doctor.missing %}
+              <p><b>Not measured:</b> {{ doctor.missing|join(", ") }}</p>
+            {% endif %}
+            {% if doctor.test %}<p><b>Worth testing:</b> {{ doctor.test }}</p>{% endif %}
+            <p>This is a reading of what the project holds, not a judgement of the record. It has no ears and says so.</p>
+          </div>
+        </details>
+        {% endif %}
+        <div class="sr-actions">
+          {% if doctor.kind == "unmeasured" %}
+            {{ sb.btn("Measure the audio", variant="primary", size="sm", href="#sb-measure") }}
+          {% else %}
+            {{ sb.btn("Open the Mix room", variant="secondary", size="sm", href=url_for("studio.studio_mix", project_id=project.id)) }}
+          {% endif %}
+          {{ sb.btn("Send to Remix Lab", variant="secondary", size="sm", href=url_for("studio.studio_remix")) }}
+        </div>
+      </section>
+
+      <section class="sr-panel sr-o-team" aria-labelledby="sr-team-h" data-panel="team">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-team-h">ON THIS RECORD</h2>
+          <span class="sr-panel-sub">a name is a credit; access needs an accepted invite</span>
+        </div>
+        {% if members %}
+          <ul class="sr-people">
+            {% for m in members %}
+              {%- set st = team_state(m) %}
+              <li class="sr-person" data-member-role="{{ m.role }}" data-access="{{ 'live' if st == 'active' else 'credit' }}" data-team-state="{{ st }}">
+                <span class="sr-avatar" aria-hidden="true">{{ (m.display_name or "?")[:2]|upper }}</span>
+                <span class="sr-person-main">
+                  <span class="sr-person-name">{{ m.display_name }}</span>
+                  <span class="sr-person-role">{{ m.role|replace("_"," ")|replace("a and r","A&R") }}</span>
+                </span>
+                <span class="sr-state sr-state--{{ 'good' if st == 'active' else ('warn' if st == 'invite_pending' else 'idle') }}"
+                      title="{{ 'Can open this project through an accepted team seat' if st == 'active' else ('The team invite has not been accepted yet' if st == 'invite_pending' else 'Credit only - no sign-in access') }}">
+                  {{ "Active" if st == "active" else ("Invite pending" if st == "invite_pending" else "Credit only") }}
+                </span>
+                {% if viewer_role == "owner" %}
+                  <form method="post" action="{{ url_for('studio.studio_team_remove', project_id=project.id, member_id=m.id) }}">
+                    <button type="submit" class="sr-x" aria-label="Remove {{ m.display_name }}">&times;</button>
+                  </form>
                 {% endif %}
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="mt-2 text-sm text-gray-300">
-            None yet &mdash; add them in the
-            <a class="underline" href="{{ url_for('studio.studio_mix', project_id=project.id) }}">Mix room</a>.
-          </p>
+          <p class="sr-empty">Just you so far.</p>
+        {% endif %}
+
+        {% if viewer_role == "owner" %}
+          <form method="post" class="sr-team-form" action="{{ url_for('studio.studio_team_add', project_id=project.id) }}">
+            {% if team_pool %}
+              <select name="team_member_id" aria-label="Team seat">
+                <option value="">Name only (credit, no access)&hellip;</option>
+                {% for t in team_pool %}
+                  <option value="{{ t.id }}">{{ t.email }}{{ " · has access when added" if t.status == "active" else " · invite pending" }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+            <div class="sr-team-row">
+              <input name="display_name" placeholder="Name" aria-label="Name">
+              <select name="role" aria-label="Role">
+                <option value="producer">Producer</option>
+                <option value="mix_engineer">Mix engineer</option>
+                <option value="mastering_engineer">Mastering engineer</option>
+                <option value="manager">Manager</option>
+                <option value="a_and_r">A&amp;R</option>
+                <option value="label_admin">Label admin</option>
+                <option value="viewer">Viewer</option>
+                <option value="collaborator" selected>Collaborator</option>
+              </select>
+              {{ sb.btn("Add person", variant="secondary", size="sm", type="submit") }}
+            </div>
+            <p class="sr-fine" style="margin-top:0">Access comes from an <a class="underline" href="/team">accepted team invite</a>. A name alone is a credit.</p>
+          </form>
         {% endif %}
       </section>
 
-      <section class="sb-panel p-4">
-        <h2 class="sb-label text-purple-400">Activity</h2>
-        <ul class="mt-3 space-y-1 font-mono text-xs text-sb-ink-3">
-          {% for e in events %}
-            <li>{{ (e.created_at or "")[:16]|replace("T"," ") }} &middot; {{ e.event_type|replace("."," ") }}</li>
+      <section class="sr-panel sr-o-ask" id="ask-the-room" aria-labelledby="sr-ask-h">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-ask-h">Ask the Room</h2>
+          <span class="sr-panel-sub">answers only from what this project holds</span>
+        </div>
+        <p class="sr-fine" style="margin-top:0">It has no ears and says so.</p>
+        <form method="post" class="sr-ask" action="{{ url_for('studio.studio_room_ask', project_id=project.id) }}">
+          <input name="q" required maxlength="300" value="{{ room_question or '' }}" placeholder="What is blocking the release?" aria-label="Ask the Room">
+          {{ sb.btn("Ask", variant="primary", size="sm", type="submit") }}
+        </form>
+        {% if room_answer %}
+          <div class="sr-answer">
+            <span class="k">Observation</span>
+            <span class="v">{{ room_answer.observation }}</span>
+            <span class="k">Why it matters</span>
+            <span>{{ room_answer.why }}</span>
+            <span class="k">Confidence: {{ room_answer.confidence }}{% if room_answer.missing %} &middot; missing: {{ room_answer.missing }}{% endif %}</span>
+            {% if room_answer.action %}<span class="v">{{ room_answer.action }}</span>{% endif %}
+            {% if room_answer.links %}
+              <div class="sr-actions">
+                {% for label, room_key in room_answer.links %}
+                  {{ sb.btn(label, variant="secondary", size="sm", href=url_for("studio.studio_" ~ ("session" if room_key == "session" else room_key), project_id=project.id)) }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    </div>
+
+    {# =========================================================== right #}
+    <div class="sr-col">
+      <section class="sr-panel sr-o-master" aria-labelledby="sr-master-h" data-panel="master">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-master-h">Master directions</h2>
+          <span class="sr-panel-sub">rendered in this browser</span>
+        </div>
+        <div class="sr-directions">
+          {% for key, name, blurb in (
+              ("clean", "Clean", "Transparent loudness stage. Minimal tonal intervention."),
+              ("warm", "Warm", "Low shelf emphasis. Softer top. Light saturation."),
+              ("competitive", "Competitive", "Higher perceived loudness. Limiter-driven presentation."),
+              ("open", "Open", "Dynamics preserved. No limiter by design."),
+              ("club", "Club", "Low-end emphasis. PA-oriented translation.")) %}
+            <a class="sr-direction" data-direction="{{ key }}" href="{{ url_for('studio.studio_master', project_id=project.id) }}?direction={{ key }}"><b>{{ name }}</b><span>{{ blurb }}</span></a>
           {% endfor %}
+        </div>
+        {% if masters %}
+          <div class="sr-actions">
+            {% for entry in masters[:3] %}
+              <button type="button" data-bpick="{{ loop.index0 }}" class="sr-x" title="{{ entry.version.change_summary }}">B: {{ entry.version.version_name|replace("Master · ","") }}</button>
+            {% endfor %}
+          </div>
+          <p class="sr-fine">Flip A/B on the transport; match plays both at equal loudness.</p>
+        {% endif %}
+        <div class="sr-panel-head" style="margin-top:16px">
+          <h3 class="sr-panel-title">Master readiness</h3>
+          {% if master_scores.overall is not none %}<span class="sr-panel-sub">measured on {{ master_scores.measured_count }} of {{ master_scores.total_count }}</span>{% endif %}
+        </div>
+        <ul class="sr-metrics">
+          {% for x in master_metrics %}{{ metric_row(x) }}{% endfor %}
         </ul>
       </section>
 
-      {{ console.readiness_panel(readiness) }}
+      <section class="sr-panel sr-o-sims" aria-labelledby="sr-sims-h" data-panel="translation">
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-sims-h">Playback translation</h2></div>
+        <div id="sb-sims" role="group" aria-label="Playback simulations"></div>
+        <p class="sr-fine">Simulations, not measurements of any real device &mdash; your ears are the meter.</p>
+      </section>
+
+      <section class="sr-panel sr-o-deliver" aria-labelledby="sr-deliver-h" data-panel="delivery" data-ready="{{ 'yes' if delivery.ready else 'no' }}">
+        <div class="sr-panel-head">
+          <h2 class="sr-panel-title" id="sr-deliver-h">Delivery readiness</h2>
+          <span class="sr-panel-sub">{{ delivery.required_met }} / {{ delivery.required_total }} required &middot; {{ delivery.met }} / {{ delivery.total }} overall</span>
+        </div>
+        <ul class="sr-checks">
+          {% for c in checklist if c.required %}
+            <li class="{{ 'ok' if c.ok else 'no' }}" title="{{ c.detail }}"><span aria-hidden="true">{{ "&#10003;"|safe if c.ok else "&#9675;"|safe }}</span><span>{{ c.label }}</span></li>
+          {% endfor %}
+        </ul>
+        {% if delivery.ready %}
+          <p class="sr-fine">Ready for delivery.</p>
+        {% endif %}
+        {% if viewer_role == "owner" %}
+          <div class="sr-actions">
+            {% if delivery.cta.key == "locked" %}
+              <details class="sr-lock" data-lock="1">
+                <summary><span class="sb-btn sb-btn-primary sb-btn-sm">Lock final version</span></summary>
+                <div class="sr-lock-body">
+                  <p>The locked version becomes the approved delivery source. The lock records who, when and the checksum of the exact bytes. It is not destructive.</p>
+                  {% for v in summary.versions if v.status != "locked" %}
+                    <form method="post" class="sr-lock-row" action="{{ url_for('studio.studio_version_status', project_id=project.id, version_id=v.id) }}">
+                      <input type="hidden" name="status" value="locked">
+                      <span><b>{{ v.version_name }}</b> &middot; {{ (v.created_at or "")[:10] }}</span>
+                      {{ sb.btn("Lock " ~ v.version_name, variant="secondary", size="sm", type="submit") }}
+                    </form>
+                  {% endfor %}
+                </div>
+              </details>
+            {% else %}
+              {{ sb.btn(delivery.cta.label, variant="primary", size="sm", href=room_href(delivery.cta.room)|trim) }}
+            {% endif %}
+          </div>
+        {% endif %}
+        <p class="sr-fine">Computed, never ticked by hand.</p>
+      </section>
+
+      <section class="sr-panel sr-o-notes" aria-labelledby="sr-notes-h">
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-notes-h">Notes</h2></div>
+        {% if comments %}
+          <ul class="sr-notes">
+            {% for c in comments[:8] %}
+              <li><button type="button" data-seek="{{ c.start_seconds }}">{{ "%d:%02d"|format((c.start_seconds // 60)|int, (c.start_seconds % 60)|int) }}</button>{{ c.body }}{% if c.status == "resolved" %} <span class="sr-state sr-state--good">resolved</span>{% endif %}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="sr-empty">None yet &mdash; add them in the <a class="underline" href="{{ url_for('studio.studio_mix', project_id=project.id) }}">Mix room</a>.</p>
+        {% endif %}
+      </section>
     </div>
   </div>
-
-  {% include "studio/_transport.html" %}
-  {% else %}
-    {{ console.readiness_panel(readiness) }}
   {% endif %}
+
+  {# ======================================================= system status #}
+  <details class="sr-system" data-panel="system">
+    <summary>System status{% if system_notes %} &middot; {{ system_notes|length }} note{{ "s" if system_notes|length != 1 }}{% endif %}</summary>
+    <div class="sr-system-body">
+      {% if system_notes %}
+        <ul class="sr-system-notes">
+          {% for line in system_notes %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+      {% else %}
+        <p class="sr-fine">Every component of this workspace is on.</p>
+      {% endif %}
+      <details class="sr-engineering">
+        <summary>Engineering detail &middot; build {{ build }}</summary>
+        {{ console.readiness_panel(readiness) }}
+      </details>
+    </div>
+  </details>
 </div>
 
 {% if source %}{% include "studio/_measure.html" %}{% endif %}
