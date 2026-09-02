@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { auditChanges } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
 import { ENVIRONMENTS, FAILURE_CONSEQUENCE, LOADING_TYPES, PRODUCTION_INTENT } from "@/lib/domain/part-intent";
-import { userValue } from "@/lib/provenance";
+import { confirmedBy } from "@/lib/provenance";
 import { TopBar } from "@/components/nav";
 import { Button, Field, Notice, Panel, SectionHeading, inputClass } from "@/components/ui";
 
@@ -71,6 +71,10 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     const failureConsequence = (formData.get("failureConsequence") as string) || null;
 
     const before = await db.partResponsibilityProfile.findUnique({ where: { partRevisionId: rev.revisionId } });
+    // One stamp for the whole submission, so every answer carries the same
+    // moment rather than a scatter of times a few milliseconds apart.
+    const answeredAt = new Date();
+
 
     const data = {
       loadBearing,
@@ -92,7 +96,7 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
       materialCertRequired: bool("materialCertRequired"),
       traceabilityRequired: bool("traceabilityRequired"),
       answeredBy: currentUser.id,
-      answeredAt: new Date(),
+      answeredAt,
     };
 
     await db.partResponsibilityProfile.upsert({
@@ -105,15 +109,15 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     // stated facts from a human, not inference, and the process advisor
     // depends on that distinction.
     const intent = { ...rev.intent };
-    if (loadBearing !== null) intent.loadBearing = userValue(loadBearing);
-    if (safetyCritical !== null) intent.safetyCritical = userValue(safetyCritical);
-    if (failureConsequence) intent.failureConsequence = userValue(failureConsequence as never);
-    if (list("loadingTypes").length) intent.loadingType = userValue(list("loadingTypes") as never);
-    if (list("environments").length) intent.environment = userValue(list("environments") as never);
-    if (data.productionIntent) intent.productionIntent = userValue(data.productionIntent as never);
-    if (data.annualVolume) intent.annualVolume = userValue(data.annualVolume);
+    if (loadBearing !== null) intent.loadBearing = confirmedBy(loadBearing, currentUser.name, answeredAt, "Part responsibility interview");
+    if (safetyCritical !== null) intent.safetyCritical = confirmedBy(safetyCritical, currentUser.name, answeredAt, "Part responsibility interview");
+    if (failureConsequence) intent.failureConsequence = confirmedBy(failureConsequence as never, currentUser.name, answeredAt, "Part responsibility interview");
+    if (list("loadingTypes").length) intent.loadingType = confirmedBy(list("loadingTypes") as never, currentUser.name, answeredAt, "Part responsibility interview");
+    if (list("environments").length) intent.environment = confirmedBy(list("environments") as never, currentUser.name, answeredAt, "Part responsibility interview");
+    if (data.productionIntent) intent.productionIntent = confirmedBy(data.productionIntent as never, currentUser.name, answeredAt, "Part responsibility interview");
+    if (data.annualVolume) intent.annualVolume = confirmedBy(data.annualVolume, currentUser.name, answeredAt, "Part responsibility interview");
     if (data.temperatureMin !== null && data.temperatureMax !== null) {
-      intent.temperatureRange = userValue({ min: data.temperatureMin, max: data.temperatureMax });
+      intent.temperatureRange = confirmedBy({ min: data.temperatureMin, max: data.temperatureMax }, currentUser.name, answeredAt, "Part responsibility interview");
     }
     // The critical-part intake fields the Engineering-input gate checks.
     // These were previously unreachable from any form, so "Complete the
@@ -124,13 +128,13 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     const quantityRaw = String(formData.get("quantity") ?? "").trim();
     const quantity = quantityRaw ? Number(quantityRaw) : null;
     if (quantity !== null && Number.isFinite(quantity) && quantity >= 1) {
-      intent.quantity = userValue(Math.round(quantity));
+      intent.quantity = confirmedBy(Math.round(quantity), currentUser.name, answeredAt, "Part responsibility interview");
     }
     const toleranceRaw = String(formData.get("generalTolerance") ?? "").trim();
     const generalTolerance = toleranceRaw ? Number(toleranceRaw) : null;
     // A zero general tolerance is not a tolerance. Refused rather than stored.
     if (generalTolerance !== null && Number.isFinite(generalTolerance) && generalTolerance > 0) {
-      intent.generalTolerance = userValue(generalTolerance);
+      intent.generalTolerance = confirmedBy(generalTolerance, currentUser.name, answeredAt, "Part responsibility interview");
     }
 
     const envelope = (["X", "Y", "Z"] as const).map((axis) => {
@@ -140,18 +144,18 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     // All three or none. Two axes of a finished envelope is not a smaller
     // envelope, it is an unanswered question.
     if (envelope.every((n) => n !== null && Number.isFinite(n) && n > 0)) {
-      intent.finishedEnvelope = userValue({ x: envelope[0]!, y: envelope[1]!, z: envelope[2]! });
+      intent.finishedEnvelope = confirmedBy({ x: envelope[0]!, y: envelope[1]!, z: envelope[2]! }, currentUser.name, answeredAt, "Part responsibility interview");
     }
 
     const materialCondition = String(formData.get("materialCondition") ?? "").trim();
-    if (materialCondition) intent.materialCondition = userValue(materialCondition);
+    if (materialCondition) intent.materialCondition = confirmedBy(materialCondition, currentUser.name, answeredAt, "Part responsibility interview");
     const surfaceFinish = String(formData.get("surfaceFinish") ?? "").trim();
-    if (surfaceFinish) intent.surfaceFinish = userValue(surfaceFinish);
+    if (surfaceFinish) intent.surfaceFinish = confirmedBy(surfaceFinish, currentUser.name, answeredAt, "Part responsibility interview");
     const inspectionReqs = String(formData.get("inspectionRequirements") ?? "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    if (inspectionReqs.length) intent.inspectionRequirements = userValue(inspectionReqs);
+    if (inspectionReqs.length) intent.inspectionRequirements = confirmedBy(inspectionReqs, currentUser.name, answeredAt, "Part responsibility interview");
 
     intent.unknowns = intent.unknowns.filter(
       (u) => !u.toLowerCase().includes("responsibility") && !u.toLowerCase().includes("functional"),

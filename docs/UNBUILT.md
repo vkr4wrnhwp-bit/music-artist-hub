@@ -111,13 +111,31 @@ The `ManufacturingDNA` model exists and is read in one place, but it is keyed to
 
 `prisma/schema.prisma:935-950 (`partId`, `snapshotJson`, no event type, no provenance); only write is prisma/seed.ts:677; only read is src/app/(app)/intelligence/page.tsx:22 rendered as a table at line 72. `grep -rn "manufacturingDNA" src/app src/lib src/components` returns one hit.`
 
-### Provenance deep dive — clicking a provenance badge opens source, method, operator, timestamp, instrument, uncertainty, calculation version and shop evidence
+### Provenance deep dive — instrument, uncertainty and shop evidence
 
-> Click provenance badge to show: source method operator timestamp instrument uncertainty calculation version shop evidence This must be easy to inspect.
+> Click provenance badge to show: source, method, operator, timestamp, instrument, uncertainty, calculation version, shop evidence
 
-`ProvenanceBadge` is a non-interactive `<span>` whose only disclosure is a `title` tooltip carrying source, confidence and confirmed/not-confirmed. There is no click handler, popover or drilldown of any kind, so method, operator, timestamp, instrument, uncertainty, calculation version and shop evidence are unreachable from a badge. The underlying `Provenanced<T>` primitive also has no timestamp, instrument, method, uncertainty or revision fields, contrary to what CLAUDE.md claims it carries — the base prompt asked for those on the value itself.
+The badge now opens a panel and states all of it, but three rows read "not
+recorded" for every value in the app, and that is honest rather than a
+wiring gap.
 
-`src/components/ui.tsx:111-131 (span with `title=` only, no onClick); src/lib/provenance.ts:30-40 (`Provenanced` = value/source/confidence/confirmedByUser/note/score).`
+INSTRUMENT and UNCERTAINTY. No `Provenanced` value in CANVAS comes from an
+instrument: `measured()` has one call site and it is a units declaration.
+Real instrument and uncertainty live on `Measurement.uncertainty` and
+`Measurement.deviceId`, on a path that never touches `Provenanced`. Filling
+these rows would mean inventing a chain of custody.
+
+SHOP EVIDENCE. `relevantKnowledge()` scopes strictly by machine, tool and
+material. There is no honest join from "General tolerance ±0.005" to a
+ShopKnowledge row, and showing loosely-related rows beside a value is worse
+than showing none.
+
+CALCULATION VERSION is populated only where an engine exports a version
+constant. Nothing else invents one.
+
+Closing these means either giving `Provenanced` a link to a Measurement, or
+accepting that instrument-grade provenance belongs on measurements and
+removing the two rows from the panel. That is a modelling decision.
 
 ### Run It Past CANVAS should let a machinist upload an existing job package — STEP, NC program, tool list, setup file, machine, workholding — and review it
 

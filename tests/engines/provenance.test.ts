@@ -11,8 +11,12 @@ import {
   measured,
   manufacturerSpec,
   calculated,
+  confirmedBy,
+  provenanceDetail,
+  type Provenanced,
   type Source,
 } from "@/lib/provenance";
+import { readFileSync } from "node:fs";
 
 /**
  * Locked principle 3: "AI inference never satisfies a required gate. The
@@ -97,6 +101,161 @@ test("every source is decided, not left to fall through", () => {
       isEngineeringGrade(value("x", source, "VERIFIED")),
       decided[source],
       `${source} at VERIFIED — the source decides, not the label attached to it`,
+    );
+  }
+});
+
+/* ---- the provenance panel ---- */
+
+/**
+ * The badge was a `<span>` whose `title=` repeated what it already said in
+ * text. Two fields the engines fill were rendered nowhere: `note` — the
+ * reason a value is what it is — and `score`, the model's own confidence.
+ * provenance.ts documented note as "shown in the provenance popover" and
+ * there was no popover.
+ */
+
+test("every value gets the same rows, so none can be quietly dropped", () => {
+  // Fixed length is the point. "Instrument — not recorded" is a fact a
+  // machinist can act on; a missing row is one they will not notice.
+  const labels = (p: Provenanced<unknown>) => provenanceDetail(p).map((r) => r.label);
+  const reference = labels(value("x", "USER", "VERIFIED"));
+  for (const source of SOURCES) {
+    for (const confidence of CONFIDENCE) {
+      assert.deepEqual(labels(value("x", source, confidence)), reference, `${source}/${confidence} returns other rows`);
+    }
+  }
+  assert.deepEqual(labels(unknown()), reference, "an unknown value returns fewer rows");
+});
+
+test("nothing recorded reads as not recorded, never as undefined", () => {
+  const rows = provenanceDetail(value(null, "DEFAULT", "UNKNOWN"));
+  for (const r of rows) {
+    if (r.value === null) continue;
+    assert.ok(!/undefined|null|NaN/.test(r.value), `${r.label} rendered "${r.value}"`);
+  }
+  // And the empty ones are explicitly null rather than an empty string, so
+  // the UI can tell "not recorded" from "recorded as blank".
+  const basis = rows.find((r) => r.label === "Basis");
+  assert.equal(basis?.value, null);
+});
+
+test("the gate answer comes from isEngineeringGrade, not from a second copy of the rule", () => {
+  // CLAUDE.md names provenance.ts as the one home of this rule. A plausible
+  // re-derivation — "confirmed, or a high-confidence source" — differs from
+  // the real one, and this is where that would show up.
+  const cases: Provenanced<unknown>[] = [];
+  for (const source of SOURCES) {
+    for (const confidence of CONFIDENCE) {
+      for (const confirmedByUser of [true, false]) {
+        cases.push(value("x", source, confidence, { confirmedByUser }));
+      }
+    }
+  }
+  cases.push(value(null, "USER", "VERIFIED", { confirmedByUser: true }));
+  for (const p of cases) {
+    const row = provenanceDetail(p).find((r) => r.label === "Can satisfy a required gate");
+    assert.equal(
+      row?.value,
+      isEngineeringGrade(p) ? "Yes" : "No",
+      `${p.source}/${p.confidence}/confirmed=${p.confirmedByUser} disagrees with isEngineeringGrade`,
+    );
+  }
+});
+
+test("an AI inference says so, at every confidence", () => {
+  for (const confidence of CONFIDENCE) {
+    const p = value("x", "AI_INFERENCE", confidence);
+    const row = provenanceDetail(p).find((r) => r.label === "Can satisfy a required gate");
+    assert.equal(row?.value, "No", `AI_INFERENCE at ${confidence} claims it can satisfy a gate`);
+  }
+  // Unless a human has explicitly confirmed it — which is the one exception
+  // isEngineeringGrade allows and the panel must reflect.
+  const confirmed = value("x", "AI_INFERENCE", "LOW", { confirmedByUser: true });
+  assert.equal(
+    provenanceDetail(confirmed).find((r) => r.label === "Can satisfy a required gate")?.value,
+    "Yes",
+  );
+});
+
+test("a model score is shown for a model's output and nowhere else", () => {
+  const ai = provenanceDetail(value("x", "AI_INFERENCE", "MEDIUM", { score: 0.62 }));
+  assert.equal(ai.find((r) => r.label === "Model score")?.value, "0.62");
+  // A score on a measured value would be a number with nothing behind it.
+  const measuredWithScore = provenanceDetail(value("x", "MEASURED", "HIGH", { score: 0.62 }));
+  assert.equal(measuredWithScore.find((r) => r.label === "Model score")?.value, null);
+});
+
+test("a chain of custody survives being stored as JSON", () => {
+  // This is literally the persistence path: intent is stored whole as
+  // intentJson and spread back over an empty intent on the way out.
+  const p = confirmedBy("Aluminum 6061", "Demo Operator", new Date("2026-09-02T10:00:00Z"), "Part responsibility interview");
+  const round = JSON.parse(JSON.stringify(p)) as Provenanced<string>;
+  assert.deepEqual(provenanceDetail(round), provenanceDetail(p));
+  const rows = provenanceDetail(round);
+  assert.equal(rows.find((r) => r.label === "Recorded by")?.value, "Demo Operator");
+  assert.equal(rows.find((r) => r.label === "Method")?.value, "Part responsibility interview");
+  assert.match(rows.find((r) => r.label === "Recorded")?.value ?? "", /^2026-09-02T10:00:00/);
+});
+
+test("value() carries every field a write site passes, not just two of them", () => {
+  // It used to pick `note` and `score` out of `extra` and drop the rest, so a
+  // caller that recorded a method or a timestamp had it discarded on the way
+  // in — the field would exist in the type and never reach storage.
+  const p = value("x", "CALCULATED", "MEDIUM", {
+    note: "n",
+    method: "m",
+    recordedAt: "2026-01-01T00:00:00.000Z",
+    recordedBy: "r",
+    instrument: "i",
+    uncertainty: 0.0005,
+    calculationVersion: "v1",
+  });
+  for (const [k, v] of Object.entries({ note: "n", method: "m", recordedBy: "r", instrument: "i", calculationVersion: "v1" })) {
+    assert.equal((p as unknown as Record<string, unknown>)[k], v, `value() dropped ${k}`);
+  }
+  assert.equal(p.uncertainty, 0.0005);
+});
+
+/* ---- and it reaches the interface ---- */
+
+test("the badge opens a panel instead of hiding the chain in a tooltip", () => {
+  const ui = readFileSync("src/components/ui.tsx", "utf8");
+  const badge = /export function ProvenanceBadge[\s\S]{0,3000}?\n}/.exec(ui);
+  assert.ok(badge, "ProvenanceBadge moved — this test cannot check it any more");
+  assert.ok(/<details/.test(badge![0]), "the badge is not an expandable element");
+  assert.ok(!/title=/.test(badge![0]), "the chain of custody is back in a tooltip");
+  assert.ok(/provenanceDetail\(/.test(badge![0]), "the badge does not render the detail rows");
+});
+
+test("the panel stays read-only", () => {
+  // A confirm control here would let a click inside a disclosure promote an
+  // AI inference to engineering grade — the precise thing principle 2 forbids.
+  const ui = readFileSync("src/components/ui.tsx", "utf8");
+  const badge = /export function ProvenanceBadge[\s\S]{0,3000}?\n}/.exec(ui)![0];
+  for (const control of ["<button", "onClick", "<form", "<input"]) {
+    assert.ok(!badge.includes(control), `the provenance panel gained ${control}`);
+  }
+});
+
+test("the fields the engines write actually reach the reader", () => {
+  // The defect this whole item is: a field written for a human that the page
+  // drops. note was documented as appearing in a popover that did not exist.
+  const lib = readFileSync("src/lib/provenance.ts", "utf8");
+  for (const field of ["note", "method", "recordedAt", "recordedBy", "instrument", "uncertainty"]) {
+    assert.ok(new RegExp(`${field}\\??:`).test(lib), `Provenanced no longer declares ${field}`);
+    assert.ok(new RegExp(`p\\.${field}`).test(lib), `provenanceDetail never reads ${field}`);
+  }
+});
+
+test("a badge is never nested inside a span it cannot legally sit in", () => {
+  // <details> is flow content. Inside a <span> the markup is invalid and
+  // browsers reparent it, which moves the panel out of its row.
+  for (const file of ["src/components/ui.tsx", "src/app/(app)/parts/[id]/page.tsx"]) {
+    const src = readFileSync(file, "utf8");
+    assert.ok(
+      !/<span[^>]*>(?:(?!<\/span>)[\s\S]){0,400}?<ProvenanceBadge/.test(src),
+      `${file} wraps a ProvenanceBadge in a span`,
     );
   }
 });

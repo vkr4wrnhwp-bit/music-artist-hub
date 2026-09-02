@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Source, Confidence, Provenanced } from "@/lib/provenance";
-import { SOURCE_LABEL } from "@/lib/provenance";
+import { SOURCE_LABEL, provenanceDetail } from "@/lib/provenance";
 
 /**
  * The CANVAS component vocabulary.
@@ -108,26 +108,61 @@ const SOURCE_TONE: Record<Source, Tone> = {
   DEFAULT: "unknown",
 };
 
-export function ProvenanceBadge({
-  source,
-  confidence,
-  confirmed,
-  compact = false,
-}: {
-  source: Source;
-  confidence: Confidence;
-  confirmed?: boolean;
-  compact?: boolean;
-}) {
+/**
+ * The badge, and what is behind it.
+ *
+ * It was a `<span>` whose `title=` repeated what the badge already said in
+ * text. Two fields the engines fill were rendered nowhere: `note` — the
+ * reason, "Recognised from the description", "6203 outer diameter per ISO
+ * 15" — and `score`, the model's own confidence. provenance.ts documented
+ * note as "shown in the provenance popover" and there was no popover.
+ *
+ * A tooltip was the wrong container anyway. LimitsDisclosure two hundred
+ * lines below states the rule this violated: a limit that changes what an
+ * operator would do is never only in a tooltip. Whether the material a whole
+ * plan rests on can satisfy a required gate is exactly such a limit.
+ *
+ * READ-ONLY, and it must stay that way. A "confirm this value" control here
+ * would let a click inside a disclosure promote an AI inference to
+ * engineering grade, which is the precise thing principle 2 forbids.
+ */
+export function ProvenanceBadge({ field, compact = false }: { field: Provenanced<unknown>; compact?: boolean }) {
+  const { source, confidence, confirmedByUser: confirmed } = field;
   const label = compact ? SOURCE_LABEL[source].split(" ")[0] : SOURCE_LABEL[source];
+  const rows = provenanceDetail(field);
   return (
-    <span
-      title={`${SOURCE_LABEL[source]} · confidence ${confidence.toLowerCase()}${confirmed ? " · confirmed by a human" : " · not confirmed"}`}
-      className={`inline-flex items-center gap-1 border px-1 py-[1px] font-mono text-[9px] uppercase tracking-[0.12em] ${TONE_CLASS[SOURCE_TONE[source]]}`}
-    >
-      {label}
-      {confirmed && <span className="text-precision">✓</span>}
-    </span>
+    <details className="group/prov inline-block min-w-0 align-baseline">
+      <summary
+        className={`inline-flex cursor-pointer list-none items-center gap-1 border px-1 py-[1px] font-mono text-[9px] uppercase tracking-[0.12em] ${TONE_CLASS[SOURCE_TONE[source]]}`}
+        aria-label={`Provenance: ${SOURCE_LABEL[source]}`}
+      >
+        {label}
+        {confirmed && <span className="text-precision">✓</span>}
+      </summary>
+      <div className="mt-1.5 min-w-[220px] border border-line-strong bg-card px-2.5 py-2">
+        <dl className="space-y-0.5">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-baseline justify-between gap-3">
+              <dt className="tech-label shrink-0">{r.label}</dt>
+              <dd
+                className={`min-w-0 text-right font-mono text-[11px] break-words ${
+                  r.value === null ? "text-muted" : "text-platinum-dim"
+                }`}
+              >
+                {r.value ?? "not recorded"}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {/* Why several rows are empty for this class of value, rather than
+            leaving a machinist to read a half-filled panel as a system that
+            HAD the chain of custody and lost it. */}
+        <p className="mt-2 border-t border-line pt-1.5 text-[10px] leading-snug text-muted">
+          Instrument and uncertainty are recorded against a measurement, not against a stated value. Shop knowledge is
+          scoped to a machine, tool and material, so it is not joined to a value here.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -155,7 +190,10 @@ export function ValueRow({
   return (
     <div className="d-row flex items-baseline justify-between gap-4 border-b border-line/60 py-2 last:border-0">
       <span className="tech-label shrink-0">{label}</span>
-      <span className="flex min-w-0 items-baseline gap-2">
+      {/* A div, not a span: the badge is a <details>, which is flow content
+          and invalid inside a span. The row is already flex, so nothing about
+          the layout changes. */}
+      <div className="flex min-w-0 items-baseline gap-2">
         {shown === null ? (
           <span className="font-mono text-[12px] text-unknown">— not defined</span>
         ) : (
@@ -164,8 +202,8 @@ export function ValueRow({
             {unit && <span className="ml-1 text-muted">{unit}</span>}
           </span>
         )}
-        <ProvenanceBadge source={field.source} confidence={field.confidence} confirmed={field.confirmedByUser} compact />
-      </span>
+        <ProvenanceBadge field={field} compact />
+      </div>
     </div>
   );
 }

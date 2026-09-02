@@ -941,16 +941,13 @@ export default async function PartWorkspace(props: {
         meta={
           <>
             <BarMeta label="Material">
-              <span className="flex items-center gap-1.5">
+              {/* A div rather than a span: the badge opens a panel, which is
+                  flow content and invalid inside a span. */}
+              <div className="flex items-center gap-1.5">
                 {revision.intent.material.value ?? "not defined"}
                 {revision.intent.materialCondition.value ? ` · ${revision.intent.materialCondition.value}` : ""}
-                <ProvenanceBadge
-                  source={revision.intent.material.source}
-                  confidence={revision.intent.material.confidence}
-                  confirmed={revision.intent.material.confirmedByUser}
-                  compact
-                />
-              </span>
+                <ProvenanceBadge field={revision.intent.material} compact />
+              </div>
             </BarMeta>
             <BarMeta label="Stock">
               {/* With the unit. Every other dimensional readout in the app

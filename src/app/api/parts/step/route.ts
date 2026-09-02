@@ -43,11 +43,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // Named once. A method a reader can check is worth more than three copies
+  // of a phrase that could drift apart.
+  const STEP_IMPORT_METHOD = "STEP geometry import";
+
   const name = recognition.partName ?? file.name.replace(/\.(stp|step)$/i, "");
   const intent: PartIntent = emptyPartIntent(name);
-  intent.description = calculated(`Imported from STEP file ${file.name}`, "Deterministic geometry import");
-  intent.units = calculated("IN", `Drawing units ${recognition.units}; converted to inches`);
-  intent.finishedEnvelope = calculated(recognition.envelope, "Bounding envelope of the STEP geometry");
+  intent.description = calculated(`Imported from STEP file ${file.name}`, "Deterministic geometry import", STEP_IMPORT_METHOD);
+  intent.units = calculated("IN", `Drawing units ${recognition.units}; converted to inches`, STEP_IMPORT_METHOD);
+  intent.finishedEnvelope = calculated(recognition.envelope, "Bounding envelope of the STEP geometry", STEP_IMPORT_METHOD);
   // The envelope is the finished size. Stock needs an allowance, and choosing
   // one is a machining decision, not a parsing result.
   intent.stock = unknownField("Size stock from the finished envelope — the import adds no allowance");

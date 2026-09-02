@@ -355,6 +355,7 @@ export function analyseMating(request: MatingRequest): MatingAnalysis {
       candidates: [candidate],
       suggestedNominal: value<number>(candidate.nominalMm / MM, "STANDARD", "HIGH", {
         note: `${bearing.designation} ${side === "HOUSING" ? "outer diameter" : "bore"} per ISO 15`,
+        method: "ISO 15 deep groove ball bearing table",
       }),
       reasoning: describe(candidate, bearing, side, measured, request.measurementUncertainty ?? null),
       needs: [],
