@@ -1,0 +1,55 @@
+{% extends "tour/_shell.html" %}
+{% block title %}Set lists - {{ tour['name'] }} - Street Banker{% endblock %}
+{% block tour_body %}
+{% import "tour/_macros.html" as m %}
+<div class="to-head"><div><p class="to-eyebrow">Set lists</p><h1 class="to-h1" style="font-size:20px">The tour's set lists</h1><p class="to-sub">A list here belongs to the run, not a date: any date's Set list section can copy it and shape its own. Titles matching your catalog ({{ tracks|length }} tracks) link automatically.</p></div></div>
+
+<div class="to-grid to-grid--2">
+  <div>
+    {% if tour_lists %}
+      {% for sl in tour_lists %}
+      <div class="to-panel" style="margin-bottom:12px">
+        <div class="to-inline" style="justify-content:space-between;margin-bottom:8px"><b>{{ sl['name'] }}</b>
+          <div class="to-inline"><a class="to-btn to-btn--ghost to-btn--small" target="_blank" rel="noopener" href="/tours/{{ tour['id'] }}/setlists/{{ sl['id'] }}/print">Print</a>
+          {% if can('edit') or can('production') %}<form method="post" action="/tours/{{ tour['id'] }}/setlists"><input type="hidden" name="action" value="delete"><input type="hidden" name="setlist_id" value="{{ sl['id'] }}"><button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit">Delete</button></form>{% endif %}</div></div>
+        {% if can('edit') or can('production') %}
+        <form method="post" action="/tours/{{ tour['id'] }}/setlists">
+          <input type="hidden" name="action" value="save"><input type="hidden" name="setlist_id" value="{{ sl['id'] }}">
+          <label class="to-field"><span>One song per line · "(3:45)" for a duration · prefix "Encore:" or "Alt:"</span>
+            <textarea name="items" rows="{{ [sl['songs']|length + 3, 8]|max }}">{% for s in sl['songs'] %}{% if s['section'] == 'encore' %}Encore: {% elif s['section'] == 'alternate' %}Alt: {% endif %}{{ s['title'] }}{% if s['duration'] %} ({{ s['duration'] }}){% endif %}
+{% endfor %}</textarea></label>
+          <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Save set list</button></div>
+        </form>
+        {% else %}
+        <ol style="margin:0;padding-left:20px">{% for s in sl['songs'] %}<li>{{ s['title'] }}{% if s['duration'] %} <span class="to-muted">{{ s['duration'] }}</span>{% endif %}{% if s['section'] != 'main' %} <span class="to-chip">{{ s['section'] }}</span>{% endif %}{% if s['os_track_id'] %} <span class="to-chip to-chip--ok">catalog</span>{% endif %}</li>{% endfor %}</ol>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      {{ m.empty("No tour-wide set list yet", "Create one here and every date can copy it; a date's own list is edited on that date.") }}
+    {% endif %}
+
+    {% if show_lists %}
+    <p class="to-eyebrow" style="margin-top:18px">On the dates</p>
+    <div class="to-table-wrap"><table class="to-table is-stack">
+      <thead><tr><th>Date</th><th>Show</th><th>Lists</th></tr></thead>
+      <tbody>{% for s, lists in show_lists %}<tr>
+        <td data-k="Date">{{ s['date'] }}</td>
+        <td data-k="Show"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=setlist">{{ s['city'] or s['venue'] }}</a></td>
+        <td data-k="Lists">{% for sl in lists %}{{ sl['name'] }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+  </div>
+
+  {% if can('edit') or can('production') %}
+  <aside>
+    <form method="post" action="/tours/{{ tour['id'] }}/setlists" class="to-form"><input type="hidden" name="action" value="new">
+      {{ m.field('name', 'New tour-wide set list', 'Main set') }}
+      <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Create</button></div>
+    </form>
+    <p class="to-muted" style="margin-top:10px">Print gives the stage a one-page list. A date copies this list from its own Set list section.</p>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

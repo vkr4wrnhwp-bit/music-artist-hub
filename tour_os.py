@@ -125,6 +125,7 @@ TOUR_TABS = [
     ("people", "People", "people"), ("guests", "Guests", "guests"),
     ("money", "Money", "money"), ("merch", "Merch", "merch"),
     ("marketing", "Marketing", "marketing"), ("content", "Content", "content"),
+    ("setlists", "Set lists", "setlists"), ("vip", "VIP", "vip"),
     ("tasks", "Tasks", "tasks"), ("files", "Files", "files"),
     ("changes", "What changed", "changes"), ("ask", "Ask Tour", "ask"),
     ("map", "Route", "map"), ("import", "Import", "import"),
@@ -132,6 +133,7 @@ TOUR_TABS = [
     ("team", "Team", "team"), ("settings", "Settings", "settings"),
 ]
 TOUR_TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
+                  "vip": "vip",
                   "marketing": "marketing", "content": "content", "files": "files",
                   "share": "admin", "team": "admin", "settings": "admin",
                   "import": "edit"}
@@ -143,9 +145,9 @@ PRIMARY_TABS = ("home", "shows", "people", "travel", "money", "files")
 BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels"}
 # Pages that live under one primary entry, shown as a sub-row beneath it.
 BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
-MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "guests", "merch", "marketing",
-              "content", "tasks", "changes", "ask", "import", "exports", "share", "team",
-              "settings")
+MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "setlists", "guests", "vip", "merch",
+              "marketing", "content", "tasks", "changes", "ask", "import", "exports", "share",
+              "team", "settings")
 
 
 # --- identity & access ------------------------------------------------------
@@ -2274,6 +2276,28 @@ def content_bulk(user, tour, viewer, tour_id, show_id):
 
 # --- set lists --------------------------------------------------------------
 
+def _setlist_items(text, tracks):
+    """One song per line; "(3:45)" is a duration; "Encore:" / "Alt:" set the
+    section; a title matching the catalog links to that track."""
+    items = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        section = "main"
+        if line.lower().startswith("encore:"):
+            section, line = "encore", line[7:].strip()
+        elif line.lower().startswith("alt:"):
+            section, line = "alternate", line[4:].strip()
+        title, dur = line, ""
+        m = re.match(r"^(.*?)\s*\((\d{1,2}:\d{2})\)\s*$", line)
+        if m:
+            title, dur = m.group(1), m.group(2)
+        track_id = next((tid for tid, t in tracks.items() if (t.get("title") or "").strip().lower() == title.lower()), None)
+        items.append({"title": title, "duration": dur, "section": section, "os_track_id": track_id})
+    return items
+
+
 @bp.route("/tours/<tour_id>/shows/<show_id>/setlist", methods=["POST"])
 @require_tour("edit", "production")
 def setlist(user, tour, viewer, tour_id, show_id):
@@ -2290,26 +2314,70 @@ def setlist(user, tour, viewer, tour_id, show_id):
         if ts.get_setlist(tour_id, sid) is None:
             abort(404)
         tracks = {t["id"]: t for t in store.list_os_tracks(tour["user_id"])}
-        items = []
-        for line in (request.form.get("items") or "").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            section = "main"
-            if line.lower().startswith("encore:"):
-                section, line = "encore", line[7:].strip()
-            elif line.lower().startswith("alt:"):
-                section, line = "alternate", line[4:].strip()
-            title, dur = line, ""
-            m = re.match(r"^(.*?)\s*\((\d{1,2}:\d{2})\)\s*$", line)
-            if m:
-                title, dur = m.group(1), m.group(2)
-            track_id = next((tid for tid, t in tracks.items() if (t.get("title") or "").strip().lower() == title.lower()), None)
-            items.append({"title": title, "duration": dur, "section": section, "os_track_id": track_id})
+        items = _setlist_items(request.form.get("items"), tracks)
         ts.replace_setlist_items(tour_id, tour["user_id"], sid, items)
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "setlist", sid, show["venue"], "updated", "",
                       "%d songs" % len(items), "info")
     return redirect(_show_url(tour, show, "setlist"))
+
+
+# --- tour-wide set lists ------------------------------------------------------
+# A list with no show is the tour's: any date can copy it. Until now such
+# lists could be copied but never created from a screen.
+
+@bp.route("/tours/<tour_id>/setlists")
+@require_tour("view")
+def setlists(user, tour, viewer, tour_id):
+    tour_lists = [ts.get_setlist(tour_id, sl["id"]) for sl in ts.list_setlists(tour_id)
+                  if not sl.get("show_id")]
+    shows = ts.list_shows(tour_id)
+    show_lists = [(s, ts.list_setlists(tour_id, s["id"])) for s in shows]
+    show_lists = [(s, lists) for s, lists in show_lists if lists]
+    return render_template("tour/setlists.html", **_ctx(
+        user, tour, viewer, "setlists", tour_lists=tour_lists, show_lists=show_lists,
+        tracks=store.list_os_tracks(tour["user_id"])))
+
+
+@bp.route("/tours/<tour_id>/setlists", methods=["POST"])
+@require_tour("edit", "production")
+def setlists_edit(user, tour, viewer, tour_id):
+    action = request.form.get("action")
+    if action == "new":
+        sid = ts.create_setlist(tour_id, tour["user_id"], request.form.get("name") or "Set list", None)
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "setlist", sid, tour["name"], "created", "",
+                      request.form.get("name") or "Set list", "info")
+    elif action == "delete":
+        sid = request.form.get("setlist_id") or ""
+        sl = ts.get_setlist(tour_id, sid)
+        if sl is not None and not sl.get("show_id"):
+            ts.delete_setlist(tour_id, sid)
+    elif action == "save":
+        sid = request.form.get("setlist_id") or ""
+        sl = ts.get_setlist(tour_id, sid)
+        if sl is None or sl.get("show_id"):
+            abort(404)
+        tracks = {t["id"]: t for t in store.list_os_tracks(tour["user_id"])}
+        items = _setlist_items(request.form.get("items"), tracks)
+        ts.replace_setlist_items(tour_id, tour["user_id"], sid, items)
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "setlist", sid, tour["name"], "updated", "",
+                      "%d songs" % len(items), "info")
+    return redirect("/tours/%s/setlists" % tour_id)
+
+
+# --- VIP across the run -------------------------------------------------------
+
+@bp.route("/tours/<tour_id>/vip")
+@require_tour("vip")
+def vip(user, tour, viewer, tour_id):
+    rows = []
+    for s in ts.list_shows(tour_id):
+        summary = ts.vip_summary(tour_id, s["id"])
+        summary["show"] = s
+        rows.append(summary)
+    totals = {k: sum(r[k] for r in rows) for k in ("sold", "checked_in", "no_show", "unfulfilled")}
+    totals["gross"] = round(sum(r["gross"] for r in rows), 2)
+    totals["shows_with"] = len([r for r in rows if r["sold"]])
+    return render_template("tour/vip.html", **_ctx(user, tour, viewer, "vip", rows=rows, totals=totals))
 
 
 @bp.route("/tours/<tour_id>/setlists/<setlist_id>/print")

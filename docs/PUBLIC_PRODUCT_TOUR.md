@@ -4,7 +4,7 @@
 touring pipeline (`/tour/add`, `/tour/<id>`, `/tour/<id>/status`,
 `/tour-board`) and taking that path would have broken it.
 
-**Content:** `tour_config.py` · **Templates:**
+**Content:** `product_tour_config.py` · **Templates:**
 `templates/product_tour.html`, `templates/product_tour_smart_link.html` ·
 **Styles:** `static/css/product-tour.css`
 

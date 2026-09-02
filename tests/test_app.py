@@ -3823,7 +3823,7 @@ def test_show_advancer_and_showday(monkeypatch):
     public page carries logistics and never money, strangers get 404."""
     import db as store_mod
     import email_provider as emailer_mod
-    import touring
+    import tour_hub_rules as touring
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
@@ -3881,7 +3881,7 @@ def test_settlement_math_and_route():
     """The settlement arithmetic is untouched by the fold: the legacy POST
     still saves the sheet and marks the show settled, and the Money Queue
     reads that sheet as settled income while the show has no TOUR settlement."""
-    import touring
+    import tour_hub_rules as touring
     import db as store_mod
     t = touring.settlement_totals({"deal_type": "guarantee_split", "guarantee": "500",
                                    "door_gross": "1000", "split_pct": "20",

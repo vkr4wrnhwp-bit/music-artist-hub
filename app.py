@@ -116,7 +116,7 @@ def _grant_owner_plan(user):
         store.set_user_plan(user["id"], OWNER_PLAN)
         return True
     return False
-import touring
+import tour_hub_rules as touring   # the old Tour Hub's rule set: public rider/show-day pages, Money Queue fallback
 import tour_store
 import artist_os
 import hubs as hub_defs
@@ -8488,7 +8488,7 @@ def create_app():
     @app.route("/product-tour")
     def product_tour():
         """Twelve steps through one example release, no account anywhere."""
-        from tour_config import get_tour_config
+        from product_tour_config import get_tour_config
 
         return render_template("product_tour.html", tour=get_tour_config())
 
@@ -8500,7 +8500,7 @@ def create_app():
         not connected to a platform, the fan readings are invented for
         illustration, and the page collects nothing from the visitor.
         """
-        from tour_config import (SMART_LINK, FAN_PANEL, CREATIVE_STEPS,
+        from product_tour_config import (SMART_LINK, FAN_PANEL, CREATIVE_STEPS,
                                  CREATIVE_OUTPUTS, BRAND_MEMORY)
 
         return render_template("product_tour_smart_link.html",

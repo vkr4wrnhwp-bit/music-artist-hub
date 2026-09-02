@@ -1,4 +1,11 @@
-"""Show advancing — the tour-manager checklist as code.
+"""The old Tour Hub's rules, kept for the pages that still read them.
+
+Renamed from touring.py when the Hub folded into TOUR (Phase 3): the public
+/showday/<token> and /rider/<token> pages and the Money Queue's legacy
+settlement fallback are the remaining readers. TOUR's own composer is
+tour_advance_mail.py; do not build new features on this module.
+
+Show advancing — the tour-manager checklist as code.
 
 The Advance Builder is rule-based on purpose: it assembles the email a
 tour manager would send from the show's actual data, listing what's

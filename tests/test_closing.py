@@ -16,7 +16,7 @@ import re
 import pytest
 
 import closing_config
-import tour_config
+import product_tour_config as tour_config
 from app import create_app
 
 

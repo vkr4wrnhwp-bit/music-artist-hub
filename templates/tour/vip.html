@@ -1,0 +1,29 @@
+{% extends "tour/_shell.html" %}
+{% block title %}VIP - {{ tour['name'] }} - Street Banker{% endblock %}
+{% block tour_body %}
+{% import "tour/_macros.html" as m %}
+<div class="to-head"><div><p class="to-eyebrow">VIP</p><h1 class="to-h1" style="font-size:20px">VIP across the run</h1><p class="to-sub">Packages sold, checked in and still owed, per date, from the records entered on each date. Ticketing platforms are not connected — these are your own counts.</p></div></div>
+
+<div class="to-cards">
+  <div class="to-card"><b>{{ totals['sold'] }}</b><span>packages sold</span><small>{{ totals['shows_with'] }} date{{ '' if totals['shows_with'] == 1 else 's' }} with VIP</small></div>
+  <div class="to-card"><b>{{ totals['checked_in'] }}</b><span>checked in</span></div>
+  <div class="to-card"><b>{{ totals['no_show'] }}</b><span>no-shows</span></div>
+  <div class="to-card"><b>{{ totals['unfulfilled'] }}</b><span>merch unfulfilled</span></div>
+  {% if can('financials') %}<div class="to-card"><b>{{ '%.2f' % totals['gross'] }}</b><span>VIP gross</span><small>from the prices entered</small></div>{% endif %}
+</div>
+
+{% if totals['sold'] %}
+<div class="to-table-wrap"><table class="to-table is-stack">
+  <thead><tr><th>Date</th><th>Show</th><th>Sold</th><th>Checked in</th><th>No-shows</th><th>Merch owed</th>{% if can('financials') %}<th>Gross</th>{% endif %}</tr></thead>
+  <tbody>{% for r in rows %}<tr>
+    <td data-k="Date">{{ r['show']['date'] }}</td>
+    <td data-k="Show"><a href="/tours/{{ tour['id'] }}/shows/{{ r['show']['id'] }}?tab=vip">{{ r['show']['city'] or r['show']['venue'] }}</a></td>
+    <td data-k="Sold">{{ r['sold'] }}</td><td data-k="Checked in">{{ r['checked_in'] }}</td>
+    <td data-k="No-shows">{{ r['no_show'] }}</td><td data-k="Merch owed">{{ r['unfulfilled'] }}</td>
+    {% if can('financials') %}<td data-k="Gross">{{ '%.2f' % r['gross'] }}</td>{% endif %}
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}
+  {{ m.empty("No VIP packages on this run", "Add packages on a date's VIP section (press + VIP on the date if it is not showing) and they roll up here.") }}
+{% endif %}
+{% endblock %}

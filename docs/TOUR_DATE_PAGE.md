@@ -238,3 +238,22 @@ and its rule-built email (`touring.advance_email`) are not surfaced
 anywhere now; TOUR's Advance section and `tour_advance_mail` are the live
 composer. `touring.py` stays for the Money Queue fallback and the public
 pages. A 15-field core view of Advance on the date page is future work.
+
+
+## Phase 4: the small things (shipped)
+
+- `/tours/<t>/setlists` creates, edits and deletes tour-wide set lists
+  (a list with no show), which any date's Set list section can copy; it also
+  lists each date's own lists. The one-song-per-line parser is shared
+  (`tour_os._setlist_items`).
+- `/tours/<t>/vip` is the VIP roll-up across the run (packages sold, checked
+  in, no-shows, merch unfulfilled per date; gross only with the financials
+  scope), gated by the `vip` scope like the date section.
+- Both sit in the More menu.
+- `templates/tour/show/_overview.html` (unrendered since Phase 1) and
+  `templates/tour_board.html` (an orphaned Team-Up Board page) are deleted.
+- `tour_config.py` is now `product_tour_config.py` (it configures the public
+  marketing product tour, not touring) and `touring.py` is
+  `tour_hub_rules.py` (the old Hub's rule set, kept for the public rider and
+  show-day pages and the Money Queue fallback). `tour_engine.py`,
+  `tour_store.py`, `tour_os.py` and `tour_advance_mail.py` are TOUR.

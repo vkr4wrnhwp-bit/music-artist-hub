@@ -5,7 +5,7 @@
 | File | Purpose |
 | --- | --- |
 | `closing_config.py` | Section 12 copy, the 11.5 trust band, the ten-point policy |
-| `tour_config.py` | The twelve tour steps, status vocabulary, smart-link / fan / creative example data |
+| `product_tour_config.py` (was `tour_config.py`) | The twelve tour steps, status vocabulary, smart-link / fan / creative example data |
 | `templates/partials/trust_band.html` | 11.5 |
 | `templates/partials/closing.html` | Section 12 |
 | `templates/product_tour.html` | `/product-tour` |

@@ -49,8 +49,8 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     # Home is lit; nothing in More is.
     assert 'aria-current="page">Home<' in bar
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
-    assert items == ["My Day", "Calendar", "Schedule", "Venues", "Guests", "Merch", "Marketing",
-                     "Content", "Tasks", "What changed", "Ask Tour", "Import", "Exports",
+    assert items == ["My Day", "Calendar", "Schedule", "Venues", "Set lists", "Guests", "VIP", "Merch",
+                     "Marketing", "Content", "Tasks", "What changed", "Ask Tour", "Import", "Exports",
                      "Share links", "Team", "Settings"]
     # The old 24-link bar is gone: no tab for Hotels or Route in the top row.
     assert "Hotels</a>" not in bar and "Route</a>" not in bar
@@ -88,9 +88,9 @@ def test_the_bar_is_scope_filtered():
     assert [t["key"] for t in bar["primary"]] == ["home", "shows", "people", "travel"]
     keys = [t["key"] for t in bar["more"]]
     for gated in ("money", "files", "settings", "team", "share", "import", "guests", "merch",
-                  "marketing", "content"):
+                  "marketing", "content", "vip"):
         assert gated not in keys, gated
-    assert "my-day" in keys and "calendar" in keys
+    assert "my-day" in keys and "calendar" in keys and "setlists" in keys
 
 
 def test_every_tour_page_still_answers_with_the_new_bar(flask_app):
