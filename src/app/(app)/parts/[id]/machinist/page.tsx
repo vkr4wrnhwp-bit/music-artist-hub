@@ -34,10 +34,10 @@ const RISK_TONE: Record<string, Tone> = {
 
 export default async function MachinistPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ approach?: string; approved?: string }>;
+  searchParams: Promise<{ approach?: string; approved?: string; machine?: string }>;
 }) {
   const { id } = await props.params;
-  const { approach, approved } = await props.searchParams;
+  const { approach, approved, machine } = await props.searchParams;
   const user = await requireUser();
 
   const pkg = await buildPackage(user.organizationId, id);
@@ -46,16 +46,36 @@ export default async function MachinistPage(props: {
   const materials = await getMaterials(user.organizationId);
   const material = selectMaterial(materials, pkg.revision.intent.material.value);
 
+  /**
+   * The machine this plan is for.
+   *
+   * `primaryMachine` reads the assignment off an existing setup — and setups
+   * are only written when a plan is approved, which needs a machine. A part
+   * created in the app therefore had no way in: no setup, so no machine, so
+   * the planner refused, so no setup. Only seeded parts worked, which is why
+   * it stayed invisible.
+   *
+   * The way out is not a fallback to machines[0] — that was removed on
+   * purpose, and planning against equipment nobody chose is exactly the kind
+   * of invented input this codebase refuses. It is to ask. The id is matched
+   * against the machines this organisation owns, resolved from the session,
+   * so a request parameter can only ever select among them.
+   */
+  const planMachine = pkg.primaryMachine ?? pkg.machines.find((m) => m.id === machine) ?? null;
+  const needsMachineChoice = pkg.primaryMachine === null && planMachine === null && pkg.machines.length > 0;
+
   const blocked =
     !pkg.revision.stock
       ? "Stock is not defined, so there is nothing to plan from."
-      : !pkg.primaryMachine
-        ? "No machine is available. The machinist will not plan against a machine you do not own."
-        : pkg.tools.length === 0
-          ? "The tool crib is empty. Every approach below depends on what you actually have."
-          : pkg.revision.features.length === 0
-            ? "This part has no features yet."
-            : null;
+      : pkg.machines.length === 0
+        ? "This shop has no machines on file. Add the machine that will run this part before planning against it."
+        : !planMachine
+          ? null
+          : pkg.tools.length === 0
+            ? "The tool crib is empty. Every approach below depends on what you actually have."
+            : pkg.revision.features.length === 0
+              ? "This part has no features yet."
+              : null;
 
   // Shop knowledge scoped to this machine, these tools, this material. A
   // filter, not a ranking — knowledge about other equipment is not shown.
@@ -63,7 +83,7 @@ export default async function MachinistPage(props: {
     ? []
     : await relevantKnowledge({
         organizationId: user.organizationId,
-        machineId: pkg.primaryMachine?.id ?? null,
+        machineId: planMachine?.id ?? null,
         toolIds: pkg.tools.map((t) => t.id),
         materialId: material?.id ?? null,
       });
@@ -73,12 +93,12 @@ export default async function MachinistPage(props: {
     typeof comparePlans
   >;
 
-  if (!blocked && pkg.revision.stock && pkg.primaryMachine) {
+  if (!blocked && pkg.revision.stock && planMachine) {
     const envelope = pkg.revision.intent.finishedEnvelope.value as { z: number } | null;
     scored = reviewApproaches({
       stock: pkg.revision.stock,
       features: pkg.revision.features,
-      machine: pkg.primaryMachine,
+      machine: planMachine,
       tools: pkg.tools,
       workholding: pkg.primaryWorkholding,
       finishedHeight: envelope?.z ?? pkg.revision.stock.z * 0.85,
@@ -105,7 +125,14 @@ export default async function MachinistPage(props: {
     if (!THOUGHT_PATTERNS.includes(pattern)) redirect(`/parts/${id}/machinist`);
 
     const fresh = await buildPackage(currentUser.organizationId, id);
-    if (!fresh || !fresh.revision.stock || !fresh.primaryMachine) notFound();
+    if (!fresh || !fresh.revision.stock) notFound();
+
+    // First plan for this part: there is no setup to read an assignment
+    // from, so the choice comes with the form — and is resolved against the
+    // machines this organisation owns, never trusted as an id.
+    const chosenId = String(formData.get("machineId") ?? "");
+    const freshMachine = fresh.primaryMachine ?? fresh.machines.find((m) => m.id === chosenId) ?? null;
+    if (!freshMachine) redirect(`/parts/${id}/machinist`);
 
     const freshMaterials = await getMaterials(currentUser.organizationId);
     const mat = selectMaterial(freshMaterials, fresh.revision.intent.material.value);
@@ -114,7 +141,7 @@ export default async function MachinistPage(props: {
     const plans = reviewApproaches({
       stock: fresh.revision.stock,
       features: fresh.revision.features,
-      machine: fresh.primaryMachine,
+      machine: freshMachine,
       tools: fresh.tools,
       workholding: fresh.primaryWorkholding,
       finishedHeight: env?.z ?? fresh.revision.stock.z * 0.85,
@@ -140,7 +167,7 @@ export default async function MachinistPage(props: {
           sequence: s.sequence,
           name: s.name,
           orientation: s.orientation,
-          machineId: fresh.primaryMachine.id,
+          machineId: freshMachine.id,
           workholdingId: fresh.primaryWorkholding?.id ?? null,
           workOffset: s.workOffset,
           datumNote: s.datumNote,
@@ -237,6 +264,38 @@ export default async function MachinistPage(props: {
               body={blocked}
               action={{ label: "Back to the part", href: `/parts/${id}` }}
             />
+          ) : needsMachineChoice ? (
+            <Panel title="Which machine will run this part?">
+              <p className="mb-3 text-[12.5px] leading-relaxed text-muted">
+                Nothing is assigned yet. Every approach below is scored against a specific machine — its travels,
+                spindle, rapid and feed limits — so the answer changes with the machine, and CANVAS will not pick one
+                for you. Choosing here does not commit anything; the assignment is written when you approve an
+                approach.
+              </p>
+              <ul className="space-y-1.5">
+                {pkg.machines.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={`/parts/${id}/machinist?machine=${m.id}`}
+                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border border-line-strong px-3 py-2 hover:border-precision/60"
+                    >
+                      <span className="text-[13px] font-medium text-platinum">
+                        {m.manufacturer} {m.model}
+                      </span>
+                      <span className="tech-label">
+                        {[
+                          `${m.travelsX} × ${m.travelsY} × ${m.travelsZ} in travel`,
+                          `${m.maxSpindleRPM} rpm`,
+                          m.controller,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           ) : (
             <>
               {knowledge.length > 0 && (
@@ -501,6 +560,10 @@ export default async function MachinistPage(props: {
                     </p>
                     <form action={approvePlan} className="flex flex-wrap items-center gap-3">
                       <input type="hidden" name="pattern" value={selected.plan.pattern} />
+                      {/* Carries the first-plan machine choice. Once setups
+                          exist the assignment is read off them and this is
+                          ignored. */}
+                      <input type="hidden" name="machineId" value={planMachine?.id ?? ""} />
                       <Button type="submit" variant="primary" data-guide-target="approve-approach" disabled={!canApprove(user) || selected.errors.length > 0}>
                         Approve {selected.plan.philosophy.name}
                       </Button>
