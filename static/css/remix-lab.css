@@ -1713,6 +1713,17 @@
   .sbrl-submit-note { display: block; text-align: left; font-size: 12px; }
 }
 
+/* the headline at an internal-page size, not a landing page's */
+.sbrl-h1 { font-size: clamp(30px, 3.4vw, 50px); line-height: 1.0; letter-spacing: 0; }
+.sbrl-sub { margin-top: 16px; font-size: 15.5px; max-width: 56ch; }
+.sbrl-hero { min-height: clamp(440px, 50vh, 560px); }
+.sbrl-hero-grid { padding-top: 48px; padding-bottom: 40px; }
+.sbrl-light { top: 40%; height: 180px; }
+@media (max-width: 639px) {
+  .sbrl-h1 { font-size: clamp(28px, 8vw, 38px); }
+  .sbrl-hero { min-height: 460px; }
+}
+
 /* --- motion ---------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .sbrl-body *, .sbrl-body *::before, .sbrl-body *::after,

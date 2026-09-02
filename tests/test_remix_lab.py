@@ -302,7 +302,7 @@ def test_the_submit_is_never_disabled(page):
 
 
 def test_the_static_assets_were_bumped(page):
-    assert "remix-lab.css?v=5" in page
+    assert "remix-lab.css?v=6" in page
     assert "remix-lab.js?v=4" in page
     sw = open(_os.path.join(_HERE, "static", "js", "sw.js"), encoding="utf-8").read()
     assert "sb-v164" in sw
@@ -347,7 +347,7 @@ def test_the_brief_page_never_shows_mock_numbers_as_measured(monkeypatch):
         content_type="multipart/form-data")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "remix-lab.css?v=5" in body
+    assert "remix-lab.css?v=6" in body
     assert "Not detected — by design" in body
     assert "Placeholder — not a measurement" in body
     assert "sbrl-read-seg--measured" not in body
