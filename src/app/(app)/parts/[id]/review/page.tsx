@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { buildPackage } from "@/lib/package";
+import { db } from "@/lib/db";
+import { parseNC } from "@/lib/nc/parse";
+import { analyzeNC } from "@/lib/nc/analyze";
 import { reviewPackage, type Severity } from "@/lib/engines/review";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
@@ -35,6 +38,53 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
   const movesByOperation: Record<string, typeof pkg.toolpaths[number]["moves"]> = {};
   for (const tp of pkg.toolpaths) movesByOperation[tp.operationId] = tp.moves;
 
+  /*
+   * The shop's own program, if they have handed one over. This is the only
+   * piece of the Phase 3B job-package import that actually exists: NC bytes
+   * arrive through the analyzer and are stored immutably with their digest.
+   *
+   * The most recent upload is the one reviewed, because that is the one a
+   * machinist just put in front of CANVAS. Reviewing an older upload silently
+   * would answer a question nobody asked.
+   */
+  const uploaded = await db.nCProgram.findFirst({
+    where: { partRevisionId: pkg.revision.revisionId, origin: "UPLOADED" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const primarySetup = pkg.setups[0] ?? null;
+  const toolDiameters: Record<number, number> = {};
+  const toolGeometry: Record<number, { description: string; fluteLength: number; stickout: number; source: "CRIB" }> = {};
+  for (const t of pkg.tools) {
+    toolDiameters[t.toolNumber] = t.diameter;
+    toolGeometry[t.toolNumber] = {
+      description: t.description,
+      fluteLength: t.fluteLength,
+      stickout: t.stickout,
+      source: "CRIB",
+    };
+  }
+
+  const uploadedProgram = uploaded
+    ? {
+        filename: uploaded.sourceFilename ?? `Program ${uploaded.programNumber}`,
+        // The stored digest is of the original bytes. Where an older row
+        // predates digesting, the row id stands in — it is still stable and
+        // still distinguishes one program from another.
+        digest: uploaded.sourceDigest ?? uploaded.id,
+        analysis: analyzeNC(parseNC(uploaded.code), {
+          stock: pkg.revision.stock ? { x: pkg.revision.stock.x, y: pkg.revision.stock.y, z: pkg.revision.stock.z } : null,
+          toolDiameters,
+          toolGeometry,
+          workholding: primarySetup
+            ? { jawAxis: primarySetup.jawAxis, hasPositiveStop: primarySetup.hasPositiveStop, deviceDescription: null }
+            : undefined,
+          rapidRate: pkg.primaryMachine?.maxRapid ?? null,
+          axisAccel: pkg.primaryMachine?.axisAccel ?? null,
+        }),
+      }
+    : null;
+
   const review = reviewPackage({
     setups: pkg.setups.map((s) => ({
       id: s.id,
@@ -60,6 +110,7 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
     stockZ: pkg.revision.stock?.z ?? null,
     stockX: pkg.revision.stock?.x ?? null,
     stockY: pkg.revision.stock?.y ?? null,
+    uploadedProgram,
   });
 
   /*
@@ -206,10 +257,20 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
             treat this as a second pair of eyes rather than a sign-off.
           </Notice>
 
-          <Notice tone="review" title="Importing an existing job package is not built">
-            Phase 3B describes uploading a STEP model, an NC program, a tool list and a setup file from whatever CAM the
-            shop already runs. That import does not exist — STEP needs a geometry kernel, and parsing arbitrary posted
-            NC back into operations is its own project. What this page reviews is the package CANVAS itself holds.
+          <Notice tone="review" title="Only part of a job package can be imported">
+            Phase 3B describes handing CANVAS a whole job from whatever CAM the shop already runs — STEP model, NC
+            program, tool list and setup file. Two of the four arrive:{" "}
+            {uploadedProgram ? (
+              <>
+                the NC program is uploaded ({uploadedProgram.filename}) and its reach and cut-direction findings are in
+                the list above,
+              </>
+            ) : (
+              <>an NC program can be uploaded in the analyzer and its findings then appear in the list above,</>
+            )}{" "}
+            and a tool list can be attached alongside it. STEP and setup files cannot: STEP needs a geometry kernel, and
+            no setup-file parser exists. Nothing here re-derives operations from posted code — the toolpath, workholding
+            and inspection checks still run against the package CANVAS itself holds.
           </Notice>
         </div>
       </main>

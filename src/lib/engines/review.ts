@@ -28,6 +28,7 @@ import { canReach } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
 import type { CapabilityResult } from "./inspection-capability";
 import { buildFixture, cutterHitsJaw } from "@/lib/sim/fixture";
+import type { NCAnalysis } from "@/lib/nc/analyze";
 
 export const SEVERITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 export type Severity = (typeof SEVERITIES)[number];
@@ -107,6 +108,18 @@ export interface ReviewInput {
   /** Stock in XY, needed to place the jaw faces. Null leaves the fixture unmodelled. */
   stockX?: number | null;
   stockY?: number | null;
+  /**
+   * The shop's own NC program, when one has been uploaded for this part, and
+   * the deterministic analysis of it. Analysed by the caller rather than here:
+   * this engine does not parse, and keeping it that way means the review reads
+   * one analysis rather than producing a second one that could disagree.
+   */
+  uploadedProgram?: {
+    filename: string;
+    /** Digest of the uploaded bytes, so findings are keyed to the program. */
+    digest: string;
+    analysis: NCAnalysis;
+  } | null;
 }
 
 export function reviewPackage(input: ReviewInput): ReviewResult {
@@ -430,6 +443,83 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
         },
       ],
       method: "Gauge maker's rule — ASME B89.7.3.1 decision-rule framing",
+    });
+  }
+
+  /* ---------------- The shop's own NC program ---------------- */
+
+  /*
+   * Only two of the analyzer's finding kinds are engineering conditions.
+   * AIR_CUTTING, EXCESSIVE_RETRACT, SLOW_LINKING_MOVE and
+   * SEQUENCING_OPPORTUNITY are cycle-time opportunities — worth reading, and
+   * read in the analyzer, but a review whose headline is a safety judgement
+   * must not be padded with "you could save 40 seconds". A machinist counting
+   * findings before cycle start would be counting the wrong things.
+   */
+  const NC_REVIEWABLE = {
+    TOOL_REACH_REVIEW: {
+      context: "CUT" as const,
+      title: "The program cuts deeper than the tool is set to reach",
+      recommendation:
+        "Measure the tool as it is actually set in the holder and compare it against the deepest Z in the program before running it.",
+      method: "NC reach check against the crib's stickout and flute length",
+    },
+    WORKHOLDING_LOAD_DIRECTION_REVIEW: {
+      context: "HOLD" as const,
+      title: "Most of the cutting pushes the part across the jaw faces",
+      recommendation:
+        "Add a positive stop, or re-orient the part so the heavy cutting drives it into a jaw rather than along the jaw faces.",
+      method: "NC feed-direction check against the recorded jaw axis",
+    },
+  };
+
+  if (input.uploadedProgram) {
+    const { filename, digest, analysis } = input.uploadedProgram;
+    checksRun.push(`Reach and cut direction in the uploaded program ${filename}`);
+
+    for (const f of analysis.findings) {
+      const spec = NC_REVIEWABLE[f.kind as keyof typeof NC_REVIEWABLE];
+      if (!spec) continue;
+      findings.push({
+        // Keyed to the bytes. A different program is a different finding, and
+        // an answer recorded against one must not carry onto another.
+        key: `nc-uploaded:${digest}:${f.kind}:${f.line}`,
+        // INSUFFICIENT_DATA is not a lesser version of the same finding: it
+        // says the check could not be completed, which is a thing to resolve
+        // rather than a thing that is wrong.
+        severity: f.verdict === "INSUFFICIENT_DATA" ? "MEDIUM" : f.kind === "TOOL_REACH_REVIEW" ? "HIGH" : "MEDIUM",
+        title: f.verdict === "INSUFFICIENT_DATA" ? `${spec.title} — could not be checked` : spec.title,
+        detail: f.detail,
+        recommendation:
+          f.verdict === "INSUFFICIENT_DATA"
+            ? "Record the missing measurement named above; until it exists this check cannot be completed."
+            : spec.recommendation,
+        // Nothing in an uploaded program maps to a CANVAS setup, operation or
+        // feature. Inventing one would point SHOW ME at geometry the program
+        // may have nothing to do with.
+        location: { setupId: null, operationId: null, featureId: null, point: null, context: spec.context },
+        evidence: [
+          { label: "Program", value: filename },
+          { label: "Line", value: String(f.line) },
+          { label: "Tool", value: f.toolNumber > 0 ? `T${f.toolNumber}` : "—" },
+        ],
+        method: spec.method,
+      });
+    }
+
+    for (const c of analysis.checksSkipped) {
+      checksSkipped.push({ check: `${c.check} (${filename})`, reason: c.reason });
+    }
+    checksSkipped.push({
+      check: `Cycle time in ${filename}`,
+      reason:
+        "Air cutting, retract height and linking moves are analysed, but they are cycle-time opportunities rather than reasons not to run the program, so they are reported in the NC analyzer and not counted here.",
+    });
+  } else {
+    checksSkipped.push({
+      check: "The shop's own NC program",
+      reason:
+        "No program has been uploaded for this part, so this review covers the package CANVAS holds and not the code that would actually run. Upload one in the NC analyzer.",
     });
   }
 

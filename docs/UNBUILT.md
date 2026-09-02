@@ -285,9 +285,19 @@ removing the two rows from the panel. That is a modelling decision.
 
 > A machinist can upload an existing job package: - STEP - NC program - tool list - setup file - machine - workholding CANVAS reviews the package.
 
-The review workflow exists but runs only against the package CANVAS itself holds (`buildPackage`). There is no import into the review flow: no tool-list importer and no setup-file importer exist anywhere, and the page itself renders a notice saying the job-package import is not built. STEP import and NC upload exist, but as separate new-part intake and analyzer paths, not as a package a shop can hand to the review.
+Partly built now, and the entry above was stale in the same way the load-direction one was: it said "no tool-list importer and no setup-file importer exist anywhere", but `parseToolList` was built for the analyzer in this same pass.
 
-`src/app/(app)/parts/[id]/review/page.tsx:28 builds from `buildPackage`, and line 171 renders the notice "Importing an existing job package is not built". `grep -rn -i "tool list\|setup file" src/app src/lib` finds no importer.`
+Two of the four artifacts arrive. **NC program**: uploads are stored immutably as `NCProgram` rows with `origin = UPLOADED`, and the review now reads the most recent one for the part, runs the deterministic analyzer over it, and folds the result in. **Tool list**: `parseToolList` accepts one alongside the program in the analyzer, with units stated by the operator rather than sniffed.
+
+Two do not. STEP needs a geometry kernel. No setup-file parser exists, and nothing re-derives operations from posted code — the toolpath, workholding and inspection checks still run against the package CANVAS holds, and the page says so in those words rather than claiming the import does not exist at all.
+
+The judgement that shaped the fold: **only two of the analyzer's seven finding kinds belong in a pre-flight review.** TOOL_REACH_REVIEW and WORKHOLDING_LOAD_DIRECTION_REVIEW are engineering conditions. AIR_CUTTING, EXCESSIVE_RETRACT, SLOW_LINKING_MOVE and SEQUENCING_OPPORTUNITY are cycle-time opportunities — worth reading, and read in the analyzer, but a list a machinist counts before Cycle Start must not be padded with "you could save 40 seconds", or it gets skimmed and the reach finding goes with it. They are not silently dropped: the review names where they went.
+
+Three smaller decisions, each of which could have gone the dishonest way. An uploaded finding is keyed to the program's **digest**, so an answer recorded against one program cannot carry onto a different one. An INSUFFICIENT_DATA verdict is MEDIUM and titled "could not be checked", not a lesser HIGH — the check did not complete, which is a thing to resolve rather than a thing that is wrong. And the finding's `location` names no setup, operation or feature: nothing in posted code maps to a CANVAS setup, and guessing one would aim SHOW ME at geometry the program may have nothing to do with.
+
+Where no program has been uploaded, the review declares that too, rather than reviewing the CANVAS package in silence and reading as a review of the code that would run.
+
+`src/lib/engines/review.ts` (the fold, `uploadedProgram` input), `src/app/(app)/parts/[id]/review/page.tsx` (loads the latest upload, analyses it, rewrites the notice), `tests/engines/review-nc-package.test.ts` (10 tests).
 
 ### Create structured, persisted entities for the review package — ReviewFinding, FindingSeverity, FindingEvidence, FindingResolution (the Imported* entities remain unbuilt)
 
