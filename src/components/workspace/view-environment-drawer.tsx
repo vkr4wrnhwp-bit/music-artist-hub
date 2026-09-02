@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   VIEW_PRESETS,
+  parseHexColor,
   semanticConflicts,
   shellLegibilityProblems,
   recommendPresetFor,
@@ -82,8 +83,13 @@ export function ViewEnvironmentDrawer({
   );
   const recommendation = useMemo(() => recommendPresetFor(material), [material]);
 
+  // Any change that is not itself a preset choice leaves the preset. Only
+  // three keys used to count, so altering the selected-feature colour, the
+  // shell ground, a line mode or the floor left the chip still lit on
+  // "Studio White" — and clicking that lit chip threw the work away without
+  // warning, because the environment behind it was no longer that preset.
   const set = (patch: Partial<ViewEnvironment>) =>
-    onChange({ ...env, ...patch, preset: "background" in patch || "floorColor" in patch || "gridColor" in patch ? "CUSTOM" : (patch.preset ?? env.preset) });
+    onChange({ ...env, ...patch, preset: "preset" in patch ? (patch.preset ?? env.preset) : "CUSTOM" });
 
   function screenshot() {
     const canvas = document.querySelector<HTMLCanvasElement>("canvas");
@@ -194,11 +200,10 @@ export function ViewEnvironmentDrawer({
                   className="h-5 w-7 cursor-pointer border border-line-strong bg-transparent p-0"
                   aria-label={`${name} colour`}
                 />
-                <input
+                <HexField
+                  label={`${name} hex`}
                   value={env[key]}
-                  onChange={(e) => set({ [key]: e.target.value } as Partial<ViewEnvironment>)}
-                  className="w-16 border border-line-strong bg-surface px-1 py-0.5 font-mono text-[9.5px] text-platinum-dim"
-                  aria-label={`${name} hex`}
+                  onCommit={(hex) => set({ [key]: hex } as Partial<ViewEnvironment>)}
                 />
               </span>
             </div>
@@ -422,6 +427,39 @@ export function ViewEnvironmentDrawer({
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * A hex field that only hands over a colour it can read.
+ *
+ * Typing is a sequence of invalid states — "#", "#0", "#0b" — and writing
+ * each one into the environment persisted them, to this browser and to the
+ * server. Worse, a value the contrast maths cannot parse returns null from
+ * every check, so an unreadable ground sailed past the semantic-conflict
+ * warning by never being evaluated at all. The draft stays local until it
+ * parses; until then the field says so rather than accepting it quietly.
+ */
+function HexField({ label: name, value, onCommit }: { label: string; value: string; onCommit: (hex: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? value;
+  const valid = parseHexColor(shown) !== null;
+  return (
+    <input
+      value={shown}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const hex = parseHexColor(e.target.value);
+        if (hex) onCommit(hex);
+      }}
+      onBlur={() => setDraft(null)}
+      aria-label={name}
+      aria-invalid={!valid}
+      title={valid ? undefined : "Six hex digits, e.g. #1b2530 — not applied until it reads as a colour"}
+      className={`w-16 border bg-surface px-1 py-0.5 font-mono text-[9.5px] ${
+        valid ? "border-line-strong text-platinum-dim" : "border-review text-review"
+      }`}
+    />
   );
 }
 

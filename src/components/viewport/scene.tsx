@@ -304,7 +304,7 @@ export function Viewport(props: ViewportProps) {
           is a polygon offset rather than a bigger magic gap, because the gap
           that works at the near edge is not the gap that works forty units
           out. */}
-      {(props.env?.floorVisible ?? true) && props.env && props.env.preset !== "STUDIO_WHITE" && (
+      {(props.env?.floorVisible ?? true) && props.env && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, stock ? -stock.z / 2 - 0.004 : -0.004, 0]}>
           <planeGeometry args={[span * 8, span * 8]} />
           <meshStandardMaterial

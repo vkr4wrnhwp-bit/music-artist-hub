@@ -24,6 +24,8 @@ import {
   DEFAULT_ENVIRONMENT,
   fetchServerPreferences,
   loadEnvironment,
+  localEnvironmentStamp,
+  preferLocalEnvironment,
   pushServerPreferences,
   saveEnvironment,
   viewModeDefaults,
@@ -237,13 +239,22 @@ function WorkspaceInner(props: WorkspaceProps) {
   const envOpen = drawer === "env";
   const setEnvOpen = (v: boolean) => setDrawer(v ? "env" : null);
   useEffect(() => {
-    setViewEnv(loadEnvironment());
+    const local = loadEnvironment();
+    setViewEnv(local);
+    const localStamp = localEnvironmentStamp();
     let cancelled = false;
-    void fetchServerPreferences().then(({ env }) => {
-      if (!cancelled && env) {
-        setViewEnv(env);
-        saveEnvironment(env);
+    void fetchServerPreferences().then(({ env, updatedAtIso }) => {
+      if (cancelled || !env) return;
+      // A colour picked on this machine a moment ago beats a row written on
+      // another one last week. Taking the server's copy unconditionally is
+      // what made a fresh choice vanish on reload.
+      if (preferLocalEnvironment(localStamp, updatedAtIso)) {
+        pushServerPreferences({ env: local });
+        return;
       }
+      setViewEnv(env);
+      saveEnvironment(env);
+      applyShellBackground(env.shellBackground);
     });
     return () => {
       cancelled = true;

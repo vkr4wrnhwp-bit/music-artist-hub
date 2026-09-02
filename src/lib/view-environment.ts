@@ -118,7 +118,13 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
   STUDIO_WHITE: {
     label: "Studio White",
     note: "The default. Graduated neutral ground, soft contact shadow, no grid.",
-    env: { ...base, preset: "STUDIO_WHITE", background: "#f6f6f4", floorColor: "#eceded", gridColor: "#14181c" },
+    // No floor: a graduated white ground reads as a studio sweep, and a
+    // floor plane in it is a horizon line the part does not need. Declared
+    // here rather than special-cased by name in the renderer — the renderer
+    // knowing which preset is which is what made the floor controls dead on
+    // the default and put a floor up uninvited the moment a colour was
+    // picked and the preset became CUSTOM.
+    env: { ...base, preset: "STUDIO_WHITE", background: "#f6f6f4", floorColor: "#eceded", gridColor: "#14181c", floorVisible: false },
   },
   GRAPHITE: {
     label: "Graphite",
@@ -170,6 +176,20 @@ export const SEMANTIC_COLORS = {
   review: "#96570d",
   blocking: "#c22a1e",
 } as const;
+
+/**
+ * A six-digit hex colour, normalised, or null if it is not one yet.
+ *
+ * Exported because the drawer needs the same answer the contrast checks do.
+ * A half-typed "#0b7" written straight through to the environment used to
+ * persist as the colour, and every check downstream skipped it silently: a
+ * ground nothing could evaluate passed the semantic-conflict test by never
+ * being tested.
+ */
+export function parseHexColor(input: string): string | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(input.trim());
+  return m ? `#${m[1].toLowerCase()}` : null;
+}
 
 function luminance(hex: string): number | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -285,6 +305,8 @@ export function viewModeDefaults(mode: ViewMode): {
 
 const STORAGE_KEY = "canvas.viewEnvironment.v1";
 const SAVED_KEY = "canvas.viewEnvironment.saved.v1";
+/** When this browser last changed the environment, for reconciling with the server. */
+const STAMP_KEY = "canvas.viewEnvironment.savedAt.v1";
 
 export function loadEnvironment(): ViewEnvironment {
   if (typeof window === "undefined") return DEFAULT_ENVIRONMENT;
@@ -300,9 +322,39 @@ export function loadEnvironment(): ViewEnvironment {
 export function saveEnvironment(env: ViewEnvironment): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(env));
+    window.localStorage.setItem(STAMP_KEY, new Date().toISOString());
   } catch {
     /* storage full or blocked — the session still works, it just forgets */
   }
+}
+
+/** When this browser last wrote the environment, or null if it never has. */
+export function localEnvironmentStamp(): string | null {
+  try {
+    return window.localStorage.getItem(STAMP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which copy to believe when the browser and the server disagree.
+ *
+ * The server used to win unconditionally, which loses every change made in
+ * the 800ms before a reload — the push had not fired yet, so the stale row
+ * came back AND overwrote the local cache on the way past. From the chair
+ * that is a colour picker that does not work.
+ *
+ * No server row, or an unreadable stamp on either side: the browser's copy
+ * stands, because it is the one the machinist can see.
+ */
+export function preferLocalEnvironment(localStamp: string | null, serverStamp: string | null): boolean {
+  if (serverStamp === null) return true;
+  if (localStamp === null) return false;
+  const l = Date.parse(localStamp);
+  const s = Date.parse(serverStamp);
+  if (Number.isNaN(l) || Number.isNaN(s)) return true;
+  return l > s;
 }
 
 export interface SavedPreset {
@@ -349,37 +401,72 @@ export function deleteNamedPreset(name: string): SavedPreset[] {
  * Server copy of the user's preferences. `env: null` means the user has no
  * server row yet — the caller keeps whatever it has rather than resetting.
  */
-export async function fetchServerPreferences(): Promise<{ env: ViewEnvironment | null; saved: SavedPreset[] }> {
+export async function fetchServerPreferences(): Promise<{
+  env: ViewEnvironment | null;
+  saved: SavedPreset[];
+  updatedAtIso: string | null;
+}> {
   try {
     const res = await fetch("/api/view-preferences");
-    if (!res.ok) return { env: null, saved: [] };
-    return (await res.json()) as { env: ViewEnvironment | null; saved: SavedPreset[] };
+    if (!res.ok) return { env: null, saved: [], updatedAtIso: null };
+    return (await res.json()) as { env: ViewEnvironment | null; saved: SavedPreset[]; updatedAtIso: string | null };
   } catch {
-    return { env: null, saved: [] };
+    return { env: null, saved: [], updatedAtIso: null };
   }
 }
 
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingPush: { env?: ViewEnvironment; saved?: SavedPreset[] } = {};
 
+function sendPush(keepalive: boolean): void {
+  if (pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  if (pendingPush.env === undefined && pendingPush.saved === undefined) return;
+  const body = JSON.stringify(pendingPush);
+  pendingPush = {};
+  void fetch("/api/view-preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body,
+    keepalive,
+  }).catch(() => {});
+}
+
 /**
  * Fire-and-forget, debounced. Display preferences are the one category of
  * data in CANVAS where losing a write is acceptable — the viewport still
  * works, it just forgets — so a failed push is silent by design.
+ *
+ * Silent is not the same as lost, though. The debounce used to end at the
+ * page: pick a colour, reload within 800ms, and the write never left the
+ * browser while the stale server row came back and overwrote the local copy
+ * as well. The pending write is flushed on the way out now, and
+ * `preferLocalEnvironment` decides the rest.
  */
 export function pushServerPreferences(update: { env?: ViewEnvironment; saved?: SavedPreset[] }): void {
   pendingPush = { ...pendingPush, ...update };
   if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => {
-    const body = JSON.stringify(pendingPush);
-    pendingPush = {};
-    pushTimer = null;
-    void fetch("/api/view-preferences", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body,
-    }).catch(() => {});
-  }, 800);
+  pushTimer = setTimeout(() => sendPush(false), 800);
+  armFlush();
+}
+
+let flushArmed = false;
+function armFlush(): void {
+  if (flushArmed) return;
+  try {
+    // pagehide fires on navigation, tab close and bfcache; visibilitychange
+    // covers the phone being locked, which never fires pagehide on iOS.
+    window.addEventListener("pagehide", () => sendPush(true));
+    window.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") sendPush(true);
+    });
+    flushArmed = true;
+  } catch {
+    /* no window (SSR): the caller is a client component, so this cannot
+       happen in practice, and forgetting a colour is not worth a throw */
+  }
 }
 
 export const LINE_MODE_OPACITY: Record<LineMode, number> = { OFF: 0, LIGHT: 0.35, MEDIUM: 0.7, STRONG: 1 };
