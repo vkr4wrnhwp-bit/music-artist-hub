@@ -29,6 +29,27 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
 
   const { readiness, process } = pkg;
 
+  /**
+   * Jobs this shop has actually run, offered when a machinist says they have
+   * run a comparable setup.
+   *
+   * The select for this existed and never rendered: `Disagree`'s `jobs` prop
+   * defaults to `[]` and its only call site passed none, so a machinist could
+   * answer "yes, I have run a comparable setup" and had no way to say which
+   * one — and `comparableJobId` was never written. A disagreement backed by a
+   * job nobody can name is an opinion; backed by a job number it is shop
+   * evidence, which is the whole point of recording it.
+   *
+   * COMPLETE only: a job still on the machine has not demonstrated anything
+   * yet.
+   */
+  const comparableJobs = await db.job.findMany({
+    where: { organizationId: user.organizationId, status: "COMPLETE" },
+    orderBy: { completedAt: "desc" },
+    take: 50,
+    include: { part: { select: { partNumber: true } } },
+  });
+
   async function approve() {
     "use server";
     const currentUser = await requireWrite();
@@ -83,6 +104,14 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
       canvasPosition: String(formData.get("canvasPosition") ?? ""),
       reasoning,
       hasRunComparable: formData.get("hasRunComparable") === "yes",
+      // Resolved against this organisation's own jobs, never trusted as an id.
+      comparableJobId:
+        (
+          await db.job.findFirst({
+            where: { id: String(formData.get("comparableJobId") ?? ""), organizationId: currentUser.organizationId },
+            select: { id: true },
+          })
+        )?.id ?? null,
       proposedValue: String(formData.get("proposedValue") ?? "") || null,
     });
 
@@ -181,6 +210,10 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                       subjectId={g.id}
                       partRevisionId={pkg.revision.revisionId}
                       canvasPosition={`${g.label} — ${g.status.replace(/_/g, " ")}. ${g.detail}`}
+                      jobs={comparableJobs.map((j) => ({
+                        id: j.id,
+                        label: `${j.jobNumber} — ${j.part.partNumber} rev ${j.revision}, qty ${j.quantity}`,
+                      }))}
                     />
                   </div>
                 )}

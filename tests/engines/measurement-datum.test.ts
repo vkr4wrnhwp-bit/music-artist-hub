@@ -77,3 +77,39 @@ test("a reading with no datum says so rather than reading as reproducible", () =
     "the empty option does not say what leaving it empty costs",
   );
 });
+
+/**
+ * The comparable job behind a disagreement.
+ *
+ * Shop knowledge is only knowledge if it can be traced. The Disagree form asks
+ * "have you successfully run a comparable setup?", and the select for naming
+ * that job existed — guarded by `jobs.length > 0`, with `jobs` defaulting to
+ * `[]` and its one call site passing none. So the question was asked, the
+ * answer could not be given, and `comparableJobId` was never written.
+ */
+
+test("the disagreement form is handed the shop's completed jobs", () => {
+  const page = readFileSync("src/app/(app)/parts/[id]/readiness/page.tsx", "utf8");
+  assert.ok(/jobs=\{comparableJobs\.map/.test(page), "the Disagree form is still handed no jobs, so its select never renders");
+  assert.ok(
+    /status: "COMPLETE"/.test(page),
+    "jobs still on the machine are offered as evidence of having run something",
+  );
+  assert.ok(
+    /organizationId: user\.organizationId/.test(page),
+    "the job list is not scoped to this organisation",
+  );
+});
+
+test("the disagreement records which job, resolved against this shop's own", () => {
+  const page = readFileSync("src/app/(app)/parts/[id]/readiness/page.tsx", "utf8");
+  assert.ok(/comparableJobId:/.test(page), "the action never records the comparable job");
+  assert.ok(
+    !/comparableJobId: String\(formData\.get\("comparableJobId"\)\)/.test(page),
+    "a submitted job id is written straight onto the disagreement",
+  );
+  assert.ok(
+    /db\.job\.findFirst\(\{[\s\S]{0,200}?organizationId: currentUser\.organizationId/.test(page),
+    "the submitted job id is not resolved against this organisation's jobs",
+  );
+});
