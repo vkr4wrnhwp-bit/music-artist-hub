@@ -39,7 +39,7 @@ export function DimensionCard({ feature, onDismiss }: { feature: Feature; onDism
   return (
     /* Bottom-left, over the empty ground plane, rather than pinned to the top
        right where it forced the camera back to keep the part clear of it. */
-    <div className="pointer-events-auto absolute bottom-3 right-3 z-20 w-[230px] border border-line-strong bg-card/95 shadow-[0_10px_30px_rgba(16,20,24,0.10)] backdrop-blur">
+    <div className="pointer-events-auto w-[230px] border border-line-strong bg-card/95 shadow-[0_10px_30px_rgba(16,20,24,0.10)] backdrop-blur">
       <div className="flex items-start justify-between gap-2 border-b border-line px-3 py-1.5">
         <div className="min-w-0">
           <p className="instrument-label">Selected feature</p>

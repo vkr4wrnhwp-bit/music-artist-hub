@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { DatumMark, Wordmark } from "./brand";
 import { useResizableWidth, RESIZE_HANDLE_CLASS } from "@/lib/use-resizable";
+import { readCollapsed } from "@/lib/panel-preference";
 
 /**
  * THE CANVAS SHELL
@@ -507,21 +508,29 @@ function Drawer({
   // The context drawer collapses to an edge tab — the workspace brief's rule
   // that the part, not the menu, owns the screen. Persisted per browser, and
   // Focus Workspace (the F key in the part workspace) collapses it too.
-  const [collapsed, setCollapsed] = useState(false);
+  // Starts collapsed, and the mount effect opens it only if this browser
+  // says so. The other way round renders the whole drawer on first paint and
+  // shuts it a frame later — three of those and the machinist's first sight
+  // of the app is a screen of boxes to close.
+  const [collapsed, setCollapsed] = useState(true);
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("canvas.contextDrawer");
-      // No stored preference: part routes start collapsed at every width —
-      // the rail and the context tabs already carry navigation there, and
-      // the part owns the screen. Elsewhere, laptop widths start collapsed.
-      // An explicit choice always wins.
-      setCollapsed(stored === null ? (partId !== null || window.innerWidth < 1440) : stored === "collapsed");
-    } catch {
-      /* fine */
-    }
+    // No stored preference: part routes start collapsed at every width — the
+    // rail and the context tabs already carry navigation there, and the part
+    // owns the screen. Elsewhere, laptop widths start collapsed.
+    const preferred = () => {
+      let narrow = false;
+      try {
+        narrow = window.innerWidth < 1440;
+      } catch {
+        /* fine */
+      }
+      return readCollapsed("canvas.contextDrawer", "collapsed", partId !== null || narrow);
+    };
+    setCollapsed(preferred());
+    // Focus collapses the drawer; leaving focus restores what was stored,
+    // rather than opening a drawer the machinist had already shut.
     const onFocusMode = (e: Event) => {
-      const on = Boolean((e as CustomEvent).detail);
-      setCollapsed(on);
+      setCollapsed((e as CustomEvent).detail ? true : preferred());
     };
     window.addEventListener("canvas:focus", onFocusMode);
     // A coach mark could not find its target — if it is hiding in here,

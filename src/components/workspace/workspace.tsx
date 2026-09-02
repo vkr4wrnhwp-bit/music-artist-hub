@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { applyShellBackground } from "@/components/shell-theme";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { readCollapsed } from "@/lib/panel-preference";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Feature, Stock } from "@/lib/domain/features";
 import type { Move } from "@/lib/engines/cam/types";
 import type { ViewMode, FixtureInfo } from "@/components/viewport/scene";
@@ -415,19 +416,15 @@ function WorkspaceInner(props: WorkspaceProps) {
   const showTransport = showToolpath && props.moves.length > 1;
 
   // Feature panel dock state — layout preference, persisted per browser.
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(true);
   // Resizable feature panel — drag the left edge, double-click resets.
   const panelResize = useResizableWidth({ storageKey: "canvas.panelWidth", defaultWidth: 356, min: 280, max: 560, edge: "start" });
+  // The panel starts docked away at every width; selecting a feature is what
+  // earns it the width. An explicit choice always wins.
+  const preferredPanel = useCallback(() => readCollapsed("canvas.panelCollapsed", "1", true), []);
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("canvas.panelCollapsed");
-      // The panel starts docked away at every width; selecting a feature is
-      // what earns it the width. An explicit choice always wins.
-      setPanelCollapsed(stored === null ? true : stored === "1");
-    } catch {
-      /* fine */
-    }
-  }, []);
+    setPanelCollapsed(preferredPanel());
+  }, [preferredPanel]);
   const togglePanel = () => {
     setPanelCollapsed((c) => {
       try {
@@ -470,7 +467,9 @@ function WorkspaceInner(props: WorkspaceProps) {
   const toggleFocus = () => {
     setFocus((f) => {
       const on = !f;
-      setPanelCollapsed(on);
+      // Leaving focus restores the stored preference. Focus is a look at the
+      // part, not an answer to which panels the machinist wants open.
+      setPanelCollapsed(on ? true : preferredPanel());
       if (on) {
         setDrawer(null);
         setControlsOpen(false);
@@ -618,71 +617,131 @@ function WorkspaceInner(props: WorkspaceProps) {
               )}
             />
 
-            {/* MEASUREMENT STRIP — HOLD's computed values, docked to the
-                viewport edge and numbered to the balloons in the scene. The
-                values used to float over the model; now they hold still where
-                an operator can read them, and a row whose value is missing
-                says "not recorded" instead of disappearing. */}
-            {state.activeContext === "HOLD" && showFixture && props.fixture && !simActive && (
-              <div className="absolute bottom-3 right-3 z-20 w-[300px] border border-line-strong bg-surface/95 backdrop-blur-sm">
-                <p className="instrument-label border-b border-line px-2.5 py-1.5">Workholding — measured on the setup</p>
-                <ul>
-                  {holdMeasurements(props.fixture, props.stock!).map((m) => (
-                    <li key={m.n} className="flex items-baseline gap-2 border-b border-line/60 px-2.5 py-1 last:border-0">
-                      <span
-                        className={`flex h-[15px] w-[15px] shrink-0 translate-y-[2px] items-center justify-center rounded-full border font-mono text-[8.5px] font-bold leading-none ${
-                          m.tone === "pass"
-                            ? "border-pass text-pass"
-                            : m.tone === "review"
-                              ? "border-review text-review"
-                              : m.tone === "risk"
-                                ? "border-risk text-risk"
-                                : "border-precision/70 text-precision-dim"
-                        }`}
-                      >
-                        {m.n}
-                      </span>
-                      <span className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
-                        {m.label}
-                        {m.dev && <DevLabel>Dev</DevLabel>}
-                      </span>
-                      <span
-                        className={`shrink-0 text-right font-mono text-[11px] tabular-nums ${
-                          m.tone === "pass"
-                            ? "text-pass"
-                            : m.tone === "review"
-                              ? "text-review"
-                              : m.tone === "risk"
-                                ? "text-risk"
-                                : "text-platinum"
-                        }`}
-                      >
-                        {m.value}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* BOTTOM-RIGHT DOCK. Two surfaces used to claim this corner with
+                the same anchor and the same z-index — the HOLD measurement
+                strip and the dimension card — so selecting a feature while
+                looking at the setup painted one over the other and DOM order
+                decided which numbers the operator got to read. They stack now
+                instead of competing. Anything else that wants this corner
+                belongs in here too. */}
+            <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-1.5">
+              {/* MEASUREMENT STRIP — HOLD's computed values, docked to the
+                  viewport edge and numbered to the balloons in the scene. The
+                  values used to float over the model; now they hold still where
+                  an operator can read them, and a row whose value is missing
+                  says "not recorded" instead of disappearing. */}
+              {state.activeContext === "HOLD" && showFixture && props.fixture && !simActive && (
+                <div className="pointer-events-auto w-[300px] border border-line-strong bg-surface/95 backdrop-blur-sm">
+                  <p className="instrument-label border-b border-line px-2.5 py-1.5">Workholding — measured on the setup</p>
+                  <ul>
+                    {holdMeasurements(props.fixture, props.stock!).map((m) => (
+                      <li key={m.n} className="flex items-baseline gap-2 border-b border-line/60 px-2.5 py-1 last:border-0">
+                        <span
+                          className={`flex h-[15px] w-[15px] shrink-0 translate-y-[2px] items-center justify-center rounded-full border font-mono text-[8.5px] font-bold leading-none ${
+                            m.tone === "pass"
+                              ? "border-pass text-pass"
+                              : m.tone === "review"
+                                ? "border-review text-review"
+                                : m.tone === "risk"
+                                  ? "border-risk text-risk"
+                                  : "border-precision/70 text-precision-dim"
+                          }`}
+                        >
+                          {m.n}
+                        </span>
+                        <span className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                          {m.label}
+                          {m.dev && <DevLabel>Dev</DevLabel>}
+                        </span>
+                        <span
+                          className={`shrink-0 text-right font-mono text-[11px] tabular-nums ${
+                            m.tone === "pass"
+                              ? "text-pass"
+                              : m.tone === "review"
+                                ? "text-review"
+                                : m.tone === "risk"
+                                  ? "text-risk"
+                                  : "text-platinum"
+                          }`}
+                        >
+                          {m.value}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-            {/* VERIFY legend — only while the INSPECTION view mode colours the
-                rings. The states come from measurement records; the legend
-                only names the colours. */}
-            {viewEnv.viewMode === "INSPECTION" && !simActive && state.activeContext !== "HOLD" && (
-              <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-3 border border-line bg-surface/95 px-3 py-1.5">
-                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Verify</span>
-                {[
-                  ["#17754e", "In tolerance"],
-                  ["#c22a1e", "Out of tolerance"],
-                  ["#7d838b", "Not measured / cannot determine"],
-                ].map(([c, l]) => (
-                  <span key={l} className="flex items-center gap-1.5 text-[10px] text-platinum-dim">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />
-                    {l}
+              {/* The dimension card. The model value only — nothing called
+                  live, no confidence figure, and no second copy of the
+                  evidence the feature panel already carries three inches to
+                  the right. */}
+              {selected && <DimensionCard feature={selected} onDismiss={() => selectFeature(null)} />}
+            </div>
+
+            {/* BOTTOM-LEFT DOCK. The VERIFY legend and the toolpath transport
+                both lived on this edge three-quarters of an inch apart, so an
+                inspection view with a path on screen buried the legend under
+                the scrub bar. Same rule as the right: this corner has one
+                owner and its contents stack. */}
+            <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-1.5">
+              {/* VERIFY legend — only while the INSPECTION view mode colours the
+                  rings. The states come from measurement records; the legend
+                  only names the colours. */}
+              {viewEnv.viewMode === "INSPECTION" && !simActive && state.activeContext !== "HOLD" && (
+                <div className="flex items-center gap-3 border border-line bg-surface/95 px-3 py-1.5">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Verify</span>
+                  {[
+                    ["#17754e", "In tolerance"],
+                    ["#c22a1e", "Out of tolerance"],
+                    ["#7d838b", "Not measured / cannot determine"],
+                  ].map(([c, l]) => (
+                    <span key={l} className="flex items-center gap-1.5 text-[10px] text-platinum-dim">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />
+                      {l}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Toolpath transport. Present only while a path is on screen —
+                  a scrub bar with nothing to scrub is chrome for its own sake. */}
+              {!simActive && showTransport && (
+                <div className="pointer-events-auto flex items-center gap-2 border border-line-strong bg-card/95 px-2 py-1.5 backdrop-blur">
+                  <button
+                    onClick={() => setPlaying((p) => !p)}
+                    className="border border-line-strong px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-platinum-dim transition-colors hover:text-platinum"
+                  >
+                    {playing ? "Pause" : "Play"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPlaying(false);
+                      setPlayhead((p) => Math.min(1, p + 1 / Math.max(props.moves.length, 1)));
+                    }}
+                    className="border border-transparent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-platinum"
+                  >
+                    Step
+                  </button>
+                  <input
+                    type="range"
+                    aria-label="Toolpath position"
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={playhead}
+                    onChange={(e) => {
+                      setPlaying(false);
+                      setPlayhead(Number(e.target.value));
+                    }}
+                    className="h-1 w-[140px] accent-[color:var(--c-blue)]"
+                  />
+                  <span className="tech-value shrink-0 text-[10px] text-muted tabular-nums">
+                    {Math.floor(props.moves.length * playhead)} / {props.moves.length}
                   </span>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
             {/* Right-edge drawers, one at a time, over the viewport. */}
             {drawer === "env" && (
@@ -869,11 +928,6 @@ function WorkspaceInner(props: WorkspaceProps) {
               />
             )}
 
-            {/* The dimension card. The model value only — nothing called live,
-                no confidence figure, and no second copy of the evidence the
-                feature panel already carries three inches to the right. */}
-            {selected && <DimensionCard feature={selected} onDismiss={() => selectFeature(null)} />}
-
             {!props.stock && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="border border-dashed border-line-strong px-6 py-4 text-center">
@@ -915,8 +969,11 @@ function WorkspaceInner(props: WorkspaceProps) {
 
                 Hidden below md — a phone has no room for it, and the cube is
                 still there. Suppressed while the stock is undefined, because
-                there is nothing in the frame to orient. */}
-            {props.stock && (
+                there is nothing in the frame to orient, and while a
+                simulation is running, because the transport owns this edge
+                then and the two were landing on top of each other. The view
+                cube still turns the part mid-simulation. */}
+            {props.stock && !simActive && (
               <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 hidden justify-center md:flex">
                 <div
                   role="group"
@@ -943,43 +1000,6 @@ function WorkspaceInner(props: WorkspaceProps) {
               </div>
             )}
 
-            {/* Toolpath transport. Present only while a path is on screen —
-                a scrub bar with nothing to scrub is chrome for its own sake. */}
-            {!simActive && showTransport && (
-              <div className="absolute bottom-3 left-16 z-20 flex items-center gap-2 border border-line-strong bg-card/95 px-2 py-1.5 backdrop-blur">
-                <button
-                  onClick={() => setPlaying((p) => !p)}
-                  className="border border-line-strong px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-platinum-dim transition-colors hover:text-platinum"
-                >
-                  {playing ? "Pause" : "Play"}
-                </button>
-                <button
-                  onClick={() => {
-                    setPlaying(false);
-                    setPlayhead((p) => Math.min(1, p + 1 / Math.max(props.moves.length, 1)));
-                  }}
-                  className="border border-transparent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-platinum"
-                >
-                  Step
-                </button>
-                <input
-                  type="range"
-                  aria-label="Toolpath position"
-                  min={0}
-                  max={1}
-                  step={0.001}
-                  value={playhead}
-                  onChange={(e) => {
-                    setPlaying(false);
-                    setPlayhead(Number(e.target.value));
-                  }}
-                  className="h-1 w-[140px] accent-[color:var(--c-blue)]"
-                />
-                <span className="tech-value shrink-0 text-[10px] text-muted tabular-nums">
-                  {Math.floor(props.moves.length * playhead)} / {props.moves.length}
-                </span>
-              </div>
-            )}
           </div>
         </section>
 

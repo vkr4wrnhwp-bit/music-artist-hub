@@ -48,6 +48,9 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   const [mode, setMode] = useState<GuideMode | null>(null); // null = not loaded
   const [profile, setProfile] = useState<string | null>(null);
   const [firstRun, setFirstRun] = useState(false);
+  // Whether the card is up is a layout preference and belongs to the
+  // machinist, not to the component's mount. Closing it once used to last
+  // until the next render; it now lasts until they open it again.
   const [open, setOpen] = useState(true);
   const [showWhy, setShowWhy] = useState(false);
   const [camHints, setCamHints] = useState(false);
@@ -86,6 +89,44 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---- the card's own visibility ---- */
+  const OPEN_KEY = "canvas.guideCard";
+  useEffect(() => {
+    try {
+      // Absent means never closed: the card introduces itself once. After
+      // that the stored answer wins, including across parts and reloads.
+      setOpen(window.localStorage.getItem(OPEN_KEY) !== "closed");
+    } catch {
+      /* fine */
+    }
+  }, []);
+
+  const showCard = useCallback((next: boolean) => {
+    setOpen(next);
+    try {
+      window.localStorage.setItem(OPEN_KEY, next ? "open" : "closed");
+    } catch {
+      /* fine */
+    }
+  }, []);
+
+  // Turning tutoring OFF is itself an instruction to stop taking up the
+  // screen. The card steps back to its tab; G still brings it out.
+  useEffect(() => {
+    if (mode === "OFF") setOpen(false);
+  }, [mode]);
+
+  // FOCUS hands the screen to the part. This card is the largest thing
+  // standing on it, so it goes with the rest — without overwriting the
+  // stored preference, which focus is not an answer to.
+  useEffect(() => {
+    const onFocusMode = (e: Event) => {
+      if ((e as CustomEvent).detail) setOpen(false);
+    };
+    window.addEventListener("canvas:focus", onFocusMode);
+    return () => window.removeEventListener("canvas:focus", onFocusMode);
   }, []);
 
   // Fire-and-forget telemetry: friction data for the shop, never a gate.
@@ -148,7 +189,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
           return next;
         });
       } else if ((e.key === "g" || e.key === "G") && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        setOpen((o) => !o);
+        showCard(!open);
       } else if (e.key === "ArrowLeft" && e.altKey) {
         setSession((s) => {
           if (!s || !canGoBack(s)) return s;
@@ -157,12 +198,12 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
           return n;
         });
       } else if (e.key === "Escape") {
-        setOpen(false);
+        showCard(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [persist]);
+  }, [persist, showCard, open]);
 
   if (mode === null) return null;
 
@@ -171,7 +212,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => showCard(true)}
         aria-label="Open CANVAS Guide (G)"
         className="fixed bottom-24 right-3 z-40 flex items-center gap-1.5 border border-line-strong bg-surface/95 px-2.5 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-precision-dim backdrop-blur-sm hover:text-precision"
       >
@@ -184,7 +225,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- first-run profile ---- */
   if (firstRun) {
     return (
-      <Card onCollapse={() => setOpen(false)}>
+      <Card onCollapse={() => showCard(false)}>
         <Header title="How familiar are you with CNC and CAM?" />
         <p className="px-3 pt-2 text-[11.5px] leading-relaxed text-muted">
           This sets how much CANVAS explains — it never restricts what you can do, and you can change it any time.
@@ -216,7 +257,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- OFF: nothing unsolicited; the tab stays reachable ---- */
   if (mode === "OFF") {
     return (
-      <Card onCollapse={() => setOpen(false)}>
+      <Card onCollapse={() => showCard(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <p className="px-3 py-3 text-[11.5px] leading-relaxed text-muted">
           Guide is off. Readiness gates and the next required action stay active — OFF disables tutoring, not
@@ -234,7 +275,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   if (mode === "ASSIST") {
     const blocker = ctx.blockingGates[0] ?? null;
     return (
-      <Card onCollapse={() => setOpen(false)}>
+      <Card onCollapse={() => showCard(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         {blocker ? (
           <div className="px-3 py-2.5">
@@ -293,7 +334,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   /* ---- TEACH ---- */
   if (!session) {
     return (
-      <Card onCollapse={() => setOpen(false)}>
+      <Card onCollapse={() => showCard(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <div className="px-3 py-2.5">
           <p className="text-[12.5px] leading-snug text-platinum">{flow.title}</p>
@@ -321,7 +362,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
       emitEvent("FLOW_COMPLETE");
     }
     return (
-      <Card onCollapse={() => setOpen(false)}>
+      <Card onCollapse={() => showCard(false)}>
         <Header title="CANVAS Guide" right={<ModeSwitch mode={mode} onChange={changeMode} />} />
         <div className="px-3 py-2.5">
           <p className="text-[12.5px] text-platinum">
@@ -345,7 +386,7 @@ export function GuideCard({ ctx, flowId = "MAKE_A_PART" }: { ctx: GuideContext; 
   const { step, index, ofTotal, status, blocked } = view;
 
   return (
-    <Card onCollapse={() => setOpen(false)}>
+    <Card onCollapse={() => showCard(false)}>
       <Header
         title="CANVAS Guide"
         right={

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { DevLabel, Dot, StatusChip, type Tone } from "@/components/ui";
 import type { NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
+import { readCollapsed } from "@/lib/panel-preference";
 
 /**
  * THE OPERATION TIMELINE
@@ -63,18 +64,15 @@ export function OperationRunway({
 
   // Collapsed state survives reload per browser — pure layout preference,
   // nothing engineering-grade about it. Focus Workspace minimizes it too.
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("canvas.timelineCollapsed");
-      // Minimized by default at every width — the one-line bar still names
-      // the active operation, tool and time. Expanding is one click, and an
-      // explicit choice always wins. (Workspace-consolidation brief §13.)
-      setCollapsed(stored === null ? true : stored === "1");
-    } catch {
-      /* fine */
-    }
-    const onFocus = (e: Event) => setCollapsed(Boolean((e as CustomEvent).detail));
+    // Minimized by default at every width — the one-line bar still names the
+    // active operation, tool and time. Expanding is one click, and an
+    // explicit choice always wins. (Workspace-consolidation brief §13.)
+    const preferred = () => readCollapsed("canvas.timelineCollapsed", "1", true);
+    setCollapsed(preferred());
+    // Focus minimizes the runway; leaving focus restores what was stored.
+    const onFocus = (e: Event) => setCollapsed((e as CustomEvent).detail ? true : preferred());
     window.addEventListener("canvas:timeline-minimize", onFocus);
     return () => window.removeEventListener("canvas:timeline-minimize", onFocus);
   }, []);
