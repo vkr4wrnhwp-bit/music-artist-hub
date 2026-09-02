@@ -10,6 +10,7 @@
     "postinstall": "npm run prepare:db",
     "test": "node --import tsx --test \"tests/engines/*.test.ts\"",
     "test:e2e": "tsx scripts/e2e-smoke.ts",
+    "test:e2e:routes": "tsx scripts/e2e-routes.ts",
     "test:e2e:journey": "tsx scripts/e2e-journey.ts",
     "db:migrate": "npm run prepare:db && prisma migrate deploy",
     "db:seed": "npm run prepare:db && prisma db seed",
