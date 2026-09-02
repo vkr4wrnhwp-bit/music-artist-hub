@@ -257,3 +257,15 @@ pages. A 15-field core view of Advance on the date page is future work.
   `tour_hub_rules.py` (the old Hub's rule set, kept for the public rider and
   show-day pages and the Money Queue fallback). `tour_engine.py`,
   `tour_store.py`, `tour_os.py` and `tour_advance_mail.py` are TOUR.
+
+
+## Adoption: nothing entered in the Hub is left behind
+
+`tour_store.adopt_orphan_shows(user_id)` puts every show an account entered
+in the old Tour Hub (a `tour_shows` row with no `tour_id`) onto a tour: the
+account's one tour, or the tour whose dates cover the show, or a new tour
+named "Dates from Tour Hub" spanning the shows' dates when the account has
+none. Attaching is the same `attach_show` the Add-to-tour button uses (day
+and ext rows created, nothing deleted), and each adoption is a change row.
+It runs at boot for every account (`adopt_all_orphans`, wrapped so a boot
+never fails on it), again on the tours index, and on the old `/tour` link.

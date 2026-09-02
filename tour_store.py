@@ -954,6 +954,71 @@ def delete_day(tour_id, day_id):
         db.execute("DELETE FROM tour_days WHERE id=? AND tour_id=?", (day_id, tour_id))
 
 
+ADOPTED_TOUR_NAME = "Dates brought over"
+
+
+def orphan_shows(user_id):
+    """Shows this account entered in the old Tour Hub that sit on no tour."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM tour_shows WHERE user_id = ? AND "
+                          "(tour_id IS NULL OR tour_id = '') ORDER BY date", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def adopt_orphan_shows(user_id):
+    """Put every show this account entered in the old Tour Hub onto a tour.
+
+    One tour: they join it. Several: each show joins the tour whose dates
+    cover it, else the most recent. None: a tour is created for them, named
+    ADOPTED_TOUR_NAME and spanning their dates, to be renamed in Settings.
+    Nothing is deleted, nothing is entered on the account's behalf beyond
+    the tour row itself. Idempotent: returns (None, 0) when there is nothing
+    to adopt. Returns (tour_id the most shows joined, count adopted)."""
+    orphans = orphan_shows(user_id)
+    if not orphans:
+        return None, 0
+    tours = list_tours(user_id)
+    if not tours:
+        dates = sorted(s["date"] for s in orphans if s.get("date"))
+        create_tour(user_id, {
+            "name": ADOPTED_TOUR_NAME, "artist_name": "",
+            "start_date": dates[0] if dates else "", "end_date": dates[-1] if dates else "",
+            "home_tz": "America/New_York", "currency": "USD",
+            "notes": "Made when the old hub folded into TOUR: every show entered there is on "
+                     "this tour. Rename it in Settings."})
+        tours = list_tours(user_id)
+
+    def home_for(show):
+        date = show.get("date") or ""
+        for t in tours:
+            if t.get("start_date") and t.get("end_date") and t["start_date"] <= date <= t["end_date"]:
+                return t
+        return tours[0]
+
+    counts = {}
+    for show in orphans:
+        tour = home_for(show)
+        attach_show(tour["id"], show["id"], "")
+        counts[tour["id"]] = counts.get(tour["id"], 0) + 1
+        log_change(tour["id"], user_id, {"id": user_id, "name": "TOUR"}, "show", show["id"],
+                   show.get("venue") or show.get("city") or show["date"], "adopted", "",
+                   "from Tour Hub", "info")
+    home = max(counts, key=counts.get)
+    return home, sum(counts.values())
+
+
+def adopt_all_orphans():
+    """At boot: every account with Hub shows on no tour gets them adopted."""
+    with get_db() as db:
+        users = [r["user_id"] for r in db.execute(
+            "SELECT DISTINCT user_id FROM tour_shows WHERE tour_id IS NULL OR tour_id = ''").fetchall()]
+    total = 0
+    for user_id in users:
+        _, n = adopt_orphan_shows(user_id)
+        total += n
+    return total
+
+
 def attach_show(tour_id, show_id, tz=""):
     """Put an existing tour_shows row onto this tour, and make sure a day
     and an ext row exist for it."""

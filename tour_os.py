@@ -567,6 +567,7 @@ def index():
     user = _me()
     if user is None:
         return redirect(url_for("login", next=request.path))
+    ts.adopt_orphan_shows(user["id"])   # a Hub show on no tour joins one before the list is read
     mine = ts.list_tours(user["id"])
     shared = ts.tours_shared_with(user["id"])
     for t in mine + shared:
@@ -3373,4 +3374,10 @@ def init(app, base_url):
     global _base_url
     _base_url = base_url
     ts.init_tour()
+    # The Hub folded into TOUR: any show still sitting on no tour joins one
+    # now, so nothing anyone entered there is out of reach.
+    try:
+        ts.adopt_all_orphans()
+    except Exception:   # a boot must never fail on the adoption sweep
+        pass
     app.register_blueprint(bp)

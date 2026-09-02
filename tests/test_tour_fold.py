@@ -114,11 +114,13 @@ def test_tour_show_redirects_attached_unattached_and_404s_strangers(flask_app):
     r = client.get("/tour/%s" % attached)
     assert r.status_code == 302 and r.headers["Location"] == "/tours/%s/shows/%s" % (tid, attached)
     assert client.get(r.headers["Location"]).status_code == 200
-    # A show that is not on any tour: the index offers to bring it onto one.
+    # A show that is not on any tour is adopted onto the owner's tour on the
+    # way through, so the old link lands on its date page, never a dead end.
     loose = store.add_tour_show(owner["id"], "2030-06-01", "Loose Room", "Memphis, TN", "")
     r = client.get("/tour/%s" % loose)
-    assert r.status_code == 302 and r.headers["Location"] == "/tours"
-    assert "existing show(s) not on a tour" in client.get("/tours").get_data(as_text=True)
+    assert r.status_code == 302 and r.headers["Location"] == "/tours/%s/shows/%s" % (tid, loose)
+    assert store.get_tour_show(owner["id"], loose)["tour_id"] == tid
+    assert "existing show(s) not on a tour" not in client.get("/tours").get_data(as_text=True)
     # Strangers get a 404 for both, never a redirect that confirms the id.
     stranger, _s = _user(flask_app, "Stranger")
     assert stranger.get("/tour/%s" % attached).status_code == 404

@@ -4372,6 +4372,7 @@ def create_app():
     def _tour_dates_url(user_id):
         """Where /tour lands now: the newest tour's Dates page, or the TOUR
         index (which offers to bring unattached shows onto a tour)."""
+        tour_store.adopt_orphan_shows(user_id)   # an old /tour link never lands on a dead page
         tours = tour_store.list_tours(user_id)
         return "/tours/%s/shows" % tours[0]["id"] if tours else "/tours"
 
@@ -4423,9 +4424,13 @@ def create_app():
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
+        if not show.get("tour_id"):
+            # Not on a tour yet: adopt it onto one now, the way the boot
+            # sweep does, so an old link lands on its date page.
+            tour_store.adopt_orphan_shows(user["id"])
+            show = store.get_tour_show(user["id"], show_id) or show
         if show.get("tour_id"):
             return redirect("/tours/%s/shows/%s" % (show["tour_id"], show_id))
-        # Not on a tour yet: the index offers to bring it onto one.
         return redirect("/tours")
 
     @app.route("/tour/<show_id>/advance", methods=["POST"])

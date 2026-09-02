@@ -3836,10 +3836,10 @@ def test_show_advancer_and_showday(monkeypatch):
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     show = [s for s in store_mod.list_tour_shows(uid)
             if s["venue"] == "Advance Test Hall"][0]
-    # The hub's show page is a bookmark now: a show not on a tour lands on
-    # the TOUR index, which offers to bring it onto one.
+    # The hub's show page is a bookmark now: a show not on a tour is adopted
+    # onto one on the way through and the link lands on its date page.
     r = artist.get("/tour/%s" % show["id"])
-    assert r.status_code == 302 and r.headers["Location"] == "/tours"
+    assert r.status_code == 302 and r.headers["Location"].endswith("/shows/%s" % show["id"])
     # A blank advance asks for everything; the core fields are not ready.
     show = store_mod.get_tour_show(uid, show["id"])
     assert not touring.progress(show["advance"])["core_ready"]
@@ -5248,19 +5248,15 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
         "deal_type": "guarantee_split", "guarantee": "500",
         "door_gross": "2000", "split_pct": "20", "merch_gross": "300",
         "merch_cut_pct": "10", "expenses": "150"})
-    # No tour yet: /tour (and its old board view) land on the TOUR index,
-    # which offers to bring the four shows onto a tour.
+    # No tour yet: /tour (and its old board view) adopt the four shows onto
+    # a tour made for them and land on its Dates page; the index lists that
+    # tour rather than offering strays.
     for path in ("/tour", "/tour?view=board"):
         r = client.get(path)
-        assert r.status_code == 302 and r.headers["Location"] == "/tours", path
+        assert r.status_code == 302 and r.headers["Location"].endswith("/shows"), path
+    tid = r.headers["Location"].split("/tours/")[1].split("/")[0]
     index = client.get("/tours").get_data(as_text=True)
-    assert "Bring my 4 existing show(s)" in index
-    r = client.post("/tours/new", data={
-        "name": "Fold Run", "artist_name": "Tour", "start_date": past, "end_date": d3,
-        "home_tz": "America/Chicago", "currency": "USD", "adopt": "1"})
-    tid = r.headers["Location"].rstrip("/").split("/")[-1]
-    r = client.get("/tour")
-    assert r.status_code == 302 and r.headers["Location"] == "/tours/%s/shows" % tid
+    assert __import__("tour_store").ADOPTED_TOUR_NAME in index and "Bring my" not in index
     # Dates page: the pipeline line, a status select per row, the legend.
     page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
     assert "Every show, one pipeline: hold → confirmed → advanced → played → settled." in page
