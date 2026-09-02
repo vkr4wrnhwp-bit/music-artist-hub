@@ -147,9 +147,20 @@ The Reference panel always shows `photos[0]` — the first uploaded photo — re
 
 > Actions: DETAIL MEASURE MAKE VERIFY
 
-The lens renders identity, size, function, criticality and measurability but no actions at all — the component deliberately defers them ("Everything else waits for a click"). Three of the four then appear on the click-through panel as Function and fit (DETAIL), Record a measurement (MEASURE) and Inspection plan (VERIFY); MAKE has no equivalent anywhere on the feature surface.
+The lens states all four and MAKE now exists, but the lens does not become
+clickable, which is a deviation from the literal ask.
 
-`src/components/workspace/feature-lens.tsx has no button, onClick or href in 142 lines; src/components/workspace/feature-panel.tsx:659-698 is the Actions section, with no MAKE action.`
+It is `pointer-events-none` and follows the cursor. Making its cells
+pressable means the machinist has to drag the cursor across the part to
+reach them, passing over other geometry on the way — and what the lens is
+about changes as they go. The file's own doctrine already says a form on
+hover is a trap. Keyboard accelerators were the other route and collide:
+`f`, `v` and `1`-`5` are bound in the workspace, and a binding whose
+meaning depends on what happens to be hovered is a surprise at a machine.
+
+So the lens carries the four as named availability, and the click-through
+panel carries them as controls. If the intent was literally four buttons on
+the hover surface, that is a product decision to overrule this reading.
 
 ### In-browser toolpath/stock-removal simulator must verify fixture collision
 

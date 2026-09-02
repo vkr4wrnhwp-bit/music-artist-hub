@@ -2,6 +2,7 @@
 
 import type { Feature, FunctionalRole } from "@/lib/domain/features";
 import { fmtTol } from "@/lib/domain/features";
+import type { FeatureActions } from "./feature-actions";
 
 /**
  * FEATURE LENS
@@ -55,11 +56,14 @@ export function FeatureLens({
   feature,
   pointer,
   capability,
+  actions,
 }: {
   feature: Feature;
   pointer: { x: number; y: number } | null;
   /** Measurement capability verdict for this feature, when one applies. */
   capability?: { verdict: string; reason: string } | null;
+  /** DETAIL / MEASURE / MAKE / VERIFY, as availability rather than controls. */
+  actions: FeatureActions;
 }) {
   if (!pointer) return null;
 
@@ -134,8 +138,36 @@ export function FeatureLens({
         )}
       </div>
 
+      {/* The four, as NAMED AVAILABILITY rather than as controls.
+          This surface follows the cursor and stays pointer-events-none on
+          purpose — a form on hover is a trap, because reaching it means
+          dragging the cursor across the part and over other geometry. So the
+          lens states what each action would find and the click-through panel
+          carries the controls.
+
+          Four independent statements, never a tally. There is no count, no
+          score and no colour ramp: an absent operation is an absence, which
+          is why it renders muted rather than as a risk. */}
+      <div className="grid grid-cols-4 border-t border-line">
+        {(
+          [
+            ["Detail", actions.detail],
+            ["Measure", actions.measure],
+            ["Make", actions.make],
+            ["Verify", actions.verify],
+          ] as const
+        ).map(([name, a]) => (
+          <div key={name} className="min-w-0 border-r border-line px-2 py-1.5 last:border-r-0">
+            <p className="instrument-label">{name}</p>
+            <p className={`mt-0.5 truncate text-[10px] leading-tight ${a.available ? "text-platinum-dim" : "text-unknown"}`}>
+              {a.available ? a.detail : a.reason}
+            </p>
+          </div>
+        ))}
+      </div>
+
       <p className="border-t border-line px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
-        Click to inspect
+        Click to open the feature panel
       </p>
     </div>
   );

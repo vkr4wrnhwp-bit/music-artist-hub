@@ -8,7 +8,7 @@ import { LimitsDisclosure, StatusChip, type Tone } from "@/components/ui";
 import { SectionSketch } from "./section-sketch";
 import { InstrumentGlyph, hasInstrumentGlyph } from "./instrument-glyph";
 import { MeasurementTechnique } from "@/components/measurement-technique";
-import type { DatumInfo, FeatureDetail } from "./panel-data";
+import type { DatumInfo, FeatureDetail, RunwayOperation } from "./panel-data";
 import {
   compare,
   latestMeasurement,
@@ -17,6 +17,7 @@ import {
   RESOLUTION_LABEL,
   RESOLUTION_TONE,
 } from "./dimension";
+import { featureActions } from "./feature-actions";
 
 /**
  * THE FEATURE PANEL
@@ -150,6 +151,8 @@ export function FeaturePanel({
   datums,
   hasInspectionPlan,
   inspectionSessionId,
+  operations,
+  onMake,
 }: {
   partId: string;
   features: Feature[];
@@ -161,12 +164,20 @@ export function FeaturePanel({
   hasInspectionPlan: boolean;
   /** The OPEN inspection session, or null. Not the same as the latest session. */
   inspectionSessionId: string | null;
+  /** The plan, so MAKE can name the operation that cuts the selected feature. */
+  operations: RunwayOperation[];
+  /** Take the workspace to the operation that cuts this feature. */
+  onMake?: (operationId: string) => void;
 }) {
   const feature = features.find((f) => f.id === selectedId) ?? null;
 
   if (!feature) {
     return <FeatureIndex features={features} onSelect={onSelect} />;
   }
+
+  // Computed here rather than passed in, so it cannot be derived for a
+  // feature that is not the one the panel resolved.
+  const actions = featureActions({ feature, detail: details[feature.id], operations, inspectionSessionId });
 
   const detail = details[feature.id];
   const model = primaryDimension(feature);
@@ -693,6 +704,24 @@ export function FeaturePanel({
             ) : (
               <PanelAction href={`/parts/${partId}/inspection`}>Inspection — start a session</PanelAction>
             ))}
+          {/* MAKE — the missing edge between a feature and the operation that
+              cuts it. It NAMES that operation and takes the workspace to it;
+              it never creates one, because planning is the machinist's act on
+              the setups page. Where nothing cuts the feature it says so and
+              offers the setups page, rather than a greyed-out button that
+              looks pressable. */}
+          {actions.make.available && onMake && actions.makeOperationId ? (
+            <PanelActionButton onClick={() => onMake(actions.makeOperationId!)}>
+              How it is cut — {actions.make.detail}
+            </PanelActionButton>
+          ) : (
+            !actions.make.available && (
+              <>
+                <p className="px-0.5 text-[11px] leading-relaxed text-muted">{actions.make.reason}</p>
+                <PanelAction href={`/parts/${partId}/setups`}>Plan an operation</PanelAction>
+              </>
+            )
+          )}
           {hasInspectionPlan && (!isCharacteristic || inspectionSessionId) && (
             <PanelAction href={`/parts/${partId}/inspection`}>Inspection plan</PanelAction>
           )}
@@ -866,6 +895,28 @@ function Row({
         {value}
       </span>
     </div>
+  );
+}
+
+/**
+ * The same control that does not navigate.
+ *
+ * A right chevron rather than the external-link glyph, because this moves the
+ * workspace rather than taking the machinist to another page — a glyph that
+ * claims navigation and then does not is a small lie that costs trust.
+ */
+function PanelActionButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between border border-line-strong bg-card px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-platinum-dim transition-colors hover:border-platinum-dim hover:text-platinum"
+    >
+      <span>{children}</span>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <path d="M3.5 1.5 L7 5 L3.5 8.5" stroke="currentColor" strokeWidth="1.1" fill="none" />
+      </svg>
+    </button>
   );
 }
 

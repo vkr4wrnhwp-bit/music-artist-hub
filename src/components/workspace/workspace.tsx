@@ -13,6 +13,7 @@ import { Copilot } from "./copilot";
 import { InteractionProvider, useInteraction, type Context } from "./interaction";
 import { ContextRail, sceneFlagsFor } from "./context-rail";
 import { FeatureLens } from "./feature-lens";
+import { featureActions } from "./feature-actions";
 import { FeaturePanel } from "./feature-panel";
 import { OperationRunway } from "./operation-runway";
 import { DimensionCard } from "./dimension-card";
@@ -964,6 +965,12 @@ function WorkspaceInner(props: WorkspaceProps) {
                 feature={hovered}
                 pointer={state.pointer}
                 capability={props.featureDetails[hovered.id]?.capability ?? null}
+                actions={featureActions({
+                  feature: hovered,
+                  detail: props.featureDetails[hovered.id],
+                  operations: props.runway.operations,
+                  inspectionSessionId: props.inspectionSessionId ?? null,
+                })}
               />
             )}
 
@@ -1115,7 +1122,14 @@ function WorkspaceInner(props: WorkspaceProps) {
               details={props.featureDetails}
               datums={props.datums}
               hasInspectionPlan={props.hasInspectionPlan}
-          inspectionSessionId={props.inspectionSessionId}
+              inspectionSessionId={props.inspectionSessionId}
+              operations={props.runway.operations}
+              onMake={(operationId) => {
+                const op = props.runway.operations.find((o) => o.id === operationId);
+                if (!op) return;
+                setContext("CUT");
+                selectOperation(op);
+              }}
             />
           )}
 
