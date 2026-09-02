@@ -42,3 +42,83 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
   const key = Object.keys(map).find((k) => g.includes(k) || l.includes(k));
   return key ? map[key] : null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Review findings                                                     */
+/* ------------------------------------------------------------------ */
+
+/** The contexts a deep link may put the workspace into. */
+export const FOCUS_CONTEXTS = ["PART", "HOLD", "CUT", "VERIFY"] as const;
+export type FocusContext = (typeof FOCUS_CONTEXTS)[number];
+
+/**
+ * Where SHOW ME on a review finding should land.
+ *
+ * A finding already carries the operation, the feature, the point and the
+ * context it is best understood in. The link tested `setupId` FIRST, and four
+ * of the six finding kinds carry both a setupId and CUT context — including
+ * the lateral rapid below the jaw line, the one the engine's own tests call
+ * the case this check exists for. All of them landed on a list of setup
+ * cards, which cannot show a move. The coordinate triple was printed beside
+ * the button instead, which is a machinist reading numbers where they could
+ * be looking at the thing.
+ *
+ * Context decides, not setupId.
+ *
+ * HOLD is conditional and the condition is load-bearing: the workspace builds
+ * its HOLD scene from the FIRST setup alone, so deep-linking a second setup's
+ * grip finding would draw the wrong vise while claiming to show the problem.
+ * That case keeps today's behaviour and goes to the setup list.
+ */
+export function findingShowMeHref(
+  partId: string,
+  location: {
+    setupId: string | null;
+    operationId: string | null;
+    featureId: string | null;
+    context: FocusContext;
+  },
+  primarySetupId: string | null,
+): string {
+  switch (location.context) {
+    case "VERIFY":
+      return location.featureId
+        ? `/parts/${partId}?context=VERIFY&feature=${location.featureId}`
+        : `/parts/${partId}?context=VERIFY`;
+    case "CUT":
+      return location.operationId
+        ? `/parts/${partId}?context=CUT&op=${location.operationId}`
+        : `/parts/${partId}?context=CUT`;
+    case "HOLD":
+      return location.setupId !== null && location.setupId === primarySetupId
+        ? `/parts/${partId}?context=HOLD`
+        : `/parts/${partId}/setups`;
+    case "PART":
+    default:
+      return location.featureId
+        ? `/parts/${partId}?context=PART&feature=${location.featureId}`
+        : `/parts/${partId}`;
+  }
+}
+
+/**
+ * What a deep link is asking the workspace to focus on, after checking that it
+ * exists on THIS part.
+ *
+ * The ids arrive in a URL. They are matched against ids that came out of an
+ * organisation-scoped package, so an id belonging to another shop's part
+ * simply does not match and is dropped — a request parameter can select among
+ * what the session already loaded, never introduce anything.
+ */
+export function pickFocus(
+  sp: { context?: string; feature?: string; op?: string },
+  featureIds: string[],
+  operationIds: string[],
+): { context: FocusContext | null; featureId: string | null; operationId: string | null } {
+  const context = FOCUS_CONTEXTS.find((c) => c === sp.context) ?? null;
+  return {
+    context,
+    featureId: sp.feature && featureIds.includes(sp.feature) ? sp.feature : null,
+    operationId: sp.op && operationIds.includes(sp.op) ? sp.op : null,
+  };
+}

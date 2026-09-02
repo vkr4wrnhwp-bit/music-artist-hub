@@ -6,6 +6,7 @@ import { reviewPackage, type Severity } from "@/lib/engines/review";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { DataRow, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
+import { findingShowMeHref } from "@/lib/guide/show-me";
 
 /**
  * RUN IT PAST CANVAS
@@ -114,13 +115,7 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
                   right view rather than dropping the user on the workspace. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <LinkButton
-                  href={
-                    f.location.setupId
-                      ? `/parts/${id}/setups`
-                      : f.location.featureId
-                        ? `/parts/${id}/features/${f.location.featureId}`
-                        : `/parts/${id}`
-                  }
+                  href={findingShowMeHref(id, f.location, pkg.setups[0]?.id ?? null)}
                   size="sm"
                   variant="primary"
                 >

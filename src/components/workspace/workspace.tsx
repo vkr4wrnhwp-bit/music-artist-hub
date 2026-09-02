@@ -67,6 +67,11 @@ const Viewport = dynamic(() => import("@/components/viewport/scene").then((m) =>
 
 export interface WorkspaceProps {
   partId: string;
+  /**
+   * What a deep link asked to be shown — from SHOW ME on a review finding.
+   * Already validated against this part, so anything here exists.
+   */
+  focus?: { context: Context | null; featureId: string | null; operationId: string | null };
   partName: string;
   stock: Stock | null;
   features: Feature[];
@@ -176,7 +181,7 @@ export function Workspace(props: WorkspaceProps) {
       )[0] ?? null;
 
   return (
-    <InteractionProvider initialOperation={first?.id ?? null}>
+    <InteractionProvider initialOperation={props.focus?.operationId ?? first?.id ?? null}>
       <WorkspaceInner {...props} />
     </InteractionProvider>
   );
@@ -436,6 +441,29 @@ function WorkspaceInner(props: WorkspaceProps) {
   useEffect(() => {
     setPanelCollapsed(preferredPanel());
   }, [preferredPanel]);
+
+  /**
+   * Act on a deep link once, on arrival.
+   *
+   * Declared after the effect that applies the stored panel preference, so it
+   * wins: effects run in declaration order, and a link that came here to show
+   * a feature must not be undone by the panel collapsing a line later. Guarded
+   * by a ref rather than a dependency list so it can never fight a click the
+   * machinist makes afterwards.
+   */
+  const focusApplied = useRef(false);
+  useEffect(() => {
+    const focus = props.focus;
+    if (!focus || focusApplied.current) return;
+    if (!focus.context && !focus.featureId && !focus.operationId) return;
+    focusApplied.current = true;
+    if (focus.context) setContext(focus.context);
+    // The operation is already selected by the provider; this marks it as a
+    // deliberate choice rather than "the plan starts here".
+    if (focus.operationId) setOperationChosen(true);
+    if (focus.featureId) selectFeature(focus.featureId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const togglePanel = () => {
     setPanelCollapsed((c) => {
       try {

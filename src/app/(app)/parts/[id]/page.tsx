@@ -44,6 +44,7 @@ import {
   ValueRow,
   type Tone,
 } from "@/components/ui";
+import { pickFocus } from "@/lib/guide/show-me";
 
 /**
  * THE PART WORKSPACE
@@ -72,10 +73,10 @@ const nominalOf = (f: Feature): number | null =>
 
 export default async function PartWorkspace(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ intake?: string }>;
+  searchParams: Promise<{ intake?: string; context?: string; feature?: string; op?: string }>;
 }) {
   const { id } = await props.params;
-  const { intake } = await props.searchParams;
+  const { intake, context, feature, op } = await props.searchParams;
   const user = await requireUser();
 
   const pkg = await buildPackage(user.organizationId, id);
@@ -441,6 +442,15 @@ export default async function PartWorkspace(props: {
   const worst = worstSetupId ? pkg.workholdingBySetup[worstSetupId] : null;
 
   const stock = revision.stock;
+
+  // A deep link from a review finding. Both ids are matched against this
+  // package — loaded with the organisation from the session — so an id from
+  // another shop's part is dropped rather than trusted.
+  const focus = pickFocus(
+    { context, feature, op },
+    revision.features.map((f) => f.id),
+    runwayOperations.map((o) => o.id),
+  );
 
   const runway: RunwayData = {
     setups: pkg.setups.map((s) => {
@@ -1038,6 +1048,7 @@ export default async function PartWorkspace(props: {
 
       <Workspace
         partId={id}
+        focus={focus}
         partName={revision.partName}
         stock={revision.stock}
         features={revision.features}
