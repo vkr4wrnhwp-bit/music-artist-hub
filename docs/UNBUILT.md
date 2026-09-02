@@ -267,6 +267,17 @@ WORKHOLDING_LOAD_DIRECTION_REVIEW is deliberately not built, and says so rather 
 
 > 7. Design the UI flow: RUN IT PAST CANVAS → Upload NC / STEP / tool list / setup → Backplot → Cycle Time Analysis → ...
 
-The NC program upload, backplot, cycle-time analysis, load map, proposals, original-vs-optimized, review and gated export all landed. The tool-list upload did not: the analyzer accepts only a program file, and tool context is resolved solely by matching T numbers against the shop's existing crib records. A program whose tools are not already in the crib gets no load verdict and no proposals, and the audit gate tells the operator to go create the tool records by hand instead of attaching the tool list they already have from their CAM system. The optimizer's own design doc still describes this as part of the flow.
+Built. The analyzer takes an optional CSV or tab-separated tool list beside the program, and reads tool number, description, diameter, flute count, flute length and stickout from a header row.
 
-`src/components/nc-analyzer.tsx:161 `accept=".nc,.txt,.tap,.ngc,.prg"` is the only file input; `grep -rni "tool list\|toolList\|import tools\|csv" src/app/api src/components` returns nothing. Tools come from `getTools(user.organizationId)` at src/app/api/parts/[id]/nc-analyze/route.ts:39. Unmatched tools land in the too`
+Four things it deliberately does not do, because each would be worse than the gap it closes:
+
+- It does not create crib records. A CAM tool list describes one job's intended tooling, not the shop's record of what it owns and has measured. Entries are context for that one analysis and are discarded with it.
+- It does not supply a chipload window, because no CAM export carries one. A tool known only from a list therefore gets geometry — a diameter for engagement, a stickout for reach — and no feed proposal. Inventing a window would put a feed in front of an operator with nothing behind it.
+- It does not sniff units. The operator states inch or millimetre, and an attached list without that is refused: a 6 mm cutter read as 6 inch is a scrapped part, and no header convention separates the two.
+- It does not read columns by position. Headers are matched whole against a synonym list; a header it cannot read is a refusal quoting the header it saw, and a column no synonym covers is reported as unread rather than dropped.
+
+The crib wins where both have a record. The tool-mapping gate now has three answers rather than two: PASS for crib records, REVIEW for tools known only from the list — saying in the gate text that no feed proposal is coming for them — and INSUFFICIENT_DATA where a tool is in neither, which outranks the other two per principle 1.
+
+This also exposed the reach check gating on stickout and flute length together: a list commonly carries one and not the other, and a 0.900″ stickout against a 1.500″ cut is a reach problem whether or not the flute length is known. Each figure is now checked on its own, the finding names the half that did not run, and a value from the list is attributed to the list rather than to the crib.
+
+`src/lib/nc/tool-list.ts` (new), `src/app/api/parts/[id]/nc-analyze/route.ts`, `src/lib/nc/audit-gates.ts`, `src/lib/nc/analyze.ts`, `src/components/nc-analyzer.tsx`, `tests/engines/tool-list.test.ts` (16 tests).
