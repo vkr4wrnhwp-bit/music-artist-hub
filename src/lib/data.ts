@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import type { PartIntent } from "./domain/part-intent";
-import { emptyPartIntent } from "./domain/part-intent";
+import { emptyPartIntent, reconcileIntentWithStock } from "./domain/part-intent";
 import type { Feature, Stock } from "./domain/features";
 import type { MachineProfile, Tool, WorkholdingDevice, MetrologyDevice, MaterialProfile } from "./domain/shop";
 
@@ -215,8 +215,14 @@ export async function loadRevision(
   if (!part || part.revisions.length === 0) return null;
   const rev = part.revisions[0];
 
-  const intent = { ...emptyPartIntent(part.name), ...parseJson<Partial<PartIntent>>(rev.intentJson, {}) } as PartIntent;
   const stock = parseJson<Stock | null>(rev.stockJson, null);
+  // The stock a machinist defined is the answer to the intent's material and
+  // stock questions. Reconciled on the way out, in one place, so the gate and
+  // the part page cannot disagree about whether stock exists.
+  const intent = reconcileIntentWithStock(
+    { ...emptyPartIntent(part.name), ...parseJson<Partial<PartIntent>>(rev.intentJson, {}) } as PartIntent,
+    stock,
+  );
 
   const features: Feature[] = rev.features.map((f) => ({
     id: f.id,

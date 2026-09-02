@@ -118,6 +118,31 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
     // The critical-part intake fields the Engineering-input gate checks.
     // These were previously unreachable from any form, so "Complete the
     // Part Responsibility Profile" could never actually complete.
+    // Baseline inputs. Each is recorded only when actually given: an empty
+    // field must leave the gate open, never write a zero that reads as an
+    // answer.
+    const quantityRaw = String(formData.get("quantity") ?? "").trim();
+    const quantity = quantityRaw ? Number(quantityRaw) : null;
+    if (quantity !== null && Number.isFinite(quantity) && quantity >= 1) {
+      intent.quantity = userValue(Math.round(quantity));
+    }
+    const toleranceRaw = String(formData.get("generalTolerance") ?? "").trim();
+    const generalTolerance = toleranceRaw ? Number(toleranceRaw) : null;
+    // A zero general tolerance is not a tolerance. Refused rather than stored.
+    if (generalTolerance !== null && Number.isFinite(generalTolerance) && generalTolerance > 0) {
+      intent.generalTolerance = userValue(generalTolerance);
+    }
+
+    const envelope = (["X", "Y", "Z"] as const).map((axis) => {
+      const raw = String(formData.get(`envelope${axis}`) ?? "").trim();
+      return raw ? Number(raw) : null;
+    });
+    // All three or none. Two axes of a finished envelope is not a smaller
+    // envelope, it is an unanswered question.
+    if (envelope.every((n) => n !== null && Number.isFinite(n) && n > 0)) {
+      intent.finishedEnvelope = userValue({ x: envelope[0]!, y: envelope[1]!, z: envelope[2]! });
+    }
+
     const materialCondition = String(formData.get("materialCondition") ?? "").trim();
     if (materialCondition) intent.materialCondition = userValue(materialCondition);
     const surfaceFinish = String(formData.get("surfaceFinish") ?? "").trim();
@@ -245,6 +270,68 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
                 </div>
                 <Field label="Expected service life (years)">
                   <input name="serviceLifeYears" type="number" step="0.1" className={inputClass} defaultValue={profile?.serviceLifeYears ?? ""} />
+                </Field>
+              </div>
+            </Panel>
+
+            {/* The baseline the gate demands of EVERY part, critical or not.
+                None of it was askable anywhere in the app: material and stock
+                were written once at intake and quantity, general tolerance and
+                the finished envelope had no editor at all. So the gate
+                reported them missing, recommended "Complete the Part
+                Responsibility Profile", and the profile did not ask — fill it
+                out, nothing clears, round again. That loop was reported and
+                this is the half of it that was still open. */}
+            <Panel title="Baseline engineering inputs">
+              <p className="mb-3 text-[11.5px] leading-relaxed text-muted">
+                The Engineering-input gate requires these of every part. Material and stock come from the stock you
+                define on the part page; the rest are stated by you here. A blank leaves the gate open — nothing is
+                averaged or assumed.
+              </p>
+              <div className="space-y-4">
+                <Field label="Quantity" hint="How many of this part are being made in this run.">
+                  <input
+                    name="quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    className={inputClass}
+                    defaultValue={(revision.intent.quantity.value as number | null) ?? ""}
+                  />
+                </Field>
+                <Field
+                  label="General tolerance, inches"
+                  hint="The drawing's title-block tolerance as a ± value. e.g. 0.005 for ±0.005."
+                >
+                  <input
+                    name="generalTolerance"
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    className={inputClass}
+                    defaultValue={(revision.intent.generalTolerance.value as number | null) ?? ""}
+                  />
+                </Field>
+                <Field label="Finished envelope, inches" hint="X × Y × Z of the finished part. Stock smaller than this is refused.">
+                  <div className="flex items-center gap-2">
+                    {(["x", "y", "z"] as const).map((axis) => (
+                      <input
+                        key={axis}
+                        name={`envelope${axis.toUpperCase()}`}
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        aria-label={`Finished envelope ${axis.toUpperCase()}`}
+                        placeholder={axis.toUpperCase()}
+                        className={inputClass}
+                        defaultValue={
+                          ((revision.intent.finishedEnvelope.value as { x: number; y: number; z: number } | null)?.[
+                            axis
+                          ] ?? "") as number | ""
+                        }
+                      />
+                    ))}
+                  </div>
                 </Field>
               </div>
             </Panel>

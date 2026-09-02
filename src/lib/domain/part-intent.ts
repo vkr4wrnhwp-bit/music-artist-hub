@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Provenanced } from "@/lib/provenance";
-import { unknown, userValue } from "@/lib/provenance";
+import { unknown, userValue, value } from "@/lib/provenance";
+import type { Stock } from "./features";
 
 /**
  * The PART INTENT MODEL is the structured contract between "a human described
@@ -137,6 +138,40 @@ export function emptyPartIntent(name = "Untitled Part"): PartIntent {
     unknowns: [],
     confidence: 0,
   };
+}
+
+/**
+ * The stock row IS the answer to two of the intent's questions.
+ *
+ * A machinist who defines stock on the part page has stated the material and
+ * the stock, in a form with its own refusals — stock smaller than the finished
+ * envelope is rejected there, not shrunk to fit. But `defineStock` writes
+ * `stockJson` and the readiness gate reads `intent.stock` and
+ * `intent.material`, and nothing ever connected the two. So the part carried
+ * "4.25 × 3.25 × 0.625 Aluminum 6061" while the gate reported Material and
+ * Stock definition missing and sent the machinist to a profile page that does
+ * not ask for either. Fill it out, nothing clears, go round again.
+ *
+ * This is not inventing a value. The human typed it; the provenance says so,
+ * and says where it came from. An intent that already carries an answer keeps
+ * it — a later, more specific statement is not overwritten by the billet.
+ */
+export function reconcileIntentWithStock(intent: PartIntent, stock: Stock | null): PartIntent {
+  if (!stock) return intent;
+  const out = { ...intent };
+  if (out.stock.value === null) {
+    out.stock = value(stock, "USER", "VERIFIED", {
+      confirmedByUser: true,
+      note: "Defined on the part page.",
+    });
+  }
+  if (out.material.value === null && stock.material) {
+    out.material = value(stock.material, "USER", "VERIFIED", {
+      confirmedByUser: true,
+      note: "Taken from the stock this part is cut from.",
+    });
+  }
+  return out;
 }
 
 /** Fields the planner refuses to proceed without, regardless of criticality. */
