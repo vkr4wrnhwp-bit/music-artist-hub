@@ -1692,6 +1692,13 @@ model RotationalPart {
   humanApproved Boolean @default(false)
   approvedById  String?
   approvedAt    DateTime?
+  // The digest of the state that was approved. A rotational part has no
+  // revision — profile, plan, lathe, workholding and grip all sit on this one
+  // mutable row — so a bare boolean would keep reading PASS over geometry
+  // nobody approved. Change any approved field and the approval reads STALE.
+  // Null on a row approved before this existed, which is treated as STALE:
+  // an approval whose subject cannot be identified is not evidence.
+  approvedDigest String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

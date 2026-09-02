@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { turnApprovalState } from "./approval";
 import type { RotationalProfile } from "./geometry";
 import { generateTurnToolpath, type TurnOperation, type TurnToolpathResult } from "./operations";
 import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from "./analysis";
@@ -188,7 +189,7 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     cssUsed,
     inspectionCapable,
     postSelected: true,
-    humanApproved: rot.humanApproved,
+    approval: turnApprovalState(rot, rot),
   });
   const blocking = readiness.gates.filter((g) => g.blocking && (g.status === "FAIL" || g.status === "NOT_ATTEMPTED"));
 

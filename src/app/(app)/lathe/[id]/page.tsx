@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser, requireWrite } from "@/lib/auth";
+import { canApprove, requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { TopBar } from "@/components/nav";
@@ -17,6 +17,7 @@ import type { GuideContext } from "@/lib/guide/engine";
 import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
+import { turnApprovalDigest, turnApprovalState, TURN_APPROVAL_STATEMENT } from "@/lib/manufacturing/turn/approval";
 import { bestNominalSuggestion } from "@/lib/engines/nominal";
 
 /**
@@ -70,7 +71,81 @@ export default async function LathePartPage(props: {
       ? bestNominalSuggestion({ measured: journal.diameterStart, uncertainty: 0.0002, context: "SHAFT" })
       : null;
 
+  // Whether the recorded approval still describes the part as it stands. The
+  // gate uses the same function, so the panel and the gate cannot disagree.
+  const approvalState = turnApprovalState(rot, rot);
+  const approver = rot.approvedById
+    ? await db.user.findUnique({ where: { id: rot.approvedById }, select: { name: true, email: true } })
+    : null;
+  const approvedBy = approver?.name || approver?.email || null;
+
   /* ---------------- Actions ---------------- */
+
+  /**
+   * Approving a turned package.
+   *
+   * `humanApproved` had three readers and no writer, so the approval gate
+   * could never pass and lathe NC export was unreachable for every part —
+   * while the list card invited the operator to "REVIEW AND APPROVE".
+   *
+   * The digest is taken from the row as it is read HERE, inside the action,
+   * not from anything the page rendered. A stale page approving a part that
+   * changed underneath it is the exact failure the digest exists to catch, and
+   * it would be absurd for the approval itself to be the one write that
+   * bypasses it.
+   */
+  async function approveTurn() {
+    "use server";
+    const u = await requireWrite();
+    if (!canApprove(u)) redirect(`/lathe/${id}`);
+    const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
+    if (!fresh) notFound();
+
+    await db.rotationalPart.update({
+      where: { id: fresh.id },
+      data: {
+        humanApproved: true,
+        approvedById: u.id,
+        approvedAt: new Date(),
+        approvedDigest: turnApprovalDigest(fresh),
+      },
+    });
+    await audit({
+      organizationId: u.organizationId,
+      userId: u.id,
+      entityType: "RotationalPart",
+      entityId: fresh.id,
+      action: "APPROVE",
+      actorType: "HUMAN",
+      reason: TURN_APPROVAL_STATEMENT,
+    });
+    revalidatePath(`/lathe/${id}`);
+  }
+
+  /** Withdrawing it. An approval a human no longer stands behind is not one. */
+  async function revokeTurnApproval() {
+    "use server";
+    const u = await requireWrite();
+    const fresh = await db.rotationalPart.findFirst({ where: { id: rot!.id, organizationId: u.organizationId } });
+    if (!fresh) notFound();
+    await db.rotationalPart.update({
+      where: { id: fresh.id },
+      data: { humanApproved: false, approvedById: null, approvedAt: null, approvedDigest: null },
+    });
+    await audit({
+      organizationId: u.organizationId,
+      userId: u.id,
+      entityType: "RotationalPart",
+      entityId: fresh.id,
+      action: "UPDATE",
+      actorType: "HUMAN",
+      field: "humanApproved",
+      oldValue: "approved",
+      newValue: "not approved",
+      reason: "Approval withdrawn. The part cannot be exported until it is approved again.",
+    });
+    revalidatePath(`/lathe/${id}`);
+  }
 
   async function acceptNominal() {
     "use server";
@@ -447,6 +522,56 @@ export default async function LathePartPage(props: {
                 </li>
               ))}
             </ul>
+          </Panel>
+
+          {/* ---------------- Operator approval ---------------- */}
+          <Panel
+            title="Operator approval"
+            meta={
+              <StatusChip tone={approvalState === "APPROVED" ? "pass" : approvalState === "STALE" ? "review" : "unknown"}>
+                {approvalState === "APPROVED" ? "APPROVED" : approvalState === "STALE" ? "NO LONGER APPLIES" : "NOT APPROVED"}
+              </StatusChip>
+            }
+          >
+            <p className="mb-4 max-w-2xl text-[12.5px] leading-relaxed text-muted">
+              Approval is a human act with a name attached to it. It records who reviewed this package and when — it
+              does not certify that the part is safe, and it does not override any failing gate above.
+            </p>
+
+            {approvalState === "STALE" && (
+              <Notice tone="review" title="This part changed after it was approved">
+                A turned part has no revision — the profile, the plan, the lathe, the workholding and the grip all live
+                on the one record — so the approval is bound to the state it was given. Something in that state has
+                changed since, and the approval no longer describes what would run. Review it and approve again.
+              </Notice>
+            )}
+
+            {approvalState === "APPROVED" ? (
+              <>
+                <p className="text-[12.5px] leading-relaxed text-platinum">
+                  {rot.approvedAt ? `Approved ${rot.approvedAt.toISOString().slice(0, 10)}` : "Approved"}
+                  {approvedBy ? ` by ${approvedBy}` : ""}.
+                </p>
+                <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted">{TURN_APPROVAL_STATEMENT}</p>
+                <form action={revokeTurnApproval} className="mt-4">
+                  <Button type="submit" size="sm">
+                    Withdraw approval
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <>
+                <p className="mb-3 max-w-2xl text-[12.5px] leading-relaxed text-platinum">{TURN_APPROVAL_STATEMENT}</p>
+                <form action={approveTurn}>
+                  <Button type="submit" variant="primary" disabled={!canApprove(user)}>
+                    {approvalState === "STALE" ? "Approve this package again" : "Approve turning package"}
+                  </Button>
+                </form>
+                {!canApprove(user) && (
+                  <p className="mt-2 text-[11.5px] text-muted">Your role does not permit approving a package.</p>
+                )}
+              </>
+            )}
           </Panel>
 
           {/* ---------------- NC preview ---------------- */}

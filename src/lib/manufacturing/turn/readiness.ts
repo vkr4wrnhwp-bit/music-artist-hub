@@ -1,4 +1,5 @@
 import type { RotationalProfile } from "./geometry";
+import type { TurnApprovalState } from "./approval";
 import { validateProfile } from "./geometry";
 import type { TurnAnalysis } from "./analysis";
 import type { TurnInspectionVerdict } from "./derive";
@@ -38,7 +39,15 @@ export interface TurnReadinessInput {
   /** Verdict from turn/derive.ts — the mill's 10:1/4:1 rule, one home. */
   inspectionCapable: TurnInspectionVerdict | null; // null = not assessed
   postSelected: boolean;
-  humanApproved: boolean;
+  /**
+   * Whether a human has approved THIS package.
+   *
+   * STALE means someone approved an earlier state of the part and something
+   * approved has changed since — the profile, the plan, the lathe, the
+   * workholding or the grip. It reopens the gate rather than passing it, which
+   * is the whole reason the approval carries a digest. See turn/approval.ts.
+   */
+  approval: TurnApprovalState;
 }
 
 const fromAnalysis = (a: TurnAnalysis | null, na: string): { status: TurnGateStatus; detail: string } => {
@@ -127,7 +136,16 @@ export function evaluateTurnReadiness(input: TurnReadinessInput): {
     g("inspection", "Inspection capability", status, detail);
   }
   g("post", "Post / NC", input.postSelected ? "PASS" : "FAIL", input.postSelected ? "Development lathe post selected." : "No post selected.");
-  g("approval", "Human approval", input.humanApproved ? "PASS" : "NOT_ATTEMPTED", input.humanApproved ? "Approved." : "Awaiting a named human.");
+  g(
+    "approval",
+    "Human approval",
+    input.approval === "APPROVED" ? "PASS" : "NOT_ATTEMPTED",
+    input.approval === "APPROVED"
+      ? "Approved."
+      : input.approval === "STALE"
+        ? "This part was approved and has changed since — the profile, plan, lathe, workholding or grip is not the one that was reviewed. It needs approving again."
+        : "Awaiting a named human.",
+  );
 
   // Worst-gate, by construction: any blocking FAIL/NOT_ATTEMPTED → NOT
   // READY; any REVIEW → REVIEW REQUIRED; else ready.

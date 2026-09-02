@@ -29,7 +29,7 @@ const input = (over: Partial<TurnReadinessInput> = {}): TurnReadinessInput =>
     chuckRpmKnown: true,
     inspectionCapable: "CAPABLE" as const,
     postSelected: true,
-    humanApproved: true,
+    approval: "APPROVED" as const,
     cssUsed: false,
     ...over,
   }) as unknown as TurnReadinessInput;
@@ -91,7 +91,7 @@ test("one blocking failure is enough, whatever else passes", () => {
     { workholdingSelected: false },
     { grip: bad() },
     { stickout: bad() },
-    { humanApproved: false },
+    { approval: "NONE" as const },
     { postSelected: false },
   ]) {
     assert.equal(
@@ -144,4 +144,38 @@ test("a marginal instrument is REVIEW, never PASS — and never averaged into re
   // Nothing to verify is not the same as verified, and the wording keeps
   // the two apart.
   assert.match(g2.detail, /not the same as verified/i);
+});
+
+/* ---------------- An approval that stops applying ---------------- */
+
+/**
+ * `RotationalPart.humanApproved` had readers in three places and no writer
+ * anywhere, so this gate could never pass and lathe NC export was unreachable
+ * for every part. Adding the writer raised a second problem: a rotational part
+ * has no revision, so profile, plan, lathe, workholding and grip all sit on one
+ * mutable row and a bare boolean would keep reading PASS over geometry nobody
+ * approved. The approval is bound to a digest of what was approved.
+ */
+
+test("an approval that no longer matches the part reopens the gate", () => {
+  const g = gate({ approval: "STALE" as const }, "approval");
+  assert.equal(g?.status, "NOT_ATTEMPTED");
+  // And it says which, so an operator is not left wondering why their approval
+  // vanished.
+  assert.match(g!.detail, /changed since/i);
+  assert.match(g!.detail, /profile|plan|lathe|workholding|grip/i);
+});
+
+test("a stale approval blocks, exactly as an absent one does", () => {
+  // STALE must not be a softer NONE. It is the state where somebody DID
+  // approve, which is the state most likely to be read as good enough.
+  assert.equal(evaluateTurnReadiness(input({ approval: "STALE" as const })).overall, "NOT_READY_TO_RUN");
+  assert.equal(evaluateTurnReadiness(input({ approval: "NONE" as const })).overall, "NOT_READY_TO_RUN");
+});
+
+test("the three approval states are distinguishable in what they say", () => {
+  const detail = (a: "NONE" | "APPROVED" | "STALE") => gate({ approval: a }, "approval")!.detail;
+  assert.notEqual(detail("NONE"), detail("STALE"));
+  assert.match(detail("NONE"), /awaiting/i);
+  assert.match(detail("APPROVED"), /approved/i);
 });
