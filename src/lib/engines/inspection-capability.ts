@@ -19,6 +19,15 @@
  */
 
 import type { Feature } from "@/lib/domain/features";
+import { METROLOGY_LABELS, type MetrologyDeviceType } from "@/lib/domain/shop";
+
+/**
+ * A device type in a sentence. Falls back to the raw token rather than an
+ * empty string, so an instrument class this vocabulary has not caught up with
+ * reads as unfamiliar rather than as nothing at all.
+ */
+const METHOD_LABEL = (deviceType: string): string =>
+  METROLOGY_LABELS[deviceType as MetrologyDeviceType] ?? deviceType.replace(/_/g, " ").toLowerCase();
 
 export const CAPABILITY_VERDICTS = ["CAPABLE", "MARGINAL", "NOT_CAPABLE", "NO_INSTRUMENT", "NOT_REQUIRED"] as const;
 export type CapabilityVerdict = (typeof CAPABILITY_VERDICTS)[number];
@@ -212,6 +221,21 @@ export interface CapabilityRequest {
   /** Total tolerance band, inches. Null when the feature carries no tolerance. */
   toleranceBand: number | null;
   critical: boolean;
+  /**
+   * The instrument class the shop has DECIDED to verify this feature with,
+   * when one has been assigned.
+   *
+   * Without it this gate answers "could the shop measure this with the best
+   * thing it owns", which is not the question once a method exists. A shop
+   * that owns a bore gauge and plans to check the bore with calipers would
+   * otherwise pass on the bore gauge it is not going to pick up — the drawer
+   * would be clearing a gate the plan does not.
+   *
+   * So when a method is assigned, the pool narrows to it and the verdict is
+   * about the method. Choosing a worse instrument makes the verdict worse,
+   * which is the correct and uncomfortable answer.
+   */
+  chosenDeviceType?: string | null;
 }
 
 export interface CapabilityResult {
@@ -277,7 +301,10 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
 
   const reachable = instruments
     .filter((d) => canReachGeometry(d, request.geometry))
-    .filter((d) => inRange(d, request.nominal));
+    .filter((d) => inRange(d, request.nominal))
+    // Once a method is chosen, the verdict is about the method. See
+    // `chosenDeviceType` — the drawer must not clear a gate the plan does not.
+    .filter((d) => !request.chosenDeviceType || d.deviceType === request.chosenDeviceType);
 
   // An on-machine probe can reach the geometry and still cannot accept the
   // feature. Split it out here rather than letting it win on uncertainty.
@@ -297,9 +324,11 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
       requiredUncertainty,
       reason: probeOwned
         ? `${probeOwned.description} can reach this feature, but it measures the part in the fixture that cut it, using the machine's own scales — it cannot detect an error the machine itself made, so it is not acceptance evidence. Nothing else on the metrology list can measure this feature.`
-        : request.nominal != null
-          ? `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension at ⌀${request.nominal.toFixed(4)}.`
-          : `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension.`,
+        : request.chosenDeviceType
+          ? `This feature is assigned to be verified with ${METHOD_LABEL(request.chosenDeviceType)}, and the shop has no such instrument that can reach a ${request.geometry.toLowerCase()} dimension${request.nominal != null ? ` at ⌀${request.nominal.toFixed(4)}` : ""}. The assigned method is the one judged here, not the best instrument in the drawer.`
+          : request.nominal != null
+            ? `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension at ⌀${request.nominal.toFixed(4)}.`
+            : `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension.`,
       recommendations: [
         ...(probeOwned ? [`Keep the probe for ${PROBE_ROLE}; accept the feature off the machine`] : []),
         ...upgradesFor(request.geometry, instruments, requiredUncertainty),

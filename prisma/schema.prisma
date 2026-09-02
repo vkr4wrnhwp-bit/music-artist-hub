@@ -480,7 +480,23 @@ model Feature {
   tolerancePlus  Float?
   toleranceMinus Float?
   surfaceFinish  Float?
+  // HOW THIS FEATURE WILL BE VERIFIED
+  //
+  // `inspectionMethod` is the sentence a machinist reads. `inspectionDeviceType`
+  // is the instrument class the capability engine judges, and once it is set
+  // that class — not the best instrument in the drawer — is what decides
+  // whether the tolerance can be verified. Choosing a worse instrument makes
+  // the verdict worse, which is the point.
+  //
+  // Nullable with no default, and existing rows are not backfilled: a method
+  // nobody chose is not a method, and inventing one would clear the gate this
+  // column exists to hold open.
   inspectionMethod String?
+  inspectionDeviceType String?
+  // Who decided, and when. The audit log records the act; this keeps the
+  // decision legible on the feature itself and on the first-article report.
+  inspectionMethodBy String?
+  inspectionMethodAt DateTime?
 
   // FUNCTION BEFORE DIMENSION
   //

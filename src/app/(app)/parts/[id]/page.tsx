@@ -304,6 +304,9 @@ export default async function PartWorkspace(props: {
         nominal: nominalOf(f),
         toleranceBand: band,
         critical: f.critical,
+        // Judged on the assigned method where there is one, so the workspace
+        // panel and the readiness gate cannot disagree.
+        chosenDeviceType: f.inspectionDeviceType ?? null,
       },
       instruments,
     );

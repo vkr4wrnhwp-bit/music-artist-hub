@@ -239,6 +239,7 @@ export async function loadRevision(
         : undefined,
     surfaceFinish: f.surfaceFinish ?? undefined,
     inspectionMethod: f.inspectionMethod ?? undefined,
+    inspectionDeviceType: f.inspectionDeviceType ?? undefined,
     notes: f.notes ?? undefined,
     ...parseJson<Record<string, unknown>>(f.parametersJson, {}),
   })) as Feature[];

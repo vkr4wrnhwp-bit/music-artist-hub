@@ -379,6 +379,9 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
           nominal: "diameter" in f ? f.diameter : null,
           toleranceBand: f.tolerance ? f.tolerance.plus + f.tolerance.minus : null,
           critical: f.critical,
+          // A feature with an assigned method is judged on that method, not on
+          // the best instrument in the drawer. See engines/inspection-method.ts.
+          chosenDeviceType: f.inspectionDeviceType ?? null,
         },
         instruments,
       ),

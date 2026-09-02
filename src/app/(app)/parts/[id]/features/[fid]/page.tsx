@@ -15,6 +15,8 @@ import {
   type InterfaceSide,
 } from "@/lib/engines/mating";
 import { assessCapability, measurementGeometry } from "@/lib/engines/inspection-capability";
+import { methodOptions, geometryPhrase } from "@/lib/engines/inspection-method";
+import { assignInspectionMethod } from "../inspection-method-actions";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
@@ -77,6 +79,9 @@ export default async function FeatureDetailPage(props: {
 
   /* ---- What can measure this, and how well ---- */
 
+  // Every method this shop could honestly assign, each carrying the verdict it
+  // would produce. Computed by the capability engine, not ranked here.
+
   // Which instruments can reach this is the engine's decision, not this page's.
   // A local list here disagreed with the readiness gate on dowel and mounting
   // holes, which the engine classifies POSITION rather than INTERNAL.
@@ -88,6 +93,9 @@ export default async function FeatureDetailPage(props: {
       nominal: diameter,
       toleranceBand: band,
       critical: feature.critical,
+      // Once a method is assigned, this gate judges the method. See
+      // engines/inspection-method.ts.
+      chosenDeviceType: row.inspectionDeviceType,
     },
     metrology.map((d) => ({
       id: d.id,
@@ -100,6 +108,19 @@ export default async function FeatureDetailPage(props: {
       calibrated: d.calibrated,
     })),
   );
+
+  const instrumentList = metrology.map((d) => ({
+    id: d.id,
+    deviceType: d.deviceType as string,
+    description: d.description,
+    resolution: d.resolution,
+    uncertainty: d.uncertainty,
+    rangeMin: d.rangeMin ?? null,
+    rangeMax: d.rangeMax ?? null,
+    calibrated: d.calibrated,
+  }));
+  const options = methodOptions(feature, instrumentList);
+  const assignMethod = assignInspectionMethod.bind(null, id);
 
   /* ---- Reasoning from the interface ---- */
 
@@ -634,6 +655,97 @@ export default async function FeatureDetailPage(props: {
                 ))}
               </ul>
             )}
+
+            {/* ---- How this feature will be verified ---- */}
+            <div className="mt-6 border-t border-line pt-5">
+              <SectionHeading>How this one will be checked</SectionHeading>
+
+              {row.inspectionMethod ? (
+                <div className="mt-3 grid gap-x-8 sm:grid-cols-2">
+                  <DataRow label="Method" value={row.inspectionMethod} />
+                  <DataRow
+                    label="Decided by"
+                    value={
+                      row.inspectionMethodBy
+                        ? `${row.inspectionMethodBy}${row.inspectionMethodAt ? ` · ${row.inspectionMethodAt.toISOString().slice(0, 10)}` : ""}`
+                        : "not recorded"
+                    }
+                  />
+                </div>
+              ) : (
+                <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-platinum">
+                  No method is assigned.{" "}
+                  {feature.critical
+                    ? "This feature is flagged critical, so the critical tolerance strategy gate stays open until one is."
+                    : "Assigning one is optional for a feature that is not critical."}
+                </p>
+              )}
+
+              <p className="mt-3 max-w-2xl text-[12px] leading-relaxed text-muted">
+                Only instruments this shop owns that can physically reach a {geometryPhrase(measurementGeometry(feature))}{" "}
+                feature of this size are listed. Once a method is assigned it is the method — not the best instrument in
+                the drawer — that the inspection capability gate judges, so choosing a coarser one makes this part read
+                worse rather than better.
+              </p>
+
+              {options.length === 0 ? (
+                <Notice tone="review" title="No instrument in this shop can reach this feature">
+                  Nothing on the metrology list can measure a {geometryPhrase(measurementGeometry(feature))} feature of
+                  this size, so there is no method to assign. Add a suitable instrument on the metrology page.
+                </Notice>
+              ) : (
+                <form action={assignMethod} className="mt-4 space-y-3">
+                  <input type="hidden" name="featureId" value={feature.id} />
+                  <div className="space-y-1.5">
+                    {options.map((o) => (
+                      <label
+                        key={o.deviceType}
+                        className="flex cursor-pointer items-start gap-3 border border-line bg-surface px-3 py-2.5 hover:border-precision"
+                      >
+                        <input
+                          type="radio"
+                          name="deviceType"
+                          value={o.deviceType}
+                          defaultChecked={row.inspectionDeviceType === o.deviceType}
+                          className="mt-1 accent-[var(--canvas-precision)]"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-[13px] text-platinum">{o.label}</span>
+                            <StatusChip
+                              tone={o.verdict === "CAPABLE" ? "pass" : o.verdict === "MARGINAL" ? "review" : "risk"}
+                            >
+                              {o.verdict.replace(/_/g, " ")}
+                            </StatusChip>
+                            {o.consumedFraction != null && (
+                              <span className="tech-label text-muted">
+                                {(o.consumedFraction * 100).toFixed(0)}% of band
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">{o.reason}</span>
+                          <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">
+                            {o.instruments.map((d) => d.description).join(", ")}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                    {row.inspectionDeviceType && (
+                      <label className="flex cursor-pointer items-center gap-3 border border-line bg-surface px-3 py-2.5 hover:border-precision">
+                        <input type="radio" name="deviceType" value="" className="accent-[var(--canvas-precision)]" />
+                        <span className="text-[13px] text-platinum">
+                          Clear the method
+                          <span className="ml-2 text-[12px] text-muted">— reopens the critical tolerance strategy gate</span>
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                  <Button type="submit" variant="primary" size="sm">
+                    Record method
+                  </Button>
+                </form>
+              )}
+            </div>
           </Panel>
           )}
 

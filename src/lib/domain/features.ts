@@ -75,6 +75,12 @@ export interface FeatureBase {
   /** Ra in microinches. */
   surfaceFinish?: number;
   inspectionMethod?: string;
+  /**
+   * Instrument class the method names. Carried separately from the sentence
+   * because the capability engine judges the class, and parsing it back out of
+   * prose would be a second vocabulary that could drift from the first.
+   */
+  inspectionDeviceType?: string;
   notes?: string;
 }
 
