@@ -1666,3 +1666,85 @@ model BetaRunRecord {
   @@index([organizationId])
   @@index([partRevisionId])
 }
+
+/*
+ * REVIEW FINDINGS — the pre-flight review's findings, kept rather than
+ * recomputed and forgotten.
+ *
+ * The finding CONTENT is not the source of truth here. Findings are
+ * recomputed from current evidence on every review, which is the point: a
+ * finding must reflect the setup as it is now, not as it was when somebody
+ * last looked. What is stored is the finding's history — when it was first
+ * raised, when it was last seen, and when it stopped being raised — and the
+ * human responses recorded against it.
+ *
+ * Identity is `findingKey`, derived from the check and the setup, operation
+ * or feature it concerns. Never a position in a list.
+ */
+model ReviewFinding {
+  id             String @id @default(cuid())
+  organizationId String
+  partRevisionId String
+  /** Stable identity: the check plus what it is about. */
+  findingKey     String
+
+  // The finding as last computed. A snapshot for history and for detecting
+  // that the evidence moved — never read in place of running the engine.
+  severity     String // HIGH | MEDIUM | LOW
+  title        String
+  detail       String
+  method       String
+  evidenceJson String
+  /**
+   * Digest over the evidence that produced this finding. A human response is
+   * recorded against a digest; when the evidence changes the digest changes,
+   * and the response is stale rather than silently still applying. This is
+   * how principle 2 survives persistence — the acknowledgement was of a
+   * specific engineering condition, not of a title.
+   */
+  evidenceDigest String
+
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  /** Set when the engine stops raising it. The evidence changed; nobody clicked. */
+  clearedAt   DateTime?
+
+  resolutions FindingResolution[]
+
+  @@unique([partRevisionId, findingKey])
+  @@index([organizationId])
+  @@index([partRevisionId])
+}
+
+/*
+ * A human response to a finding. Append-only: the current response is the
+ * most recent one, and the earlier ones stay as the record of what was
+ * thought at the time.
+ *
+ * A resolution does not clear a gate and does not remove the finding. It
+ * records that somebody looked, what they concluded, and against which
+ * evidence — principle 11.
+ */
+model FindingResolution {
+  id        String @id @default(cuid())
+  findingId String
+
+  // ACKNOWLEDGED — seen, not yet acted on.
+  // ACTIONED     — a change was made; the next review reads the new evidence.
+  // DISPUTED     — the machinist does not agree with the finding.
+  status String
+  note   String
+
+  // HUMAN | AI | SYSTEM — never inferred, always set explicitly by the caller.
+  actorType String @default("HUMAN")
+  actorId   String
+  actorName String
+
+  /** The evidence digest this response was recorded against. */
+  evidenceDigest String
+  recordedAt     DateTime @default(now())
+
+  finding ReviewFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([findingId])
+}

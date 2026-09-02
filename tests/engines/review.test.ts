@@ -343,8 +343,8 @@ test("every finding carries evidence and a method that can be argued with", () =
     assert.ok(f.evidence.length > 0, `${f.title} carries no evidence`);
     assert.ok(f.method.length > 10, `${f.title} names no method`);
     assert.ok(f.recommendation.length > 10, `${f.title} says nothing to do`);
-    assert.ok(!ids.has(f.id), "finding ids must be unique");
-    ids.add(f.id);
+    assert.ok(!ids.has(f.key), "finding keys must be unique");
+    ids.add(f.key);
   }
 });
 

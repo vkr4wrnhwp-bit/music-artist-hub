@@ -124,10 +124,49 @@ test("every audit entry names its actor as a literal, never a computed one", () 
     if (f.startsWith("src/generated/")) continue; // Prisma's own types, not our call sites
     // Comments discuss the rule; only real call sites are being checked.
     const src = read(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-    for (const m of src.matchAll(/actorType:\s*([^,\n}]+)/g)) {
+    for (const m of src.matchAll(/actorType:\s*([^,;\n}]+)/g)) {
       const v = m[1].trim();
-      if (!/^"(HUMAN|AI|SYSTEM)"$/.test(v)) offenders.push(`${f}: actorType: ${v}`);
+      if (/^"(HUMAN|AI|SYSTEM)"$/.test(v)) continue;
+      // A type declaration — `actorType: ActorType` — states the field, it
+      // does not set it. The rule is about values reaching a record.
+      if (/^(ActorType|string)$/.test(v)) continue;
+      // Carrying a STORED actor through unchanged — `row.actorType` — is not
+      // an inference: the decision was made and recorded at the write, and
+      // this is reading it back to show it. Anything else (a ternary, a
+      // variable, a call) is a guess about who acted. Write sites are held to
+      // the stricter rule below, so a carry-through into a database write is
+      // still caught.
+      if (/^[A-Za-z_$][\w$]*\.actorType(?: as ActorType)?$/.test(v)) continue;
+      offenders.push(`${f}: actorType: ${v}`);
     }
   }
   assert.deepEqual(offenders, [], "an audit actor was computed rather than stated");
+});
+
+test("no database write decides an actor — every write states one", () => {
+  // The read-back exemption above must not become a way to launder an actor
+  // into storage. At a write site the actor is a literal or nothing.
+  const offenders: string[] = [];
+  for (const f of walk("src")) {
+    if (f.startsWith("src/generated/")) continue;
+    if (f.endsWith("audit.ts")) continue; // the sink writes the actor its caller stated
+    const src = read(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    for (const w of src.matchAll(/db\.\w+\.(create|createMany|update|updateMany|upsert)\(/g)) {
+      // To the matching close paren, so the window is the call and not
+      // whatever happens to follow it — an overrunning window reports
+      // unrelated code and would be worked around by widening the exemption.
+      let depth = 0;
+      let end = w.index! + w[0].length;
+      for (let i = w.index! + w[0].length - 1; i < src.length; i++) {
+        if (src[i] === "(") depth++;
+        else if (src[i] === ")") { depth--; if (depth === 0) { end = i; break; } }
+      }
+      const block = src.slice(w.index!, end);
+      for (const m of block.matchAll(/actorType:\s*([^,;\n}]+)/g)) {
+        const v = m[1].trim();
+        if (!/^"(HUMAN|AI|SYSTEM)"$/.test(v)) offenders.push(`${f}: ${w[0]} ... actorType: ${v}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], "a database write took its actor from something other than a literal");
 });

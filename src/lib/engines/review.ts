@@ -50,7 +50,16 @@ export interface FindingLocation {
 }
 
 export interface ReviewFinding {
-  id: string;
+  /**
+   * Stable identity, derived from what the finding is ABOUT — the check, and
+   * the setup, operation or feature it concerns. It was a positional counter
+   * ("finding-1", "finding-2"), which is an identity only for as long as
+   * nothing changes: fixing the first finding renumbers every one below it,
+   * so a human response recorded against "finding-3" would silently reattach
+   * itself to a different finding on the next review. Nothing can be tracked,
+   * assigned or closed against a number that moves.
+   */
+  key: string;
   severity: Severity;
   title: string;
   /** What is wrong, in a machinist's terms. */
@@ -99,8 +108,6 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
   const checksRun: string[] = [];
   const checksSkipped: { check: string; reason: string }[] = [];
 
-  let n = 0;
-  const id = () => `finding-${++n}`;
 
   /* ---------------- Holding margin ---------------- */
 
@@ -119,7 +126,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
     const lbf = (v: number | null) => (v != null ? `${v} lbf` : "not established");
 
     findings.push({
-      id: id(),
+      key: `holding-margin:${setup.id}`,
       severity: margin.verdict === "INSUFFICIENT" ? "HIGH" : "MEDIUM",
       title: established
         ? `Grip margin ${margin.verdict.toLowerCase()} in ${setup.name}`
@@ -219,7 +226,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
 
         const lowest = offending.reduce((a, b) => (a.z < b.z ? a : b));
         findings.push({
-          id: id(),
+          key: `rapid-jaw-clearance:${setup.id}:${op.id}`,
           severity: "HIGH",
           title: `Rapid clearance near vise jaw in ${setup.name}`,
           detail: `${offending.length} rapid ${offending.length === 1 ? "move travels" : "moves travel"} sideways below the top of the jaws during ${op.label}. A lateral rapid at that height clears the workpiece and does not clear the vise. Plunges straight down over a feature are excluded — those are normal.`,
@@ -266,7 +273,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
 
       if (!canReach(tool, depth)) {
         findings.push({
-          id: id(),
+          key: `tool-reach:${setup.id}:${op.id}`,
           severity: "HIGH",
           title: `Tool cannot reach depth in ${op.label}`,
           detail: `T${tool.toolNumber} ${tool.description} has ${tool.fluteLength.toFixed(3)}" of flute and ${tool.stickout.toFixed(3)}" of stickout, against a ${depth.toFixed(3)}" cut depth.`,
@@ -299,7 +306,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
       const clearance = tool.stickout - depth;
       if (clearance >= REACH_MINIMUM && clearance < REACH_COMFORT) {
         findings.push({
-          id: id(),
+          key: `holder-clearance:${setup.id}:${op.id}`,
           severity: "MEDIUM",
           title: `Tool reach close to holder collision in ${op.label}`,
           detail: `T${tool.toolNumber} leaves only ${clearance.toFixed(3)}" between the holder nose and the top of the cut. Any variation in stickout or work offset closes that.`,
@@ -328,7 +335,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
       if (ratio < 0.8) continue;
 
       findings.push({
-        id: id(),
+        key: `spindle-power:${setup.id}`,
         severity: ratio >= 1 ? "HIGH" : "MEDIUM",
         title: `Roughing pass draws ${(ratio * 100).toFixed(0)}% of spindle power in ${setup.name}`,
         detail:
@@ -355,7 +362,7 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
   for (const cap of input.capability) {
     if (cap.verdict !== "NOT_CAPABLE" && cap.verdict !== "NO_INSTRUMENT") continue;
     findings.push({
-      id: id(),
+      key: `inspection-capability:${cap.featureId}`,
       severity: "HIGH",
       title: `${cap.featureLabel} cannot be verified with the instruments on hand`,
       detail: cap.reason,

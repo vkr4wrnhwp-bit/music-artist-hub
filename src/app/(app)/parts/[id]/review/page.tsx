@@ -7,6 +7,9 @@ import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { DataRow, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
 import { findingShowMeHref } from "@/lib/guide/show-me";
+import { clearedFindings, syncFindings } from "@/lib/review-findings-store";
+import { FindingResponse } from "@/components/review/finding-response";
+import { recordFindingResolution } from "./finding-actions";
 
 /**
  * RUN IT PAST CANVAS
@@ -56,6 +59,15 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
     stockZ: pkg.revision.stock?.z ?? null,
   });
 
+  /*
+   * The findings are computed above and are the only thing displayed. This
+   * reconciles them against the record so each one can carry its history and
+   * whatever a machinist concluded about it — it never serves a stored
+   * finding in place of a computed one.
+   */
+  const records = await syncFindings(user.organizationId, pkg.revision.revisionId, review.findings);
+  const cleared = await clearedFindings(pkg.revision.revisionId);
+
   return (
     <>
       <TopBar>
@@ -92,7 +104,7 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
           {/* ---------------- Findings ---------------- */}
           {review.findings.map((f, i) => (
             <Panel
-              key={f.id}
+              key={f.key}
               title={`${String(i + 1).padStart(2, "0")} — ${f.title}`}
               meta={<StatusChip tone={TONE[f.severity]}>{f.severity}</StatusChip>}
             >
@@ -127,8 +139,36 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
                     ` · X${f.location.point.x.toFixed(2)} Y${f.location.point.y.toFixed(2)} Z${f.location.point.z.toFixed(3)}`}
                 </span>
               </div>
+
+              <FindingResponse
+                record={records[f.key]}
+                findingKey={f.key}
+                action={recordFindingResolution.bind(null, id)}
+              />
             </Panel>
           ))}
+
+          {/* ---------------- Findings that stopped being raised ---------------- */}
+          {cleared.length > 0 && (
+            <Panel title="No longer raised" meta={<StatusChip tone="pass">{cleared.length}</StatusChip>}>
+              <p className="mb-3 max-w-2xl text-[12.5px] leading-relaxed text-muted">
+                These were raised against this revision and the checks no longer raise them. Nobody dismissed them —
+                the evidence changed. They are kept so a setup that quietly went from bad to good, or was reviewed and
+                then re-planned, leaves a trace.
+              </p>
+              <ul className="space-y-1">
+                {cleared.map((c) => (
+                  <li key={c.findingKey} className="text-[12.5px] leading-relaxed text-platinum-dim">
+                    <span className="tech-label">{c.severity}</span> {c.title}
+                    <span className="block pl-4 text-muted">
+                      Raised {new Date(c.firstSeenAt).toISOString().slice(0, 10)}, last raised{" "}
+                      {new Date(c.clearedAt!).toISOString().slice(0, 10)}.
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
 
           {/* ---------------- What was checked ---------------- */}
           <Panel title="What CANVAS checked">

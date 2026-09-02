@@ -147,14 +147,23 @@ The review workflow exists but runs only against the package CANVAS itself holds
 
 `src/app/(app)/parts/[id]/review/page.tsx:28 builds from `buildPackage`, and line 171 renders the notice "Importing an existing job package is not built". `grep -rn -i "tool list\|setup file" src/app src/lib` finds no importer.`
 
-### Create structured, persisted entities for the review package — ImportedModel, ImportedNCProgram, ImportedToolList, ImportedSetup, ReviewFinding, FindingSeverity, FindingEvidence, FindingResolution
+### Create structured, persisted entities for the review package — ReviewFinding, FindingSeverity, FindingEvidence, FindingResolution (the Imported* entities remain unbuilt)
 
 > Create structured entities for: ImportedModel ImportedNCProgram ImportedToolList ImportedSetup ReviewFinding FindingSeverity FindingEvidence FindingResolution Do not make review findings only chat text.
 
-`ReviewFinding`, `FindingEvidence` and `Severity` exist as TypeScript interfaces only — findings are recomputed on every page load and never persisted, so a finding cannot be tracked, assigned or closed. `FindingResolution` has no trace at all: there is no way to resolve or acknowledge a finding. None of ImportedModel / ImportedToolList / ImportedSetup exist as models (only NCProgram with origin UPLOADED covers part of ImportedNCProgram).
+The finding half is built. `ReviewFinding` and `FindingResolution` are Prisma models, and a finding can now be tracked and answered.
 
-`src/lib/engines/review.ts:35-63 (TS interfaces, no Prisma model); `grep -rn "FindingResolution\|ImportedModel\|ImportedToolList\|ImportedSetup" src prisma docs` returns nothing; prisma/schema.prisma model list has no ReviewFinding.`
+The design decision that matters: **the stored finding is not the source of truth.** The engine is re-run on every review, because a finding has to reflect the setup as it is now. What persists is what the engine cannot know — when a finding was first raised, when it stopped being raised, and what a human concluded about it.
 
+A recorded response is bound to the **evidence digest** of the finding it answered. Change the stickout, re-run, and the digest changes: the earlier answer does not silently carry onto a different engineering condition, it reads as stale and the finding is open again. That is principle 2 surviving the trip through a database — the acknowledgement was of a specific condition, not of a title. The status vocabulary is ACKNOWLEDGED / ACTIONED / DISPUTED, with no RESOLVED, CLOSED or WAIVED, and a test asserts it: a finding goes away when the engine stops raising it and in no other way. A finding that stops being raised is marked cleared, not deleted, and appears under "No longer raised" with the dates it spanned.
+
+This required a prerequisite fix. Finding ids were a positional counter (`finding-1`, `finding-2`), which is an identity only while nothing changes — fix the first finding and every one below it renumbers, so a response recorded against `finding-3` would silently reattach to a different finding on the next review. Findings now carry a `key` derived from the check and the setup, operation or feature it concerns.
+
+Two guards were sharpened rather than loosened along the way. The locked-principle check on audit actors flagged the read path that carries a stored actor back out for display; instead of widening the exemption, it is now two rules — a carry-through read is allowed, and a *second* test asserts no database write anywhere in `src` takes its actor from anything but a literal, which catches exactly the laundering the first exemption would otherwise permit.
+
+**Still unbuilt:** `ImportedModel`, `ImportedToolList` and `ImportedSetup`. Those belong to the job-package import above, not here — there is nothing yet to persist, because STEP import needs a geometry kernel and there is no setup-file parser. `ImportedNCProgram` is partly covered by `NCProgram` with `origin = UPLOADED`, which stores the original bytes, digest, encoding, line ending and detected dialect.
+
+`prisma/schema.prisma` (ReviewFinding, FindingResolution) with both migration trees, `src/lib/review-findings.ts` (digest and vocabulary, no database), `src/lib/review-findings-store.ts`, `src/app/(app)/parts/[id]/review/finding-actions.ts`, `src/components/review/finding-response.tsx`, `src/lib/engines/review.ts` (stable keys), `tests/engines/review-findings.test.ts`.
 ### During guided measurement, highlight the target feature in the uploaded image and the 3D reconstruction
 
 > Highlight the target feature in the uploaded image and 3D reconstruction.
