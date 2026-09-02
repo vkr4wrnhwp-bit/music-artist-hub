@@ -242,6 +242,8 @@ export function ViewEnvironmentDrawer({
               ["Shadow", "shadowStrength"],
               ["Reflection", "reflectionStrength"],
               ["Floor reflectivity", "floorReflectivity"],
+              ["Ambient", "ambientLevel"],
+              ["Highlight", "highlightLevel"],
             ] as const
           ).map(([name, key]) => (
             <div key={key} className="mt-1 flex items-center justify-between gap-2">
@@ -258,6 +260,10 @@ export function ViewEnvironmentDrawer({
               />
             </div>
           ))}
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">
+            Ambient is the fill, Highlight is the key. Lighting changes how the surface reads. It does not change the
+            surface.
+          </p>
         </section>
 
         {/* ---- Line detail ---- */}

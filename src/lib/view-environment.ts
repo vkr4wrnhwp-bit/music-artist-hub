@@ -62,6 +62,22 @@ export interface ViewEnvironment {
   gridIntensity: number;
   /** 0–1. Environment/reflection intensity on metal surfaces. */
   reflectionStrength: number;
+  /**
+   * The two axes of the direct light rig, 0-1, midpoint = the reference.
+   *
+   * Separate from `reflectionStrength`, which drives the softbox environment
+   * and stays the room/reflection axis. These drive only the direct lights, so
+   * the two do not double up on the same surface.
+   *
+   * A machinist reads material and finish off the render before reading any
+   * label, and one rig tuned for a bright studio ground cannot serve a dark
+   * one: on Dark Machine Bay a light aluminium part was lit exactly as on
+   * Studio White. Ambient is the fill — how much light reaches surfaces facing
+   * away from the key. Highlight is the key — the rig that puts the specular
+   * on the top machined face, where the cutter marks are.
+   */
+  ambientLevel: number;
+  highlightLevel: number;
   /** 0–1. Contact shadow opacity. */
   shadowStrength: number;
   /** 0–1. Floor plane visibility; 0 hides the plane entirely. */
@@ -101,6 +117,8 @@ const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "grid
   gridVisible: false,
   gridIntensity: 0.5,
   reflectionStrength: 0.5,
+  ambientLevel: 0.5,
+  highlightLevel: 0.5,
   shadowStrength: 0.45,
   floorVisible: true,
   floorReflectivity: 0.2,
@@ -124,32 +142,32 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
     // knowing which preset is which is what made the floor controls dead on
     // the default and put a floor up uninvited the moment a colour was
     // picked and the preset became CUSTOM.
-    env: { ...base, preset: "STUDIO_WHITE", background: "#f6f6f4", floorColor: "#eceded", gridColor: "#14181c", floorVisible: false },
+    env: { ...base, preset: "STUDIO_WHITE", background: "#f6f6f4", floorColor: "#eceded", gridColor: "#14181c", floorVisible: false, ambientLevel: 0.5, highlightLevel: 0.5 },
   },
   GRAPHITE: {
     label: "Graphite",
-    note: "Mid grey. Calms glare from polished surfaces.",
-    env: { ...base, preset: "GRAPHITE", background: "#8b8f93", floorColor: "#7e8286", gridColor: "#2a2e33", shadowStrength: 0.35 },
+    note: "Mid grey. Calms glare from polished surfaces — key down, fill up.",
+    env: { ...base, preset: "GRAPHITE", background: "#8b8f93", floorColor: "#7e8286", gridColor: "#2a2e33", shadowStrength: 0.35, ambientLevel: 0.6, highlightLevel: 0.38 },
   },
   INSPECTION_GRAY: {
     label: "Inspection Gray",
-    note: "Improves edge visibility on bright aluminum and stainless.",
-    env: { ...base, preset: "INSPECTION_GRAY", background: "#b9bcbe", floorColor: "#aeb1b3", gridColor: "#3c4045", edgeMode: "STRONG", reflectionStrength: 0.3, gridVisible: true },
+    note: "Flat low-glare light on bright aluminum and stainless; the edges carry the read.",
+    env: { ...base, preset: "INSPECTION_GRAY", background: "#b9bcbe", floorColor: "#aeb1b3", gridColor: "#3c4045", edgeMode: "STRONG", reflectionStrength: 0.3, gridVisible: true, ambientLevel: 0.65, highlightLevel: 0.35 },
   },
   BLUEPRINT_BLUE: {
     label: "Blueprint Blue",
     note: "Drawing-room ground for review sessions.",
-    env: { ...base, preset: "BLUEPRINT_BLUE", background: "#1d3a5f", floorColor: "#193353", gridColor: "#7da4cc", gridIntensity: 0.7, shadowStrength: 0.25, gridVisible: true },
+    env: { ...base, preset: "BLUEPRINT_BLUE", background: "#1d3a5f", floorColor: "#193353", gridColor: "#7da4cc", gridIntensity: 0.7, shadowStrength: 0.25, gridVisible: true, ambientLevel: 0.6, highlightLevel: 0.45 },
   },
   WARM_SHOP_FLOOR: {
     label: "Warm Shop Floor",
     note: "Warm tone for sodium-lit floors.",
-    env: { ...base, preset: "WARM_SHOP_FLOOR", background: "#e8e2d6", floorColor: "#ddd5c5", gridColor: "#4a443a" },
+    env: { ...base, preset: "WARM_SHOP_FLOOR", background: "#e8e2d6", floorColor: "#ddd5c5", gridColor: "#4a443a", ambientLevel: 0.5, highlightLevel: 0.5 },
   },
   DARK_MACHINE_BAY: {
     label: "Dark Machine Bay",
-    note: "Dark ground for bright toolpaths and light materials.",
-    env: { ...base, preset: "DARK_MACHINE_BAY", background: "#14181d", floorColor: "#1b2026", gridColor: "#4b5560", gridIntensity: 0.6, shadowStrength: 0.6, edgeMode: "STRONG", gridVisible: true },
+    note: "Dark ground for bright toolpaths. Fill dropped so a light part separates from it.",
+    env: { ...base, preset: "DARK_MACHINE_BAY", background: "#14181d", floorColor: "#1b2026", gridColor: "#4b5560", gridIntensity: 0.6, shadowStrength: 0.6, edgeMode: "STRONG", gridVisible: true, ambientLevel: 0.3, highlightLevel: 0.62 },
   },
   HIGH_CONTRAST: {
     label: "High Contrast",
@@ -157,7 +175,7 @@ export const VIEW_PRESETS: Record<string, { label: string; note: string; env: Vi
     env: {
       ...base, preset: "HIGH_CONTRAST", background: "#ffffff", floorColor: "#f2f2f2", gridColor: "#000000",
       edgeMode: "STRONG", datumLineMode: "STRONG", measurementLineWeight: "HEAVY", toolpathLineWeight: "HEAVY",
-      featureRingHighContrast: true, annotationSize: "LARGE", gridIntensity: 0.8,
+      featureRingHighContrast: true, annotationSize: "LARGE", gridIntensity: 0.8, ambientLevel: 0.28, highlightLevel: 0.75,
       gridVisible: true, backgroundGradient: false,
     },
   },
@@ -467,6 +485,35 @@ function armFlush(): void {
     /* no window (SSR): the caller is a client component, so this cannot
        happen in practice, and forgetting a colour is not worth a throw */
   }
+}
+
+/**
+ * The five direct-light intensities a viewport should use.
+ *
+ * Affine maps with floors, in the same shape as the grid and environment maps
+ * below. Two properties matter and both are pinned by tests:
+ *
+ *   - At the default 0.5/0.5 this returns exactly the intensities the scene
+ *     used to hard-code. A new control must not silently restyle every part
+ *     that has already been looked at.
+ *   - The floors are non-zero. At both sliders at zero the part is dim but its
+ *     form still reads, so the control cannot produce a black viewport that a
+ *     machinist would reasonably report as a broken renderer.
+ */
+export function lightRig(env: ViewEnvironment): {
+  ambient: number;
+  hemisphere: number;
+  key: number;
+  fill: number;
+  rim: number;
+} {
+  return {
+    ambient: 0.06 + env.ambientLevel * 0.38,
+    hemisphere: 0.25 + env.ambientLevel * 1.5,
+    key: 0.35 + env.highlightLevel * 2.3,
+    fill: 0.15 + env.highlightLevel * 0.8,
+    rim: 0.1 + env.highlightLevel * 0.6,
+  };
 }
 
 export const LINE_MODE_OPACITY: Record<LineMode, number> = { OFF: 0, LIGHT: 0.35, MEDIUM: 0.7, STRONG: 1 };

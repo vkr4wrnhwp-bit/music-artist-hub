@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   DEFAULT_ENVIRONMENT,
   VIEW_PRESETS,
+  lightRig,
   parseHexColor,
   preferLocalEnvironment,
   semanticConflicts,
@@ -144,5 +145,85 @@ test("the preferences route answers with a status, not a redirect", () => {
   assert.ok(
     !/requireWriteApi/.test(src),
     "display preferences are not manufacturing data — the write-role gate would deny a viewer their own background",
+  );
+});
+
+/* ---- the light rig ---- */
+
+/**
+ * A machinist reads material and finish off the render before reading any
+ * label. One rig tuned for a bright studio ground cannot serve a dark one: on
+ * Dark Machine Bay a light aluminium part was lit exactly as on Studio White,
+ * because all five light intensities were literals in the scene.
+ *
+ * The failure these pin is a slider that moves and changes nothing.
+ */
+
+test("the default environment reproduces the rig the scene used to hard-code", () => {
+  // A new control must not silently restyle every part already looked at.
+  assert.deepEqual(lightRig(DEFAULT_ENVIRONMENT), {
+    ambient: 0.25,
+    hemisphere: 1,
+    key: 1.5,
+    fill: 0.55,
+    rim: 0.4,
+  });
+});
+
+test("both sliders actually move the lights they name", () => {
+  const dim = lightRig({ ...DEFAULT_ENVIRONMENT, ambientLevel: 0, highlightLevel: 0 });
+  const bright = lightRig({ ...DEFAULT_ENVIRONMENT, ambientLevel: 1, highlightLevel: 1 });
+  assert.ok(bright.ambient > dim.ambient, "Ambient does not move the ambient light");
+  assert.ok(bright.hemisphere > dim.hemisphere, "Ambient does not move the hemisphere light");
+  assert.ok(bright.key > dim.key, "Highlight does not move the key light");
+  assert.ok(bright.fill > dim.fill, "Highlight does not move the fill light");
+  assert.ok(bright.rim > dim.rim, "Highlight does not move the rim light");
+});
+
+test("each slider moves only its own axis", () => {
+  const base = lightRig(DEFAULT_ENVIRONMENT);
+  const ambientOnly = lightRig({ ...DEFAULT_ENVIRONMENT, ambientLevel: 1 });
+  const keyOnly = lightRig({ ...DEFAULT_ENVIRONMENT, highlightLevel: 1 });
+  assert.equal(ambientOnly.key, base.key, "Ambient is reaching the key light");
+  assert.equal(keyOnly.ambient, base.ambient, "Highlight is reaching the ambient light");
+});
+
+test("at zero the part is dim but not black", () => {
+  // A control that can produce a black viewport is a control a machinist will
+  // report as a broken renderer.
+  const dark = lightRig({ ...DEFAULT_ENVIRONMENT, ambientLevel: 0, highlightLevel: 0 });
+  for (const [name, v] of Object.entries(dark)) {
+    assert.ok(v > 0, `${name} falls to zero — the form stops reading entirely`);
+  }
+});
+
+test("every preset states its own lighting, and the dark ones differ", () => {
+  for (const [id, p] of Object.entries(VIEW_PRESETS)) {
+    assert.equal(typeof p.env.ambientLevel, "number", `${id} does not state an ambient level`);
+    assert.equal(typeof p.env.highlightLevel, "number", `${id} does not state a highlight level`);
+  }
+  // The audit's specific complaint: Studio White, Dark Machine Bay and High
+  // Contrast rendered under identical lights.
+  const studio = VIEW_PRESETS.STUDIO_WHITE.env;
+  for (const id of ["DARK_MACHINE_BAY", "HIGH_CONTRAST", "GRAPHITE", "INSPECTION_GRAY"] as const) {
+    const p = VIEW_PRESETS[id].env;
+    assert.ok(
+      p.ambientLevel !== studio.ambientLevel || p.highlightLevel !== studio.highlightLevel,
+      `${id} is lit exactly like Studio White — the preset does not control its own lighting`,
+    );
+  }
+});
+
+test("the scene takes its intensities from the rig, not from literals", () => {
+  const src = readFileSync("src/components/viewport/scene.tsx", "utf8");
+  assert.ok(/lightRig\(/.test(src), "the scene does not consult the light rig");
+  for (const dead of ["intensity={0.25}", "intensity={1.5}", "intensity={0.55}", "intensity={0.4}"]) {
+    assert.ok(!src.includes(dead), `a light is still hard-coded at ${dead}`);
+  }
+  // `args` is a constructor argument: three-fiber re-creates the object rather
+  // than updating it, so an intensity passed that way looks live and is not.
+  assert.ok(
+    !/hemisphereLight args=/.test(src),
+    "the hemisphere light takes its intensity as a constructor arg — it will not follow the slider",
   );
 });

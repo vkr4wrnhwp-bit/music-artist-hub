@@ -7,6 +7,7 @@ import {
   LINE_MODE_OPACITY,
   LINE_WEIGHT_PX,
   ANNOTATION_SCALE,
+  lightRig,
   type ViewEnvironment,
 } from "@/lib/view-environment";
 import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Html, Lightformer, OrbitControls, Line } from "@react-three/drei";
@@ -210,6 +211,10 @@ const RAPID = "#a8aeb6";
 export function Viewport(props: ViewportProps) {
   const { stock } = props;
   const span = stock ? Math.max(stock.x, stock.y, stock.z) : 6;
+  // The direct light rig, from the environment rather than from five literals.
+  // One rig tuned for a bright studio ground cannot serve a dark one, and a
+  // machinist reads material and finish off the render before any label.
+  const rig = lightRig(props.env ?? DEFAULT_ENVIRONMENT);
 
   return (
     <Canvas
@@ -246,16 +251,21 @@ export function Viewport(props: ViewportProps) {
         color={props.env?.background ?? WORK_WINDOW}
         gradient={props.env?.backgroundGradient ?? true}
       />
-      <hemisphereLight args={["#ffffff", "#d2d5d1", 1.0]} />
-      <ambientLight intensity={0.25} />
+      {/* Intensity as a PROP, never as a third `args` value. `args` is a
+          constructor argument — three-fiber re-creates the object rather than
+          updating it, which is the same trap this file records for the scene
+          background, and it is how a slider ends up looking live while
+          changing nothing. */}
+      <hemisphereLight color="#ffffff" groundColor="#d2d5d1" intensity={rig.hemisphere} />
+      <ambientLight intensity={rig.ambient} />
       {/* Key, fill, rim. Metal needs something to reflect or it reads as clay,
           so a studio environment does the work a bare light rig cannot. */}
       {/* All three in WORLD space, where up is +Y. Keyed from above and to the
           right so the top face — the one that gets machined and the one the
           operator is looking at — is the brightest surface in frame. */}
-      <directionalLight position={[9, 14, 11]} intensity={1.5} />
-      <directionalLight position={[-11, 5, 7]} intensity={0.55} />
-      <directionalLight position={[-3, 4, -12]} intensity={0.4} />
+      <directionalLight position={[9, 14, 11]} intensity={rig.key} />
+      <directionalLight position={[-11, 5, 7]} intensity={rig.fill} />
+      <directionalLight position={[-3, 4, -12]} intensity={rig.rim} />
       {/* A softbox rig built from lightformers rather than a preset HDR.
           Presets fetch an environment map from a CDN, which makes the viewport
           depend on the network to render a part — and fails closed to a lost
