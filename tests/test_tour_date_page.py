@@ -246,8 +246,8 @@ def test_every_old_tab_url_still_answers_and_lands_on_its_element(flask_app):
 
 def test_the_assets_moved_on_with_the_page():
     sw = open(os.path.join(HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert 'VERSION = "sb-v166"' in sw
+    assert 'VERSION = "sb-v167"' in sw
     shell = open(os.path.join(HERE, "templates", "tour", "_shell.html"), encoding="utf-8").read()
-    assert "tour-os.css?v=4" in shell
+    assert "tour-os.css?v=5" in shell
     css = open(os.path.join(HERE, "static", "css", "tour-os.css"), encoding="utf-8").read()
     assert "@media print" in css and ".to, .to *" in css and ".to-chip-btn" in css

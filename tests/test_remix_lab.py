@@ -304,7 +304,7 @@ def test_the_static_assets_were_bumped(page):
     assert "remix-lab.css?v=8" in page
     assert "remix-lab.js?v=4" in page
     sw = open(_os.path.join(_HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert "sb-v166" in sw
+    assert "sb-v167" in sw
 
 
 def test_the_waveform_is_decoded_locally_and_references_are_named():

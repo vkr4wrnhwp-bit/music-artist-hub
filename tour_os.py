@@ -134,6 +134,17 @@ TOUR_TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
                   "share": "admin", "team": "admin", "settings": "admin",
                   "import": "edit"}
 
+# The bar every tour page carries. Seven entries for the daily work; the
+# once-a-tour utilities and the roll-ups sit under More. Keys are TOUR_TABS
+# keys, so every route, scope and test path is unchanged - only the bar is.
+PRIMARY_TABS = ("home", "shows", "people", "travel", "money", "files")
+BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels"}
+# Pages that live under one primary entry, shown as a sub-row beneath it.
+BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
+MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "guests", "merch", "marketing",
+              "content", "tasks", "changes", "ask", "import", "exports", "share", "team",
+              "settings")
+
 
 # --- identity & access ------------------------------------------------------
 
@@ -332,7 +343,8 @@ def _ctx(user, tour, viewer, nav, **extra):
         "active_page": "tours", "tour": tour, "viewer": viewer, "nav": nav, "tab": tab,
         "can": lambda s: can(viewer, s), "shows": [_strip_money(viewer, s) for s in shows],
         "mode": eng.tour_mode(tour, shows, today), "status_line": _status_line(tour, shows),
-        "today": today, "tour_tabs": _tour_tabs(viewer), "show_tabs": SHOW_TABS,
+        "today": today, "tour_tabs": _tour_tabs(viewer), "tour_bar": _tour_bar(viewer, nav),
+        "show_tabs": SHOW_TABS,
         "vocab": {
             "day_kinds": ts.DAY_KINDS, "schedule_categories": ts.SCHEDULE_CATEGORIES,
             "precision": ts.SCHEDULE_PRECISION, "visibility": ts.VISIBILITY,
@@ -360,6 +372,36 @@ def _tour_tabs(viewer):
             continue
         out.append((key, label, path))
     return out
+
+
+def _tour_bar(viewer, nav):
+    """The seven-entry bar, the More menu and the sub-row, scope-filtered.
+
+    `nav` is the page's TOUR_TABS key. A page under a group (hotels, map)
+    lights its primary entry and gets the group's sub-row; a page in More
+    lights the More button with its own label.
+    """
+    allowed = {k: (label, path) for k, label, path in _tour_tabs(viewer)}
+    grouped = {k for keys in BAR_GROUPS.values() for k, _ in keys}
+    primary, more, sub = [], [], []
+    for key in PRIMARY_TABS:
+        if key not in allowed:
+            continue
+        label, path = allowed[key]
+        members = tuple(k for k, _ in BAR_GROUPS.get(key, ((key, label),)))
+        primary.append({"key": key, "label": BAR_LABELS.get(key, label), "path": path,
+                        "on": nav in members})
+        if nav in members and key in BAR_GROUPS:
+            for k, sub_label in BAR_GROUPS[key]:
+                if k in allowed:
+                    sub.append({"key": k, "label": sub_label, "path": allowed[k][1], "on": nav == k})
+    for key in MORE_ORDER:
+        if key not in allowed or key in grouped:
+            continue
+        label, path = allowed[key]
+        more.append({"key": key, "label": label, "path": path, "on": nav == key})
+    active_more = next((m for m in more if m["on"]), None)
+    return {"primary": primary, "more": more, "sub": sub, "active_more": active_more}
 
 
 def _show_url(tour, show, tab=None):

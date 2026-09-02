@@ -162,3 +162,19 @@ own add forms (the date page reuses them, it does not replace them);
 `_overview.html` is no longer rendered anywhere and can go once nothing
 links to it; and the section status lines are computed in
 `tour_os._section_status` — if they grow, they belong in `tour_engine`.
+
+
+## Phase 2: the tour bar (shipped)
+
+The tour-level bar in `templates/tour/_shell.html` now carries seven
+entries: Home, Dates (the Shows page), Crew (the People page), Travel &
+hotels, Money, Files, and More. `tour_os._tour_bar(viewer, nav)` builds it
+from `PRIMARY_TABS`, `BAR_LABELS`, `BAR_GROUPS` and `MORE_ORDER`, filtered
+by the same scopes as before. Hotels and Route sit under Travel & hotels
+and get a sub-row (`.to-subnav`) on those three pages. Everything else (My
+Day, Calendar, Schedule, Venues, Guests, Merch, Marketing, Content, Tasks,
+What changed, Ask Tour, Import, Exports, Share links, Team, Settings) lives
+in the More menu, a `<details>` that needs no script; when the active page
+is in More, the button takes that page's label. `TOUR_TABS`, every route,
+path and scope are unchanged; `tests/test_tour_bar.py` pins the bar.
+Phase 3, folding Tour Hub into TOUR, is still owed.

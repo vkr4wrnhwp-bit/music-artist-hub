@@ -3,7 +3,7 @@
    see, and the offline strip. Pages extend this and fill `tour_body`. #}
 {% extends "base.html" %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/tour-os.css?v=4">
+  <link rel="stylesheet" href="/static/css/tour-os.css?v=5">
 {% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
@@ -29,11 +29,28 @@
     </div>
   </div>
 
-  <nav class="to-tabs" aria-label="Tour sections">
-    {% for key, label, path in tour_tabs %}
-      <a class="to-tab {{ 'is-on' if nav == key }}" href="/tours/{{ tour['id'] }}{% if path %}/{{ path }}{% endif %}">{{ label }}</a>
+  {# Seven entries for the daily work; the rest under More. The active page
+     lights its entry, or the More button with its own label. #}
+  <nav class="to-tabs to-bar" aria-label="Tour sections">
+    {% for t in tour_bar.primary %}
+      <a class="to-tab {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}{% if t.path %}/{{ t.path }}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>
     {% endfor %}
+    {% if tour_bar.more %}
+    <details class="to-more" id="to-more">
+      <summary class="to-tab {{ 'is-on' if tour_bar.active_more }}" aria-label="More tour sections">{{ tour_bar.active_more.label if tour_bar.active_more else 'More' }} <span class="to-more-caret" aria-hidden="true">&#9662;</span></summary>
+      <div class="to-more-menu">
+        {% for t in tour_bar.more %}
+          <a class="to-more-item {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}{% if t.path %}/{{ t.path }}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </nav>
+  {% if tour_bar.sub %}
+  <nav class="to-subnav" aria-label="Travel and hotels">
+    {% for t in tour_bar.sub %}<a class="to-sub-tab {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}/{{ t.path }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
+  </nav>
+  {% endif %}
 
   {% block tour_body %}{% endblock %}
 </div>
@@ -42,6 +59,12 @@
   var bar = document.getElementById("to-offline");
   function sync() { if (bar) bar.classList.toggle("is-on", !navigator.onLine); }
   window.addEventListener("online", sync); window.addEventListener("offline", sync); sync();
+  /* The More menu closes when you click elsewhere or press Escape. */
+  var more = document.getElementById("to-more");
+  if (more) {
+    document.addEventListener("click", function (e) { if (more.open && !more.contains(e.target)) { more.open = false; } });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && more.open) { more.open = false; } });
+  }
 })();
 </script>
 {% endblock %}

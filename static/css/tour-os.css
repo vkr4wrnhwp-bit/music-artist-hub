@@ -59,6 +59,57 @@
 .to-tab:hover { border-color: var(--to-line); color: var(--to-copy); }
 .to-tab.is-on { border-color: var(--to-gold); background: rgb(201 162 74 / 0.12); color: var(--to-amber); }
 
+/* --- the bar: seven entries and a More menu ------------------------------ */
+.to-bar { overflow: visible; flex-wrap: wrap; position: relative; }
+.to-more { position: relative; flex: none; }
+.to-more > summary { list-style: none; cursor: pointer; gap: 6px; }
+.to-more > summary::-webkit-details-marker { display: none; }
+.to-more > summary:focus-visible { outline: 2px solid var(--to-gold); outline-offset: 2px; }
+.to-more[open] > summary { border-color: var(--to-line); color: var(--to-copy); }
+.to-more-caret { font-size: 12px; }
+.to-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--to-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--to-panel);
+  box-shadow: var(--sb-e2);
+}
+.to-more-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--sb-r-control);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--to-copy);
+  text-decoration: none;
+}
+.to-more-item:hover, .to-more-item:focus-visible { background: rgb(201 162 74 / 0.10); color: var(--to-amber); outline: none; }
+.to-more-item.is-on { color: var(--to-amber); background: rgb(201 162 74 / 0.12); }
+.to-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
+.to-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: var(--sb-r-pill);
+  border: 1px solid var(--to-rule);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--to-soft);
+  text-decoration: none;
+}
+.to-sub-tab:hover { border-color: var(--to-line); color: var(--to-copy); }
+.to-sub-tab.is-on { border-color: var(--to-gold); color: var(--to-amber); background: rgb(201 162 74 / 0.12); }
+@media (max-width: 639px) { .to-more-menu { left: auto; right: 0; } }
+
 /* --- header -------------------------------------------------------------- */
 .to-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
 .to-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--to-gold); margin: 0 0 5px; }
