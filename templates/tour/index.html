@@ -64,7 +64,7 @@
     </div>
     {% if unattached %}
     <div class="to-checks" style="margin-top:10px">
-      {{ m.check('adopt', 'Bring my ' ~ unattached|length ~ ' existing Tour Hub show(s) onto this tour', on=True) }}
+      {{ m.check('adopt', 'Bring my ' ~ unattached|length ~ ' existing show(s) not on a tour onto this tour', on=True) }}
     </div>
     {% endif %}
     <div class="to-bar"><button class="to-btn" type="submit">Create tour</button></div>

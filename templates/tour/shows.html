@@ -2,7 +2,11 @@
 {% block title %}Shows - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-<div class="to-head"><div><p class="to-eyebrow">Shows</p><h1 class="to-h1" style="font-size:20px">{{ shows|length }} date{{ '' if shows|length == 1 else 's' }}</h1></div></div>
+{#- Phase 3: the Tour Hub's pipeline lives here. The two lines below are the
+    hub's own words, kept verbatim; the status select posts to /ext, whose
+    guard rejects anything outside SHOW_STATUSES. -#}
+{% set can_status = can('edit') or can('advance') %}
+<div class="to-head"><div><p class="to-eyebrow">Dates</p><h1 class="to-h1" style="font-size:20px">{{ shows|length }} date{{ '' if shows|length == 1 else 's' }}</h1><p class="to-sub to-pipeline">Every show, one pipeline: hold → confirmed → advanced → played → settled. Keep the status honest and nothing falls through the cracks on show day.</p></div></div>
 
 {% if advanced is not none %}
 <div class="to-note"><strong>{{ advanced }} advance{{ '' if advanced == '1' else 's' }} sent.</strong>{% if advance_failed and advance_failed != '0' %} {{ advance_failed }} failed — each failed show carries the mail service's reason on its Send advance tab.{% endif %}{% if advance_skipped and advance_skipped != '0' %} {{ advance_skipped }} skipped for having no address.{% endif %}</div>
@@ -20,7 +24,10 @@
     <td data-k="Date"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ fmt_day(s['date']) }}</a></td>
     <td data-k="City">{{ s['city'] or '—' }}</td>
     <td data-k="Venue"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}"><b>{{ s['venue'] }}</b></a></td>
-    <td data-k="Status">{{ m.chip(s['status']) }}</td>
+    <td data-k="Status">{% if can_status %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}/ext" class="to-status-form">
+      <select name="status" aria-label="Status for {{ s['venue'] }}">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == s['status'] %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
+      <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
+    </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</td>
     <td data-k="Ready">{{ m.ready(readiness[s['id']]['pct']) }}</td>
     <td data-k="Missing" class="to-muted">{% for i in readiness[s['id']]['missing'][:4] %}{{ i['label']|lower }}{{ ', ' if not loop.last }}{% endfor %}{% if readiness[s['id']]['missing']|length > 4 %} +{{ readiness[s['id']]['missing']|length - 4 }}{% endif %}</td>
     <td data-k="Advance">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send"><span class="to-chip to-chip--ok">sent {{ sends[s['id']]['created'][:10] }}</span></a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">ready · {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">no address</a>{% else %}<span class="to-muted">—</span>{% endif %}</td>
@@ -28,6 +35,7 @@
   {% endfor %}
   </tbody>
 </table></div>
+<p class="to-sub to-legend">Statuses, honestly: hold = penciled in, confirmed = date locked, advanced = venue has your plot and details, played = done, settled = you got paid.</p>
 {% else %}
   {{ m.empty("No shows on this tour", "Add a show day from the calendar, or import your dates.", "/tours/" ~ tour['id'] ~ "/calendar", "Calendar") }}
 {% endif %}
@@ -73,7 +81,7 @@
 {% endif %}
 
 {% if unattached %}
-<h2 class="to-h2">Shows in your Tour Hub not on this tour</h2>
+<h2 class="to-h2">Your shows not on a tour</h2>
 <div class="to-table-wrap"><table class="to-table is-stack">
   <tbody>
   {% for s in unattached %}
@@ -82,5 +90,18 @@
   {% endfor %}
   </tbody>
 </table></div>
+{% endif %}
+{% if shows and can_status %}
+<script>
+(function () {
+  /* The pipeline select posts itself on change. The Update button stays:
+     it is the no-script fallback and a plain click target. */
+  document.querySelectorAll(".to-status-form select").forEach(function (s) {
+    s.addEventListener("change", function () {
+      if (s.form.requestSubmit) { s.form.requestSubmit(); } else { s.form.submit(); }
+    });
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

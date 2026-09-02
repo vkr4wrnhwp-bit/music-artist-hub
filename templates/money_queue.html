@@ -32,10 +32,10 @@
     <div class="flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-1">
         <div class="sb-label text-green-400">Settled tour income</div>
-        <p class="mt-0.5 text-xs text-gray-300">Total walk-away across {{ tour_settled }} settled show{{ '' if tour_settled == 1 else 's' }} — summed from the settlement numbers you entered, already collected, not part of the missing-money estimate above.</p>
+        <p class="mt-0.5 text-xs text-gray-300">Across {{ tour_settled }} settled show{{ '' if tour_settled == 1 else 's' }} — the settlement amounts you entered on TOUR, plus the walk-away of any older settlement sheet, already collected, not part of the missing-money estimate above.</p>
       </div>
       <div class="text-2xl font-black tabular-nums text-green-400">${{ '%.2f' % tour_income }}</div>
-      <a href="/tour" class="sb-btn sb-btn-secondary sb-btn-sm shrink-0">Tour Hub →</a>
+      <a href="/tours" class="sb-btn sb-btn-secondary sb-btn-sm shrink-0">TOUR →</a>
     </div>
   </section>
   {% endif %}

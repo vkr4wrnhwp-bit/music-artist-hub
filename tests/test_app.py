@@ -3769,14 +3769,20 @@ def test_homepage_distribution_links():
 
 
 def test_tour_hub():
+    """The Tour Hub's routes after Phase 3: GET /tour is a bookmark into
+    TOUR, the POST routes still answer old forms, and the status guard
+    still rejects a made-up status."""
     import db as store_mod
     app_obj = create_app()
     artist = _demo(app_obj)
     r = artist.post("/tour/add", data={"date": "2026-09-12", "venue": "The Basement",
                                        "city": "Nashville, TN", "notes": "hometown show"})
     assert r.status_code == 302
-    body = artist.get("/tour").get_data(as_text=True)
-    assert "The Basement" in body and "Nashville" in body
+    # /tour no longer renders a page of its own: it lands in TOUR.
+    r = artist.get("/tour")
+    assert r.status_code == 302 and r.headers["Location"].startswith("/tours")
+    landing = artist.get(r.headers["Location"]).get_data(as_text=True)
+    assert "TOUR" in landing and "Tour Hub" not in landing
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     show = [s for s in store_mod.list_tour_shows(uid) if s["venue"] == "The Basement"][0]
     assert show["status"] == "hold"
@@ -3812,8 +3818,12 @@ def test_stage_plot_designer():
 
 
 def test_show_advancer_and_showday(monkeypatch):
+    """The rule-built advance, the public day sheet and the send route after
+    the hub folded into TOUR: the composer is touring.advance_email, the
+    public page carries logistics and never money, strangers get 404."""
     import db as store_mod
     import email_provider as emailer_mod
+    import touring
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
@@ -3826,18 +3836,25 @@ def test_show_advancer_and_showday(monkeypatch):
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     show = [s for s in store_mod.list_tour_shows(uid)
             if s["venue"] == "Advance Test Hall"][0]
-    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
-    assert "Advance Builder" in page and "What we still need" in page
+    # The hub's show page is a bookmark now: a show not on a tour lands on
+    # the TOUR index, which offers to bring it onto one.
+    r = artist.get("/tour/%s" % show["id"])
+    assert r.status_code == 302 and r.headers["Location"] == "/tours"
+    # A blank advance asks for everything; the core fields are not ready.
+    show = store_mod.get_tour_show(uid, show["id"])
+    assert not touring.progress(show["advance"])["core_ready"]
+    assert "What we still need" in touring.advance_email(show, show["advance"], "We", None)["body"]
     artist.post("/tour/%s/advance" % show["id"], data={
         "contact_name": "Sam Booker", "contact_email": "sam@venue.example",
         "dayof_contact": "Sam 555-0100", "load_in": "4pm",
         "set_time": "9pm, 45 min", "deal": "$500 flat", "payout": "cash with Sam"})
-    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
-    # Confirms what's saved, asks only what's missing; core fields unlock
-    # the mark-Advanced button.
-    assert "Sam Booker" in page and "What time are doors?" in page
-    assert "What time is load-in?" not in page
-    assert "mark Advanced" in page
+    show = store_mod.get_tour_show(uid, show["id"])
+    # Confirms what's saved, asks only what's missing; the core fields are
+    # what let a show be marked Advanced.
+    mail = touring.advance_email(show, show["advance"], "We", None)
+    assert "Sam Booker" in mail["body"] and "What time are doors?" in mail["body"]
+    assert "What time is load-in?" not in mail["body"]
+    assert touring.progress(show["advance"])["core_ready"]
     # Share link -> public day sheet with logistics but never money.
     artist.post("/tour/%s/share" % show["id"])
     token = store_mod.get_tour_show(uid, show["id"])["share_token"]
@@ -3852,7 +3869,8 @@ def test_show_advancer_and_showday(monkeypatch):
     assert "sent=1" in r.headers["Location"]
     to, subject, html = outbox[-1]
     assert to == "sam@venue.example" and "Advance:" in subject and token in html
-    # Someone else's account can't open the show.
+    # Someone else's account can't open the show: a 404, not a redirect
+    # that would confirm the id exists.
     stranger = app_obj.test_client()
     stranger.post("/signup", data={"name": "S2", "email": "tour-stranger@example.net",
                                    "password": "strange2"})
@@ -3860,6 +3878,9 @@ def test_show_advancer_and_showday(monkeypatch):
 
 
 def test_settlement_math_and_route():
+    """The settlement arithmetic is untouched by the fold: the legacy POST
+    still saves the sheet and marks the show settled, and the Money Queue
+    reads that sheet as settled income while the show has no TOUR settlement."""
     import touring
     import db as store_mod
     t = touring.settlement_totals({"deal_type": "guarantee_split", "guarantee": "500",
@@ -3877,9 +3898,13 @@ def test_settlement_math_and_route():
         "deal_type": "guarantee_split", "guarantee": "500", "door_gross": "1000",
         "split_pct": "20", "merch_gross": "300", "merch_cut_pct": "20",
         "expenses": "150", "mark_settled": "1"})
-    page = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
-    assert "790.00" in page
-    assert store_mod.get_tour_show(uid, show["id"])["status"] == "settled"
+    saved = store_mod.get_tour_show(uid, show["id"])
+    assert saved["status"] == "settled"
+    assert touring.settlement_totals(saved["settlement"])["walk"] == 790.0
+    # The hub's sheet is gone; its walk-away reaches the Money Queue.
+    mq = artist.get("/money-queue").get_data(as_text=True)
+    assert "Settled tour income" in mq and "$790.00" in mq and "1 settled show" in mq
+    store_mod.delete_tour_show(uid, show["id"])
 
 
 def test_team_up_board(monkeypatch):
@@ -4071,6 +4096,8 @@ def test_artist_hub():
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     artist.get("/fan-club")  # ensures the EPK slug exists on a fresh DB
     slug = store_mod.get_epk(uid)["slug"]
+    # The legacy /tour POST routes still answer (Phase 3 kept them); the
+    # public hub reads the status whichever product set it.
     artist.post("/tour/add", data={"date": "2099-01-15", "venue": "Hub Test Hall",
                                    "city": "Asheville, NC"})
     show = [s for s in store_mod.list_tour_shows(uid)
@@ -4553,9 +4580,10 @@ def test_tech_rider_and_rack_handoff():
                       "dayof_contact": "Sam 555-0100", "load_in": "4pm"})
     artist.post("/tour/%s/share" % show["id"])
     token = store_mod.get_tour_show(uid, show["id"])["share_token"]
-    # Tour detail surfaces the rider link.
-    detail = artist.get("/tour/%s" % show["id"]).get_data(as_text=True)
-    assert "Tech Rider (print / PDF)" in detail and "/rider/" + token in detail
+    # The hub's show page is a bookmark into TOUR now (the date page's Send
+    # advance section carries the rider link: tests/test_tour_fold.py); the
+    # public rider itself is untouched.
+    assert artist.get("/tour/%s" % show["id"]).status_code == 302
     # Public rider: no login, real fields only, honest no-boilerplate line.
     anon = app_obj.test_client()
     rider = anon.get("/rider/" + token).get_data(as_text=True)
@@ -4590,7 +4618,9 @@ def test_ecosystem_hubs():
     assert "hub-tgl" in nav and "sbHubs" in nav
     # Desk pages render module cards with honest Live/Preview chips.
     desk = artist.get("/desk/stage").get_data(as_text=True)
-    assert "Live Stage Suite" in desk and "Tour Hub" in desk
+    # One tour product: TOUR is the only tour tile, the old hub is gone.
+    assert "Live Stage Suite" in desk and "TOUR" in desk and "Tour Hub" not in desk
+    assert desk.count('href="/tours" data-live=') == 1 and 'href="/tour"' not in desk
     assert "Light Studio" in desk and "real DMX" in desk.lower() or "DMX" in desk
     assert artist.get("/desk/nope").status_code == 404
     money = artist.get("/desk/money").get_data(as_text=True)
@@ -5189,6 +5219,10 @@ def test_pulse_peers_trendline_and_milestone(monkeypatch):
 
 
 def test_tour_pnl_board_flags_and_money_queue_feed():
+    """After the fold: the pipeline and legend live on the tour's Dates page,
+    the routing flags on its Route page, the settled money on its Money page,
+    and the Money Queue reads TOUR settlements first, then any legacy hub
+    settlement sheet on a show that has none."""
     import uuid as _uuid
     import db as store_mod
     from datetime import date as _date, timedelta as _td
@@ -5205,7 +5239,7 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
     d3 = (_date.today() + _td(days=15)).isoformat()
     store_mod.add_tour_show(uid, d1, "The Basement", "Nashville, TN", "")
     store_mod.add_tour_show(uid, d2, "The Empty Bottle", "Chicago, IL", "")
-    store_mod.add_tour_show(uid, d3, "The Echo", "Los Angeles, CA", "")
+    echo = store_mod.add_tour_show(uid, d3, "The Echo", "Los Angeles, CA", "")
     past = (_date.today() - _td(days=20)).isoformat()
     settled = store_mod.add_tour_show(uid, past, "Home Show",
                                       "Nashville, TN", "")
@@ -5214,23 +5248,42 @@ def test_tour_pnl_board_flags_and_money_queue_feed():
         "deal_type": "guarantee_split", "guarantee": "500",
         "door_gross": "2000", "split_pct": "20", "merch_gross": "300",
         "merch_cut_pct": "10", "expenses": "150"})
-    page = client.get("/tour").get_data(as_text=True)
-    # P&L roll-up: 500 guarantee + 400 door + 270 merch - 150 = 1020 walk.
-    assert "Tour P&L" in page and "$1020.00" in page
-    assert "-$150.00" in page and "nothing estimated" in page
-    # Back-to-back different-city dates flag on date math alone.
-    assert "Routing flags" in page and "back to back" in page
-    assert "flags the pattern instead of guessing" in page
-    # Route strip shows the run in order with day gaps.
-    assert "Route:" in page and "—1d→" in page and "—4d→" in page
-    # Board view: one column per status, cards carry the real walk.
-    board = client.get("/tour?view=board").get_data(as_text=True)
-    assert "$1020.00 walk" in board and "The Basement" in board
-    assert board.count('sb-badge') >= 5  # five status columns, now badges
-    # Money Queue surfaces settled tour income as collected money.
+    # No tour yet: /tour (and its old board view) land on the TOUR index,
+    # which offers to bring the four shows onto a tour.
+    for path in ("/tour", "/tour?view=board"):
+        r = client.get(path)
+        assert r.status_code == 302 and r.headers["Location"] == "/tours", path
+    index = client.get("/tours").get_data(as_text=True)
+    assert "Bring my 4 existing show(s)" in index
+    r = client.post("/tours/new", data={
+        "name": "Fold Run", "artist_name": "Tour", "start_date": past, "end_date": d3,
+        "home_tz": "America/Chicago", "currency": "USD", "adopt": "1"})
+    tid = r.headers["Location"].rstrip("/").split("/")[-1]
+    r = client.get("/tour")
+    assert r.status_code == 302 and r.headers["Location"] == "/tours/%s/shows" % tid
+    # Dates page: the pipeline line, a status select per row, the legend.
+    page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
+    assert "Every show, one pipeline: hold → confirmed → advanced → played → settled." in page
+    assert ("Statuses, honestly: hold = penciled in, confirmed = date locked, advanced = "
+            "venue has your plot and details, played = done, settled = you got paid.") in page
+    assert page.count('<select name="status"') == 4 and "The Basement" in page
+    # Route page: back-to-back dates flag on date math alone, gaps in days.
+    route = client.get("/tours/%s/map" % tid).get_data(as_text=True)
+    assert "back to back" in route and "4 days later" in route
+    # Money Queue: the hub-saved settlement still comes out as its walk-away.
+    # 500 guarantee + 400 door + 270 merch - 150 = 1020.
     mq = client.get("/money-queue").get_data(as_text=True)
     assert "Settled tour income" in mq and "$1020.00" in mq
-    assert "1 settled show" in mq
+    assert "1 settled show" in mq and "TOUR →" in mq and "Tour Hub" not in mq
+    # A TOUR settlement on another show is read first and added to it.
+    client.post("/tours/%s/shows/%s/money" % (tid, echo),
+                data={"settlement_amount": "480", "settlement_status": "settled"})
+    mq = client.get("/money-queue").get_data(as_text=True)
+    assert "$1500.00" in mq and "2 settled shows" in mq
+    # The tour's Money page sums only what was entered on TOUR, and says so.
+    money = client.get("/tours/%s/money" % tid).get_data(as_text=True)
+    assert "Settled:" in money and "480.00" in money and "1 settled show" in money
+    assert "straight sums of what you entered, nothing estimated" in money
 
 
 # --- /login: Session Recall -----------------------------------------------
@@ -6050,7 +6103,7 @@ def test_command_palette_index_cannot_drift_from_the_nav():
     # Things built and shipped are marked live, so the palette does not
     # tell someone a working page is locked.
     live = {i["key"] for i in idx if i["live"]}
-    for key in ("hours", "rack", "overview", "links", "tour"):
+    for key in ("hours", "rack", "overview", "links", "tours"):
         assert key in live, key
 
 

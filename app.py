@@ -117,6 +117,7 @@ def _grant_owner_plan(user):
         return True
     return False
 import touring
+import tour_store
 import artist_os
 import hubs as hub_defs
 from statements_engine import (analyze as analyze_statement, parse_statement,
@@ -4095,11 +4096,16 @@ def create_app():
         queue = artist_os.action_queue([(t, ctx) for t in tracks])
         est_total = round(sum(a["impact"] or 0 for a in queue), 2)
         criticals = len([a for a in queue if a["critical"]])
-        # Settled tour income: real walk-away totals from settled shows —
-        # money already collected, shown beside the money still missing.
-        tour_income, tour_settled = 0.0, 0
+        # Settled tour income: money already collected, shown beside the money
+        # still missing. TOUR's settlements (tour_show_ext, marked settled with
+        # an amount) are read first; a legacy Tour Hub settlement blob counts
+        # only for a show that has no TOUR settlement, so a sheet saved on
+        # the old hub still comes out as the walk-away it computed.
+        tour_settlements = tour_store.settled_income(user["id"])
+        tour_income = round(sum(tour_settlements.values()), 2)
+        tour_settled = len(tour_settlements)
         for s in store.list_tour_shows(user["id"]):
-            if s["status"] != "settled":
+            if s["id"] in tour_settlements or s["status"] != "settled":
                 continue
             try:
                 st = json.loads(s.get("settlement") or "{}")
@@ -4353,65 +4359,29 @@ def create_app():
         store.delete_os_track(user["id"], track_id)
         return redirect("/tracks")
 
-    # --- Tour Hub + Stage Plot ---------------------------------------------------
+    # --- Tour Hub (folded into TOUR) + Stage Plot ------------------------------
+    # Phase 3 of the TOUR restructure: there is one tour product at /tours.
+    # The Tour Hub's addresses survive for bookmarks and old forms - GET /tour
+    # and /tour/<show_id> redirect into TOUR, every POST route still answers
+    # exactly as it did - and the public /showday and /rider pages are
+    # untouched. The pipeline (hold -> confirmed -> advanced -> played ->
+    # settled) now lives on the tour's Dates page.
 
-    _SHOW_STATUSES = ("hold", "confirmed", "advanced", "played", "settled")
+    _SHOW_STATUSES = tour_store.SHOW_STATUSES
+
+    def _tour_dates_url(user_id):
+        """Where /tour lands now: the newest tour's Dates page, or the TOUR
+        index (which offers to bring unattached shows onto a tour)."""
+        tours = tour_store.list_tours(user_id)
+        return "/tours/%s/shows" % tours[0]["id"] if tours else "/tours"
 
     @app.route("/tour")
     def tour_hub():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        shows = store.list_tour_shows(user["id"])
-        today = datetime.now(timezone.utc).date().isoformat()
-        upcoming = [s for s in shows if s["date"] >= today]
-        # Per-show walk-away from each saved settlement — same math the
-        # settlement calculator shows, summed only where numbers exist.
-        pnl = {"guarantee": 0.0, "door_share": 0.0, "merch_net": 0.0,
-               "expenses": 0.0, "walk": 0.0, "count": 0, "settled": 0}
-        for s in shows:
-            try:
-                st = json.loads(s.get("settlement") or "{}")
-            except ValueError:
-                st = {}
-            s["walk"] = None
-            if st and s["status"] in ("played", "settled"):
-                totals = touring.settlement_totals(st)
-                s["walk"] = totals["walk"]
-                for k in ("guarantee", "door_share", "merch_net",
-                          "expenses", "walk"):
-                    pnl[k] = round(pnl[k] + totals[k], 2)
-                pnl["count"] += 1
-                if s["status"] == "settled":
-                    pnl["settled"] += 1
-        # Travel flags: consecutive upcoming dates in different cities with
-        # 0-1 days between them. Date math only — we don't invent drive hours.
-        flags = []
-        route = []
-        prev = None
-        for s in upcoming:
-            gap = None
-            if prev is not None:
-                try:
-                    gap = (date.fromisoformat(s["date"][:10])
-                           - date.fromisoformat(prev["date"][:10])).days
-                except ValueError:
-                    gap = None
-                cities_differ = (prev["city"] and s["city"] and
-                                 prev["city"].casefold() != s["city"].casefold())
-                if gap is not None and gap <= 1 and cities_differ:
-                    flags.append({"a": prev, "b": s, "gap": gap})
-            route.append({"show": s, "gap": gap})
-            prev = s
-        return render_template("tour.html", active_page="tour",
-                               shows=shows, statuses=_SHOW_STATUSES,
-                               upcoming_count=len(upcoming),
-                               confirmed_count=len([s for s in shows if s["status"]
-                                                    in ("confirmed", "advanced")]),
-                               next_show=(upcoming[0] if upcoming else None),
-                               pnl=pnl, flags=flags, route=route,
-                               board=(request.args.get("view") == "board"),
-                               **build_dashboard_context())
+        # ?view=board went to the same list; it lands on the same Dates page.
+        return redirect(_tour_dates_url(user["id"]))
 
     @app.route("/tour/add", methods=["POST"])
     def tour_add():
@@ -4449,26 +4419,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # Strangers still get a 404, never a redirect that confirms the id.
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
-        share_url = ((request.url_root.rstrip("/") + "/showday/" + show["share_token"])
-                     if show.get("share_token") else None)
-        rider_url = ((request.url_root.rstrip("/") + "/rider/" + show["share_token"])
-                     if show.get("share_token") else None)
-        return render_template("tour_show.html", active_page="tour", show=show,
-                               rider_url=rider_url,
-                               fields=touring.ADVANCE_FIELDS,
-                               checklist=touring.checklist(show["advance"]),
-                               prog=touring.progress(show["advance"]),
-                               email_preview=touring.advance_email(
-                                   show, show["advance"],
-                                   user["name"] or "We", share_url),
-                               share_url=share_url,
-                               totals=touring.settlement_totals(show["settlement"]),
-                               email_live=emailer.configured(),
-                               statuses=_SHOW_STATUSES,
-                               **build_dashboard_context())
+        if show.get("tour_id"):
+            return redirect("/tours/%s/shows/%s" % (show["tour_id"], show_id))
+        # Not on a tour yet: the index offers to bring it onto one.
+        return redirect("/tours")
 
     @app.route("/tour/<show_id>/advance", methods=["POST"])
     def tour_show_advance(show_id):

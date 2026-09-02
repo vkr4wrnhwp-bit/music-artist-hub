@@ -180,6 +180,9 @@
 .to-btn--ghost { background: transparent; color: var(--to-copy); border-color: var(--to-rule); }
 .to-btn--ghost:hover { border-color: var(--to-gold); }
 .to-btn--small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+/* a button inside a table is a button, not a gold link: keep its own text colour */
+.to-table a.to-btn { color: var(--sb-on-gold); }
+.to-table a.to-btn--ghost { color: var(--to-copy); }
 .to-btn--danger:hover { border-color: rgb(239 68 68 / 0.5); color: var(--sb-crit); }
 .to-inline { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .to-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 12px; }
@@ -397,3 +400,16 @@ main:has(> .to) { min-width: 0; }
 .to-adds p { margin: 10px 0 0; }
 @media (max-width: 640px) { .to-sec-status { display: none; } .to-sec-head { padding: 10px 12px; } .to-sec-body { padding: 10px 12px 14px; } .to-strip { padding: 12px; } }
 @media (pointer: coarse) { .to-chip-btn, .to-fold > summary, .to-add > summary { min-height: 44px; } }
+
+/* --- Dates: the pipeline on every row (Phase 3, the hub folded in) -------- */
+.to-pipeline { margin-top: 6px; }
+.to-status-form { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.to-status-form select {
+  width: auto; min-height: 32px; padding: 4px 8px; background: var(--sb-ground);
+  border: 1px solid var(--to-rule); border-radius: var(--sb-r-control); color: var(--to-copy);
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.to-status-form select:focus { outline: 2px solid var(--to-gold); outline-offset: 1px; border-color: transparent; }
+.to-legend { margin-top: 10px; max-width: none; }
+.to-settled { margin-top: 10px; }
+.to-settled b { color: var(--to-amber); font-variant-numeric: tabular-nums; }

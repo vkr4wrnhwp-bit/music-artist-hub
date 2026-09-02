@@ -102,7 +102,7 @@ MODULES = [
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
     ("/fan-club", "Fan Club", "Paid monthly memberships through Stripe with a members-only drops area, wired into the Fan CRM.", "live", None),
     ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
-    ("/tour", "Tour Hub", "Your show pipeline: holds through settled, all in one table.", "live", None),
+    ("/tours", "TOUR", "The whole run, every show from hold to settled: dates, advance, travel, rooms, guests, money.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
     ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
     ("/rack", "The Rack", "Mix and master in the browser: 12-band EQ, tube stage, cab & mic sim, compressor, LUFS loudness against platform targets, WAV export \u2014 nothing is uploaded.", "live", None),

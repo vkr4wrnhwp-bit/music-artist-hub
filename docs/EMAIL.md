@@ -33,7 +33,7 @@ September, per call site:
 | Email | Reply-to |
 | --- | --- |
 | Advance packet (single and bulk) | the sender's account email |
-| Tour Hub advance (`/tour/<id>/send-advance`) | the artist |
+| Legacy hub advance (`POST /tour/<id>/send-advance`, kept for old forms; nothing links to it since the hub folded into TOUR) | the artist |
 | Tour team invite | the person who invited |
 | Street Banker team invite | the person who invited |
 | Roster invite | the label account |

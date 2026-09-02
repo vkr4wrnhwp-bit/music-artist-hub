@@ -2,12 +2,12 @@
 {% block title %}Route - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-<div class="to-head"><div><p class="to-eyebrow">Route</p><h1 class="to-h1" style="font-size:20px">The run, in order</h1><p class="to-sub">Each leg with the gap in days and, where both venues have coordinates, the straight-line distance. Drive times are not estimated here — the Directions link opens the real route. No map tiles are loaded.</p></div></div>
+<div class="to-head"><div><p class="to-eyebrow">Route</p><h1 class="to-h1" style="font-size:20px">The run, in order</h1><p class="to-sub">Each leg with the gap in days and, where both venues have coordinates, the straight-line distance. Drive times are not estimated here — the Directions link opens the real route. No map tiles are loaded. Two shows on one day or on consecutive days are flagged from the dates alone: check the travel time before locking both.</p></div></div>
 {% if legs %}
 <ol class="to-route">
   {% if first %}<li><span>{{ first['date'] }}</span><span><b>{{ first['city'] or first['venue'] }}</b> <span class="to-muted">{{ first['venue'] }}</span></span><span></span></li>{% endif %}
   {% for l in legs %}
-  <li class="leg">{% if l['gap_days'] is not none %}{{ l['gap_days'] }} day{{ '' if l['gap_days'] == 1 else 's' }} later{% endif %}{% if l['back_to_back'] %} · <span class="to-chip to-chip--gold">back to back</span>{% endif %}{% if l['miles'] %} · ~{{ l['miles'] }} mi straight line{% endif %} · <a href="{{ l['directions'] }}" target="_blank" rel="noopener" style="color:var(--to-amber)">Directions</a></li>
+  <li class="leg">{% if l['gap_days'] is not none %}{{ l['gap_days'] }} day{{ '' if l['gap_days'] == 1 else 's' }} later{% endif %}{% if l['same_day'] %} · <span class="to-chip to-chip--warn">same day</span>{% elif l['back_to_back'] %} · <span class="to-chip to-chip--gold">back to back</span>{% endif %}{% if l['miles'] %} · ~{{ l['miles'] }} mi straight line{% endif %} · <a href="{{ l['directions'] }}" target="_blank" rel="noopener" style="color:var(--to-amber)">Directions</a></li>
   <li><span>{{ l['to']['show']['date'] }}</span><span><b>{{ l['to']['city'] or l['to']['show']['venue'] }}</b> <span class="to-muted">{{ l['to']['show']['venue'] }}</span>{% if not l['to']['address'] %} <span class="to-chip">no address</span>{% endif %}</span><span><a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ l['to']['show']['id'] }}">Open</a></span></li>
   {% endfor %}
 </ol>

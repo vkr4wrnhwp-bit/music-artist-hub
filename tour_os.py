@@ -1,8 +1,10 @@
 """TOUR — routes, permissions and the boundary.
 
-Mounted at /tours (the existing Tour Hub keeps /tour and /tour/<show_id>;
-shows created here are the same tour_shows rows, so the old hub, the
-public /showday page and the Money Queue keep reading them).
+Mounted at /tours. Since Phase 3 this is the one tour product: the old
+Tour Hub addresses /tour and /tour/<show_id> redirect here, its POST
+routes still answer old forms, and shows are the same tour_shows rows,
+so the public /showday and /rider pages and the Money Queue keep
+reading them.
 
 Access model
   A tour is owned by one account (tours.user_id). Other people reach it
@@ -356,7 +358,7 @@ def _ctx(user, tour, viewer, nav, **extra):
             "expense_categories": ts.EXPENSE_CATEGORIES, "file_categories": ts.FILE_CATEGORIES,
             "content_statuses": ts.CONTENT_STATUSES, "scopes": ts.SCOPES,
             "role_presets": ts.ROLE_PRESETS, "share_scopes": ts.SHARE_SCOPES,
-            "tour_statuses": ts.TOUR_STATUSES, "show_statuses": ("hold", "confirmed", "advanced", "played", "settled"),
+            "tour_statuses": ts.TOUR_STATUSES, "show_statuses": ts.SHOW_STATUSES,
         },
         "fmt_time": eng.fmt_time, "fmt_day": eng.fmt_day_long,
     }
@@ -1167,7 +1169,7 @@ def show_ext(user, tour, viewer, tour_id, show_id):
         elif not fields.get("tz") and v.get("tz"):
             fields["tz"] = v["tz"]
     changed = ts.update_show_ext(tour_id, show_id, fields)
-    if full and "status" in request.form and request.form["status"] in ("hold", "confirmed", "advanced", "played", "settled"):
+    if full and "status" in request.form and request.form["status"] in ts.SHOW_STATUSES:
         if request.form["status"] != show["status"]:
             store.update_tour_show_status(tour["user_id"], show_id, request.form["status"])
             changed = dict(changed or {}, status=(show["status"], request.form["status"]))
@@ -2609,7 +2611,10 @@ def route_map(user, tour, viewer, tour_id):
             dest = stop["address"] or stop["city"] or s["venue"]
             legs.append({"frm": prev, "to": stop, "gap_days": gap, "km": km,
                          "miles": round(km * 0.621371) if km else None,
-                         "back_to_back": gap == 1,
+                         # Routing flags from dates alone: two shows on one
+                         # day, or on consecutive days. No drive time is
+                         # guessed; the flag says look before locking both.
+                         "back_to_back": gap == 1, "same_day": gap == 0,
                          "directions": "https://www.google.com/maps/dir/?api=1&origin=%s&destination=%s" % (
                              _urlq(origin), _urlq(dest))})
         prev = stop
@@ -2642,7 +2647,7 @@ def _urlq(s):
 
 # Forward only. A sheet that still says "hold" must not walk a show that
 # has since been advanced or played back down the list.
-_STATUS_ORDER = ["hold", "confirmed", "advanced", "played", "settled"]
+_STATUS_ORDER = list(ts.SHOW_STATUSES)
 
 
 def _fill_existing_show(tour, tour_id, row):

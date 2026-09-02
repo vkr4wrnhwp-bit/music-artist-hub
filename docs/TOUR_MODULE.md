@@ -1,8 +1,13 @@
 # TOUR — the touring operating system
 
-`/tours`. Built on the existing Tour Hub rather than beside it: a show
-is still a `tour_shows` row, so `/tour`, `/tour/<id>`, the public
-`/showday/<token>` page and the Money Queue keep reading the same data.
+`/tours`. **Since Phase 3 of the restructure this is the one tour
+product:** `/tour` and `/tour/<show_id>` (the old Tour Hub) redirect here
+- the newest tour's Dates page, the date page, or the index for a show not
+yet on a tour - while the hub's POST routes still answer old forms and
+the public `/showday/<token>` and `/rider/<token>` pages are untouched.
+A show is still a `tour_shows` row, so the Money Queue keeps reading the
+same data. The pipeline (hold → confirmed → advanced → played → settled)
+lives on the Dates page; see `docs/TOUR_DATE_PAGE.md`, "Phase 3".
 TOUR groups shows into a tour and adds everything a run needs.
 
 ## Files

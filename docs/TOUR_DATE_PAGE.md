@@ -150,12 +150,8 @@ the 24-link tour bar above every page, including this one. Fold it the
 same way: a few core destinations (Home, Dates, My Day, Team) and the rest
 behind a `+`/More, with every `TOUR_TABS` path still answering.
 
-**Phase 3 — Tour Hub fold-in.** `/tour` and `/tour/<show_id>` (the old
-hub, the public `/showday/<token>` page and the classic settlement sheet)
-read the same `tour_shows` rows. The date page should become the one
-place a show is edited, with the hub's public and print views as its
-share/print outputs, and the "Classic settlement sheet" link retired once
-the settlement summary covers it.
+**Phase 3 — Tour Hub fold-in.** Shipped; see "Phase 3: one product"
+below.
 
 Also open: the tour-level `/hotels` and `/travel` pages still carry their
 own add forms (the date page reuses them, it does not replace them);
@@ -177,4 +173,68 @@ What changed, Ask Tour, Import, Exports, Share links, Team, Settings) lives
 in the More menu, a `<details>` that needs no script; when the active page
 is in More, the button takes that page's label. `TOUR_TABS`, every route,
 path and scope are unchanged; `tests/test_tour_bar.py` pins the bar.
-Phase 3, folding Tour Hub into TOUR, is still owed.
+
+
+## Phase 3: one product (shipped)
+
+There is one tour product, TOUR at `/tours`. The Tour Hub at `/tour` is
+folded into it; nothing a show carried was lost and nothing in the wild
+broke.
+
+**What moved.**
+
+- The pipeline. The Dates page (`templates/tour/shows.html`) carries the
+  hub's line above the table - "Every show, one pipeline: hold → confirmed
+  → advanced → played → settled. Keep the status honest and nothing falls
+  through the cracks on show day." - a status `<select>` on every row for
+  anyone with `edit` or `advance` (posting to the existing
+  `/tours/<t>/shows/<s>/ext`, which rejects anything outside the five;
+  the select submits itself on change and the Update button stays as the
+  no-script fallback), and the legend beneath the table, word for word:
+  "Statuses, honestly: hold = penciled in, confirmed = date locked,
+  advanced = venue has your plot and details, played = done, settled = you
+  got paid." Everyone else reads the status as a chip.
+- The statuses themselves. `tour_store.SHOW_STATUSES` is the one
+  definition; `tour_os` (vocab, the `/ext` guard, the importer's
+  forward-only order) and `app.py` (the legacy POST routes) read it.
+- The Tour P&L. TOUR's Money page (`/tours/<t>/money`) already summed the
+  money entered per show; it now carries a "Settled" line - the
+  settlement amounts of shows marked settled, and how many - "straight
+  sums of what you entered, nothing estimated". A settled show with no
+  amount is not summed as zero. (`tour_engine.tour_finance` returns
+  `settled_total` / `settled_count`.)
+- The routing flags. The Route page (`/tours/<t>/map`) flagged
+  back-to-back dates already; it now flags "same day" too. Dates alone,
+  no drive time guessed.
+- The Money Queue's "Settled tour income" reads TOUR first
+  (`tour_store.settled_income`: every show of the account marked settled
+  on TOUR with an amount) and adds the walk-away of any legacy hub
+  settlement sheet on a show that has no TOUR settlement, so a sheet
+  saved on the old hub still comes out as the figure it computed. Its
+  link is "TOUR →".
+
+**What redirects.** `GET /tour` (and `?view=board`) lands on the newest
+tour's Dates page, or on `/tours` when the account owns no tour (the
+index offers to bring unattached shows onto one). `GET /tour/<show_id>`
+lands on the date page when the show is on a tour, on `/tours` when it is
+not, and stays a 404 for anyone else's account - never a redirect that
+confirms the id. Every hub POST route (`/tour/add`, `/tour/<id>/status`,
+`/delete`, `/advance`, `/settlement`, `/share`, `/send-advance`) answers
+exactly as it did, so old forms and bookmarks keep working. The public
+`/showday/<token>` and `/rider/<token>` pages are untouched;
+`tour_shows.share_token` keeps its meaning and TOUR's `_rider_url` still
+reuses it. `templates/tour.html` and `templates/tour_show.html` are gone:
+nothing rendered them after the redirects.
+
+**Navigation.** One tour entry: `hubs.py`'s Live Stage Suite lists TOUR
+only, `command_center.py` names `/tours`, the Light Studio rail lost the
+hub icon, and the money tab's "Classic settlement sheet" link is retired
+(the Settlement summary print view stays). `tests/test_tour_fold.py`
+pins all of it; the seven `tests/test_app.py` hub tests were rewritten
+to the folded behaviour rather than dropped.
+
+**Still owed.** The hub's 15-field advance form (`touring.ADVANCE_FIELDS`)
+and its rule-built email (`touring.advance_email`) are not surfaced
+anywhere now; TOUR's Advance section and `tour_advance_mail` are the live
+composer. `touring.py` stays for the Money Queue fallback and the public
+pages. A 15-field core view of Advance on the date page is future work.

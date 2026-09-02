@@ -35,6 +35,11 @@ from db import get_db, _now
 
 TOUR_STATUSES = ["planning", "live", "wrapped", "cancelled"]
 
+# The one pipeline every show is on. Defined once, here: tour_os reads it
+# for the vocab, the /ext status guard and the import ordering, and
+# app.py for the legacy /tour POST routes that still answer old forms.
+SHOW_STATUSES = ("hold", "confirmed", "advanced", "played", "settled")
+
 DAY_KINDS = ["show", "travel", "rehearsal", "off", "production", "promo",
              "press", "appearance", "private", "festival", "other"]
 
@@ -1019,6 +1024,29 @@ def get_show(tour_id, show_id):
         if s["id"] == show_id:
             return s
     return None
+
+
+def settled_income(user_id):
+    """{show_id: amount} for every show whose TOUR settlement is marked
+    settled and carries an amount. Straight reads of what was typed:
+    a settled show with no amount is not counted, because a zero here
+    would read as "this show paid nothing" rather than "nothing entered".
+    The Money Queue reads this first and only falls back to a legacy Tour
+    Hub settlement blob on shows that have no TOUR settlement."""
+    out = {}
+    with get_db() as db:
+        rows = db.execute("SELECT show_id, settlement_amount FROM tour_show_ext "
+                          "WHERE user_id = ? AND settlement_status = 'settled'",
+                          (user_id,)).fetchall()
+    for r in rows:
+        raw = str(r["settlement_amount"] or "").replace(",", "").replace("$", "").strip()
+        if not raw:
+            continue
+        try:
+            out[r["show_id"]] = round(float(raw), 2)
+        except ValueError:
+            continue
+    return out
 
 
 def show_tour_id(show_id):

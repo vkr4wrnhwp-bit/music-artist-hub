@@ -188,7 +188,9 @@ def test_tour_lifecycle_owner(flask_app):
     sid = _show(client, tid, "2030-05-02", "The Basement East")
     # The show is a real tour_shows row: the old hub still reads it
     assert store.get_tour_show(owner["id"], sid)["venue"] == "The Basement East"
-    assert client.get("/tour").status_code == 200
+    # Phase 3: /tour is a bookmark into TOUR - it lands on this tour's Dates page
+    r = client.get("/tour")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/tours/%s/shows" % tid)
     # Every Show Command tab renders for the owner
     for tab, _label in __import__("tour_os").SHOW_TABS:
         r = client.get("/tours/%s/shows/%s?tab=%s" % (tid, sid, tab))
@@ -581,9 +583,12 @@ def test_live_audit_regressions(flask_app):
     assert checkin and all("fulfilled" not in f for f in checkin)
     assert any('name="fulfilled_flag"' in f and 'value="checked_in"' not in f for f in forms)
 
-    # 3. Money tab: the classic sheet is the GET show page, not the POST route.
+    # 3. Money tab: the settlement summary is the print view. The classic
+    #    sheet went with the hub (Phase 3), so neither its GET page nor its
+    #    POST route is linked from here.
     html = client.get("/tours/%s/shows/%s?tab=money" % (tid, sid)).get_data(as_text=True)
-    assert ('href="/tour/%s"' % sid) in html and ('href="/tour/%s/settlement"' % sid) not in html
+    assert ("/tours/%s/shows/%s/settlement-summary" % (tid, sid)) in html
+    assert ('href="/tour/%s"' % sid) not in html and ('href="/tour/%s/settlement"' % sid) not in html
 
     # 4. A guests-only member may set allocation/cutoff via /ext and nothing else.
     gm, _g = _member_join(flask_app, client, tid, "viewer", ["view", "guests"], label="Guest Desk")

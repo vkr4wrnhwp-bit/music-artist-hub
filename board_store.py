@@ -738,7 +738,7 @@ def verified_chips(user_id):
         slug_row = db.execute("SELECT slug FROM epk_profiles WHERE user_id = ?", (user_id,)).fetchone()
     played = [r for r in rows if r["status"] in ("played", "settled")]
     if played:
-        chips.append({"key": "shows", "label": "%d show%s played" % (len(played), "" if len(played) == 1 else "s"), "source": "Tour Hub"})
+        chips.append({"key": "shows", "label": "%d show%s played" % (len(played), "" if len(played) == 1 else "s"), "source": "TOUR"})
         cities = {}
         for r in played:
             c = (r["city"] or "").strip()
@@ -750,5 +750,5 @@ def verified_chips(user_id):
                 chips.append({"key": "home", "label": "home market " + home[0], "source": "most-played city"})
     upcoming = [r for r in rows if r["status"] in ("confirmed", "advanced") and r["date"] >= _now()[:10]]
     if upcoming:
-        chips.append({"key": "upcoming", "label": "%d confirmed date%s ahead" % (len(upcoming), "" if len(upcoming) == 1 else "s"), "source": "Tour Hub"})
+        chips.append({"key": "upcoming", "label": "%d confirmed date%s ahead" % (len(upcoming), "" if len(upcoming) == 1 else "s"), "source": "TOUR"})
     return {"chips": chips, "slug": (slug_row["slug"] if slug_row and slug_row["slug"] else "")}

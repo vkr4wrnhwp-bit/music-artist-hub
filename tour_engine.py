@@ -1190,6 +1190,10 @@ def tour_finance(shows, expenses_by_show, currency, today=None):
     with_numbers = [r for r in rows if r["has_numbers"]]
     total = lambda key: round(sum(r[key] for r in with_numbers), 2)
     nets = [r for r in with_numbers if r["estimated_net"] is not None]
+    # Settled: shows whose settlement is marked settled AND carry an amount.
+    # A settled show with nothing typed is left out rather than summed as 0.
+    settled = [r for r in rows if (r["show"].get("settlement_status") or "open") == "settled"
+               and _num(r["show"].get("settlement_amount"))]
     best = max(nets, key=lambda r: r["estimated_net"]) if nets else None
     worst = min(nets, key=lambda r: r["estimated_net"]) if nets else None
     return {
@@ -1203,6 +1207,8 @@ def tour_finance(shows, expenses_by_show, currency, today=None):
         "actual_net": round(sum(r["actual_net"] for r in with_numbers if r["actual_net"] is not None), 2),
         "avg_net": round(total("estimated_net") / len(with_numbers), 2) if with_numbers else 0.0,
         "best": best, "worst": worst,
+        "settled_count": len(settled),
+        "settled_total": round(sum(r["settlement"] for r in settled), 2),
         "unsettled": [r for r in rows if (r["show"].get("settlement_status") or "open") != "settled"
                       and r["show"]["date"] < today],
     }

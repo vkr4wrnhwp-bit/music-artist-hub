@@ -12,6 +12,9 @@
   <div class="to-card"><b>{{ '%.0f'|format(finance['collected']) }}</b><span>Collected</span><small>outstanding {{ '%.0f'|format(finance['outstanding']) }}</small></div>
   <div class="to-card"><b>{{ finance['deposits_outstanding'] }}</b><span>Deposits due</span><small>{{ finance['unsettled']|length }} unsettled</small></div>
 </div>
+{#- Settled: what the settlements marked settled add up to. Only shows with an
+    amount count; a settled show with nothing typed is not summed as zero. -#}
+<p class="to-sub to-settled" id="settled">Settled: {% if finance['settled_count'] %}<b>{{ '%.2f'|format(finance['settled_total']) }}</b> across {{ finance['settled_count'] }} settled show{{ '' if finance['settled_count'] == 1 else 's' }}{% else %}no settlement entered yet{% endif %} — straight sums of what you entered, nothing estimated.</p>
 
 <h2 class="to-h2">By show</h2>
 {% if finance['rows'] %}

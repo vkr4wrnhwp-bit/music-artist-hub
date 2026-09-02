@@ -45,7 +45,6 @@ HUBS = [
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
         ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "TOUR", "The whole run: My Day, Show Command, advance, travel, rooms, guests, money."),
-        ("tour", "/tour", "M3 5h14v11H3z|M3 9h14|M7 3v4|M13 3v4", "Tour Hub", "Shows from hold to settled, advanced by rules."),
         ("stage-plot", "/stage-plot", "M4 4h12v8H4z|M2 16h16|M7 12v4|M13 12v4", "Stage Plot", "Drag-and-drop plot with an auto input list."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
@@ -139,7 +138,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "i
              "vault", "review", "pulse", "team", "stats", "tax", "connections",
              "releases", "publishing", "mechanicals", "neighboring",
              "territories", "insights", "disputes", "fan-club-admin", "portal",
-             "tour", "tours", "stage-plot", "tour-board", "rack", "roster", "referrals",
+             "tours", "stage-plot", "tour-board", "rack", "roster", "referrals",
              "lights", "tracks", "royalty-lanes", "money-queue", "certified",
              "press-desk",
              "hours"]
