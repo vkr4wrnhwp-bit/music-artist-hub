@@ -130,7 +130,7 @@ def test_in_platform_threads_inbox_and_unread(flask_app, monkeypatch):
     import email_provider as emailer_mod
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
-    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, attachments=None: outbox.append((to, subject, html)) or True)
+    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, *a, **k: outbox.append((to, subject, html)) or True)
     poster, pu = _user(flask_app, "Poster")
     r = poster.post("/tour-board/post", data={"kind": "venue", "title": "Saturday slots at The Vault", "region_code": "metro-charlotte",
                                               "region_text": "Charlotte, NC", "window_start": "2030-10-01", "window_end": "2030-10-31", "details": "Cap 250"})
@@ -178,7 +178,7 @@ def test_lifecycle_expiry_renew_edit(flask_app, monkeypatch):
     import email_provider as emailer_mod
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
-    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, attachments=None: outbox.append((to, subject, html)) or True)
+    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, *a, **k: outbox.append((to, subject, html)) or True)
     client, user = _user(flask_app)
     r = client.post("/tour-board/post", data={"kind": "artist", "title": "Expiring soon", "region_code": "us-midwest", "region_text": "Midwest"})
     lid = r.headers["Location"].rsplit("/", 1)[1]
@@ -322,7 +322,7 @@ def test_filters_sort_and_saved_search_alerts(flask_app, monkeypatch):
     import email_provider as emailer_mod
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
-    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, attachments=None: outbox.append((to, subject, html)) or True)
+    monkeypatch.setattr(emailer_mod, "send", lambda to, subject, html, *a, **k: outbox.append((to, subject, html)) or True)
     a, au = _user(flask_app, "A")
     b, bu = _user(flask_app, "B")
     a.post("/tour-board/post", data={"kind": "artist", "title": "FILTER nashville oct", "region_code": "metro-nashville", "region_text": "Nashville, TN",

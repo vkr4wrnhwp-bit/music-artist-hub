@@ -4,9 +4,15 @@
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">Shows</p><h1 class="to-h1" style="font-size:20px">{{ shows|length }} date{{ '' if shows|length == 1 else 's' }}</h1></div></div>
 
+{% if advanced is not none %}
+<div class="to-note"><strong>{{ advanced }} advance{{ '' if advanced == '1' else 's' }} sent.</strong>{% if advance_failed and advance_failed != '0' %} {{ advance_failed }} failed — each failed show carries the mail service's reason on its Send advance tab.{% endif %}{% if advance_skipped and advance_skipped != '0' %} {{ advance_skipped }} skipped for having no address.{% endif %}</div>
+{% elif advance_fail == 'sender' %}
+<div class="to-note to-note--warn"><strong>Nothing sent.</strong> This deployment's email sender is Resend's shared test address, which only delivers to the account owner. Set <code>EMAIL_FROM</code> to an address on a verified domain first.</div>
+{% endif %}
+
 {% if shows %}
 <div class="to-table-wrap"><table class="to-table is-stack">
-  <thead><tr><th>#</th><th>Date</th><th>City</th><th>Venue</th><th>Status</th><th>Ready</th><th>Missing</th></tr></thead>
+  <thead><tr><th>#</th><th>Date</th><th>City</th><th>Venue</th><th>Status</th><th>Ready</th><th>Missing</th><th>Advance</th></tr></thead>
   <tbody>
   {% for s in shows %}
   <tr>
@@ -17,12 +23,53 @@
     <td data-k="Status">{{ m.chip(s['status']) }}</td>
     <td data-k="Ready">{{ m.ready(readiness[s['id']]['pct']) }}</td>
     <td data-k="Missing" class="to-muted">{% for i in readiness[s['id']]['missing'][:4] %}{{ i['label']|lower }}{{ ', ' if not loop.last }}{% endfor %}{% if readiness[s['id']]['missing']|length > 4 %} +{{ readiness[s['id']]['missing']|length - 4 }}{% endif %}</td>
+    <td data-k="Advance">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send"><span class="to-chip to-chip--ok">sent {{ sends[s['id']]['created'][:10] }}</span></a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">ready · {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">no address</a>{% else %}<span class="to-muted">—</span>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% else %}
   {{ m.empty("No shows on this tour", "Add a show day from the calendar, or import your dates.", "/tours/" ~ tour['id'] ~ "/calendar", "Calendar") }}
+{% endif %}
+
+{% if shows and can_send %}
+{% set unsent = [] %}{% for s in shows if not sends.get(s['id']) and advance_to.get(s['id']) %}{% set _ = unsent.append(s) %}{% endfor %}
+{% set no_address = [] %}{% for s in shows if not sends.get(s['id']) and not advance_to.get(s['id']) %}{% set _ = no_address.append(s) %}{% endfor %}
+<h2 class="to-h2">Advance the run</h2>
+<div class="to-split">
+  <div>
+    {% if unsent %}
+    <form method="post" action="/tours/{{ tour['id'] }}/advance/send-all" class="to-form">
+      <p class="to-sub">One email per venue, composed from that show's own rows — its times, its bill, what its checklist has and still lacks — with the plot, the input list and the rider files attached, sent to the first address the show knows. Untick any you want to hold.</p>
+      <div class="to-checks">
+        {% for s in unsent %}
+          {{ m.check('show', fmt_day(s['date']) ~ ' · ' ~ s['venue'] ~ ' → ' ~ advance_to[s['id']][0], on=True, value=s['id']) }}
+        {% endfor %}
+      </div>
+      <div class="to-bar">
+        <button class="to-btn" type="submit" {% if not mail_ready %}disabled aria-disabled="true"{% endif %}>Send {{ unsent|length }} advance{{ '' if unsent|length == 1 else 's' }}</button>
+        <span class="to-muted">From {{ sender_address }}</span>
+      </div>
+      {% if not mail_ready %}<p class="to-sub">Email is not live on this deployment: the sender is Resend's shared test address, which only delivers to the account owner.</p>{% endif %}
+    </form>
+    {% else %}
+    <p class="to-sub">Every show with an address has been advanced. Open a show's <b>Send advance</b> tab to send an update.</p>
+    {% endif %}
+  </div>
+  <aside>
+    {% if no_address %}
+    <div class="to-panel">
+      <div class="to-eyebrow">No address yet</div>
+      {% for s in no_address %}<p class="to-sub" style="margin-top:6px"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">{{ fmt_day(s['date']) }} · {{ s['venue'] }}</a></p>{% endfor %}
+      <p class="to-muted">Put the venue contact's email in each show's advance, or add them under People as Venue.</p>
+    </div>
+    {% endif %}
+    <div class="to-panel">
+      <div class="to-eyebrow">What a venue gets</div>
+      <p class="to-sub">Exactly what the single Send advance tab sends, per show. Money never. Each send is recorded on its show, with the mail service's reason if it fails.</p>
+    </div>
+  </aside>
+</div>
 {% endif %}
 
 {% if unattached %}

@@ -60,6 +60,24 @@ Each send, successful or not, is a `tour_advance_sends` row (to, cc,
 subject, the body as sent, the attachment names, the links) and an
 activity-log entry. The tab lists them.
 
+## Advancing the whole run
+
+`/tours/<t>/shows` carries an *Advance* column per show — sent (with the
+date, linking to that show's Send advance tab), ready (with the address
+it would use), or no address (linking to the show's advance) — and, for
+anyone with the *advance* or *edit* scope, an **Advance the run** panel:
+every unsent show that knows an address, ticked, one button.
+
+`POST /tours/<t>/advance/send-all` sends one email per ticked show,
+composed for that show exactly as the single tab would compose it, with
+the default attachments (plot, input list, rider / tech pack / plot
+files), to the first address the show knows, reply-to the sender. A show
+with no address is skipped and counted; a refusal is recorded on that
+show with the mail service's reason. The page it lands on says sent /
+failed / skipped, and the list only offers what is still unsent.
+
+The same `_deliver_advance()` serves both routes, so the two cannot drift.
+
 ## The loop
 
 The venue replies to the sender's address. Paste the reply into the
@@ -97,4 +115,4 @@ inbound rebuilt on the same account as the sending key.
 | `plot_images.py` | Keeps the rendered plot for attaching. |
 | `tour_os.py` | `_send_context`, `_build_attachments`, the route, the tab. |
 | `templates/tour/show/_send.html` | The tab. |
-| `tests/test_tour_advance_send.py` | 11 tests. |
+| `tests/test_tour_advance_send.py` | 14 tests. |

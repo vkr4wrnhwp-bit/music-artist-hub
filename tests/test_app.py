@@ -3591,7 +3591,7 @@ def test_club_members_area(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     sent = {}
     monkeypatch.setattr(emailer_mod, "send",
-                        lambda to, subject, html, attachments=None:
+                        lambda to, subject, html, *a, **k:
                         sent.update({"to": to, "html": html}) or True)
     app_obj = create_app()
     artist = _demo(app_obj)
@@ -3693,7 +3693,7 @@ def test_drop_notifications(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
-                        lambda to, subject, html, attachments=None:
+                        lambda to, subject, html, *a, **k:
                         outbox.append((to, subject, html)) or to.endswith("@ok.example"))
     app_obj = create_app()
     artist = _demo(app_obj)
@@ -3817,7 +3817,7 @@ def test_show_advancer_and_showday(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
-                        lambda to, subject, html, attachments=None:
+                        lambda to, subject, html, *a, **k:
                         outbox.append((to, subject, html)) or True)
     app_obj = create_app()
     artist = _demo(app_obj)
@@ -3888,7 +3888,7 @@ def test_team_up_board(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
-                        lambda to, subject, html, attachments=None:
+                        lambda to, subject, html, *a, **k:
                         outbox.append((to, subject, html)) or True)
     import board_store as bs
     app_obj = create_app()
@@ -4331,7 +4331,7 @@ def test_lockbox_signoff_flow(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     outbox = []
     monkeypatch.setattr(emailer_mod, "send",
-                        lambda to, subject, html, attachments=None:
+                        lambda to, subject, html, *a, **k:
                         outbox.append((to, subject, html)) or True)
     app_obj = create_app()
     artist = _demo(app_obj)

@@ -342,7 +342,7 @@ def test_sending_works_and_reports_each_recipient(flask_app, monkeypatch):
 
     calls = []
 
-    def fake_send(to, subject, html, attachments=None):
+    def fake_send(to, subject, html, *a, **k):
         calls.append({"to": to, "subject": subject, "html": html})
         return "gravel" not in to        # one succeeds, one fails
 

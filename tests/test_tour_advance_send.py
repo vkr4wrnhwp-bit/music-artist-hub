@@ -289,3 +289,66 @@ def test_a_stranger_cannot_send_from_somebody_elses_tour(flask_app, live_mail):
     assert stranger.post("/tours/%s/shows/%s/advance/send" % (tid, sid),
                          data={"to": "prod@venue.example"}).status_code == 404
     assert not live_mail
+
+
+# --- advancing the whole run ------------------------------------------------
+
+def test_bulk_advancing_sends_to_every_ticked_venue_with_an_address(flask_app, live_mail):
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    s1 = _show(client, tid, "2030-05-02", "Room One")
+    s2 = _show(client, tid, "2030-05-03", "Room Two")
+    s3 = _show(client, tid, "2030-05-04", "Room Three")
+    client.post("/tours/%s/shows/%s/advance-bulk" % (tid, s1), data={
+        "status__venue_contact": "complete", "value__venue_contact": "Ana, one@venue.example"})
+    client.post("/tours/%s/shows/%s/advance-bulk" % (tid, s2), data={
+        "status__promoter": "complete", "value__promoter": "two@venue.example"})
+
+    page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
+    assert "one@venue.example" in page and "two@venue.example" in page and "no address" in page
+    assert 'value="%s"' % s1 in page and 'value="%s"' % s2 in page
+    assert "Send 2 advances" in page
+
+    r = client.post("/tours/%s/advance/send-all" % tid, data={"show": [s1, s2, s3]})
+    assert r.status_code == 302
+    assert "advanced=2" in r.headers["Location"] and "advance_skipped=1" in r.headers["Location"]
+    assert sorted(m["to"] for m in live_mail) == ["one@venue.example", "two@venue.example"]
+    for m in live_mail:
+        assert m["subject"].startswith("Advance: Test Artist at Room")
+        assert m["reply_to"] == owner["email"]
+        assert "Hi" in m["text"] and "Room" in m["text"]
+    assert [m["text"].startswith("Hi Ana,") for m in live_mail].count(True) == 1
+    assert len(ts.list_advance_sends(tid)) == 2
+    assert all(s["status"] == "sent" for s in ts.list_advance_sends(tid))
+
+    # The page the redirect lands on says what happened; the list shows the
+    # two as sent and offers only what is left.
+    page = client.get(r.headers["Location"]).get_data(as_text=True)
+    assert page.count("to-chip--ok") >= 2 and "2 advances sent" in page
+    assert 'value="%s"' % s1 not in page and "Every show with an address has been advanced" in page
+    assert "Room Three" in page          # still listed under "No address yet"
+
+
+def test_bulk_advancing_refuses_on_the_shared_sender(flask_app, monkeypatch):
+    monkeypatch.setattr(emailer, "configured", lambda: True)
+    monkeypatch.setattr(emailer, "using_shared_test_sender", lambda: True)
+    sent = []
+    monkeypatch.setattr(emailer, "send", lambda *a, **k: sent.append(1) or True)
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    sid = _show(client, tid, "2030-05-02", "Room One")
+    client.post("/tours/%s/shows/%s/advance-bulk" % (tid, sid), data={
+        "status__venue_contact": "complete", "value__venue_contact": "one@venue.example"})
+    page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
+    assert "disabled" in page and "shared test address" in page
+    r = client.post("/tours/%s/advance/send-all" % tid, data={"show": [sid]})
+    assert "advance_fail=sender" in r.headers["Location"] and not sent
+
+
+def test_a_stranger_cannot_advance_somebody_elses_run(flask_app, live_mail):
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    sid = _show(client, tid, "2030-05-02", "Room One")
+    stranger, _ = _user(flask_app, "Stranger")
+    assert stranger.post("/tours/%s/advance/send-all" % tid, data={"show": [sid]}).status_code == 404
+    assert not live_mail

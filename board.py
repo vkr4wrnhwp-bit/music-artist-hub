@@ -220,7 +220,7 @@ def reply(listing_id):
                 emailer.send(owner["email"], "New reply on your Team-Up listing",
                              "<p><b>%s</b> replied to “%s”:</p><p>%s</p><p><a href=\"%s/tour-board/thread/%s\">Open the thread</a> in Street Banker to answer.</p>"
                              % (_html.escape(user.get("name") or "A member"), _html.escape(l["title"]),
-                                _html.escape(message[:500]), _base_url(), tid))
+                                _html.escape(message[:500]), _base_url(), tid), reply_to=user.get("email") or None)
             except Exception:
                 pass
     return redirect("/tour-board/thread/%s?sent=1" % tid)

@@ -315,7 +315,7 @@ def pitch_send(user, pitch_id):
         if not recipient["email"]:
             continue
         ok = emailer.send(recipient["email"], recipient["subject"],
-                          _as_html(recipient["body"]))
+                          _as_html(recipient["body"]), reply_to=user["email"])
         press_store.mark_sent(recipient["id"], ok)
         sent += 1 if ok else 0
         failed += 0 if ok else 1

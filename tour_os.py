@@ -672,9 +672,16 @@ def shows_list(user, tour, viewer, tour_id):
     readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
     unattached = [s for s in store.list_tour_shows(tour["user_id"]) if not s.get("tour_id")] if viewer["is_owner"] else []
     venues = ts.list_venues(tour["user_id"])
+    can_send = can(viewer, "advance") or can(viewer, "edit")
     return render_template("tour/shows.html", **_ctx(
         user, tour, viewer, "shows", shows=shows, readiness=readiness, unattached=unattached,
-        venues=venues))
+        venues=venues, sends=ts.advance_send_map(tour_id),
+        advance_to=_advance_to(tour, shows) if can_send else {}, can_send=can_send,
+        mail_ready=emailer.configured() and not emailer.using_shared_test_sender(),
+        sender_address=emailer.sender(),
+        advanced=request.args.get("advanced"), advance_failed=request.args.get("advance_failed"),
+        advance_skipped=request.args.get("advance_skipped"),
+        advance_fail=request.args.get("advance_fail")))
 
 
 @bp.route("/tours/<tour_id>/shows/attach", methods=["POST"])
@@ -1292,6 +1299,37 @@ def _build_attachments(tour, ctx, picks):
     return out, names, skipped
 
 
+def _default_picks(ctx):
+    """What goes with an advance when nobody chose: the plot, the input list,
+    and every rider, tech pack or plot file on the show or the tour."""
+    picks = ["plot", "inputs"]
+    picks += [f["id"] for f in ctx["send_files"] if f["category"] in ("rider", "tech_pack", "stage_plot")]
+    return picks
+
+
+def _deliver_advance(tour, show, viewer, user, to, cc, subject, body, picks):
+    """Compose (links minted), attach, send, record, log. One show, one
+    email. Returns (ok, attachment names, what was left out)."""
+    ctx = _send_context(tour, show, viewer, user, create_links=True)
+    subject = (subject or "").strip()[:200] or ctx["composed"]["subject"]
+    body = (body or "").strip() or ctx["composed"]["text"]
+    if picks is None:
+        picks = _default_picks(ctx)
+    attachments, names, skipped = _build_attachments(tour, ctx, picks)
+    ok = emailer.send(to, subject, tam.html_for(body), attachments=attachments or None,
+                      reply_to=ctx["sender"]["email"] or None, cc=cc or None, text=body)
+    ts.record_advance_send(tour["id"], tour["user_id"], show["id"], to, subject, body, names,
+                           ctx["links"], status="sent" if ok else "failed",
+                           error="" if ok else (emailer.last_send_error()
+                                                or "The mail service did not accept the message."),
+                           cc=", ".join(cc or []), sent_by=viewer.get("name") or "")
+    ts.log_change(tour["id"], tour["user_id"], _actor(viewer), "advance", show["id"],
+                  "%s · advance email" % show["venue"], "sent" if ok else "send failed", "",
+                  to + ((" · %d attachment%s" % (len(names), "" if len(names) == 1 else "s")) if names else ""),
+                  "info" if ok else "warn")
+    return ok, names, skipped
+
+
 @bp.route("/tours/<tour_id>/shows/<show_id>/advance/send", methods=["POST"])
 @require_tour("advance", "edit")
 def advance_send(user, tour, viewer, tour_id, show_id):
@@ -1303,26 +1341,45 @@ def advance_send(user, tour, viewer, tour_id, show_id):
     if not emailer.configured() or emailer.using_shared_test_sender():
         # Never 'sent' when nobody but the owner could receive it.
         return redirect(back + "&fail=sender")
-    ctx = _send_context(tour, show, viewer, user, create_links=True)
-    subject = (request.form.get("subject") or "").strip()[:200] or ctx["composed"]["subject"]
-    body = (request.form.get("body") or "").strip() or ctx["composed"]["text"]
     cc = [x.strip() for x in (request.form.get("cc") or "").split(",") if _EMAIL_RE.match(x.strip())]
-    picks = request.form.getlist("attach")
-    attachments, names, skipped = _build_attachments(tour, ctx, picks)
-    ok = emailer.send(to, subject, tam.html_for(body), attachments=attachments or None,
-                      reply_to=ctx["sender"]["email"] or None, cc=cc or None, text=body)
-    ts.record_advance_send(tour_id, tour["user_id"], show_id, to, subject, body, names,
-                           ctx["links"], status="sent" if ok else "failed",
-                           error="" if ok else (emailer.last_send_error()
-                                                or "The mail service did not accept the message."),
-                           cc=", ".join(cc), sent_by=viewer.get("name") or "")
-    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "advance", show_id,
-                  "%s · advance email" % show["venue"], "sent" if ok else "send failed", "",
-                  to + ((" · %d attachment%s" % (len(names), "" if len(names) == 1 else "s")) if names else ""),
-                  "info" if ok else "warn")
+    ok, names, skipped = _deliver_advance(tour, show, viewer, user, to, cc,
+                                          request.form.get("subject"), request.form.get("body"),
+                                          request.form.getlist("attach"))
     if not ok:
         return redirect(back + "&fail=send")
     return redirect(back + "&sent=1" + ("&skipped=%d" % len(skipped) if skipped else ""))
+
+
+def _advance_to(tour, shows):
+    """show id -> the addresses each show already knows, for the Shows page.
+    Read-only: no checklist rows are created here."""
+    people = ts.list_people(tour["id"])
+    return {s["id"]: tam.candidate_recipients(people, ts.list_advance(tour["id"], s["id"]), s["id"])
+            for s in shows}
+
+
+@bp.route("/tours/<tour_id>/advance/send-all", methods=["POST"])
+@require_tour("advance", "edit")
+def advance_send_all(user, tour, viewer, tour_id):
+    """Advance every ticked show to the first address it knows, one email
+    each, composed per show. A show with no address is skipped and said so;
+    a failure is recorded on that show like a single send would be."""
+    back = "/tours/%s/shows" % tour_id
+    if not emailer.configured() or emailer.using_shared_test_sender():
+        return redirect(back + "?advance_fail=sender")
+    picks = set(request.form.getlist("show"))
+    shows = [s for s in ts.list_shows(tour_id) if s["id"] in picks]
+    addresses = _advance_to(tour, shows)
+    sent = failed = skipped = 0
+    for show in shows:
+        to = (addresses.get(show["id"]) or [""])[0]
+        if not to:
+            skipped += 1
+            continue
+        ok, _names, _left = _deliver_advance(tour, show, viewer, user, to, [], "", "", None)
+        sent += 1 if ok else 0
+        failed += 0 if ok else 1
+    return redirect(back + "?advanced=%d&advance_failed=%d&advance_skipped=%d" % (sent, failed, skipped))
 
 
 # --- travel -----------------------------------------------------------------
@@ -2831,7 +2888,7 @@ def team_invite(user, tour, viewer, tour_id):
             emailer.send(m["email"], "You're on the %s tour" % tour["name"],
                          "<p>%s added you to <b>%s</b> on Street Banker as %s.</p>"
                          "<p><a href=\"%s\">Accept and open the tour</a></p>"
-                         % (_esc(viewer["name"]), _esc(tour["name"]), _esc(role.replace("_", " ")), join_url))
+                         % (_esc(viewer["name"]), _esc(tour["name"]), _esc(role.replace("_", " ")), join_url), reply_to=user.get("email") or None)
         except Exception:
             pass
     ts.log_change(tour_id, tour["user_id"], _actor(viewer), "member", m["id"], m["email"], "invited", "", role, "info")

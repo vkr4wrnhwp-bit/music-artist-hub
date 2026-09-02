@@ -1132,8 +1132,11 @@ def create_app():
         html = emailer.release_email_html(
             campaign["title"], campaign.get("artist_name") or "",
             listen_url, campaign.get("cover_url") or "")
+        # Replies go to the artist, never to the sending address.
+        owner = store.get_user(campaign["user_id"]) or {}
         sent = sum(1 for f in mls.campaign_fans(campaign["id"])
-                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html))
+                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
+                                   reply_to=owner.get("email") or None))
         if sent:
             store.notify(campaign["user_id"], "fan",
                          "Release emails sent: %s" % campaign["title"],
@@ -3675,7 +3678,7 @@ def create_app():
                 '<p><a href="%s">%s</a></p>'
                 '<p style="color:#91836A;font-size:12px">The link works for 7 days '
                 'and keeps you signed in on this device.</p>'
-                % (club["name"] or "the fan club", link, link))
+                % (club["name"] or "the fan club", link, link), reply_to=(store.get_user(prof["user_id"]) or {}).get("email") or None)
             if not ok:
                 # Honesty first: the send failed (sandbox until a domain is
                 # verified), so don't tell anyone to go check their inbox.
@@ -3722,7 +3725,7 @@ def create_app():
                    _html.escape(title),
                    ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
-                   link))
+                   link), reply_to=user["email"])
             if ok:
                 notified += 1
             else:
@@ -3828,7 +3831,7 @@ def create_app():
                              'wants to add you to the roster (they see read-only '
                              'stats, never your login).</p>'
                              '<p><a href="%s">Accept the invite</a></p>'
-                             % (user["name"], link))
+                             % (user["name"], link), reply_to=user["email"])
         return redirect("/roster")
 
     @app.route("/roster/join/<token>", methods=["GET", "POST"])
@@ -4303,7 +4306,7 @@ def create_app():
                                  '<p><b>%s</b> needs your sign-off on the %s for '
                                  '\u201c%s\u201d.</p><p><a href="%s">Review and sign</a></p>'
                                  % (user["name"], doc_label.lower(),
-                                    track["title"], link))
+                                    track["title"], link), reply_to=user["email"])
         box[doc_key] = entry
         store.update_os_track_lockbox(user["id"], track_id, box)
         return redirect("/tracks/" + track_id)
@@ -4516,7 +4519,7 @@ def create_app():
         import html as _html
         ok = emailer.send(to, mail["subject"],
                           '<pre style="font-family:inherit;white-space:pre-wrap">%s</pre>'
-                          % _html.escape(mail["body"]))
+                          % _html.escape(mail["body"]), reply_to=user["email"])
         return redirect("/tour/" + show_id + ("?sent=1" if ok else "?email_fail=1"))
 
     @app.route("/showday/<token>")
@@ -7131,7 +7134,7 @@ def create_app():
                     % (_html.escape(user["name"] or "A member"),
                        _html.escape(req["title"]),
                        _html.escape(message[:500]), _html.escape(contact),
-                       _html.escape(contact)))
+                       _html.escape(contact)), reply_to=contact)
         return redirect("/marketplace?applied=1")
 
     @app.route("/marketplace/<req_id>/save", methods=["POST"])
@@ -7782,7 +7785,7 @@ def create_app():
                 "<strong>%s</strong>.</p>"
                 '<p><a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
                 'font-weight:bold;padding:12px 24px;border-radius:10px;text-decoration:none;">'
-                "Accept the invite</a></p></div>" % (user["name"], role, link))
+                "Accept the invite</a></p></div>" % (user["name"], role, link), reply_to=user["email"])
         return jsonify({"ok": True, "link": link, "emailed": emailed})
 
     @app.route("/team/join/<token>", methods=["GET", "POST"])
