@@ -12,6 +12,7 @@ import {
 } from "@/lib/view-environment";
 import { ContactShadows, Edges, Environment, GizmoHelper, GizmoViewcube, Grid, Html, Lightformer, OrbitControls, Line } from "@react-three/drei";
 import { holdMeasurements } from "./hold-measurements";
+import { stockTopZ } from "./part-frame";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
@@ -451,8 +452,15 @@ function SceneContent({
       <DatumIndicator stock={stock} />
 
       {showFixture && fixture && <Fixture stock={stock} fixture={fixture} callouts={Boolean(showHoldCallouts)} />}
-      {!simHandle && showToolpath && moves && moves.length > 1 && <Toolpath moves={moves} playhead={playhead} zTop={stock.z / 2} />}
-      {!simHandle && showTool && moves && moves.length > 1 && <ToolMarker moves={moves} playhead={playhead} zTop={stock.z / 2} />}
+      {/* The part's top face, where tool Z is zero. The group above already
+          carries the offset that centres the part; adding half a stock height
+          here as well drew the whole path inside the solid. */}
+      {!simHandle && showToolpath && moves && moves.length > 1 && (
+        <Toolpath moves={moves} playhead={playhead} zTop={stockTopZ(stock.z)} />
+      )}
+      {!simHandle && showTool && moves && moves.length > 1 && (
+        <ToolMarker moves={moves} playhead={playhead} zTop={stockTopZ(stock.z)} />
+      )}
     </group>
   );
 }

@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { StockRemovalSimulator } from "@/lib/sim/stock-removal";
+import { STOCK_BOTTOM_Z, sceneZ, stockTopZ } from "./part-frame";
 
 /**
  * CUT — the stock being machined, in the viewport.
@@ -38,7 +39,11 @@ const COLLISION_WINDOW = 0.02; // minutes either side of a recorded event
 export function SimRig({ handle, stock }: { handle: SimHandle; stock: { x: number; y: number; z: number } }) {
   const { sim } = handle;
   const field = sim.field;
-  const zOff = stock.z / 2;
+  // Part Z zero is the top face of the stock. The enclosing group already
+  // centres the part on the origin; this rig used to centre it a second time,
+  // which put the simulated block, its cutter and its base plate half a stock
+  // height below the solid, the features and the datum indicator.
+  const topZ = stockTopZ(stock.z);
 
   const meshRef = useRef<THREE.Mesh>(null);
   const skirtRef = useRef<THREE.Mesh>(null);
@@ -61,7 +66,7 @@ export function SimRig({ handle, stock }: { handle: SimHandle; stock: { x: numbe
         const k = (j * nx + i) * 3;
         pos[k] = (i + 0.5) * cell - stock.x / 2;
         pos[k + 1] = (j + 0.5) * cell - stock.y / 2;
-        pos[k + 2] = stock.z / 2;
+        pos[k + 2] = topZ;
       }
     }
     const idx: number[] = [];
@@ -85,7 +90,7 @@ export function SimRig({ handle, stock }: { handle: SimHandle; stock: { x: numbe
       for (let i = 0; i < nx; i++) {
         const v = j * nx + i;
         const h = field.data[v];
-        pos.setZ(v, h - zOff);
+        pos.setZ(v, h);
         const machined = h < stock.z - 1e-6;
         const c = machined ? MACHINED : RAW;
         col.setXYZ(v, c.r, c.g, c.b);
@@ -111,7 +116,7 @@ export function SimRig({ handle, stock }: { handle: SimHandle; stock: { x: numbe
 
     const m = sim.metricsAt(handle.time);
     if (toolRef.current) {
-      toolRef.current.position.set(m.position.x, m.position.y, m.position.z + zOff);
+      toolRef.current.position.set(m.position.x, m.position.y, sceneZ(stock.z, m.position.z));
       toolRef.current.visible = true;
     }
     if (toolMatRef.current) {
@@ -137,7 +142,7 @@ export function SimRig({ handle, stock }: { handle: SimHandle; stock: { x: numbe
       </mesh>
       {/* Thin base plate at the very bottom — visual seating only, kept well
           below anything a toolpath can reach so it can never mask a cut. */}
-      <mesh ref={skirtRef} position={[0, 0, -stock.z / 2 + 0.015]}>
+      <mesh ref={skirtRef} position={[0, 0, STOCK_BOTTOM_Z + 0.015]}>
         <boxGeometry args={[stock.x, stock.y, 0.03]} />
         <meshStandardMaterial color="#a9a59d" metalness={0.5} roughness={0.45} />
       </mesh>
