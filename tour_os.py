@@ -38,6 +38,8 @@ import db as store
 import email_provider as emailer
 import plans
 import press_store
+import plot_images
+import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
 
@@ -52,7 +54,7 @@ MONEY_FILE_CATEGORIES = {"invoice", "tax", "settlement", "contract"}
 
 SHOW_TABS = [
     ("overview", "Overview"), ("schedule", "Schedule"), ("advance", "Advance"),
-    ("inbox", "Advance inbox"), ("travel", "Travel"), ("hotel", "Hotel"),
+    ("inbox", "Advance inbox"), ("send", "Send advance"), ("travel", "Travel"), ("hotel", "Hotel"),
     ("venue", "Venue"), ("people", "People"), ("guests", "Guest list"),
     ("vip", "VIP"), ("production", "Production"), ("money", "Money"),
     ("merch", "Merch"), ("marketing", "Marketing"), ("content", "Content"),
@@ -61,7 +63,7 @@ SHOW_TABS = [
 ]
 TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
              "vip": "vip", "marketing": "marketing", "content": "content",
-             "inbox": "advance", "files": "files"}
+             "inbox": "advance", "send": "advance", "files": "files"}
 
 TOUR_TABS = [
     ("home", "Tour Home", ""), ("my-day", "My Day", "my-day"),
@@ -791,6 +793,10 @@ def show(user, tour, viewer, tour_id, show_id):
         data["changes"] = _changes_for(viewer, tour_id, mine)[:100]
     if tab == "inbox":
         data["imports"] = [i for i in ts.list_imports(tour_id) if i["summary"].get("show_id") == show_id][:10]
+    if tab == "send":
+        data.update(_send_context(tour, show, viewer, user))
+        data["sent"] = request.args.get("sent")
+        data["fail"] = request.args.get("fail")
     if tab == "marketing":
         data["marketing"] = show.get("marketing") or {}
         data["ticket_progress"] = _ticket_progress(show)
@@ -1147,6 +1153,175 @@ def inbox(user, tour, viewer, tour_id, show_id):
                          {"show_id": show_id, "applied": applied, "skipped": skipped})
         return redirect(_show_url(tour, show, "inbox"))
     return redirect(_show_url(tour, show, "inbox"))
+
+
+# --- send the advance -------------------------------------------------------
+# One email to the venue, composed by tour_advance_mail from this show's
+# rows, with the rider and plot attached. This is the only place the
+# packet leaves the building, and it leaves through the same mailer as
+# everything else.
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+SEND_FILE_CATEGORIES = ("rider", "stage_plot", "tech_pack", "production")
+ATTACH_CAP = 18 * 1024 * 1024
+
+
+def _slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-") or "artist"
+
+
+def _rider_url(tour, show, create=False):
+    """The Tour Hub's public tech-rider page for this show: plot, input
+    list, times, backline. The token is minted on first send."""
+    hub = store.get_tour_show(tour["user_id"], show["id"])
+    if hub is None:
+        return ""
+    token = hub.get("share_token") or ""
+    if not token and create:
+        token = uuid.uuid4().hex
+        store.set_show_share_token(tour["user_id"], show["id"], token)
+    return "%s/rider/%s" % (_base_url(), token) if token else ""
+
+
+def _production_url(tour, show, create=False):
+    """A production-scope share link for this show, minted on first send.
+    Password-protected links are never reused here: the venue was not
+    told the password."""
+    for link in ts.list_share_links(tour["id"]):
+        if (link["scope"] == "production" and link.get("show_id") == show["id"]
+                and not link.get("revoked") and not link.get("password_hash")):
+            return "%s/tour-share/%s" % (_base_url(), link["token"])
+    if create:
+        token = ts.create_share_link(tour["id"], tour["user_id"], "production", show_id=show["id"])
+        return "%s/tour-share/%s" % (_base_url(), token) if token else ""
+    return ""
+
+
+def _sender_for(viewer, user, people):
+    """Who signs: the person sending, with the account's address for
+    replies and the tour manager's phone if it is not marked private."""
+    tm = next((p for p in people if p.get("category") == "Tour Management"), None)
+    phone = ""
+    if tm and tm.get("phone") and not tm.get("phone_private"):
+        phone = tm["phone"]
+    return {"name": viewer.get("name") or user.get("name") or "",
+            "email": user.get("email") or "", "phone": phone,
+            "role": (tm or {}).get("role") or ("Tour manager" if tm else "")}
+
+
+def _send_files(tour, viewer, show):
+    rows = [f for f in ts.list_files(tour["id"], entity_type="show", entity_id=show["id"])
+            if f["category"] in SEND_FILE_CATEGORIES]
+    rows += [f for f in ts.list_files(tour["id"], entity_type="tour")
+             if f["category"] in SEND_FILE_CATEGORIES]
+    return _files_for(viewer, rows)
+
+
+def _send_context(tour, show, viewer, user, create_links=False):
+    tid, sid = tour["id"], show["id"]
+    ts.ensure_advance_items(tid, tour["user_id"], sid)
+    advance_rows = ts.list_advance(tid, sid)
+    schedule = _visible(viewer, ts.list_schedule(tid, show_id=sid))
+    lineup = ts.seed_lineup_from_support(tid, show)
+    people = ts.list_people(tid)
+    files = _send_files(tour, viewer, show)
+    plot = store.get_stage_plot(tour["user_id"]) or {}
+    plot_image = store.get_stage_plot_image(tour["user_id"])
+    channels = tam.channel_list(plot)
+    sender = _sender_for(viewer, user, people)
+    links = {"rider": _rider_url(tour, show, create_links),
+             "production": _production_url(tour, show, create_links)}
+    names = (["Stage plot (PNG)"] if plot_image else [])
+    names += ["Input list (%d channels)" % len(channels)] if channels else []
+    names += [f["file_name"] for f in files if f["category"] in ("rider", "tech_pack", "stage_plot")]
+    venue = ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None
+    composed = tam.compose(tour, show, schedule, lineup, advance_rows, sender, links, names,
+                           fmt_time=eng.fmt_time, fmt_day=eng.fmt_day_long, venue=venue)
+    return {"composed": composed,
+            "recipients": tam.candidate_recipients(people, advance_rows, sid),
+            "send_files": files, "plot_image": bool(plot_image), "channels": channels,
+            "sender": sender, "sender_address": emailer.sender(),
+            "mail_ready": emailer.configured() and not emailer.using_shared_test_sender(),
+            "links": links, "sends": ts.list_advance_sends(tid, sid)}
+
+
+def _file_bytes(record):
+    path = record["path"]
+    if blob_store.is_remote(path):
+        return blob_store.fetch(path)
+    if path.startswith(TOUR_PREFIX):
+        try:
+            with open(os.path.join(_tour_dir(), path[len(TOUR_PREFIX):]), "rb") as fh:
+                return fh.read()
+        except OSError:
+            return None
+    return None
+
+
+def _build_attachments(tour, ctx, picks):
+    """[{filename, content}] for the mailer, the names for the record, and
+    what was left out and why. Empty files are left out rather than sent
+    as empty; over the cap, the biggest offender is named."""
+    import base64
+
+    out, names, skipped, total = [], [], [], 0
+
+    def add(name, data):
+        nonlocal total
+        if not data:
+            skipped.append(name)
+            return
+        if total + len(data) > ATTACH_CAP:
+            skipped.append(name + " (over the size limit)")
+            return
+        total += len(data)
+        out.append({"filename": name, "content": base64.b64encode(data).decode("ascii")})
+        names.append(name)
+
+    artist = _slug(tour.get("artist_name") or tour.get("name"))
+    if "plot" in picks and ctx["plot_image"]:
+        add(artist + "-stage-plot.png", plot_images.read(tour["user_id"]))
+    if "inputs" in picks and ctx["channels"]:
+        add(artist + "-input-list.txt",
+            tam.input_list_text(ctx["channels"], tour.get("artist_name") or tour.get("name") or "").encode("utf-8"))
+    by_id = {f["id"]: f for f in ctx["send_files"]}
+    for pick in picks:
+        record = by_id.get(pick)
+        if record is not None:
+            add(record["file_name"], _file_bytes(record))
+    return out, names, skipped
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/advance/send", methods=["POST"])
+@require_tour("advance", "edit")
+def advance_send(user, tour, viewer, tour_id, show_id):
+    show = _show_or_404(tour, show_id)
+    back = _show_url(tour, show, "send")
+    to = (request.form.get("to") or "").strip()
+    if not _EMAIL_RE.match(to):
+        return redirect(back + "&fail=to")
+    if not emailer.configured() or emailer.using_shared_test_sender():
+        # Never 'sent' when nobody but the owner could receive it.
+        return redirect(back + "&fail=sender")
+    ctx = _send_context(tour, show, viewer, user, create_links=True)
+    subject = (request.form.get("subject") or "").strip()[:200] or ctx["composed"]["subject"]
+    body = (request.form.get("body") or "").strip() or ctx["composed"]["text"]
+    cc = [x.strip() for x in (request.form.get("cc") or "").split(",") if _EMAIL_RE.match(x.strip())]
+    picks = request.form.getlist("attach")
+    attachments, names, skipped = _build_attachments(tour, ctx, picks)
+    ok = emailer.send(to, subject, tam.html_for(body), attachments=attachments or None,
+                      reply_to=ctx["sender"]["email"] or None, cc=cc or None, text=body)
+    ts.record_advance_send(tour_id, tour["user_id"], show_id, to, subject, body, names,
+                           ctx["links"], status="sent" if ok else "failed",
+                           error="" if ok else "The mail service did not accept the message.",
+                           cc=", ".join(cc), sent_by=viewer.get("name") or "")
+    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "advance", show_id,
+                  "%s · advance email" % show["venue"], "sent" if ok else "send failed", "",
+                  to + ((" · %d attachment%s" % (len(names), "" if len(names) == 1 else "s")) if names else ""),
+                  "info" if ok else "warn")
+    if not ok:
+        return redirect(back + "&fail=send")
+    return redirect(back + "&sent=1" + ("&skipped=%d" % len(skipped) if skipped else ""))
 
 
 # --- travel -----------------------------------------------------------------

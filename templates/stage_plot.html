@@ -39,6 +39,7 @@
       <div class="flex flex-col gap-2">
         {{ sb.btn("Save plot", id="sp-save", variant="primary", extra="w-full", type="button") }}
         {{ sb.btn("Download PNG", id="sp-export", variant="secondary", extra="w-full", type="button") }}
+        {{ sb.btn("Save for advances", id="sp-publish", variant="secondary", extra="w-full", type="button") }}
         <div id="sp-status" class="text-center text-sm text-gray-300"></div>
       </div>
     </div>
@@ -163,7 +164,10 @@
       .catch(function () { statusEl.textContent = "Save failed — try again."; });
   });
 
-  document.getElementById("sp-export").addEventListener("click", function () {
+  // The PNG is drawn here, in the browser: the server has no renderer.
+  // Download hands it to the person; Save for advances hands it to the
+  // server so the tour's advance email can attach it.
+  function rasterize(done, fail) {
     var svgText = SP.buildSvg(state);
     var img = new Image();
     var H = parseInt(svgText.match(/viewBox="0 0 1000 (\d+)"/)[1], 10);
@@ -172,14 +176,39 @@
       cv.width = 2000; cv.height = H * 2;
       var ctx = cv.getContext("2d");
       ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      done(cv);
+    };
+    img.onerror = fail;
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+  }
+
+  document.getElementById("sp-export").addEventListener("click", function () {
+    rasterize(function (cv) {
       var a = document.createElement("a");
       a.download = (state.name || "stage-plot").toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-stage-plot.png";
       a.href = cv.toDataURL("image/png");
       a.click();
       statusEl.textContent = "PNG downloaded.";
-    };
-    img.onerror = function () { statusEl.textContent = "Export failed — try again."; };
-    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+    }, function () { statusEl.textContent = "Export failed — try again."; });
+  });
+
+  document.getElementById("sp-publish").addEventListener("click", function () {
+    statusEl.textContent = "Rendering…";
+    rasterize(function (cv) {
+      cv.toBlob(function (blob) {
+        if (!blob) { statusEl.textContent = "Export failed — try again."; return; }
+        var fd = new FormData();
+        fd.append("image", blob, "stage-plot.png");
+        fetch("/stage-plot/image", {method: "POST", body: fd, credentials: "same-origin"})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            statusEl.textContent = d.ok
+              ? "Saved — every advance email you send from TOUR attaches this plot."
+              : (d.error || "Save failed — try again.");
+          })
+          .catch(function () { statusEl.textContent = "Save failed — try again."; });
+      }, "image/png");
+    }, function () { statusEl.textContent = "Export failed — try again."; });
   });
 
   render();

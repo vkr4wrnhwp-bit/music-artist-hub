@@ -19,7 +19,7 @@
 
 <nav class="to-tabs" aria-label="Show sections" style="margin-top:-4px">
   {% for key, label in show_tabs %}
-    {% set need = {'money':'financials','merch':'merch','guests':'guests','vip':'vip','marketing':'marketing','content':'content','inbox':'advance','files':'files'}[key] if key in ('money','merch','guests','vip','marketing','content','inbox','files') else None %}
+    {% set need = {'money':'financials','merch':'merch','guests':'guests','vip':'vip','marketing':'marketing','content':'content','inbox':'advance','send':'advance','files':'files'}[key] if key in ('money','merch','guests','vip','marketing','content','inbox','send','files') else None %}
     {% if not need or can(need) %}
     <a class="to-tab {{ 'is-on' if tab == key }}" href="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}?tab={{ key }}">{{ label }}</a>
     {% endif %}

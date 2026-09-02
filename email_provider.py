@@ -40,14 +40,22 @@ def _http(url, payload, headers):
         return json.loads(body.decode("utf-8")) if body else {}
 
 
-def send(to, subject, html, attachments=None):
+def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None):
     """One email (optional attachments: [{filename, content-b64}]).
-    True only when Resend accepted it."""
+    True only when Resend accepted it. reply_to is where a human's
+    answer should land - the advance sender, not the app - and cc is a
+    list or one address."""
     if not configured() or not to:
         return False
     payload = {"from": sender(), "to": [to], "subject": subject, "html": html}
     if attachments:
         payload["attachments"] = attachments
+    if reply_to:
+        payload["reply_to"] = reply_to
+    if cc:
+        payload["cc"] = list(cc) if isinstance(cc, (list, tuple)) else [cc]
+    if text:
+        payload["text"] = text
     try:
         out = _http("https://api.resend.com/emails", payload, {
             "Authorization": "Bearer " + os.environ["RESEND_API_KEY"],

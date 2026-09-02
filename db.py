@@ -151,6 +151,13 @@ def init_db():
                 data TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            -- The rendered plot as a PNG, posted by the designer page so an
+            -- advance email can attach it. One per artist, like the plot.
+            CREATE TABLE IF NOT EXISTS stage_plot_images (
+                user_id TEXT PRIMARY KEY,
+                path TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             -- rack_presets holds ONE rack per user: the one that loads with
             -- the page. This is the library beside it — many named racks,
             -- so a second setup does not overwrite the first.
@@ -1512,6 +1519,21 @@ def get_stage_plot(user_id):
         row = db.execute("SELECT data FROM stage_plots WHERE user_id = ?",
                          (user_id,)).fetchone()
     return json.loads(row["data"]) if row else None
+
+
+def save_stage_plot_image(user_id, path):
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO stage_plot_images (user_id, path, updated) VALUES (?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET path=excluded.path, updated=excluded.updated",
+            (user_id, path[:300], _now()))
+
+
+def get_stage_plot_image(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT path, updated FROM stage_plot_images WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return dict(row) if row else None
 
 
 def save_rack_preset(user_id, data):

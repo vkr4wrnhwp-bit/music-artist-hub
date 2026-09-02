@@ -478,6 +478,24 @@ def init_tour():
                 version INTEGER NOT NULL DEFAULT 1,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tour_advance_sends (
+                id TEXT PRIMARY KEY,
+                tour_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                to_email TEXT NOT NULL,
+                cc TEXT NOT NULL DEFAULT '',
+                subject TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                attachments TEXT NOT NULL DEFAULT '[]',
+                links TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'sent',
+                error TEXT NOT NULL DEFAULT '',
+                sent_by TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_tour_advance_sends_show
+                ON tour_advance_sends(show_id, created);
             CREATE TABLE IF NOT EXISTS tour_expenses (
                 id TEXT PRIMARY KEY,
                 tour_id TEXT NOT NULL,
@@ -2439,4 +2457,53 @@ def lineup_warnings(rows, fmt_time=None):
     elif len(headliners) > 1:
         out.append("More than one act is marked as the headliner.")
 
+    return out
+
+
+# --- advance sends -----------------------------------------------------------
+# One row per email that left for a venue, successful or not. The activity
+# log carries the headline; this carries what was actually sent, so a
+# venue that says 'we never got the rider' can be answered from a row.
+
+def record_advance_send(tour_id, user_id, show_id, to_email, subject, body,
+                        attachments, links, status='sent', error='', cc='',
+                        sent_by=''):
+    sid = _new_id()
+    with get_db() as db:
+        db.execute(
+            'INSERT INTO tour_advance_sends (id, tour_id, user_id, show_id, to_email, cc, '
+            'subject, body, attachments, links, status, error, sent_by, created) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (sid, tour_id, user_id, show_id, (to_email or '')[:200], (cc or '')[:400],
+             (subject or '')[:300], body or '', json.dumps(list(attachments or [])),
+             json.dumps(dict(links or {})), status if status in ('sent', 'failed') else 'failed',
+             (error or '')[:300], (sent_by or '')[:120], _now()))
+    return sid
+
+
+def list_advance_sends(tour_id, show_id=None, limit=50):
+    q = 'SELECT * FROM tour_advance_sends WHERE tour_id = ?'
+    params = [tour_id]
+    if show_id:
+        q += ' AND show_id = ?'
+        params.append(show_id)
+    q += ' ORDER BY created DESC LIMIT ?'
+    params.append(limit)
+    with get_db() as db:
+        rows = db.execute(q, params).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['attachments'] = _load(d.get('attachments'), [])
+        d['links'] = _load(d.get('links'), {})
+        out.append(d)
+    return out
+
+
+def advance_send_map(tour_id):
+    """show_id -> the most recent successful send, for the shows table."""
+    out = {}
+    for row in list_advance_sends(tour_id, limit=500):
+        if row['status'] == 'sent' and row['show_id'] not in out:
+            out[row['show_id']] = row
     return out

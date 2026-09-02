@@ -1,0 +1,86 @@
+{% import "tour/_macros.html" as m %}
+{#- Send the advance: one email to the venue, composed from this show's
+    rows, with the rider and plot attached. Nothing here is typed twice:
+    times come from Schedule, the bill from the lineup, needs and open
+    questions from Advance, files from Production. Money never. -#}
+
+{% if sent %}
+<div class="to-note"><strong>Sent.</strong> The venue has the packet{% if request.args.get('skipped') %} — {{ request.args.get('skipped') }} attachment{{ '' if request.args.get('skipped') == '1' else 's' }} could not be read and went out as a link instead{% endif %}. Their reply goes to {{ sender['email'] }}; paste it into the <a href="?tab=inbox">Advance inbox</a> and the answers land on the checklist.</div>
+{% elif fail == 'sender' %}
+<div class="to-note to-note--warn"><strong>Not sent.</strong> This deployment's email sender is Resend's shared test address, which only delivers to the account owner's own inbox. Set <code>EMAIL_FROM</code> to an address on a domain verified in Resend and the button works. Nothing was sent, so nothing looks sent.</div>
+{% elif fail == 'to' %}
+<div class="to-note to-note--warn"><strong>Not sent.</strong> The To address is not an email address.</div>
+{% elif fail == 'send' %}
+<div class="to-note to-note--warn"><strong>Not sent.</strong> The mail service did not accept the message. It is recorded as failed below; try again in a minute.</div>
+{% endif %}
+
+{% if not mail_ready %}
+<div class="to-note to-note--warn"><strong>Email is not live on this deployment.</strong> {% if sender_address and 'resend.dev' in sender_address %}The sender is Resend's shared test address, which only delivers to the account owner. An operator sets <code>EMAIL_FROM</code> to an address on a verified domain; the packet below is otherwise ready.{% else %}No mail service is configured, so the packet can be composed and copied but not sent from here.{% endif %}</div>
+{% endif %}
+
+<div class="to-split">
+  <div>
+    <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/advance/send" class="to-form">
+      <div class="to-grid">
+        {{ m.field('to', 'To — the venue or promoter contact', value=(recipients[0] if recipients else ''), type='email', required=True, placeholder='production@venue.example') }}
+        {{ m.field('cc', 'Cc (comma separated)', value='', placeholder='agent@…, manager@…') }}
+        {{ m.field('subject', 'Subject', value=composed['subject'], wide=True) }}
+        {{ m.textarea('body', 'The email — edit anything before it goes', value=composed['text'], rows=24) }}
+      </div>
+      {% if recipients|length > 1 %}
+      <p class="to-sub">Other addresses this show knows: {% for r in recipients[1:] %}<code>{{ r }}</code>{{ ', ' if not loop.last }}{% endfor %}</p>
+      {% elif not recipients %}
+      <p class="to-sub">No address on file yet. Put the venue contact's email in the <a href="?tab=advance">advance</a> (Venue contact) or add them under <a href="?tab=people">People</a> as Venue, and it will be offered here next time.</p>
+      {% endif %}
+
+      <h2 class="to-h2">Attachments</h2>
+      <div class="to-checks">
+        {% if plot_image %}
+          {{ m.check('attach', 'Stage plot (PNG, from Stage Plot)', on=True, value='plot') }}
+        {% else %}
+          <p class="to-sub">No stage plot image saved yet. Open <a href="/stage-plot">Stage Plot</a> and press <b>Save for advances</b>; it attaches here after that.</p>
+        {% endif %}
+        {% if channels %}
+          {{ m.check('attach', 'Input list (' ~ channels|length ~ ' channels, text file)', on=True, value='inputs') }}
+        {% endif %}
+        {% for f in send_files %}
+          {{ m.check('attach', f['file_name'] ~ ' — ' ~ f['category']|replace('_', ' ') ~ (' (tour-wide)' if f['entity_type'] == 'tour' else ''), on=(f['category'] in ('rider', 'tech_pack', 'stage_plot')), value=f['id']) }}
+        {% endfor %}
+        {% if not send_files %}
+          <p class="to-sub">No rider or tech files on this show or the tour yet. Attach them under <a href="?tab=production">Production</a> and they are offered here.</p>
+        {% endif %}
+      </div>
+      <p class="to-muted">Attachments are capped at 18 MB together; anything over that is left out and named, and the links below still carry it.</p>
+
+      <div class="to-bar">
+        <button class="to-btn" type="submit" {% if not mail_ready %}disabled aria-disabled="true"{% endif %}>Send the advance</button>
+        <span class="to-muted">From {{ sender_address }}{% if sender['email'] %} · replies to {{ sender['email'] }}{% endif %}</span>
+      </div>
+    </form>
+  </div>
+
+  <aside>
+    <div class="to-panel">
+      <div class="to-eyebrow">Links in the email</div>
+      <p class="to-sub"><b>Tech rider page</b> — stage plot, input list, times and backline, no login: {% if links['rider'] %}<a href="{{ links['rider'] }}" target="_blank" rel="noopener">open</a>{% else %}<span class="to-muted">created when you send</span>{% endif %}</p>
+      <p class="to-sub"><b>Production pack</b> — this show's production advance, files and times for the house crew: {% if links['production'] %}<a href="{{ links['production'] }}" target="_blank" rel="noopener">open</a>{% else %}<span class="to-muted">created when you send</span>{% endif %}</p>
+    </div>
+
+    <div class="to-panel">
+      <div class="to-eyebrow">Sent so far</div>
+      {% if sends %}
+        {% for s in sends %}
+        <p class="to-sub" style="margin-top:6px">{{ s['created'][:16]|replace('T', ' ') }} · {{ s['to_email'] }}{% if s['cc'] %} (cc {{ s['cc'] }}){% endif %} · {% if s['status'] == 'sent' %}<span class="to-chip to-chip--ok">sent</span>{% else %}<span class="to-chip to-chip--warn">failed</span>{% endif %}{% if s['attachments'] %}<br><span class="to-muted">{{ s['attachments']|join(', ') }}</span>{% endif %}{% if s['sent_by'] %}<br><span class="to-muted">by {{ s['sent_by'] }}</span>{% endif %}</p>
+        {% endfor %}
+      {% else %}
+        <p class="to-sub">Not sent yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="to-panel">
+      <div class="to-eyebrow">What goes in</div>
+      <p class="to-sub">Times from <a href="?tab=schedule">Schedule</a>. The bill from the lineup. What is confirmed and what is still open from <a href="?tab=advance">Advance</a>, phrased as the questions — mark an item <b>Not applicable</b> there and it drops out of the list. Guest allotment if it is set. Never the deal, the deposit or any settlement figure.</p>
+      <p class="to-sub">When the venue answers, paste the reply into the <a href="?tab=inbox">Advance inbox</a>; the extractor proposes the entries and you tick what to keep.</p>
+    </div>
+  </aside>
+</div>

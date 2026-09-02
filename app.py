@@ -5394,6 +5394,35 @@ def create_app():
         store.save_stage_plot(user["id"], data)
         return jsonify({"ok": True})
 
+    @app.route("/stage-plot/image", methods=["POST"])
+    def stage_plot_image_save():
+        """The rendered plot, kept so the advance email can attach it. The
+        browser rasterises the SVG - this server has no renderer - and
+        posts the PNG. One per artist, replaced on each save."""
+        import plot_images
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False}), 401
+        up = request.files.get("image")
+        data = up.read(plot_images.MAX_BYTES + 1) if up is not None else b""
+        if not data or not data.startswith(b"\x89PNG"):
+            return jsonify({"ok": False, "error": "That is not a PNG."}), 400
+        if len(data) > plot_images.MAX_BYTES:
+            return jsonify({"ok": False, "error": "The image is over 4 MB."}), 413
+        plot_images.save(user["id"], data)
+        return jsonify({"ok": True})
+
+    @app.route("/stage-plot/image.png")
+    def stage_plot_image_get():
+        import plot_images
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        data = plot_images.read(user["id"])
+        if not data:
+            abort(404)
+        return app.response_class(data, mimetype="image/png")
+
     # --- Team-Up Board: artists seeking partners, venues seeking acts ------------
     # Moved to board.py (blueprint "board"): same URLs, structured fields,
     # in-platform reply threads, lifecycle, saved searches. Registered in
