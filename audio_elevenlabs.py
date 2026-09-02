@@ -107,6 +107,168 @@ def _zero_retention_ok():
     return _on("ELEVENLABS_ZERO_RETENTION_VERIFIED")
 
 
+# The format every audio call asks for. mp3_44100_128 is available on every
+# vendor tier; PCM at 44.1 kHz needs Pro, and 192 kbps MP3 needs Creator, so
+# the default is the one that cannot fail on entitlement. Overridable in the
+# environment for an account that has the tier.
+OUTPUT_FORMAT = os.environ.get("ELEVENLABS_OUTPUT_FORMAT") or "mp3_44100_128"
+
+def default_voice_id():
+    """A voice for campaign reads when the artist did not pick one. Set to a
+    voice id from the connected account's library; without it the speech
+    lane refuses rather than guessing whose voice to use. Read per call, like
+    every other switch here, so a settings change needs no restart."""
+    return (os.environ.get("ELEVENLABS_DEFAULT_VOICE_ID") or "").strip()
+
+# Stem separation and isolation of a whole song take a while at the vendor
+# and this deployment answers inside one web request (180 s at the edge), so
+# the SDK's default timeout is raised to just under that rather than left to
+# fail first.
+_LONG_CALL = {"timeout_in_seconds": 170}
+
+_MIME_BY_EXT = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
+                ".ogg": "audio/ogg", ".opus": "audio/ogg", ".m4a": "audio/mp4",
+                ".mp4": "audio/mp4", ".aac": "audio/aac", ".pcm": "audio/L16"}
+
+
+def _mime_for_format(fmt):
+    fmt = (fmt or "").lower()
+    if fmt.startswith("mp3"):
+        return "audio/mpeg"
+    if fmt.startswith("pcm"):
+        return "audio/L16"
+    if fmt.startswith("opus"):
+        return "audio/ogg"
+    return "application/octet-stream"
+
+
+def _bytes(stream):
+    """The SDK streams every audio response. Join it, whatever shape it is."""
+    if isinstance(stream, (bytes, bytearray)):
+        return bytes(stream)
+    if stream is None:
+        return b""
+    if hasattr(stream, "__iter__"):
+        return b"".join(bytes(chunk) for chunk in stream)
+    return bytes(stream)
+
+
+def _file_arg(request, *prefixes):
+    """A core.File the SDK accepts, from whatever the caller could give.
+
+    The work engine resolves the source asset to either a path on this box
+    (`<prefix>_path`) or bytes it fetched from the bucket (`<prefix>_bytes`),
+    with the original file name and type alongside. Returns (file, closer);
+    the caller closes the handle after the call so a 200 MB master is streamed
+    rather than read into memory twice.
+
+    Refusing here rather than raising KeyError matters: an adapter bug is
+    recorded as `adapter_error` and never retried, but a missing source is a
+    condition the artist can read and fix.
+    """
+    name = (request.get("file_name") or "audio")[:120]
+    mime = request.get("mime_type") or "application/octet-stream"
+    for prefix in prefixes:
+        path = request.get(prefix + "_path")
+        if path:
+            try:
+                handle = open(path, "rb")
+            except OSError:
+                # Destroyed on the retention schedule, or never written. A
+                # refusal the artist can read, not a stack trace in a log.
+                raise ap.ProviderRefusal(
+                    "The source recording is no longer on this server, so "
+                    "nothing was sent. Upload it again.", "no_source")
+            return (name, handle, mime), handle
+        data = request.get(prefix + "_bytes")
+        if data:
+            return (name, data, mime), None
+    raise ap.ProviderRefusal(
+        "The source recording could not be read, so nothing was sent.",
+        "no_source")
+
+
+def _unzip_stems(blob):
+    """The stem endpoint answers with a ZIP, one file per stem. Name each by
+    its file name so the Rack can lane it; skip empty entries so a silent
+    stem never becomes a file."""
+    import io
+    import zipfile
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(blob))
+    except zipfile.BadZipFile:
+        # One file came back rather than an archive. Keep it, named plainly,
+        # rather than lose audio that was paid for.
+        return [{"name": "stems", "audio": blob,
+                 "mime_type": _mime_for_format(OUTPUT_FORMAT)}]
+    parts = []
+    for info in archive.infolist():
+        if info.is_dir():
+            continue
+        base = os.path.basename(info.filename)
+        stem, ext = os.path.splitext(base)
+        data = archive.read(info)
+        if not data:
+            continue
+        parts.append({"name": (stem or "stem").lower(), "audio": data,
+                      "mime_type": _MIME_BY_EXT.get(ext.lower(),
+                                                    _mime_for_format(OUTPUT_FORMAT))})
+    return parts
+
+
+_voice_cache = {"at": 0.0, "value": None}
+_VOICE_TTL = 600.0
+
+
+def list_voices():
+    """The voices the connected account may use: id, name, and the vendor's
+    own labels. Cached ten minutes. Empty when the vendor is off, unconfigured
+    or unreachable, and the form says so rather than offering a guess.
+
+    Every entry is a voice in the account's own library - the vendor's stock
+    voices and anything the account holder added themselves. Nothing here
+    searches the public voice marketplace.
+    """
+    now = time.time()
+    with _lock:
+        cached = _voice_cache["value"]
+        if cached is not None and now - _voice_cache["at"] < _VOICE_TTL:
+            return list(cached)
+    if not _enabled() or not _api_key():
+        return []
+    c = _client()
+    if c is None:
+        return []
+    out = []
+    try:
+        resp = c.voices.get_all()
+        for voice in (getattr(resp, "voices", None) or []):
+            vid = getattr(voice, "voice_id", "") or ""
+            if not vid:
+                continue
+            labels = getattr(voice, "labels", None) or {}
+            if not isinstance(labels, dict):
+                labels = {}
+            detail = ", ".join(str(labels[k]) for k in ("gender", "accent", "age", "use_case")
+                               if labels.get(k))
+            out.append({"voice_id": vid,
+                        "name": getattr(voice, "name", "") or vid,
+                        "category": getattr(voice, "category", "") or "",
+                        "detail": detail})
+    except Exception:
+        return []
+    out.sort(key=lambda v: v["name"].lower())
+    with _lock:
+        _voice_cache.update({"at": now, "value": out})
+    return list(out)
+
+
+def reset_voice_cache():
+    with _lock:
+        _voice_cache.update({"at": 0.0, "value": None})
+
+
 def _measure_health():
     """One real call. models.list() is read-only and costs nothing."""
     if not _enabled():
@@ -292,26 +454,34 @@ class ElevenLabsSpeech(_Base, ap.SpeechProvider):
     def supports(self, feature):
         return feature in ("streaming", "timestamps", "seed")
 
+    def list_voices(self):
+        return list_voices()
+
+    def default_voice(self):
+        return default_voice_id()
+
     def synthesize(self, request):
         c = self._ready()
-        if not request.voice_id:
+        voice_id = request.voice_id or default_voice_id()
+        if not voice_id:
             raise ap.ProviderRefusal(
-                "A voice must be chosen before speech can be generated.",
+                "A voice must be chosen before speech can be generated. Pick "
+                "one from the connected account's library, or set "
+                "ELEVENLABS_DEFAULT_VOICE_ID on the deployment.",
                 "no_voice")
         kw = {
-            "voice_id": request.voice_id,
+            "voice_id": voice_id,
             "text": request.text or "",
             "model_id": request.model or DEFAULT_TTS_MODEL,
+            "output_format": OUTPUT_FORMAT,
             "enable_logging": self._logging_flag(request.zero_retention),
         }
         if request.language:
             kw["language_code"] = request.language
-        stream = c.text_to_speech.convert(**kw)
-        audio = b"".join(stream) if hasattr(stream, "__iter__") and not isinstance(
-            stream, (bytes, bytearray)) else bytes(stream or b"")
-        return {"audio": audio, "mime_type": "audio/mpeg",
+        audio = _bytes(c.text_to_speech.convert(**kw))
+        return {"audio": audio, "mime_type": _mime_for_format(OUTPUT_FORMAT),
                 "characters": len(request.text or ""),
-                "voice_id": request.voice_id, "is_mock": False}
+                "voice_id": voice_id, "is_mock": False}
 
 
 class ElevenLabsSoundEffects(_Base, ap.SoundEffectsProvider):
@@ -324,11 +494,10 @@ class ElevenLabsSoundEffects(_Base, ap.SoundEffectsProvider):
             kw["duration_seconds"] = float(request["duration_seconds"])
         if request.get("loop") is not None:
             kw["loop"] = bool(request["loop"])
-        stream = c.text_to_sound_effects.convert(**kw)
-        audio = b"".join(stream) if hasattr(stream, "__iter__") and not isinstance(
-            stream, (bytes, bytearray)) else bytes(stream or b"")
-        return {"audio": audio, "mime_type": "audio/mpeg", "is_mock": False,
-                "effect_prompt": kw["text"]}
+        kw["output_format"] = OUTPUT_FORMAT
+        audio = _bytes(c.text_to_sound_effects.convert(**kw))
+        return {"audio": audio, "mime_type": _mime_for_format(OUTPUT_FORMAT),
+                "is_mock": False, "effect_prompt": kw["text"]}
 
 
 class ElevenLabsVoiceIsolation(_Base, ap.VoiceIsolationProvider):
@@ -336,11 +505,18 @@ class ElevenLabsVoiceIsolation(_Base, ap.VoiceIsolationProvider):
 
     def isolate(self, request):
         c = self._ready()
-        with open(request["audio_path"], "rb") as fh:
-            stream = c.audio_isolation.convert(audio=fh)
-        audio = b"".join(stream) if hasattr(stream, "__iter__") and not isinstance(
-            stream, (bytes, bytearray)) else bytes(stream or b"")
-        return {"audio": audio, "mime_type": "audio/mpeg", "is_mock": False}
+        source, closer = _file_arg(request, "audio", "source")
+        try:
+            audio = _bytes(c.audio_isolation.convert(audio=source,
+                                                     request_options=_LONG_CALL))
+        finally:
+            if closer is not None:
+                closer.close()
+        # The isolation endpoint answers in the source's own container, so
+        # the type follows the file that went in.
+        return {"audio": audio,
+                "mime_type": request.get("mime_type") or "audio/mpeg",
+                "is_mock": False}
 
 
 class ElevenLabsMusic(_Base, ap.MusicProvider):
@@ -372,10 +548,15 @@ class ElevenLabsMusic(_Base, ap.MusicProvider):
 
     def upload_owned(self, request):
         c = self._ready()
-        with open(request["audio_path"], "rb") as fh:
-            resp = c.music.upload(file=fh,
+        source, closer = _file_arg(request, "audio", "source")
+        try:
+            resp = c.music.upload(file=source,
                                   extract_composition_plan=bool(
-                                      request.get("extract_composition_plan", True)))
+                                      request.get("extract_composition_plan", True)),
+                                  request_options=_LONG_CALL)
+        finally:
+            if closer is not None:
+                closer.close()
         return {"provider_song_id": getattr(resp, "song_id", None)
                 or getattr(resp, "id", None),
                 "composition_plan": getattr(resp, "composition_plan", None),
@@ -413,19 +594,47 @@ class ElevenLabsMusic(_Base, ap.MusicProvider):
 class ElevenLabsStems(_Base, ap.StemProvider):
     capability = ap.STEMS
 
+    # The two separations the vendor offers. Names are the vendor's own ids,
+    # read from the SDK's type rather than guessed.
+    VARIATIONS = ("two_stems_v1", "six_stems_v1")
+
     def separate(self, request):
         c = self._ready()
-        with open(request["audio_path"], "rb") as fh:
-            resp = c.music.separate_stems(file=fh)
-        return {"status": "completed", "is_mock": False, "raw": resp}
+        variation = request.get("stem_variation") or self.VARIATIONS[0]
+        if variation not in self.VARIATIONS:
+            variation = self.VARIATIONS[0]
+        source, closer = _file_arg(request, "audio", "source")
+        try:
+            blob = _bytes(c.music.separate_stems(
+                file=source, output_format=OUTPUT_FORMAT,
+                stem_variation_id=variation, request_options=_LONG_CALL))
+        finally:
+            if closer is not None:
+                closer.close()
+        # A ZIP, one file per stem. Unpacked here so the harvester sees the
+        # same shape the mock and the tests use: a list of named stems.
+        return {"status": "completed", "is_mock": False,
+                "stems": _unzip_stems(blob), "stem_variation": variation}
 
 
 class ElevenLabsDubbing(_Base, ap.DubbingProvider):
     capability = ap.DUBBING
 
+    # The vendor's project states, in its own words, mapped onto the runner's
+    # three. Anything unrecognised is still running as far as we know: a
+    # poll that cannot read the state is not evidence the job failed.
+    STATES = {"dubbed": "completed", "dubbing": "running",
+              "failed": "failed", "error": "failed"}
+
     def create_project(self, request):
         c = self._ready()
-        kw = {"target_lang": request.get("target_lang"),
+        target = request.get("target_lang")
+        if not target:
+            langs = request.get("target_languages") or []
+            target = langs[0] if langs else None
+        if not target:
+            raise ap.ProviderRefusal("A target language is needed.", "no_language")
+        kw = {"target_lang": target,
               "name": (request.get("name") or "")[:120]}
         if request.get("source_lang"):
             kw["source_lang"] = request["source_lang"]
@@ -435,18 +644,30 @@ class ElevenLabsDubbing(_Base, ap.DubbingProvider):
             kw["source_url"] = request["source_url"]
             resp = c.dubbing.create(**kw)
         else:
-            with open(request["source_path"], "rb") as fh:
-                kw["file"] = fh
+            source, closer = _file_arg(request, "source", "audio")
+            try:
+                kw["file"] = source
                 resp = c.dubbing.create(**kw)
+            finally:
+                if closer is not None:
+                    closer.close()
         return {"provider_job_id": getattr(resp, "dubbing_id", None),
-                "status": "processing", "is_mock": False}
+                "status": "processing", "is_mock": False,
+                "expected_seconds": getattr(resp, "expected_duration_sec", None)}
 
     def status(self, provider_job_id):
         c = self._ready()
         resp = c.dubbing.get(dubbing_id=provider_job_id)
-        return {"provider_job_id": provider_job_id,
-                "status": getattr(resp, "status", "unknown"),
-                "is_mock": False, "raw": resp}
+        vendor_state = (getattr(resp, "status", "") or "").lower()
+        out = {"provider_job_id": provider_job_id,
+               "status": self.STATES.get(vendor_state, "running"),
+               "vendor_status": vendor_state,
+               "target_languages": list(getattr(resp, "target_languages", None) or []),
+               "is_mock": False}
+        error = getattr(resp, "error", None)
+        if error:
+            out["error"] = str(error)[:300]
+        return out
 
     def download(self, provider_job_id, language_code):
         c = self._ready()
@@ -454,9 +675,8 @@ class ElevenLabsDubbing(_Base, ap.DubbingProvider):
         if get is None:
             raise ap.ProviderRefusal(
                 "This SDK build exposes no dubbing audio download.", "unsupported")
-        stream = get(dubbing_id=provider_job_id, language_code=language_code)
-        audio = b"".join(stream) if hasattr(stream, "__iter__") and not isinstance(
-            stream, (bytes, bytearray)) else bytes(stream or b"")
+        audio = _bytes(get(dubbing_id=provider_job_id, language_code=language_code,
+                           request_options=_LONG_CALL))
         return {"audio": audio, "mime_type": "audio/mpeg",
                 "language": language_code, "is_mock": False}
 

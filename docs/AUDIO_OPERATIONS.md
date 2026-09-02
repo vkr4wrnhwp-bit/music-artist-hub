@@ -82,6 +82,42 @@ without checking the vendor's current list.
 Roll back by unsetting `ELEVENLABS_ENABLED`. Work falls back to the mocks;
 nothing in the schema changes.
 
+## Switching the Audio Studio on
+
+The exact set for `/audio-studio`, all in Render → Environment. Nothing else
+is needed for the five processing lanes.
+
+| Variable | Value | Why |
+| --- | --- | --- |
+| `AUDIO_INTELLIGENCE_ENABLED` | `1` | The umbrella. Every lane checks it first. |
+| `ELEVENLABS_ENABLED` | `1` | Registers the real adapter as the default. |
+| `ELEVENLABS_API_KEY` | the key | Read server-side only. Health flips to `ready` after `models.list()` succeeds. |
+| `STEM_SEPARATION_ENABLED` | `1` | Stem separation lane. |
+| `VOICE_ISOLATION_ENABLED` | `1` | Voice isolation lane. |
+| `CAMPAIGN_AUDIO_TOOLKIT_ENABLED` | `1` | Campaign voiceover and sound effects lanes. |
+| `SOUND_EFFECTS_ENABLED` | `1` | Sound effects also gate on this. |
+| `GLOBAL_RELEASE_PACK_ENABLED` | `1` | Global Release Pack lane. |
+| `DUBBING_ENABLED` | `1` | Dubbing also gates on this. |
+| `ELEVENLABS_DEFAULT_VOICE_ID` | a voice id | Optional. The read used when the artist picks none; the form lists the account's library either way. |
+| `ELEVENLABS_OUTPUT_FORMAT` | `mp3_44100_128` | Optional. The default works on every vendor tier; PCM at 44.1 kHz needs Pro. |
+
+Then open `/admin/audio`: every capability should read `ready` with
+"Key accepted. N models visible to this account." A key alone never reports
+healthy.
+
+**Policy for direct accounts.** The organisation policy (`allow_dubbing` and
+friends) belongs to partner tenants, who have owners and a settings surface.
+A direct Street Banker account has neither, so for it the deployment flags
+above *are* the policy — the gate skips the tenant toggle unless an operator
+has stored an explicit policy row for the direct tenant. Without this rule
+every direct account met "your organisation's audio policy does not allow
+this" on the Release Pack, pointing at a settings page that does not exist.
+
+**Costs, in order of size:** dubbing (per minute of source, per language),
+stem separation and isolation (per minute of source), voiceover (per
+character), sound effects (per generation). Set the spend cap at the vendor
+before switching on the lanes; the app records units, not money.
+
 ## Where to look
 
 `/admin/audio` — owner only, linked from the sidebar for accounts that can

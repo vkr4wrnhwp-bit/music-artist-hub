@@ -134,6 +134,17 @@ class SpeechProvider(AudioProvider):
     def synthesize(self, request):
         """request: SpeechRequest -> SpeechResult"""
 
+    def list_voices(self):
+        """The voices this account may use, as [{voice_id, name, category,
+        detail}]. Empty by default: a form that cannot list voices says so
+        rather than offering a guess."""
+        return []
+
+    def default_voice(self):
+        """The voice used when the caller names none, or "" when there is
+        none - in which case synthesize() refuses rather than picking."""
+        return ""
+
 
 class AgentProvider(AudioProvider):
     capability = AGENT

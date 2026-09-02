@@ -204,7 +204,8 @@ def _operation_for(capability, request):
 
 # Fields that must never be written to the jobs table. The text of a brief is
 # the artist's business, not configuration, and audio bytes are not JSON.
-_NEVER_STORE = {"audio", "text", "api_key", "secret", "token"}
+_NEVER_STORE = {"audio", "text", "api_key", "secret", "token",
+                "audio_bytes", "source_bytes"}
 
 
 def _safe_config(request):
@@ -275,7 +276,7 @@ def poll(partner_id, job_id):
         return job
 
     state = res.get("status")
-    if state == "completed":
+    if state in ("completed", "dubbed"):
         astore.set_job_status(partner_id, job_id, "completed")
         _store_result(partner_id, job, res)
     elif state in ("failed", "error"):
@@ -297,6 +298,49 @@ def _store_result(partner_id, job, res):
                                    job.get("provider") or "", res)
     except Exception as e:
         _log_unexpected(job.get("id"), e)
+
+
+def collect_outputs(partner_id, job):
+    """Fetch what a finished slow job produced, for the kinds whose audio is
+    not on the status call.
+
+    Dubbing is the one today: the project finishes at the vendor and each
+    target language is a separate download. Returned as a result fragment
+    the work engine's harvester already understands, so the download stays
+    here - the only module that touches an adapter - and the storing stays
+    there.
+    """
+    if not job or job.get("status") != "completed" or not job.get("provider_job_id"):
+        return {}
+    if job.get("capability") != ap.DUBBING:
+        return {}
+    adapter = ap.get(job.get("capability"), job.get("provider"))
+    download = getattr(adapter, "download", None) if adapter else None
+    if download is None:
+        return {}
+    try:
+        configuration = json.loads(job.get("configuration") or "{}") or {}
+    except ValueError:
+        configuration = {}
+    languages = [x for x in (configuration.get("target_languages") or []) if x]
+    if not languages and configuration.get("target_lang"):
+        languages = [configuration["target_lang"]]
+
+    outputs, mock = [], False
+    for language in languages:
+        try:
+            res = download(job["provider_job_id"], language) or {}
+        except (ap.ProviderRefusal, ap.ProviderUnavailable) as e:
+            _log_unexpected(job.get("id"), e)
+            continue
+        except Exception as e:
+            _log_unexpected(job.get("id"), e)
+            continue
+        mock = mock or bool(res.get("is_mock"))
+        if res.get("audio"):
+            outputs.append({"language": language, "audio": res["audio"],
+                            "mime_type": res.get("mime_type") or "audio/mpeg"})
+    return {"outputs": outputs, "is_mock": mock}
 
 
 def run_pending(partner_id=None, limit=25):

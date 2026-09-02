@@ -205,12 +205,18 @@ def gate(feature, partner_id=None, member=None, subject_id="",
                        "Your role does not include audio features. An owner or "
                        "admin at this organisation can grant them.", feature)
 
-    # 3. tenant toggle
+    # 3. tenant toggle. An organisation's decision, which is why it only
+    #    binds a partner seat or a tenant whose policy somebody actually
+    #    stored. A direct Street Banker account has no organisation and no
+    #    settings page; for it the deployment flags above ARE the policy, and
+    #    refusing on a default nobody chose sent every direct account to a
+    #    "Settings, Audio" page that does not exist.
     pkey = spec.get("policy")
     if pkey and not policy.get(pkey, False):
-        return _no("policy_off",
-                   "Your organisation's audio policy does not allow this. An "
-                   "owner can change it in Settings, Audio.", feature)
+        if member is not None or partner_id is not None                 or astore.policy_decided(partner_id, pkey):
+            return _no("policy_off",
+                       "Your organisation's audio policy does not allow this. "
+                       "An owner can change it in Settings, Audio.", feature)
 
     # 4. provider entitlement
     adapter = ap.get(spec["capability"], adapter_key)

@@ -97,9 +97,39 @@
               </label>
             {% endif %}
 
+            {% if lane.kind == "stem_separation" %}
+              <fieldset class="text-sm text-gray-300">
+                <legend class="block">Split into</legend>
+                {% for value, label in stem_variations %}
+                  <label class="mt-1 flex items-start gap-2">
+                    <input type="radio" name="stems" value="{{ value }}" class="mt-1"{% if loop.first %} checked{% endif %}>
+                    <span>{{ label }}</span>
+                  </label>
+                {% endfor %}
+              </fieldset>
+            {% endif %}
+
+            {% if lane.kind == "campaign_voiceover" %}
+              {% if voice_options %}
+                {{ sb.field("voice_id", "Voice", options=voice_options,
+                            hint="Voices from the connected account's own library.") }}
+              {% elif default_voice %}
+                <p class="text-sm text-gray-300">
+                  Read in the deployment's default voice.
+                </p>
+              {% else %}
+                <p class="text-sm text-gray-300">
+                  No voice is available from the connected provider account
+                  yet, so a read cannot be generated until one is.
+                </p>
+              {% endif %}
+              {{ sb.field("language", "Language", placeholder="en",
+                          hint="Optional. A two-letter code such as en, es or fr.") }}
+            {% endif %}
+
             {% if lane.kind == "dubbing" %}
               {{ sb.field("languages", "Languages", placeholder="es, fr, pt",
-                          hint="Comma separated.") }}
+                          hint="Comma separated. One dub is created per language, and a full song takes a few minutes each.") }}
             {% endif %}
 
             {% if lane.kind == "sound_effects" %}

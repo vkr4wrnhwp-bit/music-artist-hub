@@ -33,6 +33,7 @@ from flask import (Blueprint, abort, jsonify, redirect, render_template,
                    request, send_file, url_for)
 
 import audio_policy
+import audio_providers as ap
 import audio_retention
 import audio_store as astore
 import audio_works as works
@@ -59,7 +60,8 @@ LANES = [
      "Short effects for a campaign edit."),
     ("remix_stems", "stem_separation", "STEM_SEPARATION_ENABLED",
      "Stem separation",
-     "Split a recording you own into vocals, drums, bass and instruments."),
+     "Split a recording you own into vocals and instrumental, or six stems: "
+     "vocals, drums, bass, guitar, piano and other."),
     ("remix_isolate", "voice_isolation", "VOICE_ISOLATION_ENABLED",
      "Voice isolation",
      "Lift a vocal out of a recording you own."),
@@ -69,6 +71,14 @@ LANES = [
 ]
 
 LANE_BY_KEY = {lane[0]: lane for lane in LANES}
+
+# The two separations on offer, as (option value, what the artist reads).
+# The values are the provider's own variation ids; the adapter validates
+# them again before anything is sent.
+STEM_VARIATIONS = (
+    ("two_stems_v1", "Vocals and instrumental"),
+    ("six_stems_v1", "Six stems: vocals, drums, bass, guitar, piano, other"),
+)
 
 
 # Lanes whose gate demands a consent record that NOTHING in this app can
@@ -159,17 +169,58 @@ def _lanes_for_render():
             for key, kind, flag, title, note in LANES]
 
 
+def _speech_adapter():
+    try:
+        return ap.get(ap.SPEECH)
+    except Exception:
+        return None
+
+
+def _voices():
+    """The voices the campaign read can use, from whichever adapter serves
+    speech. Empty under the mock and when the vendor cannot be reached; the
+    form says so rather than listing a guess. Asked only when the lane is
+    on, so a page of switched-off lanes makes no vendor call."""
+    adapter = _speech_adapter()
+    listing = getattr(adapter, "list_voices", None) if adapter else None
+    if listing is None:
+        return []
+    try:
+        return list(listing() or [])
+    except Exception:
+        return []
+
+
+def _default_voice():
+    adapter = _speech_adapter()
+    fn = getattr(adapter, "default_voice", None) if adapter else None
+    try:
+        return (fn() or "") if fn else ""
+    except Exception:
+        return ""
+
+
 @bp.route("/audio-studio")
 def studio():
     user = _current_user()
     if user is None:
         return redirect(url_for("login", next=request.path))
+    lanes = _lanes_for_render()
+    speech_on = any(lane["on"] and lane["kind"] == "campaign_voiceover"
+                    for lane in lanes)
+    voices = _voices() if speech_on else []
     return render_template(
         "audio_studio.html",
-        lanes=_lanes_for_render(),
+        lanes=lanes,
         works=works.list_works(user_id=user["id"], limit=40),
         safety_warning=works.safety_warning(),
-        any_on=any(lane["on"] for lane in _lanes_for_render()))
+        any_on=any(lane["on"] for lane in lanes),
+        stem_variations=STEM_VARIATIONS,
+        voices=voices,
+        voice_options=[(v["voice_id"],
+                        v["name"] + (" - " + v["detail"] if v.get("detail") else ""))
+                       for v in voices],
+        default_voice=_default_voice() if speech_on else "")
 
 
 @bp.route("/audio-studio/new", methods=["POST"])
@@ -206,24 +257,40 @@ def studio_new():
             else "unconfirmed",
             retention_days=audio_retention.retention_days(None, "source"))
 
-    item = works.create_work(
-        user["id"], kind, title=request.form.get("title") or title,
-        brief=request.form.get("brief") or "",
-        options=_options(kind), source_asset_id=source_asset_id)
+    # One item per piece of work. A dub is one language each - the provider
+    # runs one project per target language - so "es, fr" becomes two items
+    # sharing the same source, each with its own status, files and reason.
+    option_sets = [_options(kind)]
+    if kind == "dubbing":
+        option_sets = [{"languages": [lang]}
+                       for lang in option_sets[0]["languages"]]
+    base_title = request.form.get("title") or title
 
-    # The rights confirmation is an act, recorded against THIS item with who
-    # performed it - never inherited from the account.
-    if request.form.get("rights") == "1":
-        works.confirm_rights(item["id"], user.get("name") or user.get("email") or "")
+    first = None
+    for options in option_sets:
+        item_title = base_title
+        if kind == "dubbing" and len(option_sets) > 1:
+            item_title = "%s (%s)" % (base_title[:190], options["languages"][0])
+        item = works.create_work(
+            user["id"], kind, title=item_title,
+            brief=request.form.get("brief") or "",
+            options=options, source_asset_id=source_asset_id)
 
-    try:
-        works.submit_work(item["id"])
-    except works.WorkRefusal:
-        # The refusal is already recorded on the item and is rendered there.
-        # Not raised into the artist's face as an error page: they are going
-        # to want to read it and fix the brief.
-        pass
-    return redirect(url_for("audio_studio.studio_item", work_id=item["id"]))
+        # The rights confirmation is an act, recorded against THIS item with
+        # who performed it - never inherited from the account.
+        if request.form.get("rights") == "1":
+            works.confirm_rights(item["id"],
+                                 user.get("name") or user.get("email") or "")
+
+        try:
+            works.submit_work(item["id"])
+        except works.WorkRefusal:
+            # The refusal is already recorded on the item and is rendered
+            # there. Not raised into the artist's face as an error page: they
+            # are going to want to read it and fix the brief.
+            pass
+        first = first or item
+    return redirect(url_for("audio_studio.studio_item", work_id=first["id"]))
 
 
 @bp.route("/audio-studio/<work_id>")
@@ -236,12 +303,17 @@ def studio_item(work_id):
         # Somebody else's work is a 404, not a 403: they should not learn it
         # exists.
         abort(404)
+    # No background worker: a slow job is brought up to date when its owner
+    # looks at it. The page reloads itself while it waits.
+    if item["status"] in ("queued", "running"):
+        item = works.settle_work(work_id) or item
     outputs = [astore.get_asset(None, aid) for aid in item["output_asset_ids"]]
     outputs = [o for o in outputs if o and not o.get("deleted_at")]
     return render_template("audio_studio_item.html", item=item,
                            outputs=outputs,
                            lane=_lane_for_kind(item["kind"]),
                            vaulted=request.args.get("vaulted"),
+                           pending=item["status"] in ("queued", "running"),
                            safety_warning=works.safety_warning())
 
 
@@ -260,6 +332,8 @@ def studio_outputs(work_id):
     if item is None or item["user_id"] != user["id"]:
         # Somebody else's work is a 404, not a 403.
         return jsonify({"ok": False}), 404
+    if item["status"] in ("queued", "running"):
+        item = works.settle_work(work_id) or item
 
     out = []
     for asset_id in item["output_asset_ids"]:
@@ -386,9 +460,27 @@ def _options(kind):
             seconds = 3.0
         return {"duration_seconds": max(0.5, min(22.0, seconds))}
     if kind == "dubbing":
-        langs = [x.strip() for x in (request.form.get("languages") or "").split(",")
-                 if x.strip()]
-        return {"languages": langs[:8] or ["es"]}
+        langs = [x.strip().lower()[:8] for x in
+                 (request.form.get("languages") or "").split(",") if x.strip()]
+        seen, ordered = set(), []
+        for lang in langs:
+            if lang not in seen:
+                seen.add(lang)
+                ordered.append(lang)
+        return {"languages": ordered[:8] or ["es"]}
+    if kind == "stem_separation":
+        wanted = (request.form.get("stems") or "").strip()
+        allowed = [value for value, _label in STEM_VARIATIONS]
+        return {"stem_variation": wanted if wanted in allowed else allowed[0]}
+    if kind == "campaign_voiceover":
+        out = {}
+        voice = (request.form.get("voice_id") or "").strip()[:80]
+        if voice:
+            out["voice_id"] = voice
+        language = (request.form.get("language") or "").strip().lower()[:8]
+        if language:
+            out["language"] = language
+        return out
     if kind == "voice_vault":
         # owner_verified is never taken from this form. The vendor's own
         # verification is the only thing that can set it, and the adapter

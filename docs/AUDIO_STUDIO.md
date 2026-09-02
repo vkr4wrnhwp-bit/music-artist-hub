@@ -118,9 +118,38 @@ learn it exists. Deleting an item destroys the audio uploaded for it.
 | `templates/audio_studio*.html` | Three pages, component library only. |
 | `tests/test_audio_studio.py` | 27 tests. |
 
-## What is not built
+## What is real, and what still is not
 
-Real output files. The mock adapters return correct shapes and **no audio** for
-stems, dubbing and isolation — deliberately, since a demo that produced
-something audible would be mistaken for the real thing, and the item page says
-so. Wiring real outputs needs a provider key that has never been exercised.
+**Real outputs are wired** (September 2026). The work engine resolves the
+uploaded source to a file the adapter can send (a path on the box, or bytes
+fetched from the bucket), and the adapter answers in the shape the harvester
+already used:
+
+| Lane | How it comes back |
+| --- | --- |
+| Stem separation | A ZIP from the provider, unpacked into one named file per stem (`two_stems_v1` or `six_stems_v1`, chosen on the form). |
+| Voice isolation | One file, inside the request. |
+| Sound effects | One file, inside the request. |
+| Campaign voiceover | One file. The voice is picked on the form from the connected account's library, or `ELEVENLABS_DEFAULT_VOICE_ID`; with neither the lane refuses rather than guessing whose voice to use. |
+| Global Release Pack | Asynchronous at the provider. One item **per language**; the item is settled the next time its owner looks at it (`audio_works.settle_work()`), the page reloads itself every twenty seconds while it waits, and each finished language is downloaded once and kept. |
+
+Every output is listed on the item page with a player and a download, served
+through the owner check.
+
+**Before this**, the real adapter opened `request["audio_path"]` on every
+file-backed lane and the request carried only an asset id — a KeyError,
+recorded as an adapter error and never retried. The mock never noticed,
+because it never opens anything. The stem call returned the raw stream under
+`raw` and the harvester, which reads `stems`, stored nothing. The dubbing
+adapter reported the vendor's `dubbed` state, the poller waited for
+`completed`, and no code ever called `download`. None of it had been run
+against a key.
+
+**Still not built:** the Voice Vault (no owner-verification flow), a
+background worker (slow work is settled on view, which is honest and enough
+for one artist waiting on one dub), and the webhook path (optional; polling
+covers it).
+
+The mock adapters still return correct shapes and **no audio** — deliberately,
+since a demo that produced something audible would be mistaken for the real
+thing, and the item page says so.

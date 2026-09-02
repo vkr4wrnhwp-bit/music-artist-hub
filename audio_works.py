@@ -291,7 +291,7 @@ def submit_work(work_id, partner_id=None, member=None, adapter_key=None):
     if needs_source and not work.get("source_asset_id"):
         raise WorkRefusal("This needs a source recording.", "no_source")
 
-    request = _build_request(work, capability, ap)
+    request = _build_request(work, capability, ap, partner_id)
 
     submission = audio_jobs.submit(
         work["kind"], work["user_id"], request,
@@ -309,6 +309,21 @@ def submit_work(work_id, partner_id=None, member=None, adapter_key=None):
 
     job = submission.job
     result = (job or {}).get("result") or {}
+
+    # The job may already have ended badly inside submit(): the provider
+    # refused (terminal) or the call broke. Before this both were written up
+    # as "queued", and an item that could never finish sat there saying it
+    # had not started yet.
+    if job.get("status") in ("rejected", "failed"):
+        outcome = "refused" if job.get("status") == "rejected" else "failed"
+        code = job.get("error_code") or outcome
+        reason = job.get("error_message") or (
+            "The provider declined this." if outcome == "refused"
+            else "The provider reported a failure.")
+        set_status(work_id, outcome, partner_id, job_id=job["id"],
+                   refusal_code=code, refusal_reason=reason)
+        raise WorkRefusal(reason, code)
+
     status = "ready" if job.get("status") == "completed" else "queued"
 
     # Keep whatever came back. Without this the column exists, the item page
@@ -323,20 +338,89 @@ def submit_work(work_id, partner_id=None, member=None, adapter_key=None):
     return get_work(work_id, partner_id), result
 
 
+def settle_work(work_id, partner_id=None):
+    """Bring a slow item up to date with its job.
+
+    There is no background worker on this deployment, so a dub that the vendor
+    finishes ten minutes after submission is settled the next time somebody
+    looks at it: the item page, the outputs manifest the Rack reads, and the
+    operator's "advance waiting jobs" all call this. Safe on a settled item -
+    it returns it unchanged.
+
+    A finished dub is downloaded here and kept, once. The download is free at
+    the vendor and idempotent, so a poll that completed the job without
+    fetching (the admin sweep) costs nothing to catch up on.
+    """
+    import audio_jobs
+    import audio_store as astore
+
+    work = get_work(work_id, partner_id)
+    if work is None or work["status"] not in ("queued", "running") \
+            or not work.get("job_id"):
+        return work
+    job = astore.get_job(partner_id, work["job_id"])
+    if job is None:
+        return work
+    if job.get("status") == "running":
+        job = audio_jobs.poll(partner_id, job["id"]) or job
+
+    status = job.get("status")
+    if status == "completed":
+        result = dict(job.get("result") or {})
+        if not work["output_asset_ids"] and not any(
+                blob for _label, blob, _mime in _audio_parts(result)):
+            result.update(audio_jobs.collect_outputs(partner_id, job) or {})
+        outputs = harvest_outputs(work, result, partner_id)
+        set_status(work_id, "ready", partner_id,
+                   is_mock=bool(result.get("is_mock")),
+                   output_asset_ids=(work["output_asset_ids"] + outputs)
+                   if outputs else None)
+    elif status == "rejected":
+        set_status(work_id, "refused", partner_id,
+                   refusal_code=job.get("error_code") or "refused",
+                   refusal_reason=job.get("error_message")
+                   or "The provider declined this and will not be asked again.")
+    elif status == "failed":
+        set_status(work_id, "failed", partner_id,
+                   refusal_code=job.get("error_code") or "failed",
+                   refusal_reason=job.get("error_message")
+                   or "The provider reported a failure.")
+    elif status == "running" and work["status"] != "running":
+        set_status(work_id, "running", partner_id)
+    return get_work(work_id, partner_id)
+
+
 # Result shapes differ per capability, so the harvester names them rather
-# than guessing: a stem separation returns a LIST, everything else returns one
-# blob under "audio".
+# than guessing: a stem separation returns a LIST under "stems", a finished
+# dub a list under "outputs" (one per language), everything else one blob
+# under "audio".
 def _audio_parts(result):
     """[(label, bytes, mime)] for whatever this result actually carries."""
     parts = []
     for stem in (result.get("stems") or []):
         parts.append(((stem.get("name") or "stem"), stem.get("audio"),
                       stem.get("mime_type") or "audio/wav"))
+    for out in (result.get("outputs") or []):
+        parts.append(((out.get("language") or out.get("name") or "output"),
+                      out.get("audio"), out.get("mime_type") or "audio/mpeg"))
     if result.get("audio"):
         label = result.get("language") or "output"
         parts.append((label, result.get("audio"),
                       result.get("mime_type") or "audio/wav"))
     return parts
+
+
+_EXT_BY_MIME = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav",
+                "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a",
+                "audio/aac": "aac", "audio/flac": "flac", "audio/x-flac": "flac",
+                "audio/ogg": "ogg", "audio/webm": "webm", "audio/L16": "pcm"}
+
+
+def _ext_for(mime):
+    mime = (mime or "").split(";")[0].strip().lower()
+    if mime in _EXT_BY_MIME:
+        return _EXT_BY_MIME[mime]
+    return "wav" if "wav" in mime else "mp3"
 
 
 def harvest_outputs(work, result, partner_id=None):
@@ -358,8 +442,7 @@ def harvest_outputs(work, result, partner_id=None):
 
     stored = []
     for label, blob, mime in parts:
-        ext = "wav" if "wav" in (mime or "") else "mp3"
-        name = "%s_%s.%s" % (work["kind"], _safe(label), ext)
+        name = "%s_%s.%s" % (work["kind"], _safe(label), _ext_for(mime))
         try:
             path = _save_output(name, blob, mime)
         except Exception:
@@ -397,7 +480,46 @@ def _save_output(name, blob, mime):
     return audio_studio.STUDIO_PREFIX + fname
 
 
-def _build_request(work, capability, ap):
+def _source_file(work, partner_id=None):
+    """Where the uploaded source actually is, in a form an adapter can send.
+
+    The work item holds an asset id; an adapter needs a file. Before this the
+    request carried only the id, and the real adapter opened
+    `request["audio_path"]` - a KeyError on every file-backed lane, recorded
+    as an adapter error and never retried. The mock never noticed because it
+    never opens anything.
+
+    A local upload becomes a path (streamed by the SDK, not read into memory
+    twice); a bucket object is fetched into bytes, because the vendor cannot
+    be handed a private signed URL that expires under it. The name and type
+    travel with it so the multipart part is labelled honestly.
+    """
+    import os
+
+    import audio_store as astore
+    import blob_store
+
+    asset_id = work.get("source_asset_id")
+    asset = astore.get_asset(partner_id, asset_id) if asset_id else None
+    key = (asset or {}).get("storage_key") or ""
+    if not key:
+        return {}
+    out = {"file_name": (asset.get("file_name") or "source")[:120],
+           "mime_type": asset.get("mime_type") or "audio/wav"}
+    import audio_studio
+    if key.startswith(audio_studio.STUDIO_PREFIX):
+        out["audio_path"] = os.path.join(audio_studio._studio_dir(),
+                                         key[len(audio_studio.STUDIO_PREFIX):])
+    elif blob_store.is_remote(key):
+        data = blob_store.fetch(key)
+        if data:
+            out["audio_bytes"] = data
+    elif os.path.isabs(key) and os.path.exists(key):
+        out["audio_path"] = key
+    return out
+
+
+def _build_request(work, capability, ap, partner_id=None):
     """The capability-shaped request for this kind of work."""
     options = work.get("options") or {}
     brief = work.get("brief") or ""
@@ -409,21 +531,32 @@ def _build_request(work, capability, ap):
         return {"prompt": brief,
                 "duration_seconds": options.get("duration_seconds") or 3.0}
     if capability == "dubbing":
-        return {"source_asset_id": work.get("source_asset_id"),
-                "target_languages": options.get("languages") or ["es"],
-                "operation": "create_project"}
+        langs = [x for x in (options.get("languages") or []) if x] or ["es"]
+        request = {"source_asset_id": work.get("source_asset_id"),
+                   "target_languages": langs, "target_lang": langs[0],
+                   "name": work.get("title") or "",
+                   "operation": "create_project"}
+        request.update(_source_file(work, partner_id))
+        return request
     if capability == "stems":
-        return {"source_asset_id": work.get("source_asset_id"),
-                "operation": "separate"}
+        request = {"source_asset_id": work.get("source_asset_id"),
+                   "stem_variation": options.get("stem_variation") or "",
+                   "operation": "separate"}
+        request.update(_source_file(work, partner_id))
+        return request
     if capability == "voice_isolation":
-        return {"source_asset_id": work.get("source_asset_id"),
-                "operation": "isolate"}
+        request = {"source_asset_id": work.get("source_asset_id"),
+                   "operation": "isolate"}
+        request.update(_source_file(work, partner_id))
+        return request
     if capability == "music":
         # remix_plan analyses; music_generation creates. Same capability,
         # different verb, and only one of them costs a generation.
         if work.get("kind") == "remix_plan":
-            return {"source_asset_id": work.get("source_asset_id"),
-                    "prompt": brief, "operation": "composition_plan"}
+            request = {"source_asset_id": work.get("source_asset_id"),
+                       "prompt": brief, "operation": "composition_plan"}
+            request.update(_source_file(work, partner_id))
+            return request
         return {"prompt": brief, "operation": "generate"}
     if capability == "voice_identity":
         return {"owner_person_id": options.get("owner_person_id") or "",

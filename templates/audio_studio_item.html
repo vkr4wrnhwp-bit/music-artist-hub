@@ -66,12 +66,19 @@
           {{ outputs | length }} file{{ "" if outputs|length == 1 else "s" }}
         </p>
       </div>
-      {% call sb.table(["File", "Type", "Size"]) %}
+      {% call sb.table(["File", "Listen", "Size"]) %}
         {% for out in outputs %}
+          {%- set out_url = url_for('audio_studio.studio_output', work_id=item.id, asset_id=out.id) -%}
           <tr>
-            <td>{{ out.file_name }}</td>
-            <td class="whitespace-nowrap">{{ out.mime_type }}</td>
-            <td class="whitespace-nowrap">{{ out.file_size }}</td>
+            <td>
+              <a class="underline" href="{{ out_url }}" download>{{ out.file_name }}</a>
+              <div class="text-xs text-gray-300">{{ out.mime_type }}</div>
+            </td>
+            <td>
+              {#- Served through the owner check, never a bare bucket URL. -#}
+              <audio controls preload="none" class="w-full" src="{{ out_url }}"></audio>
+            </td>
+            <td class="whitespace-nowrap">{{ (out.file_size or 0) // 1024 }} KB</td>
           </tr>
         {% endfor %}
       {% endcall %}
@@ -109,6 +116,36 @@
         returns the right shape and <strong class="text-white">no audio</strong>
         — deliberately, because a demo that produced something audible would be
         mistaken for the real thing.
+      </p>
+    </section>
+  {% elif item.status == 'ready' %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Result</h2>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">
+        The provider finished but returned no audio for this item. Nothing was
+        stored, so nothing here pretends to be a result.
+      </p>
+    </section>
+  {% elif pending %}
+    {#- No background worker on this deployment: the item is brought up to
+        date each time its owner looks at it, and the page looks again on
+        its own. -#}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Still processing</h2>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">
+        The provider is still working on this. A full song takes a few minutes
+        to dub. This page checks again every twenty seconds; the files appear
+        here when they are ready.
+      </p>
+    </section>
+    <script>setTimeout(function () { window.location.reload(); }, 20000);</script>
+  {% elif item.status == 'failed' %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">This did not finish</h2>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">{{ item.refusal_reason or "The provider reported a failure." }}</p>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">
+        Nothing was charged for a result that never arrived. Start it again
+        from the Audio Studio if the recording is right.
       </p>
     </section>
   {% endif %}
