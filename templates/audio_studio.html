@@ -6,6 +6,13 @@
 {% block content %}
 {%- set status_tone = {"ready": "good", "queued": "info", "running": "info",
                        "draft": "idle", "refused": "warn", "failed": "crit"} -%}
+{#- One drawn symbol per lane, from the shared sprite base.html includes
+    (partials/sb_icons.html). The word beside it carries the meaning; the
+    symbol is decorative and says so. -#}
+{%- set lane_icons = {"dubbing": "globe", "campaign_voiceover": "mic-ribbon",
+                      "sound_effects": "burst", "stem_separation": "stems",
+                      "voice_isolation": "wave-isolate", "voice_vault": "vault"} -%}
+{%- macro ico(name) -%}<svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg>{%- endmacro -%}
 
 <div class="asx">
   {{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
@@ -15,7 +22,10 @@
 
   {% if not any_on %}
     <section class="sb-panel asx-foot">
-      <h2 class="sb-label sb-label-gold">Nothing is switched on yet</h2>
+      <div class="asx-panel-head asx-foot-head">
+        <span class="sb-disc sb-disc--sm sb-disc--off" aria-hidden="true">{{ ico("bolt") }}</span>
+        <h2 class="sb-label sb-label-gold">Nothing is switched on yet</h2>
+      </div>
       <p>
         Every lane below is off on this deployment. They are listed so you can
         see what the Studio does before anything that costs money is enabled.
@@ -29,8 +39,9 @@
       hold to is unchanged. -#}
   <div class="asx-lanes">
     {% for lane in lanes %}
-      <section class="sb-panel asx-lane">
+      <section class="sb-panel asx-lane{{ ' asx-lane--off' if not lane.on }}" data-lane="{{ lane.key }}">
         <div class="asx-lane-head">
+          <span class="sb-disc asx-lane-ico" aria-hidden="true">{{ ico(lane_icons.get(lane.kind, "wave")) }}</span>
           <h2 class="asx-lane-title">{{ lane.title }}</h2>
           {{ sb.badge("available" if lane.on else "off",
                       "good" if lane.on else "idle") }}
@@ -157,34 +168,68 @@
     {% endfor %}
   </div>
 
-  {% if works %}
-    <section class="sb-panel asx-work">
-      <div class="asx-work-head">
-        <h2 class="sb-label sb-label-gold">Your work</h2>
+  <div class="asx-side">
+    {#- Recent work: the signed-in account's own audio_works rows, newest
+        first, or an honest empty state. Never a sample row. -#}
+    <section class="sb-panel asx-panel asx-work" aria-labelledby="asx-recent-h">
+      <div class="asx-panel-head">
+        <span class="sb-disc sb-disc--sm" aria-hidden="true">{{ ico("clock") }}</span>
+        <h2 class="sb-label sb-label-gold" id="asx-recent-h">Recent work</h2>
         <span class="asx-work-sub">{{ works|length }} item{{ '' if works|length == 1 else 's' }}</span>
       </div>
-      {% call sb.table(["What", "Kind", "Status", "Started"]) %}
-        {% for item in works %}
-          <tr>
-            <td>
-              <a href="{{ url_for('audio_studio.studio_item', work_id=item.id) }}">
-                {{ item.title or "Untitled" }}</a>
-              {% if item.is_mock %}
-                <div class="text-xs text-gray-300">demo output</div>
-              {% endif %}
-            </td>
-            <td class="whitespace-nowrap">{{ item.kind.replace("_", " ") }}</td>
-            <td>{{ sb.badge(item.status, status_tone.get(item.status, "idle")) }}</td>
-            <td class="whitespace-nowrap text-sm text-gray-300">
-              {{ item.created_at[:16] | replace("T", " ") }}</td>
-          </tr>
-        {% endfor %}
-      {% endcall %}
+      {% if works %}
+        <ul class="asx-rows">
+          {% for item in works[:12] %}
+            <li class="asx-row" data-status="{{ item.status }}">
+              <span class="sb-disc sb-disc--sm asx-row-ico" aria-hidden="true">{{ ico(lane_icons.get(item.kind, "wave")) }}</span>
+              <span class="asx-row-main">
+                <a class="asx-row-title" href="{{ url_for('audio_studio.studio_item', work_id=item.id) }}">{{ item.title or "Untitled" }}</a>
+                <span class="asx-row-sub">{{ lane_titles.get(item.kind, item.kind.replace("_", " ")) }}{% if item.is_mock %} · demo output{% endif %}</span>
+              </span>
+              {{ sb.badge(item.status, status_tone.get(item.status, "idle")) }}
+              <time class="asx-row-time" datetime="{{ item.created_at }}">{{ item.created_at[:16] | replace("T", " ") }}</time>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if works|length > 12 %}
+          <p class="asx-more">The latest 12 of {{ works|length }}. Each item opens to its files and its reason.</p>
+        {% endif %}
+      {% else %}
+        <div class="asx-empty">
+          <span class="sb-disc sb-disc--lg" aria-hidden="true">{{ ico("wave") }}</span>
+          <p><strong>Nothing started yet.</strong> Work you start in a lane above is listed here with its status, and each item opens to its files.</p>
+        </div>
+      {% endif %}
     </section>
-  {% endif %}
+
+    {#- What runs here: read from the running configuration on every
+        request (audio_studio._runs_here). Configured is said as configured;
+        the live check against a vendor is the audio admin page's job. -#}
+    <section class="sb-panel asx-panel" aria-labelledby="asx-runs-h">
+      <div class="asx-panel-head">
+        <span class="sb-disc sb-disc--sm" aria-hidden="true">{{ ico("gear") }}</span>
+        <h2 class="sb-label sb-label-gold" id="asx-runs-h">What runs here</h2>
+      </div>
+      <ul class="asx-runs">
+        {% for r in runs_here %}
+          <li class="asx-run" data-component="{{ r.key }}" data-on="{{ 'true' if r.on else 'false' }}">
+            <span class="sb-disc sb-disc--sm asx-run-ico{{ '' if r.on else ' sb-disc--off' }}" aria-hidden="true">{{ ico(r.icon) }}</span>
+            <span class="asx-run-text">
+              <span class="asx-run-head">{{ r.headline }}</span>
+              <span class="asx-run-detail">{{ r.detail }}</span>
+            </span>
+            <span class="asx-run-lamp">{{ "on" if r.on else "off" }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
 
   <section class="sb-panel asx-foot">
-    <h2 class="sb-label sb-label-gold">What this cannot do</h2>
+    <div class="asx-panel-head asx-foot-head">
+      <span class="sb-disc sb-disc--sm" aria-hidden="true">{{ ico("ban") }}</span>
+      <h2 class="sb-label sb-label-gold">What this cannot do</h2>
+    </div>
     <p>{{ safety_warning }}</p>
     <p>
       Briefs are screened before anything is sent. A request to imitate a

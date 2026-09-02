@@ -18,6 +18,12 @@
     {% if x.note %}<span class="sr-metric-note">{{ x.note }}</span>{% endif %}
   </li>
 {%- endmacro %}
+{#- The drawn symbols come from the sprite base.html includes
+    (partials/sb_icons.html). A panel title carries its symbol on a small
+    lit disc; the word beside it carries the meaning, so every symbol is
+    aria-hidden. -#}
+{%- macro ico(name) -%}<svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg>{%- endmacro -%}
+{%- macro ti(name) -%}<span class="sb-disc sb-disc--sm sr-ti" aria-hidden="true">{{ ico(name) }}</span>{%- endmacro -%}
 {%- macro room_href(key) -%}
   {%- if key == "session" %}{{ url_for("studio.studio_session", project_id=project.id) }}
   {%- elif key == "measure" %}#sb-measure
@@ -114,7 +120,7 @@
 
   {% if error %}
     <section class="sr-panel">
-      <h2 class="sr-panel-title">That did not go through</h2>
+      <h2 class="sr-panel-title">{{ ti("ban") }}That did not go through</h2>
       <p class="sr-empty" style="margin-top:8px">{{ error }}</p>
     </section>
   {% endif %}
@@ -122,7 +128,7 @@
   {# --------------------------------------------- rights, then the upload --- #}
   {% if viewer_role == "owner" and not project.rights_confirmed_at %}
     <section class="sr-panel">
-      <h2 class="sr-panel-title">Before anything is uploaded</h2>
+      <h2 class="sr-panel-title">{{ ti("shield-check") }}Before anything is uploaded</h2>
       <p class="sr-empty" style="margin-top:8px">Confirmed per project, recorded with your name and the date.</p>
       <form method="post" action="{{ url_for('studio.studio_rights', project_id=project.id) }}" class="mt-3 space-y-3">
         {{ sb.field("confirmed_by", "I confirm I own, control, or am authorised to process this recording. Your name:", placeholder="Your full name") }}
@@ -133,7 +139,7 @@
 
   {% if viewer_role == "owner" and project.rights_confirmed_at and not source %}
     <section class="sr-panel">
-      <h2 class="sr-panel-title">Upload the source</h2>
+      <h2 class="sr-panel-title">{{ ti("wave") }}Upload the source</h2>
       <p class="sr-empty" style="margin-top:8px">WAV, AIFF, FLAC, MP3 or M4A, up to {{ max_mb }} MB. Written once, never rewritten.</p>
       <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3"
             action="{{ url_for('studio.studio_upload', project_id=project.id) }}">
@@ -149,7 +155,7 @@
     {# ============================================================ left #}
     <div class="sr-col">
       <section class="sr-panel sr-o-overview" aria-labelledby="sr-overview-h">
-        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-overview-h">Session overview</h2></div>
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-overview-h">{{ ti("card") }}Session overview</h2></div>
         <dl class="sr-facts">
           <dt>Status</dt><dd>{{ project.status|replace("_"," ")|title }}</dd>
           <dt>Last saved</dt><dd>{{ (project.updated_at or "")[:16]|replace("T"," ") }}</dd>
@@ -166,7 +172,7 @@
 
       <section class="sr-panel sr-o-mix" aria-labelledby="sr-mix-h" data-panel="mix-readiness">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-mix-h">Mix readiness</h2>
+          <h2 class="sr-panel-title" id="sr-mix-h">{{ ti("meter") }}Mix readiness</h2>
           {% if mix_score.summary %}
             <span class="sr-panel-sub sr-panel-sub--{{ mix_score.tone }}" data-mix-summary>{{ mix_score.summary }}</span>
           {% else %}
@@ -184,7 +190,7 @@
       </section>
 
       <section class="sr-panel sr-o-activity" aria-labelledby="sr-activity-h">
-        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-activity-h">Recent activity</h2></div>
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-activity-h">{{ ti("clock") }}Recent activity</h2></div>
         {% if activity %}
         <ul class="sr-activity">
           {% for e in activity %}
@@ -199,7 +205,7 @@
     <div class="sr-col">
       <section class="sr-panel sr-o-rack" aria-labelledby="sr-rack-h" data-panel="rack">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-rack-h">Rack chain</h2>
+          <h2 class="sr-panel-title" id="sr-rack-h">{{ ti("rack") }}Rack chain</h2>
           <span class="sr-panel-sub">saved chain, read-only</span>
         </div>
         {% if rack_chain %}
@@ -213,7 +219,7 @@
 
       <section class="sr-panel sr-o-doctor" aria-labelledby="sr-doctor-h" data-panel="mix-doctor" data-doctor="{{ doctor.kind }}">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-doctor-h">Mix Doctor</h2>
+          <h2 class="sr-panel-title" id="sr-doctor-h">{{ ti("pulse") }}Mix Doctor</h2>
           <span class="sr-panel-sub">primary observation</span>
         </div>
         <p class="sr-doctor-head">{{ doctor.headline }}</p>
@@ -254,7 +260,7 @@
 
       <section class="sr-panel sr-o-team" aria-labelledby="sr-team-h" data-panel="team">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-team-h">ON THIS RECORD</h2>
+          <h2 class="sr-panel-title" id="sr-team-h">{{ ti("people") }}ON THIS RECORD</h2>
           <span class="sr-panel-sub">a name is a credit; access needs an accepted invite</span>
         </div>
         {% if members %}
@@ -314,7 +320,7 @@
 
       <section class="sr-panel sr-o-ask" id="ask-the-room" aria-labelledby="sr-ask-h">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-ask-h">Ask the Room</h2>
+          <h2 class="sr-panel-title" id="sr-ask-h">{{ ti("speech") }}Ask the Room</h2>
           <span class="sr-panel-sub">answers only from what this project holds</span>
         </div>
         <p class="sr-fine" style="margin-top:0">It has no ears and says so.</p>
@@ -346,9 +352,11 @@
     <div class="sr-col">
       <section class="sr-panel sr-o-master" aria-labelledby="sr-master-h" data-panel="master">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-master-h">Master directions</h2>
+          <h2 class="sr-panel-title" id="sr-master-h">{{ ti("compass") }}Master directions</h2>
           <span class="sr-panel-sub">rendered in this browser</span>
         </div>
+        {#- Five lit tiles, one drawn symbol each: a clear ring, a valve, an
+            arrow up, an open ring, a speaker stack. The tile is the link. -#}
         <div class="sr-directions">
           {% for key, name, blurb in (
               ("clean", "Clean", "Transparent loudness stage. Minimal tonal intervention."),
@@ -356,7 +364,7 @@
               ("competitive", "Competitive", "Higher perceived loudness. Limiter-driven presentation."),
               ("open", "Open", "Dynamics preserved. No limiter by design."),
               ("club", "Club", "Low-end emphasis. PA-oriented translation.")) %}
-            <a class="sr-direction" data-direction="{{ key }}" href="{{ url_for('studio.studio_master', project_id=project.id) }}?direction={{ key }}"><b>{{ name }}</b><span>{{ blurb }}</span></a>
+            <a class="sr-direction" data-direction="{{ key }}" href="{{ url_for('studio.studio_master', project_id=project.id) }}?direction={{ key }}"><span class="sb-disc sr-dir-ico" aria-hidden="true">{{ ico("dir-" ~ key) }}</span><b>{{ name }}</b><span class="sr-dir-blurb">{{ blurb }}</span><span class="sr-dir-go" aria-hidden="true">{{ ico("arrow-right") }}</span></a>
           {% endfor %}
         </div>
         {% if masters %}
@@ -368,7 +376,7 @@
           <p class="sr-fine">Flip A/B on the transport; match plays both at equal loudness.</p>
         {% endif %}
         <div class="sr-panel-head" style="margin-top:16px">
-          <h3 class="sr-panel-title">Master readiness</h3>
+          <h3 class="sr-panel-title">{{ ti("meter") }}Master readiness</h3>
           {% if master_scores.overall is not none %}<span class="sr-panel-sub">measured on {{ master_scores.measured_count }} of {{ master_scores.total_count }}</span>{% endif %}
         </div>
         <ul class="sr-metrics">
@@ -377,19 +385,21 @@
       </section>
 
       <section class="sr-panel sr-o-sims" aria-labelledby="sr-sims-h" data-panel="translation">
-        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-sims-h">Playback translation</h2></div>
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-sims-h">{{ ti("speaker") }}Playback translation</h2></div>
         <div id="sb-sims" role="group" aria-label="Playback simulations"></div>
         <p class="sr-fine">Simulations, not measurements of any real device &mdash; your ears are the meter.</p>
       </section>
 
       <section class="sr-panel sr-o-deliver" aria-labelledby="sr-deliver-h" data-panel="delivery" data-ready="{{ 'yes' if delivery.ready else 'no' }}">
         <div class="sr-panel-head">
-          <h2 class="sr-panel-title" id="sr-deliver-h">Delivery readiness</h2>
+          <h2 class="sr-panel-title" id="sr-deliver-h">{{ ti("box-out") }}Delivery readiness</h2>
           <span class="sr-panel-sub">{{ delivery.required_met }} / {{ delivery.required_total }} required &middot; {{ delivery.met }} / {{ delivery.total }} overall</span>
         </div>
+        {#- A drawn tick in a lit ring for a line that is met, an empty ring
+            for one that is not. The class and the word are unchanged. -#}
         <ul class="sr-checks">
           {% for c in checklist if c.required %}
-            <li class="{{ 'ok' if c.ok else 'no' }}" title="{{ c.detail }}"><span aria-hidden="true">{{ "&#10003;"|safe if c.ok else "&#9675;"|safe }}</span><span>{{ c.label }}</span></li>
+            <li class="{{ 'ok' if c.ok else 'no' }}" title="{{ c.detail }}"><span class="sr-check-mark" aria-hidden="true">{{ ico("tick" if c.ok else "ring") }}</span><span>{{ c.label }}</span></li>
           {% endfor %}
         </ul>
         {% if delivery.ready %}
@@ -420,7 +430,7 @@
       </section>
 
       <section class="sr-panel sr-o-notes" aria-labelledby="sr-notes-h">
-        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-notes-h">Notes</h2></div>
+        <div class="sr-panel-head"><h2 class="sr-panel-title" id="sr-notes-h">{{ ti("pencil") }}Notes</h2></div>
         {% if comments %}
           <ul class="sr-notes">
             {% for c in comments[:8] %}
@@ -437,7 +447,7 @@
 
   {# ======================================================= system status #}
   <details class="sr-system" data-panel="system">
-    <summary>System status{% if system_notes %} &middot; {{ system_notes|length }} note{{ "s" if system_notes|length != 1 }}{% endif %}</summary>
+    <summary>{{ ti("gear") }}<span>System status{% if system_notes %} &middot; {{ system_notes|length }} note{{ "s" if system_notes|length != 1 }}{% endif %}</span></summary>
     <div class="sr-system-body">
       {% if system_notes %}
         <ul class="sr-system-notes">

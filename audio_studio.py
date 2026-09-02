@@ -169,6 +169,102 @@ def _lanes_for_render():
             for key, kind, flag, title, note in LANES]
 
 
+def _lane_titles():
+    """Work kind -> the lane's name, for the recent-work rail."""
+    return {kind: title for _key, kind, _flag, title, _note in LANES}
+
+
+# The capabilities the six lanes are served by. The Vault's voice identity
+# is left out on purpose: it is off until its consent flow exists, and a
+# provider row for it would suggest a switch that changes nothing.
+_LANE_CAPABILITIES = (ap.DUBBING, ap.SPEECH, ap.SOUND_EFFECTS, ap.STEMS,
+                      ap.VOICE_ISOLATION)
+
+
+def _runs_here():
+    """What this deployment can actually do, as rows the page renders.
+
+    Every row is read from the running configuration at request time -
+    the master flag, which adapter answers each capability, whether object
+    storage is configured - never asserted. "Configured" is said as
+    configured: the live check against a vendor is the audio admin page's
+    job, and a row here claiming "operational" on the strength of a key in
+    the environment would be the same lie the Studio told before.
+
+    Each row: {key, icon, on, headline, detail}.
+    """
+    import blob_store
+
+    master = audio_policy.flag("AUDIO_INTELLIGENCE_ENABLED")
+    rows = [{
+        "key": "switch", "icon": "bolt", "on": master,
+        "headline": ("Audio Intelligence is switched on" if master
+                     else "Audio Intelligence is switched off"),
+        "detail": ("AUDIO_INTELLIGENCE_ENABLED gates every lane on this page, "
+                   "and it is set on this deployment."
+                   if master else
+                   "AUDIO_INTELLIGENCE_ENABLED gates every lane on this page. "
+                   "It is not set, so every lane is off whatever else is."),
+    }]
+
+    serving = {}
+    for cap in _LANE_CAPABILITIES:
+        try:
+            adapter = ap.get(cap)
+        except Exception:
+            adapter = None
+        key = getattr(adapter, "key", None) or "none"
+        serving.setdefault(key, []).append(ap.CAPABILITY_LABELS.get(cap, cap).lower())
+    real = {k: v for k, v in serving.items() if k not in ("mock", "none")}
+    if real:
+        rows.append({
+            "key": "provider", "icon": "plug", "on": True,
+            "headline": "Provider configured: " + ", ".join(sorted(real)),
+            "detail": "; ".join("%s answers %s" % (k, ", ".join(v))
+                                for k, v in sorted(real.items()))
+                      + ". Configured is not verified - the audio admin page "
+                        "makes the live check against the vendor.",
+        })
+    else:
+        rows.append({
+            "key": "provider", "icon": "plug", "on": False,
+            "headline": "No audio provider connected",
+            "detail": "The offline adapter answers every lane. It returns the "
+                      "right shape and no audio, so nothing here can be "
+                      "mistaken for a real result.",
+        })
+
+    try:
+        remote = bool(blob_store.configured())
+    except Exception:
+        remote = False
+    rows.append({
+        "key": "storage", "icon": "cloud", "on": remote,
+        "headline": ("Object storage connected" if remote
+                     else "Object storage not configured"),
+        "detail": ("Uploads go to the bucket and are served by short-lived "
+                   "signed URLs, to their owner only."
+                   if remote else
+                   "Uploads stay on this server's disk in the Studio's private "
+                   "folder, never the public uploads tree, and are served to "
+                   "their owner only."),
+    })
+    rows.append({
+        "key": "worker", "icon": "cpu", "on": False,
+        "headline": "No background worker",
+        "detail": "A slow job is brought up to date when its owner opens the "
+                  "item, and the item page checks again every twenty seconds. "
+                  "Nothing is reported finished before it is.",
+    })
+    rows.append({
+        "key": "screen", "icon": "shield-check", "on": True,
+        "headline": "Briefs are screened before anything is sent",
+        "detail": "A request to imitate a specific person is refused here, "
+                  "before a provider is asked, and the reason is shown on the item.",
+    })
+    return rows
+
+
 def _speech_adapter():
     try:
         return ap.get(ap.SPEECH)
@@ -212,6 +308,8 @@ def studio():
     return render_template(
         "audio_studio.html",
         lanes=lanes,
+        lane_titles=_lane_titles(),
+        runs_here=_runs_here(),
         works=works.list_works(user_id=user["id"], limit=40),
         safety_warning=works.safety_warning(),
         any_on=any(lane["on"] for lane in lanes),

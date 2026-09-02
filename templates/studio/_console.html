@@ -44,7 +44,7 @@
    rather than opening an empty page - a disabled control with a reason is
    information; a page that loads and does nothing is a bug report. #}
 {% macro rooms(project, room, summary) %}
-<link rel="stylesheet" href="/static/css/studio-room.css?v=1">
+<link rel="stylesheet" href="/static/css/studio-room.css?v=2">
 <nav class="sr-tabs" aria-label="Control Room">
   {%- set items = [
       ("session",  "Control Room", url_for("studio.studio_session",  project_id=project.id), none),

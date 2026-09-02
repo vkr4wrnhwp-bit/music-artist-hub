@@ -208,3 +208,227 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .asx-work { padding: 18px; }
 .asx-work-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .asx-work-sub { font-size: 12px; color: var(--sb-ink-3); }
+
+/* DRAWN ICONS AND THE LIT DISC
+   The sprite (templates/partials/sb_icons.html) is included once by
+   base.html; an instance is <svg class="sb-i"><use href="#sb-i-name"/></svg>.
+   The instance carries the stroke rules, so a symbol only states geometry.
+   The disc is the same lit object the Remix Lab draws under every lane
+   and step: a ring of gold line, a radial gold glow, a soft shadow — the
+   light is radial gradients and box-shadow, never filter blur. Colour is
+   the token's own triplet (232 185 80 is --sb-gold-bright) so the glow
+   can carry an alpha without a second gold. */
+.sb-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.sb-i {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sb-disc {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--sb-gold-line);
+  background:
+    radial-gradient(circle at 50% 42%, rgb(232 185 80 / .32), rgb(232 185 80 / .09) 48%, rgb(232 185 80 / 0) 72%),
+    var(--sb-surface-3);
+  box-shadow: var(--sb-e1), 0 10px 24px -14px rgb(232 185 80 / .5);
+  color: var(--sb-gold);
+}
+.sb-disc .sb-i { width: 22px; height: 22px; stroke-width: 1.6; }
+.sb-disc--sm { width: 32px; height: 32px; }
+.sb-disc--sm .sb-i { width: 16px; height: 16px; stroke-width: 1.5; }
+.sb-disc--lg { width: 56px; height: 56px; }
+.sb-disc--lg .sb-i { width: 28px; height: 28px; stroke-width: 1.75; }
+/* A disc on a thing that is off: the same object, the lamp down. */
+.sb-disc--off {
+  border-color: var(--sb-line-strong);
+  background: var(--sb-surface-2);
+  box-shadow: var(--sb-e1);
+  color: var(--sb-ink-3);
+}
+
+/* THE AUDIO STUDIO BODY — photograph and light, the Remix Lab way.
+   The plate stays exactly as every internal page opens; the richness is
+   below it. Each lane is a backlit tile with its symbol on a lit disc;
+   the tile turns gold when its form is open. The two panels under the
+   lanes carry real rows or an honest empty state, never a sample. */
+.asx-lane {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  padding: 18px 18px 16px;
+  transition: border-color var(--sb-fast), background-color var(--sb-fast), box-shadow var(--sb-slow);
+}
+.asx-lane::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(120% 90% at 50% 0%, rgb(232 185 80 / .16), rgb(232 185 80 / 0) 62%);
+  opacity: .42;
+  pointer-events: none;
+  transition: opacity var(--sb-slow);
+}
+.asx-lane:hover { border-color: var(--sb-gold-deep); }
+.asx-lane:hover::before { opacity: .75; }
+.asx-lane--off::before { opacity: .18; }
+.asx-lane--off:hover::before { opacity: .3; }
+.asx-lane--off .asx-lane-ico { opacity: .7; }
+/* the lane whose form is open is the lit one */
+.asx-lane:has(details[open]) {
+  border-color: var(--sb-gold);
+  background: linear-gradient(180deg, var(--sb-gold-wash), rgb(232 185 80 / 0) 70%), var(--sb-surface-1);
+  box-shadow: var(--sb-e2), 0 0 0 1px var(--sb-gold-line), 0 0 28px -10px rgb(232 185 80 / .45);
+}
+.asx-lane:has(details[open])::before { opacity: 1; }
+.asx-lane:has(details[open]) .asx-lane-ico {
+  border-color: var(--sb-gold);
+  color: var(--sb-gold-bright);
+  box-shadow: 0 0 0 1px var(--sb-gold-line), 0 0 22px rgb(232 185 80 / .45);
+}
+/* the head: the disc at the left, the name and its lamp stacked beside it,
+   so a long name never fights the badge for the same line */
+.asx-lane-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "ico title" "ico badge";
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 5px;
+}
+.asx-lane-ico { grid-area: ico; align-self: center; transition: border-color var(--sb-fast), color var(--sb-fast), box-shadow var(--sb-slow), opacity var(--sb-fast); }
+.asx-lane-ico .sb-i { width: 24px; height: 24px; }
+.asx-lane-title { grid-area: title; min-width: 0; align-self: end; }
+.asx-lane-head .sb-badge { grid-area: badge; justify-self: start; align-self: start; }
+.asx-lane-note { margin-top: 14px; }
+
+/* the two panels under the lanes */
+.asx-side {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+}
+.asx-panel { padding: 18px 18px 16px; }
+.asx-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.asx-panel-head .sb-label { display: block; }
+.asx-panel-head .asx-work-sub { margin-left: auto; white-space: nowrap; }
+.asx-panel-head + p { max-width: 70ch; }
+
+.asx-rows { list-style: none; margin: 0; padding: 0; }
+.asx-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "ico main status" "ico main time";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 11px 0;
+  border-top: 1px solid var(--sb-line);
+}
+.asx-row:first-child { border-top: 0; padding-top: 0; }
+.asx-row-ico { grid-area: ico; }
+.asx-row-main { grid-area: main; min-width: 0; display: grid; gap: 2px; }
+.asx-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sb-ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.asx-row-title:hover { color: var(--sb-gold-bright); text-decoration: underline; }
+.asx-row-title:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+.asx-row-sub { font-size: 12.5px; line-height: 1.4; color: var(--sb-ink-3); }
+.asx-row .sb-badge { grid-area: status; justify-self: end; }
+.asx-row-time {
+  grid-area: time;
+  justify-self: end;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink-3);
+  white-space: nowrap;
+}
+.asx-more { margin-top: 10px; font-size: 12.5px; color: var(--sb-ink-3); }
+
+.asx-empty {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0 4px;
+}
+.asx-empty p { margin: 0; max-width: 46ch; font-size: 13.5px; line-height: 1.55; color: var(--sb-ink-3); }
+.asx-empty strong { color: var(--sb-ink); font-weight: 600; }
+
+/* what runs here: one row per component, the state as a lamp */
+.asx-runs { list-style: none; margin: 0; padding: 0; }
+.asx-run {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--sb-line);
+}
+.asx-run:first-child { border-top: 0; padding-top: 0; }
+.asx-run-ico { margin-top: 1px; }
+.asx-run-text { min-width: 0; }
+.asx-run-head { display: block; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--sb-ink); }
+.asx-run-detail { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.5; color: var(--sb-ink-3); max-width: 52ch; }
+.asx-run-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+  white-space: nowrap;
+}
+.asx-run-lamp::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  flex: none;
+}
+.asx-run[data-on="true"] .asx-run-lamp { color: var(--sb-good); }
+.asx-run[data-on="true"] .asx-run-lamp::before { background: currentColor; box-shadow: 0 0 8px rgb(121 180 115 / .6); }
+
+.asx-foot-head { margin-bottom: 10px; }
+
+@media (max-width: 899px) {
+  .asx-side { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .asx-row { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ico main" "ico status" "ico time"; }
+  .asx-row .sb-badge, .asx-row-time { justify-self: start; }
+  .asx-run { grid-template-columns: auto minmax(0, 1fr); }
+  .asx-run-lamp { grid-column: 2; margin-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asx-lane, .asx-lane::before, .asx-lane-ico { transition: none; }
+}
