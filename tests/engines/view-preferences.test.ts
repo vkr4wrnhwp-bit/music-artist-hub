@@ -4,9 +4,11 @@ import { readFileSync } from "node:fs";
 import {
   DEFAULT_ENVIRONMENT,
   VIEW_PRESETS,
+  ANNOTATION_SCALE,
   lightRig,
   parseHexColor,
   preferLocalEnvironment,
+  sectionStroke,
   semanticConflicts,
 } from "@/lib/view-environment";
 
@@ -226,4 +228,87 @@ test("the scene takes its intensities from the rig, not from literals", () => {
     !/hemisphereLight args=/.test(src),
     "the hemisphere light takes its intensity as a constructor arg — it will not follow the slider",
   );
+});
+
+/* ---- the section drawing and the on-model annotations ---- */
+
+/**
+ * `sectionFillColor` and `sectionLineMode` were declared, defaulted, written
+ * to localStorage and pushed to the server on every change — and read by
+ * nothing at all. Settings a machinist's account carried that did nothing.
+ */
+
+test("the section stroke reproduces the drawing as it already was", () => {
+  // Wiring a control must not restyle a drawing anyone has looked at. MEDIUM
+  // is the default and 1.25 is the width the sketch hard-coded.
+  assert.deepEqual(sectionStroke("MEDIUM"), { width: 1.25, opacity: 1 });
+  assert.equal(DEFAULT_ENVIRONMENT.sectionLineMode, "MEDIUM");
+});
+
+test("OFF drops the cut boundary rather than making it faint", () => {
+  // The same answer edgeMode OFF gives for part edges. A floor here would
+  // make OFF mean "dim", which is not what was asked for.
+  assert.equal(sectionStroke("OFF").opacity, 0);
+});
+
+test("the section line mode actually moves the line", () => {
+  assert.ok(sectionStroke("STRONG").width > sectionStroke("LIGHT").width);
+  assert.ok(sectionStroke("STRONG").opacity >= sectionStroke("LIGHT").opacity);
+});
+
+test("the two section fields have a consumer outside their own declaration", () => {
+  // This is the whole item: they were dead.
+  const sketch = readFileSync("src/components/workspace/section-sketch.tsx", "utf8");
+  // BOTH renderers — SectionSketch and FaceSection each draw their own hatch
+  // and their own cut boundary, so wiring one and not the other leaves a
+  // control that works on bores and does nothing on faces.
+  const hatches = (sketch.match(/patternUnits="userSpaceOnUse"/g) ?? []).length;
+  assert.ok(hatches >= 2, `expected both section renderers, found ${hatches} hatch patterns`);
+  assert.equal(
+    (sketch.match(/env\.sectionFillColor/g) ?? []).length,
+    hatches,
+    "a hatch is still a hard-coded constant in one of the two section renderers",
+  );
+  assert.equal(
+    (sketch.match(/sectionStroke\(env\.sectionLineMode\)/g) ?? []).length,
+    hatches,
+    "a cut boundary still ignores the section line mode in one of the two renderers",
+  );
+  assert.ok(!/const HATCH =/.test(sketch), "the old constant is still there and will be used again");
+  assert.ok(!/strokeWidth="1\.25"/.test(sketch), "a cut boundary is still a literal width");
+});
+
+test("the section fill cannot repaint the locked datum and dimension blue", () => {
+  // The centreline and the dimension lines are measurement blue and are not
+  // repaintable from a colour picker.
+  const sketch = readFileSync("src/components/workspace/section-sketch.tsx", "utf8");
+  assert.ok(/const DIM = "var\(--c-blue\)"/.test(sketch), "the dimension colour became settable");
+});
+
+test("annotations have an off state, and it is a boolean not a zero scale", () => {
+  assert.equal(DEFAULT_ENVIRONMENT.annotationsVisible, true);
+  // ANNOTATION_SCALE.OFF = 0 would be a sentinel that silently collapses any
+  // consumer that forgets to check it.
+  assert.ok(!("OFF" in ANNOTATION_SCALE), "annotation size gained an OFF that scales to zero");
+});
+
+test("both on-model annotations respect the toggle, not just one", () => {
+  const scene = readFileSync("src/components/viewport/scene.tsx", "utf8");
+  // Half-wiring it — letters vanish, balloons stay — is exactly the kind of
+  // control this cluster exists to stop.
+  assert.ok(/annotationsVisible && \(/.test(scene), "the datum letters ignore the toggle");
+  assert.ok(/if \(!env\.annotationsVisible\) return null;/.test(scene), "the measurement balloons ignore the toggle");
+});
+
+test("turning annotations off never hides evidence or geometry", () => {
+  const scene = readFileSync("src/components/viewport/scene.tsx", "utf8");
+  // The work offset origin and the toolpath are geometry, not lettering.
+  const datumIndicator = /function DatumIndicator[\s\S]{0,1200}?\n}/.exec(scene);
+  assert.ok(datumIndicator, "DatumIndicator moved — this test cannot check it any more");
+  assert.ok(
+    !/annotationsVisible/.test(datumIndicator![0]),
+    "the work offset origin hides with annotations — it is geometry, not a label",
+  );
+  const toolpath = /function Toolpath\([\s\S]{0,1600}?\n}/.exec(scene);
+  assert.ok(toolpath && !/annotationsVisible/.test(toolpath[0]), "the toolpath hides with annotations");
 });

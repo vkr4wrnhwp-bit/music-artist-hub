@@ -1124,6 +1124,7 @@ function WorkspaceInner(props: WorkspaceProps) {
               hasInspectionPlan={props.hasInspectionPlan}
               inspectionSessionId={props.inspectionSessionId}
               operations={props.runway.operations}
+              env={viewEnv}
               onMake={(operationId) => {
                 const op = props.runway.operations.find((o) => o.id === operationId);
                 if (!op) return;

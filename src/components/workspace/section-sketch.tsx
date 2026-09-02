@@ -2,6 +2,7 @@
 
 import type { Feature, Stock } from "@/lib/domain/features";
 import { fmt } from "@/lib/domain/features";
+import { sectionStroke, type ViewEnvironment } from "@/lib/view-environment";
 
 /**
  * SECTION SKETCH
@@ -27,7 +28,9 @@ import { fmt } from "@/lib/domain/features";
  */
 
 const OUTLINE = "var(--c-platinum-dim)";
-const HATCH = "var(--c-line-strong)";
+/* The hatch IS the fill in a section drawing, so `sectionFillColor` is
+   literal rather than a near-synonym. It was a persisted setting nothing
+   read. */
 const DIM = "var(--c-blue)";
 
 // The viewBox is wider than the slab on both sides on purpose: the stock
@@ -109,7 +112,8 @@ function sectionFor(f: Feature): Section | null {
   }
 }
 
-export function SectionSketch({ feature, stock }: { feature: Feature; stock: Stock | null }) {
+export function SectionSketch({ feature, stock, env }: { feature: Feature; stock: Stock | null; env: ViewEnvironment }) {
+  const cut = sectionStroke(env.sectionLineMode);
   if (!stock) {
     return (
       <Omission>
@@ -119,7 +123,7 @@ export function SectionSketch({ feature, stock }: { feature: Feature; stock: Sto
   }
 
   if (feature.kind === "FACE") {
-    return <FaceSection feature={feature} stock={stock} />;
+    return <FaceSection feature={feature} stock={stock} env={env} />;
   }
 
   const section = sectionFor(feature);
@@ -149,7 +153,7 @@ export function SectionSketch({ feature, stock }: { feature: Feature; stock: Sto
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`Section through ${feature.label}`}>
         <defs>
           <pattern id="cs-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="0" y2="6" stroke={HATCH} strokeWidth="1" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke={env.sectionFillColor} strokeWidth="1" />
           </pattern>
         </defs>
 
@@ -166,7 +170,8 @@ export function SectionSketch({ feature, stock }: { feature: Feature; stock: Sto
           }
           fill="url(#cs-hatch)"
           stroke={OUTLINE}
-          strokeWidth="1.25"
+          strokeWidth={cut.width}
+          strokeOpacity={cut.opacity}
           fillRule="evenodd"
         />
 
@@ -237,7 +242,8 @@ export function SectionSketch({ feature, stock }: { feature: Feature; stock: Sto
   );
 }
 
-function FaceSection({ feature, stock }: { feature: Extract<Feature, { kind: "FACE" }>; stock: Stock }) {
+function FaceSection({ feature, stock, env }: { feature: Extract<Feature, { kind: "FACE" }>; stock: Stock; env: ViewEnvironment }) {
+  const cut = sectionStroke(env.sectionLineMode);
   const cutPx = Math.max(5, Math.min(SLAB_H - 6, (feature.depth / stock.z) * SLAB_H));
   const finishedTop = SLAB_T + cutPx;
 
@@ -246,7 +252,7 @@ function FaceSection({ feature, stock }: { feature: Extract<Feature, { kind: "FA
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`Section showing ${feature.label}`}>
         <defs>
           <pattern id="fs-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="0" y2="6" stroke={HATCH} strokeWidth="1" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke={env.sectionFillColor} strokeWidth="1" />
           </pattern>
         </defs>
 
@@ -258,7 +264,8 @@ function FaceSection({ feature, stock }: { feature: Extract<Feature, { kind: "FA
           height={SLAB_B - finishedTop}
           fill="url(#fs-hatch)"
           stroke={OUTLINE}
-          strokeWidth="1.25"
+          strokeWidth={cut.width}
+          strokeOpacity={cut.opacity}
         />
         {/* Material this operation removes */}
         <rect

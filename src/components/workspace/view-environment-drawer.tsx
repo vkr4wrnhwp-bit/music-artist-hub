@@ -188,6 +188,7 @@ export function ViewEnvironmentDrawer({
               ["Floor", "floorColor"],
               ["Grid", "gridColor"],
               ["Selected feature", "selectedFeatureColor"],
+              ["Section fill", "sectionFillColor"],
             ] as const
           ).map(([name, key]) => (
             <div key={key} className="mt-1 flex items-center justify-between gap-2">
@@ -215,7 +216,8 @@ export function ViewEnvironmentDrawer({
             </p>
           )}
           <p className="mt-1 text-[9.5px] leading-snug text-muted">
-            Status colours are locked: blue selected, green pass, orange review, red blocking.
+            Status colours are locked: blue selected, green pass, orange review, red blocking. Section fill applies to
+            the section drawing in the feature panel — CANVAS does not section the 3D model.
           </p>
         </section>
 
@@ -271,12 +273,26 @@ export function ViewEnvironmentDrawer({
           <p className={label}>View detail</p>
           <ModeRow name="Edges" value={env.edgeMode} onPick={(v) => set({ edgeMode: v })} />
           <ModeRow name="Datum lines" value={env.datumLineMode} onPick={(v) => set({ datumLineMode: v })} />
+          {/* Applies to the section drawing in the feature panel. Named
+              explicitly because a "Section" control a machinist reads as
+              sectioning the 3D model would be a claim CANVAS cannot meet —
+              there is no clipping plane. */}
+          <ModeRow name="Section lines" value={env.sectionLineMode} onPick={(v) => set({ sectionLineMode: v })} />
           <WeightRow name="Measurement" value={env.measurementLineWeight} onPick={(v) => set({ measurementLineWeight: v })} />
           <WeightRow name="Toolpath" value={env.toolpathLineWeight} onPick={(v) => set({ toolpathLineWeight: v })} />
           <div className="mt-1 flex items-center justify-between">
             <span className="text-[10.5px] text-platinum-dim">Feature ring</span>
             <button className={btn(env.featureRingHighContrast)} onClick={() => set({ featureRingHighContrast: !env.featureRingHighContrast })}>
               {env.featureRingHighContrast ? "High contrast" : "Normal"}
+            </button>
+          </div>
+          {/* Datum letters and measurement balloons. The values themselves
+              are in the docked measurement strip, so turning these off clears
+              lettering off the model without hiding evidence. */}
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[10.5px] text-platinum-dim">Annotations</span>
+            <button className={btn(env.annotationsVisible)} onClick={() => set({ annotationsVisible: !env.annotationsVisible })}>
+              {env.annotationsVisible ? "On" : "Off"}
             </button>
           </div>
           <div className="mt-1 flex items-center justify-between gap-1">

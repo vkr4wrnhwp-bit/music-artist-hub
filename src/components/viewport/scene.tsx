@@ -851,6 +851,7 @@ function FeatureMesh({
 function DatumFlags({ datums, features, stock }: { datums: SceneDatum[]; features: Feature[]; stock: Stock }) {
   const env = useEnv();
   const strength = LINE_MODE_OPACITY[env.datumLineMode];
+  const annotationsVisible = env.annotationsVisible;
   if (strength === 0) return null;
   const scale = ANNOTATION_SCALE[env.annotationSize];
 
@@ -875,6 +876,11 @@ function DatumFlags({ datums, features, stock }: { datums: SceneDatum[]; feature
         return (
           <group key={`${d.letter}-${d.featureId ?? "face"}`}>
             <Line points={[[x, y, zz], [x, y, zz + stem]]} color={color} lineWidth={1 + strength} dashed={!d.accepted} dashSize={0.03} gapSize={0.02} />
+            {/* The letter is an ANNOTATION and hides with them. The leader
+                line above is geometry and stays: turning annotations off is
+                a request to clear the model of lettering, not to stop
+                drawing where the datums are. */}
+            {annotationsVisible && (
             <Html position={[x, y, zz + stem]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
               {/* Opaque, and at full opacity.
                   The chip was `bg-white/90`, so what a letter was read against
@@ -895,6 +901,7 @@ function DatumFlags({ datums, features, stock }: { datums: SceneDatum[]; feature
                 {!d.accepted && <span className="text-[8px] uppercase tracking-[0.1em]">proposed</span>}
               </div>
             </Html>
+            )}
           </group>
         );
       })}
@@ -1055,7 +1062,11 @@ function Balloon({
   position: [number, number, number];
   tone: "neutral" | "pass" | "review" | "risk";
 }) {
-  const scale = ANNOTATION_SCALE[useEnv().annotationSize];
+  const env = useEnv();
+  const scale = ANNOTATION_SCALE[env.annotationSize];
+  // The balloons carry index numbers only — the values themselves live in the
+  // docked measurement strip, which is panel furniture and is untouched. So
+  // hiding these clears lettering off the model without hiding evidence.
   // The ring is also the digit's colour, so these are TEXT on white and take
   // the darkened semantic inks rather than the geometry blue.
   const ring =
@@ -1066,6 +1077,7 @@ function Balloon({
         : tone === "risk"
           ? SEMANTIC_COLORS.blocking
           : SEMANTIC_COLORS.selected;
+  if (!env.annotationsVisible) return null;
   return (
     <Html position={position} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
       <div

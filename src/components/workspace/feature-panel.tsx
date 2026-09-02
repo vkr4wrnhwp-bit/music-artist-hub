@@ -18,6 +18,7 @@ import {
   RESOLUTION_TONE,
 } from "./dimension";
 import { featureActions } from "./feature-actions";
+import type { ViewEnvironment } from "@/lib/view-environment";
 
 /**
  * THE FEATURE PANEL
@@ -152,6 +153,7 @@ export function FeaturePanel({
   hasInspectionPlan,
   inspectionSessionId,
   operations,
+  env,
   onMake,
 }: {
   partId: string;
@@ -166,6 +168,8 @@ export function FeaturePanel({
   inspectionSessionId: string | null;
   /** The plan, so MAKE can name the operation that cuts the selected feature. */
   operations: RunwayOperation[];
+  /** The view environment, for the section drawing's fill and line mode. */
+  env: ViewEnvironment;
   /** Take the workspace to the operation that cuts this feature. */
   onMake?: (operationId: string) => void;
 }) {
@@ -321,7 +325,7 @@ export function FeaturePanel({
 
       {/* 3 — Section sketch */}
       <Section title="Section">
-        <SectionSketch feature={feature} stock={stock} />
+        <SectionSketch feature={feature} stock={stock} env={env} />
       </Section>
 
       {/* 4 — Datum reference. Always rendered.

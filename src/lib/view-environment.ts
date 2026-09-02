@@ -89,6 +89,14 @@ export interface ViewEnvironment {
   toolpathLineWeight: LineWeight;
   featureRingHighContrast: boolean;
   sectionLineMode: LineMode;
+  /**
+   * Whether the on-model annotations — datum letters and measurement balloons
+   * — are drawn. A boolean rather than an OFF member on AnnotationSize,
+   * because a scale of 0 is a sentinel that silently collapses anything that
+   * forgets to check it. Pairs with annotationSize the way gridVisible pairs
+   * with gridIntensity.
+   */
+  annotationsVisible: boolean;
   annotationSize: AnnotationSize;
   viewMode: ViewMode;
 }
@@ -103,7 +111,10 @@ const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "grid
   // different application. Setting it is a separate, explicit act.
   shellBackground: null,
   selectedFeatureColor: "#0b72ff",
-  sectionFillColor: "#dce4ec",
+  // The resolved value of --c-line-strong, which section-sketch.tsx already
+  // hard-coded as its hatch. Anchoring the default here means wiring the
+  // field changes nothing about the drawing as it stands.
+  sectionFillColor: "#22415a",
   backgroundGradient: true,
   /**
    * Off by default. The grid is ground decoration, not a reference: the work
@@ -128,6 +139,7 @@ const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "grid
   toolpathLineWeight: "MEDIUM",
   featureRingHighContrast: false,
   sectionLineMode: "MEDIUM",
+  annotationsVisible: true,
   annotationSize: "STANDARD",
   viewMode: "PROGRAMMING",
 };
@@ -540,6 +552,26 @@ export function lightRig(env: ViewEnvironment): {
     fill: 0.15 + env.highlightLevel * 0.8,
     rim: 0.1 + env.highlightLevel * 0.6,
   };
+}
+
+/**
+ * The cut boundary in the section drawing, from the section line mode.
+ *
+ * `sectionFillColor` and `sectionLineMode` were declared on ViewEnvironment,
+ * given defaults, written to localStorage and pushed to the server on every
+ * change — and read by nothing at all. Settings a machinist's account carried
+ * that did nothing.
+ *
+ * Anchored so MEDIUM reproduces the widths the drawing already used, for the
+ * same reason the light rig is: wiring a control must not restyle a drawing
+ * anyone has already looked at.
+ */
+export function sectionStroke(mode: LineMode): { width: number; opacity: number } {
+  const strength = LINE_MODE_OPACITY[mode];
+  // OFF drops the boundary entirely, the same way edgeMode OFF drops part
+  // edges. A floor here would make OFF mean "faint", which is a different
+  // answer from the one the machinist asked for.
+  return { width: 0.55 + strength, opacity: strength === 0 ? 0 : Math.min(1, 0.3 + strength) };
 }
 
 export const LINE_MODE_OPACITY: Record<LineMode, number> = { OFF: 0, LIGHT: 0.35, MEDIUM: 0.7, STRONG: 1 };
