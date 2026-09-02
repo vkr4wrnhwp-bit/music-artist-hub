@@ -173,6 +173,11 @@ export function compareQuoteToActual(
   };
   const rebuilt = recompute(withActuals, quoted.quantity);
 
+  // A quote that could not be costed has nothing to compare against, and a
+  // rebuild that cannot be costed is not a comparison either. Returning zeros
+  // would print "1.00× — as quoted" over an arithmetic that never ran.
+  if (quoted.unitCost == null || rebuilt.unitCost == null) return null;
+
   return {
     quotedUnitCost: quoted.unitCost,
     actualUnitCost: rebuilt.unitCost,

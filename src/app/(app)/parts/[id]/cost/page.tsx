@@ -64,10 +64,25 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
             </div>
           )}
 
+          {pkg.cost.missingInputs.length > 0 && (
+            <Notice tone="review" title="This part cannot be costed yet">
+              <p className="mb-2 leading-relaxed">
+                Nothing has been substituted for what is missing, so there is no unit cost and no price. A total that
+                quietly left out machine time would be a bid the shop loses money on.
+              </p>
+              <ul className="space-y-1">
+                {pkg.cost.missingInputs.map((m) => (
+                  <li key={m}>— {m}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+
           <StoreEstimate
             quantity={pkg.cost.quantity}
             unitPrice={money(pkg.cost.unitPrice)}
             warnings={pkg.cost.warnings}
+            missingInputs={pkg.cost.missingInputs}
             stored={stored.map((e) => ({
               id: e.id,
               quantity: e.quantity,
@@ -81,7 +96,11 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
           <div className="grid gap-px bg-line sm:grid-cols-3">
             <Metric label="Unit cost" value={money(pkg.cost.unitCost)} sub={`at quantity ${pkg.cost.quantity}`} />
             <Metric label="Unit price" value={money(pkg.cost.unitPrice)} sub={`${(pkg.costAssumptions.marginRate * 100).toFixed(0)}% margin`} />
-            <Metric label="Cycle time" value={`${pkg.cycleMinutes.toFixed(2)} min`} sub="from generated toolpaths" />
+            <Metric
+              label="Cycle time"
+              value={pkg.cycleMinutes > 0 ? `${pkg.cycleMinutes.toFixed(2)} min` : "—"}
+              sub={pkg.cycleMinutes > 0 ? "from generated toolpaths" : "no toolpath generated"}
+            />
           </div>
 
           <Panel title="Cost breakdown" dense>
@@ -99,7 +118,7 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
               <tr className="bg-raised">
                 <Td className="text-white">Unit cost</Td>
                 <Td className="text-white">{money(pkg.cost.unitCost)}</Td>
-                <Td className="text-white">{money(pkg.cost.unitCost * pkg.cost.quantity)}</Td>
+                <Td className="text-white">{money(pkg.cost.unitCost != null ? pkg.cost.unitCost * pkg.cost.quantity : null)}</Td>
                 <Td muted>Sum of all lines</Td>
               </tr>
             </Table>

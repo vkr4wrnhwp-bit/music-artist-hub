@@ -307,9 +307,28 @@ export async function buildPackage(
     inspectionRate: shop.inspectionRate,
     overheadRate: shop.overheadRate,
     marginRate: shop.marginRate,
-    cycleMinutes: cycleMinutes || DEFAULT_ASSUMPTIONS.cycleMinutes,
-    setupHours: setups.length * 0.75 || DEFAULT_ASSUMPTIONS.setupHours,
-    toolCostPerPart: Number(toolCostPerPart.toFixed(3)) || DEFAULT_ASSUMPTIONS.toolCostPerPart,
+    /*
+     * NOTHING IS SUBSTITUTED HERE.
+     *
+     * These three read `derived || DEFAULT_ASSUMPTIONS.x`. JavaScript's `||`
+     * treats 0 as absent, and the derived figure is exactly 0 when nothing
+     * could produce it — a part whose operations the toolpath engine refuses
+     * has no cycle time, a part with no setups has no setup hours. So a part
+     * CANVAS could not plan was priced at a 12-minute cycle, 1.5 setup hours
+     * and $1.40 of tooling that nobody calculated.
+     *
+     * The cost page then printed "12.00 min × $75.00/hr" as the basis for the
+     * machine-time line, directly beneath a tile reading "CYCLE TIME 0.00 min
+     * FROM GENERATED TOOLPATHS", with no warning — and storing the estimate
+     * froze that invented number into a customer price.
+     *
+     * Null now, and the cost engine returns a null total and names what is
+     * missing. A partially-guessed number is worse than no number, because it
+     * looks authoritative.
+     */
+    cycleMinutes: cycleMinutes > 0 ? cycleMinutes : null,
+    setupHours: setups.length > 0 ? setups.length * 0.75 : null,
+    toolCostPerPart: toolCostPerPart > 0 ? Number(toolCostPerPart.toFixed(3)) : null,
   };
 
   const quantity = revision.intent.quantity.value ?? 1;

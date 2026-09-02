@@ -333,7 +333,9 @@ export default async function MachinistPage(props: {
               {/* ---------------- Comparison: strategy cards ---------------- */}
               {(() => {
                 const maxCycle = Math.max(...scored.map((x) => x.cycleMinutes), 0.001);
-                const maxCost = Math.max(...scored.map((x) => x.unitCost), 0.001);
+                // Uncosted plans are excluded from the scale rather than counted as $0,
+                // which would stretch every other bar to full width.
+                const maxCost = Math.max(...scored.flatMap((x) => (x.unitCost != null ? [x.unitCost] : [])), 0.001);
                 return (
                   <section>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -375,7 +377,7 @@ export default async function MachinistPage(props: {
                                   <span className="font-mono text-[10.5px] text-muted tabular-nums">{money(sc.unitCost)}</span>
                                 </div>
                                 <div className="mt-0.5 h-1 bg-line">
-                                  <div className="h-1 bg-platinum/50" style={{ width: `${(sc.unitCost / maxCost) * 100}%` }} />
+                                  <div className="h-1 bg-platinum/50" style={{ width: sc.unitCost != null ? `${(sc.unitCost / maxCost) * 100}%` : "0%" }} />
                                 </div>
                               </div>
                               <div className="flex items-center justify-between pt-1">

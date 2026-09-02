@@ -26,8 +26,9 @@ export interface ScoredPlan {
   /** Worst workholding risk across the plan's setups. */
   risk: RiskLevel;
   riskDetail: string;
-  unitCost: number;
-  unitPrice: number;
+  /** Null when this plan produced no toolpath to derive a cycle time from. */
+  unitCost: number | null;
+  unitPrice: number | null;
   /** Operations the engine refused to produce motion for. */
   errors: string[];
   /** Operations with an interface but no toolpath engine in Phase 1. */
@@ -153,7 +154,11 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
 
   const assumptions: CostAssumptions = {
     ...input.costAssumptions,
-    cycleMinutes: cycleMinutes || input.costAssumptions.cycleMinutes,
+    // The plan's own cycle time, or null. This carried the same `|| default`
+    // substitution as package.ts: a plan whose operations could not be
+    // toolpathed was compared against the others at a cycle time nobody
+    // derived, and the approach ranking read as though it had been costed.
+    cycleMinutes: cycleMinutes || null,
     // Each setup is real fixturing time, and the plans differ on how many.
     setupHours: plan.setups.length * 0.75 + (plan.setups.some((s) => s.requiresSoftJaws) ? 0.5 : 0),
   };

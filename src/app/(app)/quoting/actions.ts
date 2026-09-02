@@ -44,6 +44,21 @@ export async function storeEstimate(partId: string, formData: FormData) {
   const assumptions = { ...pkg.costAssumptions };
   const cost = computeCost(quantity, assumptions);
 
+  /*
+   * An estimate that could not be costed is not stored.
+   *
+   * This is where the invented cycle time did its real damage: package.ts
+   * substituted a 12-minute default whenever nothing had derived one, and
+   * storing the estimate froze that number into a customer price. There is no
+   * substitution now, so the cost comes back null — and a null price must not
+   * become a row that a quote is later built on and sent.
+   *
+   * The refusal is silent here in the same way every other invalid submission
+   * in this file is; the cost page states what is missing before the button is
+   * pressed, which is where a machinist is actually looking.
+   */
+  if (cost.unitCost == null || cost.unitPrice == null || cost.lotPrice == null) return;
+
   const estimate = await db.costEstimate.create({
     data: {
       partRevisionId: pkg.revision.revisionId,

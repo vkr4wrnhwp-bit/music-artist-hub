@@ -146,7 +146,7 @@ export default async function LatheCostPage(props: { params: Promise<{ id: strin
               <tr className="bg-raised">
                 <Td className="text-white">Unit cost</Td>
                 <Td className="text-white">{money(cost.unitCost)}</Td>
-                <Td className="text-white">{money(cost.unitCost * cost.quantity)}</Td>
+                <Td className="text-white">{money(cost.unitCost != null ? cost.unitCost * cost.quantity : null)}</Td>
                 <Td muted>Sum of all lines</Td>
               </tr>
             </Table>

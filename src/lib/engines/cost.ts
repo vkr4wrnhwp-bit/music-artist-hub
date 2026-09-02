@@ -22,12 +22,28 @@ export interface CostAssumptions {
   operatorRate: number;
   /** Fraction of the cycle that needs an operator present. */
   operatorAttendance: number;
-  /** Setup time, hours — amortised across the lot. */
-  setupHours: number;
-  /** Machining cycle, minutes per part. */
-  cycleMinutes: number;
-  /** Total tooling cost consumed per part. */
-  toolCostPerPart: number;
+  /**
+   * Setup time, hours — amortised across the lot. Null when no setup has been
+   * planned, rather than a stand-in figure.
+   */
+  setupHours: number | null;
+  /**
+   * Machining cycle, minutes per part.
+   *
+   * NULL WHEN NOTHING HAS DERIVED IT. This used to fall back to a 12-minute
+   * default whenever the toolpath-derived figure was zero — `0 || 12` — so a
+   * part whose operations could not be toolpathed was priced at twelve minutes
+   * of machine time nobody calculated. The cost page printed "12.00 min ×
+   * $75.00/hr" as the basis directly beneath a tile reading "CYCLE TIME 0.00
+   * min FROM GENERATED TOOLPATHS", and a stored estimate froze that invented
+   * number into a customer price.
+   *
+   * A partially-guessed number is worse than no number, because it looks
+   * authoritative.
+   */
+  cycleMinutes: number | null;
+  /** Total tooling cost consumed per part. Null when no tool life is known. */
+  toolCostPerPart: number | null;
   /** Inspection minutes per part. */
   inspectionMinutes: number;
   inspectionRate: number;
@@ -46,9 +62,10 @@ export interface CostAssumptions {
 
 export interface CostLine {
   label: string;
-  perPart: number;
-  perLot: number;
-  /** Where this number came from, shown in the assumptions drawer. */
+  /** Null when an input this line needs has not been established. */
+  perPart: number | null;
+  perLot: number | null;
+  /** Where this number came from — or what is missing, when it is null. */
   basis: string;
 }
 
@@ -56,24 +73,32 @@ export interface CostResult {
   quantity: number;
   lines: CostLine[];
   materialCost: number;
-  machineCost: number;
-  labourCost: number;
-  toolingCost: number;
+  /**
+   * Null wherever an input was never established. Nothing here is filled in
+   * with a stand-in figure: a missing input makes its own line null, and any
+   * null line makes the total null, because a total that silently omits
+   * machine time is a bid the shop loses money on.
+   */
+  machineCost: number | null;
+  labourCost: number | null;
+  toolingCost: number | null;
   inspectionCost: number;
-  setupCostPerPart: number;
+  setupCostPerPart: number | null;
   outsideCost: number;
-  scrapAdder: number;
-  overhead: number;
+  scrapAdder: number | null;
+  overhead: number | null;
   /** What it costs the shop to put the part on the bench. */
-  unitCost: number;
+  unitCost: number | null;
   /** What the shop charges. */
-  unitPrice: number;
-  lotPrice: number;
-  marginDollars: number;
+  unitPrice: number | null;
+  lotPrice: number | null;
+  /** What has not been established, in a machinist's words. Empty when costed. */
+  missingInputs: string[];
+  marginDollars: number | null;
   /** Spindle hours per part, so capacity can be worked out from the result. */
-  cycleHoursPerPart: number;
+  cycleHoursPerPart: number | null;
   /** Setup hours for the lot, charged once. */
-  setupHours: number;
+  setupHours: number | null;
   /**
    * Assumptions that are outside the range the arithmetic is valid over.
    * A quote carrying one of these is not defensible in a customer meeting,
@@ -122,44 +147,109 @@ export function computeCost(q: number, a: CostAssumptions): CostResult {
   const stockWeight = a.stockVolumePerPart * a.materialDensity;
   const materialCost = (stockWeight * a.materialCostPerPound) / Math.max(a.materialUtilization, 0.01);
 
-  const cycleHours = a.cycleMinutes / 60;
-  const machineCost = cycleHours * a.machineRate;
-  const labourCost = cycleHours * a.operatorAttendance * a.operatorRate;
+  /*
+   * WHAT HAS NOT BEEN ESTABLISHED
+   *
+   * Each of these was previously substituted with a stand-in from
+   * DEFAULT_ASSUMPTIONS whenever the derived figure came out zero, and the
+   * result was presented with a basis string that read as though it had been
+   * measured. Nothing is substituted now: a missing input makes its own line
+   * null, and any line that is null makes the TOTAL null.
+   *
+   * A total that silently omits machine time is worse than no total, because a
+   * quote at that price is a bid the shop loses money on.
+   */
+  const missingInputs: string[] = [];
+  if (a.cycleMinutes == null)
+    missingInputs.push(
+      "Machining cycle time — no toolpath has been generated for this part, so nothing has derived how long it takes to cut.",
+    );
+  if (a.setupHours == null) missingInputs.push("Setup time — no setup has been planned for this part.");
+  if (a.toolCostPerPart == null)
+    missingInputs.push("Tooling cost — no tool with a recorded life and cost is assigned to the operations.");
 
-  const setupCostPerPart = ((a.setupHours * (a.machineRate + a.operatorRate)) / quantity);
+  const cycleHours = a.cycleMinutes != null ? a.cycleMinutes / 60 : null;
+  const machineCost = cycleHours != null ? cycleHours * a.machineRate : null;
+  const labourCost = cycleHours != null ? cycleHours * a.operatorAttendance * a.operatorRate : null;
+
+  const setupCostPerPart = a.setupHours != null ? (a.setupHours * (a.machineRate + a.operatorRate)) / quantity : null;
   const firstArticlePerPart = (a.firstArticleHours * a.inspectionRate) / quantity;
   const inspectionCost = (a.inspectionMinutes / 60) * a.inspectionRate + firstArticlePerPart;
 
   const base =
-    materialCost +
-    machineCost +
-    labourCost +
-    a.toolCostPerPart +
-    inspectionCost +
-    setupCostPerPart +
-    a.outsideProcessPerPart +
-    a.packagingPerPart;
+    machineCost == null || labourCost == null || setupCostPerPart == null || a.toolCostPerPart == null
+      ? null
+      : materialCost +
+        machineCost +
+        labourCost +
+        a.toolCostPerPart +
+        inspectionCost +
+        setupCostPerPart +
+        a.outsideProcessPerPart +
+        a.packagingPerPart;
 
   // Scrap is charged on the base cost — a scrapped part consumed material,
   // machine time and an operator, not just material.
-  const scrapAdder = base * (a.scrapRate / Math.max(1 - a.scrapRate, 0.01));
-  const overhead = (base + scrapAdder) * a.overheadRate;
+  const scrapAdder = base != null ? base * (a.scrapRate / Math.max(1 - a.scrapRate, 0.01)) : null;
+  const overhead = base != null && scrapAdder != null ? (base + scrapAdder) * a.overheadRate : null;
 
-  const unitCost = base + scrapAdder + overhead;
-  const unitPrice = a.marginRate >= 1 ? unitCost : unitCost / (1 - a.marginRate);
+  const unitCost = base != null && scrapAdder != null && overhead != null ? base + scrapAdder + overhead : null;
+  const unitPrice = unitCost == null ? null : a.marginRate >= 1 ? unitCost : unitCost / (1 - a.marginRate);
   const warnings = assumptionWarnings(a);
 
+  /** perPart × quantity, or null when the per-part figure was never established. */
+  const perLot = (v: number | null) => (v == null ? null : v * quantity);
+
   const lines: CostLine[] = [
-    { label: "Material", perPart: materialCost, perLot: materialCost * quantity, basis: `${a.stockVolumePerPart.toFixed(2)} in³ × ${a.materialDensity} lb/in³ × $${a.materialCostPerPound.toFixed(2)}/lb ÷ ${(a.materialUtilization * 100).toFixed(0)}% utilisation` },
-    { label: "Machine time", perPart: machineCost, perLot: machineCost * quantity, basis: `${a.cycleMinutes.toFixed(2)} min × $${a.machineRate.toFixed(2)}/hr` },
-    { label: "Operator", perPart: labourCost, perLot: labourCost * quantity, basis: `${(a.operatorAttendance * 100).toFixed(0)}% attendance × $${a.operatorRate.toFixed(2)}/hr` },
-    { label: "Setup (amortised)", perPart: setupCostPerPart, perLot: a.setupHours * (a.machineRate + a.operatorRate), basis: `${a.setupHours.toFixed(2)} hr ÷ ${quantity} parts` },
-    { label: "Tooling", perPart: a.toolCostPerPart, perLot: a.toolCostPerPart * quantity, basis: "Consumed tool life per part" },
-    { label: "Inspection", perPart: inspectionCost, perLot: inspectionCost * quantity, basis: `${a.inspectionMinutes} min/part + ${a.firstArticleHours} hr FAI ÷ ${quantity}` },
-    { label: "Outside processing", perPart: a.outsideProcessPerPart, perLot: a.outsideProcessPerPart * quantity, basis: "Per-part outside process cost" },
-    { label: "Packaging", perPart: a.packagingPerPart, perLot: a.packagingPerPart * quantity, basis: "Per-part packaging" },
-    { label: "Scrap allowance", perPart: scrapAdder, perLot: scrapAdder * quantity, basis: `${(a.scrapRate * 100).toFixed(1)}% expected scrap on full cost` },
-    { label: "Overhead", perPart: overhead, perLot: overhead * quantity, basis: `${(a.overheadRate * 100).toFixed(0)}% of cost base` },
+    { label: "Material", perPart: materialCost, perLot: perLot(materialCost), basis: `${a.stockVolumePerPart.toFixed(2)} in³ × ${a.materialDensity} lb/in³ × $${a.materialCostPerPound.toFixed(2)}/lb ÷ ${(a.materialUtilization * 100).toFixed(0)}% utilisation` },
+    {
+      label: "Machine time",
+      perPart: machineCost,
+      perLot: perLot(machineCost),
+      // The basis says what is missing rather than printing a rate against a
+      // cycle time nobody derived. This line read "12.00 min × $75.00/hr"
+      // beneath a tile saying the cycle time was 0.00 min from toolpaths.
+      basis:
+        a.cycleMinutes != null
+          ? `${a.cycleMinutes.toFixed(2)} min × $${a.machineRate.toFixed(2)}/hr`
+          : "No cycle time — nothing has generated a toolpath for this part",
+    },
+    {
+      label: "Operator",
+      perPart: labourCost,
+      perLot: perLot(labourCost),
+      basis:
+        a.cycleMinutes != null
+          ? `${(a.operatorAttendance * 100).toFixed(0)}% attendance × $${a.operatorRate.toFixed(2)}/hr`
+          : "No cycle time to attend",
+    },
+    {
+      label: "Setup (amortised)",
+      perPart: setupCostPerPart,
+      perLot: a.setupHours != null ? a.setupHours * (a.machineRate + a.operatorRate) : null,
+      basis: a.setupHours != null ? `${a.setupHours.toFixed(2)} hr ÷ ${quantity} parts` : "No setup planned",
+    },
+    {
+      label: "Tooling",
+      perPart: a.toolCostPerPart,
+      perLot: perLot(a.toolCostPerPart),
+      basis: a.toolCostPerPart != null ? "Consumed tool life per part" : "No tool with a recorded life and cost is assigned",
+    },
+    { label: "Inspection", perPart: inspectionCost, perLot: perLot(inspectionCost), basis: `${a.inspectionMinutes} min/part + ${a.firstArticleHours} hr FAI ÷ ${quantity}` },
+    { label: "Outside processing", perPart: a.outsideProcessPerPart, perLot: perLot(a.outsideProcessPerPart), basis: "Per-part outside process cost" },
+    { label: "Packaging", perPart: a.packagingPerPart, perLot: perLot(a.packagingPerPart), basis: "Per-part packaging" },
+    {
+      label: "Scrap allowance",
+      perPart: scrapAdder,
+      perLot: perLot(scrapAdder),
+      basis: scrapAdder != null ? `${(a.scrapRate * 100).toFixed(1)}% expected scrap on full cost` : "No cost base to apply scrap to",
+    },
+    {
+      label: "Overhead",
+      perPart: overhead,
+      perLot: perLot(overhead),
+      basis: overhead != null ? `${(a.overheadRate * 100).toFixed(0)}% of cost base` : "No cost base to apply overhead to",
+    },
   ];
 
   return {
@@ -176,11 +266,12 @@ export function computeCost(q: number, a: CostAssumptions): CostResult {
     overhead,
     unitCost,
     unitPrice,
-    lotPrice: unitPrice * quantity,
-    marginDollars: (unitPrice - unitCost) * quantity,
+    lotPrice: perLot(unitPrice),
+    marginDollars: unitPrice != null && unitCost != null ? (unitPrice - unitCost) * quantity : null,
     cycleHoursPerPart: cycleHours,
     setupHours: a.setupHours,
     warnings,
+    missingInputs,
   };
 }
 
@@ -255,8 +346,20 @@ export function compareMakeVsBuy(
     // as hours: 100 parts at 12 minutes each is 20 spindle hours, and it
     // reported 100, so a shop with 50 hours free was told the lot displaced
     // other work. The result now carries its own cycle and setup hours.
-    const hoursNeeded = makeCost.setupHours + makeCost.cycleHoursPerPart * makeCost.quantity;
-    if (Number.isFinite(hoursNeeded) && hoursNeeded > capacityHoursAvailable) {
+    // Null when nothing derived a cycle or a setup. The capacity comparison is
+    // then not made at all rather than made against a stand-in figure — the
+    // caveat below says why, which is more use than a spindle-hour number
+    // computed from an invented cycle time.
+    const hoursNeeded =
+      makeCost.setupHours != null && makeCost.cycleHoursPerPart != null
+        ? makeCost.setupHours + makeCost.cycleHoursPerPart * makeCost.quantity
+        : null;
+    if (hoursNeeded == null) {
+      caveats.push(
+        "Spindle hours for this lot cannot be worked out — " + makeCost.missingInputs.join(" ") +
+          " Capacity has not been compared.",
+      );
+    } else if (Number.isFinite(hoursNeeded) && hoursNeeded > capacityHoursAvailable) {
       caveats.push(
         `This lot needs ${hoursNeeded.toFixed(1)} spindle hours against ${capacityHoursAvailable.toFixed(1)} recorded available — making it in-house displaces other work.`,
       );
@@ -310,8 +413,14 @@ export const DEFAULT_ASSUMPTIONS: CostAssumptions = {
  * number until you read it. The second and third branches used to be
  * identical, which is what a dead ternary looks like.
  */
-export const money = (v: number) => {
-  if (!Number.isFinite(v)) return "—";
+/**
+ * A figure, or an em dash where there is no figure.
+ *
+ * Accepts null so a cost line that was never established renders as "—"
+ * rather than as $0.00. Zero is a claim: it says this costs nothing.
+ */
+export const money = (v: number | null) => {
+  if (v == null || !Number.isFinite(v)) return "—";
   const sign = v < 0 ? "-" : "";
   const abs = Math.abs(v);
   return abs >= 100 ? `${sign}$${abs.toFixed(0)}` : `${sign}$${abs.toFixed(2)}`;

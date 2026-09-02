@@ -13,12 +13,21 @@ export function StoreEstimate({
   quantity,
   unitPrice,
   warnings,
+  missingInputs = [],
   stored,
   action,
 }: {
   quantity: number;
   unitPrice: string;
   warnings: string[];
+  /**
+   * Inputs that were never established. Distinct from `warnings`, which are
+   * assumptions outside the range the arithmetic is valid over — those can be
+   * stored WITH the estimate and travel to the customer. These cannot, because
+   * there is no price: the server action refuses, and the button says so
+   * rather than letting a machinist press it and watch nothing happen.
+   */
+  missingInputs?: string[];
   stored: { id: string; quantity: number; unitPrice: string; createdAt: Date; quoteNumber: string | null }[];
   action: (formData: FormData) => void;
 }) {
@@ -45,11 +54,26 @@ export function StoreEstimate({
         </div>
       )}
 
+      {missingInputs.length > 0 && (
+        <div className="mt-3 border border-review/40 bg-review/5 p-3">
+          <p className="tech-label text-review">Nothing to store</p>
+          <ul className="mt-1 space-y-1">
+            {missingInputs.map((m) => (
+              <li key={m} className="text-[12px] leading-relaxed text-platinum-dim">
+                — {m}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <form action={action} className="mt-4 flex flex-wrap items-end gap-3">
         <Field label="Quantity">
           <input name="quantity" type="number" min={1} defaultValue={quantity} className={inputClass} />
         </Field>
-        <Button type="submit" variant="primary">Store at {unitPrice} per part</Button>
+        <Button type="submit" variant="primary" disabled={missingInputs.length > 0}>
+          {missingInputs.length > 0 ? "No price to store" : `Store at ${unitPrice} per part`}
+        </Button>
       </form>
 
       {stored.length > 0 && (

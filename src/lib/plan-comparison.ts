@@ -24,7 +24,8 @@ export interface ScoredPlanSummary {
   operationCount: number;
   cycleMinutes: number;
   risk: RiskLevel;
-  unitCost: number;
+  /** Null when nothing derived a cycle time for this plan to cost. */
+  unitCost: number | null;
   errors: string[];
 }
 
@@ -54,9 +55,15 @@ export function comparePlans<T extends ScoredPlanSummary>(scored: T[]): PlanComp
   // and naming one would present an unknown as a comparison result.
   const assessed = usable.filter((s) => s.risk !== "UNKNOWN");
 
+  // A plan with no cost is not the cheapest plan, it is an uncosted one. When
+  // none of them costed, there is no cheapest — naming one would present a
+  // missing number as a comparison result, the same way an unassessed plan is
+  // not the safest.
+  const costed = usable.filter((s) => s.unitCost != null);
+
   return {
     fastest: best(usable, (s) => s.cycleMinutes),
-    cheapest: best(usable, (s) => s.unitCost),
+    cheapest: costed.length > 0 ? best(costed, (s) => s.unitCost ?? Infinity) : null,
     safest: assessed.length > 0 ? best(assessed, (s) => RISK_ORDER[s.risk]) : null,
     fewestSetups: best(usable, (s) => s.setupCount),
     fewestTools: best(usable, (s) => s.distinctTools),
