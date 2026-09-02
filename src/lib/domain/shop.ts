@@ -195,8 +195,23 @@ export function toolReach(tool: Tool): number {
   return tool.stickout;
 }
 
-export function canReach(tool: Tool, depth: number, clearance = 0.1): boolean {
-  return toolReach(tool) >= depth + clearance;
+/**
+ * The reach rule itself, separated from the Tool record.
+ *
+ * An uploaded NC program has a stickout figure from the crib and a depth read
+ * off the program, and no Tool object. review.ts already hand-copies the
+ * 0.100" clearance with a comment saying it must match this file; a third
+ * copy in the NC layer would be a third chance to drift.
+ */
+export function reachesDepth(stickout: number, depth: number, clearance = REACH_CLEARANCE): boolean {
+  return stickout >= depth + clearance;
+}
+
+/** Clearance between the deepest cut and the end of the stickout, inches. */
+export const REACH_CLEARANCE = 0.1;
+
+export function canReach(tool: Tool, depth: number, clearance = REACH_CLEARANCE): boolean {
+  return reachesDepth(toolReach(tool), depth, clearance);
 }
 
 /** A tool can produce an internal corner only if its radius fits inside it. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Notice, Panel, StatusChip } from "@/components/ui";
+import { Button, LimitsDisclosure, Notice, Panel, StatusChip } from "@/components/ui";
 import {
   CONTROLLER_FAMILY_LABEL,
   ENCODING_LABEL,
@@ -73,6 +73,7 @@ interface Report {
     findings: { kind: string; verdict: string; line: number; toolNumber: number; seconds: number; detail: string; assumptions: string[] }[];
     recoverableSeconds: number;
     assumptions: string[];
+    checksSkipped: { check: string; reason: string }[];
     extents: { minX: number; maxX: number; minY: number; maxY: number };
   };
   context: { stockBound: boolean; toolsKnown: number; rapidRate: number; machine: string | null; machineRatePerHour: number | null };
@@ -671,6 +672,21 @@ export function NcAnalyzer({ partId }: { partId: string }) {
             meta={<StatusChip tone="neutral">Analysis only — no proposals yet</StatusChip>}
             dense
           >
+            {/* What CANVAS did NOT check. A silently absent check reads as a
+                check that passed, which is the more dangerous of the two. */}
+            {r.analysis.checksSkipped.length > 0 && (
+              <div className="border-b border-line px-4 py-2.5">
+                <LimitsDisclosure label={`Not checked — ${r.analysis.checksSkipped.length}`}>
+                  <ul className="space-y-1.5">
+                    {r.analysis.checksSkipped.map((c) => (
+                      <li key={c.check}>
+                        <span className="text-platinum-dim">{c.check}</span> — {c.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </LimitsDisclosure>
+              </div>
+            )}
             {r.analysis.findings.length === 0 ? (
               <p className="px-4 py-3 text-[12px] text-muted">Nothing recoverable found at this phase's sensitivity.</p>
             ) : (

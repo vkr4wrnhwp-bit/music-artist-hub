@@ -1,6 +1,7 @@
 import { HeightField, type StockDims } from "@/lib/sim/stock-removal";
 import type { NCSegment, ParsedNC } from "./parse";
 import { timePath } from "./time";
+import { REACH_CLEARANCE, reachesDepth } from "@/lib/domain/shop";
 
 /** Stated fallback when a part names no machine. Never presented as machine data. */
 export const DEFAULT_RAPID_IPM = 600;
@@ -25,7 +26,13 @@ export const DEFAULT_RAPID_IPM = 600;
 export type FindingVerdict = "CONFIDENT" | "REVIEW" | "INSUFFICIENT_DATA";
 
 export interface NCFinding {
-  kind: "AIR_CUTTING" | "EXCESSIVE_RETRACT" | "SLOW_LINKING_MOVE" | "UNKNOWN_CONTEXT";
+  kind:
+    | "AIR_CUTTING"
+    | "EXCESSIVE_RETRACT"
+    | "SLOW_LINKING_MOVE"
+    | "UNKNOWN_CONTEXT"
+    | "TOOL_REACH_REVIEW"
+    | "SEQUENCING_OPPORTUNITY";
   verdict: FindingVerdict;
   line: number;
   toolNumber: number;
@@ -52,6 +59,11 @@ export interface NCAnalysis {
   /** Findings grand total of recoverable seconds (sum of finding.seconds). */
   recoverableSeconds: number;
   assumptions: string[];
+  /**
+   * Checks CANVAS did NOT run, and why. A check that is silently absent reads
+   * as a check that passed — the same shape `ReviewResult` uses.
+   */
+  checksSkipped: { check: string; reason: string }[];
   /** Extents of the parsed motion, for the backplot. */
   extents: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
 }
@@ -61,6 +73,11 @@ export interface AnalysisContext {
   stock: StockDims | null;
   /** Tool diameters by T number, from the shop's tool table. */
   toolDiameters: Record<number, number>;
+  /**
+   * Stickout and flute length by T number, from the crib. Optional: a caller
+   * that has no crib gets no reach findings rather than invented ones.
+   */
+  toolGeometry?: Record<number, { description: string; fluteLength: number; stickout: number }>;
   /**
    * Rapid traverse, in/min, from the machine record. Null when this part
    * names no machine — the analysis still runs, on a stated default, and
@@ -209,6 +226,102 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     });
   }
 
+  /* ---------------- Can the tool reach the depth it is asked to cut? ----
+   *
+   * CANVAS refuses a CAM operation whose depth beats the tool, and ran no such
+   * check on a program a shop hands it — which is the program most likely to
+   * have come from somebody else's post with somebody else's tool lengths.
+   *
+   * The stickout is the crib's record of the tool, not a measurement of what
+   * is in the holder right now, and the holder body is not modelled. This is
+   * the stickout-against-depth check, not a collision solve, and it says so.
+   */
+  const geometry = ctx.toolGeometry;
+  if (geometry) {
+    const deepest = new Map<number, { depth: number; line: number }>();
+    for (const seg of parsed.segments) {
+      if (seg.feed === null || seg.toolNumber === 0) continue;
+      const depth = -Math.min(seg.z0, seg.z1);
+      const held = deepest.get(seg.toolNumber);
+      if (!held || depth > held.depth) deepest.set(seg.toolNumber, { depth, line: seg.line });
+    }
+    for (const [toolNumber, { depth, line }] of [...deepest].sort((a, b) => a[0] - b[0])) {
+      if (depth <= 0) continue;
+      const g = geometry[toolNumber];
+      // No crib record: already covered by UNKNOWN_CONTEXT. Nothing invented.
+      if (!g) continue;
+      if (g.stickout <= 0 || g.fluteLength <= 0) {
+        findings.push({
+          kind: "TOOL_REACH_REVIEW",
+          verdict: "INSUFFICIENT_DATA",
+          line,
+          toolNumber,
+          seconds: 0,
+          detail: `T${toolNumber} ${g.description} has no stickout or flute length recorded — reach was not checked against the ${depth.toFixed(3)}″ it is programmed to cut.`,
+          assumptions: [],
+        });
+        continue;
+      }
+      const short = !reachesDepth(g.stickout, depth);
+      const pastFlute = depth > g.fluteLength;
+      if (!short && !pastFlute) continue;
+      findings.push({
+        kind: "TOOL_REACH_REVIEW",
+        verdict: "REVIEW",
+        line,
+        toolNumber,
+        seconds: 0,
+        detail:
+          `T${toolNumber} ${g.description} is programmed ${depth.toFixed(3)}″ deep. ` +
+          (short
+            ? `The crib records ${g.stickout.toFixed(3)}″ of stickout, which leaves less than the ${REACH_CLEARANCE.toFixed(3)}″ clearance this shop works to. `
+            : "") +
+          (pastFlute ? `The cut is deeper than the ${g.fluteLength.toFixed(3)}″ flute length. ` : ""),
+        assumptions: [
+          "Depth is measured from program Z0, taken as the top of the stock.",
+          `Stickout and flute length are the crib record for T${toolNumber}, not a measurement of the tool now in the holder.`,
+          "The holder body is not modelled as geometry — this is the stickout-against-depth check, not a collision solve.",
+        ],
+      });
+    }
+  }
+
+  /* ---------------- Is a tool loaded more than once? ---------------- */
+  if (parsed.toolChanges.length >= 2) {
+    const loads = new Map<number, number[]>();
+    for (const tc of parsed.toolChanges) {
+      loads.set(tc.toolNumber, [...(loads.get(tc.toolNumber) ?? []), tc.line]);
+    }
+    const distinct = loads.size;
+    for (const [toolNumber, lines] of [...loads].sort((a, b) => a[0] - b[0])) {
+      if (lines.length < 2) continue;
+      findings.push({
+        kind: "SEQUENCING_OPPORTUNITY",
+        verdict: "REVIEW",
+        line: lines[1],
+        toolNumber,
+        // No tool-change time is recorded for this machine, so no saving is
+        // claimed. Reporting a figure would be inventing one.
+        seconds: 0,
+        detail: `T${toolNumber} is loaded ${lines.length} times (lines ${lines.join(", ")}). The program makes ${parsed.toolChanges.length} tool changes for ${distinct} distinct tool${distinct === 1 ? "" : "s"}.`,
+        assumptions: [
+          "Detected from M6 tool calls only. An uploaded program carries no feature model, so CANVAS cannot tell a wasteful return from a deliberate one — rough then finish, or chamfer after tapping, are both correct.",
+          "Reordering motion is outside this optimizer and is never emitted.",
+          "No tool-change time is recorded for this machine, so no saving is claimed.",
+        ],
+      });
+    }
+  }
+
+  /* ---------------- What was NOT checked ---------------- */
+  const checksSkipped = [
+    {
+      check: "Cutting load direction against the workholding",
+      reason:
+        "CANVAS's cutting-force model returns a magnitude, not a vector, and a setup does not record the vise's clamping axis or which jaw is fixed. Resolving a direction would mean inventing one.",
+    },
+  ];
+
   return {
     totalMinutes: round3(cutMin + rapidMin + dwellMin),
     cutMinutes: round3(cutMin),
@@ -218,6 +331,7 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     findings: findings.sort((a, b) => b.seconds - a.seconds),
     recoverableSeconds: round1(findings.reduce((s, f) => s + f.seconds, 0)),
     assumptions,
+    checksSkipped,
     extents: ext,
   };
 }

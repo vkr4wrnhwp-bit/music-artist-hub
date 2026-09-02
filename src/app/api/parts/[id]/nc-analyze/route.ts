@@ -45,9 +45,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   ]);
   const toolDiameters: Record<number, number> = {};
   const loadTools: LoadContext["tools"] = {};
+  // Stickout and flute length, so the reach check has the crib's record of
+  // the tool rather than nothing.
+  const toolGeometry: Record<number, { description: string; fluteLength: number; stickout: number }> = {};
   for (const t of tools) {
     toolDiameters[t.toolNumber] = t.diameter;
     loadTools[t.toolNumber] = { diameter: t.diameter, flutes: t.flutes, chiploadMin: t.chiploadMin, chiploadMax: t.chiploadMax };
+    toolGeometry[t.toolNumber] = { description: t.description, fluteLength: t.fluteLength, stickout: t.stickout };
   }
   // Material by name match against the recorded intent — no match, no energy.
   const materialName = revision.intent.material.value ?? "";
@@ -109,6 +113,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const analysis = analyzeNC(parsed, {
     stock,
     toolDiameters,
+    toolGeometry,
     rapidRate: machine?.maxRapid ?? null,
     axisAccel: machine?.axisAccel ?? null,
   });

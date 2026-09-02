@@ -54,7 +54,16 @@ test("the CAM engine contains no model calls and cannot acquire any", () => {
 test("the deterministic toolpath engines stay free of the model too", () => {
   // The same rule, one level out: the turning operations engine emits motion
   // and is not inside engines/cam.
-  for (const f of ["src/lib/manufacturing/turn/operations.ts", "src/lib/manufacturing/turn/post.ts"]) {
+  // src/lib/nc/* was missing from this list and it parses, analyses and emits
+  // machine motion for a program a shop hands CANVAS — the same rule applies.
+  for (const f of [
+    "src/lib/manufacturing/turn/operations.ts",
+    "src/lib/manufacturing/turn/post.ts",
+    "src/lib/nc/parse.ts",
+    "src/lib/nc/analyze.ts",
+    "src/lib/nc/load.ts",
+    "src/lib/nc/source.ts",
+  ]) {
     assert.doesNotMatch(read(f), /from "@\/lib\/ai\//, `${f} emits machine motion and must not consult a model`);
   }
 });

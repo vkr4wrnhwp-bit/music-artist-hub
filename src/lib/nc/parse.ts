@@ -75,7 +75,32 @@ export function parseNC(text: string): ParsedNC {
   let x = 0, y = 0, z = 0;
   let feed: number | null = null;
   let rpm = 0;
+  /*
+   * TWO TOOLS, because a T word is not a tool change.
+   *
+   * A controller stages the next tool while the current one is still cutting
+   * — `T2` alone on a line mid-cut is a preselect, and the changer only acts
+   * on M6. Treating every T word as the tool in the spindle stamped those
+   * segments T2 while T1 was still in the cut, which mis-attributes per-tool
+   * cycle time, looks up the wrong diameter for the load band, and would
+   * blame the wrong tool for a deep cut.
+   */
+  let commandedTool = 0;
   let tool = 0;
+
+  /*
+   * A hand-written program may never issue M6 — the operator loaded the tool
+   * by hand. Taking the commanded T word then is the only reading available,
+   * and it is said out loud rather than assumed silently.
+   */
+  const spindleTool = (): number => {
+    if (tool !== 0) return tool;
+    if (commandedTool !== 0) {
+      warnings.add("No M6 before the first cut — the commanded T word is taken as the tool in the spindle.");
+      return commandedTool;
+    }
+    return 0;
+  };
   let comped = false;
   let plane: 17 | 18 | 19 = 17;
   let retractR = 0; // canned cycle R plane
@@ -137,7 +162,7 @@ export function parseNC(text: string): ParsedNC {
         const p = get("P");
         const s = get("X");
         const sec = s !== undefined ? s : p !== undefined ? (p > 100 ? p / 1000 : p) : 0;
-        segments.push({ line: lineNo, kind: "DWELL", x0: x, y0: y, z0: z, x1: x, y1: y, z1: z, feed: null, dwellSeconds: sec, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
+        segments.push({ line: lineNo, kind: "DWELL", x0: x, y0: y, z0: z, x1: x, y1: y, z1: z, feed: null, dwellSeconds: sec, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false });
       } else if (g === 53) {
         warnings.add("G53 machine-coordinate moves are skipped — machine zero is unknown to the analyzer.");
         continue outer;
@@ -160,8 +185,13 @@ export function parseNC(text: string): ParsedNC {
     const s = get("S");
     if (s !== undefined) rpm = s;
     const t = get("T");
-    if (t !== undefined) tool = Math.round(t);
-    if (words.some((w) => w.letter === "M" && w.value === 6)) toolChanges.push({ line: lineNo, toolNumber: tool });
+    if (t !== undefined) commandedTool = Math.round(t);
+    // The changer acts on M6, and only then is the commanded tool in the
+    // spindle.
+    if (words.some((w) => w.letter === "M" && w.value === 6)) {
+      tool = commandedTool;
+      toolChanges.push({ line: lineNo, toolNumber: tool });
+    }
 
     const hasCoord = ["X", "Y", "Z"].some((l) => get(l) !== undefined);
 
@@ -226,7 +256,7 @@ export function parseNC(text: string): ParsedNC {
       segments.push({
         line: lineNo, kind: motion === 0 ? "RAPID" : "CUT",
         x0: x, y0: y, z0: z, x1: nx, y1: ny, z1: nz,
-        feed: motion === 0 ? null : feed, toolNumber: tool, spindleRPM: rpm, comped, tapping: false,
+        feed: motion === 0 ? null : feed, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false,
       });
       x = nx; y = ny; z = nz;
     } else if (motion === 2 || motion === 3) {
@@ -244,7 +274,7 @@ export function parseNC(text: string): ParsedNC {
         segments.push({
           line: lineNo, kind: "ARC",
           x0: px, y0: py, z0: z + zStep * k, x1: p[0], y1: p[1], z1: z + zStep * (k + 1),
-          feed, toolNumber: tool, spindleRPM: rpm, comped, tapping: false,
+          feed, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false,
         });
         px = p[0]; py = p[1];
       });
@@ -265,24 +295,24 @@ export function parseNC(text: string): ParsedNC {
       const tapping = motion === 84;
       const cycleFeed = tapping && feed === null && rpm > 0 ? null : feed;
       // Rapid to XY, rapid to R, feed to depth, retract.
-      segments.push({ line: lineNo, kind: "RAPID", x0: x, y0: y, z0: z, x1: nx, y1: ny, z1: z, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
-      segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: z, x1: nx, y1: ny, z1: retractR, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
+      segments.push({ line: lineNo, kind: "RAPID", x0: x, y0: y, z0: z, x1: nx, y1: ny, z1: z, feed: null, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false });
+      segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: z, x1: nx, y1: ny, z1: retractR, feed: null, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false });
       if (motion === 83) {
         // Q is modal to the cycle exactly as Z and R are.
         const peck = cycleQ ?? Math.abs(retractR - finalZ);
         let depth = retractR;
         while (depth > finalZ + 1e-9) {
           depth = Math.max(finalZ, depth - peck);
-          segments.push({ line: lineNo, kind: "CUT", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: depth, feed: cycleFeed, toolNumber: tool, spindleRPM: rpm, comped, tapping });
-          segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: depth, x1: nx, y1: ny, z1: retractR, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
+          segments.push({ line: lineNo, kind: "CUT", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: depth, feed: cycleFeed, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping });
+          segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: depth, x1: nx, y1: ny, z1: retractR, feed: null, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false });
         }
       } else {
-        segments.push({ line: lineNo, kind: "CUT", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: finalZ, feed: cycleFeed, toolNumber: tool, spindleRPM: rpm, comped, tapping });
-        segments.push({ line: lineNo, kind: tapping ? "CUT" : "RAPID", x0: nx, y0: ny, z0: finalZ, x1: nx, y1: ny, z1: retractR, feed: tapping ? cycleFeed : null, toolNumber: tool, spindleRPM: rpm, comped, tapping });
+        segments.push({ line: lineNo, kind: "CUT", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: finalZ, feed: cycleFeed, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping });
+        segments.push({ line: lineNo, kind: tapping ? "CUT" : "RAPID", x0: nx, y0: ny, z0: finalZ, x1: nx, y1: ny, z1: retractR, feed: tapping ? cycleFeed : null, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping });
       }
       const back = retractMode === 98 ? initialZ : retractR;
       if (back > retractR) {
-        segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: back, feed: null, toolNumber: tool, spindleRPM: rpm, comped, tapping: false });
+        segments.push({ line: lineNo, kind: "RAPID", x0: nx, y0: ny, z0: retractR, x1: nx, y1: ny, z1: back, feed: null, toolNumber: spindleTool(), spindleRPM: rpm, comped, tapping: false });
       }
       x = nx; y = ny; z = back;
       if (tapping) warnings.add("Tapping cycle present (G84/G74) — its feed is the thread and will never be retimed.");

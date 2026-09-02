@@ -251,13 +251,17 @@ toolpath one.
 
 `src/lib/view-environment.ts:59 `sectionFillColor: string;` and :75 `sectionLineMode: LineMode;`; `grep -rn "sectionFillColor\|sectionLineMode" src/ --include=*.ts --include=*.tsx` returns only those declarations plus the two default assignments (:90, :112) — zero consumers. Drawer colour list is Background/Floor/Grid/S`
 
-### NC optimizer findings should include TOOL_REACH_REVIEW, WORKHOLDING_LOAD_DIRECTION_REVIEW and SEQUENCING_OPPORTUNITY
+### NC optimizer findings should include WORKHOLDING_LOAD_DIRECTION_REVIEW
 
 > 9. Findings should include: AIR_CUTTING LOW_ENGAGEMENT HIGH_ENGAGEMENT CORNER_LOAD_SPIKE EXCESSIVE_RETRACT SLOW_LINKING_MOVE TOOL_REACH_REVIEW WORKHOLDING_LOAD_DIRECTION_REVIEW SEQUENCING_OPPORTUNITY UNKNOWN_CONTEXT
 
-Four of the ten kinds exist as findings (AIR_CUTTING, EXCESSIVE_RETRACT, SLOW_LINKING_MOVE, UNKNOWN_CONTEXT); low/high engagement and corner spikes are covered in substance by the load bands and REDUCE proposals. But three have no implementation anywhere: TOOL_REACH_REVIEW (the analyzer never compares programmed cut depth against the crib tool's flute length or stickout, although the CAM engine does exactly that at engine.ts:743), WORKHOLDING_LOAD_DIRECTION_REVIEW (no cut-direction-vs-holding check runs on an uploaded program), and SEQUENCING_OPPORTUNITY (the sequencing engine only ever runs on CANVAS-planned operations, never on a parsed NC file). The plan document still lists all ten as the intended set, so this was scoped and then not built.
+TOOL_REACH_REVIEW and SEQUENCING_OPPORTUNITY are now built. Reach compares each tool's deepest cutting segment against the crib record's stickout, sharing one rule (`reachesDepth` in `domain/shop.ts`) with the CAM engine rather than re-deriving it; a tool with no crib entry, or a crib entry with stickout and flute length at zero, reports INSUFFICIENT_DATA and names the missing measurement instead of guessing one. Sequencing reads M6 tool changes only, and prices nothing (`seconds: 0`) because no tool-change time is recorded anywhere — it reports the redundant loads and lets the machinist decide.
 
-`src/lib/nc/analyze.ts:28 `kind: "AIR_CUTTING" | "EXCESSIVE_RETRACT" | "SLOW_LINKING_MOVE" | "UNKNOWN_CONTEXT";`. `grep -rn "TOOL_REACH_REVIEW\|WORKHOLDING_LOAD_DIRECTION_REVIEW\|SEQUENCING_OPPORTUNITY" src/` returns nothing. docs/LOAD_AWARE_NC_OPTIMIZER.md:141-150 and :101 still promise them ("Load-direction-vs-holding`
+Building reach first required fixing the parser: a bare `T` word is a preselect, and the changer acts on M6, but `parse.ts` was stamping every subsequent segment with the newly-commanded tool. A `T1 M6 ... G1 Z-0.5 ... T2 ... G1 Z-2.0` program attributed the deep cut to T2 while T1 was still in the spindle — which would have made the reach finding blame the wrong tool. `commandedTool` and `tool` are now separate, and a program that cuts with no M6 at all carries a warning saying the commanded T word is being taken as the tool in the spindle.
+
+WORKHOLDING_LOAD_DIRECTION_REVIEW is deliberately not built, and says so rather than being silently absent: the check needs a cutting-force vector and a jaw axis, and CANVAS records neither — the force model returns a magnitude, and no workholding record carries a clamping direction. It is declared in the analysis's new `checksSkipped` list, which the analyzer panel renders above the findings, so an operator reading a clean report can see which check did not run and why.
+
+`src/lib/nc/analyze.ts` (reach and sequencing blocks, `checksSkipped`), `src/lib/domain/shop.ts:206` `reachesDepth`, `src/lib/nc/parse.ts` `spindleTool()`, `tests/engines/nc-findings.test.ts` (14 tests, including the preselect regression).
 
 ### The Run It Past CANVAS flow should let the user upload a tool list alongside the NC program
 
