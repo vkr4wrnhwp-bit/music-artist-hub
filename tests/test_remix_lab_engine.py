@@ -225,21 +225,32 @@ def test_a_signed_out_visitor_cannot_run_one(application):
     assert "/login" in (resp.headers.get("Location") or "")
 
 
-def test_the_public_page_still_opens_for_a_visitor(application):
-    """The brochure, the rights gate and the likeness screen are what a
-    visitor needs to judge the tool. None of that required a login."""
-    assert application.test_client().get("/remix-lab").status_code == 200
+def _signed(application):
+    """Remix Lab is a signed-in page now: a fresh account, logged in."""
+    client = application.test_client()
+    email = "rle-%s@example.net" % uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Engine Tester", "email": email, "password": "rl-pass-123"})
+    client.post("/login", data={"email": email, "password": "rl-pass-123"})
+    return client
+
+
+def test_the_page_is_signed_in_only(application):
+    """Remix Lab is a signed-in page: a visitor is sent to log in, an
+    account gets the page inside the shell."""
+    r = application.test_client().get("/remix-lab")
+    assert r.status_code == 302 and "/login" in r.headers["Location"]
+    assert _signed(application).get("/remix-lab").status_code == 200
 
 
 def test_the_form_only_posts_when_the_engine_is_live(application, monkeypatch):
     """A form that posted to a route the gate would refuse is worse than one
     that honestly stays a preview."""
     monkeypatch.delenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", raising=False)
-    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    body = _signed(application).get("/remix-lab").get_data(as_text=True)
     assert 'action="/remix-lab/brief"' not in body
 
     monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
-    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    body = _signed(application).get("/remix-lab").get_data(as_text=True)
     assert 'action="/remix-lab/brief"' in body
 
 
@@ -295,11 +306,11 @@ def test_the_capability_status_flips_with_the_flags(monkeypatch):
 def test_the_hero_chip_stops_saying_coming_soon(application, monkeypatch):
     monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
     monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
-    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    body = _signed(application).get("/remix-lab").get_data(as_text=True)
     assert "generation coming soon" not in body
 
     monkeypatch.delenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", raising=False)
-    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    body = _signed(application).get("/remix-lab").get_data(as_text=True)
     assert "generation coming soon" in body
 
 
@@ -312,7 +323,7 @@ def test_the_browser_is_told_whether_the_engine_is_live(application, monkeypatch
 
     monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
     monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
-    body = application.test_client().get("/remix-lab").get_data(as_text=True)
+    body = _signed(application).get("/remix-lab").get_data(as_text=True)
     blob = re.search(r'id="sbrl-config">(.*?)</script>', body, re.S).group(1)
     assert json.loads(blob)["engineLive"] is True
 

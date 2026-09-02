@@ -8285,12 +8285,11 @@ def create_app():
 
     @app.route("/remix-lab")
     def remix_lab():
-        """Remix Lab - remix briefs from audio the artist owns, in preview.
+        """Remix Lab - remix briefs from audio the artist owns.
 
-        Public: the rights gate, the likeness screen and the worked
-        example are exactly what a visitor needs to judge the tool.
-        Generation is not connected and the page says so; nothing on it
-        uploads or stores anything. When a backend lands, every
+        Signed-in only. The rights gate, the likeness screen and the worked
+        example are on the page; with the engine off nothing on it uploads
+        or stores anything. When a backend lands, every
         reference string must pass remix_lab_config.check_reference_text
         server-side before a generation request is made - the browser
         copy of that screen is convenience, not enforcement.
@@ -8298,9 +8297,14 @@ def create_app():
         from remix_lab_config import (get_remix_lab_config,
                                       get_remix_lab_client_config)
 
+        # Signed-in only, inside the shell. It used to be a public page with
+        # its own header, which read as being logged out the moment it opened.
+        if current_user() is None:
+            return login_required_redirect()
         return render_template(
-            "remix_lab.html", remix=get_remix_lab_config(),
-            remix_json=json.dumps(get_remix_lab_client_config()))
+            "remix_lab.html", active_page="remix-lab", remix=get_remix_lab_config(),
+            remix_json=json.dumps(get_remix_lab_client_config()),
+            **build_dashboard_context())
 
     @app.route("/remix-lab/brief", methods=["POST"])
     def remix_lab_brief():

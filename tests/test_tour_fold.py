@@ -296,7 +296,7 @@ def test_legacy_hub_posts_and_public_pages_still_answer(flask_app):
 
 def test_the_assets_moved_on_with_the_fold():
     sw = io.open(os.path.join(HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert 'VERSION = "sb-v168"' in sw
+    assert 'VERSION = "sb-v169"' in sw
     shell = io.open(os.path.join(HERE, "templates", "tour", "_shell.html"), encoding="utf-8").read()
     assert "tour-os.css?v=6" in shell
     css = io.open(os.path.join(HERE, "static", "css", "tour-os.css"), encoding="utf-8").read()

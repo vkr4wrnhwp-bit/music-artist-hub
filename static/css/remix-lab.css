@@ -1771,6 +1771,12 @@
 @media (max-width: 899px) { .sbrl-features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 639px) { .sbrl-features { grid-template-columns: minmax(0, 1fr); } }
 
+/* --- inside the signed-in shell ------------------------------------------- */
+.sbrl-in-app { min-height: 0; margin: -1rem; }
+@media (min-width: 640px) { .sbrl-in-app { margin: -1.5rem; } }
+@media (min-width: 1024px) { .sbrl-in-app { margin: -2rem; } }
+.sbrl-in-app .sbrl-head { padding-top: 18px; }
+
 /* --- motion ---------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .sbrl-body *, .sbrl-body *::before, .sbrl-body *::after,

@@ -419,6 +419,7 @@
     document.querySelectorAll("main section").forEach((section) => {
       const h2 = section.querySelector("h2");
       if (!h2) return;
+      if (section.closest("[data-no-collapse]")) return;   // a module that manages its own sections
 
       let headerBlock = h2;
       while (headerBlock.parentElement !== section) headerBlock = headerBlock.parentElement;

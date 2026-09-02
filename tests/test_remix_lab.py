@@ -14,11 +14,19 @@ import remix_lab_config as rl
 from app import create_app
 
 
+def _signed_in():
+    import uuid as _uuid
+    client = create_app().test_client()
+    email = "remix-%s@example.net" % _uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Remix Tester", "email": email, "password": "rl-pass-123"})
+    client.post("/login", data={"email": email, "password": "rl-pass-123"})
+    return client
+
+
 @pytest.fixture(scope="module")
 def page():
-    client = create_app().test_client()
-    response = client.get("/remix-lab")
-    assert response.status_code == 200, "Remix Lab must be public"
+    response = _signed_in().get("/remix-lab")
+    assert response.status_code == 200, "Remix Lab renders for a signed-in account"
     return response.get_data(as_text=True)
 
 
@@ -266,7 +274,7 @@ def test_the_rail_says_which_state_it_is_in(page, monkeypatch):
 
     monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
     monkeypatch.setenv("REMIX_LAB_AUDIO_ENGINE_ENABLED", "1")
-    live = create_app().test_client().get("/remix-lab").get_data(as_text=True)
+    live = _signed_in().get("/remix-lab").get_data(as_text=True)
     assert "Measured after upload" in live
     assert "After upload" in live
     assert "Not measured in this preview" not in live
@@ -301,10 +309,10 @@ def test_the_submit_is_never_disabled(page):
 
 
 def test_the_static_assets_were_bumped(page):
-    assert "remix-lab.css?v=8" in page
+    assert "remix-lab.css?v=9" in page
     assert "remix-lab.js?v=4" in page
     sw = open(_os.path.join(_HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert "sb-v168" in sw
+    assert "sb-v169" in sw
 
 
 def test_the_waveform_is_decoded_locally_and_references_are_named():
@@ -346,7 +354,7 @@ def test_the_brief_page_never_shows_mock_numbers_as_measured(monkeypatch):
         content_type="multipart/form-data")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "remix-lab.css?v=8" in body
+    assert "remix-lab.css?v=9" in body
     assert "Not detected — by design" in body
     assert "Placeholder — not a measurement" in body
     assert "sbrl-read-seg--measured" not in body
@@ -357,3 +365,25 @@ def test_the_brief_page_never_shows_mock_numbers_as_measured(monkeypatch):
     assert "Placeholder figure, not a reading of your track." in body
     assert "BPM measured" not in body
     assert re.search(r"<h1[\s>]", body)
+
+
+def test_signed_in_the_page_lives_inside_the_shell():
+    """The owner: "anytime you go there it logs you out of the site". It never
+    did, but the page rendered the public frame. Signed in, it is the same
+    page inside the dashboard shell; signed out, the public page stands."""
+    import uuid
+
+    client = create_app().test_client()
+    email = "remix-shell-%s@example.net" % uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Shell", "email": email, "password": "rl-pass-123"})
+    client.post("/login", data={"email": email, "password": "rl-pass-123"})
+    page = client.get("/remix-lab").get_data(as_text=True)
+    assert 'class="sbrl-body sbrl-in-app"' in page and "data-no-collapse" in page
+    assert page.count("<main") == 1 and '<main class="flex-1' in page      # the shell's main, once
+    assert "Run a free royalty sweep" not in page and 'href="/login"' not in page
+    for pinned in ('id="sbrl-form"', 'id="sbrl-hero-streak"', "Rights confirmation", "Start a remix brief",
+                   'id="sbrl-config"', "remix-lab.js?v=4"):
+        assert pinned in page, pinned
+    # Signed out, there is no page: the login page, with the way back.
+    r = create_app().test_client().get("/remix-lab")
+    assert r.status_code == 302 and "/login" in r.headers["Location"]
