@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button, Field, Panel, StatusChip, buttonClass, inputClass } from "@/components/ui";
+import { MillPartThumb, drawnInTopView } from "@/components/part-thumb";
+import type { Feature as DomainFeature, Stock } from "@/lib/domain/features";
 
 /**
  * The measurement interview.
@@ -60,6 +62,9 @@ interface MeasurementRow {
   datum: string | null;
 }
 
+/** The views photo-set.tsx asks for. Named here so the panel can say what is absent. */
+const REQUIRED_VIEWS = ["TOP", "BOTTOM", "FRONT", "BACK", "LEFT", "RIGHT"];
+
 const CONTEXTS = [
   { id: "BORE", label: "Bore / internal diameter", instrument: "BORE_GAUGE" },
   { id: "SHAFT", label: "Shaft / external diameter", instrument: "MICROMETER" },
@@ -76,6 +81,8 @@ export function GuidedMeasurement({
   datums,
   photos,
   measurements,
+  geometry,
+  stock,
 }: {
   sessionId: string;
   devices: Device[];
@@ -83,11 +90,29 @@ export function GuidedMeasurement({
   datums: DatumRef[];
   photos: Photo[];
   measurements: MeasurementRow[];
+  /** The hydrated feature models, for the plan view. */
+  geometry: DomainFeature[];
+  stock: Stock | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [context, setContext] = useState("BORE");
+  // Which feature the operator is measuring, and which photograph they want
+  // beside them. The view is theirs to choose: CANVAS records which face a
+  // photo shows, and records nothing about which face a feature opens onto,
+  // so picking one for them would be a guess dressed as help.
+  const [featureId, setFeatureId] = useState("");
+  const [viewId, setViewId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // The photo on screen: the operator's choice if they made one, otherwise
+  // the first uploaded. Not a guess at the right view — see the note in the
+  // Reference panel.
+  const shownPhoto = photos.find((p) => p.id === viewId) ?? photos[0];
+  const missingViews = REQUIRED_VIEWS.filter((v) => !photos.some((p) => p.view === v));
+
+  // The linked feature, only if the top view can actually draw it.
+  const highlighted = geometry.find((g) => g.id === featureId && drawnInTopView(g)) ?? null;
 
   const recommended = recommendDevice(context, devices);
   const alternative = devices.find((d) => d.id !== recommended?.id && d.deviceType === "DIGITAL_CALIPER");
@@ -196,7 +221,12 @@ export function GuidedMeasurement({
             </div>
 
             <Field label="Link to feature">
-              <select name="featureId" defaultValue="" className={inputClass}>
+              <select
+                name="featureId"
+                value={featureId}
+                onChange={(e) => setFeatureId(e.target.value)}
+                className={inputClass}
+              >
                 <option value="">Not linked</option>
                 {features.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -242,20 +272,94 @@ export function GuidedMeasurement({
           </form>
         </Panel>
 
-        {/* ---------------- Reference photo ---------------- */}
+        {/* ---------------- Reference ---------------- */}
         <Panel title="Reference">
-          {photos.length === 0 ? (
-            <p className="text-[12px] leading-relaxed text-muted">
-              No photographs uploaded. CANVAS uses them to show you which feature it is asking about — it does not
-              measure them.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photos[0].url} alt={photos[0].view} className="w-full border border-line object-cover" />
-              <p className="tech-label">{photos[0].view} view</p>
-            </div>
-          )}
+          <div className="space-y-4">
+            {/* ---- The geometry CANVAS holds ---- */}
+            {geometry.length > 0 ? (
+              <div className="space-y-2">
+                <div className="border border-line">
+                  <MillPartThumb features={geometry} stock={stock} highlightFeatureId={highlighted?.id ?? null} />
+                </div>
+                <p className="tech-label">
+                  {!featureId
+                    ? "Top view — link a feature above to pick it out"
+                    : highlighted
+                      ? `Top view — ${highlighted.label} emphasised`
+                      : "Top view"}
+                </p>
+                {featureId && !highlighted && (
+                  <p className="text-[11px] leading-snug text-muted">
+                    {features.find((f) => f.id === featureId)?.label ?? "That feature"} has no outline in plan, so
+                    there is nothing to pick out here. The drawing is left as it is rather than dimming the features
+                    you can see.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px] leading-relaxed text-muted">
+                No reconstructed geometry on this revision yet, so there is nothing to point at. Features recorded
+                during this session will appear here.
+              </p>
+            )}
+
+            {/* ---- The photographs ---- */}
+            {photos.length === 0 ? (
+              <p className="text-[12px] leading-relaxed text-muted">
+                No photographs uploaded. CANVAS uses them to show you which feature it is asking about — it does not
+                measure them.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  {photos.map((ph) => (
+                    <button
+                      key={ph.id}
+                      type="button"
+                      onClick={() => setViewId(ph.id)}
+                      aria-pressed={shownPhoto.id === ph.id}
+                      className={`border px-2 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] ${
+                        shownPhoto.id === ph.id
+                          ? "border-precision text-precision"
+                          : "border-line-strong text-muted hover:text-platinum-dim"
+                      }`}
+                    >
+                      {ph.view || "unlabelled"}
+                    </button>
+                  ))}
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shownPhoto.url}
+                  alt={`${shownPhoto.view} view of the part`}
+                  className="w-full border border-line object-cover"
+                />
+                <p className="tech-label">{shownPhoto.view || "unlabelled"} view · {shownPhoto.filename}</p>
+                {missingViews.length > 0 && (
+                  <p className="text-[11px] leading-snug text-review">
+                    Not uploaded: {missingViews.join(", ")}.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/*
+              Capability honesty, principle 5. The ask was to highlight the
+              target feature in the uploaded image as well. Nothing calibrates
+              a photograph to part coordinates — the upload records which face
+              the photo shows and what scale reference was in frame, not an
+              origin, an orientation or a pixels-per-inch. A marker drawn on
+              the photo would be placed by guesswork, and an operator would
+              measure the thing it landed on.
+            */}
+            {photos.length > 0 && (
+              <p className="border-t border-line pt-3 text-[11px] leading-relaxed text-muted">
+                No marker is drawn on the photograph. CANVAS records which face a photo shows, not where the part sits
+                in the frame, so it cannot place one without guessing. Pick the view yourself and use the top view
+                above for which feature is meant.
+              </p>
+            )}
+          </div>
         </Panel>
       </div>
 

@@ -168,10 +168,17 @@ Two guards were sharpened rather than loosened along the way. The locked-princip
 
 > Highlight the target feature in the uploaded image and 3D reconstruction.
 
-The Reference panel always shows `photos[0]` — the first uploaded photo — regardless of which measurement is being requested, with no highlight, marker or crop on the target feature and no 3D reconstruction beside it. The view labels captured at upload (TOP/BOTTOM/FRONT/…) are never used to pick the right image, even though photo-set.tsx's own comment says they exist for exactly that purpose.
+Half built, and the half that is not is labelled rather than quietly missing — the two halves are not equally possible.
 
-`src/components/reverse/guided-measurement.tsx:220-221 render `photos[0].url` / `photos[0].view` unconditionally; src/components/reverse/photo-set.tsx:6-10 states views are labelled "so the guided measurement step can show the operator the right image".`
+**The reconstruction half is built.** Linking a measurement to a feature now emphasises that feature in the top view, drawn from the parametric geometry CANVAS holds. Emphasis is opacity on the whole feature, never a colour: blue means *critical* in that drawing, and a highlight that changed a stroke colour would make an ordinary feature read as a critical one.
 
+**The photograph half is not, and cannot honestly be.** The upload records which face a photo shows and what scale reference was in frame — not an origin, an orientation, or a pixels-per-inch. There is no transform from part coordinates to image pixels, so a marker on the photo would be placed by guesswork, and an operator would measure whatever it landed on. The panel says so in those words rather than leaving the absence to be inferred.
+
+What the photo panel does do instead is stop being `photos[0]`. Every uploaded view is a labelled button, the operator picks the one they want, and the views photo-set.tsx asks for and did not get are named.
+
+One defect found by driving it in a browser rather than by a test: linking a feature the top view cannot draw — a face, an outside profile, a chamfer — dimmed all eight drawable features to emphasise something that renders as nothing. A highlight pointing at empty space is worse than no highlight. An undrawable highlight is now ignored, the drawing is left alone, and the panel says that feature has no outline in plan.
+
+`src/components/part-thumb.tsx` (`drawnInTopView`, `highlightFeatureId`), `src/components/reverse/guided-measurement.tsx`, `src/app/(app)/reverse-engineer/[id]/page.tsx`, `tests/engines/guided-reference.test.ts` (9 tests).
 ### The Feature Lens carries DETAIL / MEASURE / MAKE / VERIFY actions
 
 > Actions: DETAIL MEASURE MAKE VERIFY

@@ -189,6 +189,8 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
               deviceType: d.deviceType,
             }))}
             features={session.partRevision.features.map((f) => ({ id: f.id, label: f.label, kind: f.kind }))}
+            geometry={revision?.features ?? []}
+            stock={revision?.stock ?? null}
             datums={datums
               .filter((d) => d.acceptedByUser)
               .map((d) => ({ id: d.id, letter: d.letter, system: d.system, description: d.description }))}

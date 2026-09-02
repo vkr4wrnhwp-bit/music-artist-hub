@@ -16,7 +16,45 @@ const INK = "#14181c";
 const MUTED_INK = "#9aa4ae";
 const BLUE = "#0b72ff";
 
-export function MillPartThumb({ features, stock }: { features: Feature[]; stock: Stock | null }) {
+/**
+ * Which features this top view can actually draw. A face, a chamfer or a
+ * fillet has no outline in plan, so it renders as nothing — and a highlight
+ * pointing at nothing would recede every feature the operator CAN see while
+ * emphasising an empty space. Callers ask before they claim to be pointing.
+ */
+const DRAWN_IN_TOP_VIEW = [
+  "CIRC_POCKET",
+  "BORE",
+  "DRILLED_HOLE",
+  "TAPPED_HOLE",
+  "COUNTERBORE",
+  "COUNTERSINK",
+  "RECT_POCKET",
+  "SLOT",
+];
+
+export function drawnInTopView(f: Pick<Feature, "kind">): boolean {
+  return DRAWN_IN_TOP_VIEW.includes(f.kind);
+}
+
+export function MillPartThumb({
+  features,
+  stock,
+  highlightFeatureId = null,
+}: {
+  features: Feature[];
+  stock: Stock | null;
+  /**
+   * Draw one feature at full strength and recede the rest, so a page can show
+   * which feature it is talking about. The emphasis is opacity on the whole
+   * feature, never a colour change: BLUE means critical here, and a highlight
+   * must not make an ordinary feature read as a critical one.
+   *
+   * This is the geometry CANVAS holds. It is not a marker on a photograph —
+   * nothing calibrates an uploaded photo to part coordinates.
+   */
+  highlightFeatureId?: string | null;
+}) {
   const W = 180, H = 120, pad = 12;
   const sx = stock?.x ?? 6;
   const sy = stock?.y ?? 4;
@@ -44,6 +82,13 @@ export function MillPartThumb({ features, stock }: { features: Feature[]; stock:
     <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label="Part top view">
       <rect x={ox} y={oy} width={sx * k} height={sy * k} fill="none" stroke={INK} strokeWidth={1.4} />
       {features.map((f) => {
+        // A highlight naming a feature with no outline in plan is ignored
+        // rather than honoured: honouring it would dim all eight features the
+        // operator can see in order to emphasise nothing.
+        const highlight = features.some((x) => x.id === highlightFeatureId && drawnInTopView(x))
+          ? highlightFeatureId
+          : null;
+        const shape = (() => {
         if (f.kind === "CIRC_POCKET" || f.kind === "BORE") {
           return <circle key={f.id} cx={X(f.centerX)} cy={Y(f.centerY)} r={(f.diameter / 2) * k} fill="none" stroke={f.critical ? BLUE : INK} strokeWidth={f.critical ? 1.4 : 1} />;
         }
@@ -63,6 +108,13 @@ export function MillPartThumb({ features, stock }: { features: Feature[]; stock:
           return <line key={f.id} x1={X(f.startX)} y1={Y(f.startY)} x2={X(f.endX)} y2={Y(f.endY)} stroke={f.critical ? BLUE : INK} strokeWidth={Math.max(2, f.width * k)} strokeLinecap="round" opacity={0.35} />;
         }
         return null;
+        })();
+        if (shape === null || highlight === null) return shape;
+        return (
+          <g key={f.id} opacity={f.id === highlight ? 1 : 0.2}>
+            {shape}
+          </g>
+        );
       })}
     </svg>
   );
