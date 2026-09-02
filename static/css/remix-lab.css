@@ -1762,6 +1762,15 @@
   .sbrl-top .sbrl-light { left: 0; top: 30%; height: 100px; }
 }
 
+/* the about section: one centred column, the six features in a uniform grid */
+.sbrl-about-grid { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.sbrl-about-copy { width: 100%; max-width: 980px; text-align: center; }
+.sbrl-about-copy .sbrl-h2 { text-align: center; }
+.sbrl-about-copy .sbrl-body-copy { margin-left: auto; margin-right: auto; }
+.sbrl-features { grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: left; }
+@media (max-width: 899px) { .sbrl-features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .sbrl-features { grid-template-columns: minmax(0, 1fr); } }
+
 /* --- motion ---------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .sbrl-body *, .sbrl-body *::before, .sbrl-body *::after,
