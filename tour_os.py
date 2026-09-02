@@ -1313,7 +1313,8 @@ def advance_send(user, tour, viewer, tour_id, show_id):
                       reply_to=ctx["sender"]["email"] or None, cc=cc or None, text=body)
     ts.record_advance_send(tour_id, tour["user_id"], show_id, to, subject, body, names,
                            ctx["links"], status="sent" if ok else "failed",
-                           error="" if ok else "The mail service did not accept the message.",
+                           error="" if ok else (emailer.last_send_error()
+                                                or "The mail service did not accept the message."),
                            cc=", ".join(cc), sent_by=viewer.get("name") or "")
     ts.log_change(tour_id, tour["user_id"], _actor(viewer), "advance", show_id,
                   "%s · advance email" % show["venue"], "sent" if ok else "send failed", "",

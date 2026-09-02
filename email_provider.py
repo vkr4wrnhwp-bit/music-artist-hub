@@ -56,14 +56,39 @@ def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None)
         payload["cc"] = list(cc) if isinstance(cc, (list, tuple)) else [cc]
     if text:
         payload["text"] = text
+    global _last_error
     try:
         out = _http("https://api.resend.com/emails", payload, {
             "Authorization": "Bearer " + os.environ["RESEND_API_KEY"],
             "Content-Type": "application/json",
         })
+        _last_error = "" if out.get("id") else "Resend answered without a message id."
         return bool(out.get("id"))
-    except Exception:
+    except Exception as exc:
+        # Keep the vendor's own words. A failed send that says only "failed"
+        # sends somebody hunting through dashboards for a reason the
+        # response already carried - a wrong-account key, an unverified
+        # domain, a bad address - and none of it is secret.
+        detail = "%s" % (getattr(exc, "code", None) or type(exc).__name__)
+        body = getattr(exc, "read", None)
+        if callable(body):
+            try:
+                detail += " " + exc.read().decode("utf-8", "replace")[:300]
+            except Exception:
+                pass
+        else:
+            detail += " " + str(exc)[:200]
+        _last_error = detail
         return False
+
+
+_last_error = ""
+
+
+def last_send_error():
+    """Why the most recent send() in this process returned False, in the
+    vendor's words. Empty after a success."""
+    return _last_error
 
 
 # --- Inbound: the statement drop-box -------------------------------------------

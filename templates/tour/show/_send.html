@@ -70,7 +70,7 @@
       <div class="to-eyebrow">Sent so far</div>
       {% if sends %}
         {% for s in sends %}
-        <p class="to-sub" style="margin-top:6px">{{ s['created'][:16]|replace('T', ' ') }} · {{ s['to_email'] }}{% if s['cc'] %} (cc {{ s['cc'] }}){% endif %} · {% if s['status'] == 'sent' %}<span class="to-chip to-chip--ok">sent</span>{% else %}<span class="to-chip to-chip--warn">failed</span>{% endif %}{% if s['attachments'] %}<br><span class="to-muted">{{ s['attachments']|join(', ') }}</span>{% endif %}{% if s['sent_by'] %}<br><span class="to-muted">by {{ s['sent_by'] }}</span>{% endif %}</p>
+        <p class="to-sub" style="margin-top:6px">{{ s['created'][:16]|replace('T', ' ') }} · {{ s['to_email'] }}{% if s['cc'] %} (cc {{ s['cc'] }}){% endif %} · {% if s['status'] == 'sent' %}<span class="to-chip to-chip--ok">sent</span>{% else %}<span class="to-chip to-chip--warn">failed</span>{% endif %}{% if s['attachments'] %}<br><span class="to-muted">{{ s['attachments']|join(', ') }}</span>{% endif %}{% if s['status'] != 'sent' and s['error'] %}<br><span class="to-muted">{{ s['error'] }}</span>{% endif %}{% if s['sent_by'] %}<br><span class="to-muted">by {{ s['sent_by'] }}</span>{% endif %}</p>
         {% endfor %}
       {% else %}
         <p class="to-sub">Not sent yet.</p>
