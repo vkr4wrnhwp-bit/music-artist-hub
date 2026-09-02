@@ -94,29 +94,44 @@ test("the readiness page says what the comparison does not cover", () => {
 /* ---- sections that cannot be used say so ---- */
 
 test("a section is labelled a shell exactly while nothing can write to it", () => {
-  // Quoting still renders real engines over a schema nothing in the
-  // application writes, so a shop sees an empty section forever.
+  // The label has to track the write path in BOTH directions. Left on after
+  // the path is built it tells a shop not to bother; taken off before, it
+  // presents an empty section as a working one.
   const nav = readFileSync("src/components/nav.tsx", "utf8");
-  assert.ok(
-    /href: "\/quoting", label: "[^"]+", shell: true/.test(nav),
-    "/quoting presents as a working section while nothing can write to it",
-  );
-  // Jobs has a write path now — release a revision, raise a job, record
-  // actuals and outcomes. Leaving the shell label on would be the same lie in
-  // the other direction: it would tell a shop not to bother.
-  assert.ok(
-    !/href: "\/jobs",[^}]*shell: true/.test(nav),
-    "/jobs is still labelled a shell after its write path was built",
-  );
+  const src = (p: string) => readFileSync(p, "utf8");
+
+  const writes = (dir: string) => {
+    const actions = src(`src/app/(app)/${dir}/actions.ts`);
+    return /db\.\w+\.(create|update)\(/.test(actions);
+  };
+  for (const dir of ["jobs", "quoting"]) {
+    assert.ok(writes(dir), `${dir} has no write path`);
+    assert.ok(
+      !new RegExp(`href: "/${dir}",[^}]*shell: true`).test(nav),
+      `/${dir} is still labelled a shell after its write path was built`,
+    );
+  }
+
+  // Network and Shop intelligence were shells from the start and still are.
+  for (const href of ["/network", "/intelligence"]) {
+    assert.ok(
+      new RegExp(`href: "${href}", label: "[^"]+", shell: true`).test(nav),
+      `${href} presents as a working section while nothing can write to it`,
+    );
+  }
 });
 
 test("neither shell instructs the machinist to press a control that does not exist", () => {
   // The worse failure than an unlabelled shell: "Open a part's Cost panel to
   // produce one, then attach it to a quote" sent someone looking for two
   // buttons that were never built.
+  // Both actions exist now, so the guard inverts: neither may claim to be
+  // unbuilt, and each must name the control that does the thing.
   const quoting = readFileSync("src/app/(app)/quoting/page.tsx", "utf8");
-  assert.ok(!/then attach it to a quote/.test(quoting), "the empty state still describes an action nobody can take");
-  assert.ok(/not built yet/.test(quoting), "the empty state does not say the section is unbuilt");
+  assert.ok(!/not built yet/.test(quoting), "Quoting still says it is unbuilt after its write path was built");
+  assert.match(quoting, /createQuote/, "the Quoting page names no way to raise a quote");
+  const cost = readFileSync("src/app/(app)/parts/[id]/cost/page.tsx", "utf8");
+  assert.match(cost, /storeEstimate/, "the Cost page still cannot store the estimate it computes");
 
   // Jobs no longer needs that guard — the actions exist. What it needs
   // instead is that its empty state does not claim to be unbuilt, and that

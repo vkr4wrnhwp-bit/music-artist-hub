@@ -136,12 +136,12 @@ const SECTIONS: Section[] = [
     icon: "jobs",
     match: ["/jobs", "/quoting"],
     items: [
-      // Jobs has a write path: release a revision, raise a job against it,
-      // record actuals and structured outcomes. Quoting does not yet — it
-      // renders real engines over a table nothing in the application writes,
-      // so a shop sees an empty section forever, and it says so.
+      // Both have write paths now. Jobs: release a revision, raise a job
+      // against it, record actuals and structured outcomes. Quoting: freeze an
+      // estimate with its assumption set, attach it to a quote, send it, and
+      // compare it against what the run actually cost.
       { href: "/jobs", label: "Jobs" },
-      { href: "/quoting", label: "Quoting", shell: true },
+      { href: "/quoting", label: "Quoting" },
     ],
   },
   {

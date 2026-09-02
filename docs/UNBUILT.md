@@ -93,10 +93,19 @@ No trace in the code. `grep -rni 'SpeechRecognition|webkitSpeech|speechSynthesis
 
 > JOBS QUOTING NETWORK Build shell only in Phase 1. SHOP INTELLIGENCE Build shell only in Phase 1. SETTINGS
 
-The Quoting page renders, but nothing in the codebase ever writes a Quote or a CostEstimate — not the app, not the seed. The page is a read-only view over two tables that are always empty, and it tells the user to "Open a part's Cost panel to produce one, then attach it to a quote" while the part Cost page performs no writes at all and there is no attach-to-quote UI. Unlike Network and Shop intelligence, Quoting is not marked `shell: true` in the nav, so it presents as a working section.
+Built. The page's own subtitle promised that quotes "carry their assumption set… so a quote can be defended, re-run against changed rates, or compared against what the job actually cost" — and nothing in the application wrote a `Quote` or a `CostEstimate`. The Cost panel computed a live figure and discarded it on navigation, while the empty state told the user to open a Cost panel "then attach it to a quote", two controls that did not exist. `/quoting` no longer carries `shell: true`.
 
-``grep -rn 'quote.create|costEstimate.create|db.quote\.' src --include=*.ts --include=*.tsx` -> only the read at src/app/(app)/quoting/page.tsx:11; costEstimate only at src/app/(app)/quoting/page.tsx:16; `grep -n 'quote|costEstimate' prisma/seed.ts` -> nothing; src/app/(app)/parts/[id]/cost/page.tsx has no "use server" `
+**A stored estimate is a snapshot.** The whole assumption set, every cost line, and the engine's own warnings are frozen with the price. A quote that cannot be defended in a customer meeting is worthless, and defending it means showing the inputs as they stood — not recomputing them today and presenting the new answer as the old promise. The price is computed server-side from the package; a price that arrives in a form is a price the caller chose, and this one goes to a customer.
 
+**Warnings travel with the price.** The cost engine already knows which assumptions its arithmetic is not valid over. An estimate stored while one is open is stored *with* it and the quote page renders it under "Assumptions this quote does not stand on" — the shop can quote with caveats, but the caveat cannot be dismissed at the moment of storing.
+
+**Drift, not recomputation.** When a rate moves, the quote is not wrong — it is a record of a promise made at those numbers. So the page shows *which* assumptions moved and what they were, and never folds today's figures into the stored price. Eight assumptions are watched, and a test asserts each one genuinely changes the price.
+
+**Quoted against what the job actually cost.** Rebuilt with the same cost engine and the quote's own assumptions, substituting only what a completed job recorded — so the difference is attributable to the run rather than to a second model. What the job did not record is named as still being the quoted assumption, and a job that recorded nothing produces no comparison at all, because rebuilding from the quote's own numbers would return exactly 1.00× and call it agreement.
+
+**Lifecycle.** DRAFT → SENT → WON / LOST / EXPIRED, all terminal. A sent quote gains no new prices and is not edited back into a draft: the number the customer holds does not change when the shop changes its mind, and a revised price is a new quote. Sending is refused without an estimate, because a quote with none prices nothing. Raising a quote is deliberately *not* gated on readiness — pricing a part CANVAS is not ready to run is ordinary shop work.
+
+`src/lib/engines/quoting.ts` (new), `src/app/(app)/quoting/{actions.ts,page.tsx,[id]/page.tsx}`, `src/components/quoting/*`, `src/app/(app)/parts/[id]/cost/page.tsx`, `tests/engines/quoting.test.ts` (21 tests).
 ### JOBS as a full Phase 1 section — job outcomes recorded so they can feed the workholding and process models
 
 > JOBS QUOTING NETWORK Build shell only in Phase 1.

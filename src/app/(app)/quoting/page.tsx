@@ -3,7 +3,18 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/engines/cost";
 import { TopBar } from "@/components/nav";
-import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td, type Tone } from "@/components/ui";
+import { QUOTE_STATUS_LABEL, type QuoteStatus } from "@/lib/engines/quoting";
+import { RaiseQuoteForm } from "@/components/quoting/raise-quote";
+import { createQuote } from "./actions";
+
+const TONE: Record<QuoteStatus, Tone> = {
+  DRAFT: "unknown",
+  SENT: "precision",
+  WON: "pass",
+  LOST: "risk",
+  EXPIRED: "review",
+};
 
 export default async function QuotingPage() {
   const user = await requireUser();
@@ -21,6 +32,12 @@ export default async function QuotingPage() {
     }),
   ]);
 
+  const parts = await db.part.findMany({
+    where: { organizationId: user.organizationId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <>
       <TopBar>
@@ -31,10 +48,12 @@ export default async function QuotingPage() {
           Quoting
         </SectionHeading>
 
+        <RaiseQuoteForm parts={parts} action={createQuote} />
+
         {quotes.length === 0 && estimates.length === 0 ? (
           <EmptyState
-            title="Quoting is not built yet"
-            body="A part's Cost panel computes an estimate live from the cost engine — machine rate, cycle time, material utilisation, scrap allowance, margin — and shows its assumptions. What does not exist yet is storing that estimate or attaching it to a quote, so this list stays empty. The cost figures on a part are real; this section is a shell around them."
+            title="Nothing quoted yet"
+            body="An estimate is frozen from a part's Cost page — machine rate, cycle time, material utilisation, scrap allowance and margin stored with the price so it can be defended later. Attach one to a quote above."
             action={{ label: "Open a part's cost", href: "/parts" }}
           />
         ) : (
@@ -44,11 +63,17 @@ export default async function QuotingPage() {
                 <Table head={["Quote", "Part", "Customer", "Status", "Estimates", "Created"]}>
                   {quotes.map((q) => (
                     <tr key={q.id} className="hover:bg-raised">
-                      <Td className="text-precision">{q.quoteNumber}</Td>
+                      <Td className="text-precision">
+                        <Link href={`/quoting/${q.id}`} className="underline decoration-dotted hover:text-precision-dim">
+                          {q.quoteNumber}
+                        </Link>
+                      </Td>
                       <Td>{q.part.name}</Td>
                       <Td muted>{q.customer ?? "—"}</Td>
                       <Td>
-                        <StatusChip tone="neutral">{q.status}</StatusChip>
+                        <StatusChip tone={TONE[q.status as QuoteStatus] ?? "neutral"}>
+                          {QUOTE_STATUS_LABEL[q.status as QuoteStatus] ?? q.status}
+                        </StatusChip>
                       </Td>
                       <Td>{q.estimates.length}</Td>
                       <Td muted>{q.createdAt.toISOString().slice(0, 10)}</Td>

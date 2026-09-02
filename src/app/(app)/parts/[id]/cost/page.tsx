@@ -10,6 +10,8 @@ import { Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/componen
 import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { recordPartDisagreement } from "../disagree-actions";
+import { StoreEstimate } from "@/components/quoting/store-estimate";
+import { storeEstimate } from "@/app/(app)/quoting/actions";
 
 export default async function CostPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -22,6 +24,15 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
   // recorded, BUY genuinely cannot be evaluated and CANVAS says so.
   const suppliers = await db.supplier.findMany({ where: { organizationId: user.organizationId } });
   const comparison = compareMakeVsBuy(pkg.cost.quantity, pkg.cost, [], null);
+
+  // Estimates already frozen against this revision, and whether each is on a
+  // quote yet. Read here so the panel can show what storing actually did.
+  const stored = await db.costEstimate.findMany({
+    where: { partRevisionId: pkg.revision.revisionId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: { quote: { select: { quoteNumber: true } } },
+  });
 
   return (
     <>
@@ -52,6 +63,20 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
               </ul>
             </div>
           )}
+
+          <StoreEstimate
+            quantity={pkg.cost.quantity}
+            unitPrice={money(pkg.cost.unitPrice)}
+            warnings={pkg.cost.warnings}
+            stored={stored.map((e) => ({
+              id: e.id,
+              quantity: e.quantity,
+              unitPrice: money(e.unitPrice),
+              createdAt: e.createdAt,
+              quoteNumber: e.quote?.quoteNumber ?? null,
+            }))}
+            action={storeEstimate.bind(null, id)}
+          />
 
           <div className="grid gap-px bg-line sm:grid-cols-3">
             <Metric label="Unit cost" value={money(pkg.cost.unitCost)} sub={`at quantity ${pkg.cost.quantity}`} />
