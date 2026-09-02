@@ -50,6 +50,23 @@ export const copilotReplySchema = z.object({
   references: z.array(z.object({ kind: z.string(), id: z.string(), label: z.string() })).default([]),
   /** Things the copilot needs before it can answer properly. */
   needs: z.array(z.string()).default([]),
+  /**
+   * Things to look at. These change what is on screen and nothing else, so a
+   * wrong one wastes a click — they are validated against the part
+   * server-side and then take effect immediately.
+   */
+  sceneActions: z
+    .array(z.object({ kind: z.string(), targetId: z.string(), label: z.string() }))
+    .default([]),
+  /**
+   * Changes to the part. These do NOT take effect: they go into the
+   * AIRecommendation queue at PROPOSED and are accepted by a human on
+   * /proposals, the same path every other AI suggestion takes. The copilot
+   * gets no softer second route to the same data.
+   */
+  proposals: z
+    .array(z.object({ kind: z.string(), summary: z.string(), payload: z.unknown().optional() }))
+    .default([]),
 });
 export type CopilotReply = z.infer<typeof copilotReplySchema>;
 

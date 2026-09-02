@@ -397,7 +397,23 @@ export class DeterministicProvider implements AiProvider {
     const needs: string[] = [];
     const references: CopilotReply["references"] = [];
 
-    const say = (reply: string) => ({ reply, references, needs });
+    /*
+     * The deterministic provider proposes no CHANGES — it is a grammar parser,
+     * not a planner, and inventing one would be the failure principle 5 names.
+     *
+     * It does offer scene actions, because a context switch needs no knowledge
+     * of the part: the question says which view answers it. That makes the
+     * copilot's actions work with no API key and no network, which is the
+     * state most of CANVAS runs in.
+     */
+    const say = (reply: string, sceneActions: CopilotReply["sceneActions"] = []) => ({
+      reply,
+      references,
+      needs,
+      sceneActions,
+      proposals: [],
+    });
+    const look = (context: string, label: string) => [{ kind: "SET_CONTEXT", targetId: context, label }];
 
     if (!context.machine && /(machine|cycle|post|g-?code|spindle|travel)/.test(q)) {
       needs.push("Machine selection");
@@ -409,11 +425,17 @@ export class DeterministicProvider implements AiProvider {
         needs.push("Workholding definition");
         return say("Workholding isn't defined yet. Once you select a vise and set the stock position I can evaluate grip depth, jaw engagement and projection against the roughing load — until then anything I said about holding it would be invented.");
       }
-      return say(`Current setup uses ${context.workholding}. The Workholding panel carries the grip and engagement assessment along with the factors behind it — that's the authoritative answer, not this chat.`);
+      return say(
+        `Current setup uses ${context.workholding}. The Workholding panel carries the grip and engagement assessment along with the factors behind it — that's the authoritative answer, not this chat.`,
+        look("HOLD", "Show me the hold"),
+      );
     }
 
     if (/cheaper|cost|reduce cost|price/.test(q)) {
-      return say("Cost is computed from the assumption set in the Cost panel, not estimated here. The three levers with real leverage on a part like this are setup count, roughing strategy and material utilisation. Open Cost to see which line dominates, then change that assumption and watch the quantity breaks move.");
+      return say(
+        "Cost is computed from the assumption set in the Cost panel, not estimated here. The three levers with real leverage on a part like this are setup count, roughing strategy and material utilisation. Open Cost to see which line dominates, then change that assumption and watch the quantity breaks move.",
+        look("COST", "Show me the cost"),
+      );
     }
 
     if (/cast|forge|additive|3d print|should i machine|make it another way/.test(q)) {
@@ -425,11 +447,15 @@ export class DeterministicProvider implements AiProvider {
         context.tools?.length
           ? `Tools currently assigned: ${context.tools.join(", ")}. Tool selection is driven by the smallest internal radius in the geometry and the depth each feature needs to reach — both are shown in the Readiness panel.`
           : "No tools are assigned yet, so there's nothing to justify.",
+        look("CUT", "Show me the cut"),
       );
     }
 
     if (/metric|mm|nominal|bearing/.test(q)) {
-      return say("Nominal reasoning runs on the measurement, not on this conversation. Record the measurement in a metrology session and CANVAS will compare it against bearing, thread, dowel and stock tables and show you the candidates with their deviations. It won't change a critical dimension without you accepting it.");
+      return say(
+        "Nominal reasoning runs on the measurement, not on this conversation. Record the measurement in a metrology session and CANVAS will compare it against bearing, thread, dowel and stock tables and show you the candidates with their deviations. It won't change a critical dimension without you accepting it.",
+        look("VERIFY", "Show me verification"),
+      );
     }
 
     if (/missing|what do i need|what dimensions/.test(q)) {

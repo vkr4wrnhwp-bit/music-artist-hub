@@ -146,10 +146,19 @@ Nothing renders a specimen view. The only trace is a `specimenMode` boolean and 
 
 > 18. COPILOT STRUCTURED MUTATIONS
 
-The copilot's reply contract is `{reply, references, needs}` — text plus two string lists. There is no proposed-mutation channel, nothing applies a copilot suggestion, and the client renders `references` as a comma-joined line of plain text rather than something that selects geometry or changes context. Structured proposals exist elsewhere (AIRecommendation → accept on /proposals) but the copilot cannot write one.
+Built as **two channels, split by what happens if the model is wrong.**
 
-`src/lib/ai/provider.ts:47-53 (copilotReplySchema); src/app/api/copilot/route.ts only persists ConversationMessage rows; src/components/workspace/copilot.tsx:126 renders references as `m.references.map(r => r.label).join(", ")`.`
+**Scene actions** change what is on screen and nothing else — select a feature, switch context, focus an operation — so a wrong one wastes a click. They take effect immediately, and `references` is no longer a comma-joined caption.
 
+**Proposals** change the part, so they do not take effect at all. They are written into the `AIRecommendation` queue at PROPOSED and accepted by a human on `/proposals`, which is the path every other AI suggestion already takes. The copilot gets no second, softer route to the same data — principle 3: the model may suggest, and may not certify. A test asserts the endpoint writes only a proposal and its own conversation, never part data, and never at ACCEPTED.
+
+Every target is validated against the package the **server** built. A model can name any id; one that is not on this part is dropped rather than handed to the client as something to press — which mattered less when a reference was a caption than it does now that it is a control. Drops are reported rather than silent, so an answer never refers to a button that is not on screen. A feature proposal is held to the same field spec the hand-entry form and the accept path use, so the copilot cannot introduce a feature through a third door in a shape the engines cannot read.
+
+The deterministic provider proposes no changes — it is a grammar parser, not a planner — but it does offer scene actions, because a context switch needs no knowledge of the part. The copilot's actions therefore work with no API key and no network, which is the state most of CANVAS runs in.
+
+**A defect found by running it, not by a type.** `copilot-actions.ts` validated a requested context against `CONTEXTS` imported from `interaction.tsx`, which is a `"use client"` module. Under the server bundle a client module resolves to a client-reference proxy, so `CONTEXTS.includes` is not a function and the endpoint threw — after typechecking perfectly. The vocabulary moved to `lib/workspace-contexts.ts`, which has no boundary, and a test now walks `src/lib` and `src/app/api` for any import of a `"use client"` module.
+
+`src/lib/engines/copilot-actions.ts` (new), `src/lib/workspace-contexts.ts` (new), `src/lib/ai/{provider,deterministic}.ts`, `src/app/api/copilot/route.ts`, `src/components/workspace/{copilot,interaction}.tsx`, `tests/engines/copilot-actions.test.ts` (22 tests).
 ### When the mating component is a bearing, allow the bearing number to be supplied by uploading a photo, not only by typing it
 
 > Bearing number? Allow: TYPE NUMBER UPLOAD PHOTO UNKNOWN

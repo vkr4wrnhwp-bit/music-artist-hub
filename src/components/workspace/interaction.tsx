@@ -21,17 +21,18 @@ import type { ReactNode } from "react";
  * this module to a particular feature, fixture or operation.
  */
 
-/** What the user is currently trying to decide. Views onto one object. */
-export const CONTEXTS = ["PART", "HOLD", "CUT", "VERIFY", "COST"] as const;
-export type Context = (typeof CONTEXTS)[number];
-
-export const CONTEXT_LABEL: Record<Context, string> = {
-  PART: "Part",
-  HOLD: "Hold",
-  CUT: "Cut",
-  VERIFY: "Verify",
-  COST: "Cost",
-};
+/*
+ * The context vocabulary lives in lib/workspace-contexts.ts, which has no
+ * "use client" boundary, because server code validates against it too — the
+ * copilot endpoint checks a requested context against this list. Importing it
+ * from here typechecks and then fails at runtime, because under the server
+ * bundle a client module resolves to a client-reference proxy and
+ * `CONTEXTS.includes` is not a function.
+ *
+ * Re-exported so nothing that already imports it from here has to move.
+ */
+import { CONTEXTS, CONTEXT_LABEL, type Context } from "@/lib/workspace-contexts";
+export { CONTEXTS, CONTEXT_LABEL, type Context };
 
 /**
  * The state of the physical component at a point in the process. A component

@@ -2,6 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { buttonClass } from "@/components/ui";
+import { useInteraction, type Context } from "@/components/workspace/interaction";
+import type { SceneAction } from "@/lib/engines/copilot-actions";
 
 /**
  * CANVAS Copilot.
@@ -17,6 +19,18 @@ interface Message {
   content: string;
   needs?: string[];
   references?: { kind: string; id: string; label: string }[];
+  /**
+   * Things to look at. These change what is on screen and nothing else, which
+   * is why they are pressable — a wrong one wastes a click.
+   */
+  sceneActions?: SceneAction[];
+  /**
+   * Changes the copilot put forward. These have NOT been applied: they are in
+   * the proposals queue waiting for a person. The panel links there rather
+   * than offering an accept, because accepting an AI suggestion is a decision
+   * with its own page and its own record.
+   */
+  proposals?: { kind: string; summary: string }[];
 }
 
 const SUGGESTED = [
@@ -41,6 +55,27 @@ export function Copilot({
   const [input, setInput] = useState("");
   const [pending, start] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const interaction = useInteraction();
+
+  /*
+   * A scene action changes what is on screen and nothing else. The target was
+   * checked against this part server-side before it reached here, so this only
+   * has to dispatch it — and the switch is exhaustive so a new action kind
+   * cannot fall through into doing nothing silently.
+   */
+  const runSceneAction = (a: SceneAction) => {
+    switch (a.kind) {
+      case "SELECT_FEATURE":
+        interaction.select(a.targetId);
+        return;
+      case "SET_CONTEXT":
+        interaction.setContext(a.targetId as Context);
+        return;
+      case "FOCUS_OPERATION":
+        interaction.setOperation(a.targetId);
+        return;
+    }
+  };
 
   const send = (text: string) => {
     const question = text.trim();
@@ -64,7 +99,14 @@ export function Copilot({
       const data = await res.json();
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: data.reply, needs: data.needs, references: data.references },
+        {
+          role: "assistant",
+          content: data.reply,
+          needs: data.needs,
+          references: data.references,
+          sceneActions: data.sceneActions,
+          proposals: data.proposals,
+        },
       ]);
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 1e6, behavior: "smooth" }));
     });
@@ -119,6 +161,37 @@ export function Copilot({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                  {m.sceneActions && m.sceneActions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {m.sceneActions.map((a) => (
+                        <button
+                          key={`${a.kind}-${a.targetId}`}
+                          type="button"
+                          onClick={() => runSceneAction(a)}
+                          className="border border-precision/50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-precision-dim hover:bg-raised"
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {m.proposals && m.proposals.length > 0 && (
+                    <div className="mt-2 border border-review/30 px-2 py-1.5">
+                      <p className="instrument-label text-review">
+                        {m.proposals.length} change{m.proposals.length === 1 ? "" : "s"} put forward — not applied
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {m.proposals.map((p) => (
+                          <li key={p.summary} className="text-[11.5px] leading-relaxed text-muted">
+                            — {p.summary}
+                          </li>
+                        ))}
+                      </ul>
+                      <a href={`/parts/${partId}/proposals`} className="tech-label mt-1 inline-block text-precision-dim underline decoration-dotted">
+                        Review them on the proposals page
+                      </a>
                     </div>
                   )}
                   {m.references && m.references.length > 0 && (
