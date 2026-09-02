@@ -20,6 +20,7 @@ const createSchema = z.object({
   measuredValue: z.number().finite(),
   deviceId: z.string().optional().nullable(),
   featureId: z.string().optional().nullable(),
+  datumId: z.string().optional().nullable(),
   context: z.enum(["BORE", "SHAFT", "HOLE", "THREAD", "THICKNESS", "GENERAL"]).default("GENERAL"),
   repeatCount: z.number().int().min(1).max(20).default(1),
   wearExpected: z.boolean().default(false),
@@ -44,6 +45,33 @@ export async function POST(request: Request) {
     ? await db.metrologyDevice.findFirst({ where: { id: input.deviceId, organizationId: user.organizationId } })
     : null;
 
+  /**
+   * What this dimension was measured FROM.
+   *
+   * The schema has carried this field, and the sentence explaining why it
+   * matters, since it was written: a number without it is not reproducible,
+   * because the next person measures from a different edge and gets a
+   * different answer that is equally defensible. Nothing ever wrote it. Every
+   * measurement in the system is an isolated number.
+   *
+   * It must be an ESTABLISHED datum on this session's own revision. Accepting
+   * a datum is a human act; measuring from a proposal CANVAS has not had
+   * agreed records a reference that does not exist yet. Resolved against the
+   * revision rather than trusted, so a request cannot name another part's
+   * datum — or another shop's.
+   */
+  const datum = input.datumId
+    ? await db.datum.findFirst({
+        where: { id: input.datumId, partRevisionId: session.partRevisionId, acceptedByUser: true },
+      })
+    : null;
+  if (input.datumId && !datum) {
+    return NextResponse.json(
+      { error: "That datum is not an established datum on this revision." },
+      { status: 400 },
+    );
+  }
+
   // Uncertainty comes from the instrument actually used. Repeated readings
   // reduce random error but never below the instrument's own resolution.
   const base = device?.uncertainty ?? DEVICE_UNCERTAINTY[(device?.deviceType as MetrologyDeviceType) ?? "DIGITAL_CALIPER"] ?? 0.002;
@@ -61,6 +89,7 @@ export async function POST(request: Request) {
       sessionId: input.sessionId,
       featureId: input.featureId ?? null,
       deviceId: device?.id ?? null,
+      datumId: datum?.id ?? null,
       label: input.label,
       measuredValue: input.measuredValue,
       units: "IN",

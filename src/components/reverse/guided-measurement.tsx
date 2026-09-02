@@ -26,6 +26,13 @@ interface FeatureRef {
   kind: string;
 }
 
+interface DatumRef {
+  id: string;
+  letter: string;
+  system: string;
+  description: string;
+}
+
 interface Photo {
   id: string;
   url: string;
@@ -49,6 +56,8 @@ interface MeasurementRow {
   resolution: string;
   resolvedValue: number | null;
   feature: string | null;
+  /** The datum letter this reading was taken from, or null if none was recorded. */
+  datum: string | null;
 }
 
 const CONTEXTS = [
@@ -64,12 +73,14 @@ export function GuidedMeasurement({
   sessionId,
   devices,
   features,
+  datums,
   photos,
   measurements,
 }: {
   sessionId: string;
   devices: Device[];
   features: FeatureRef[];
+  datums: DatumRef[];
   photos: Photo[];
   measurements: MeasurementRow[];
 }) {
@@ -93,6 +104,7 @@ export function GuidedMeasurement({
           measuredValue: Number(formData.get("value")),
           deviceId: String(formData.get("deviceId")) || null,
           featureId: String(formData.get("featureId")) || null,
+          datumId: String(formData.get("datumId")) || null,
           context,
           repeatCount: Number(formData.get("repeatCount") || 1),
           wearExpected: formData.get("wear") === "on",
@@ -194,6 +206,29 @@ export function GuidedMeasurement({
               </select>
             </Field>
 
+            {/* What the reading was taken FROM. A dimension recorded without
+                it is not reproducible — the next person measures from a
+                different edge and gets a different answer that is equally
+                defensible. Only established datums are offered: accepting one
+                is a human act, and a proposal nobody has agreed to is not a
+                reference. */}
+            <Field label="Measured from">
+              <select name="datumId" defaultValue="" className={inputClass}>
+                <option value="">Not recorded — this reading is not reproducible</option>
+                {datums.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    Datum {d.letter} ({d.system.toLowerCase()}) — {d.description}
+                  </option>
+                ))}
+              </select>
+              {datums.length === 0 && (
+                <p className="mt-1 text-[11px] leading-snug text-review">
+                  No datum has been established on this revision yet. Establish one above and readings can say what
+                  they were taken from.
+                </p>
+              )}
+            </Field>
+
             <label className="flex items-center gap-2 text-[12px] text-platinum-dim">
               <input type="checkbox" name="wear" className="accent-[color:var(--c-blue)]" />
               Surface is worn — widen the nominal search window
@@ -237,6 +272,12 @@ export function GuidedMeasurement({
                     <p className="font-mono text-[12.5px] text-platinum">{m.label}</p>
                     <p className="tech-label">
                       {m.context.toLowerCase()} · {m.device ?? "instrument not specified"} · ±{m.uncertainty.toFixed(4)}″
+                      {" · "}
+                      {m.datum ? (
+                        `from datum ${m.datum}`
+                      ) : (
+                        <span className="text-review">no datum recorded</span>
+                      )}
                       {m.feature && ` · ${m.feature}`}
                     </p>
                   </div>

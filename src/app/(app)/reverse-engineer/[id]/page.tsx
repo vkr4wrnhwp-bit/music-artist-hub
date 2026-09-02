@@ -25,7 +25,7 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
     where: { id, partRevision: { part: { organizationId: user.organizationId } } },
     include: {
       partRevision: { include: { part: true, features: { orderBy: { orderIndex: "asc" } } } },
-      measurements: { orderBy: { createdAt: "asc" }, include: { device: true, feature: true } },
+      measurements: { orderBy: { createdAt: "asc" }, include: { device: true, feature: true, datum: true } },
     },
   });
   if (!session) notFound();
@@ -189,6 +189,9 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
               deviceType: d.deviceType,
             }))}
             features={session.partRevision.features.map((f) => ({ id: f.id, label: f.label, kind: f.kind }))}
+            datums={datums
+              .filter((d) => d.acceptedByUser)
+              .map((d) => ({ id: d.id, letter: d.letter, system: d.system, description: d.description }))}
             photos={photos.map((p) => ({ id: p.id, url: `/api/assets/${encodeURIComponent(p.storageKey)}`, view: p.viewLabel ?? "—", filename: p.filename }))}
             measurements={session.measurements.map((m) => ({
               id: m.id,
@@ -206,6 +209,7 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
               resolution: m.resolution,
               resolvedValue: m.resolvedValue,
               feature: m.feature?.label ?? null,
+              datum: m.datum?.letter ?? null,
             }))}
           />
 
