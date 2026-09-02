@@ -666,6 +666,19 @@ model Setup {
   datumNote      String?
 
   // Setup geometry that the workholding engine reasons over.
+  //
+  // WHERE THESE NUMBERS CAME FROM decides what the holding margin means.
+  // PLANNED is the approach generator's intent; MEASURED is what a machinist
+  // actually set at the machine. The engine's arithmetic is identical either
+  // way, and the claim it supports is not: a margin computed from a planned
+  // grip describes a setup nobody has built yet.
+  //
+  // Null means neither has been established — the values are absent, not
+  // assumed, and the gate says so.
+  geometrySource     String?   // PLANNED | MEASURED
+  geometryRecordedBy String?
+  geometryRecordedAt DateTime?
+
   gripDepth       Float?
   gripLength      Float?
   stockProjection Float?

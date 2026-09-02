@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { buildPackage } from "@/lib/package";
 import { RISK_LABEL } from "@/lib/engines/workholding";
 import { ShowCalculation, MissingInputs } from "@/components/show-calculation";
@@ -13,8 +14,8 @@ import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeadin
 import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { recordPartDisagreement } from "../disagree-actions";
-import { recordJawAxis } from "./jaw-axis-actions";
-import { JawAxisField } from "@/components/jaw-axis";
+import { recordSetupGeometry } from "./setup-actions";
+import { SetupGeometryForm } from "@/components/setup-geometry";
 import { observationsForScope } from "@/lib/job-knowledge";
 import { PriorObservations } from "@/components/jobs/prior-observations";
 
@@ -52,6 +53,13 @@ export default async function SetupsPage(props: {
   const jobs = await comparableJobs(user.organizationId);
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
+
+  // The shop's own machines and workholding, so the setup can be pointed at
+  // what it is actually run on rather than at whatever the plan chose.
+  const [machines, devices] = await Promise.all([
+    db.machine.findMany({ where: { organizationId: user.organizationId }, orderBy: { model: "asc" } }),
+    db.workholdingDevice.findMany({ where: { organizationId: user.organizationId }, orderBy: { description: "asc" } }),
+  ]);
 
   /*
    * What earlier jobs in this exact scope actually did. Read beside the
@@ -136,13 +144,38 @@ export default async function SetupsPage(props: {
                         peakForceLbf={a?.forceEstimate.ok ? a.forceEstimate.peakTangential : null}
                         governingMode={a?.holdingMargin?.governingMode ?? null}
                       />
-                      <JawAxisField setupId={s.id} value={s.jawAxis} action={recordJawAxis.bind(null, id)} />
+                      <SetupGeometryForm
+                        setup={{
+                          id: s.id,
+                          machineId: s.machineId,
+                          workholdingId: s.workholdingId,
+                          gripDepth: s.gripDepth,
+                          gripLength: s.gripLength,
+                          stockProjection: s.stockProjection,
+                          parallelHeight: s.parallelHeight,
+                          jawAxis: s.jawAxis,
+                          jawSurface: s.jawSurface,
+                          workOffset: s.workOffset,
+                          datumNote: s.datumNote,
+                          geometrySource: s.geometrySource,
+                          geometryRecordedBy: s.geometryRecordedBy,
+                          geometryRecordedAt: s.geometryRecordedAt,
+                        }}
+                        machines={machines.map((m) => ({ id: m.id, label: `${m.manufacturer} ${m.model}` }))}
+                        devices={devices.map((d) => ({ id: d.id, label: d.description }))}
+                        action={recordSetupGeometry.bind(null, id)}
+                      />
                     </div>
                     <div>
                       {a?.holdingMargin?.margin != null ? (
                         <p className="mb-2">
                           <span className="font-mono text-[26px] text-white tabular-nums">{a.holdingMargin.margin.toFixed(2)}×</span>
                           <span className="ml-2 text-[11.5px] text-muted">holding margin against a 2.00× target · {a.holdingMargin.governingMode === "TIPPING" ? "governed by rolling out of the jaws" : "governed by sliding in the jaws"} · DEVELOPMENT ANALYSIS</span>
+                          {s.geometrySource !== "MEASURED" && (
+                            <span className="mt-1 block text-[11.5px] leading-relaxed text-review">
+                              Computed from {s.geometrySource === "PLANNED" ? "the planned grip and projection, not a measurement" : "grip and projection of unrecorded origin"} — this describes a setup nobody has confirmed building. Record the setup as built, below.
+                            </span>
+                          )}
                         </p>
                       ) : (
                         <p className="mb-2 text-[12.5px] text-review">

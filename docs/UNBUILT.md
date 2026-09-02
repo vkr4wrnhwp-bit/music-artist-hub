@@ -68,6 +68,32 @@ running it anyway", so the two kinds of shortfall are now separated:
   accept: a single click standing for several separate engineering judgements is
   the failure the split exists to avoid. The gate is still REVIEW afterwards.
 
+### A machinist could not record what they actually set
+
+`Setup.gripDepth`, `gripLength`, `stockProjection`, `parallelHeight`, `machineId`
+and `workholdingId` were written only by the approach generator on the Machinist
+page. There was no edit form anywhere. So a machinist who planned 0.250" of grip
+and actually set 0.400" had no way to say so — while the holding margin, the
+jaw-clearance check, the fixture model in the simulator and the release snapshot
+were all computed from the number they could not correct.
+
+The setups page now carries a **Setup as built** form for every setup: machine,
+workholding, grip depth and length, stock proud of the jaws, parallel height,
+which axis the jaws close on, jaw surface, work offset and datum note.
+
+The part that matters is provenance. `Setup.geometrySource` records PLANNED (the
+generator's intent) or MEASURED (what a machinist set), with who recorded it and
+when. The arithmetic downstream is identical either way and what it is entitled
+to claim is not, so the caveat sits **beside the margin figure** rather than only
+inside the form: *"Computed from the planned grip and projection, not a
+measurement — this describes a setup nobody has confirmed building."* Existing
+rows are deliberately not backfilled to PLANNED; inventing a provenance for them
+would be exactly the fabrication the column exists to prevent.
+
+A blank field stays blank. It does not fall back to the planned value and does
+not become zero — the workholding engine already names an input it does not
+have, and a zero would be a measurement nobody took.
+
 ### Generating an NC program made a part read as less ready
 
 The `nc` gate was `blocking: true` when a program existed (REVIEW) and
@@ -268,7 +294,7 @@ Built, and a worse problem than the gap was fixed alongside it.
 
 **A declared gap closed as a side effect.** The pre-flight review listed "Whether a flagged lateral rapid actually crosses the jaw — needs the jaw footprint as geometry" under what it could not check. With the axis recorded there is now a footprint, so a rapid well clear of the vise is no longer flagged and one that passes over a jaw is named as such. Setups without an axis are named individually in `checksSkipped` rather than the whole check being declared skipped.
 
-`src/lib/sim/fixture.ts` (new), `src/lib/sim/stock-removal.ts`, `src/lib/engines/review.ts`, `src/components/workspace/{workspace,sim-transport}.tsx`, `src/components/jaw-axis.tsx`, `src/app/(app)/parts/[id]/setups/jaw-axis-actions.ts`, `prisma/schema.prisma` with both migration trees, `tests/engines/fixture-collision.test.ts` (20 tests).
+`src/lib/sim/fixture.ts` (new), `src/lib/sim/stock-removal.ts`, `src/lib/engines/review.ts`, `src/components/workspace/{workspace,sim-transport}.tsx`, `src/components/setup-geometry.tsx`, `src/app/(app)/parts/[id]/setups/setup-actions.ts`, `prisma/schema.prisma` with both migration trees, `tests/engines/fixture-collision.test.ts` (20 tests).
 ### All text and status indicators must pass WCAG AAA contrast
 
 > **Accessibility & Contrast:** All text and status indicators must pass WCAG AAA contrast standards.

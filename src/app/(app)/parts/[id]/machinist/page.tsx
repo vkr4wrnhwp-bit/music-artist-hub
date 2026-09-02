@@ -174,6 +174,10 @@ export default async function MachinistPage(props: {
           gripDepth: s.gripDepth,
           gripLength: s.gripLength,
           stockProjection: s.stockProjection,
+          // The generator's intent, marked as such. A machinist recording
+          // what they actually set flips this to MEASURED, and the holding
+          // margin says which of the two it was computed from.
+          geometrySource: "PLANNED",
           notes: s.rationale,
         },
       });
