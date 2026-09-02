@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -6,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
 import { TopBar } from "@/components/nav";
 import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { derivePlan, NEVER_DERIVABLE, METHOD_NOT_ASSIGNED } from "@/lib/engines/inspection-plan";
 
 export default async function InspectionPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -19,6 +21,11 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
   });
 
   const unmethoded = revision.features.filter((f) => f.critical && !f.inspectionMethod);
+
+  // What a plan derived from this revision right now would contain, and what it
+  // would not. Shown before the button is pressed, so the shop is not handed a
+  // sheet and left to work out what is missing from it.
+  const derived = derivePlan(revision.features);
 
   const sessions = await db.measurementSession.findMany({
     where: { partRevisionId: revision.revisionId, mode: "INSPECTION" },
@@ -50,6 +57,64 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
       reason: "First-article inspection session started",
     });
     redirect(`/parts/${id}/inspection/session/${session.id}`);
+  }
+
+  async function createPlan() {
+    "use server";
+    const currentUser = await requireWrite();
+    const rev = await loadRevision(currentUser.organizationId, id);
+    if (!rev) notFound();
+
+    // Derived server-side from the revision as it is now, not from anything the
+    // form posted. A nominal or a tolerance arriving in a request body is a
+    // number the browser chose.
+    const plan = derivePlan(rev.features);
+    if (plan.items.length === 0) return;
+
+    // One plan per revision. A second would give the readiness gate two
+    // answers and the inspector two sheets.
+    const existing = await db.inspectionPlan.findFirst({ where: { partRevisionId: rev.revisionId }, select: { id: true } });
+    if (existing) return;
+
+    const created = await db.inspectionPlan.create({
+      data: {
+        partRevisionId: rev.revisionId,
+        name: `First article — Rev ${rev.revision}`,
+        samplingPlan: "FIRST_ARTICLE",
+        items: {
+          create: plan.items.map((i) => ({
+            featureId: i.featureId,
+            label: i.label,
+            nominal: i.nominal,
+            plusTol: i.plusTol,
+            minusTol: i.minusTol,
+            method: i.method,
+            deviceType: i.deviceType,
+            sequence: i.sequence,
+          })),
+        },
+      },
+    });
+
+    await audit({
+      organizationId: currentUser.organizationId,
+      userId: currentUser.id,
+      entityType: "InspectionPlan",
+      entityId: created.id,
+      action: "CREATE",
+      actorType: "HUMAN",
+      // The gaps are recorded with the creation. A plan that covered nine of
+      // twelve characteristics is a different document from one that covered
+      // all twelve, and the audit is where that survives.
+      reason:
+        `Inspection plan derived from ${plan.items.length} feature characteristic${plan.items.length === 1 ? "" : "s"}.` +
+        (plan.uncovered.length > 0
+          ? ` ${plan.uncovered.length} could not be derived: ${plan.uncovered.map((u) => u.label).join(", ")}.`
+          : "") +
+        " Relationships between features — position, spacing, form and orientation — are never derived and are not in it.",
+    });
+
+    revalidatePath(`/parts/${id}`, "layout");
   }
 
   return (
@@ -125,10 +190,78 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
               the physical evidence behind the inspection gates. */}
           <div data-guide-target="inspection-plan" className="space-y-6">
           {plans.length === 0 ? (
-            <EmptyState
+            <Panel
               title="No inspection plan"
-              body="Readiness treats a missing inspection plan as a blocking gap for a critical component. Create one before the first article runs, not after it fails."
-            />
+              meta={
+                derived.items.length > 0 ? (
+                  <form action={createPlan}>
+                    <Button type="submit" variant="primary" size="sm">
+                      Derive plan from {derived.items.length} characteristic{derived.items.length === 1 ? "" : "s"}
+                    </Button>
+                  </form>
+                ) : undefined
+              }
+            >
+              <p className="max-w-2xl text-[12.5px] leading-relaxed text-platinum">
+                Readiness treats a missing inspection plan as a blocking gap for a critical component. Create one before
+                the first article runs, not after it fails.
+              </p>
+
+              {derived.items.length === 0 ? (
+                <Notice tone="review" title="Nothing on this revision can be derived into a plan">
+                  A characteristic needs a nominal and a tolerance band. Nothing here has both — add tolerances to the
+                  features that carry them, and the plan can be derived from the part rather than typed twice.
+                </Notice>
+              ) : (
+                <>
+                  <p className="mt-4 text-[12px] leading-relaxed text-muted">
+                    Derived from the part, so the nominals cannot drift from the geometry. Each row takes its instrument
+                    from the method assigned on the feature.
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {derived.items.map((i) => (
+                      <li key={i.featureId} className="flex flex-wrap items-baseline gap-x-3 text-[12.5px] text-platinum">
+                        <span className="font-mono text-[11.5px] text-muted tabular-nums">{i.sequence}</span>
+                        <span>{i.label}</span>
+                        <span className="font-mono text-[11.5px] text-muted tabular-nums">
+                          {i.nominal.toFixed(4)} +{i.plusTol.toFixed(4)}/−{i.minusTol.toFixed(4)}
+                        </span>
+                        <span className={i.method === METHOD_NOT_ASSIGNED ? "text-review" : "text-muted"}>{i.method}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {derived.uncovered.length > 0 && (
+                <div className="mt-5">
+                  <SectionHeading>What it will not cover on this part</SectionHeading>
+                  <ul className="mt-2 space-y-1.5">
+                    {derived.uncovered.map((u) => (
+                      <li key={u.label} className="text-[12px] leading-relaxed text-muted">
+                        <span className="text-platinum">{u.label}</span> — {u.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="mt-5">
+                <SectionHeading>What a derived plan never covers</SectionHeading>
+                <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted">
+                  These are relationships between features rather than features, and CANVAS holds features. A derived
+                  plan is a starting point — add these rows by hand before the part ships.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {NEVER_DERIVABLE.map((n) => (
+                    <li key={n} className="flex gap-2 text-[12px] leading-relaxed text-muted">
+                      <span className="text-precision">—</span>
+                      <span>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Panel>
           ) : (
             plans.map((plan) => (
               <Panel
