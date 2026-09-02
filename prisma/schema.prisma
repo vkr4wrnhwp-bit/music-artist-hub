@@ -539,7 +539,7 @@ model UploadedAsset {
   organizationId String
   partId         String?
   revision       String?
-  kind           String // PHOTO | DRAWING | CAD | SCAN | OTHER
+  kind           String // PHOTO | DRAWING | CAD | SCAN | SETUP_PHOTO | OTHER
   filename       String
   mimeType       String
   size           Int
@@ -551,16 +551,23 @@ model UploadedAsset {
   extractedMetadata String?
   // Reverse engineering photo set orientation, when applicable.
   viewLabel      String?
+  // The setup this photograph records, when it is a shop-floor setup photo.
+  // SetNull rather than Cascade: re-planning a setup must not destroy the
+  // photograph of how the job was actually held. It keeps partId and stays
+  // reachable from the part.
+  setupId        String?
   scaleReference String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   part         Part?        @relation(fields: [partId], references: [id], onDelete: Cascade)
+  setup        Setup?       @relation(fields: [setupId], references: [id], onDelete: SetNull)
   drawings     Drawing[]
   measurements Measurement[]
 
   @@index([organizationId])
   @@index([partId])
+  @@index([setupId])
 }
 
 /* ================================================================== */
@@ -672,6 +679,7 @@ model Setup {
   operations   Operation[]
   jaws         Jaw[]
   simulations  Simulation[]
+  photos       UploadedAsset[]
 
   @@unique([partRevisionId, sequence])
   @@index([partRevisionId])

@@ -21,14 +21,33 @@ export async function POST(request: Request) {
   if (files.length === 0) return NextResponse.json({ error: "No files supplied." }, { status: 400 });
   if (files.length > 24) return NextResponse.json({ error: "Maximum 24 files per upload." }, { status: 400 });
 
-  const kind = String(form.get("kind") ?? "OTHER");
-  const partId = form.get("partId") ? String(form.get("partId")) : null;
+  const setupIdRaw = form.get("setupId") ? String(form.get("setupId")) : null;
+  const kind = setupIdRaw ? "SETUP_PHOTO" : String(form.get("kind") ?? "OTHER");
+  const postedPartId = form.get("partId") ? String(form.get("partId")) : null;
   const viewLabel = form.get("viewLabel") ? String(form.get("viewLabel")) : null;
   const scaleReference = form.get("scaleReference") ? String(form.get("scaleReference")) : null;
 
-  // A part id from the client is only honoured after confirming it belongs to
-  // this organisation.
-  if (partId) {
+  /*
+   * A setup photograph is pinned to a setup, and Setup carries no
+   * organizationId of its own — it is reached through its revision's part. So
+   * the id is resolved along that chain from the SESSION's organisation, and
+   * the part id is then taken FROM THE RESOLVED ROW rather than from the
+   * form. Honouring a posted part id here would let a caller pair another
+   * shop's setup with a part of their own.
+   */
+  let setupId: string | null = null;
+  let partId = postedPartId;
+  if (setupIdRaw) {
+    const owned = await db.setup.findFirst({
+      where: { id: setupIdRaw, partRevision: { part: { organizationId: user.organizationId } } },
+      select: { id: true, partRevision: { select: { partId: true } } },
+    });
+    if (!owned) return NextResponse.json({ error: "Setup not found." }, { status: 404 });
+    setupId = owned.id;
+    partId = owned.partRevision.partId;
+  } else if (partId) {
+    // A part id from the client is only honoured after confirming it belongs
+    // to this organisation.
     const owned = await db.part.findFirst({ where: { id: partId, organizationId: user.organizationId }, select: { id: true } });
     if (!owned) return NextResponse.json({ error: "Part not found." }, { status: 404 });
   }
@@ -37,6 +56,12 @@ export async function POST(request: Request) {
   const created: string[] = [];
 
   for (const file of files) {
+    // A setup photograph is a photograph. validateUpload accepts STEP and
+    // octet-stream, which are not pictures of a vise.
+    if (setupId && !file.type.startsWith("image/")) {
+      errors.push(`${file.name}: a setup photograph must be an image, not ${file.type || "an unnamed type"}.`);
+      continue;
+    }
     const problem = validateUpload(file);
     if (problem) {
       errors.push(problem);
@@ -49,6 +74,7 @@ export async function POST(request: Request) {
       data: {
         organizationId: user.organizationId,
         partId,
+        setupId,
         kind,
         filename: file.name,
         mimeType: file.type || "application/octet-stream",
@@ -72,7 +98,7 @@ export async function POST(request: Request) {
       action: "CREATE",
       actorType: "HUMAN",
       newValue: file.name,
-      reason: `Uploaded as ${kind}`,
+      reason: setupId ? "Setup photograph recorded at the machine" : `Uploaded as ${kind}`,
     });
   }
 

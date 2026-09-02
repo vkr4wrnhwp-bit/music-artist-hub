@@ -24,6 +24,8 @@ four items done and one missing is not 80% done; the missing one is missing.
 
 ## Closed in this pass
 
+- **Setup photographs on the shop-floor tablet** — a record of how the job was held, pinned to the setup
+- **Provenance deep dive** — the badge opens; instrument/uncertainty/shop-evidence remain honestly absent
 - **NC upload provenance: encoding, line endings and controller family** — and the CR-only parse bug they exposed
 - **Every major recommendation supports WHY / CHANGE / I DISAGREE** — mounted on seven surfaces
 - **SHOW ME on a review finding updates the 3D scene** — `f0c8ab2`
@@ -223,13 +225,23 @@ table with their measured ratio and the reason, and fails if either drifts
 or quietly reaches AAA without being promoted — so CI states the shortfall
 rather than reporting green over a palette that is not AAA.
 
-### Shop-Floor Machinist Mode focused on setup photos and probing routines
+### Shop-Floor Machinist Mode — probing routines
 
-> **Shop-Floor Machinist Mode (Role-Based UI):** A touch-optimized, high-contrast tablet view focusing on setup photos, tool projection, probing routines, and digital sign-offs.
+> **Shop-Floor Machinist Mode (Role-Based UI):** A touch-optimized, high-contrast tablet view focusing on setup photos and probing routines
 
-Two of the four named focuses landed (tool projection/stickout at :270 and :306, digital sign-off at :375-421, 48px touch targets). The other two did not. Setup photos: the tablet page renders no image at all — `grep -ni 'img|Image|asset|photo'` over the file returns nothing — even though `Asset.kind` already carries a PHOTO value in the schema. Probing routines: section 3 shows generic Z0/parallels advice and states outright "A stored probing routine with per-feature expected values does not exist for this setup"; there is no probing-routine model anywhere (schema has only two `probe Boolean` capability flags on machines).
+Setup photographs are built. Probing is not, and it is the harder half.
 
-``grep -ni 'img|Image|asset|photo' 'src/app/(app)/parts/[id]/tablet/page.tsx'` returns nothing; src/app/(app)/parts/[id]/tablet/page.tsx:343; prisma/schema.prisma has no probing-routine model (`grep -ni probe` hits only lines 157 and 1482, both capability booleans)`
+A probing routine is executable machine motion — a Renishaw or Haas macro
+that drives a spindle-mounted probe at a surface. Emitting one means the
+same chain executable NC goes through: post, verify, gate, human approval.
+It cannot be a text box that prints G-code, and CANVAS holds no probe data
+today: no probe in the tool crib vocabulary, no stylus length or ruby
+diameter, no probing cycle in the CAM engine, and no record of whether the
+machine has a probe at all.
+
+The honest first step is the shop inventory — does this machine have a
+probe, which one, what stylus — which is a metrology-device question, not a
+toolpath one.
 
 ### View Environment must expose real functional controls for section-view fill and annotation visibility
 

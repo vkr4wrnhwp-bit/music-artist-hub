@@ -6,6 +6,8 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { TopBar } from "@/components/nav";
 import { DevLabel, StatusChip } from "@/components/ui";
+import { SetupPhotoUpload } from "@/components/tablet/setup-photos";
+import { storageIsEphemeral } from "@/lib/storage";
 
 /**
  * MACHINIST TABLET VIEW
@@ -63,6 +65,25 @@ export default async function TabletPage(props: {
         include: { user: true },
       })
     : [];
+  /* ---------------- How this setup was actually built ---------------- */
+  const setupPhotos = setup
+    ? await db.uploadedAsset.findMany({
+        where: { organizationId: user.organizationId, setupId: setup.id },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+      })
+    : [];
+  // `uploadedBy` is a bare column with no relation, so the names are looked up
+  // separately rather than joined.
+  const photoUploaders = new Map(
+    (
+      await db.user.findMany({
+        where: { organizationId: user.organizationId, id: { in: [...new Set(setupPhotos.map((ph) => ph.uploadedBy))] } },
+        select: { id: true, name: true },
+      })
+    ).map((u) => [u.id, u.name]),
+  );
+
   const sectionState = new Map<string, { done: boolean; by: string; atIso: string }>();
   for (const e of checklistEntries) {
     if (!e.field) continue;
@@ -288,6 +309,41 @@ export default async function TabletPage(props: {
                 {setup.datumNote && (
                   <p className="border-t border-line px-4 py-3 text-[13px] leading-relaxed text-platinum-dim">{setup.datumNote}</p>
                 )}
+                {/* A photograph of how this setup was built. Which parallels,
+                    which stop, which way the stock faced — that knowledge
+                    leaves with the person who ran it. */}
+                <div className="border-t border-line px-4 py-3">
+                  <p className="instrument-label mb-2">How this setup was built</p>
+                  {setupPhotos.length > 0 && (
+                    <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {setupPhotos.map((ph) => (
+                        <figure key={ph.id} className="m-0 border border-line-strong">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={"/api/assets/" + encodeURIComponent(ph.storageKey)}
+                            alt={"Setup photograph " + ph.filename}
+                            className="block aspect-square w-full object-cover"
+                          />
+                          <figcaption className="border-t border-line px-1.5 py-1 font-mono text-[9.5px] text-muted tabular-nums">
+                            {photoUploaders.get(ph.uploadedBy) ?? "unknown"} ·{" "}
+                            {ph.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                          </figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  )}
+                  <SetupPhotoUpload setupId={setup.id} />
+                  <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                    A photograph is a record of how this setup was built. It is not verification that it is correct,
+                    and it clears no gate.
+                  </p>
+                  {storageIsEphemeral && (
+                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-review">
+                      Storage on this deployment is ephemeral — photographs are lost on the next redeploy. Keep
+                      anything you need to reproduce a setup somewhere else as well.
+                    </p>
+                  )}
+                </div>
                 <div className="border-t border-line px-4 py-3">{checkButton("SETUP")}</div>
               </section>
 
