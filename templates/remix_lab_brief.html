@@ -3,6 +3,11 @@
 
 {% block title %}Remix brief - Street Banker{% endblock %}
 
+{# The brief page shares the Remix Lab's stylesheet so it reads as the same
+   room: the photograph-and-light panels, the "what the brief read" rail, the
+   source badges. Tokens come from the .sbrl-doc wrapper below. #}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/remix-lab.css?v=5">{% endblock %}
+
 {% block content %}
 {#- Source tones. The whole point of this page is that a producer can tell
     which lines are readings of their record and which are conventions, so
@@ -10,78 +15,142 @@
 {%- set source_tone = {"measured": "good", "measured + convention": "info",
                        "convention": "idle", "chosen": "info",
                        "unknown": "warn"} -%}
+{#- Measured values are shown only when a real provider measured them: a
+    mock plan is placeholder structure and is labelled so, and an ungrounded
+    brief has nothing to show. -#}
+{%- set measured = grounded and not is_mock -%}
+{%- macro ico(name) -%}
+<svg class="sbrl-i" aria-hidden="true" focusable="false"><use href="#sbrl-i-{{ name }}"/></svg>
+{%- endmacro -%}
 
-<div class="mx-auto max-w-[900px] space-y-5">
-  <div>
-    <p class="sb-label sb-label-gold">
-      <a href="/remix-lab">&larr; Remix Lab</a>
-    </p>
-    <h1 class="sb-h1 mt-1">Remix brief</h1>
-    <p class="mt-2 text-sm text-gray-300">
-      {{ track_name }}
-      {% if choices.lane %}· {{ choices.lane }}{% endif %}
-      {% if choices.targetUse %}· for {{ choices.targetUse }}{% endif %}
-    </p>
-  </div>
+<div class="sbrl-doc">
+  {% include "partials/remix_lab_icons.html" %}
 
-  {% if is_mock %}
-    {# Said before the brief, not after it. A fictional tempo that reads as a
-       measurement is the one failure here a producer would act on. #}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">No provider is configured</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        The offline adapter produced this plan, so the tempo and the section
-        timings below are <strong class="text-white">not measurements of your
-        track</strong> — they are placeholder structure. The shape of the brief
-        is real; the numbers in it are not.
+  <section class="sbrl-doc-hero">
+    <picture class="sbrl-band-photo">
+      <source type="image/avif" srcset="/static/img/sweep-wide-900.avif 900w, /static/img/sweep-wide-1400.avif 1400w" sizes="(min-width: 1024px) 1000px, 100vw">
+      <source type="image/webp" srcset="/static/img/sweep-wide-900.webp 900w, /static/img/sweep-wide-1400.webp 1400w" sizes="(min-width: 1024px) 1000px, 100vw">
+      <img src="/static/img/sweep-wide-1400.jpg" srcset="/static/img/sweep-wide-900.jpg 900w, /static/img/sweep-wide-1400.jpg 1400w" sizes="(min-width: 1024px) 1000px, 100vw" alt="" loading="eager" decoding="async">
+    </picture>
+    <span class="sbrl-band-veil" aria-hidden="true"></span>
+    <div class="sbrl-doc-hero-inner">
+      <p class="sbrl-eyebrow"><a href="/remix-lab">&larr; Remix Lab</a>
+        {% if measured %}<span class="sbrl-badge sbrl-badge--good">Measured</span>
+        {% elif is_mock %}<span class="sbrl-badge sbrl-badge--warn">Placeholder plan</span>
+        {% else %}<span class="sbrl-badge sbrl-badge--warn">Nothing measured</span>{% endif %}
       </p>
-    </section>
-  {% elif not grounded %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Nothing was measured</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">
-        No plan came back for this track{% if error %} — {{ error }}{% endif %}.
-        Everything below is drawn from the lane's conventions and the choices
-        you made, so it is a starting point rather than a reading of your
-        record.
+      <h1 class="sbrl-h1"><span>Remix brief</span></h1>
+      <p class="sbrl-doc-sub">
+        {{ track_name }}
+        {% if choices.lane %}· {{ choices.lane }}{% endif %}
+        {% if choices.targetUse %}· for {{ choices.targetUse }}{% endif %}
       </p>
-    </section>
-  {% endif %}
-
-  <section class="sb-panel p-4">
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 class="sb-label sb-label-gold">The brief</h2>
-      <p class="text-sm text-gray-300">Every line says where it came from.</p>
     </div>
+  </section>
 
-    <div class="mt-3 space-y-4">
-      {% for heading, body, source in brief %}
-        <div>
-          <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-white">{{ heading }}</h3>
-            {{ sb.badge(source, source_tone.get(source, "idle")) }}
-          </div>
-          <p class="mt-1 max-w-3xl text-sm text-gray-300">{{ body }}</p>
+  <div class="sbrl-doc-grid">
+    <div class="sbrl-doc-main">
+      {% if is_mock %}
+        {# Said before the brief, not after it. A fictional tempo that reads as a
+           measurement is the one failure here a producer would act on. #}
+        <section class="sbrl-panel sbrl-panel--notice">
+          <h2 class="sbrl-h3">No provider is configured</h2>
+          <p>
+            The offline adapter produced this plan, so the tempo and the section
+            timings below are <strong>not measurements of your track</strong> —
+            they are placeholder structure. The shape of the brief is real; the
+            numbers in it are not.
+          </p>
+        </section>
+      {% elif not grounded %}
+        <section class="sbrl-panel sbrl-panel--notice">
+          <h2 class="sbrl-h3">Nothing was measured</h2>
+          <p>
+            No plan came back for this track{% if error %} — {{ error }}{% endif %}.
+            Everything below is drawn from the lane's conventions and the choices
+            you made, so it is a starting point rather than a reading of your
+            record.
+          </p>
+        </section>
+      {% endif %}
+
+      <section class="sbrl-panel">
+        <div class="sbrl-panel-head">
+          <h2 class="sbrl-h3">The brief</h2>
+          <p>Every line says where it came from.</p>
         </div>
-      {% endfor %}
+        <div class="sbrl-lines">
+          {% for heading, body, source in brief %}
+            {#- A line the engine marks "measured" is only measured when a real
+                provider ran. On a placeholder plan the badge says placeholder,
+                and the sentence says whose number it is. -#}
+            {% set faked = (not measured) and source.startswith("measured") %}
+            <div class="sbrl-line">
+              <div class="sbrl-line-head">
+                <h3>{{ heading }}</h3>
+                <span class="sbrl-badge sbrl-badge--{{ 'warn' if faked else source_tone.get(source, 'idle') }}">{{ source.replace("measured", "placeholder") if faked else source }}</span>
+              </div>
+              <p>{% if faked %}<strong>Placeholder figure, not a reading of your track.</strong> {% endif %}{{ body.replace(" measured", " in the placeholder plan") if faked else body }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="sbrl-panel">
+        <h2 class="sbrl-h3">What this did not do</h2>
+        <p>
+          It did not listen to your record and form an opinion about it. There is
+          no key detection — guessing one would send a producer to the wrong pitch
+          shift. There is no judgement about which section is strongest, because
+          that is a musical call and nothing here can make it.
+        </p>
+        <p>{{ rl.safety_warning }}</p>
+      </section>
+
+      <div class="sbrl-doc-actions">
+        <a class="sbrl-btn sbrl-btn--ghost" href="/remix-lab">Start another</a>
+        <a class="sbrl-btn sbrl-btn--ghost" href="{{ url_for('audio_studio.studio_item', work_id=work_id) }}">See it in the Studio</a>
+      </div>
     </div>
-  </section>
 
-  <section class="sb-panel p-4">
-    <h2 class="sb-label sb-label-gold">What this did not do</h2>
-    <p class="mt-2 max-w-3xl text-sm text-gray-300">
-      It did not listen to your record and form an opinion about it. There is
-      no key detection — guessing one would send a producer to the wrong pitch
-      shift. There is no judgement about which section is strongest, because
-      that is a musical call and nothing here can make it.
-    </p>
-    <p class="mt-2 max-w-3xl text-sm text-gray-300">{{ rl.safety_warning }}</p>
-  </section>
-
-  <div class="flex flex-wrap gap-2">
-    {{ sb.btn("Start another", href="/remix-lab", variant="secondary") }}
-    {{ sb.btn("See it in the Studio", href=url_for('audio_studio.studio_item', work_id=work_id),
-              variant="secondary") }}
+    {# What the brief read — real values only when a real provider measured
+       them; the mock's numbers never reach this rail as if they were read. #}
+    <aside class="sbrl-reads" aria-labelledby="sbrl-doc-reads-h">
+      <div class="sbrl-reads-head">
+        <p class="sbrl-block-label" id="sbrl-doc-reads-h">What the brief read</p>
+        {% if measured %}<span class="sbrl-badge sbrl-badge--good">Measured</span>
+        {% elif is_mock %}<span class="sbrl-badge sbrl-badge--idle">Placeholder</span>
+        {% else %}<span class="sbrl-badge sbrl-badge--idle">Not measured</span>{% endif %}
+      </div>
+      {% set unread = "Placeholder — not a measurement" if is_mock else "Not measured" %}
+      {% set tempo_ok = measured and plan.tempo_bpm and plan.tempo_bpm >= 20 and plan.tempo_bpm <= 300 %}
+      <dl class="sbrl-read-list">
+        <dt><span class="sbrl-read-ico">{{ ico("metronome") }}</span>Tempo</dt>
+        <dd class="sbrl-read-val{% if tempo_ok %} sbrl-read-val--measured{% endif %}">{% if tempo_ok %}{{ plan.tempo_bpm }} BPM{% if plan.time_signature %} · {{ plan.time_signature }}{% endif %}{% else %}{{ unread }}{% endif %}</dd>
+        <dt><span class="sbrl-read-ico">{{ ico("brackets") }}</span>Sections</dt>
+        <dd class="sbrl-read-val{% if measured and plan.sections %} sbrl-read-val--measured{% endif %}">{% if measured and plan.sections %}{{ plan.sections | length }} sections{% else %}{{ unread }}{% endif %}</dd>
+        <dt><span class="sbrl-read-ico">{{ ico("steps") }}</span>Energy</dt>
+        <dd class="sbrl-read-val{% if measured and plan.energy %} sbrl-read-val--measured{% endif %}">{% if measured and plan.energy %}{{ plan.energy | join(" · ") }}{% else %}{{ unread }}{% endif %}</dd>
+        <dt><span class="sbrl-read-ico">{{ ico("key-off") }}</span>Key</dt>
+        <dd class="sbrl-read-val">Not detected — by design</dd>
+      </dl>
+      {% if measured and plan.sections %}
+        <div class="sbrl-read-strip" aria-hidden="true">
+          {% for s in plan.sections %}<span class="sbrl-read-seg sbrl-read-seg--measured" data-energy="{{ plan.energy[loop.index0] if plan.energy and plan.energy | length > loop.index0 else '' }}" style="flex-grow: {{ [(s.end_ms or 0) - (s.start_ms or 0), 1] | max }}"></span>{% endfor %}
+        </div>
+        <ul class="sbrl-doc-sections">
+          {% for s in plan.sections %}
+            <li><span>{{ s.name }}</span><span>{{ (s.start_ms or 0) // 60000 }}:{{ "%02d" % (((s.start_ms or 0) // 1000) % 60) }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="sbrl-helper">Section map from the provider's plan, coloured by its low / medium / high energy reading. Not a track length.</p>
+      {% else %}
+        <div class="sbrl-read-strip" aria-hidden="true">
+          <span class="sbrl-read-seg"></span><span class="sbrl-read-seg"></span><span class="sbrl-read-seg"></span><span class="sbrl-read-seg"></span><span class="sbrl-read-seg"></span>
+        </div>
+        <p class="sbrl-helper">{% if is_mock %}No section map is drawn from a placeholder plan.{% else %}No section map: nothing was measured for this track.{% endif %}</p>
+      {% endif %}
+    </aside>
   </div>
 </div>
 {% endblock %}
