@@ -160,14 +160,20 @@ test("a program with no M6 says what it assumed about the tool", () => {
 
 /* ---- what was not checked ---- */
 
-test("the load-direction check is declared as not run, not silently absent", () => {
+test("with no jaw axis recorded, the load-direction check says it did not run", () => {
   // A check that is silently missing reads as a check that passed.
+  //
+  // This used to assert the check could never run at all — "the force model
+  // returns a magnitude, not a vector". That stopped being the whole story
+  // once Setup.jawAxis existed: the question is which way, not how many
+  // pounds, and the program states the feed direction exactly. The reason now
+  // names the missing datum instead of declaring the check impossible.
   const a = analyzeNC(program(["T1 M6", "G1 Z-0.1 F10."]), ctx());
-  const skipped = a.checksSkipped.find((c) => /load direction/i.test(c.check));
+  const skipped = a.checksSkipped.find((c) => /jaws/i.test(c.check));
   assert.ok(skipped, "the load-direction check is not declared");
-  assert.match(skipped!.reason, /magnitude, not a vector/);
+  assert.match(skipped!.reason, /does not record which axis the jaws close on/);
   // And it emits no finding, because any direction it printed would be
-  // invented: the force model is scalar and no jaw axis is recorded.
+  // invented while the axis is unrecorded.
   assert.ok(a.findings.every((f) => !/WORKHOLDING/.test(f.kind)));
 });
 

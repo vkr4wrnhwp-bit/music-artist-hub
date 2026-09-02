@@ -108,7 +108,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
    * ceiling that caps every raise proposal came from a machine that may
    * not be the one running the program.
    */
-  const machine = selectPrimaryMachine(await getSetups(revision.revisionId), machines);
+  const setups = await getSetups(revision.revisionId);
+  const machine = selectPrimaryMachine(setups, machines);
+  // The setup this program is run in. Same choice the machine comes from, so
+  // the two cannot describe different setups.
+  const primarySetup = setups[0] ?? null;
 
   const preset = (new URL(request.url).searchParams.get("preset") ?? "BALANCED") as LoadContext["preset"];
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
@@ -156,6 +160,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     stock,
     toolDiameters,
     toolGeometry,
+    // How the part is held, from the setup this program is for. The jaw axis
+    // is the datum the load-direction check needs; without it that check
+    // reports that it did not run rather than assuming an orientation.
+    workholding: primarySetup
+      ? {
+          jawAxis: primarySetup.jawAxis,
+          hasPositiveStop: primarySetup.hasPositiveStop,
+          deviceDescription: null,
+        }
+      : undefined,
     rapidRate: machine?.maxRapid ?? null,
     axisAccel: machine?.axisAccel ?? null,
   });

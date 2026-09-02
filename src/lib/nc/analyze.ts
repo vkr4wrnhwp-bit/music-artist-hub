@@ -2,6 +2,7 @@ import { HeightField, type StockDims } from "@/lib/sim/stock-removal";
 import type { NCSegment, ParsedNC } from "./parse";
 import { timePath } from "./time";
 import { REACH_CLEARANCE, reachesDepth } from "@/lib/domain/shop";
+import { ACROSS_SHARE_THRESHOLD, summariseLoadDirection } from "./load-direction";
 
 /** Stated fallback when a part names no machine. Never presented as machine data. */
 export const DEFAULT_RAPID_IPM = 600;
@@ -32,7 +33,8 @@ export interface NCFinding {
     | "SLOW_LINKING_MOVE"
     | "UNKNOWN_CONTEXT"
     | "TOOL_REACH_REVIEW"
-    | "SEQUENCING_OPPORTUNITY";
+    | "SEQUENCING_OPPORTUNITY"
+    | "WORKHOLDING_LOAD_DIRECTION_REVIEW";
   verdict: FindingVerdict;
   line: number;
   toolNumber: number;
@@ -83,6 +85,12 @@ export interface AnalysisContext {
    * names no machine — the analysis still runs, on a stated default, and
    * says so rather than attributing the number to a machine.
    */
+  /**
+   * How the part is held, when the setup records it. `jawAxis` is the datum
+   * the load-direction check needs; without it the check reports that it did
+   * not run rather than assuming an orientation.
+   */
+  workholding?: { jawAxis: string | null; hasPositiveStop: boolean; deviceDescription: string | null };
   rapidRate: number | null;
   /**
    * Axis acceleration in in/s², from the machine record. Null means not
@@ -148,6 +156,14 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
 
   /* ---- findings ---- */
   const findings: NCFinding[] = [];
+  /*
+   * Declared here rather than assembled at the end, because a check that
+   * decides at the point of running whether it could run has to be able to
+   * say so there. The list used to be a fixed block at the bottom, which is
+   * how it came to carry an entry claiming the load-direction check was
+   * impossible after it had been built.
+   */
+  const checksSkipped: { check: string; reason: string }[] = [];
   const stockTop = 0; // by the stated Z0-at-stock-top assumption
 
   // Replay for air-cut proof, when context allows.
@@ -311,6 +327,59 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     }
   }
 
+  /* ---------------- Which way does the cut push the part? ---------------- */
+
+  /*
+   * Direction, not magnitude. holding-margin.ts answers how many pounds and
+   * says DEVELOPMENT ANALYSIS while it does; this answers which way, and the
+   * program states that exactly in its own coordinates.
+   *
+   * A cut pushing along the jaw axis drives the part into a jaw, which is what
+   * a vise is for. A cut pushing across it slides the part along the jaw faces
+   * with nothing but friction resisting — which is how a part walks out of a
+   * vise while every clamping number looks fine.
+   */
+  const jawAxisRaw = ctx.workholding?.jawAxis;
+  if (jawAxisRaw === "X" || jawAxisRaw === "Y") {
+    const summary = summariseLoadDirection(parsed.segments, jawAxisRaw);
+    if (summary.acrossShare !== null && summary.worst) {
+      if (ctx.workholding?.hasPositiveStop) {
+        // A positive stop reacts exactly this. Saying nothing would leave the
+        // operator unsure whether the check ran.
+        checksSkipped.push({
+          check: "Cut direction against the jaws",
+          reason: `${(summary.acrossShare * 100).toFixed(0)}% of the cutting pushes across the jaw faces, and this setup records a positive stop, which reacts that. Nothing raised.`,
+        });
+      } else if (summary.acrossShare > ACROSS_SHARE_THRESHOLD) {
+        findings.push({
+          kind: "WORKHOLDING_LOAD_DIRECTION_REVIEW",
+          verdict: "REVIEW",
+          line: summary.worst.line,
+          toolNumber: 0,
+          // Nothing is saved by changing which way a cut runs, and pricing it
+          // would put a number on a decision about holding the part.
+          seconds: 0,
+          detail:
+            `${(summary.acrossShare * 100).toFixed(0)}% of the cutting distance pushes the part across the jaw faces rather than into a jaw. ` +
+            `The jaws close on ${jawAxisRaw}, and this setup records no positive stop, so friction is the only thing resisting that. ` +
+            `The longest such move is at line ${summary.worst.line}.`,
+          assumptions: [
+            "The force direction is taken as the feed direction. A real cutting force has a radial component that rotates with engagement and reverses between climb and conventional; none of that is modelled.",
+            "This says which way the load pushes, not whether the grip holds — the holding margin answers that, and answers it as a development analysis.",
+            `The jaws are taken to close on ${jawAxisRaw} because the setup records it. Nothing here checks that against the fixture.`,
+            "Plunges are excluded: they push the part down onto the parallels, which is the one direction a vise does not struggle with.",
+          ],
+        });
+      }
+    }
+  } else {
+    checksSkipped.push({
+      check: "Cut direction against the jaws",
+      reason:
+        "The setup does not record which axis the jaws close on, so there is no way to tell a cut that drives the part into a jaw from one that slides it along the jaw faces. Record it on the setups page.",
+    });
+  }
+
   /* ---------------- Is a tool loaded more than once? ---------------- */
   if (parsed.toolChanges.length >= 2) {
     const loads = new Map<number, number[]>();
@@ -337,15 +406,6 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
       });
     }
   }
-
-  /* ---------------- What was NOT checked ---------------- */
-  const checksSkipped = [
-    {
-      check: "Cutting load direction against the workholding",
-      reason:
-        "CANVAS's cutting-force model returns a magnitude, not a vector, and a setup does not record the vise's clamping axis or which jaw is fixed. Resolving a direction would mean inventing one.",
-    },
-  ];
 
   return {
     totalMinutes: round3(cutMin + rapidMin + dwellMin),
