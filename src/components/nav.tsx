@@ -136,8 +136,12 @@ const SECTIONS: Section[] = [
     icon: "jobs",
     match: ["/jobs", "/quoting"],
     items: [
-      { href: "/jobs", label: "Jobs" },
-      { href: "/quoting", label: "Quoting" },
+      // Read-only over tables nothing in the application writes. Both render
+      // real engines and real data when a row exists; neither has a way to
+      // create one, so a shop sees an empty section forever. Network and Shop
+      // intelligence said so from the start and these did not.
+      { href: "/jobs", label: "Jobs", shell: true },
+      { href: "/quoting", label: "Quoting", shell: true },
     ],
   },
   {

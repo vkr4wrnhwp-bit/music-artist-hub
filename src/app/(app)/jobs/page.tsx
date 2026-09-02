@@ -27,9 +27,9 @@ export default async function JobsPage() {
 
         {jobs.length === 0 ? (
           <EmptyState
-            title="No jobs"
-            body="Jobs are created from a released part revision. Until one runs, CANVAS has no actual results to compare its estimates against."
-            action={{ label: "Part library", href: "/parts" }}
+            title="Recording a job is not built yet"
+            body="This is where a run's actual cycle time, setup hours, scrap and outcome would sit, so CANVAS could compare what it estimated against what the job did — and so the workholding and process models could learn from what actually held. Nothing in the application creates a job yet, so the list stays empty. Until then, what a setup taught you goes in Shop knowledge, where it is scoped to the machine and tools it was seen on."
+            action={{ label: "Shop knowledge", href: "/knowledge" }}
           />
         ) : (
           <>

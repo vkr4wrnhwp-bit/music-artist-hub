@@ -96,6 +96,32 @@ export interface ProcessInput {
   machinedUnitCost: number | null;
 }
 
+/**
+ * The processes this engine has a rule for.
+ *
+ * `PROCESSES` is the vocabulary — everything CANVAS can name. This is the much
+ * shorter list it can actually reason about. A machinist reading a comparison
+ * of CNC billet against casting, forging and waterjet has no way to know that
+ * turning, EDM and moulding were never considered at all, and a comparison
+ * that looks complete is worse than one that admits its edges: somebody makes
+ * a sourcing decision on it.
+ *
+ * Adding a process to this list without adding its rule breaks a test. That is
+ * deliberate — the list must be what the engine does, not what it intends to.
+ */
+export const EVALUATED_PROCESSES: Process[] = [
+  "CNC_BILLET",
+  "CASTING",
+  "FORGING",
+  "WATERJET",
+  "METAL_ADDITIVE_PBF",
+  "HYBRID_ADDITIVE_SUBTRACTIVE",
+  "PURCHASE_COTS",
+];
+
+/** Named, and not reasoned about. What a comparison here does NOT cover. */
+export const UNEVALUATED_PROCESSES: Process[] = PROCESSES.filter((p) => !EVALUATED_PROCESSES.includes(p));
+
 export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   const { intent } = input;
   const qty = intent.quantity.value;

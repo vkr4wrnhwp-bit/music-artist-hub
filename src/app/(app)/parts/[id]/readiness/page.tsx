@@ -4,7 +4,7 @@ import { canApprove, requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
-import { PROCESS_LABEL } from "@/lib/engines/process-advisor";
+import { EVALUATED_PROCESSES, PROCESS_LABEL, UNEVALUATED_PROCESSES } from "@/lib/engines/process-advisor";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Disagree } from "@/components/disagree";
@@ -339,6 +339,17 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                 </Link>
               </Notice>
             )}
+
+            {/* What this comparison does NOT cover. Reading a list of four
+                processes as "the options" is how somebody rules out turning
+                for a part that should be turned. The engine has a rule for
+                seven of the twenty-one processes CANVAS can name; the rest
+                are vocabulary, and saying so is cheaper than being believed. */}
+            <p className="mt-4 border border-line px-4 py-2.5 text-[11.5px] leading-relaxed text-muted">
+              CANVAS reasons about {EVALUATED_PROCESSES.length} processes here. It does not yet compare this part
+              against {UNEVALUATED_PROCESSES.map((p) => PROCESS_LABEL[p].toLowerCase()).join(", ")} — those are not
+              ruled out, they are not assessed. Judge them yourself.
+            </p>
 
             <div className="mt-4 space-y-3">
               {process.recommendations.map((r) => {

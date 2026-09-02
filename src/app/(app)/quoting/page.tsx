@@ -33,9 +33,9 @@ export default async function QuotingPage() {
 
         {quotes.length === 0 && estimates.length === 0 ? (
           <EmptyState
-            title="No quotes"
-            body="Cost estimates are generated per part revision from the cost engine. Open a part's Cost panel to produce one, then attach it to a quote."
-            action={{ label: "Part library", href: "/parts" }}
+            title="Quoting is not built yet"
+            body="A part's Cost panel computes an estimate live from the cost engine — machine rate, cycle time, material utilisation, scrap allowance, margin — and shows its assumptions. What does not exist yet is storing that estimate or attaching it to a quote, so this list stays empty. The cost figures on a part are real; this section is a shell around them."
+            action={{ label: "Open a part's cost", href: "/parts" }}
           />
         ) : (
           <>
