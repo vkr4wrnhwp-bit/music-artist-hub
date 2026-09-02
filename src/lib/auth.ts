@@ -130,6 +130,31 @@ export async function requireWrite(): Promise<SessionUser> {
 }
 
 /**
+ * Signed in, answered as a status.
+ *
+ * Some route handlers must not apply the write-role check — a viewer's own
+ * guide progress, their own viewport preferences, a question they asked the
+ * copilot, an analysis that writes nothing. They still must not REDIRECT: a
+ * fetch() follows the 307 to /sign-in and parses a page of HTML as JSON, so
+ * the caller is told nothing and the work is lost. `requireUser()` belongs in
+ * a page, never in a route handler that a fetch() is waiting on.
+ *
+ * Returns the user, or the Response to return.
+ */
+export async function requireSessionApi(): Promise<{ user: SessionUser } | { denied: Response }> {
+  const user = await getSessionUser();
+  if (!user) {
+    return {
+      denied: new Response(JSON.stringify({ error: "Not signed in." }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
+    };
+  }
+  return { user };
+}
+
+/**
  * The same check for a route handler, which must answer with a status rather
  * than a redirect — a fetch() following a 307 to the dashboard and parsing
  * HTML as JSON is a worse failure than a plain 403.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 /**
@@ -16,7 +16,9 @@ import { db } from "@/lib/db";
 const ACTIONS = new Set(["START", "ADVANCE", "BACK", "SKIP", "RESET", "MODE_CHANGE", "FLOW_COMPLETE"]);
 
 export async function POST(req: Request) {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const body = (await req.json().catch(() => null)) as {
     flowId?: string;
     stepId?: string | null;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser, requireWriteApi } from "@/lib/auth";
+import { requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { DEVICE_UNCERTAINTY, type MetrologyDeviceType } from "@/lib/domain/shop";

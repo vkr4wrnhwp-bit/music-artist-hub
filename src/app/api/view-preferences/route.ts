@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DEFAULT_ENVIRONMENT, type SavedPreset, type ViewEnvironment } from "@/lib/view-environment";
 
@@ -16,13 +16,12 @@ import { DEFAULT_ENVIRONMENT, type SavedPreset, type ViewEnvironment } from "@/l
  * colour a viewer looks at the model in is theirs, not manufacturing data.
  */
 
-function notSignedIn(): Response {
-  return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-}
+
 
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user) return notSignedIn();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const row = await db.viewPreference.findUnique({ where: { userId: user.id } });
   if (!row) return NextResponse.json({ env: null, saved: [], updatedAtIso: null });
 
@@ -44,8 +43,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const user = await getSessionUser();
-  if (!user) return notSignedIn();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const body = (await req.json().catch(() => null)) as { env?: ViewEnvironment; saved?: SavedPreset[] } | null;
   if (!body || (body.env === undefined && body.saved === undefined)) {
     return NextResponse.json({ error: "Nothing to save" }, { status: 400 });

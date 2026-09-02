@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, requireWriteApi } from "@/lib/auth";
+import {requireWriteApi, requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { storage, validateUpload } from "@/lib/storage";
@@ -80,7 +80,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const assets = await db.uploadedAsset.findMany({
     where: { organizationId: user.organizationId },
     orderBy: { createdAt: "desc" },

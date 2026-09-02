@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import {requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { GUIDE_MODES, type GuideMode, type GuideSession } from "@/lib/guide/engine";
 
@@ -12,7 +12,9 @@ import { GUIDE_MODES, type GuideMode, type GuideSession } from "@/lib/guide/engi
  */
 
 export async function GET() {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const row = await db.guideState.findUnique({ where: { userId: user.id } });
   if (!row) return NextResponse.json({ mode: null, profile: null, sessions: {} });
   let sessions: Record<string, GuideSession> = {};
@@ -25,7 +27,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const body = (await req.json().catch(() => null)) as {
     mode?: GuideMode;
     profile?: string | null;

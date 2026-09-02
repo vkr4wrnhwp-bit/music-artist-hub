@@ -172,13 +172,40 @@ test("the exemptions are still the files they were written for", () => {
 
 test("a route handler denies with a status, never a redirect", () => {
   // A fetch() following a 307 to the dashboard and parsing HTML as JSON is a
-  // worse failure than a plain 403, so route handlers use requireWriteApi.
+  // worse failure than a plain 403, so route handlers use the Api guards.
+  //
+  // This used to look only for requireWrite(), and requireUser() redirects
+  // just the same — which is how the preferences PUT came to answer an
+  // expired session with a sign-in page that the caller parsed as JSON. Nine
+  // route handlers were doing it. A GET is not exempt: a fetch that follows
+  // the redirect gets HTML with a 200 on it, so res.ok is true and res.json()
+  // throws.
   const offenders: string[] = [];
   for (const file of walk(APP)) {
     if (!file.endsWith("route.ts")) continue;
-    if (readFileSync(file, "utf8").includes("requireWrite()")) offenders.push(file);
+    const src = readFileSync(file, "utf8");
+    for (const redirecting of ["requireWrite()", "requireUser()"]) {
+      // The name may appear in a comment explaining why it is not used.
+      if (new RegExp(`await ${redirecting.replace("()", "\\(\\)")}`).test(src)) {
+        offenders.push(`${file} (${redirecting})`);
+      }
+    }
   }
-  assert.deepEqual(offenders, [], `route handlers using the redirecting guard:\n  ${offenders.join("\n  ")}`);
+  assert.deepEqual(offenders, [], `route handlers using a redirecting guard:\n  ${offenders.join("\n  ")}`);
+});
+
+test("every route handler that reads a session uses one of the Api guards", () => {
+  // Stated positively, so a route that invents a third way of checking is
+  // caught too.
+  const offenders: string[] = [];
+  for (const file of walk(APP)) {
+    if (!file.endsWith("route.ts")) continue;
+    const src = readFileSync(file, "utf8");
+    if (!/from "@\/lib\/auth"/.test(src)) continue;
+    if (/require(Write|Session)Api\(\)/.test(src)) continue;
+    offenders.push(file);
+  }
+  assert.deepEqual(offenders, [], `route handlers checking the session some other way:\n  ${offenders.join("\n  ")}`);
 });
 
 test("a page still renders for someone who may only read it", () => {

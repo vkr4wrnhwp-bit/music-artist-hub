@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getAiProvider, type CopilotContext } from "@/lib/ai/provider";
 import { buildPackage } from "@/lib/package";
@@ -21,7 +21,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 

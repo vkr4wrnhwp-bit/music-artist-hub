@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { requireUser, requireWriteApi } from "@/lib/auth";
+import { requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loadRevision, getTools, getMachines, getMaterials, getSetups } from "@/lib/data";
 import { selectPrimaryMachine } from "@/lib/package-selectors";

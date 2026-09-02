@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, requireWriteApi } from "@/lib/auth";
+import { requireWriteApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { recognizeStep } from "@/lib/step/recognize";

@@ -135,8 +135,12 @@ test("the preferences route answers with a status, not a redirect", () => {
     !/await requireUser\(\)/.test(src),
     "requireUser redirects; a fetch follows the 307 and parses HTML as JSON, so the write is lost silently",
   );
-  assert.ok(/getSessionUser\(\)/.test(src), "the route does not read the session directly");
-  assert.ok(/status: 401/.test(src), "an expired session must be reported to the caller");
+  // The 401 lives in requireSessionApi now — one guard for every route
+  // handler that must not apply the write-role check but must still answer
+  // with a status. tenancy.test.ts pins that no route handler does it a third
+  // way.
+  assert.ok(/requireSessionApi\(\)/.test(src), "the route does not use the session guard");
+  assert.ok(/"denied" in gate/.test(src), "the route ignores the guard's denial");
   assert.ok(
     !/requireWriteApi/.test(src),
     "display preferences are not manufacturing data — the write-role gate would deny a viewer their own background",

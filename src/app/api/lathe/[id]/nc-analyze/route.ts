@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseLatheNc, analyzeLatheNc } from "@/lib/manufacturing/turn/nc-parse";
 import { optimizeTurnCycle, type TurnPreset } from "@/lib/manufacturing/turn/optimize";
@@ -15,7 +15,9 @@ const PRESETS: TurnPreset[] = ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"];
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
 
   const part = await db.part.findFirst({ where: { id, organizationId: user.organizationId } });
   if (!part) return NextResponse.json({ error: "Part not found in this organisation" }, { status: 404 });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import {requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildPackage } from "@/lib/package";
 import { generateSoftJaws } from "@/lib/engines/workholding";
@@ -19,7 +19,9 @@ import { softJawDxf } from "@/lib/export/soft-jaw-dxf";
 
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) return NextResponse.json({ error: "Part not found" }, { status: 404 });
 

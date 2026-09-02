@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import {requireSessionApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 
@@ -9,7 +9,9 @@ import { storage } from "@/lib/storage";
  * cross-tenant read could happen, so the check is explicit and unconditional.
  */
 export async function GET(_request: Request, ctx: { params: Promise<{ key: string }> }) {
-  const user = await requireUser();
+  const gate = await requireSessionApi();
+  if ("denied" in gate) return gate.denied;
+  const user = gate.user;
   const { key } = await ctx.params;
   const storageKey = decodeURIComponent(key);
 
