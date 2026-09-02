@@ -152,14 +152,30 @@ export default async function PartWorkspace(props: {
       };
     });
 
-  async function recordSimulation(payload: { removedVolume: number; totalTime: number; collisions: number }) {
+  async function recordSimulation(payload: {
+    removedVolume: number;
+    totalTime: number;
+    collisions: number;
+    fixtureChecked: boolean;
+  }) {
     "use server";
     const currentUser = await requireWrite();
     const fresh = await buildPackage(currentUser.organizationId, id);
     if (!fresh) notFound();
-    // One row per setup: the simulation covered the whole plan. The flags are
-    // true in the geometric sense only — stock removal and clearance were
-    // simulated; forces were not, and the result says so.
+    /*
+     * One row per setup: the simulation covered the whole plan.
+     *
+     * `collisionChecked` was written true on every run while no fixture was
+     * modelled at all — and the schema comment on that column says it exists
+     * "so no consumer can mistake a visualisation for a verification", which
+     * is exactly what a blanket true made possible. It is now true only when
+     * the cutter was actually checked against a fixture, which needs the
+     * setup to record the axis the jaws close on.
+     *
+     * `verifiedStockRemoval` stays true in the geometric sense the engine
+     * defines and the UI states: material is removed by a height field over
+     * the real moves. No forces are modelled and nothing here claims they are.
+     */
     for (const s of fresh.setups) {
       await db.simulation.create({
         data: {
@@ -167,12 +183,18 @@ export default async function PartWorkspace(props: {
           kind: "VISUALIZATION",
           status: "COMPLETE",
           verifiedStockRemoval: true,
-          collisionChecked: true,
+          collisionChecked: payload.fixtureChecked,
           resultJson: JSON.stringify({
             scope: "GEOMETRIC — material removal and clearance only, no forces modelled",
             removedVolume: payload.removedVolume,
             totalTimeMinutes: payload.totalTime,
             collisions: payload.collisions,
+            checksRun: payload.fixtureChecked
+              ? ["Rapid into surviving material", "Holder against the standing wall", "Cutter against the vise jaws (parametric jaw model)"]
+              : ["Rapid into surviving material", "Holder against the standing wall"],
+            checksNotRun: payload.fixtureChecked
+              ? []
+              : ["Cutter against the vise jaws — the setup does not record which axis the jaws close on"],
           }),
         },
       });
@@ -249,6 +271,7 @@ export default async function PartWorkspace(props: {
         verdict: primaryMargin?.verdict ?? null,
         governingMode: primaryMargin?.governingMode ?? null,
         jawSurface: primarySetup?.jawSurface ?? null,
+        jawAxis: primarySetup?.jawAxis ?? null,
       }
     : null;
 

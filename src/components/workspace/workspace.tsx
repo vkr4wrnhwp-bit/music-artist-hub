@@ -34,6 +34,7 @@ import {
   type ViewMode as EnvViewMode,
 } from "@/lib/view-environment";
 import { StockRemovalSimulator, type SimOperation } from "@/lib/sim/stock-removal";
+import { buildFixture } from "@/lib/sim/fixture";
 import type { SimHandle } from "@/components/viewport/sim-view";
 import type { DatumInfo, FeatureDetail, NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
 import { useResizableWidth, RESIZE_HANDLE_CLASS } from "@/lib/use-resizable";
@@ -90,7 +91,7 @@ export interface WorkspaceProps {
   /** Structured operations for the CUT stock-removal simulation. */
   simOps: SimOperation[];
   /** Server action recording a watched-to-completion simulation run. */
-  recordSimulation?: (payload: { removedVolume: number; totalTime: number; collisions: number }) => Promise<void>;
+  recordSimulation?: (payload: { removedVolume: number; totalTime: number; collisions: number; fixtureChecked: boolean }) => Promise<void>;
   /** True when a Simulation row already exists for this revision. */
   simulationRecorded: boolean;
   /** Recorded material, for the view-environment recommendation. */
@@ -312,12 +313,27 @@ function WorkspaceInner(props: WorkspaceProps) {
   // playback state shared between the transport and the render rig.
   const simHandle = useMemo<SimHandle | null>(() => {
     if (!props.stock || props.simOps.length === 0) return null;
+    // The jaws, when the setup records enough to place them. buildFixture
+    // returns null and names the missing number rather than substituting a
+    // default vise — a fixture in the wrong place clears the setup that
+    // would crash.
+    const built = buildFixture({
+      jawAxis: props.fixture?.jawAxis ?? null,
+      jawWidth: props.fixture?.jawWidth ?? null,
+      jawHeight: props.fixture?.jawHeight ?? null,
+      stockProjection: props.fixture?.stockProjection ?? null,
+      gripDepth: props.fixture?.gripDepth ?? null,
+      stock: { x: props.stock.x, y: props.stock.y, z: props.stock.z },
+    });
     const sim = new StockRemovalSimulator(
       { x: props.stock.x, y: props.stock.y, z: props.stock.z },
       props.simOps,
+      600,
+      200,
+      built.fixture,
     );
     return { sim, time: 0, playing: false, speed: 1, followTool: false, scrubbed: 0 };
-  }, [props.stock, props.simOps]);
+  }, [props.stock, props.simOps, props.fixture]);
   const simActive = state.activeContext === "CUT" && simHandle !== null;
   const [simRecorded, setSimRecorded] = useState(props.simulationRecorded);
 

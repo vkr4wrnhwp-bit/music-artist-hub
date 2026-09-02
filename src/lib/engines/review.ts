@@ -27,6 +27,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop"
 import { canReach } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
 import type { CapabilityResult } from "./inspection-capability";
+import { buildFixture, cutterHitsJaw } from "@/lib/sim/fixture";
 
 export const SEVERITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 export type Severity = (typeof SEVERITIES)[number];
@@ -91,6 +92,8 @@ export interface ReviewInput {
     sequence: number;
     gripDepth: number | null;
     stockProjection: number | null;
+    /** Which axis the jaws close on, when the setup records it. */
+    jawAxis?: string | null;
     operations: { id: string; label: string; toolId: string | null; finalZ: number; type: string }[];
   }[];
   workholdingBySetup: Record<string, WorkholdingAssessment>;
@@ -101,6 +104,9 @@ export interface ReviewInput {
   movesByOperation: Record<string, Move[]>;
   capability: CapabilityResult[];
   stockZ: number | null;
+  /** Stock in XY, needed to place the jaw faces. Null leaves the fixture unmodelled. */
+  stockX?: number | null;
+  stockY?: number | null;
 }
 
 export function reviewPackage(input: ReviewInput): ReviewResult {
@@ -214,13 +220,38 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
         // plunges as well produces a page of findings a machinist would
         // dismiss in ten seconds, which is worse than making no check at all.
         const LATERAL = 0.05;
+
+        /*
+         * Where the jaws are in XY, when the setup records which axis they
+         * close on. Without it there is no footprint and every lateral rapid
+         * below jaw height is reported — which is the conservative answer,
+         * and it was the only answer available until the fixture model
+         * existed. With it, a rapid that travels well clear of the vise stops
+         * being flagged, and one that passes over a jaw is named as such.
+         */
+        const built = buildFixture({
+          jawAxis: setup.jawAxis ?? null,
+          jawWidth: input.device?.jawWidth ?? null,
+          jawHeight: input.device?.jawHeight ?? null,
+          stockProjection: setup.stockProjection,
+          gripDepth: setup.gripDepth,
+          stock: input.stockZ != null && input.stockX != null && input.stockY != null
+            ? { x: input.stockX, y: input.stockY, z: input.stockZ }
+            : null,
+        });
+        const fixture = built.fixture;
+        const toolRadius = (input.tools.find((t) => t.id === op.toolId)?.diameter ?? 0) / 2;
+
         const offending = moves.filter((m, i) => {
           // `m.z <= 0` was also here, excluding everything at or below the
           // top of the stock — which is the entire region the jaws occupy.
           if (m.feed !== null || m.z >= jawTopInPart) return false;
           const prev = moves[i - 1];
           if (!prev) return false;
-          return Math.hypot(m.x - prev.x, m.y - prev.y) > LATERAL;
+          if (Math.hypot(m.x - prev.x, m.y - prev.y) <= LATERAL) return false;
+          // With a footprint, only a move that actually reaches a jaw counts.
+          if (fixture) return cutterHitsJaw(fixture, m.x, m.y, m.z, toolRadius);
+          return true;
         });
         if (offending.length === 0) continue;
 
@@ -229,7 +260,9 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
           key: `rapid-jaw-clearance:${setup.id}:${op.id}`,
           severity: "HIGH",
           title: `Rapid clearance near vise jaw in ${setup.name}`,
-          detail: `${offending.length} rapid ${offending.length === 1 ? "move travels" : "moves travel"} sideways below the top of the jaws during ${op.label}. A lateral rapid at that height clears the workpiece and does not clear the vise. Plunges straight down over a feature are excluded — those are normal.`,
+          detail: fixture
+            ? `${offending.length} rapid ${offending.length === 1 ? "move passes" : "moves pass"} over a jaw below the top of it during ${op.label}. The jaws are modelled from the recorded ${fixture.axis} closing axis and the device's jaw width — a parametric vise, not the fixture's geometry.`
+            : `${offending.length} rapid ${offending.length === 1 ? "move travels" : "moves travel"} sideways below the top of the jaws during ${op.label}. A lateral rapid at that height clears the workpiece and does not clear the vise. Plunges straight down over a feature are excluded — those are normal.`,
           recommendation:
             "Raise the clearance plane above the jaw height, or confirm the rapid path stays outside the jaw footprint in XY.",
           location: {
@@ -242,16 +275,33 @@ export function reviewPackage(input: ReviewInput): ReviewResult {
           evidence: [
             { label: "Lowest rapid Z", value: `${lowest.z.toFixed(3)}"` },
             { label: "Jaw top, from top of stock", value: `${jawTopInPart.toFixed(3)}"` },
-            { label: "Lateral rapids below jaw top", value: String(offending.length) },
+            { label: fixture ? "Rapids over a jaw" : "Lateral rapids below jaw top", value: String(offending.length) },
+            {
+              label: "Jaw footprint",
+              value: fixture ? `modelled, jaws close on ${fixture.axis}` : "not recorded — every lateral rapid below jaw top is reported",
+            },
           ],
-          method: "Toolpath move inspection — lateral rapids below jaw height, no jaw footprint check",
+          method: fixture
+            ? "Toolpath move inspection against a parametric jaw model — no jaw plates, screws or vise body"
+            : "Toolpath move inspection — lateral rapids below jaw height, no jaw footprint check",
         });
       }
     }
+    // The footprint check now runs for any setup that records which axis the
+    // jaws close on. Setups that do not are named individually rather than
+    // the whole check being declared skipped or, worse, declared run.
+    const noAxis = input.setups.filter((s) => s.jawAxis !== "X" && s.jawAxis !== "Y");
+    if (noAxis.length > 0) {
+      checksSkipped.push({
+        check: `Whether a flagged lateral rapid actually crosses the jaw, in ${noAxis.map((s) => s.name).join(", ")}`,
+        reason:
+          "Those setups do not record which axis the jaws close on, so there is no footprint to test against and every lateral rapid below jaw height is reported — including moves well clear of the vise.",
+      });
+    }
     checksSkipped.push({
-      check: "Whether a flagged lateral rapid actually crosses the jaw",
+      check: "The vise itself, beyond two jaw boxes",
       reason:
-        "Needs the jaw footprint as geometry. A lateral rapid below jaw height is reported wherever it happens, so a move well clear of the vise will still be flagged.",
+        "Where the footprint IS modelled it is a parametric approximation from the recorded closing axis, jaw width and projection. Jaw plates, screws, handles and the vise body below the jaws are not in it, and a part nested into machined soft jaws sits lower than it assumes.",
     });
   } else {
     checksSkipped.push({

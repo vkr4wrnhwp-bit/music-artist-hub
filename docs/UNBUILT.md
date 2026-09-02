@@ -202,10 +202,17 @@ the hover surface, that is a product decision to overrule this reading.
 
 > **In-Browser Toolpath & Stock Removal Simulator:** Physics-backed cutting visualization in the `CUT` tab to verify tool engagement, retract clearance, and fixture collision.
 
-Stock removal, rapid-into-stock and holder-vs-stock contact were built; fixture collision was not. The engine states it itself: "The fixture is not modelled in the CUT view yet; collision checks cover stock and holder-vs-stock only. Vise collision belongs to the HOLD geometry integration." The two `CollisionEvent` kinds are RAPID_INTO_STOCK and HOLDER_CONTACT only — there is no vise/jaw/fixture geometry in the sim at all (`grep -n 'fixture|vise' src/components/viewport/sim-view.tsx` returns nothing). Worse, the header comment claims the result "is listed as unchecked", but nothing lists it: the run action writes `collisionChecked: true` on every Simulation row, and the schema comment says that flag "exists so no consumer can mistake a visualisation for a verification". The NC pre-flight's `simulation` item then passes on that run.
+Built, and a worse problem than the gap was fixed alongside it.
 
-`src/lib/sim/stock-removal.ts:28-30 and the CollisionEvent union at :61-64; src/app/(app)/parts/[id]/page.tsx:164 sets `collisionChecked: true`; `grep -n 'unchecked' src/lib/sim/stock-removal.ts` hits only the comment, never a result field`
+**The lie first.** `collisionChecked: true` was written on every Simulation row while no fixture was modelled at all — and that column's own schema comment says it exists "so no consumer can mistake a visualisation for a verification". The transport also said "No collisions found", which is the sentence an operator acts on. Both now report what actually ran: the flag is true only when the cutter was checked against a fixture, the row records `checksRun` and `checksNotRun`, and the transport says "Nothing hit in stock or the standing wall — the jaws were not modelled" when that is what happened.
 
+**The fixture.** `src/lib/sim/fixture.ts` builds the jaws as two boxes in part coordinates and the simulator gained a `FIXTURE_CONTACT` collision kind. It is a parametric approximation, and it says so: jaw plates, screws, handles and the vise body below the jaws are not in it, and a part nested into machined soft jaws sits lower than it assumes.
+
+**The datum that was missing.** Nothing recorded which axis the jaws close on, so there was no way to know which two faces the vise grips. `Setup.jawAxis` is a new nullable column with no default, and the setups page has a control to record it. Defaulting it would put the modelled vise on the wrong two faces half the time — a collision check that clears exactly the setup that would crash. Where it is absent, `buildFixture` returns null and names the missing number, the simulator reports `fixtureChecked: false`, and nothing claims a check that did not run.
+
+**A declared gap closed as a side effect.** The pre-flight review listed "Whether a flagged lateral rapid actually crosses the jaw — needs the jaw footprint as geometry" under what it could not check. With the axis recorded there is now a footprint, so a rapid well clear of the vise is no longer flagged and one that passes over a jaw is named as such. Setups without an axis are named individually in `checksSkipped` rather than the whole check being declared skipped.
+
+`src/lib/sim/fixture.ts` (new), `src/lib/sim/stock-removal.ts`, `src/lib/engines/review.ts`, `src/components/workspace/{workspace,sim-transport}.tsx`, `src/components/jaw-axis.tsx`, `src/app/(app)/parts/[id]/setups/jaw-axis-actions.ts`, `prisma/schema.prisma` with both migration trees, `tests/engines/fixture-collision.test.ts` (20 tests).
 ### All text and status indicators must pass WCAG AAA contrast
 
 > **Accessibility & Contrast:** All text and status indicators must pass WCAG AAA contrast standards.

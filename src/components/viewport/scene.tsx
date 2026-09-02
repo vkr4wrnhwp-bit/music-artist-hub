@@ -56,6 +56,11 @@ export interface FixtureInfo {
   verdict: string | null;
   governingMode: string | null;
   jawSurface: string | null;
+  /**
+   * Which axis the jaws close on. Null means the setup has not recorded it,
+   * and then no fixture is modelled for the collision check — see fixture.ts.
+   */
+  jawAxis: string | null;
 }
 
 export interface ViewportProps {

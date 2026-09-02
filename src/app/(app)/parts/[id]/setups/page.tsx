@@ -13,6 +13,8 @@ import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeadin
 import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { recordPartDisagreement } from "../disagree-actions";
+import { recordJawAxis } from "./jaw-axis-actions";
+import { JawAxisField } from "@/components/jaw-axis";
 
 /**
  * SETUP PLANNING
@@ -107,6 +109,7 @@ export default async function SetupsPage(props: {
                         peakForceLbf={a?.forceEstimate.ok ? a.forceEstimate.peakTangential : null}
                         governingMode={a?.holdingMargin?.governingMode ?? null}
                       />
+                      <JawAxisField setupId={s.id} value={s.jawAxis} action={recordJawAxis.bind(null, id)} />
                     </div>
                     <div>
                       {a?.holdingMargin?.margin != null ? (

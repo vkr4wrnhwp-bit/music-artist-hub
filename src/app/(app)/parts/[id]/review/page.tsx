@@ -42,6 +42,7 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
       sequence: s.sequence,
       gripDepth: s.gripDepth,
       stockProjection: s.stockProjection,
+      jawAxis: s.jawAxis,
       operations: s.operations.map((o) => ({
         id: o.id,
         label: o.label,
@@ -57,6 +58,8 @@ export default async function ReviewPage(props: { params: Promise<{ id: string }
     movesByOperation,
     capability: pkg.readiness.capability,
     stockZ: pkg.revision.stock?.z ?? null,
+    stockX: pkg.revision.stock?.x ?? null,
+    stockY: pkg.revision.stock?.y ?? null,
   });
 
   /*

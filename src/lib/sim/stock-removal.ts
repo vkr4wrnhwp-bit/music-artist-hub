@@ -1,4 +1,5 @@
 import type { Move } from "@/lib/engines/cam/types";
+import { cutterHitsJaw, type FixtureModel } from "./fixture";
 
 /**
  * STOCK REMOVAL SIMULATION — deterministic geometric core
@@ -18,16 +19,19 @@ import type { Move } from "@/lib/engines/cam/types";
  * What this is NOT, and never claims: physics. No cutting forces, no
  * deflection, no chatter, no thermal anything. The UI labels it
  * MATERIAL REMOVAL — GEOMETRIC SIMULATION for exactly this reason, and the
- * Simulation record it produces sets verifiedStockRemoval/collisionChecked
- * true only in the geometric sense defined here.
+ * Simulation record it produces reports which checks actually ran rather
+ * than a blanket `collisionChecked: true`.
  *
  * Known geometric approximations, stated:
  * - Every cutter is treated as flat-bottomed at its nominal diameter. A
  *   drill's point and a chamfer mill's cone remove slightly less than the
  *   cylinder assumed here, so removal errs on the side of over-removal.
- * - The fixture is not modelled in the CUT view yet; collision checks cover
- *   stock and holder-vs-stock only. Vise collision belongs to the HOLD
- *   geometry integration and is listed as unchecked in the result.
+ * - The fixture is a PARAMETRIC APPROXIMATION when one is supplied at all:
+ *   two jaw boxes built from recorded numbers, not the vise's geometry. See
+ *   fixture.ts for the assumptions, which travel with the model. When no
+ *   fixture is supplied the cutter-vs-jaw check does not run, and
+ *   `fixtureChecked` on the simulator says so — it is never reported as a
+ *   check that passed.
  */
 
 export interface SimOperation {
@@ -58,7 +62,7 @@ export interface CollisionEvent {
   time: number;
   opIndex: number;
   x: number; y: number; z: number;
-  kind: "RAPID_INTO_STOCK" | "HOLDER_CONTACT";
+  kind: "RAPID_INTO_STOCK" | "HOLDER_CONTACT" | "FIXTURE_CONTACT";
   detail: string;
 }
 
@@ -188,6 +192,13 @@ export class StockRemovalSimulator {
     readonly ops: SimOperation[],
     rapidRate = 600,
     targetCells = 200,
+    /**
+     * The jaws, when the setup records enough to place them. Null means the
+     * cutter-vs-jaw check does not run — see `fixtureChecked`. It is never
+     * substituted with a default vise: a fixture in the wrong place clears
+     * exactly the setup that would crash.
+     */
+    readonly fixture: FixtureModel | null = null,
   ) {
     this.field = new HeightField(stock, targetCells);
     const tl = buildTimeline(ops, rapidRate);
@@ -240,6 +251,12 @@ export class StockRemovalSimulator {
 
   private recordedRapidSegments = new Set<number>();
   private recordedHolderOps = new Set<number>();
+  private recordedFixtureSegments = new Set<number>();
+
+  /** Whether the cutter-vs-jaw check ran at all. Read by the UI and the record. */
+  get fixtureChecked(): boolean {
+    return this.fixture !== null;
+  }
 
   private runSegments(from: number, to: number, recording: boolean): void {
     for (let s = from; s < to; s++) {
@@ -273,6 +290,22 @@ export class StockRemovalSimulator {
       // Part frame: moves use z=0 at the part top; the field measures from
       // the stock bottom.
       const tipH = z + this.stock.z;
+
+      // The jaws are there on a rapid and on a feed alike, so this runs
+      // before the rapid branch returns. Once per segment: a move that
+      // travels along a jaw would otherwise report at every sample.
+      if (recording && this.fixture && !this.recordedFixtureSegments.has(segIndex)) {
+        if (cutterHitsJaw(this.fixture, x, y, z, radius)) {
+          this.recordedFixtureSegments.add(segIndex);
+          this.collisions.push({
+            time: seg.t0 + (seg.t1 - seg.t0) * f,
+            opIndex: seg.opIndex,
+            x, y, z,
+            kind: "FIXTURE_CONTACT",
+            detail: `The cutter reaches past the ${this.fixture.axis} face of the stock at Z${z.toFixed(3)}, which is ${(this.fixture.topZ - z).toFixed(3)}" below the top of the jaws, in ${op.label}.`,
+          });
+        }
+      }
 
       if (seg.rapid) {
         // A rapid never cuts. If it would pass through surviving material,

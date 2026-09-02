@@ -660,6 +660,14 @@ model Setup {
   parallelHeight  Float?
 
   // Inputs to the force-based holding margin. Grip depth alone decides nothing.
+  // Which axis the jaws close on, in part coordinates. X means the jaws
+  // face each other across X and grip the two faces perpendicular to it.
+  // Nullable and never defaulted: it is the datum that decides where the
+  // fixture IS, and guessing it would put a modelled vise on the wrong two
+  // faces of the part — a collision check that clears the setup that would
+  // actually crash. Null means the fixture is not modelled and the checks
+  // that need it report that they did not run.
+  jawAxis         String?  // X | Y
   jawSurface      String?  // SMOOTH | SERRATED | SOFT_MACHINED | GRIP_INSERT
   clampForce      Float?   // lbf actually applied, overriding the device record
   hasPositiveStop Boolean  @default(false)

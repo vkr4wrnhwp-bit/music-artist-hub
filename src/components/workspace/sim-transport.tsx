@@ -24,7 +24,7 @@ export function SimTransport({
 }: {
   handle: SimHandle;
   /** Server action recording the completed run; absent when not offered. */
-  onRecordRun?: (payload: { removedVolume: number; totalTime: number; collisions: number }) => Promise<void>;
+  onRecordRun?: (payload: { removedVolume: number; totalTime: number; collisions: number; fixtureChecked: boolean }) => Promise<void>;
   recorded: boolean;
 }) {
   // The handle mutates outside React at frame rate; the HUD samples it at
@@ -126,7 +126,20 @@ export function SimTransport({
             {sim.collisions.length} collision{sim.collisions.length === 1 ? "" : "s"}
           </button>
         ) : (
-          <span className="text-pass">No collisions found</span>
+          /*
+           * "No collisions found" on a run that never modelled the fixture is
+           * the sentence an operator acts on. What ran is named instead.
+           */
+          <span className={sim.fixtureChecked ? "text-pass" : "text-review"}>
+            {sim.fixtureChecked
+              ? "Nothing hit: stock, standing wall and jaws"
+              : "Nothing hit in stock or the standing wall — the jaws were not modelled"}
+          </span>
+        )}
+        {!sim.fixtureChecked && (
+          <span className="text-review">
+            Record which axis the jaws close on in the setup and the cutter is checked against them.
+          </span>
         )}
         {done && onRecordRun && !recorded && (
           <button
@@ -134,7 +147,7 @@ export function SimTransport({
             disabled={saving}
             onClick={async () => {
               setSaving(true);
-              await onRecordRun({ removedVolume: m.removedVolume, totalTime: sim.totalTime, collisions: sim.collisions.length });
+              await onRecordRun({ removedVolume: m.removedVolume, totalTime: sim.totalTime, collisions: sim.collisions.length, fixtureChecked: sim.fixtureChecked });
             }}
           >
             {saving ? "Recording…" : "Record simulation run"}
