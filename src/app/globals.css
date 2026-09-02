@@ -52,16 +52,24 @@
   --canvas-border: #15293a;
   --canvas-border-strong: #22415a;
   --canvas-text: #f2f6fa;
-  /* Precision blue lifted for the dark ground: #0B72FF measures 4.2:1 on
-     these surfaces, #4D97FF measures 6.3:1 in the same hue family. */
+  /* Precision blue lifted for the dark ground: #0B72FF measures 3.69–4.40:1
+     across these surfaces, #4D97FF measures 5.44–6.51:1 in the same hue
+     family. */
   --canvas-blue: #4d97ff;
 
-  /* Status and muted on the DARK surfaces. Read at 8.5–11px on #0A1826 and
-     #081420. Measured against the lightest dark ground (#0C1C2C): muted
-     6.5:1, green 6.9:1, orange 7.6:1, red 4.9:1 — all clear 4.5:1 at small
-     sizes. Same family the dark shell always used. */
-  --canvas-muted: #8da0b2;
-  --canvas-green: #35be84;
+  /* Status and muted on the DARK surfaces, read at 8.5–11px under shop
+     fluorescents, often on a tablet at arm's length.
+
+     Measured against the LIGHTEST dark ground, which is #0B2436
+     (shell-raised) and not #0C1C2C as this comment used to claim: muted
+     7.17:1, green 7.21:1, orange 7.23:1 — all clear the 7:1 AAA floor for
+     normal-size text. Red is 4.62:1 and CANNOT reach 7:1 against any ground
+     at all: its relative luminance puts its ceiling at 6.10:1 on pure black.
+     Lifting it means giving up the saturation that makes red read as red, so
+     it stays and contrast.test.ts carries it as a stated exception rather
+     than hiding it. */
+  --canvas-muted: #a0b0bf;
+  --canvas-green: #37c589;
   --canvas-orange: #e2a33c;
   --canvas-red: #f0554a;
 
@@ -70,14 +78,14 @@
      are roughly 17:1, 10.6:1 and 6.8:1. */
   --canvas-shell-fg: #f2f6fa;
   --canvas-shell-fg-dim: #b7c4d2;
-  --canvas-shell-muted: #8da0b2;
+  --canvas-shell-muted: #a0b0bf;
   --canvas-shell-line: #15293a;
   --canvas-shell-line-strong: #22415a;
   --canvas-shell-raised: #0b2436;
-  /* Precision blue lifted for the dark ground: #0B72FF is only 4.2:1 on
-     #06111C, this is 6.3:1 and still the same hue family. */
+  /* Precision blue lifted for the dark ground: #0B72FF is 4.40:1 on #06111C,
+     this is 6.51:1 and still the same hue family. */
   --canvas-shell-blue: #4d97ff;
-  --canvas-shell-green: #35be84;
+  --canvas-shell-green: #37c589;
   --canvas-shell-orange: #e2a33c;
   --canvas-shell-red: #f0554a;
 
@@ -115,7 +123,13 @@
   /* Precision blue — active state, selected geometry, datum, measurement,
      toolpath, coordinate origin. Used sparingly. */
   --c-blue: var(--canvas-blue);
-  --c-blue-dim: #0b72ff;
+  /* The same token, not a second blue.
+     `.canvas-shell` already remapped this to --canvas-blue, so the app's
+     standard blue ink was 6.51:1 inside the nav shell and 3.69–4.40:1 on
+     every page — below the 4.5:1 AA floor the contrast test claimed to
+     enforce, across 65 call sites at 9–12px. The test never saw it because
+     it read only --canvas-* names and this was a raw literal. */
+  --c-blue-dim: var(--canvas-blue);
   --c-blue-wash: color-mix(in srgb, var(--canvas-blue) 8%, transparent);
 
   /* Status. Colour communicates state, never decoration:

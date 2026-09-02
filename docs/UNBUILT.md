@@ -163,9 +163,36 @@ Stock removal, rapid-into-stock and holder-vs-stock contact were built; fixture 
 
 > **Accessibility & Contrast:** All text and status indicators must pass WCAG AAA contrast standards.
 
-The contrast work landed at AA, not AAA. tests/engines/contrast.test.ts asserts a 4.5:1 floor (AA), and the tokens sit below AAA's 7:1 for normal-size text on every dark ground. Measured from the tokens in globals.css: `--canvas-muted` #8da0b2 = 7.06:1 on shell down to 6.41:1 on card; `--canvas-red` #f0554a = 5.52:1 down to 5.01:1; `--canvas-blue` #4d97ff = 6.51:1 down to 5.90:1. `--canvas-muted` is the colour of `.instrument-label` (globals.css:251-258), the app's standard 10px label used across the workspace panels, and red/blue are the status indicators the ask names. Only `--canvas-text`, `--canvas-shell-fg-dim`, green and orange clear 7:1.
+Most of it now does, and the audit says exactly what does not.
 
-`tests/engines/contrast.test.ts:53 and :70 assert `r >= 4.5`, never 7; src/app/globals.css:251-258 (.instrument-label uses --c-muted); ratios computed from the same tokens the test reads`
+Fixed: `--c-blue-dim` was a second definition of the standard blue ink and
+measured 3.69–4.40:1 — below AA, at 65 call sites; muted and green were
+lifted to clear 7:1 on every ground; the 3D datum chips and operation
+balloons are opaque with darkened semantic inks at 7.0:1 on white; the
+audit reads all eight grounds instead of five.
+
+Still short, and it is not a tuning problem. `--canvas-red` #f0554a has a
+relative luminance of 0.2552, so its ceiling is **6.10:1 against pure
+black** — no ground can carry it to 7:1. `--canvas-blue` #4d97ff would need
+a ground darker than about #020407. Reaching AAA on either means giving up
+the saturation that makes red read as blocking and blue read as the
+restrained precision blue the visual language locks. That is a change to
+CLAUDE.md's Visual language section, so it is a decision rather than an
+implementation.
+
+Two ways forward, both honest:
+(A) pastel status inks that clear 7:1, losing saturation;
+(B) keep the saturated inks as graphical carriers — rings, dots, rules —
+    and put the WORDS in `--canvas-text`, which is already 14.65:1.
+
+Also still open under (A): the tinted washes. `bg-precision/10` over card
+composites to #132841 and the lifted blue on it is 5.11:1; `bg-risk/15`
+gives 4.28:1. 38 sites. (B) resolves them for free.
+
+`tests/engines/contrast.test.ts` carries both inks in a named exception
+table with their measured ratio and the reason, and fails if either drifts
+or quietly reaches AAA without being promoted — so CI states the shortfall
+rather than reporting green over a palette that is not AAA.
 
 ### Shop-Floor Machinist Mode focused on setup photos and probing routines
 

@@ -7,6 +7,7 @@ import {
   LINE_MODE_OPACITY,
   LINE_WEIGHT_PX,
   ANNOTATION_SCALE,
+  SEMANTIC_COLORS,
   lightRig,
   type ViewEnvironment,
 } from "@/lib/view-environment";
@@ -130,8 +131,13 @@ const VERIFY_COLOR: Record<VerifyState, string> = {
    a slightly different white than the page around it and the seam is visible
    at the edge of the viewport.
 
-   BLUE is `--canvas-blue`. Selection is drawn at low opacity rather than at
-   full saturation — restrained precision blue, no bloom, no emissive. */
+   BLUE is the saturated precision blue used for GEOMETRY — a selection ring,
+   a datum leader, a toolpath. It is not `--canvas-blue`, which is the lifted
+   ink for dark UI surfaces, and it is not the colour of any text: contrast
+   floors apply to type, and the balloons and datum chips that carry type use
+   the darkened SEMANTIC_COLORS on opaque white instead. Selection is drawn at
+   low opacity rather than at full saturation — restrained precision blue, no
+   bloom, no emissive. */
 const WORK_WINDOW = "#FAFAF8";
 const BLUE = "#0b72ff";
 
@@ -870,10 +876,19 @@ function DatumFlags({ datums, features, stock }: { datums: SceneDatum[]; feature
           <group key={`${d.letter}-${d.featureId ?? "face"}`}>
             <Line points={[[x, y, zz], [x, y, zz + stem]]} color={color} lineWidth={1 + strength} dashed={!d.accepted} dashSize={0.03} gapSize={0.02} />
             <Html position={[x, y, zz + stem]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+              {/* Opaque, and at full opacity.
+                  The chip was `bg-white/90`, so what a letter was read against
+                  was whatever ground the machinist had picked — over a dark
+                  preset every ratio here dropped by about 15%. And the whole
+                  chip carried the DATUM LINE strength, so setting datum lines
+                  to LIGHT rendered the letter at 0.58 opacity. Dimming a
+                  leader line is a preference about geometry; dimming the
+                  letter it points at is making an annotation unreadable, and
+                  those are different things. The line below still varies. */}
               <div
-                style={{ opacity: 0.35 + strength * 0.65, transform: `scale(${scale})` }}
-                className={`flex items-center gap-1 border bg-white/90 px-1.5 py-0.5 font-mono ${
-                  d.accepted ? "border-[#0b72ff] text-[#0b72ff]" : "border-dashed border-[#7d838b] text-[#5c626a]"
+                style={{ transform: `scale(${scale})` }}
+                className={`flex items-center gap-1 border bg-white px-1.5 py-0.5 font-mono ${
+                  d.accepted ? "border-[#0854bb] text-[#0854bb]" : "border-dashed border-[#7d838b] text-[#545961]"
                 }`}
               >
                 <span className="text-[13px] font-bold leading-none">{d.letter}</span>
@@ -1041,13 +1056,21 @@ function Balloon({
   tone: "neutral" | "pass" | "review" | "risk";
 }) {
   const scale = ANNOTATION_SCALE[useEnv().annotationSize];
+  // The ring is also the digit's colour, so these are TEXT on white and take
+  // the darkened semantic inks rather than the geometry blue.
   const ring =
-    tone === "pass" ? "#17754e" : tone === "review" ? "#96570d" : tone === "risk" ? "#c22a1e" : BLUE;
+    tone === "pass"
+      ? SEMANTIC_COLORS.pass
+      : tone === "review"
+        ? SEMANTIC_COLORS.review
+        : tone === "risk"
+          ? SEMANTIC_COLORS.blocking
+          : SEMANTIC_COLORS.selected;
   return (
     <Html position={position} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
       <div
         style={{ borderColor: ring, color: ring, transform: scale !== 1 ? `scale(${scale})` : undefined }}
-        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-[1.5px] bg-white/92 font-mono text-[10px] font-bold leading-none"
+        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-[1.5px] bg-white font-mono text-[10px] font-bold leading-none"
       >
         {n}
       </div>

@@ -30,7 +30,7 @@ test("a shell ground that erases the interface is named, not silently accepted",
   // The chrome carries running text in a near-white foreground. A light
   // ground does not restyle the interface, it deletes it.
   const white = shellLegibilityProblems("#ffffff");
-  assert.ok(white.some((p) => /4\.5:1/.test(p)), white.join(" | "));
+  assert.ok(white.some((p) => /7:1/.test(p)), white.join(" | "));
 
   // The approved shell passes its own check — a rule the product breaks on
   // its own default would be the wrong rule.
@@ -49,7 +49,7 @@ test("both failures are reported together, text first", () => {
   // stopping would send someone to fix half of it.
   const problems = shellLegibilityProblems("#8a8a8a");
   assert.ok(problems.length >= 2, `expected both failures, got ${problems.length}: ${problems.join(" | ")}`);
-  assert.match(problems[0], /4\.5:1/);
+  assert.match(problems[0], /7:1/);
 });
 
 test("the contrast floor is a real measurement, not a hand-wave", () => {
@@ -58,4 +58,20 @@ test("the contrast floor is a real measurement, not a hand-wave", () => {
   const onShell = contrastRatio("#06111c", "#f2f6fa");
   assert.ok(onShell !== null && onShell > 15, `${onShell}`);
   assert.equal(contrastRatio("#ffffff", "#ffffff"), 1);
+});
+
+test("the small labels are checked, not only the brightest text", () => {
+  // The labels go first. A ground the 15:1 body text is comfortable on can
+  // still leave the 9px uppercase type — which names every value on screen —
+  // below the floor, and only the label check catches it.
+  const problems = shellLegibilityProblems("#3d4c5a");
+  assert.ok(
+    problems.some((p) => /Labels sit at/.test(p)),
+    `a ground that fails the labels was accepted: ${problems.join(" | ")}`,
+  );
+});
+
+test("the approved shell clears the raised floor on both inks", () => {
+  // A rule the product breaks on its own default would be the wrong rule.
+  assert.deepEqual(shellLegibilityProblems("#06111c"), []);
 });

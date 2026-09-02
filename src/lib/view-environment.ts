@@ -187,12 +187,24 @@ export const DEFAULT_ENVIRONMENT: ViewEnvironment = VIEW_PRESETS.STUDIO_WHITE.en
 /* Semantic colour lock                                                */
 /* ------------------------------------------------------------------ */
 
-/** The locked status colours. Custom viewport colours never repaint these. */
+/**
+ * The locked status colours. Custom viewport colours never repaint these.
+ *
+ * These are TEXT inks — they colour the digits in the operation balloons and
+ * the letters in the datum chips, both of which sit on opaque white. Measured
+ * on white they are 7.01–7.06:1, where the previous values were 4.32–5.76:1
+ * and the balloons were semi-transparent, so what a number was read against
+ * was whatever ground the machinist had picked.
+ *
+ * They are still 6.49–6.52:1 against the default work window — well clear of
+ * the 2.5:1 floor `semanticConflicts` holds a custom background to, so
+ * darkening them did not weaken that check.
+ */
 export const SEMANTIC_COLORS = {
-  selected: "#0b72ff",
-  pass: "#17754e",
-  review: "#96570d",
-  blocking: "#c22a1e",
+  selected: "#0854bb",
+  pass: "#146544",
+  review: "#824c0b",
+  blocking: "#aa251a",
 } as const;
 
 /**
@@ -255,12 +267,26 @@ export function semanticConflicts(background: string): string[] {
  *
  * Returns problems in the order they matter. Empty means the colour is fine.
  */
+/** WCAG AAA for normal-size text. The labels are 9–11px, so the floor matters. */
+const AAA_TEXT = 7;
+const SHELL_TEXT = "#f2f6fa";
+const SHELL_MUTED = "#a0b0bf";
+
 export function shellLegibilityProblems(background: string): string[] {
   const problems: string[] = [];
-  const text = contrastRatio(background, "#f2f6fa");
-  if (text !== null && text < 4.5) {
+  // Two inks, because the bright one is not what fails first. The small
+  // uppercase labels are `--canvas-shell-muted`, and they go unreadable on a
+  // ground the 15:1 body text is still comfortable on.
+  const text = contrastRatio(background, SHELL_TEXT);
+  if (text !== null && text < AAA_TEXT) {
     problems.push(
-      `Chrome text sits at ${text.toFixed(1)}:1 against this ground — below the 4.5:1 floor for reading dimensions off a screen.`,
+      `Chrome text sits at ${text.toFixed(1)}:1 against this ground — below the ${AAA_TEXT}:1 floor CANVAS holds itself to for reading dimensions off a screen.`,
+    );
+  }
+  const labels = contrastRatio(background, SHELL_MUTED);
+  if (labels !== null && labels < AAA_TEXT) {
+    problems.push(
+      `Labels sit at ${labels.toFixed(1)}:1 against this ground — the small uppercase type goes first, and it is what names every value.`,
     );
   }
   const drowned = semanticConflicts(background);
