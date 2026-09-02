@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
@@ -84,7 +84,7 @@ export default async function TabletPage(props: {
 
   async function toggleSection(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const setupId = String(formData.get("setupId"));
     const section = String(formData.get("section"));
     const done = String(formData.get("done")) === "1";
@@ -113,7 +113,7 @@ export default async function TabletPage(props: {
 
   async function signOff(formData: FormData) {
     "use server";
-    const currentUser = await requireUser();
+    const currentUser = await requireWrite();
     const setupId = String(formData.get("setupId"));
 
     const fresh = await buildPackage(currentUser.organizationId, id);

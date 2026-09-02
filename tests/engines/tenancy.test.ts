@@ -25,7 +25,16 @@ import { join } from "node:path";
 const APP = "src/app";
 const LIB = "src/lib";
 
-const MUTATION = /\bdb\.[a-zA-Z]+\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b/;
+/**
+ * What counts as changing manufacturing data.
+ *
+ * `audit(` is in here for a reason. The shop-floor tablet's sign-off — a
+ * named human recording APPROVE against a setup at the machine — writes
+ * nothing but an audit entry, so a detector that only looked for `db.x.create`
+ * walked straight past it and the action sat on `requireUser()`. An audited
+ * act is a record; a record is manufacturing data.
+ */
+const MUTATION = /\bdb\.[a-zA-Z]+\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b|\bawait audit\(/;
 
 /**
  * Files allowed to mutate without mentioning an organisation, each for a

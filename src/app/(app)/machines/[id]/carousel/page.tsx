@@ -247,11 +247,21 @@ export default async function CarouselPage(props: {
             </Notice>
           )}
 
-          <Notice tone="review" title="This does not yet gate readiness">
-            TOOL AVAILABILITY currently passes when a part has tools assigned from the crib, and it still does — this
-            page records where the tools are, it does not yet decide whether a job can run. Making the gate require the
-            tooling to be loaded in the assigned machine would start failing parts that pass today, which is a decision
-            about how your shop works rather than one to slip in behind a schema change.
+          {/* This notice used to say the opposite. It was written while the
+              gate was still a proposal, and it stayed after TOOLING LOADED
+              was built and made blocking — so the page told a machinist their
+              pocket map did not decide anything, while the readiness engine
+              was holding parts off READY_TO_RUN on exactly this data. A stale
+              sentence about a safety gate is worse than none. */}
+          <Notice tone="review" title="This map gates readiness">
+            TOOLING LOADED is a blocking gate and it reads this page. A part whose setups need a tool the changer map
+            does not list will not reach READY_TO_RUN — this is the last question before Cycle Start that CANVAS can
+            answer for you.
+            <br />
+            <br />
+            An unmapped changer is not a failure: it reads NOT_ATTEMPTED, which keeps the part off READY_TO_RUN without
+            claiming the tooling is missing. Absence of a map is not evidence the tool is on the shelf. Map the pockets
+            and the gate can answer properly.
           </Notice>
         </div>
       </main>
