@@ -289,6 +289,28 @@ export interface NcVerificationIssue {
  * spindle, travel outside the machine envelope. It does NOT verify collisions
  * or material removal, and the UI says so.
  */
+/**
+ * The verification issues that stop a program leaving CANVAS.
+ *
+ * NC VERIFICATION is a step in the export chain, not a report printed beside
+ * it. It was the second: `verifyNc` ran at generation, the issues were stored
+ * and displayed, and both the export button and the authorisation that
+ * actually mints the file ignored them — so a program the checker had called
+ * an ERROR on could be written to a stick and run.
+ *
+ * ERROR blocks. WARNING does not: the linter's warnings are judgement calls a
+ * machinist is better placed to make than it is, and refusing on them would
+ * teach people to route around the gate. An ERROR is a statement that the
+ * program text is wrong — no units word, motion below the part with no feed,
+ * a dialect this checker cannot read — and none of those are opinions.
+ *
+ * There is no confirmation that clears this. The evidence that clears it is a
+ * program that verifies, which means fixing the program.
+ */
+export function ncVerificationBlockers(issues: NcVerificationIssue[]): NcVerificationIssue[] {
+  return issues.filter((i) => i.severity === "ERROR");
+}
+
 export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIssue[] {
   const issues: NcVerificationIssue[] = [];
   const lines = nc.split("\n");

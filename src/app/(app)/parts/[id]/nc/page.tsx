@@ -4,7 +4,16 @@ import { requireUser, requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
-import { POSTS, defaultPostForController, getPost, preflightPassed, verifyNc, type PostContext } from "@/lib/engines/cam/post";
+import {
+  POSTS,
+  defaultPostForController,
+  getPost,
+  ncVerificationBlockers,
+  preflightPassed,
+  verifyNc,
+  type NcVerificationIssue,
+  type PostContext,
+} from "@/lib/engines/cam/post";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
@@ -50,7 +59,16 @@ export default async function NcPage(props: {
   // One gate, shared with the generate action and the export mint. If the
   // gate logic exists in two places, it does not exist.
   const preflight = buildPreflight(pkg, selectedPost);
-  const canExport = preflightPassed(preflight) && Boolean(selectedPost) && Boolean(machine);
+
+  const issues: NcVerificationIssue[] = existing?.verificationIssuesJson
+    ? (JSON.parse(existing.verificationIssuesJson) as NcVerificationIssue[])
+    : [];
+  // NC VERIFY is a step in the chain, not a report beside it. Errors stop the
+  // program leaving; the mint re-checks, because a disabled button is not a
+  // gate.
+  const verifyBlockers = ncVerificationBlockers(issues);
+  const canExport =
+    preflightPassed(preflight) && Boolean(selectedPost) && Boolean(machine) && verifyBlockers.length === 0;
 
   /* ---------------- Generate ---------------- */
 
@@ -124,10 +142,6 @@ export default async function NcPage(props: {
 
     redirect(`/parts/${id}/nc?post=${post.id}&generated=1`);
   }
-
-  const issues: { severity: string; line: number; message: string }[] = existing?.verificationIssuesJson
-    ? JSON.parse(existing.verificationIssuesJson)
-    : [];
 
   return (
     <>
@@ -262,7 +276,11 @@ export default async function NcPage(props: {
             </form>
             {!canExport && (
               <p className="mt-3 text-[12px] text-review">
-                Export is disabled until every required pre-flight item passes. This is deliberate.
+                {verifyBlockers.length > 0
+                  ? `Export is disabled: NC verification reports ${verifyBlockers.length} error${
+                      verifyBlockers.length === 1 ? "" : "s"
+                    } in this program. Fix the program and generate again — there is no acknowledgement that clears this.`
+                  : "Export is disabled until every required pre-flight item passes. This is deliberate."}
               </p>
             )}
           </Panel>

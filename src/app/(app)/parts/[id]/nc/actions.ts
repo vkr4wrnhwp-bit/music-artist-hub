@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
-import { getPost, preflightPassed } from "@/lib/engines/cam/post";
+import { getPost, ncVerificationBlockers, preflightPassed, verifyNc } from "@/lib/engines/cam/post";
 
 /**
  * NC EXPORT — mint and record.
@@ -79,6 +79,28 @@ export async function mintExport(partId: string): Promise<MintGrant | MintRefusa
         .filter((i) => i.required && i.status !== "PASS")
         .map((i) => ({ id: i.id, label: i.label, detail: i.detail })),
     };
+  }
+
+  // NC VERIFY, at the mint, against the text about to be written — not the
+  // issues stored when the program was generated. A stored verdict is a claim
+  // about code as it was; this is evidence about the code as it is. They agree
+  // unless something has changed underneath, and if they disagree the file on
+  // the way to the machine is the one that matters.
+  //
+  // Checked here and not only in the page, because a server action is a POST
+  // endpoint and a disabled button is not a gate.
+  if (pkg.primaryMachine) {
+    const blockers = ncVerificationBlockers(verifyNc(program.code, pkg.primaryMachine));
+    if (blockers.length > 0) {
+      return {
+        ok: false,
+        refused: blockers.map((b) => ({
+          id: `verify-${b.line}`,
+          label: `NC verification, line ${b.line}`,
+          detail: b.message,
+        })),
+      };
+    }
   }
 
   const bytes = Buffer.from(program.code, "utf8");
