@@ -19,43 +19,91 @@ import { JOB_OUTCOMES, OUTCOME_CAUSES, type JobOutcomeCode } from "./network";
 /* Release                                                             */
 /* ------------------------------------------------------------------ */
 
+export interface ReleaseGate {
+  id: string;
+  label: string;
+  status: string;
+  detail: string;
+}
+
 export interface ReleaseVerdict {
+  /** True when nothing hard-refuses. Acknowledgements are still required. */
   ok: boolean;
-  /** Blocking gates that are not PASS. Releasing over these is refused. */
-  blockers: { id: string; label: string; status: string; detail: string }[];
-  /** Non-blocking gates that are not PASS. Recorded with the release, not refused. */
+  /**
+   * Blocking gates with no evidence behind them — MISSING, NOT_ATTEMPTED or
+   * FAIL. These refuse the release outright and cannot be acknowledged away.
+   */
+  blockers: ReleaseGate[];
+  /**
+   * Blocking gates at REVIEW: the evidence exists and a judgement is required.
+   * Each must be acknowledged INDIVIDUALLY before the release goes through,
+   * and the acknowledgement is recorded against the gate.
+   */
+  acknowledgeable: ReleaseGate[];
+  /** Non-blocking gates short of PASS. Recorded with the release, not gating it. */
   reservations: { id: string; label: string; status: string }[];
 }
 
 /**
  * Whether a revision may be released to the floor.
  *
- * The rule is principle 1's, not a second one: the aggregate is the worst
- * unresolved required gate, so a release is refused while any BLOCKING gate
- * is unresolved. Nothing here averages, scores or counts — nine passing gates
- * and one blocking failure is a refusal.
+ * Releasing is not the same question as readiness, and conflating them is what
+ * made this unreachable. `aggregate()` answers "is this verified ready to run",
+ * and for a blocking gate at REVIEW the honest answer is no — the simulation
+ * gate, for instance, has no PASS branch at all, because a geometric
+ * visualisation is not verified stock removal and must never claim to be.
+ * That answer does not change here and readiness still reports it.
  *
- * Non-blocking gates that are not PASS do not refuse the release. They are
- * returned as reservations and stored with it, so the job carries what was
- * known at the moment somebody said "run it" rather than what is known later.
+ * Release answers a different question: did a named human take responsibility
+ * for running it anyway. So the two kinds of shortfall are separated:
+ *
+ *   - MISSING / NOT_ATTEMPTED / FAIL on a blocking gate is a refusal. There is
+ *     no evidence to exercise judgement over, and principle 2 says a click
+ *     does not substitute for evidence that does not exist. No override.
+ *   - REVIEW on a blocking gate is where the evidence exists and a machinist's
+ *     judgement is the missing input. That is acknowledged per gate, by name,
+ *     and recorded — principle 11: the override records evidence and clears
+ *     nothing. The gate is still REVIEW after the release, and readiness still
+ *     reports the part as not ready to run.
  */
 export function evaluateRelease(gates: ReadinessGate[]): ReleaseVerdict {
-  const blockers = gates
-    .filter((g) => g.blocking && g.status !== "PASS")
-    .map((g) => ({ id: g.id, label: g.label, status: g.status, detail: g.detail }));
+  const g = (x: ReadinessGate): ReleaseGate => ({ id: x.id, label: x.label, status: x.status, detail: x.detail });
+  const blockers = gates.filter((x) => x.blocking && x.status !== "PASS" && x.status !== "REVIEW").map(g);
+  const acknowledgeable = gates.filter((x) => x.blocking && x.status === "REVIEW").map(g);
   const reservations = gates
-    .filter((g) => !g.blocking && g.status !== "PASS")
-    .map((g) => ({ id: g.id, label: g.label, status: g.status }));
-  return { ok: blockers.length === 0, blockers, reservations };
+    .filter((x) => !x.blocking && x.status !== "PASS")
+    .map((x) => ({ id: x.id, label: x.label, status: x.status }));
+  return { ok: blockers.length === 0, blockers, acknowledgeable, reservations };
+}
+
+/**
+ * Whether the acknowledgements supplied cover every gate that needs one.
+ *
+ * Every id must be present. A blanket "I accept the above" would make one
+ * click stand for several separate engineering judgements, which is the shape
+ * of exactly the problem this whole split exists to avoid.
+ */
+export function acknowledgementsSatisfied(verdict: ReleaseVerdict, acknowledged: string[]): boolean {
+  if (!verdict.ok) return false;
+  const given = new Set(acknowledged);
+  return verdict.acknowledgeable.every((a) => given.has(a.id));
 }
 
 /** The readiness picture at the moment of release, stored with the revision. */
-export function releaseSnapshot(gates: ReadinessGate[]) {
+export function releaseSnapshot(gates: ReadinessGate[], acknowledged: string[] = []) {
   const { overall, blockingCount } = aggregate(gates);
   return {
     overall,
     blockingCount,
-    gates: gates.map((g) => ({ id: g.id, label: g.label, status: g.status, blocking: g.blocking })),
+    gates: gates.map((g) => ({
+      id: g.id,
+      label: g.label,
+      status: g.status,
+      blocking: g.blocking,
+      // Which blocking REVIEW gates a human took responsibility for. The gate
+      // itself is unchanged — this records who decided, not a new status.
+      acknowledged: acknowledged.includes(g.id),
+    })),
   };
 }
 

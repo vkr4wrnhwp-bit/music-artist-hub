@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  acknowledgementsSatisfied,
   JOB_STATUSES,
   NEXT_STATUS,
   canTransition,
@@ -29,9 +30,9 @@ const gate = (id: string, status: ReadinessGate["status"], blocking: boolean): R
 
 /* ---------------- Release ---------------- */
 
-test("one unresolved blocking gate refuses the release, however many pass", () => {
-  // Principle 1 on a second surface: the aggregate is the worst unresolved
-  // required gate. Nine passes and one blocking failure is a refusal, not 90%.
+test("a blocking gate with nothing behind it refuses the release, however many pass", () => {
+  // Principle 1 on a second surface: nine passes and one blocking gate that
+  // was never attempted is a refusal, not 90%.
   const gates = [
     ...Array.from({ length: 9 }, (_, i) => gate(`ok${i}`, "PASS", true)),
     gate("inspection", "FAIL", true),
@@ -39,14 +40,52 @@ test("one unresolved blocking gate refuses the release, however many pass", () =
   const v = evaluateRelease(gates);
   assert.equal(v.ok, false);
   assert.deepEqual(v.blockers.map((b) => b.id), ["inspection"]);
+  assert.deepEqual(v.acknowledgeable, [], "a failing gate was offered as acknowledgeable");
 });
 
-test("every non-PASS blocking status blocks, not only FAIL", () => {
-  // MISSING and NOT_ATTEMPTED are not "nearly passing".
-  for (const status of ["REVIEW", "MISSING", "FAIL", "NOT_ATTEMPTED"] as const) {
-    assert.equal(evaluateRelease([gate("g", status, true)]).ok, false, `${status} did not block`);
+test("missing, not attempted and failed cannot be acknowledged away", () => {
+  // There is no evidence to exercise judgement over, so a click would be
+  // standing in for evidence that does not exist.
+  for (const status of ["MISSING", "NOT_ATTEMPTED", "FAIL"] as const) {
+    const v = evaluateRelease([gate("g", status, true)]);
+    assert.equal(v.ok, false, `${status} did not refuse`);
+    assert.deepEqual(v.acknowledgeable, [], `${status} was offered for acknowledgement`);
+    // And no set of acknowledgements gets past it.
+    assert.equal(acknowledgementsSatisfied(v, ["g"]), false, `${status} was acknowledged away`);
   }
-  assert.equal(evaluateRelease([gate("g", "PASS", true)]).ok, true);
+});
+
+test("a blocking gate under review is acknowledgeable, not a refusal", () => {
+  // This is what made release unreachable: the simulation gate has no PASS
+  // branch at all, because a geometric visualisation is not verified stock
+  // removal. Requiring PASS on every blocking gate meant no part could ever
+  // be released and no job could ever be raised.
+  const v = evaluateRelease([gate("simulation", "REVIEW", true), gate("geometry", "PASS", true)]);
+  assert.equal(v.ok, true);
+  assert.deepEqual(v.blockers, []);
+  assert.deepEqual(v.acknowledgeable.map((a) => a.id), ["simulation"]);
+});
+
+test("every acknowledgeable gate must be acknowledged individually", () => {
+  // Never one blanket accept: a single click standing for several separate
+  // engineering judgements is the failure this split exists to avoid.
+  const v = evaluateRelease([gate("simulation", "REVIEW", true), gate("workholding", "REVIEW", true)]);
+  assert.equal(v.acknowledgeable.length, 2);
+  assert.equal(acknowledgementsSatisfied(v, []), false);
+  assert.equal(acknowledgementsSatisfied(v, ["simulation"]), false, "one acknowledgement covered two gates");
+  assert.equal(acknowledgementsSatisfied(v, ["simulation", "workholding"]), true);
+});
+
+test("acknowledging a gate that was never offered does not help", () => {
+  const v = evaluateRelease([gate("simulation", "REVIEW", true), gate("tools", "MISSING", true)]);
+  assert.equal(acknowledgementsSatisfied(v, ["simulation", "tools"]), false);
+  assert.equal(acknowledgementsSatisfied(v, ["simulation", "something-else"]), false);
+});
+
+test("with nothing to acknowledge, an empty acknowledgement list is enough", () => {
+  const v = evaluateRelease([gate("a", "PASS", true), gate("b", "REVIEW", false)]);
+  assert.equal(v.ok, true);
+  assert.equal(acknowledgementsSatisfied(v, []), true);
 });
 
 test("a non-blocking gate that is short is a reservation, not a refusal", () => {
@@ -54,12 +93,16 @@ test("a non-blocking gate that is short is a reservation, not a refusal", () => 
   assert.equal(v.ok, true);
   assert.deepEqual(v.reservations.map((r) => r.id), ["nice-to-have"]);
   assert.deepEqual(v.blockers, []);
+  assert.deepEqual(v.acknowledgeable, [], "a non-blocking gate was asked to be acknowledged");
 
-  // And the two lists do not overlap: a blocking gate that is short is a
-  // blocker, and reporting it a second time as a reservation would read as
-  // something the shop may release over.
-  const mixed = evaluateRelease([gate("hard", "MISSING", true), gate("soft", "REVIEW", false)]);
+  // The three lists do not overlap: a gate appears in exactly one of them.
+  const mixed = evaluateRelease([
+    gate("hard", "MISSING", true),
+    gate("judgement", "REVIEW", true),
+    gate("soft", "REVIEW", false),
+  ]);
   assert.deepEqual(mixed.blockers.map((b) => b.id), ["hard"]);
+  assert.deepEqual(mixed.acknowledgeable.map((a) => a.id), ["judgement"]);
   assert.deepEqual(mixed.reservations.map((r) => r.id), ["soft"]);
 });
 
@@ -81,6 +124,17 @@ test("the release snapshot records every gate, not just the failures", () => {
   // the rule: one blocking gate short is NOT_READY_TO_RUN whatever else passes.
   assert.equal(snap.overall, "NOT_READY_TO_RUN");
   assert.equal(snap.blockingCount, 1);
+});
+
+test("the snapshot records which gates a human took responsibility for", () => {
+  const gates = [gate("simulation", "REVIEW", true), gate("geometry", "PASS", true)];
+  const snap = releaseSnapshot(gates, ["simulation"]);
+  const sim = snap.gates.find((g) => g.id === "simulation")!;
+  assert.equal(sim.acknowledged, true);
+  // And acknowledging changes nothing about the gate itself — principle 11.
+  assert.equal(sim.status, "REVIEW");
+  assert.equal(snap.overall, "NOT_READY_TO_RUN", "acknowledging made the part read as ready");
+  assert.equal(snap.gates.find((g) => g.id === "geometry")!.acknowledged, false);
 });
 
 /* ---------------- Lifecycle ---------------- */
@@ -254,8 +308,11 @@ test("release refuses on the server, from gates it evaluates itself", () => {
   const src = release();
   assert.match(src, /buildPackage\(user\.organizationId/);
   assert.match(src, /evaluateRelease\(pkg\.readiness\.gates\)/);
-  assert.match(src, /if \(!verdict\.ok\) return;/);
+  assert.match(src, /acknowledgementsSatisfied\(verdict, acknowledged\)/);
   assert.ok(!/formData\.get\("(force|override|ignoreGates)"\)/.test(src), "release grew an override");
+  // The acknowledgeable set is derived server-side; ids posted for gates that
+  // were never offered are filtered out rather than trusted.
+  assert.match(src, /verdict\.acknowledgeable\.some\(\(a\) => a\.id === id\)/);
 });
 
 test("release writes a decision and never a gate", () => {

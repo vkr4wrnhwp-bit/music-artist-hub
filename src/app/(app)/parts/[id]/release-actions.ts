@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildPackage } from "@/lib/package";
-import { evaluateRelease, releaseSnapshot } from "@/lib/engines/jobs";
+import { acknowledgementsSatisfied, evaluateRelease, releaseSnapshot } from "@/lib/engines/jobs";
 import { audit } from "@/lib/audit";
 
 /**
@@ -38,7 +38,23 @@ export async function releaseRevision(partId: string, formData: FormData) {
   if (revisionId !== pkg.revision.revisionId) return;
 
   const verdict = evaluateRelease(pkg.readiness.gates);
-  if (!verdict.ok) return;
+
+  /*
+   * Acknowledgements, checked against the gates evaluated HERE. A blocking
+   * gate at REVIEW needs a named human to take responsibility for it — one
+   * acknowledgement per gate, never a single blanket accept, because one
+   * click standing for several separate engineering judgements is the shape
+   * of the problem this split exists to avoid.
+   *
+   * Gates with no evidence behind them are not in this list at all and cannot
+   * be reached by adding ids to the form: verdict.acknowledgeable is derived
+   * server-side from the package, and anything not in it is ignored.
+   */
+  const acknowledged = formData
+    .getAll("acknowledge")
+    .map(String)
+    .filter((id) => verdict.acknowledgeable.some((a) => a.id === id));
+  if (!acknowledgementsSatisfied(verdict, acknowledged)) return;
 
   await db.partRevision.update({
     where: { id: pkg.revision.revisionId },
@@ -47,7 +63,8 @@ export async function releaseRevision(partId: string, formData: FormData) {
       releasedAt: new Date(),
       releasedBy: user.name ?? user.email,
       releaseSnapshotJson: JSON.stringify({
-        ...releaseSnapshot(pkg.readiness.gates),
+        ...releaseSnapshot(pkg.readiness.gates, acknowledged),
+        acknowledgedBy: user.name ?? user.email,
         reservations: verdict.reservations,
         cycleMinutes: pkg.cycleMinutes,
       }),
@@ -64,7 +81,7 @@ export async function releaseRevision(partId: string, formData: FormData) {
     field: "status",
     oldValue: "DRAFT",
     newValue: "RELEASED",
-    reason: `Released to the floor with ${verdict.reservations.length} open reservation(s).`,
+    reason: `Released to the floor, acknowledging ${acknowledged.length} blocking gate(s) under review and ${verdict.reservations.length} open reservation(s). No gate was cleared.`,
   });
 
   revalidatePath(`/parts/${partId}`);

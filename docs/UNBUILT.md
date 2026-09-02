@@ -41,6 +41,42 @@ four items done and one missing is not 80% done; the missing one is missing.
 - **Wire requireWrite through the mutating server actions** — `de230ed`
 - **Do the tooling gate (item in the approved 7-task batch)** — `de230ed`
 
+## Fixed after the walkthrough — the app could not complete its own loop
+
+These were not on this list, because the list records promised features. These
+were defects in whether the application functions end to end.
+
+### Release was unreachable, which stranded Jobs
+
+The `simulation` gate is `blocking` and has **no PASS branch** — correctly, since
+a geometric visualisation is not verified stock removal and must never claim to
+be. Release refused while any blocking gate was not PASS, so no part could ever
+be released, no job could ever be raised, and the quoted-against-actual
+comparison could never fire.
+
+Readiness and release are different questions and conflating them caused this.
+`aggregate()` answers "is this verified ready to run" and still answers no — that
+is unchanged, and `NOT_READY_TO_RUN` is still what a part with a blocking gate
+under review reports. Release answers "did a named human take responsibility for
+running it anyway", so the two kinds of shortfall are now separated:
+
+- MISSING / NOT_ATTEMPTED / FAIL on a blocking gate refuses the release. There is
+  no evidence to exercise judgement over, and a click cannot substitute for
+  evidence that does not exist. No override exists.
+- REVIEW on a blocking gate is acknowledged **individually, by gate**, and
+  recorded in the release snapshot against the person's name. Never one blanket
+  accept: a single click standing for several separate engineering judgements is
+  the failure the split exists to avoid. The gate is still REVIEW afterwards.
+
+### Generating an NC program made a part read as less ready
+
+The `nc` gate was `blocking: true` when a program existed (REVIEW) and
+`blocking: false` when none did — so producing a development post *increased*
+the blocking count, the exact inverse of what the act means. A shop running its
+own CAM has no CANVAS program and is not less ready for it, and executable NC has
+its own export gates that this one does not stand in for. Non-blocking in both
+branches now, with a test asserting the two branches agree.
+
 ## NEVER STARTED
 
 ### Build a Feature Specimen View: selecting a feature isolates and enlarges it, allows rotation, shows dimension lines and nominal vs measured, with GEOMETRY / FUNCTION / MEASURE / MACHINE / INSPECT / HISTORY tabs

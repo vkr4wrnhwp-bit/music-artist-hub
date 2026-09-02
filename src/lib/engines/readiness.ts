@@ -455,9 +455,16 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
   );
 
   /* ---- NC ---- */
+  //
+  // Non-blocking in BOTH branches. It used to be blocking when a program
+  // existed and non-blocking when none did, so generating a development post
+  // made the part read as LESS ready than never having generated one — the
+  // exact inverse of what the act means. A shop running its own CAM has no
+  // CANVAS program and is not less ready for it, and executable NC has its own
+  // export gates (principle 6) which this one does not stand in for.
   gates.push(
     input.ncGenerated
-      ? gate("nc", "NC post", "REVIEW", "Development post output generated. Not certified for production.", true, ["Review the program line by line"])
+      ? gate("nc", "NC post", "REVIEW", "Development post output generated. Not certified for production.", false, ["Review the program line by line"])
       : gate("nc", "NC post", "NOT_ATTEMPTED", "No NC program has been generated.", false, []),
   );
 

@@ -334,3 +334,22 @@ test("the action banner counts actions, and says so", () => {
   );
   assert.ok(/required to clear the blocking gates/.test(src), "the banner does not say what its count is of");
 });
+
+
+/* ------------------------------------------------------------------ */
+/* Generating an NC program must not make a part read as less ready    */
+/* ------------------------------------------------------------------ */
+
+test("the NC gate is non-blocking whether or not a program exists", () => {
+  // It used to be blocking when a program had been generated and non-blocking
+  // when none had, so producing a development post made the part read LESS
+  // ready than never having produced one — the exact inverse of what the act
+  // means. A shop running its own CAM has no CANVAS program and is not less
+  // ready for it, and executable NC has its own export gates.
+  const src = readFileSync("src/lib/engines/readiness.ts", "utf8");
+  const block = /\/\* ---- NC ---- \*\/[\s\S]{0,1200}?\n  \);/.exec(src);
+  assert.ok(block, "the NC gate moved — this test cannot check it any more");
+  const calls = [...block![0].matchAll(/gate\(\s*"nc"[\s\S]*?,\s*(true|false),/g)].map((m) => m[1]);
+  assert.equal(calls.length, 2, `expected both NC branches, found ${calls.length}`);
+  assert.deepEqual(calls, ["false", "false"], "the NC gate blocks in one branch and not the other");
+});
