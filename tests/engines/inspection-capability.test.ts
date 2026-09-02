@@ -151,3 +151,86 @@ test("every result names the uncertainty an instrument would need", () => {
     assert.ok(r.requiredUncertainty !== null && r.requiredUncertainty > 0, `±${u} names no target to buy against`);
   }
 });
+
+/* ---------------- The machine probe is not acceptance evidence ---------------- */
+
+/**
+ * CANVAS already said this in one place and contradicted it in another. The
+ * metrology technique card for MACHINE_PROBE carries the pitfall "probing a
+ * part on the machine that cut it cannot see that machine's own systematic
+ * error", with a test asserting it — while this engine ranked the probe by
+ * uncertainty like any other instrument and would return CAPABLE on it.
+ *
+ * A shop reading the capability verdict would have been told the bore is
+ * verified. A shop reading the technique card would have been told it is not.
+ */
+
+test("a probe alone cannot make a toleranced feature CAPABLE", () => {
+  // ±0.0002" on a 0.02" band is 1% — comfortably inside the 10% target for
+  // any ordinary instrument. It is the verdict that has to change, not the
+  // arithmetic, so the probe here is deliberately good enough to pass on
+  // numbers alone.
+  const r = assessCapability(req(0.02), [inst("MACHINE_PROBE", 0.0002)]);
+  assert.equal(r.verdict, "NO_INSTRUMENT");
+  assert.equal(r.bestInstrument, null);
+});
+
+test("declining the probe says why, and says what it is for", () => {
+  // "No instrument" to a shop that just bought a probe reads as a bug.
+  const r = assessCapability(req(0.02), [inst("MACHINE_PROBE", 0.0002, { description: "Renishaw OMP40" })]);
+  assert.match(r.reason, /Renishaw OMP40/);
+  assert.match(r.reason, /machine's own scales|fixture that cut it/);
+  assert.ok(
+    r.recommendations.some((x) => /work offset|broken tool|trending size/i.test(x)),
+    "the probe is declined without saying what it is good for",
+  );
+});
+
+test("a probe does not win over a worse instrument that can actually accept", () => {
+  // The probe is five times finer. It still must not be the instrument named
+  // as the evidence for the feature.
+  const r = assessCapability(req(0.02), [inst("MACHINE_PROBE", 0.0001), inst("BORE_GAUGE", 0.0005)]);
+  assert.equal(r.verdict, "CAPABLE");
+  assert.equal(r.bestInstrument?.deviceType, "BORE_GAUGE");
+});
+
+test("a finer probe is explained where the shop would ask, and not where it would not", () => {
+  // MARGINAL: the machinist is looking at a result they do not like and owns
+  // something finer. That is exactly where the omission needs explaining.
+  const marginal = assessCapability(req(0.001), [inst("MACHINE_PROBE", 0.00002), inst("BORE_GAUGE", 0.0002)]);
+  assert.equal(marginal.verdict, "MARGINAL");
+  assert.ok(marginal.recommendations.some((x) => /deliberately not counted/.test(x)));
+
+  // CAPABLE: nothing is wrong, nobody is hunting for a better instrument, and
+  // a paragraph about the probe would be noise on a passing check.
+  const capable = assessCapability(req(0.02), [inst("MACHINE_PROBE", 0.00002), inst("BORE_GAUGE", 0.0002)]);
+  assert.equal(capable.verdict, "CAPABLE");
+  assert.ok(!capable.recommendations.some((x) => /deliberately not counted/.test(x)));
+});
+
+test("an uncalibrated probe is not offered as the reason either", () => {
+  // An uncalibrated probe has no defensible uncertainty at all, so it cannot
+  // be the thing that is "finer than this".
+  const r = assessCapability(req(0.001), [
+    inst("MACHINE_PROBE", 0.00002, { calibrated: false }),
+    inst("BORE_GAUGE", 0.0002),
+  ]);
+  assert.ok(!r.recommendations.some((x) => /deliberately not counted/.test(x)));
+});
+
+test("buying a probe is never recommended as the fix for a capability gap", () => {
+  // It was, on two geometries — which would have pointed a shop at a purchase
+  // that cannot clear the gate it was recommended for.
+  for (const geometry of ["INTERNAL_ROUND", "INTERNAL_FLAT", "EXTERNAL", "POSITION"] as const) {
+    const r = assessCapability(req(0.0002, { geometry }), [inst("DIGITAL_CALIPER", 0.001)]);
+    assert.ok(
+      !r.recommendations.some((x) => /machine probe|spindle probe/i.test(x)),
+      `${geometry} recommends buying a probe to close an acceptance gap`,
+    );
+  }
+});
+
+test("the probe verdict is still not clearable by confirmation", () => {
+  const r = assessCapability(req(0.02), [inst("MACHINE_PROBE", 0.0002)]);
+  assert.equal(r.clearableByConfirmation, false);
+});

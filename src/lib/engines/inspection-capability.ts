@@ -93,6 +93,34 @@ export const MEASURES_EXTERNAL = new Set([
 export const MEASURES_POSITION = new Set(["CMM", "HEIGHT_GAUGE", "MACHINE_PROBE", "SURFACE_PLATE", "DIAL_INDICATOR"]);
 
 /**
+ * Instruments that can reach the geometry but cannot ACCEPT the feature.
+ *
+ * A spindle-mounted probe measuring the part in the fixture that just cut it
+ * is not an independent measurement. It shares the machine's own geometric
+ * errors — the same scale and lead-screw error, the same squareness, the same
+ * thermal growth, the same fixture and the same work offset. If the machine
+ * cut the bore 0.0008" off position because the X axis is off, the probe
+ * reports it in position, because it is measuring with the same ruler that
+ * made the mistake. Its stated uncertainty is real for repeatability and says
+ * nothing about that shared bias.
+ *
+ * This is not a reason to own less probing. A probe is the best process-control
+ * instrument on the floor: finding a datum, correcting a work offset, catching
+ * a broken tool, trending size across a run, deciding whether to take another
+ * pass while the part is still clamped. Every one of those is worth having and
+ * none of them is acceptance.
+ *
+ * So a probe is excluded from the instrument that clears the inspection gate,
+ * and the reason is stated rather than the probe being silently ignored — a
+ * shop that just bought one is entitled to know why CANVAS is not counting it.
+ */
+export const PROCESS_CONTROL_ONLY = new Set(["MACHINE_PROBE"]);
+
+/** What the probe IS for, said in the same breath as declining it. */
+const PROBE_ROLE =
+  "in-process control — establishing the datum, correcting the work offset, catching a broken tool and trending size across the run";
+
+/**
  * Instruments a caliper-only shop should be pointed at, in ascending order of
  * cost. Concrete recommendations only — never "use a better instrument".
  */
@@ -112,7 +140,6 @@ const UPGRADE_PATH: Record<string, Upgrade[]> = {
   ],
   INTERNAL_FLAT: [
     { text: "Depth micrometer for the floor, inside micrometer for the walls", deviceType: "DEPTH_MICROMETER", achievable: 0.0002 },
-    { text: "Machine probe cycle against the work offset datum", deviceType: "MACHINE_PROBE", achievable: 0.0005 },
     { text: "CMM for the full pocket form", deviceType: "CMM", achievable: 0.00005 },
   ],
   EXTERNAL: [
@@ -122,7 +149,6 @@ const UPGRADE_PATH: Record<string, Upgrade[]> = {
   ],
   POSITION: [
     { text: "Height gauge on a surface plate with the part on datum", deviceType: "HEIGHT_GAUGE", achievable: 0.001 },
-    { text: "Machine probe, if the datum can be established in the fixture", deviceType: "MACHINE_PROBE", achievable: 0.0005 },
     { text: "CMM for a true position callout", deviceType: "CMM", achievable: 0.00005 },
   ],
 };
@@ -249,24 +275,50 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
 
   const requiredUncertainty = Number((request.toleranceBand * TARGET_RATIO).toFixed(5));
 
-  const usable = instruments
+  const reachable = instruments
     .filter((d) => canReachGeometry(d, request.geometry))
     .filter((d) => inRange(d, request.nominal));
 
+  // An on-machine probe can reach the geometry and still cannot accept the
+  // feature. Split it out here rather than letting it win on uncertainty.
+  const processControl = reachable.filter((d) => PROCESS_CONTROL_ONLY.has(d.deviceType));
+  const usable = reachable.filter((d) => !PROCESS_CONTROL_ONLY.has(d.deviceType));
+
   if (usable.length === 0) {
+    // Owning a probe and nothing else is a different situation from owning
+    // nothing, and a shop that just bought one will read "no instrument" as a
+    // bug unless the sentence says why it is not being counted.
+    const probeOwned = processControl[0] ?? null;
     return {
       ...base,
       verdict: "NO_INSTRUMENT",
       bestInstrument: null,
       consumedFraction: null,
       requiredUncertainty,
-      reason:
-        request.nominal != null
+      reason: probeOwned
+        ? `${probeOwned.description} can reach this feature, but it measures the part in the fixture that cut it, using the machine's own scales — it cannot detect an error the machine itself made, so it is not acceptance evidence. Nothing else on the metrology list can measure this feature.`
+        : request.nominal != null
           ? `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension at ⌀${request.nominal.toFixed(4)}.`
           : `No instrument on the metrology list can measure a ${request.geometry.toLowerCase()} dimension.`,
-      recommendations: upgradesFor(request.geometry, instruments, requiredUncertainty),
+      recommendations: [
+        ...(probeOwned ? [`Keep the probe for ${PROBE_ROLE}; accept the feature off the machine`] : []),
+        ...upgradesFor(request.geometry, instruments, requiredUncertainty),
+      ],
     };
   }
+
+  /*
+   * A shop whose probe is finer than anything in the drawer will ask why the
+   * feature still reads MARGINAL. Answered where the question arises, and only
+   * there: on a CAPABLE result nobody is looking for the missing instrument,
+   * and the note would just be noise on a passing check.
+   */
+  const finerProbe = processControl.find((d) => d.calibrated && d.uncertainty < request.toleranceBand! * TARGET_RATIO);
+  const probeNote = finerProbe
+    ? [
+        `${finerProbe.description} is finer than this, and is deliberately not counted: it measures the part on the machine that cut it, so it cannot see an error the machine made. Use it for ${PROBE_ROLE}.`,
+      ]
+    : [];
 
   // Best is the lowest uncertainty; calibration is a hard filter rather than a
   // tiebreak, because an uncalibrated instrument has no defensible uncertainty
@@ -285,7 +337,11 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
       consumedFraction: consumed,
       requiredUncertainty,
       reason: `${best.description} is not recorded as calibrated. An uncalibrated instrument has no traceable uncertainty, so it cannot provide evidence for a toleranced dimension.`,
-      recommendations: ["Calibrate the instrument and record the certificate", ...upgradesFor(request.geometry, instruments, requiredUncertainty)],
+      recommendations: [
+        "Calibrate the instrument and record the certificate",
+        ...probeNote,
+        ...upgradesFor(request.geometry, instruments, requiredUncertainty),
+      ],
     };
   }
 
@@ -313,6 +369,7 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
       reason: `${best.description} at ±${best.uncertainty.toFixed(4)}" consumes ${(consumed * 100).toFixed(0)}% of the ${band.toFixed(4)}" band. Above 10% the measurement starts rejecting good parts and accepting bad ones; below 25% it is still discriminating.`,
       recommendations: [
         `Guard-band the accept limits by ±${best.uncertainty.toFixed(4)}" to keep the risk on the shop's side`,
+        ...probeNote,
         ...upgradesFor(request.geometry, instruments, requiredUncertainty),
       ],
     };
@@ -327,6 +384,7 @@ export function assessCapability(request: CapabilityRequest, instruments: Instru
     reason: `The best available instrument is ${best.description} at ±${best.uncertainty.toFixed(4)}", which consumes ${(consumed * 100).toFixed(0)}% of the ${band.toFixed(4)}" tolerance band. This method cannot provide sufficient evidence to verify the requested tolerance — what it reports is largely its own noise.`,
     recommendations: [
       `An instrument with uncertainty at or below ±${requiredUncertainty.toFixed(5)}" is required — the best on hand is ±${best.uncertainty.toFixed(4)}"`,
+      ...probeNote,
       ...upgradesFor(request.geometry, instruments, requiredUncertainty),
       "Outsource the inspection of this dimension to a calibration house or a shop with a CMM",
     ],

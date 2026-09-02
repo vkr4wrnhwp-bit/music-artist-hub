@@ -414,9 +414,46 @@ today: no probe in the tool crib vocabulary, no stylus length or ruby
 diameter, no probing cycle in the CAM engine, and no record of whether the
 machine has a probe at all.
 
-The honest first step is the shop inventory — does this machine have a
-probe, which one, what stylus — which is a metrology-device question, not a
-toolpath one.
+The honest first step was named here as the shop inventory — does this
+machine have a probe — and taking it turned up a defect rather than a gap.
+
+A `MACHINE_PROBE` was already in the metrology vocabulary, and the seeded shop
+already owns one. `inspection-capability.ts` ranked it by uncertainty like any
+other instrument, so on the seeded shop's own data a hole pattern at ±0.0025"
+read **CAPABLE — Spindle probe on the VF-2**: CANVAS telling a machinist the
+pattern is verified by probing it on the machine that drilled it.
+
+CANVAS already knew better in a different file. The metrology technique card
+for `MACHINE_PROBE` carries the pitfall "probing a part on the machine that cut
+it cannot see that machine's own systematic error", with a test asserting it.
+Two parts of the product contradicted each other, and the one that fed the
+readiness gate was the one that was wrong.
+
+A spindle probe measures the part in the fixture that cut it, through the
+machine's own scales, at the machine's own squareness and temperature. If the
+X axis put the bore 0.0008" off, the probe reports it on position, because it
+is measuring with the ruler that made the mistake. Its stated uncertainty is
+real for repeatability and silent about that shared bias.
+
+`PROCESS_CONTROL_ONLY` now excludes it from the instrument that clears the
+inspection gate. Three things it deliberately does NOT do: it does not hide the
+probe (a shop that just bought one is told why it is not counted, and what it
+IS for — datum, work offset, broken tool, trending size across a run); it does
+not put the note on a CAPABLE result, where nobody is hunting for a better
+instrument and it would be noise; and it does not cite an uncalibrated probe as
+"finer than this", because an uncalibrated instrument has no defensible
+uncertainty to be finer with. Buying a probe was also being recommended on two
+geometries as the remedy for a capability gap — pointing a shop at a purchase
+that cannot clear the gate it was recommended for. Both entries are gone.
+
+Still unbuilt, and still the harder half: emitting a probing routine. That is
+executable machine motion and goes through the same chain as any other NC —
+post, verify, gate, human approval. There is no probe in the tool crib, no
+stylus length or ruby diameter, and no probing cycle in the CAM engine.
+
+`src/lib/engines/inspection-capability.ts` (`PROCESS_CONTROL_ONLY`, the split
+between reachable and acceptance instruments), `tests/engines/inspection-capability.test.ts`
+(7 tests).
 
 ### View Environment must expose real functional controls for section-view fill and annotation visibility
 
