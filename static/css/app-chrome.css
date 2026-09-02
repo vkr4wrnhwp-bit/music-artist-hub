@@ -1,0 +1,210 @@
+/* app-chrome.css — the app's own controls, plates and lane cards.
+   Tokens only. Loaded by base.html after tailwind.css.
+
+   THE CONTROLS LAYER
+   Every control rule below is written as `main :where(...)`: the `main`
+   gives it exactly the weight of the preflight it has to beat, and the
+   :where() keeps the rest at zero. So a page that styled its own control
+   with a class keeps it, and a page that left the browser's default -
+   the white textarea, the "Choose File / No file chosen" strip, the
+   stock checkbox - gets the system's instead. Ninety pages change at
+   once; none of the ones that were already right change at all. */
+
+main :where(input:not([type]), input[type="text"], input[type="email"],
+            input[type="url"], input[type="number"], input[type="search"],
+            input[type="tel"], input[type="password"], input[type="date"],
+            input[type="time"], input[type="datetime-local"], textarea, select) {
+  font-family: var(--sb-text);
+  font-size: 14.5px;
+  line-height: 1.35;
+  color: var(--sb-ink);
+  background: var(--sb-surface-2);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  padding: 10px 12px;
+  max-width: 100%;
+  color-scheme: dark;
+}
+main :where(textarea) { min-height: 96px; resize: vertical; }
+main :where(input, textarea)::placeholder { color: var(--sb-ink-3); opacity: 1; }
+main :where(input, textarea, select):hover { border-color: var(--sb-gold-deep); }
+
+main :where(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--sb-gold);
+  width: 16px;
+  height: 16px;
+  color-scheme: dark;
+  flex: none;
+}
+
+main :where(input[type="file"]) {
+  font-family: var(--sb-text);
+  font-size: 13px;
+  color: var(--sb-ink-2);
+  max-width: 100%;
+}
+main :where(input[type="file"])::file-selector-button {
+  font-family: var(--sb-text);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sb-ink);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  padding: 8px 12px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+main :where(input[type="file"])::file-selector-button:hover {
+  border-color: var(--sb-gold);
+  color: var(--sb-gold-bright);
+}
+
+/* THE PLATE
+   A photograph under the page's name - the treatment the public pages
+   and the door already wear, sized for a desk: one band, the picture
+   veiled toward the ground so the name reads, nothing else on it. */
+.sb-plate {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  min-height: 176px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+}
+.sb-plate-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .75;
+}
+.sb-plate-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(11 10 8 / .9) 0%, rgb(11 10 8 / .45) 48%, rgb(11 10 8 / .1) 100%),
+    linear-gradient(0deg, rgb(11 10 8 / .85) 0%, rgb(11 10 8 / 0) 60%);
+}
+.sb-plate-inner {
+  position: relative;
+  padding: 30px 28px 22px;
+  max-width: 760px;
+  flex: 1 1 420px;
+}
+.sb-plate-eyebrow {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+.sb-plate-title {
+  margin-top: 6px;
+  font-family: var(--sb-display);
+  font-weight: 800;
+  font-stretch: 112%;
+  font-size: 34px;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--sb-ink);
+  text-wrap: balance;
+}
+.sb-plate-support {
+  margin-top: 10px;
+  max-width: 62ch;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--sb-ink-2);
+}
+.sb-plate-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 28px 22px;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .sb-plate { min-height: 140px; }
+  .sb-plate-inner { padding: 20px 16px 16px; }
+  .sb-plate-title { font-size: 26px; }
+  .sb-plate-actions { padding: 0 16px 16px; }
+}
+
+/* LANE CARDS (Audio Studio)
+   One card per lane: name, lamp, one line. The form is behind Start,
+   so the page reads as six products, not six forms. */
+.asx { display: grid; gap: 20px; max-width: 1100px; margin: 0 auto; }
+.asx-lanes {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+.asx-lane { display: flex; flex-direction: column; padding: 18px 18px 16px; }
+.asx-lane-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.asx-lane-title {
+  font-family: var(--sb-display);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--sb-ink);
+}
+.asx-lane-note { margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+.asx-lane-flag { margin-top: 12px; font-size: 13px; line-height: 1.5; color: var(--sb-ink-3); }
+.asx-lane-flag code { font-family: var(--sb-mono); font-size: 12px; color: var(--sb-ink-2); }
+.asx-lane-flag strong { color: var(--sb-ink); font-weight: 600; }
+.asx-spacer { flex: 1; }
+
+details.asx-open { margin-top: 14px; }
+details.asx-open > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  width: -moz-fit-content;
+  width: fit-content;
+}
+details.asx-open > summary::-webkit-details-marker { display: none; }
+details.asx-open .asx-when-open { display: none; }
+details.asx-open[open] .asx-when-open { display: inline; }
+details.asx-open[open] .asx-when-closed { display: none; }
+
+.asx-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--sb-line);
+}
+.asx-field { display: grid; gap: 6px; }
+.asx-field > span {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+.asx-choices { display: grid; gap: 8px; }
+.asx-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--sb-ink-2);
+}
+.asx-choice input { margin-top: 2px; }
+.asx-hint { font-size: 13px; line-height: 1.45; color: var(--sb-ink-3); }
+
+.asx-foot { padding: 16px 18px; }
+.asx-foot p { font-size: 13.5px; line-height: 1.55; color: var(--sb-ink-3); max-width: 70ch; }
+.asx-foot p + p { margin-top: 8px; }
+.asx-work { padding: 18px; }
+.asx-work-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.asx-work-sub { font-size: 12px; color: var(--sb-ink-3); }

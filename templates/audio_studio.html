@@ -7,53 +7,52 @@
 {%- set status_tone = {"ready": "good", "queued": "info", "running": "info",
                        "draft": "idle", "refused": "warn", "failed": "crit"} -%}
 
-<div class="mx-auto max-w-[1100px] space-y-5">
-  <div>
-    <p class="sb-label sb-label-gold">Street Banker</p>
-    <h1 class="sb-h1 mt-1">Audio Studio</h1>
-    <p class="mt-2 max-w-3xl text-sm text-gray-300">
-      Dub a release, cut campaign audio, split a recording into stems, or
-      register a voice its owner has verified. Everything here works on audio
-      you own or control, and you confirm that for each piece of work — not
-      once for the account.
-    </p>
-  </div>
+<div class="asx">
+  {{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+              "Street Banker · Audio Studio", "Audio Studio",
+              "Dub a release, cut campaign audio, split a recording into stems, or register a voice its owner has verified. Everything here works on audio you own or control, and you confirm that for each piece of work — not once for the account.",
+              position="center 42%") }}
 
   {% if not any_on %}
-    <section class="sb-panel p-4">
+    <section class="sb-panel asx-foot">
       <h2 class="sb-label sb-label-gold">Nothing is switched on yet</h2>
-      <p class="mt-2 text-sm text-gray-300">
+      <p>
         Every lane below is off on this deployment. They are listed so you can
         see what the Studio does before anything that costs money is enabled.
       </p>
     </section>
   {% endif %}
 
-  <div class="grid gap-4 md:grid-cols-2">
+  {#- Six products, one card each. The form lives behind Start so the page
+      reads as what the Studio does, and a person opens the one they came
+      for. Every field name, value and sentence the routes and the tests
+      hold to is unchanged. -#}
+  <div class="asx-lanes">
     {% for lane in lanes %}
-      <section class="sb-panel p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="sb-label sb-label-gold">{{ lane.title }}</h2>
+      <section class="sb-panel asx-lane">
+        <div class="asx-lane-head">
+          <h2 class="asx-lane-title">{{ lane.title }}</h2>
           {{ sb.badge("available" if lane.on else "off",
                       "good" if lane.on else "idle") }}
         </div>
-        <p class="mt-2 text-sm text-gray-300">{{ lane.note }}</p>
+        <p class="asx-lane-note">{{ lane.note }}</p>
 
         {% if not lane.on %}
+          <div class="asx-spacer"></div>
           {% if lane.key == 'voice_vault' %}
             {#- Not a flag problem. The gate wants a recorded owner-verification
                 consent and nothing in the app can write one yet, so the lane
                 would refuse every submission. Saying "needs a flag" would send
                 an operator to switch something on that changes nothing. -#}
-            <p class="mt-3 max-w-2xl text-sm text-gray-300">
-              <strong class="text-white">Not connected yet.</strong> A voice can
+            <p class="asx-lane-flag">
+              <strong>Not connected yet.</strong> A voice can
               only be registered by the person whose voice it is, verified
               through the provider's own process. That verification step is not
               built here, so this lane is switched off rather than accepting a
               registration it would refuse.
             </p>
           {% else %}
-            <p class="mt-3 text-sm text-gray-300">
+            <p class="asx-lane-flag">
               Needs <code>{{ lane.flag }}</code>.
             </p>
           {% endif %}
@@ -61,110 +60,109 @@
           {# The Vault is not an upload. It records a reference to a voice the
              OWNER verified through the vendor's own process. A manager
              cannot register somebody else's voice from here. #}
-          <p class="mt-3 text-sm text-gray-300">
-            <strong class="text-white">Only the person whose voice it is can
+          <p class="asx-lane-flag">
+            <strong>Only the person whose voice it is can
             register it.</strong> Street Banker never holds the voice model —
             it records a reference to one verified through the provider, and
             the permission around it. Starting here will ask the owner to
             complete that verification themselves.
           </p>
-          <form method="post" action="{{ url_for('audio_studio.studio_new') }}"
-                class="mt-3">
-            <input type="hidden" name="lane" value="{{ lane.key }}">
-            {{ sb.field("owner_person_id", "Who the voice belongs to",
-                        placeholder="Their name or reference",
-                        hint="They complete verification themselves. This only records who it is for.") }}
-            <div class="mt-3">{{ sb.btn("Begin a registration", variant="secondary", type="submit") }}</div>
-          </form>
+          <div class="asx-spacer"></div>
+          <details class="asx-open">
+            <summary><span class="sb-btn sb-btn-secondary sb-btn-sm"><span class="asx-when-closed">Begin a registration</span><span class="asx-when-open">Close</span></span></summary>
+            <form method="post" action="{{ url_for('audio_studio.studio_new') }}" class="asx-form">
+              <input type="hidden" name="lane" value="{{ lane.key }}">
+              {{ sb.field("owner_person_id", "Who the voice belongs to",
+                          placeholder="Their name or reference",
+                          hint="They complete verification themselves. This only records who it is for.") }}
+              <div>{{ sb.btn("Begin a registration", variant="secondary", type="submit") }}</div>
+            </form>
+          </details>
         {% else %}
-          <form method="post" action="{{ url_for('audio_studio.studio_new') }}"
-                enctype="multipart/form-data" class="mt-3 space-y-3">
-            <input type="hidden" name="lane" value="{{ lane.key }}">
+          <div class="asx-spacer"></div>
+          <details class="asx-open">
+            <summary><span class="sb-btn sb-btn-secondary sb-btn-sm"><span class="asx-when-closed">Start</span><span class="asx-when-open">Close</span></span></summary>
+            <form method="post" action="{{ url_for('audio_studio.studio_new') }}"
+                  enctype="multipart/form-data" class="asx-form">
+              <input type="hidden" name="lane" value="{{ lane.key }}">
 
-            {% if lane.kind in ("dubbing", "stem_separation", "voice_isolation") %}
-              <label class="block text-sm text-gray-300">
-                <span class="block">Recording</span>
-                <input type="file" name="file" accept="audio/*" required
-                       class="mt-1 block w-full text-sm">
-              </label>
-            {% endif %}
-
-            {% if lane.kind in ("campaign_voiceover", "sound_effects") %}
-              <label class="block text-sm text-gray-300">
-                <span class="block">{{ "What it should say" if lane.kind == "campaign_voiceover" else "What it should sound like" }}</span>
-                <textarea name="brief" rows="3" required
-                          class="mt-1 block w-full text-sm"></textarea>
-              </label>
-            {% endif %}
-
-            {% if lane.kind == "stem_separation" %}
-              <fieldset class="text-sm text-gray-300">
-                <legend class="block">Split into</legend>
-                {% for value, label in stem_variations %}
-                  <label class="mt-1 flex items-start gap-2">
-                    <input type="radio" name="stems" value="{{ value }}" class="mt-1"{% if loop.first %} checked{% endif %}>
-                    <span>{{ label }}</span>
-                  </label>
-                {% endfor %}
-              </fieldset>
-            {% endif %}
-
-            {% if lane.kind == "campaign_voiceover" %}
-              {% if voice_options %}
-                {{ sb.field("voice_id", "Voice", options=voice_options,
-                            hint="Voices from the connected account's own library.") }}
-              {% elif default_voice %}
-                <p class="text-sm text-gray-300">
-                  Read in the deployment's default voice.
-                </p>
-              {% else %}
-                <p class="text-sm text-gray-300">
-                  No voice is available from the connected provider account
-                  yet, so a read cannot be generated until one is.
-                </p>
+              {% if lane.kind in ("dubbing", "stem_separation", "voice_isolation") %}
+                <label class="asx-field">
+                  <span>Recording</span>
+                  <input type="file" name="file" accept="audio/*" required>
+                </label>
               {% endif %}
-              {{ sb.field("language", "Language", placeholder="en",
-                          hint="Optional. A two-letter code such as en, es or fr.") }}
-            {% endif %}
 
-            {% if lane.kind == "dubbing" %}
-              {{ sb.field("languages", "Languages", placeholder="es, fr, pt",
-                          hint="Comma separated. One dub is created per language, and a full song takes a few minutes each.") }}
-            {% endif %}
+              {% if lane.kind in ("campaign_voiceover", "sound_effects") %}
+                <label class="asx-field">
+                  <span>{{ "What it should say" if lane.kind == "campaign_voiceover" else "What it should sound like" }}</span>
+                  <textarea name="brief" rows="3" required></textarea>
+                </label>
+              {% endif %}
 
-            {% if lane.kind == "sound_effects" %}
-              {{ sb.field("duration_seconds", "Seconds", value="3", type="number") }}
-            {% endif %}
+              {% if lane.kind == "stem_separation" %}
+                <fieldset class="asx-field">
+                  <legend><span>Split into</span></legend>
+                  <div class="asx-choices">
+                  {% for value, label in stem_variations %}
+                    <label class="asx-choice">
+                      <input type="radio" name="stems" value="{{ value }}"{% if loop.first %} checked{% endif %}>
+                      <span>{{ label }}</span>
+                    </label>
+                  {% endfor %}
+                  </div>
+                </fieldset>
+              {% endif %}
 
-            {# The rights confirmation is per piece of work. A tick at signup
-               is not a claim about the file being uploaded now. #}
-            <label class="flex items-start gap-2 text-sm text-gray-300">
-              <input type="checkbox" name="rights" value="1" required class="mt-1">
-              <span>I own or control this audio, or have the rights holder's
-                authorisation to use it.</span>
-            </label>
+              {% if lane.kind == "campaign_voiceover" %}
+                {% if voice_options %}
+                  {{ sb.field("voice_id", "Voice", options=voice_options,
+                              hint="Voices from the connected account's own library.") }}
+                {% elif default_voice %}
+                  <p class="asx-hint">
+                    Read in the deployment's default voice.
+                  </p>
+                {% else %}
+                  <p class="asx-hint">
+                    No voice is available from the connected provider account
+                    yet, so a read cannot be generated until one is.
+                  </p>
+                {% endif %}
+                {{ sb.field("language", "Language", placeholder="en",
+                            hint="Optional. A two-letter code such as en, es or fr.") }}
+              {% endif %}
 
-            <div>{{ sb.btn("Start", variant="primary", type="submit") }}</div>
-          </form>
+              {% if lane.kind == "dubbing" %}
+                {{ sb.field("languages", "Languages", placeholder="es, fr, pt",
+                            hint="Comma separated. One dub is created per language, and a full song takes a few minutes each.") }}
+              {% endif %}
+
+              {% if lane.kind == "sound_effects" %}
+                {{ sb.field("duration_seconds", "Seconds", value="3", type="number") }}
+              {% endif %}
+
+              {# The rights confirmation is per piece of work. A tick at signup
+                 is not a claim about the file being uploaded now. #}
+              <label class="asx-choice">
+                <input type="checkbox" name="rights" value="1" required>
+                <span>I own or control this audio, or have the rights holder's
+                  authorisation to use it.</span>
+              </label>
+
+              <div>{{ sb.btn("Start", variant="primary", type="submit") }}</div>
+            </form>
+          </details>
         {% endif %}
       </section>
     {% endfor %}
   </div>
 
-  <section class="sb-panel p-4">
-    <h2 class="sb-label sb-label-gold">What this cannot do</h2>
-    <p class="mt-2 max-w-3xl text-sm text-gray-300">{{ safety_warning }}</p>
-    <p class="mt-2 max-w-3xl text-sm text-gray-300">
-      Briefs are screened before anything is sent. A request to imitate a
-      specific person is refused and the reason is shown on the item — the
-      person being imitated has no say in it at the moment it is typed, which
-      is why the answer is no rather than a warning.
-    </p>
-  </section>
-
   {% if works %}
-    <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Your work</h2>
+    <section class="sb-panel asx-work">
+      <div class="asx-work-head">
+        <h2 class="sb-label sb-label-gold">Your work</h2>
+        <span class="asx-work-sub">{{ works|length }} item{{ '' if works|length == 1 else 's' }}</span>
+      </div>
       {% call sb.table(["What", "Kind", "Status", "Started"]) %}
         {% for item in works %}
           <tr>
@@ -184,5 +182,16 @@
       {% endcall %}
     </section>
   {% endif %}
+
+  <section class="sb-panel asx-foot">
+    <h2 class="sb-label sb-label-gold">What this cannot do</h2>
+    <p>{{ safety_warning }}</p>
+    <p>
+      Briefs are screened before anything is sent. A request to imitate a
+      specific person is refused and the reason is shown on the item — the
+      person being imitated has no say in it at the moment it is typed, which
+      is why the answer is no rather than a warning.
+    </p>
+  </section>
 </div>
 {% endblock %}

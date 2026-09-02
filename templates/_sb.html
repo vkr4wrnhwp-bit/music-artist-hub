@@ -288,3 +288,24 @@
 } -%}
 <svg viewBox="0 0 24 24" aria-hidden="true">{{ paths.get(name, paths["grid"]) | safe }}</svg>
 {%- endmacro %}
+
+
+{# --- the plate ----------------------------------------------------
+   A photograph under the page's name. stem + widths name the
+   renditions in static/img the way the public plate does; the
+   optional call block lands on the right as the page's actions. #}
+{% macro plate(stem, widths, eyebrow, title, support=none, position="center 40%", alt="") -%}
+  <section class="sb-plate" aria-labelledby="sb-plate-title">
+    <img class="sb-plate-img" src="{{ stem }}-{{ widths[-1] }}.jpg"
+         srcset="{% for w in widths %}{{ stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+         sizes="(min-width: 1024px) 1100px, 100vw" alt="{{ alt }}" loading="eager" decoding="async"
+         style="object-position: {{ position }};">
+    <span class="sb-plate-veil" aria-hidden="true"></span>
+    <div class="sb-plate-inner">
+      <p class="sb-plate-eyebrow">{{ eyebrow }}</p>
+      <h1 class="sb-plate-title" id="sb-plate-title">{{ title }}</h1>
+      {% if support %}<p class="sb-plate-support">{{ support }}</p>{% endif %}
+    </div>
+    {% if caller %}<div class="sb-plate-actions">{{ caller() }}</div>{% endif %}
+  </section>
+{%- endmacro %}
