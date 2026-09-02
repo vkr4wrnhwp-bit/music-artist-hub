@@ -11,6 +11,7 @@ import { buildProtectedRegions } from "@/lib/nc/protection";
 import { evaluateAuditGates } from "@/lib/nc/audit-gates";
 import { classifyOperations } from "@/lib/nc/classify";
 import { inspectSource } from "@/lib/nc/source";
+import { parseToolList, type ToolListImport, type ToolListUnits } from "@/lib/nc/tool-list";
 
 /**
  * NC ANALYSIS — Phase 4A/4B endpoint
@@ -37,6 +38,24 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach an .nc / .txt program." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "File exceeds the 5 MB limit." }, { status: 400 });
 
+  /*
+   * Optional tool list. Units are stated by the operator, not sniffed: a
+   * 6 mm cutter read as 6 inch is a scrapped part, and no header convention
+   * separates the two. An attached list with no units is refused outright
+   * rather than assumed to match the program's G20/G21 — it is a different
+   * document and may have come from a different post.
+   */
+  const toolListFile = form?.get("toolList");
+  const toolListUnitsRaw = String(form?.get("toolListUnits") ?? "");
+  let toolList: ToolListImport | null = null;
+  if (toolListFile instanceof File && toolListFile.size > 0) {
+    if (toolListFile.size > MAX_BYTES) return NextResponse.json({ error: "Tool list exceeds the 5 MB limit." }, { status: 400 });
+    if (toolListUnitsRaw !== "IN" && toolListUnitsRaw !== "MM") {
+      return NextResponse.json({ error: "State the units of the tool list (inch or mm) before attaching it." }, { status: 400 });
+    }
+    toolList = parseToolList(await toolListFile.text(), toolListUnitsRaw as ToolListUnits);
+  }
+
   const [tools, machines, materials, shop] = await Promise.all([
     getTools(user.organizationId),
     getMachines(user.organizationId),
@@ -47,12 +66,35 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const loadTools: LoadContext["tools"] = {};
   // Stickout and flute length, so the reach check has the crib's record of
   // the tool rather than nothing.
-  const toolGeometry: Record<number, { description: string; fluteLength: number; stickout: number }> = {};
+  const toolGeometry: Record<number, { description: string; fluteLength: number; stickout: number; source: "CRIB" | "TOOL_LIST" }> = {};
   for (const t of tools) {
     toolDiameters[t.toolNumber] = t.diameter;
     loadTools[t.toolNumber] = { diameter: t.diameter, flutes: t.flutes, chiploadMin: t.chiploadMin, chiploadMax: t.chiploadMax };
-    toolGeometry[t.toolNumber] = { description: t.description, fluteLength: t.fluteLength, stickout: t.stickout };
+    toolGeometry[t.toolNumber] = { description: t.description, fluteLength: t.fluteLength, stickout: t.stickout, source: "CRIB" };
   }
+  /*
+   * The crib wins. A crib record is the shop's own measured record of a tool
+   * it owns; an attached list describes one job's intended tooling. Where
+   * both exist the crib is the tool that will actually be in the spindle.
+   *
+   * List-only tools get geometry and NOT a chipload window — nothing in a
+   * CAM export carries one — so they are absent from loadTools by
+   * construction, and no feed proposal can be built against an invented
+   * limit.
+   */
+  const toolsFromList: number[] = [];
+  for (const e of toolList?.entries ?? []) {
+    if (toolDiameters[e.toolNumber] !== undefined) continue;
+    toolDiameters[e.toolNumber] = e.diameter;
+    toolGeometry[e.toolNumber] = {
+      description: e.description,
+      fluteLength: e.fluteLength ?? 0,
+      stickout: e.stickout ?? 0,
+      source: "TOOL_LIST",
+    };
+    toolsFromList.push(e.toolNumber);
+  }
+
   // Material by name match against the recorded intent — no match, no energy.
   const materialName = revision.intent.material.value ?? "";
   const material = materials.find((m) => materialName.toLowerCase().includes(m.name.toLowerCase().split(" ")[0]) || m.name.toLowerCase().includes(materialName.toLowerCase().split(" ")[0] ?? "∅"));
@@ -133,7 +175,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     source: { encoding: source.encoding, lineEnding: source.lineEnding, controllerFamily: source.controllerFamily },
     digest,
     toolsInProgram,
-    toolsMapped: toolsInProgram.filter((t) => toolDiameters[t] !== undefined),
+    toolsMapped: toolsInProgram.filter((t) => loadTools[t] !== undefined),
+    toolsFromList: toolsInProgram.filter((t) => toolsFromList.includes(t)),
     machineKnown: machine !== null,
     axisAccelKnown: machine?.axisAccel != null,
     stockBound: Boolean(revision.stock),
@@ -161,6 +204,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       units: parsed.units,
       workOffsetsSeen: parsed.workOffsetsSeen,
       toolChanges: parsed.toolChanges,
+    },
+    toolList: toolList && {
+      units: toolList.units,
+      imported: toolList.entries.length,
+      applied: toolsFromList.filter((t) => toolsInProgram.includes(t)).length,
+      refusals: toolList.refusals,
+      unreadColumns: toolList.unreadColumns,
+      columns: toolList.columns,
     },
     // Backplot polylines with source lines: [kind, line, x0,y0, x1,y1] —
     // the line number is what synchronizes scene and code in both directions.

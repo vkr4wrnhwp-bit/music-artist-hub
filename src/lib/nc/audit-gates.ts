@@ -51,8 +51,14 @@ export interface AuditGateInput {
   digest: string | null;
   /** T numbers called by the program. */
   toolsInProgram: number[];
-  /** T numbers with a matching crib record. */
+  /** T numbers with a matching crib record — measured, and with a chipload window. */
   toolsMapped: number[];
+  /**
+   * T numbers known only from an attached tool list. Geometry for engagement
+   * and reach, no chipload window, and no crib record behind them — so they
+   * do not make this gate PASS.
+   */
+  toolsFromList?: number[];
   machineKnown: boolean;
   axisAccelKnown: boolean;
   stockBound: boolean;
@@ -158,21 +164,27 @@ export function evaluateAuditGates(input: AuditGateInput): AuditGateResult {
   );
 
   /* ---- OPTIMIZATION stage ---- */
-  const unmapped = input.toolsInProgram.filter((t) => !input.toolsMapped.includes(t));
+  const fromList = input.toolsFromList ?? [];
+  const unmapped = input.toolsInProgram.filter((t) => !input.toolsMapped.includes(t) && !fromList.includes(t));
+  const listOnly = input.toolsInProgram.filter((t) => fromList.includes(t));
   g(
     "tool-mapping",
     "Tool mapping",
     "OPTIMIZATION",
     input.toolsInProgram.length === 0
       ? "REVIEW"
-      : unmapped.length === 0
-        ? "PASS"
-        : "INSUFFICIENT_DATA",
+      : unmapped.length > 0
+        ? "INSUFFICIENT_DATA"
+        : listOnly.length > 0
+          ? "REVIEW"
+          : "PASS",
     input.toolsInProgram.length === 0
       ? "No tool calls found in the program."
-      : unmapped.length === 0
-        ? `All ${input.toolsInProgram.length} program tool(s) matched to crib records.`
-        : `T${unmapped.join(", T")} have no crib record — their cuts carry no load verdict and no proposals. Match or create the tool(s).`,
+      : unmapped.length > 0
+        ? `T${unmapped.join(", T")} have no crib record and are not in the attached tool list — their cuts carry no load verdict and no proposals. Match, create, or attach the tool(s).`
+        : listOnly.length > 0
+          ? `T${listOnly.join(", T")} come from the attached tool list, not the crib: diameter and stickout are read for engagement and reach, and no feed proposal is made for them — a tool list carries no chipload window, and one cannot be assumed.`
+          : `All ${input.toolsInProgram.length} program tool(s) matched to crib records.`,
   );
 
   g(
@@ -211,9 +223,9 @@ export function evaluateAuditGates(input: AuditGateInput): AuditGateResult {
     "engagement-model",
     "Engagement model",
     "OPTIMIZATION",
-    input.stockBound && input.toolsMapped.length > 0 ? "PASS" : "INSUFFICIENT_DATA",
-    input.stockBound && input.toolsMapped.length > 0
-      ? "Height-field replay against bound stock with crib tool diameters — engagement bands are computed, not guessed."
+    input.stockBound && input.toolsMapped.length + fromList.length > 0 ? "PASS" : "INSUFFICIENT_DATA",
+    input.stockBound && input.toolsMapped.length + fromList.length > 0
+      ? "Height-field replay against bound stock with the tool diameters CANVAS has — engagement bands are computed, not guessed."
       : "Engagement needs both bound stock and mapped tools. Bands fall back to chipload-only where a tool is known.",
   );
 

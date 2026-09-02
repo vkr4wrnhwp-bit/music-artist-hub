@@ -77,7 +77,7 @@ export interface AnalysisContext {
    * Stickout and flute length by T number, from the crib. Optional: a caller
    * that has no crib gets no reach findings rather than invented ones.
    */
-  toolGeometry?: Record<number, { description: string; fluteLength: number; stickout: number }>;
+  toolGeometry?: Record<number, { description: string; fluteLength: number; stickout: number; source?: "CRIB" | "TOOL_LIST" }>;
   /**
    * Rapid traverse, in/min, from the machine record. Null when this part
    * names no machine — the analysis still runs, on a stated default, and
@@ -250,21 +250,43 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
       const g = geometry[toolNumber];
       // No crib record: already covered by UNKNOWN_CONTEXT. Nothing invented.
       if (!g) continue;
-      if (g.stickout <= 0 || g.fluteLength <= 0) {
-        findings.push({
-          kind: "TOOL_REACH_REVIEW",
-          verdict: "INSUFFICIENT_DATA",
-          line,
-          toolNumber,
-          seconds: 0,
-          detail: `T${toolNumber} ${g.description} has no stickout or flute length recorded — reach was not checked against the ${depth.toFixed(3)}″ it is programmed to cut.`,
-          assumptions: [],
-        });
+      // Each value is checked on its own. A tool list commonly carries a
+      // stickout and no flute length, or the reverse, and a stickout of
+      // 1.200 against a 1.500 cut is a reach problem whether or not the
+      // flute length is known.
+      const where = g.source === "TOOL_LIST" ? "the attached tool list" : "the crib";
+      const short = g.stickout > 0 && !reachesDepth(g.stickout, depth);
+      const pastFlute = g.fluteLength > 0 && depth > g.fluteLength;
+      const unrecorded = [
+        g.stickout <= 0 ? "stickout" : null,
+        g.fluteLength <= 0 ? "flute length" : null,
+      ].filter((x): x is string => x !== null);
+
+      if (!short && !pastFlute) {
+        if (unrecorded.length === 2) {
+          findings.push({
+            kind: "TOOL_REACH_REVIEW",
+            verdict: "INSUFFICIENT_DATA",
+            line,
+            toolNumber,
+            seconds: 0,
+            detail: `T${toolNumber} ${g.description} has no stickout or flute length recorded — reach was not checked against the ${depth.toFixed(3)}″ it is programmed to cut.`,
+            assumptions: [],
+          });
+        } else if (unrecorded.length === 1) {
+          findings.push({
+            kind: "TOOL_REACH_REVIEW",
+            verdict: "INSUFFICIENT_DATA",
+            line,
+            toolNumber,
+            seconds: 0,
+            detail: `T${toolNumber} ${g.description} clears the ${depth.toFixed(3)}″ cut on the one figure ${where} carries, but its ${unrecorded[0]} is not recorded — half the reach check ran.`,
+            assumptions: [],
+          });
+        }
         continue;
       }
-      const short = !reachesDepth(g.stickout, depth);
-      const pastFlute = depth > g.fluteLength;
-      if (!short && !pastFlute) continue;
+
       findings.push({
         kind: "TOOL_REACH_REVIEW",
         verdict: "REVIEW",
@@ -274,12 +296,15 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
         detail:
           `T${toolNumber} ${g.description} is programmed ${depth.toFixed(3)}″ deep. ` +
           (short
-            ? `The crib records ${g.stickout.toFixed(3)}″ of stickout, which leaves less than the ${REACH_CLEARANCE.toFixed(3)}″ clearance this shop works to. `
+            ? `${where === "the crib" ? "The crib records" : "The attached tool list records"} ${g.stickout.toFixed(3)}″ of stickout, which leaves less than the ${REACH_CLEARANCE.toFixed(3)}″ clearance this shop works to. `
             : "") +
-          (pastFlute ? `The cut is deeper than the ${g.fluteLength.toFixed(3)}″ flute length. ` : ""),
+          (pastFlute ? `The cut is deeper than the ${g.fluteLength.toFixed(3)}″ flute length. ` : "") +
+          (unrecorded.length === 1 ? `Its ${unrecorded[0]} is not recorded, so that half of the check did not run. ` : ""),
         assumptions: [
           "Depth is measured from program Z0, taken as the top of the stock.",
-          `Stickout and flute length are the crib record for T${toolNumber}, not a measurement of the tool now in the holder.`,
+          g.source === "TOOL_LIST"
+            ? `Stickout and flute length are the attached tool list's figures for T${toolNumber} — the programmer's intent, not a measurement of the tool now in the holder.`
+            : `Stickout and flute length are the crib record for T${toolNumber}, not a measurement of the tool now in the holder.`,
           "The holder body is not modelled as geometry — this is the stickout-against-depth check, not a collision solve.",
         ],
       });

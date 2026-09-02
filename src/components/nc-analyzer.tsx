@@ -48,6 +48,14 @@ interface Report {
     workOffsetsSeen: string[];
     toolChanges: { line: number; toolNumber: number }[];
   };
+  toolList?: {
+    units: "IN" | "MM";
+    imported: number;
+    applied: number;
+    refusals: { row: number; reason: string }[];
+    unreadColumns: string[];
+    columns: Record<string, string>;
+  } | null;
   backplot: [number, number, number, number, number, number][];
   code: string;
   operations: { toolNumber: number; lines: [number, number]; kind: string; method: string; detail: string; cutSegments: number }[];
@@ -81,6 +89,8 @@ interface Report {
 
 export function NcAnalyzer({ partId }: { partId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const toolListRef = useRef<HTMLInputElement>(null);
+  const [toolListUnits, setToolListUnits] = useState("");
   const [preset, setPreset] = useState("BALANCED");
   const [state, setState] = useState<{ busy: boolean; error: string | null; report: Report | null }>({
     busy: false, error: null, report: null,
@@ -143,6 +153,11 @@ export function NcAnalyzer({ partId }: { partId: string }) {
     setSel(null);
     const body = new FormData();
     body.append("file", file);
+    const toolListFile = toolListRef.current?.files?.[0];
+    if (toolListFile) {
+      body.append("toolList", toolListFile);
+      body.append("toolListUnits", toolListUnits);
+    }
     const res = await fetch(`/api/parts/${partId}/nc-analyze?preset=${preset}`, { method: "POST", body });
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.analysis) { setState({ busy: false, error: json?.error ?? "Analysis failed.", report: null }); return; }
@@ -152,6 +167,10 @@ export function NcAnalyzer({ partId }: { partId: string }) {
   async function run() {
     const file = fileRef.current?.files?.[0];
     if (!file) { setState((s) => ({ ...s, error: "Choose an .nc / .txt program first." })); return; }
+    if (toolListRef.current?.files?.[0] && toolListUnits === "") {
+      setState((s) => ({ ...s, error: "State the units of the tool list before analyzing. A 6 mm cutter read as 6 inch is a scrapped part." }));
+      return;
+    }
     await analyzeFile(file);
   }
 
@@ -195,6 +214,30 @@ export function NcAnalyzer({ partId }: { partId: string }) {
           Load demo program
         </Button>
         <span className="text-[10.5px] text-muted">Demo: deliberate mixed results — savings, a protected bore, a review-only comped region.</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-platinum-dim">Tool list (optional)</span>
+        <input
+          ref={toolListRef}
+          type="file"
+          accept=".csv,.txt,.tsv"
+          aria-label="Tool list (CSV or tab separated)"
+          className="text-[12px] text-muted file:mr-3 file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:uppercase file:tracking-[0.12em] file:text-platinum-dim hover:file:bg-raised"
+        />
+        <select
+          value={toolListUnits}
+          onChange={(e) => setToolListUnits(e.target.value)}
+          aria-label="Tool list units"
+          className="border border-line-strong bg-surface px-1.5 py-1.5 text-[11px] text-platinum-dim"
+        >
+          <option value="">Units — state them</option>
+          <option value="IN">Inch</option>
+          <option value="MM">Millimetre</option>
+        </select>
+        <span className="text-[10.5px] text-muted">
+          CSV or tab separated, with a header row. Tool number, diameter and flute count are read; flute length and stickout are used for reach if present.
+          Nothing is written to the crib, and a tool known only from the list gets no feed proposal — a tool list carries no chipload window.
+        </span>
       </div>
       {state.error && <p className="text-[12px] text-risk">{state.error}</p>}
 
@@ -241,6 +284,33 @@ export function NcAnalyzer({ partId }: { partId: string }) {
               </ul>
             )}
           </Panel>
+
+          {r.toolList && (
+            <Panel title="Attached tool list" meta={`${r.toolList.imported} tool${r.toolList.imported === 1 ? "" : "s"} read in ${r.toolList.units === "MM" ? "millimetres" : "inches"} — ${r.toolList.applied} used by this program`}>
+              <div className="space-y-2 px-4 py-3 text-[11.5px] leading-relaxed">
+                <p className="text-muted">
+                  Read for this analysis only. Nothing was written to the tool crib, and a tool known only from this
+                  list carries no chipload window, so no feed proposal is made against it.
+                </p>
+                {Object.keys(r.toolList.columns).length > 0 && (
+                  <p className="text-muted">
+                    Columns read:{" "}
+                    {Object.entries(r.toolList.columns).map(([f, h]) => `${f} ← "${h}"`).join(", ")}.
+                  </p>
+                )}
+                {r.toolList.unreadColumns.length > 0 && (
+                  <p className="text-review">Not read: {r.toolList.unreadColumns.join(", ")}.</p>
+                )}
+                {r.toolList.refusals.length > 0 && (
+                  <ul>
+                    {r.toolList.refusals.map((f) => (
+                      <li key={`${f.row}-${f.reason}`} className="text-risk">— Row {f.row}: {f.reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Panel>
+          )}
 
           {/* ---------- Workspace modes — one scene at a time ---------- */}
           <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2">
