@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   VIEW_PRESETS,
   semanticConflicts,
+  shellLegibilityProblems,
   recommendPresetFor,
   loadSavedPresets,
   saveNamedPreset,
@@ -75,6 +76,10 @@ export function ViewEnvironmentDrawer({
     };
   }, []);
   const conflicts = useMemo(() => semanticConflicts(env.background), [env.background]);
+  const shellProblems = useMemo(
+    () => (env.shellBackground ? shellLegibilityProblems(env.shellBackground) : []),
+    [env.shellBackground],
+  );
   const recommendation = useMemo(() => recommendPresetFor(material), [material]);
 
   const set = (patch: Partial<ViewEnvironment>) =>
@@ -130,8 +135,47 @@ export function ViewEnvironmentDrawer({
         </section>
 
         {/* ---- Custom colours ---- */}
+        {/*
+          * The chrome, separated from the work window on purpose.
+          *
+          * "Background" below repaints the 3D window the part sits in. It
+          * always has, and picking a colour there while the rail and header
+          * stayed near-black reads as the control doing nothing. They are
+          * two different grounds; the panel now says which is which.
+          */}
         <section>
-          <p className={label}>Custom colours</p>
+          <p className={label}>Application chrome</p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="text-[10.5px] text-platinum-dim">Shell ground</span>
+            <span className="flex items-center gap-1">
+              <input
+                type="color"
+                value={env.shellBackground ?? "#06111c"}
+                onChange={(e) => set({ shellBackground: e.target.value })}
+                className="h-5 w-7 cursor-pointer border border-line-strong bg-transparent p-0"
+                aria-label="Application chrome colour"
+              />
+              <button
+                onClick={() => set({ shellBackground: null })}
+                disabled={env.shellBackground === null}
+                className="border border-line-strong px-1.5 py-0.5 text-[9.5px] uppercase tracking-[0.1em] text-muted enabled:hover:text-platinum disabled:opacity-40"
+              >
+                Default
+              </button>
+            </span>
+          </div>
+          {shellProblems.map((p) => (
+            <p key={p} className="mt-1.5 border border-review/50 bg-review/5 px-2 py-1 text-[10px] leading-snug text-review">
+              {p}
+            </p>
+          ))}
+          <p className="mt-1 text-[9.5px] leading-snug text-muted">
+            The rail, header and panels — not the 3D window below.
+          </p>
+        </section>
+
+        <section>
+          <p className={label}>Work window colours</p>
           {(
             [
               ["Background", "background"],

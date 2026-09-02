@@ -29,6 +29,10 @@ export type ViewMode = "PROGRAMMING" | "INSPECTION" | "PRESENTATION" | "SHOP_FLO
 export interface ViewEnvironment {
   /** Preset id, or "CUSTOM". */
   preset: string;
+  /**
+   * The 3D WORK WINDOW's ground. This is the light region the part sits in —
+   * it is NOT the application chrome around it. See `shellBackground`.
+   */
   background: string;
   /**
    * Draw the background as a soft radial gradient derived from `background`
@@ -39,6 +43,17 @@ export interface ViewEnvironment {
   backgroundGradient: boolean;
   floorColor: string;
   gridColor: string;
+  /**
+   * The APPLICATION CHROME's ground — the rail, the header, the panels
+   * around the work window. Null keeps the approved near-black shell.
+   *
+   * This exists because "background" above only ever repainted the 3D
+   * window, and a colour picked there left the rest of the screen exactly
+   * as it was. The design is deliberately dark-shell/light-window, but the
+   * shell being FIXED was never the decision — it was just the only thing
+   * wired up.
+   */
+  shellBackground: string | null;
   /** Custom accent for selected-feature geometry. Defaults to precision blue. */
   selectedFeatureColor: string;
   sectionFillColor: string;
@@ -67,6 +82,10 @@ export interface ViewEnvironment {
 /* ------------------------------------------------------------------ */
 
 const base: Omit<ViewEnvironment, "preset" | "background" | "floorColor" | "gridColor"> = {
+  // Presets tune the WORK WINDOW. None of them repaints the chrome — a
+  // machinist who picks "Dark Machine Bay" for the part is not asking for a
+  // different application. Setting it is a separate, explicit act.
+  shellBackground: null,
   selectedFeatureColor: "#0b72ff",
   sectionFillColor: "#dce4ec",
   backgroundGradient: true,
@@ -183,6 +202,36 @@ export function semanticConflicts(background: string): string[] {
     if (ratio !== null && ratio < 2.5) out.push(name);
   }
   return out;
+}
+
+/**
+ * What a chosen SHELL colour would break.
+ *
+ * Two different failures, and both matter. The chrome carries running text
+ * — labels, values, gate details — in a near-white foreground, so a light
+ * shell erases the interface rather than restyling it; 4.5:1 is the WCAG AA
+ * floor for body text and it is not negotiable on a screen someone reads
+ * dimensions off. The status colours are the second: the same 2.5:1 rule
+ * the work window already applies, because a red blocking marker that stops
+ * reading as red is the one failure this whole vocabulary exists to prevent.
+ *
+ * Returns problems in the order they matter. Empty means the colour is fine.
+ */
+export function shellLegibilityProblems(background: string): string[] {
+  const problems: string[] = [];
+  const text = contrastRatio(background, "#f2f6fa");
+  if (text !== null && text < 4.5) {
+    problems.push(
+      `Chrome text sits at ${text.toFixed(1)}:1 against this ground — below the 4.5:1 floor for reading dimensions off a screen.`,
+    );
+  }
+  const drowned = semanticConflicts(background);
+  if (drowned.length > 0) {
+    problems.push(
+      `Drowns the locked ${drowned.join(", ")} status colour${drowned.length === 1 ? "" : "s"} — markers stop reading at a glance.`,
+    );
+  }
+  return problems;
 }
 
 /* ------------------------------------------------------------------ */

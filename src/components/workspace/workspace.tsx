@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { applyShellBackground } from "@/components/shell-theme";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Feature, Stock } from "@/lib/domain/features";
 import type { Move } from "@/lib/engines/cam/types";
@@ -250,6 +251,10 @@ function WorkspaceInner(props: WorkspaceProps) {
   const updateEnv = (e: ViewEnvironment) => {
     setViewEnv(e);
     saveEnvironment(e);
+    // The chrome lives outside this component's tree (the rail and header are
+    // rendered by the layout), so repaint it directly rather than waiting for
+    // a reload to pick the stored value up.
+    applyShellBackground(e.shellBackground);
     pushServerPreferences({ env: e });
   };
   const applyViewMode = (m: EnvViewMode) => {
