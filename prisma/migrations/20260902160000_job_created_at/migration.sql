@@ -1,0 +1,12 @@
+-- When a job was raised.
+--
+-- The history timeline needs it and there was nothing to read: dueDate is a
+-- promise and startedAt is when it reached the machine, neither of which is
+-- when somebody decided to run it.
+--
+-- Nullable, with no default. Existing rows stay null rather than being
+-- backfilled to the moment this column was added, which would put a date on
+-- the timeline that nothing observed. (SQLite also cannot ADD COLUMN NOT NULL
+-- with a non-constant default, so a default here would have to be a literal
+-- date — a fabricated one.)
+ALTER TABLE "Job" ADD COLUMN "createdAt" DATETIME;

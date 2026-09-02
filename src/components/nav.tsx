@@ -190,6 +190,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "/tablet", label: "Tablet" },
   { suffix: "/responsibility", label: "Responsibility" },
   { suffix: "/proposals", label: "Proposals" },
+  { suffix: "/history", label: "History" },
   { suffix: "/cost", label: "Cost" },
   { suffix: "/review", label: "Run it past CANVAS" },
   { suffix: "/nc", label: "NC output", dev: true },
@@ -204,7 +205,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
  * reachable, only its surfacing changes.
  */
 const PART_MODE_GROUPS: { mode: string; suffixes: string[] }[] = [
-  { mode: "Part", suffixes: ["", "/features", "/proposals", "/responsibility", "/cost"] },
+  { mode: "Part", suffixes: ["", "/features", "/proposals", "/responsibility", "/cost", "/history"] },
   { mode: "Hold", suffixes: ["/setups", "/soft-jaws"] },
   { mode: "Cut", suffixes: ["/tooling", "/machinist", "/nc-analyzer"] },
   { mode: "Verify", suffixes: ["/inspection", "/fair", "/readiness"] },

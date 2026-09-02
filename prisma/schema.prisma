@@ -943,6 +943,13 @@ model Job {
   jobNumber      String
   quantity       Int
   status         String @default("PLANNED") // PLANNED | SETUP | RUNNING | COMPLETE | CANCELLED
+  // When the job was raised. The history timeline needs it and there was
+  // nothing to read: dueDate is a promise and startedAt is when it reached the
+  // machine, neither of which is when somebody decided to run it.
+  //
+  // Nullable, and existing rows stay null. Backfilling them to the moment the
+  // column was added would put a date on the timeline that nothing observed.
+  createdAt      DateTime?
   dueDate        DateTime?
   startedAt      DateTime?
   completedAt    DateTime?

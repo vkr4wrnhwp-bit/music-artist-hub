@@ -216,14 +216,23 @@ Built. The section had a schema, engines and a page, and nothing in the applicat
 **And it teaches, within its scope.** `job-knowledge.ts` reads outcomes back onto the setups page. Principle 11 governs it: an observation applies only where machine, workholding and material all match, a null on either side matches nothing rather than acting as a wildcard, and nothing an outcome says changes a number the engines computed. It is shown beside the recommendation, never folded into it.
 
 `src/lib/engines/jobs.ts` (new), `src/lib/job-knowledge.ts` (new), `src/app/(app)/jobs/{actions.ts,page.tsx,[id]/page.tsx}`, `src/app/(app)/parts/[id]/release-actions.ts`, `src/components/jobs/*`, `src/components/release-panel.tsx`, `prisma/schema.prisma` with both migration trees, `tests/engines/jobs.test.ts` (29 tests).
-### Manufacturing DNA: attach history to a PartRevision and show a timeline of events (initial release, bore nominal changed, soft jaws added, chatter observed, inspection passed, workholding failure corrected, process revised) with provenance labels
+### Manufacturing DNA: attach history to a PartRevision and show a timeline of events with provenance labels
 
-> Create: MANUFACTURING DNA Attach history to a PartRevision. Show timeline: - initial release - bore nominal changed - soft jaws added - chatter observed - inspection passed - workholding failure corrected - process revis
+> Create: MANUFACTURING DNA Attach history to a PartRevision. Show timeline: - initial release - bore nominal changed - soft jaws added - chatter observed - inspection passed - workholding failure corrected - process revised
 
-The `ManufacturingDNA` model exists and is read in one place, but it is keyed to `Part` (not `PartRevision`), has no event/timeline shape, carries no provenance labels, and has no write site anywhere in `src/` — the only row in existence is created by the seed. The UI is a four-column table (Part / Rev / Actual cost / Recorded) on /intelligence, not a timeline.
+Built at `/parts/[id]/history`, and the design decision is that the timeline is **derived, never authored**.
 
-`prisma/schema.prisma:935-950 (`partId`, `snapshotJson`, no event type, no provenance); only write is prisma/seed.ts:677; only read is src/app/(app)/intelligence/page.tsx:22 rendered as a table at line 72. `grep -rn "manufacturingDNA" src/app src/lib src/components` returns one hit.`
+Every event the brief names already happens and is already recorded — an audit entry, an approval, a job outcome, an inspection result, a disagreement, a review-finding resolution, a release. So the timeline reads those records rather than offering somewhere to type history in. A hand-maintained timeline goes stale the moment somebody forgets and can claim an event that never happened; a derived one cannot. Every row says which record it came from, so the claim is checkable, and the engine has no database access and no model calls at all.
 
+Provenance is per event. The actor type is read from the record that states it and is **null where the record does not** — an unrecorded actor is a missing fact, not a human by default. An `actorType` outside HUMAN/AI/SYSTEM is not carried through either.
+
+The page also names the sources that had nothing in them, so a short history reads as "little has happened to this revision" rather than "little was checked".
+
+**And the model has a write site now.** `/intelligence` had always said "each completed job writes an immutable snapshot — geometry, setups, tooling, feeds, workholding, measured results, cycle time, scrap and cost" and nothing ever wrote one; the only row in existence came from the seed. Completing a job writes it, including whether each setup's geometry was MEASURED or PLANNED. `costActual` stays null rather than being derived from today's rates, which would not be what the job cost and would look like it was.
+
+`Job.createdAt` was added because nothing recorded when a job was raised — `dueDate` is a promise and `startedAt` is when it reached the machine. It is nullable and existing rows stay null: a job raised before the column existed contributes no "raised" event rather than one dated to the migration.
+
+`src/lib/engines/dna.ts` (new), `src/app/(app)/parts/[id]/history/page.tsx` (new), `src/app/(app)/jobs/actions.ts`, `src/app/(app)/intelligence/page.tsx`, `tests/engines/dna.test.ts` (21 tests).
 ### Provenance deep dive — instrument, uncertainty and shop evidence
 
 > Click provenance badge to show: source, method, operator, timestamp, instrument, uncertainty, calculation version, shop evidence

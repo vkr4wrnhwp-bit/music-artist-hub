@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireWrite } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canTransition, validateOutcome, type OutcomeDraft } from "@/lib/engines/jobs";
+import { buildPackage } from "@/lib/package";
 import { audit } from "@/lib/audit";
 
 /**
@@ -59,6 +60,7 @@ export async function createJob(formData: FormData) {
       jobNumber,
       quantity,
       dueDate: due && !Number.isNaN(due.getTime()) ? due : null,
+      createdAt: new Date(),
       status: "PLANNED",
     },
   });
@@ -98,6 +100,58 @@ export async function advanceJob(jobId: string, formData: FormData) {
     },
   });
 
+  /*
+   * A completed job writes the manufacturing record. /intelligence has always
+   * said "each completed job writes an immutable snapshot — geometry, setups,
+   * tooling, feeds, workholding, measured results, cycle time, scrap and
+   * cost", and nothing ever wrote one: the only ManufacturingDNA row in
+   * existence came from the seed.
+   *
+   * Written once, on the transition, and never edited afterwards. It is the
+   * record of how the part was made THAT time, so it must not track later
+   * changes to the plan.
+   */
+  if (to === "COMPLETE") {
+    const pkg = await buildPackage(user.organizationId, job.partId);
+    if (pkg) {
+      await db.manufacturingDNA.create({
+        data: {
+          partId: job.partId,
+          revision: job.revision,
+          jobId: job.id,
+          snapshotJson: JSON.stringify({
+            features: pkg.revision.features.map((f) => ({ kind: f.kind, label: f.label, critical: f.critical })),
+            setups: pkg.setups.map((s) => ({
+              name: s.name,
+              gripDepth: s.gripDepth,
+              stockProjection: s.stockProjection,
+              // Whether these were measured at the machine or came from the
+              // plan generator. A snapshot that does not say is a snapshot
+              // nobody can weigh afterwards.
+              geometrySource: s.geometrySource,
+              jawSurface: s.jawSurface,
+            })),
+            tooling: pkg.assignedTools.map((t) => ({ toolNumber: t.toolNumber, description: t.description, diameter: t.diameter })),
+            machine: pkg.primaryMachine ? `${pkg.primaryMachine.manufacturer} ${pkg.primaryMachine.model}` : null,
+            workholding: pkg.primaryWorkholding?.description ?? null,
+            estimatedCycleMinutes: pkg.cycleMinutes,
+            readinessAtCompletion: pkg.readiness.overall,
+          }),
+          actualResultsJson: JSON.stringify({
+            actualCycleMinutes: job.actualCycleMinutes,
+            actualSetupHours: job.actualSetupHours,
+            scrapCount: job.scrapCount,
+            quantity: job.quantity,
+          }),
+          // No cost is recorded unless one was actually worked out. A figure
+          // derived here from the current rates would not be what the job
+          // cost, and it would look like it was.
+          costActual: null,
+        },
+      });
+    }
+  }
+
   await audit({
     organizationId: user.organizationId,
     userId: user.id,
@@ -111,6 +165,7 @@ export async function advanceJob(jobId: string, formData: FormData) {
   });
 
   revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/intelligence");
   revalidatePath("/jobs");
 }
 
