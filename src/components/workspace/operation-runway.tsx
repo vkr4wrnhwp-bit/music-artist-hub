@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { DevLabel, Dot, StatusChip, type Tone } from "@/components/ui";
+import { DevLabel, Dot, LimitsDisclosure, StatusChip, type Tone } from "@/components/ui";
 import type { NextActionInfo, RunwayData, RunwayOperation } from "./panel-data";
 import { readCollapsed } from "@/lib/panel-preference";
 
@@ -108,14 +108,19 @@ export function OperationRunway({
         <span className="font-mono text-[10px] tracking-[0.06em] text-muted tabular-nums">
           {data.operations.length} operations · {data.setups.length} setups ·{" "}
           {data.cycleMinutes > 0 ? `${data.cycleMinutes.toFixed(2)} min cut time` : "no cycle time"}
-          {data.placeholderCount > 0 && ` · ${data.placeholderCount} without an engine`}
+          {data.placeholderCount > 0 && ` · ${data.placeholderCount} with no CANVAS toolpath`}
         </span>
-        <span
-          className="basis-full text-[11px] text-muted lg:basis-auto"
-          title="Operation has no status column, OperationState has no write sites and there is no machine connection. Nothing here is running, complete or pending. The model shows the finished part, not the state after any operation."
-        >
+        <span className="basis-full text-[11px] text-muted lg:basis-auto">
           Planned sequence — CANVAS does not track execution state.
         </span>
+        {/* The explanation was a `title=` attribute written in schema nouns —
+            "OperationState has no write sites". A limit that changes what an
+            operator would do is never only in a tooltip, which is the rule
+            LimitsDisclosure exists to hold. */}
+        <LimitsDisclosure label="Why nothing here shows as running or complete">
+          CANVAS is not connected to a machine and does not record operation state. Nothing on this table is running,
+          complete or pending. The model shows the finished part, not the part as it stands after any one operation.
+        </LimitsDisclosure>
         {/* Minimized summary: the selected operation stays readable while
             the table is away. A selection, not an execution state. */}
         {collapsed && activeOperation && (() => {
@@ -303,7 +308,7 @@ function Timeline({
                   </td>
                   <td className="whitespace-nowrap px-2.5 py-1.5">
                     {op.isPlaceholder ? (
-                      <DevLabel>No engine</DevLabel>
+                      <DevLabel>No toolpath</DevLabel>
                     ) : op.error ? (
                       <span className="flex items-center gap-1">
                         <Dot tone="risk" />

@@ -45,6 +45,7 @@ import {
   type Tone,
 } from "@/components/ui";
 import { pickFocus } from "@/lib/guide/show-me";
+import { actionLabel, entityLabel, fieldLabel } from "@/lib/audit-labels";
 
 /**
  * THE PART WORKSPACE
@@ -805,7 +806,7 @@ export default async function PartWorkspace(props: {
               <div key={o.id} className="border border-line px-2.5 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-mono text-[11px] text-platinum">{o.label}</span>
-                  {tp?.isPlaceholder ? <DevLabel>No engine</DevLabel> : null}
+                  {tp?.isPlaceholder ? <DevLabel>No toolpath</DevLabel> : null}
                 </div>
                 <p className="tech-label mt-0.5">
                   {o.type} · T{o.tool?.toolNumber ?? "—"} · {o.feature?.label ?? "no feature"}
@@ -886,12 +887,12 @@ export default async function PartWorkspace(props: {
           audits.map((a) => (
             <div key={a.id} className="border-b border-line/60 py-1.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[11px] text-platinum">{a.action}</span>
+                <span className="font-mono text-[11px] text-platinum">{actionLabel(a.action)}</span>
                 <StatusChip tone={a.actorType === "AI" ? "review" : "neutral"}>{a.actorType}</StatusChip>
               </div>
               <p className="tech-label">
-                {a.entityType}
-                {a.field ? ` · ${a.field}` : ""} · {a.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                {entityLabel(a.entityType)}
+                {a.field ? ` · ${fieldLabel(a.field)}` : ""} · {a.createdAt.toISOString().slice(0, 16).replace("T", " ")}
               </p>
               {a.reason && <p className="text-[11px] text-muted">{a.reason}</p>}
             </div>

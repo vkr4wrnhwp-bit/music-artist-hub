@@ -462,7 +462,7 @@ export default async function LathePartPage(props: {
             }
           >
             <div className="mb-2">
-              <LimitsDisclosure label="What this post is and is not">
+              <LimitsDisclosure label="What this post writes, and what it leaves out">
                 Generic Fanuc-style 2-axis: G18/G20/G99, T-station calls, G96/G97 with a mandatory G50 clamp when CSS
                 is used, thread passes as G32-style moves. No canned cycles, no threading cycles, no nose-radius
                 compensation. The preview below is withheld while blocking gates fail, and export uses the same

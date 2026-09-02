@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Feature, FunctionalRole, Stock } from "@/lib/domain/features";
 import { featureSummary, fmt, fmtTol } from "@/lib/domain/features";
-import { StatusChip, type Tone } from "@/components/ui";
+import { LimitsDisclosure, StatusChip, type Tone } from "@/components/ui";
 import { SectionSketch } from "./section-sketch";
 import { InstrumentGlyph, hasInstrumentGlyph } from "./instrument-glyph";
 import { MeasurementTechnique } from "@/components/measurement-technique";
@@ -703,16 +703,21 @@ export function FeaturePanel({
           every feature and never change, so they are stated once at the foot
           of the panel rather than repeated as multi-line disclaimers inside
           two sections, where they outweighed the values they qualify.
-          Nothing has been softened — both sentences are verbatim. */}
-      <footer className="px-4 py-3.5">
-        <p className="instrument-label mb-1.5">What this panel is not</p>
-        <p className="text-[11px] leading-relaxed text-muted">
+
+          Each is now its own named disclosure. "What this panel is not" was a
+          heading written for whoever built the panel; a machinist wants to
+          know whether there is surface fitting behind a number. The summary
+          line names the limit and stays visible — the disclosure hides the
+          explanation, never the existence of the limit. Both sentences remain
+          verbatim; nothing has been softened. */}
+      <footer className="space-y-2 px-4 py-3.5">
+        <LimitsDisclosure label="No surface fitting">
           CANVAS does no surface fitting — there is no point cloud and no least-squares routine behind any of this.
-        </p>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+        </LimitsDisclosure>
+        <LimitsDisclosure label="No hold or quarantine state">
           There is no hold or quarantine state on a feature in CANVAS, so there is no button above that would appear to
           apply one. A concern is recorded as a disagreement, which is evidence and clears nothing.
-        </p>
+        </LimitsDisclosure>
       </footer>
     </div>
   );
