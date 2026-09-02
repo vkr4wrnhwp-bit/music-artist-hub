@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { aggregate, evaluateReadiness, type ReadinessInput } from "@/lib/engines/readiness";
+import { evaluateReadiness, type ReadinessInput } from "@/lib/engines/readiness";
 import { emptyPartIntent } from "@/lib/domain/part-intent";
 
 /**
@@ -298,9 +298,7 @@ test("the material gate cannot be passed by an AI inference, at any score", () =
 test("a blocking gate that is not PASS is counted, whatever its status", () => {
   const statuses = ["FAIL", "MISSING", "NOT_ATTEMPTED", "REVIEW"] as const;
   for (const status of statuses) {
-    const { blockingCount, overall } = aggregate([
-      { id: "g", label: "g", status, detail: "", blocking: true, actions: [] },
-    ]);
+    const { blockingCount, overall } = aggregate([g(status, true)]);
     assert.equal(blockingCount, 1, `a blocking gate at ${status} is not counted`);
     assert.notEqual(overall, "READY_TO_RUN", `a blocking gate at ${status} let the part read ready`);
   }
