@@ -8,30 +8,18 @@
    The sending status is read from capability_status at request time
    rather than written into the copy, so this page cannot claim a
    delivery route the running deployment does not have. #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Press Desk · Street Banker</title>
-  <meta name="description" content="Your own media list, announcements written as news, and a tracked link for every contact — so you know which outlet opened your pitch, not just how many did.">
-  <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-</head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+{% extends "public_base.html" %}
+{% set plate = {"stem": "/static/img/departments", "widths": [900, 1200, 1553], "position": "center 40%"} %}
+{% set plate_eyebrow_html %}{{ press.eyebrow }}{% endset %}
+{% set plate_title_html %}{{ press.headline }}{% endset %}
+{% set plate_support_html %}{{ press.subline }}{% endset %}
 
-{% include "partials/public_header.html" %}
+{% block title %}Press Desk · Street Banker{% endblock %}
+{% block description %}Your own media list, announcements written as news, and a tracked link for every contact — so you know which outlet opened your pitch, not just how many did.{% endblock %}
 
-<main id="main" class="mx-auto max-w-3xl px-6 py-14 lg:px-10 lg:py-20">
-  <div class="sb-label text-sb-gold">{{ press.eyebrow }}</div>
-  <h1 class="mt-4 text-[clamp(2rem,5.4vw,3rem)] font-black uppercase leading-[0.98] tracking-tight text-sb-ink-2">
-    {{ press.headline }}
-  </h1>
-  <p class="mt-5 max-w-xl text-base leading-relaxed text-sb-ink-2">{{ press.subline }}</p>
-
-  <h2 class="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">How it runs</h2>
+{% block content %}
+<div class="pp-col">
+<h2 class="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">How it runs</h2>
   <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.28)] pl-0">
     {% for step, detail in press.workflow %}
     <li class="relative pb-5 pl-5">
@@ -78,10 +66,5 @@
     choosing them and sending it.
     <a href="/artist-control" class="border-b border-[rgb(201_168_106_/_0.4)] text-sb-gold hover:border-sb-gold">Artist control policy</a>
   </p>
-</main>
-
-<footer class="mx-auto max-w-3xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
-  <a href="/" class="font-semibold hover:text-sb-ink">← Back to Street Banker</a>
-</footer>
-</body>
-</html>
+</div>
+{% endblock %}

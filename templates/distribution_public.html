@@ -2,31 +2,19 @@
    what a release package needs, what each stage does, and what is and is
    not connected. Every claim here was checked against the app and the
    terms already published on the services page. #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Distribution guide · Street Banker</title>
-  <meta name="description" content="What a release package needs, how a release is prepared and delivered, and which parts of distribution are handled by the partner.">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-</head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+{% extends "public_base.html" %}
+{% set plate = {"stem": "/static/img/distro-wide", "widths": [760, 1180, 1402], "close_stem": "/static/img/distro-close", "close_widths": [480, 740], "position": "center 50%"} %}
+{% set plate_eyebrow_html %}Global Distribution{% endset %}
+{% set plate_title_html %}How a release gets out{% endset %}
+{% set plate_support_html %}{{ partner.line }}{% endset %}
 
-{% include "partials/public_header.html" %}
+{% block title %}Distribution guide · Street Banker{% endblock %}
+{% block description %}What a release package needs, how a release is prepared and delivered, and which parts of distribution are handled by the partner.{% endblock %}
+{% block back_href %}/#global-distribution{% endblock %}
 
-<main id="main" class="mx-auto max-w-3xl px-6 py-14 lg:px-10 lg:py-20">
-  <div class="sb-label text-sb-gold">Global Distribution</div>
-  <h1 class="mt-4 text-[clamp(1.9rem,5vw,2.9rem)] font-black uppercase leading-[1] tracking-tight text-sb-ink-2">
-    How a release gets out
-  </h1>
-  <p class="mt-5 max-w-xl text-base leading-relaxed text-sb-ink-2">
-    {{ partner.line }}
-  </p>
-
-  <h2 class="mt-11 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">The five stages</h2>
+{% block content %}
+<div class="pp-col">
+<h2 class="mt-11 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">The five stages</h2>
   <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.22)]">
     {% for step, body in workflow %}
     <li class="relative pb-5 pl-5">
@@ -88,10 +76,5 @@
     <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-sb-gold px-6 text-xs font-bold uppercase tracking-[0.14em] text-sb-surface-2 transition-colors hover:bg-sb-gold-bright">Create an account to build one</a>
     <a href="/lanes#distribution" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.22)] px-6 text-xs font-bold uppercase tracking-[0.14em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">The Distribution lane</a>
   </div>
-</main>
-
-<footer class="mx-auto max-w-3xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
-  <a href="/#global-distribution" class="font-semibold hover:text-sb-ink">← Back to Street Banker</a>
-</footer>
-</body>
-</html>
+</div>
+{% endblock %}

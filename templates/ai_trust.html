@@ -1,28 +1,18 @@
 {# Five statements about how Street Banker uses AI, public and short.
    The long version lives in the terms; this is the part an artist needs
    before deciding whether to hand over a catalog. #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>How Street Banker uses AI</title>
-  <meta name="description" content="What the Artist Twin reads, what it never does with your music, and what it cannot tell you.">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-</head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+{% extends "public_base.html" %}
+{% set plate = {"stem": "/static/img/artist-twin", "widths": [480, 700, 893], "position": "center 30%"} %}
+{% set plate_eyebrow_html %}Artist control{% endset %}
+{% set plate_title_html %}How Street Banker uses AI{% endset %}
 
-{% include "partials/public_header.html" %}
+{% block title %}How Street Banker uses AI{% endblock %}
+{% block description %}What the Artist Twin reads, what it never does with your music, and what it cannot tell you.{% endblock %}
+{% block back_href %}/#artist-twin-section{% endblock %}
 
-<main id="main" class="mx-auto max-w-2xl px-6 py-14 lg:px-10 lg:py-20">
-  <div class="sb-label text-sb-gold">Artist control</div>
-  <h1 class="mt-4 text-[clamp(1.8rem,5vw,2.6rem)] font-medium uppercase leading-[1.02] tracking-tight">
-    How Street Banker uses AI
-  </h1>
-
-  <dl class="mt-10 space-y-8">
+{% block content %}
+<div class="pp-col">
+<dl class="mt-10 space-y-8">
     {% for title, body in points %}
     <div class="border-t border-[rgb(201_168_106_/_0.26)] pt-6">
       <dt class="text-base font-semibold text-sb-ink">{{ title }}</dt>
@@ -37,10 +27,5 @@
     and the
     <a href="/privacy" class="border-b border-[rgb(201_168_106_/_0.4)] text-sb-gold hover:border-sb-gold">privacy policy</a>.
   </p>
-</main>
-
-<footer class="mx-auto max-w-2xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
-  <a href="/#artist-twin-section" class="font-semibold hover:text-sb-ink">← Back to Street Banker</a>
-</footer>
-</body>
-</html>
+</div>
+{% endblock %}

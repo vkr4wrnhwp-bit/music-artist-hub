@@ -24,8 +24,12 @@
   </picture>
   <span class="pp-veil" aria-hidden="true"></span>
   <div class="pp-plate-inner">
-    <p class="pp-eyebrow">{{ plate_eyebrow if plate_eyebrow is defined else "Street Banker" }}</p>
-    <h1 class="pp-title" id="pp-title">{{ plate_title if plate_title is defined else "Street Banker" }}</h1>
-    {% if plate_support is defined and plate_support %}<p class="pp-support">{{ plate_support }}</p>{% endif %}
+    {# The *_html variants are template-authored (captured {% set %}
+       blocks, never user input) and render unescaped; the plain ones
+       are escaped, which is what a page title from a form must be. #}
+    <p class="pp-eyebrow">{% if plate_eyebrow_html is defined %}{{ plate_eyebrow_html|safe }}{% else %}{{ plate_eyebrow if plate_eyebrow is defined else "Street Banker" }}{% endif %}</p>
+    <h1 class="pp-title" id="pp-title">{% if plate_title_html is defined %}{{ plate_title_html|safe }}{% else %}{{ plate_title if plate_title is defined else "Street Banker" }}{% endif %}</h1>
+    {% if plate_support_html is defined and plate_support_html|trim %}<p class="pp-support">{{ plate_support_html|safe }}</p>
+    {% elif plate_support is defined and plate_support %}<p class="pp-support">{{ plate_support }}</p>{% endif %}
   </div>
 </section>

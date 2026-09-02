@@ -2,34 +2,21 @@
    example campaign printed in full. Grouped by what is true: in the app
    today, schedule-ready rather than published for you, and coming soon.
    Nothing here posts itself, and the page says so. #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rollout Engine · Street Banker</title>
-  <meta name="description" content="Release calendars, content schedules, tour routing and follow-through — what Rollout Engine does today, and what it does not do for you.">
-  <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-</head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
-
-{% include "partials/public_header.html" %}
-
-<main id="main" class="mx-auto max-w-3xl px-6 py-14 lg:px-10 lg:py-20">
-  <div class="sb-label text-sb-gold">Rollout Engine</div>
-  <h1 class="mt-4 text-[clamp(2rem,5vw,2.9rem)] font-black uppercase leading-[0.98] tracking-tight text-sb-ink-2">
-    Plan it. Launch it. Live it.
-  </h1>
-  <p class="mt-5 max-w-xl text-base leading-relaxed text-sb-ink-2">
-    From release calendars to content drops and tour routing. Here is what that
+{% extends "public_base.html" %}
+{% set plate = {"stem": "/static/img/rollout-wide", "widths": [560, 940], "close_stem": "/static/img/rollout-close", "close_widths": [400, 600], "position": "center 40%"} %}
+{% set plate_eyebrow_html %}Rollout Engine{% endset %}
+{% set plate_title_html %}Plan it. Launch it. Live it.{% endset %}
+{% set plate_support_html %}From release calendars to content drops and tour routing. Here is what that
     means in the app, what it hands back to you, and what it will not do on
-    your behalf.
-  </p>
+    your behalf.{% endset %}
 
-  <h2 class="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">How it runs</h2>
+{% block title %}Rollout Engine · Street Banker{% endblock %}
+{% block description %}Release calendars, content schedules, tour routing and follow-through — what Rollout Engine does today, and what it does not do for you.{% endblock %}
+{% block back_href %}/#rollout-engine{% endblock %}
+
+{% block content %}
+<div class="pp-col">
+<h2 class="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">How it runs</h2>
   <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.26)]">
     {% for step, body in workflow %}
     <li class="relative pb-5 pl-5">
@@ -84,10 +71,5 @@
     <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-sb-gold px-6 text-xs font-bold uppercase tracking-[0.1em] text-sb-surface-2 transition-colors hover:bg-sb-gold-bright">Create an account to build one</a>
     <a href="/creative-studio" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.26)] px-6 text-xs font-bold uppercase tracking-[0.1em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">Where the assets come from</a>
   </div>
-</main>
-
-<footer class="mx-auto max-w-3xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
-  <a href="/#rollout-engine" class="font-semibold hover:text-sb-ink">← Back to Street Banker</a>
-</footer>
-</body>
-</html>
+</div>
+{% endblock %}
