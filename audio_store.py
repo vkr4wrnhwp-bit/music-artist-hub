@@ -432,18 +432,6 @@ def get_policy(partner_id):
     return p
 
 
-def policy_decided(partner_id, key):
-    """Whether somebody STORED a value for this key on this tenant, as opposed
-    to the default being read back. The gate needs the difference: for a
-    direct account with no organisation, a default is not a decision anyone
-    made, and a row that set an unrelated key is not one about this key."""
-    with get_db() as db:
-        row = db.execute("SELECT policy FROM audio_policies WHERE partner_id = ?",
-                         (_pk(partner_id),)).fetchone()
-    stored = _load(row["policy"], {}) if row else {}
-    return isinstance(stored, dict) and key in stored
-
-
 def set_policy(partner_id, changes, actor_user_id=None):
     p = get_policy(partner_id)
     for k, v in (changes or {}).items():

@@ -205,15 +205,17 @@ def gate(feature, partner_id=None, member=None, subject_id="",
                        "Your role does not include audio features. An owner or "
                        "admin at this organisation can grant them.", feature)
 
-    # 3. tenant toggle. An organisation's decision, which is why it only
-    #    binds a partner seat or a tenant whose policy somebody actually
-    #    stored. A direct Street Banker account has no organisation and no
-    #    settings page; for it the deployment flags above ARE the policy, and
-    #    refusing on a default nobody chose sent every direct account to a
-    #    "Settings, Audio" page that does not exist.
+    # 3. tenant toggle. An organisation's decision, so it binds a partner
+    #    tenant and its seats. A direct Street Banker account has no
+    #    organisation and no settings page; for it the deployment flags
+    #    above ARE the policy. Refusing it on a default nobody chose sent
+    #    every direct account to a "Settings, Audio" page that does not
+    #    exist. (Not "unless a row was stored": set_policy() writes the
+    #    whole merged dict, so a stored row says nothing about which key
+    #    anyone decided.)
     pkey = spec.get("policy")
     if pkey and not policy.get(pkey, False):
-        if member is not None or partner_id is not None                 or astore.policy_decided(partner_id, pkey):
+        if member is not None or partner_id is not None:
             return _no("policy_off",
                        "Your organisation's audio policy does not allow this. "
                        "An owner can change it in Settings, Audio.", feature)

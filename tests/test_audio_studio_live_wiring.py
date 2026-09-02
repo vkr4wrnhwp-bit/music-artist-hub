@@ -37,10 +37,20 @@ FLAGS = ("AUDIO_INTELLIGENCE_ENABLED", "STEM_SEPARATION_ENABLED",
 
 @pytest.fixture(scope="module")
 def application():
+    """Every lane on for this module, and exactly as it was afterwards.
+    The lane flags are read per request, so leaving them set would switch
+    lanes on for whichever suite runs next - test_audio_studio checks that
+    an off lane refuses a post, and it ran after this one once."""
+    saved = {flag: os.environ.get(flag) for flag in FLAGS}
     for flag in FLAGS:
         os.environ[flag] = "1"
     import app as appmod
-    return appmod.app
+    yield appmod.app
+    for flag, value in saved.items():
+        if value is None:
+            os.environ.pop(flag, None)
+        else:
+            os.environ[flag] = value
 
 
 def _zip(files):
@@ -399,25 +409,15 @@ def test_a_direct_account_is_not_refused_on_an_organisation_policy(application, 
     assert decision.allowed, decision.reason
 
 
-def test_a_stored_policy_for_the_direct_tenant_still_binds(application, vendor):
+def test_a_partner_tenant_still_answers_to_its_policy(application, vendor):
+    """The flags-are-the-policy rule is for accounts with no organisation.
+    A partner tenant keeps its toggle, and dubbing is off there by default
+    until an owner switches it on."""
     import audio_policy
-    import db as dbm
     with application.app_context():
-        with dbm.get_db() as conn:
-            before = conn.execute("SELECT policy FROM audio_policies WHERE partner_id = ?",
-                                  (astore._pk(None),)).fetchone()
-        astore.set_policy(None, {"allow_dubbing": False})
-        try:
-            decision = audio_policy.gate("dubbing", rights_confirmed=True,
-                                         adapter_key="elevenlabs")
-        finally:
-            with dbm.get_db() as conn:
-                conn.execute("DELETE FROM audio_policies WHERE partner_id = ?",
-                             (astore._pk(None),))
-                if before is not None:
-                    conn.execute("INSERT INTO audio_policies (partner_id, policy, updated_at) "
-                                 "VALUES (?,?,?)", (astore._pk(None), before["policy"],
-                                                    astore._now()))
+        decision = audio_policy.gate("dubbing",
+                                     partner_id="tenant-%s" % uuid.uuid4().hex[:6],
+                                     rights_confirmed=True, adapter_key="elevenlabs")
     assert not decision.allowed and decision.code == "policy_off"
 
 

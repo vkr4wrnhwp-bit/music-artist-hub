@@ -221,8 +221,11 @@ def test_the_focus_ring_is_visible_and_round():
     import io
     import os
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # The Rack's styles moved from the template into static/css/rack.css
+    # when the Studio took the Rack's hardware; the ring lives there now.
     css = io.open(os.path.join(here, "templates", "rack.html"),
-                  encoding="utf8").read()
+                  encoding="utf8").read() + io.open(
+        os.path.join(here, "static", "css", "rack.css"), encoding="utf8").read()
     assert ".rk-knob:focus-visible" in css
     assert "border-radius: 50%" in css      # a square ring on a round knob
     # A mouse click should not leave a ring behind.
@@ -296,9 +299,11 @@ def test_explain_mode_exists():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     page = io.open(os.path.join(here, "templates", "rack.html"),
                    encoding="utf8").read()
+    css = io.open(os.path.join(here, "static", "css", "rack.css"),
+                  encoding="utf8").read()
     assert 'id="rk-explain"' in page
     assert 'aria-pressed="false"' in page          # it is a toggle
-    assert ".rk-explain-note" in page              # and it has a style
+    assert ".rk-explain-note" in css               # and it has a style
 
 
 def test_explain_is_generated_from_the_titles_themselves():

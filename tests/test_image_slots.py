@@ -10,6 +10,7 @@ These check the files exist, that every path a template asks for
 resolves, and that the empty states actually draw something.
 """
 
+import glob
 import os
 import re
 import uuid
@@ -47,8 +48,15 @@ def test_every_image_a_template_asks_for_exists():
             body = open(path, encoding="utf-8", errors="ignore").read()
             for ref in re.findall(r"/static/img/[A-Za-z0-9_\-./]+", body):
                 rel = ref.split("?")[0].lstrip("/")
-                if "{{" in ref or not os.path.exists(rel):
+                if "{{" in ref:
                     missing.append((ref, path))
+                elif not os.path.exists(rel):
+                    # A plate stem: partials/plate.html appends -<width>
+                    # and the format, so the stem resolves when any such
+                    # rendition exists. The rendered page is what the
+                    # browser asks for, and every stem must have one.
+                    if not glob.glob(rel + "-[0-9]*.jpg"):
+                        missing.append((ref, path))
     assert not missing, missing
 
 

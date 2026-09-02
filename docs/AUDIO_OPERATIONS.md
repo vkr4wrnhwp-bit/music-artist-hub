@@ -108,10 +108,10 @@ healthy.
 **Policy for direct accounts.** The organisation policy (`allow_dubbing` and
 friends) belongs to partner tenants, who have owners and a settings surface.
 A direct Street Banker account has neither, so for it the deployment flags
-above *are* the policy — the gate skips the tenant toggle unless an operator
-has stored an explicit policy row for the direct tenant. Without this rule
-every direct account met "your organisation's audio policy does not allow
-this" on the Release Pack, pointing at a settings page that does not exist.
+above *are* the policy — the gate skips the tenant toggle for direct
+accounts and keeps it for partner tenants. Without this rule every direct
+account met "your organisation's audio policy does not allow this" on the
+Release Pack, pointing at a settings page that does not exist.
 
 **Costs, in order of size:** dubbing (per minute of source, per language),
 stem separation and isolation (per minute of source), voiceover (per
