@@ -1,30 +1,25 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} - Street Banker</title>
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-</head>
-<body class="min-h-screen bg-sb-ground text-gray-200 antialiased">
-  <div class="mx-auto max-w-2xl px-5 py-12">
-    <a href="/" class="sb-label text-amber-500/80 hover:text-amber-400">← Street Banker</a>
-    <h1 class="mt-4 text-3xl font-black text-white">{{ title }}</h1>
-    <p class="mt-1 text-xs text-gray-300">Last updated: {{ updated }}</p>
-    <div class="mt-8 space-y-6">
-      {% for heading, body in sections %}
-      <section>
-        <h2 class="text-base font-bold text-amber-400/90">{{ heading }}</h2>
-        <p class="mt-2 text-sm leading-relaxed text-gray-200">{{ body }}</p>
-      </section>
-      {% endfor %}
-    </div>
-    <div class="mt-12 border-t border-white/10 pt-6 text-xs text-gray-300">
-      Questions: <a href="mailto:team.summitarts@gmail.com" class="text-amber-400 hover:underline">team.summitarts@gmail.com</a>
-      · <a href="/terms" class="hover:text-white">Terms</a>
-      · <a href="/privacy" class="hover:text-white">Privacy</a>
-    </div>
-  </div>
-</body>
-</html>
+{% extends "public_base.html" %}
+{# Terms and Privacy. They used to have no header at all - a dead end
+   from the sign-up form's own links. On the public frame now: the
+   header, a quiet plate, the sections verbatim, the questions line. #}
+{% set plate = {"stem": "/static/img/closing-wide", "widths": [960, 1440, 1672],
+                "close_stem": "/static/img/closing-close", "close_widths": [520, 1070],
+                "position": "center 60%"} %}
+{% set plate_eyebrow = "Street Banker" %}
+{% set plate_title = title %}
+{% set plate_support = "Last updated: " ~ updated %}
+
+{% block title %}{{ title }} - Street Banker{% endblock %}
+{% block description %}{{ title }} for Street Banker.{% endblock %}
+
+{% block content %}
+<div class="pp-col">
+  {% for heading, body in sections %}
+  <section>
+    <h2 class="pp-h2">{{ heading }}</h2>
+    <p class="pp-text">{{ body }}</p>
+  </section>
+  {% endfor %}
+  <p class="pp-honest" style="margin-top: 36px;">Questions: <a href="mailto:team.summitarts@gmail.com">team.summitarts@gmail.com</a></p>
+</div>
+{% endblock %}
