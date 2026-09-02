@@ -537,7 +537,7 @@ function WorkspaceInner(props: WorkspaceProps) {
         <details className="group/banner shrink-0 border-b border-risk/40 bg-risk/10">
           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-risk">
-              {blocking.length} blocking — action required
+              {blocking.length} {blocking.length === 1 ? "action" : "actions"} — required to clear the blocking gates
             </span>
             <span className="hidden min-w-0 flex-1 truncate text-[11.5px] text-platinum-dim sm:inline">{blocking[0].action}</span>
             {blocking[0]?.href && (

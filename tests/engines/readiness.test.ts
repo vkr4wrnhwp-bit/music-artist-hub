@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateReadiness, type ReadinessInput } from "@/lib/engines/readiness";
+import { readFileSync } from "node:fs";
+import { aggregate, evaluateReadiness, type ReadinessInput } from "@/lib/engines/readiness";
 import { emptyPartIntent } from "@/lib/domain/part-intent";
 
 /**
@@ -280,4 +281,58 @@ test("the material gate cannot be passed by an AI inference, at any score", () =
   assert.equal(g(withMaterial(value("6061-T6", "AI_INFERENCE", "LOW", { confirmedByUser: true }))).status, "PASS");
   // No material at all is MISSING, not REVIEW: there is nothing to confirm.
   assert.equal(g(withMaterial(unknown())).status, "MISSING");
+});
+
+/* ---- the counts on screen agree with the engine ---- */
+
+/**
+ * A part read NOT READY in the header with nothing beside it saying how many
+ * things were in the way. The header recomputed "blocking" as FAIL or MISSING
+ * only, while `aggregate` counts every blocking gate that is not PASS — so a
+ * blocking gate at NOT_ATTEMPTED (an unmapped tool changer, a setup with no
+ * machine assigned) held the part off READY_TO_RUN and appeared in no count.
+ *
+ * Two counts of the same thing is one count too many.
+ */
+
+test("a blocking gate that is not PASS is counted, whatever its status", () => {
+  const statuses = ["FAIL", "MISSING", "NOT_ATTEMPTED", "REVIEW"] as const;
+  for (const status of statuses) {
+    const { blockingCount, overall } = aggregate([
+      { id: "g", label: "g", status, detail: "", blocking: true, actions: [] },
+    ]);
+    assert.equal(blockingCount, 1, `a blocking gate at ${status} is not counted`);
+    assert.notEqual(overall, "READY_TO_RUN", `a blocking gate at ${status} let the part read ready`);
+  }
+});
+
+test("the header takes the count from the engine rather than recomputing it", () => {
+  const src = readFileSync("src/components/part-status.tsx", "utf8");
+  assert.ok(
+    /readiness\.blockingCount/.test(src),
+    "the part status header counts blocking gates itself — it will drift from the verdict beside it",
+  );
+  assert.ok(
+    !/g\.blocking && \(g\.status === "FAIL"/.test(src),
+    "the header still keeps its own narrower idea of what blocks",
+  );
+});
+
+test("the header's blocking and review counts do not overlap", () => {
+  const src = readFileSync("src/components/part-status.tsx", "utf8");
+  assert.ok(
+    /!g\.blocking && g\.status === "REVIEW"/.test(src),
+    "a blocking REVIEW gate is counted in both figures, so the two add up to more than there are gates",
+  );
+});
+
+test("the action banner counts actions, and says so", () => {
+  // The banner counts nextActions; the header counts gates. Both said
+  // "blocking" and they disagreed on screen — 4 in one, 3 in the other.
+  const src = readFileSync("src/components/workspace/workspace.tsx", "utf8");
+  assert.ok(
+    !/\{blocking\.length\} blocking — action required/.test(src),
+    "the banner labels an action count as a gate count",
+  );
+  assert.ok(/required to clear the blocking gates/.test(src), "the banner does not say what its count is of");
 });

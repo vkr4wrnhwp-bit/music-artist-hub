@@ -20,10 +20,18 @@ import type { NextAction } from "@/lib/engines/next-action";
  * "9 of 11 passed", because the two that did not pass are the whole story.
  */
 export function PartStatusSummary({ readiness }: { readiness: ReadinessReport }) {
-  const blocking = readiness.gates.filter(
-    (g) => g.blocking && (g.status === "FAIL" || g.status === "MISSING"),
-  ).length;
-  const review = readiness.gates.filter((g) => g.status === "REVIEW").length;
+  // The engine's own figure, not a second count of the same thing.
+  //
+  // This used to count only FAIL and MISSING, so a blocking gate sitting at
+  // NOT_ATTEMPTED — an unmapped tool changer, a setup with no machine — was
+  // left out. Those keep the part off READY_TO_RUN; `aggregate` counts them
+  // and the overall verdict reflects them. The header therefore read NOT READY
+  // with no count beside it at all, which says the part is not ready and
+  // nothing is in the way.
+  const blocking = readiness.blockingCount;
+  // Disjoint from the above by construction: a blocking REVIEW gate is already
+  // inside blockingCount and must not be counted twice.
+  const review = readiness.gates.filter((g) => !g.blocking && g.status === "REVIEW").length;
 
   const label =
     readiness.overall === "READY_TO_RUN"
