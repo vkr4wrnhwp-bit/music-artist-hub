@@ -33,8 +33,14 @@ def sender():
 
 
 def _http(url, payload, headers):
+    # Cloudflare fronts api.resend.com and answers Python's default
+    # User-Agent with "403 error code: 1010" before Resend ever sees the
+    # request. The read-only calls below always identified themselves;
+    # the send call did not, and every send failed with that code.
+    merged = {"User-Agent": "StreetBanker/1.0", "Accept": "application/json"}
+    merged.update(headers or {})
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                 headers=headers)
+                                 headers=merged)
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
         body = resp.read()
         return json.loads(body.decode("utf-8")) if body else {}
