@@ -396,9 +396,11 @@ toolpath one.
 
 > - annotation visibility ... - selected-feature contrast - section-view fill
 
-`sectionFillColor` and `sectionLineMode` are declared on the ViewEnvironment interface and given defaults, but nothing reads them — no renderer, no drawer control — which is exactly the failure the same brief prohibits ('It must NOT merely update a label, button state, local variable, or inactive UI control'). There is also no 3D section view for them to act on: the display modes are Shaded / Wireframe / Ghost, and the 2D section sketch panel draws with its own fixed hatch and CSS tokens. Annotation visibility is likewise absent — the drawer offers annotation SIZE (Compact/Standard/Large) with no off state, unlike datum lines which do have an OFF mode.
+**This entry was stale.** It was built and tested in an earlier pass and the list was never updated — found by re-checking the code before starting work on it rather than trusting the entry.
 
-`src/lib/view-environment.ts:59 `sectionFillColor: string;` and :75 `sectionLineMode: LineMode;`; `grep -rn "sectionFillColor\|sectionLineMode" src/ --include=*.ts --include=*.tsx` returns only those declarations plus the two default assignments (:90, :112) — zero consumers. Drawer colour list is Background/Floor/Grid/S`
+What is actually there: `sectionFillColor` drives the hatch in **both** section renderers (SectionSketch and FaceSection — wiring one and not the other would leave a control that works on bores and does nothing on faces), `sectionLineMode` drives the cut boundary through `sectionStroke`, with OFF dropping the boundary entirely rather than making it faint, and MEDIUM anchored to reproduce the widths the drawing already used. Annotation visibility is `annotationsVisible`, a boolean rather than an OFF member on `AnnotationSize` — a scale of zero is a sentinel that silently collapses any consumer that forgets to check it — with an On/Off control in the drawer and both on-model annotations (datum letters and measurement balloons) respecting it.
+
+Tests in `tests/engines/view-preferences.test.ts` cover all of it, including that the section fill cannot repaint the locked datum and dimension blue.
 
 ### NC optimizer findings should include WORKHOLDING_LOAD_DIRECTION_REVIEW
 
