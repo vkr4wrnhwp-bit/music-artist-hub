@@ -558,7 +558,7 @@
   /* --- section viewed, once ------------------------------------------------ */
   if ("IntersectionObserver" in window) {
     var seen = false;
-    var target = document.querySelector(".sbrl-hero");
+    var target = document.querySelector(".sbrl-head");
     if (target) {
       var observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {

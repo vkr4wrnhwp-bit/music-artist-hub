@@ -1724,6 +1724,44 @@
   .sbrl-hero { min-height: 460px; }
 }
 
+/* --- the head: the shared plate, the light over it, the path and the reads card beneath --- */
+.sbrl-head { padding-top: 22px; }
+.sbrl-top { position: relative; overflow: hidden; border-radius: var(--sb-r-panel); }
+.sbrl-top .sb-plate-inner, .sbrl-top .sb-plate-actions { z-index: 1; }
+.sbrl-top .sb-plate-actions { align-self: flex-end; }
+.sbrl-top .sbrl-light {
+  position: absolute;
+  left: 30%; right: 0; top: 24%;
+  width: auto; height: 130px;
+  z-index: 0;
+  pointer-events: none;
+}
+.sbrl-btn--sm { min-height: 40px; padding: 0 16px; font-size: 12px; }
+.sbrl-head .sbrl-wave-note { margin-top: 8px; }
+/* the steps run full width; the reads card is a slim band beneath them */
+.sbrl-under { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.sbrl-steps { margin-top: 6px; z-index: auto; }
+.sbrl-reads { max-width: none; padding: 16px 20px 16px; background: var(--rl-panel); }
+.sbrl-reads-head { justify-content: flex-start; gap: 8px 10px; }
+.sbrl-reads-head .sbrl-block-label { margin-right: 4px; }
+.sbrl-reads .sbrl-pills-row { display: contents; }
+.sbrl-reads .sbrl-pill-out, .sbrl-reads .sbrl-chip, .sbrl-reads .sbrl-badge { padding: 4px 9px; letter-spacing: 0.06em; }
+.sbrl-reads .sbrl-read-list {
+  margin-top: 14px;
+  grid-template-columns: repeat(4, auto minmax(0, 1fr));
+  gap: 10px 14px;
+  align-items: start;
+}
+.sbrl-reads .sbrl-read-strip { max-width: 360px; margin-top: 14px; }
+.sbrl-reads .sbrl-helper { margin-top: 8px; }
+@media (max-width: 899px) {
+  .sbrl-reads .sbrl-read-list { grid-template-columns: auto minmax(0, 1fr); }
+}
+@media (max-width: 639px) {
+  .sbrl-head { padding-top: 14px; }
+  .sbrl-top .sbrl-light { left: 0; top: 30%; height: 100px; }
+}
+
 /* --- motion ---------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .sbrl-body *, .sbrl-body *::before, .sbrl-body *::after,

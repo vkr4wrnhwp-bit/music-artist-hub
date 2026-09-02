@@ -1,10 +1,12 @@
 {# Remix Lab — one release into more moments, rights-safe.
 
-   Dark studio page: photograph and light. The ground is the platform's
-   near-black, panels one step lighter with warm 1px borders, gold where a
-   thing is lit — a confirmed switch, a chosen lane, an armed submit. All
-   layout classes are sbrl-* in remix-lab.css; tailwind.css is linked for
-   the shared header and the token layer only.
+   Dark studio page: photograph and light. It opens with the same plate
+   band as every other internal page (sb.plate from _sb.html, styled by
+   app-chrome.css), then the signal path and the honest "what the brief
+   reads" card, then the bench. Panels one step lighter than the ground
+   with warm 1px borders, gold where a thing is lit — a confirmed switch, a
+   chosen lane, an armed submit. Layout classes are sbrl-* in
+   remix-lab.css; tailwind.css is linked for the header and the tokens.
 
    Honesty rules, same as the rest of the site: nothing on this page is
    measured before a track is uploaded, and the page says so in every place
@@ -23,15 +25,17 @@
   <meta name="description" content="Turn one release into remix briefs, social edit concepts, DJ versions, and producer-ready directions — rights-safe, from audio you own or control.">
   <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
   <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  <link rel="stylesheet" href="/static/css/app-chrome.css?v=1">
   {% include "_fonts.html" %}
   <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-  <link rel="stylesheet" href="/static/css/remix-lab.css?v=6">
+  <link rel="stylesheet" href="/static/css/remix-lab.css?v=7">
 </head>
 <body class="sbrl-body">
 
 {% include "partials/public_header.html" %}
 
 {% set rl = remix %}
+{% import "_sb.html" as sb %}
 {%- macro ico(name, cls="") -%}
 <svg class="sbrl-i{% if cls %} {{ cls }}{% endif %}" aria-hidden="true" focusable="false"><use href="#sbrl-i-{{ name }}"/></svg>
 {%- endmacro -%}
@@ -45,60 +49,55 @@
 <main id="main" class="sbrl-main">
   {% include "partials/remix_lab_icons.html" %}
 
-  {# --- hero ----------------------------------------------------------- #}
-  <section class="sbrl-hero">
-    <picture class="sbrl-hero-photo">
-      <source type="image/avif" media="(max-width: 640px)" srcset="/static/img/sweep-close-430.avif 430w, /static/img/sweep-close-860.avif 860w" sizes="100vw">
-      <source type="image/webp" media="(max-width: 640px)" srcset="/static/img/sweep-close-430.webp 430w, /static/img/sweep-close-860.webp 860w" sizes="100vw">
-      <source type="image/jpeg" media="(max-width: 640px)" srcset="/static/img/sweep-close-430.jpg 430w, /static/img/sweep-close-860.jpg 860w" sizes="100vw">
-      <source type="image/avif" srcset="/static/img/sweep-wide-900.avif 900w, /static/img/sweep-wide-1400.avif 1400w, /static/img/sweep-wide-1672.avif 1672w" sizes="100vw">
-      <source type="image/webp" srcset="/static/img/sweep-wide-900.webp 900w, /static/img/sweep-wide-1400.webp 1400w, /static/img/sweep-wide-1672.webp 1672w" sizes="100vw">
-      <img src="/static/img/sweep-wide-1400.jpg" srcset="/static/img/sweep-wide-900.jpg 900w, /static/img/sweep-wide-1400.jpg 1400w, /static/img/sweep-wide-1672.jpg 1672w" sizes="100vw" alt="" loading="eager" decoding="async" fetchpriority="high">
-    </picture>
-    <span class="sbrl-hero-veil" aria-hidden="true"></span>
-    <div class="sbrl-light" aria-hidden="true">
-      {# A still streak of light, deliberately not waveform-shaped: nothing
-         has been read yet. The canvas replaces it once a chosen file has
-         been decoded in the browser — amplitude drawn locally, not a
-         measurement, and the note beside it says so. #}
-      <svg class="sbrl-streak" id="sbrl-hero-streak" viewBox="0 0 1000 180" preserveAspectRatio="none" focusable="false">
-        <defs>
-          <linearGradient id="sbrl-g-streak" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" class="sbrl-g-a"/>
-            <stop offset=".35" class="sbrl-g-b"/>
-            <stop offset=".55" class="sbrl-g-c"/>
-            <stop offset="1" class="sbrl-g-d"/>
-          </linearGradient>
-        </defs>
-        <path class="sbrl-streak-wide" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
-        <path class="sbrl-streak-mid" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
-        <path class="sbrl-streak-core" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
-      </svg>
-      <canvas class="sbrl-wave" id="sbrl-hero-canvas" hidden role="img" aria-label=""></canvas>
-    </div>
-
-    <div class="sbrl-wrap sbrl-hero-grid">
-      <div class="sbrl-hero-copy">
-        <p class="sbrl-eyebrow">{{ rl.eyebrow }}
-          <span class="sbrl-chip">{{ "Reads your track and composes a brief" if rl.engine_live else "Preview — generation coming soon" }}</span>
-        </p>
-        <ul class="sbrl-pills-row">
-          <li class="sbrl-pill-out">{{ ico("shield-check") }}Rights-Protected</li>
-          {% if rl.engine_live %}
-          <li class="sbrl-pill-out">{{ ico("wave-mark") }}Reads tempo, sections, energy</li>
-          {% else %}
-          <li class="sbrl-pill-out">{{ ico("check") }}Rights screen runs as you type</li>
-          {% endif %}
-        </ul>
-        <h1 class="sbrl-h1">
-          {% for line in rl.hero_headline %}<span>{{ line }}</span>{% endfor %}
-        </h1>
-        <p class="sbrl-sub">{{ rl.hero_subline }}</p>
-        <div class="sbrl-ctas">
-          <a class="sbrl-btn sbrl-btn--primary" href="{{ rl.primary_cta.href }}">{{ rl.primary_cta.label }}{{ ico("arrow-right", "sbrl-btn-ico") }}</a>
-          <a class="sbrl-btn sbrl-btn--ghost" href="{{ rl.secondary_cta.href }}">{{ rl.secondary_cta.label }}</a>
-        </div>
+  {# --- the plate: the band every internal page opens with ---------------- #}
+  <div class="sbrl-head sbrl-wrap">
+    <div class="sbrl-top">
+      {% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672], "Street Banker · Remix Lab", "Remix Lab",
+                       rl.hero_subline, position="center 45%") %}
+        <a class="sbrl-btn sbrl-btn--primary sbrl-btn--sm" href="{{ rl.primary_cta.href }}">{{ rl.primary_cta.label }}{{ ico("arrow-right", "sbrl-btn-ico") }}</a>
+        <a class="sbrl-btn sbrl-btn--ghost sbrl-btn--sm" href="{{ rl.secondary_cta.href }}">{{ rl.secondary_cta.label }}</a>
+      {% endcall %}
+      <div class="sbrl-light" aria-hidden="true">
+        {# A still streak of light, deliberately not waveform-shaped: nothing
+           has been read yet. The canvas replaces it once a chosen file has
+           been decoded in the browser — amplitude drawn locally, not a
+           measurement, and the note beside it says so. #}
+        <svg class="sbrl-streak" id="sbrl-hero-streak" viewBox="0 0 1000 180" preserveAspectRatio="none" focusable="false">
+          <defs>
+            <linearGradient id="sbrl-g-streak" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" class="sbrl-g-a"/>
+              <stop offset=".35" class="sbrl-g-b"/>
+              <stop offset=".55" class="sbrl-g-c"/>
+              <stop offset="1" class="sbrl-g-d"/>
+            </linearGradient>
+          </defs>
+          <path class="sbrl-streak-wide" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
+          <path class="sbrl-streak-mid" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
+          <path class="sbrl-streak-core" d="M0 100 C 250 60, 420 140, 600 90 S 900 60, 1000 95" stroke="url(#sbrl-g-streak)" fill="none"/>
+        </svg>
+        <canvas class="sbrl-wave" id="sbrl-hero-canvas" hidden role="img" aria-label=""></canvas>
       </div>
+    </div>
+    <p class="sbrl-wave-note" id="sbrl-wave-note" aria-live="polite"></p>
+
+    <div class="sbrl-under">
+      {# --- the signal path --------------------------------------------- #}
+      <nav class="sbrl-steps" id="sbrl-steps" aria-label="How it works">
+        <ol class="sbrl-steps-list">
+          <li class="sbrl-step" data-step="rights">
+            <a href="#sbrl-rights-gate"><span class="sbrl-step-n">01</span><span class="sbrl-step-icon">{{ ico("shield-check") }}</span><span class="sbrl-step-title">Confirm rights</span><span class="sbrl-step-sub">Two statements, then upload unlocks</span><span class="sbrl-sr">not yet</span></a>
+          </li>
+          <li class="sbrl-step" data-step="track">
+            <a href="#sbrl-upload-block"><span class="sbrl-step-n">02</span><span class="sbrl-step-icon">{{ ico("upload") }}</span><span class="sbrl-step-title">Upload track</span><span class="sbrl-step-sub">WAV, MP3, AIFF or FLAC</span><span class="sbrl-sr">not yet</span></a>
+          </li>
+          <li class="sbrl-step" data-step="lane">
+            <a href="#sbrl-lane-block"><span class="sbrl-step-n">03</span><span class="sbrl-step-icon">{{ ico("squares") }}</span><span class="sbrl-step-title">Pick lane</span><span class="sbrl-step-sub">Choose your direction, then a target use</span><span class="sbrl-sr">not yet</span></a>
+          </li>
+          <li class="sbrl-step" data-step="vibe">
+            <a href="#sbrl-vibe-block"><span class="sbrl-step-n">04</span><span class="sbrl-step-icon">{{ ico("sliders") }}</span><span class="sbrl-step-title">Shape vibe</span><span class="sbrl-step-sub">Dial in the sound, then start the brief</span><span class="sbrl-sr">not yet</span></a>
+          </li>
+        </ol>
+      </nav>
 
       {# What the engine reads — state text only. Before an upload nothing
          is measured and this card says exactly that; measured values live
@@ -107,6 +106,15 @@
         <div class="sbrl-reads-head">
           <p class="sbrl-block-label" id="sbrl-reads-h">What the brief reads</p>
           <span class="sbrl-badge sbrl-badge--idle">{{ "After upload" if rl.engine_live else "Not measured in this preview" }}</span>
+          <span class="sbrl-chip">{{ "Reads your track and composes a brief" if rl.engine_live else "Preview — generation coming soon" }}</span>
+          <ul class="sbrl-pills-row">
+            <li class="sbrl-pill-out">{{ ico("shield-check") }}Rights-Protected</li>
+            {% if rl.engine_live %}
+            <li class="sbrl-pill-out">{{ ico("wave-mark") }}Reads tempo, sections, energy</li>
+            {% else %}
+            <li class="sbrl-pill-out">{{ ico("check") }}Rights screen runs as you type</li>
+            {% endif %}
+          </ul>
         </div>
         {# What a live brief reads, described once each; the badge above
            carries the state. Values never appear here. #}
@@ -126,30 +134,8 @@
         <span class="sbrl-read-strip-label" aria-hidden="true">Section map &middot; drawn on the brief</span>
         <p class="sbrl-helper">{% if rl.engine_live %}Every line on your brief is marked measured, convention or chosen.{% else %}Nothing here is measured in this preview; a live brief marks each line measured, convention or chosen.{% endif %}</p>
       </aside>
-
-      <p class="sbrl-wave-note" id="sbrl-wave-note" aria-live="polite"></p>
     </div>
-  </section>
-
-  {# --- the signal path ------------------------------------------------- #}
-  <nav class="sbrl-steps" id="sbrl-steps" aria-label="How it works">
-    <div class="sbrl-wrap">
-      <ol class="sbrl-steps-list">
-        <li class="sbrl-step" data-step="rights">
-          <a href="#sbrl-rights-gate"><span class="sbrl-step-n">01</span><span class="sbrl-step-icon">{{ ico("shield-check") }}</span><span class="sbrl-step-title">Confirm rights</span><span class="sbrl-step-sub">Two statements, then upload unlocks</span><span class="sbrl-sr">not yet</span></a>
-        </li>
-        <li class="sbrl-step" data-step="track">
-          <a href="#sbrl-upload-block"><span class="sbrl-step-n">02</span><span class="sbrl-step-icon">{{ ico("upload") }}</span><span class="sbrl-step-title">Upload track</span><span class="sbrl-step-sub">WAV, MP3, AIFF or FLAC</span><span class="sbrl-sr">not yet</span></a>
-        </li>
-        <li class="sbrl-step" data-step="lane">
-          <a href="#sbrl-lane-block"><span class="sbrl-step-n">03</span><span class="sbrl-step-icon">{{ ico("squares") }}</span><span class="sbrl-step-title">Pick lane</span><span class="sbrl-step-sub">Choose your direction, then a target use</span><span class="sbrl-sr">not yet</span></a>
-        </li>
-        <li class="sbrl-step" data-step="vibe">
-          <a href="#sbrl-vibe-block"><span class="sbrl-step-n">04</span><span class="sbrl-step-icon">{{ ico("sliders") }}</span><span class="sbrl-step-title">Shape vibe</span><span class="sbrl-step-sub">Dial in the sound, then start the brief</span><span class="sbrl-sr">not yet</span></a>
-        </li>
-      </ol>
-    </div>
-  </nav>
+  </div>
 
   {# --- what it is ------------------------------------------------------ #}
   <section class="sbrl-about">
