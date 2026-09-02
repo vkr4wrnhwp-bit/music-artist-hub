@@ -674,7 +674,19 @@ export function FeaturePanel({
       {/* 7 — Actions */}
       <Section title="Actions">
         <div className="flex flex-col gap-1.5">
-          <PanelAction href={`/parts/${partId}/features/${feature.id}`} primary>
+          {/*
+            The specimen. `specimenMode` existed on the interaction reducer
+            with no consumer at all, so selecting a feature opened this panel
+            and nothing isolated or enlarged anything.
+            
+            It opens the specimen rather than toggling a mode in place because
+            the specimen is a drawing with its own six tabs, and a panel this
+            width can show a dimension line or the part, not both.
+          */}
+          <PanelAction href={`/parts/${partId}/features/${feature.id}?tab=GEOMETRY`} primary>
+            Open the specimen
+          </PanelAction>
+          <PanelAction href={`/parts/${partId}/features/${feature.id}?tab=FUNCTION`}>
             Function and fit
           </PanelAction>
           {/* Where a first-article reading is actually taken.

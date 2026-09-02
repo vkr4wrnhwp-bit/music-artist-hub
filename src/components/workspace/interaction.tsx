@@ -43,6 +43,18 @@ export type ManufacturingState = { kind: "STOCK" } | { kind: "AFTER_OPERATION"; 
 
 export type DisplayMode = "SHADED" | "WIREFRAME" | "TRANSPARENT";
 
+/*
+ * `specimenMode` used to live on this state, with a SPECIMEN action and a
+ * setSpecimen dispatcher, and no consumer anywhere — selecting a feature
+ * opened the ordinary side panel and nothing isolated or enlarged anything.
+ *
+ * It is gone rather than wired, because the specimen turned out not to be a
+ * workspace mode. It is a drawing with dimension lines and six tabs of its
+ * own, at /parts/[id]/features/[fid], and a side panel this width can show a
+ * dimension line or the part but not both. A boolean nothing reads is the
+ * "inactive UI control" the brief prohibits, and leaving it wired to nothing
+ * would have been a decoy for whoever looked next.
+ */
 export interface InteractionState {
   hoveredFeature: string | null;
   selectedFeature: string | null;
@@ -53,7 +65,6 @@ export interface InteractionState {
   /** Feature the camera should frame, or null for the whole part. */
   cameraTarget: string | null;
   /** True while a single feature is isolated for close inspection. */
-  specimenMode: boolean;
   /** Position of the last hover in screen space, for placing the lens. */
   pointer: { x: number; y: number } | null;
 }
@@ -66,7 +77,6 @@ type Action =
   | { type: "SET_MANUFACTURING_STATE"; state: ManufacturingState }
   | { type: "SET_DISPLAY_MODE"; mode: DisplayMode }
   | { type: "FRAME"; featureId: string | null }
-  | { type: "SPECIMEN"; on: boolean }
   | { type: "ESCAPE" };
 
 /**
@@ -89,7 +99,6 @@ const initialState = (initialOperation: string | null): InteractionState => ({
   manufacturingState: { kind: "FINAL" },
   displayMode: "SHADED",
   cameraTarget: null,
-  specimenMode: false,
   pointer: null,
 });
 
@@ -113,8 +122,6 @@ function reducer(state: InteractionState, action: Action): InteractionState {
         ...state,
         selectedFeature: action.featureId,
         cameraTarget: action.featureId,
-        // Deselecting always leaves specimen mode; there is nothing to inspect.
-        specimenMode: action.featureId === null ? false : state.specimenMode,
       };
 
     case "SET_CONTEXT":
@@ -145,17 +152,11 @@ function reducer(state: InteractionState, action: Action): InteractionState {
     case "FRAME":
       return { ...state, cameraTarget: action.featureId };
 
-    case "SPECIMEN":
-      // Specimen mode without something to isolate is meaningless.
-      if (action.on && !state.selectedFeature) return state;
-      return { ...state, specimenMode: action.on };
-
     case "ESCAPE":
       // One step back at a time, outermost first, so Escape is predictable.
       // Feature and operation unwind together because choosing an operation in
       // the runway selects the feature it cuts — they are one act, so they are
       // one step back.
-      if (state.specimenMode) return { ...state, specimenMode: false };
       if (state.selectedFeature || state.activeOperation)
         return {
           ...state,
@@ -181,7 +182,6 @@ interface InteractionApi {
   setManufacturingState: (state: ManufacturingState) => void;
   setDisplayMode: (mode: DisplayMode) => void;
   frame: (featureId: string | null) => void;
-  setSpecimen: (on: boolean) => void;
   escape: () => void;
 }
 
@@ -207,7 +207,6 @@ export function InteractionProvider({
       setManufacturingState: (s) => dispatch({ type: "SET_MANUFACTURING_STATE", state: s }),
       setDisplayMode: (mode) => dispatch({ type: "SET_DISPLAY_MODE", mode }),
       frame: (featureId) => dispatch({ type: "FRAME", featureId }),
-      setSpecimen: (on) => dispatch({ type: "SPECIMEN", on }),
       escape: () => dispatch({ type: "ESCAPE" }),
     }),
     [state],

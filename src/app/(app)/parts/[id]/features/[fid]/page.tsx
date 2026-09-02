@@ -22,6 +22,17 @@ import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { MatingDesignationField } from "@/components/mating-designation";
 import { recordPartDisagreement } from "../../disagree-actions";
+import { FeatureSpecimen } from "@/components/feature-specimen";
+import {
+  SPECIMEN_TABS,
+  SPECIMEN_TAB_LABEL,
+  deviationIsResolvable,
+  specimenDimensions,
+  viewsFor,
+  type MeasuredValue,
+  type SpecimenTab,
+  type SpecimenView,
+} from "@/lib/engines/specimen";
 
 /**
  * FEATURE DETAIL — FUNCTION BEFORE DIMENSION
@@ -41,10 +52,10 @@ import { recordPartDisagreement } from "../../disagree-actions";
 
 export default async function FeatureDetailPage(props: {
   params: Promise<{ id: string; fid: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; tab?: string; view?: string }>;
 }) {
   const { id, fid } = await props.params;
-  const { saved } = await props.searchParams;
+  const { saved, tab: tabRaw, view: viewRaw } = await props.searchParams;
   const user = await requireUser();
   const jobs = await comparableJobs(user.organizationId);
 
@@ -222,6 +233,54 @@ export default async function FeatureDetailPage(props: {
     redirect(`/parts/${id}/features/${fid}?saved=2`);
   }
 
+  /* ---------------- The specimen ---------------- */
+
+  /*
+   * Readings taken against THIS feature, matched to the dimension they are a
+   * reading of by the measurement context. A bore reading is a diameter; a
+   * thickness reading is a depth. A reading whose context does not name a
+   * dimension this feature carries is left out rather than attached to
+   * whichever one happens to be first.
+   */
+  const CONTEXT_FIELD: Record<string, string> = {
+    BORE: "diameter",
+    SHAFT: "diameter",
+    HOLE: "diameter",
+    THREAD: "diameter",
+    THICKNESS: "depth",
+  };
+  const measurementRows = await db.measurement.findMany({
+    where: { featureId: fid },
+    orderBy: { createdAt: "desc" },
+  });
+  const measured: MeasuredValue[] = measurementRows
+    .map((m) => ({
+      field: CONTEXT_FIELD[m.context] ?? "",
+      value: m.resolution === "ACCEPTED_NOMINAL" && m.resolvedValue != null ? m.resolvedValue : m.measuredValue,
+      uncertainty: m.uncertainty,
+      at: m.createdAt,
+    }))
+    .filter((m) => m.field !== "");
+
+  const dimensions = specimenDimensions(feature, feature.tolerance ?? null, measured);
+  const views = viewsFor(feature.kind);
+  const view: SpecimenView = views.includes(viewRaw as SpecimenView) ? (viewRaw as SpecimenView) : views[0];
+  const tab: SpecimenTab = (SPECIMEN_TABS as readonly string[]).includes(tabRaw ?? "")
+    ? (tabRaw as SpecimenTab)
+    : "GEOMETRY";
+  const href = (t: SpecimenTab, v: SpecimenView = view) => `/parts/${id}/features/${fid}?tab=${t}&view=${v}`;
+
+  // Operations planned to cut this feature, and the audit trail behind it.
+  const operations = pkg.setups.flatMap((sx) =>
+    sx.operations.filter((o) => o.featureId === fid).map((o) => ({ setup: sx.name, op: o })),
+  );
+  const history = await db.auditLog.findMany({
+    where: { organizationId: user.organizationId, entityType: "Feature", entityId: fid },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+    include: { user: { select: { name: true, email: true } } },
+  });
+
   return (
     <>
       <TopBar>
@@ -254,6 +313,99 @@ export default async function FeatureDetailPage(props: {
             </div>
           </div>
 
+          {/* ---------------- The specimen, isolated and enlarged ---------------- */}
+          <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
+            <div>
+              <div className="border border-line" style={{ height: 300 }}>
+                <FeatureSpecimen feature={feature} view={view} dimensions={dimensions} />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {views.map((v) => (
+                  <Link
+                    key={v}
+                    href={href(tab, v)}
+                    aria-current={v === view ? "true" : undefined}
+                    className={`border px-2 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] ${
+                      v === view ? "border-precision text-precision" : "border-line-strong text-muted hover:text-platinum-dim"
+                    }`}
+                  >
+                    {v.toLowerCase()}
+                  </Link>
+                ))}
+                <span className="text-[11px] text-muted">
+                  {views.length === 1
+                    ? "One view — a section of this feature is the same drawing as the plan."
+                    : "Two orthographic views. Free 3D rotation of the isolated feature is not built; this is a drawing, and it says which view it is."}
+                </span>
+              </div>
+            </div>
+
+            {/* Nominal against measured, for every dimension the feature carries. */}
+            <div>
+              <p className="tech-label mb-1.5">Nominal against measured</p>
+              <table className="w-full border-collapse text-[12px]">
+                <thead>
+                  <tr className="border-b border-line text-left">
+                    <th className="py-1 font-normal text-muted">Dimension</th>
+                    <th className="py-1 font-normal text-muted">Nominal</th>
+                    <th className="py-1 font-normal text-muted">Measured</th>
+                    <th className="py-1 font-normal text-muted">Deviation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dimensions.map((d) => {
+                    const resolvable = deviationIsResolvable(d.deviation, d.uncertainty);
+                    return (
+                      <tr key={d.label} className="border-b border-line/50">
+                        <td className="py-1 text-platinum-dim">{d.label}</td>
+                        <td className="py-1 font-mono tabular-nums text-platinum">
+                          {d.nominal != null ? d.nominal.toFixed(4) : "not recorded"}
+                        </td>
+                        <td className="py-1 font-mono tabular-nums text-platinum">
+                          {d.measured != null ? d.measured.toFixed(4) : <span className="text-muted">not measured</span>}
+                        </td>
+                        <td
+                          className={`py-1 font-mono tabular-nums ${
+                            d.verdict === "OUT_OF_TOLERANCE" ? "text-risk" : d.verdict === "IN_TOLERANCE" ? "text-pass" : "text-muted"
+                          }`}
+                        >
+                          {d.deviation == null
+                            ? "—"
+                            : `${d.deviation >= 0 ? "+" : ""}${d.deviation.toFixed(4)}`}
+                          {resolvable === false && (
+                            <span className="ml-1 text-[10.5px] text-review">within the instrument</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {dimensions.every((d) => d.measured == null) && (
+                <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                  Nothing has been measured against this feature yet. The measured column stays empty rather than
+                  repeating the nominal — a comparison with one side missing is not a comparison.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* ---------------- Tabs ---------------- */}
+          <div className="flex flex-wrap gap-1 border-b border-line pb-2">
+            {SPECIMEN_TABS.map((t) => (
+              <Link
+                key={t}
+                href={href(t)}
+                aria-current={t === tab ? "page" : undefined}
+                className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                  t === tab ? "border-b-2 border-b-precision text-platinum" : "text-muted hover:text-platinum-dim"
+                }`}
+              >
+                {SPECIMEN_TAB_LABEL[t]}
+              </Link>
+            ))}
+          </div>
+
           {saved === "1" && (
             <Notice tone="pass" title="Interface recorded">
               What this feature mates with is stored against the feature. The nominal below is still a suggestion — it
@@ -267,7 +419,8 @@ export default async function FeatureDetailPage(props: {
             </Notice>
           )}
 
-          {/* ---------------- What mates with this ---------------- */}
+          {/* ---------------- FUNCTION ---------------- */}
+          {tab === "FUNCTION" && (
           <Panel title="What mates with this feature?">
             <form action={saveInterface} className="space-y-4">
               <div className="flex flex-wrap gap-2">
@@ -327,8 +480,19 @@ export default async function FeatureDetailPage(props: {
             </form>
           </Panel>
 
-          {/* ---------------- What CANVAS makes of it ---------------- */}
-          {analysis && (
+          )}
+
+          {/* ---------------- MEASURE ---------------- */}
+          {tab === "MEASURE" && !analysis && (
+            <Panel title="Nothing to reason about yet">
+              <p className="max-w-2xl text-[12.5px] leading-relaxed text-muted">
+                Nominal reasoning runs on a measured diameter, and this feature has none — either it carries no
+                diameter, or nothing has been measured against it. The table above stays empty rather than repeating
+                the nominal, and a suggestion would be reasoning about a number nobody took.
+              </p>
+            </Panel>
+          )}
+          {tab === "MEASURE" && analysis && (
             <Panel
               title="Why CANVAS thinks this"
               meta={
@@ -441,7 +605,8 @@ export default async function FeatureDetailPage(props: {
             </Panel>
           )}
 
-          {/* ---------------- Can it be verified ---------------- */}
+          {/* ---------------- INSPECT ---------------- */}
+          {tab === "INSPECT" && (
           <Panel title="Can this be verified?">
             <p className="max-w-2xl text-[13px] leading-relaxed text-platinum">{capability.reason}</p>
             {capability.bestInstrument && (
@@ -470,6 +635,87 @@ export default async function FeatureDetailPage(props: {
               </ul>
             )}
           </Panel>
+          )}
+
+          {/* ---------------- GEOMETRY ---------------- */}
+          {tab === "GEOMETRY" && (
+            <Panel title="Geometry">
+              <div className="grid gap-x-8 sm:grid-cols-2">
+                {dimensions.map((d) => (
+                  <DataRow
+                    key={d.label}
+                    label={d.unit ? `${d.label}, ${d.unit}` : d.label}
+                    value={d.nominal != null ? d.nominal.toFixed(4) : "not recorded"}
+                  />
+                ))}
+                <DataRow label="Kind" value={feature.kind.replace(/_/g, " ").toLowerCase()} />
+                <DataRow label="Tolerance" value={feature.tolerance ? fmtTol(feature.tolerance) : "none stated"} />
+                <DataRow label="Surface finish" value={feature.surfaceFinish != null ? `Ra ${feature.surfaceFinish} µin` : "none stated"} />
+                <DataRow label="Critical" value={feature.critical ? "Yes" : "No"} />
+              </div>
+              <p className="mt-3 max-w-2xl text-[12px] leading-relaxed text-muted">
+                The dimensions listed are the ones this kind of feature carries, from the same field description the
+                entry form and the proposal path validate against — so this cannot show a dimension the feature does
+                not have, or miss one it does.
+              </p>
+            </Panel>
+          )}
+
+          {/* ---------------- MACHINE ---------------- */}
+          {tab === "MACHINE" && (
+            <Panel title={`How it gets cut — ${operations.length} operation${operations.length === 1 ? "" : "s"}`} dense>
+              {operations.length === 0 ? (
+                <p className="p-4 text-[12px] leading-relaxed text-muted">
+                  No operation is planned against this feature yet. Choosing a machining approach on the Machinist page
+                  creates them.
+                </p>
+              ) : (
+                <ul>
+                  {operations.map(({ setup, op }) => (
+                    <li key={op.id} className="border-b border-line/60 px-4 py-3 last:border-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <span className="font-mono text-[12.5px] text-platinum">{op.label}</span>
+                        <span className="tech-label">{setup}</span>
+                      </div>
+                      <p className="tech-label mt-1">
+                        {op.type.replace(/_/g, " ").toLowerCase()} · from Z{op.topZ.toFixed(3)} to Z{op.finalZ.toFixed(3)}
+                        {op.tool ? ` · T${op.tool.toolNumber} ${op.tool.description}` : " · no tool assigned"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          )}
+
+          {/* ---------------- HISTORY ---------------- */}
+          {tab === "HISTORY" && (
+            <Panel title={`What has happened to this feature — ${history.length}`} dense>
+              {history.length === 0 ? (
+                <p className="p-4 text-[12px] leading-relaxed text-muted">
+                  Nothing is on record for this feature. Every entry here is read from the audit log, so an empty list
+                  means nothing was done to it rather than that nothing was kept.
+                </p>
+              ) : (
+                <ul>
+                  {history.map((h) => (
+                    <li key={h.id} className="border-b border-line/60 px-4 py-3 last:border-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <span className="font-mono text-[12.5px] text-platinum">
+                          {h.reason ?? `${h.action.toLowerCase()}${h.field ? ` — ${h.field}` : ""}`}
+                        </span>
+                        <span className="tech-label">{h.createdAt.toISOString().slice(0, 16).replace("T", " ")}</span>
+                      </div>
+                      <p className="tech-label mt-1">
+                        {h.user?.name ?? h.user?.email ?? "actor not recorded"} · {h.actorType}
+                        {h.oldValue || h.newValue ? ` · ${h.oldValue ?? "—"} → ${h.newValue ?? "—"}` : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          )}
         </div>
       </main>
     </>

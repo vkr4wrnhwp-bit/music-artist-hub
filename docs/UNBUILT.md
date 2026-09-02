@@ -136,12 +136,19 @@ branches now, with a test asserting the two branches agree.
 
 ### Build a Feature Specimen View: selecting a feature isolates and enlarges it, allows rotation, shows dimension lines and nominal vs measured, with GEOMETRY / FUNCTION / MEASURE / MACHINE / INSPECT / HISTORY tabs
 
-> When user selects a feature: - isolate the feature visually - enlarge it - allow rotation - show dimension line - show nominal vs measured - show mating component if available - show tabs:   GEOMETRY   FUNCTION   MEASURE
+> When user selects a feature: - isolate the feature visually - enlarge it - allow rotation - show dimension line - show nominal vs measured - show mating component if available - show tabs: GEOMETRY FUNCTION MEASURE
 
-Nothing renders a specimen view. The only trace is a `specimenMode` boolean and a SPECIMEN action in the interaction reducer with zero consumers — selecting a feature opens the ordinary side panel, and the feature detail page is a form (mating component, fit, verifiability), not an isolated rotatable feature with tabs.
+Built at `/parts/[id]/features/[fid]`, with all six tabs over real records.
 
-`src/components/workspace/interaction.tsx:55 declares `specimenMode`; `grep -rn "specimenMode\|setSpecimen" src --include=*.tsx --include=*.ts | grep -v interaction.tsx` returns nothing. `grep -ril specimen src` matches only interaction.tsx and two docs.`
+**The drawing.** The feature alone, filling the frame, with dimension lines carrying the value — the part thumbnail draws the whole part at 180×120, where a 0.201″ hole is four pixels. Measured sits beside nominal on the dimension itself, and an out-of-tolerance one is drawn in red.
 
+**Nominal against measured** is a table over every dimension the feature carries, taken from the same field spec the entry form and the proposal path validate against, so it cannot show a dimension the feature lacks or miss one it does. A dimension nothing measured stays **empty** rather than repeating the nominal — a comparison with one side missing is not a comparison, and repeating it reads as a part that measured exactly on size. A deviation smaller than the instrument's own uncertainty is marked *within the instrument*, because 0.0002″ read with a ±0.0005″ caliper is the instrument and not the part.
+
+**Rotation, honestly.** Two orthographic views, and the second only where it says something — a section of a chamfer is the plan again, so it is not offered there rather than offered and empty. Free 3D orbit of an isolated solid is **not** built, and the page says so rather than implying it with a control that spins a flat drawing.
+
+**The dead flag is gone.** `specimenMode` was a boolean on the interaction reducer with a SPECIMEN action and a `setSpecimen` dispatcher, read by nothing anywhere. It was removed rather than wired: the specimen turned out not to be a workspace mode but a drawing with six tabs, and a side panel that width can show a dimension line or the part but not both. A boolean nothing reads is the "inactive UI control" the same brief prohibits, and leaving it would have been a decoy for whoever looked next. The feature panel opens the specimen instead.
+
+`src/lib/engines/specimen.ts` (new), `src/components/feature-specimen.tsx` (new), `src/app/(app)/parts/[id]/features/[fid]/page.tsx`, `src/components/workspace/{interaction,feature-panel}.tsx`, `tests/engines/specimen.test.ts` (19 tests).
 ### Copilot structured mutations — the copilot should be able to propose a structured change and drive the scene, not only emit text
 
 > 18. COPILOT STRUCTURED MUTATIONS
