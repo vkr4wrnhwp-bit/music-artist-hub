@@ -8,6 +8,7 @@ import {
   recommendedGripDepth,
   type SetupContext,
   type RiskLevel,
+  peripheralRoughingTool,
 } from "@/lib/engines/workholding";
 import type { Tool } from "@/lib/domain/shop";
 import type { Stock } from "@/lib/domain/features";
@@ -205,4 +206,113 @@ test("a margin can be computed while an input is still missing — the two are i
   // The readiness gate is what stops this being cut; the screen's job is to
   // stop it being believed.
   assert.equal(a.level, "SAFE");
+});
+
+/* ---------------- A facing setup is not a setup with missing data ---------------- */
+
+/**
+ * A setup whose only operation is a face mill reported "No roughing tool
+ * assigned — cutting load unknown", which readiness maps to MISSING. MISSING
+ * cannot be acknowledged, so the part could never be released or posted, and
+ * the suggested fix — "Assign a roughing operation" — asked a machinist to add
+ * a cut they do not need in order to satisfy software. There was no control to
+ * add one either.
+ *
+ * The two states the engine collapsed: "I do not know what the load is" and
+ * "there is no lateral cutter here". The second is an answer.
+ */
+
+const FACE_MILL = {
+  ...(TOOL as unknown as Record<string, unknown>),
+  id: "t9",
+  toolNumber: 9,
+  toolClass: "FACE_MILL",
+  description: '2" face mill, 4 insert',
+  diameter: 2,
+} as unknown as Tool;
+
+const facing = (over: Partial<SetupContext> = {}) =>
+  assessWorkholding(ctx({ roughingTool: null, setupTools: [FACE_MILL], ...over }));
+
+test("a face-mill-only setup does not report the cutting load as missing", () => {
+  const a = facing();
+  assert.ok(
+    !a.missingInputs.some((m) => /cutting load unknown/i.test(m)),
+    "a setup with tools in it was reported as missing its load",
+  );
+});
+
+test("it answers REVIEW rather than UNKNOWN, so a human can accept it", () => {
+  // UNKNOWN maps to MISSING in readiness, which cannot be acknowledged, which
+  // is what made the loop impossible to finish.
+  const a = facing();
+  assert.notEqual(a.level, "UNKNOWN");
+  const margin = a.factors.find((f) => f.id === "holding-margin")!;
+  assert.equal(margin.level, "REVIEW");
+});
+
+test("it says why, in terms of where the load goes", () => {
+  const margin = facing().factors.find((f) => f.id === "holding-margin")!;
+  assert.match(margin.reason, /along the spindle axis|into the parallels/i);
+  assert.match(margin.observed, /No peripheral cutter/i);
+  // The tools that ARE there are named, so the claim can be checked.
+  assert.match(margin.observed, /face mill/i);
+});
+
+test("it claims no margin it did not compute", () => {
+  const a = facing();
+  assert.equal(a.holdingMargin?.verdict ?? "INDETERMINATE", "INDETERMINATE");
+  const margin = a.factors.find((f) => f.id === "holding-margin")!;
+  assert.ok(!/\d+\.\d+×/.test(margin.observed), "a margin figure was printed for a load nobody calculated");
+  // And it names the lateral load it is NOT modelling, rather than implying
+  // there is none at all.
+  assert.match(margin.reason, /feed force|shock/i);
+});
+
+test("a setup with NO tools at all is still genuinely unknown", () => {
+  // The distinction has to cut both ways, or it is just a way of passing.
+  const a = assessWorkholding(ctx({ roughingTool: null, setupTools: [] }));
+  assert.ok(a.missingInputs.some((m) => /cutting load unknown/i.test(m)));
+  const margin = a.factors.find((f) => f.id === "holding-margin");
+  assert.ok(!margin, "a setup with no tools claimed an answer about its holding margin");
+});
+
+test("a peripheral cutter still governs when one is present", () => {
+  // The exclusion of face mills from sizing grip is the original, correct
+  // behaviour and must survive. A clamp force is supplied so the margin can
+  // actually be computed — without one the model is indeterminate for its own
+  // reasons and this would prove nothing.
+  const a = assessWorkholding(ctx({ setupTools: [FACE_MILL, TOOL], clampForce: 2000 }));
+  const margin = a.factors.find((f) => f.id === "holding-margin")!;
+  assert.ok(margin, "no holding-margin factor was produced for a setup that can compute one");
+  assert.ok(!/No peripheral cutter/.test(margin.observed ?? ""), "an end mill in the setup was ignored");
+  // The real model ran: a margin figure is present.
+  assert.match(margin.observed ?? "", /×/);
+});
+
+test("the grip-depth factor no longer tells a facing setup to add a roughing pass", () => {
+  // A dead-end instruction: no control assigns a roughing operation, and a
+  // facing setup does not need one.
+  const grip = facing().factors.find((f) => f.id === "grip-depth")!;
+  assert.ok(
+    !grip.suggestions.some((s) => /assign a roughing operation/i.test(s)),
+    "the dead-end suggestion is still being given",
+  );
+  assert.match(grip.reason, /peripheral cutter/i);
+});
+
+test("a definite risk still outranks the facing answer", () => {
+  // 2.0" of projection over 0.2" of grip is a 10:1 cantilever. The facing
+  // REVIEW must not soften it.
+  const a = facing({ gripDepth: 0.2, stockProjection: 2.0 });
+  assert.equal(a.level, "HIGH_RISK");
+});
+
+/* ---------------- One copy of the peripheral rule ---------------- */
+
+test("the peripheral-cutter rule picks the largest end mill and ignores face mills", () => {
+  const big = { ...(TOOL as unknown as Record<string, unknown>), id: "big", diameter: 0.75 } as unknown as Tool;
+  assert.equal(peripheralRoughingTool([TOOL, big, FACE_MILL])?.id, "big");
+  assert.equal(peripheralRoughingTool([FACE_MILL]), null);
+  assert.equal(peripheralRoughingTool([]), null);
 });

@@ -3,7 +3,7 @@ import { db } from "./db";
 import { getMachines, getMaterials, getTools, getWorkholding, getMetrology, loadRevision, getSetups, getShopSettings, parseJson } from "./data";
 import type { LoadedRevision } from "./data";
 import { RISK_ORDER } from "./engines/workholding";
-import { assessWorkholding, type WorkholdingAssessment } from "./engines/workholding";
+import { assessWorkholding, peripheralRoughingTool, type WorkholdingAssessment } from "./engines/workholding";
 import type { JawSurface } from "./engines/holding-margin";
 import type { ToolCondition } from "./engines/cutting-force";
 import { evaluateReadiness, type ReadinessReport } from "./engines/readiness";
@@ -169,10 +169,10 @@ export async function buildPackage(
     // against the jaws. A face mill loads the part down into the vise and is
     // deliberately excluded: sizing grip off a 2" face mill would flag every
     // facing setup as high risk for a load the jaws never see.
-    const setupTools = setup.operations
+    const allSetupTools = setup.operations
       .map((o) => tools.find((t) => t.id === o.toolId))
-      .filter((t): t is Tool => Boolean(t) && ["FLAT_END_MILL", "BULL_NOSE"].includes(t!.toolClass));
-    const roughingTool = setupTools.length ? setupTools.reduce((a, b) => (a.diameter > b.diameter ? a : b)) : null;
+      .filter((t): t is Tool => Boolean(t));
+    const roughingTool = peripheralRoughingTool(allSetupTools);
 
     workholdingBySetup[setup.id] = assessWorkholding({
       stock: revision.stock ?? { form: "RECTANGULAR", x: 0, y: 0, z: 0, material: "" },
@@ -183,6 +183,11 @@ export async function buildPackage(
       device,
       features: revision.features,
       roughingTool,
+      // All of them, not just the peripheral ones. The engine needs to tell a
+      // setup with no lateral cutter from a setup with no tools at all — the
+      // first is an answer and the second is a gap, and collapsing them meant
+      // a facing setup could never be released.
+      setupTools: allSetupTools,
       radialEngagement: roughingTool ? 0.45 : null,
       axialDepthOfCut: roughingTool ? roughingTool.diameter * 0.5 : null,
       specificEnergy: material?.specificEnergy ?? null,

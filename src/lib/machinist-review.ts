@@ -5,7 +5,7 @@ import type { MachinistPlan, PlanInput } from "./engines/machinist";
 import { planAllApproaches } from "./engines/machinist";
 import { generateToolpath, totalCycleTime } from "./engines/cam/engine";
 import type { MachiningContext, OperationRequest, Toolpath } from "./engines/cam/types";
-import { assessWorkholding, RISK_ORDER, type RiskLevel } from "./engines/workholding";
+import { assessWorkholding, peripheralRoughingTool, RISK_ORDER, type RiskLevel } from "./engines/workholding";
 import { computeCost, type CostAssumptions } from "./engines/cost";
 
 /**
@@ -123,8 +123,8 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
   for (const setup of plan.setups) {
     const setupTools = setup.operations
       .map((o) => input.tools.find((t) => t.id === o.toolId))
-      .filter((t): t is Tool => Boolean(t) && ["FLAT_END_MILL", "BULL_NOSE"].includes(t!.toolClass));
-    const roughingTool = setupTools.length ? setupTools.reduce((a, b) => (a.diameter > b.diameter ? a : b)) : null;
+      .filter((t): t is Tool => Boolean(t));
+    const roughingTool = peripheralRoughingTool(setupTools);
     const heaviest = setup.operations.reduce((max, o) => Math.max(max, o.stepover), 0);
 
     const assessment = assessWorkholding({
@@ -136,6 +136,7 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
       device: input.workholding,
       features: input.features,
       roughingTool,
+      setupTools,
       radialEngagement: roughingTool ? heaviest : null,
       axialDepthOfCut: roughingTool ? roughingTool.diameter * 0.5 : null,
       specificEnergy: input.specificEnergy,

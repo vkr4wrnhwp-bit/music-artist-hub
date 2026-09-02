@@ -112,6 +112,24 @@ export interface SetupContext {
   features: Feature[];
   /** Heaviest roughing tool in the setup, if operations are planned. */
   roughingTool: Tool | null;
+  /**
+   * Every tool the setup's operations use, roughing or not.
+   *
+   * This exists to separate two states the engine used to collapse into one.
+   * A setup with no peripheral cutter reported "No roughing tool assigned —
+   * cutting load unknown", which reads as MISSING DATA and cannot be
+   * acknowledged. But a setup whose only operation is a face mill is not
+   * missing anything: it has tools, and none of them push the part sideways.
+   * That is an answer, not a gap.
+   *
+   * The consequence of collapsing them was that a facing setup could never be
+   * released or posted, and the suggested fix — "Assign a roughing operation"
+   * — asked a machinist to add a cut they do not need to satisfy software.
+   *
+   * Empty means no operation in the setup names a tool, which IS genuinely
+   * unknown and still reports as missing.
+   */
+  setupTools?: Tool[];
   /** Radial engagement of the heaviest roughing pass, as a fraction of D. */
   radialEngagement: number | null;
   axialDepthOfCut: number | null;
@@ -134,6 +152,30 @@ export interface SetupContext {
 }
 
 const worst = worstRisk;
+
+/**
+ * Tool classes that push the part SIDEWAYS against the jaws.
+ *
+ * The grip assessment is about resisting lateral load, so the tool that drives
+ * it is the largest peripheral cutter — an end mill pushing against the jaws.
+ * A face mill loads the part down into the vise and is deliberately excluded:
+ * sizing grip off a 2" face mill would flag every facing setup as high risk
+ * for a load the jaws never see.
+ *
+ * THE ONE COPY. This rule was written out twice — in `package.ts` and in
+ * `machinist-review.ts` — which meant the approach the machinist page ranks
+ * and the setup the readiness gate judges could disagree about which tool
+ * governs a setup's grip.
+ */
+export const PERIPHERAL_ROUGHING_CLASSES = ["FLAT_END_MILL", "BULL_NOSE"] as const;
+
+/** The heaviest peripheral cutter among a setup's tools, or null if it has none. */
+export function peripheralRoughingTool(setupTools: Tool[]): Tool | null {
+  const peripheral = setupTools.filter((t) =>
+    (PERIPHERAL_ROUGHING_CLASSES as readonly string[]).includes(t.toolClass),
+  );
+  return peripheral.length ? peripheral.reduce((a, b) => (a.diameter > b.diameter ? a : b)) : null;
+}
 
 /**
  * Minimum grip depth recommendation. Scales with the cutting load rather than
@@ -189,7 +231,11 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
   if (!ctx.device) missing.push("Workholding device not selected");
   if (ctx.gripDepth == null) missing.push("Grip depth not defined");
   if (ctx.gripLength == null) missing.push("Grip length not defined");
-  if (!ctx.roughingTool) missing.push("No roughing tool assigned — cutting load unknown");
+  // Only a setup with no tools at all is missing the load. A setup that has
+  // tools but no peripheral cutter is handled as a determinate answer below.
+  const hasTools = (ctx.setupTools?.length ?? 0) > 0;
+  const noPeripheralCutter = !ctx.roughingTool && hasTools;
+  if (!ctx.roughingTool && !hasTools) missing.push("No tool assigned to any operation in this setup — cutting load unknown");
   if (ctx.specificEnergy == null) missing.push("Material specific cutting energy unknown");
 
   const forceEstimate = cuttingForceFor(ctx);
@@ -231,6 +277,35 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
         "Clamping friction and any positive stop exceed the peak lateral load of the governing cut by the target factor.",
       suggestions: margin.recommendations,
     });
+  } else if (noPeripheralCutter) {
+    /*
+     * A determinate answer, not a gap.
+     *
+     * Every tool in this setup loads the part along the spindle axis — a face
+     * mill pushes it down onto the parallels, a drill pushes it down into
+     * them. The vise handles that direction by construction, which is why the
+     * peripheral-cutter filter above excludes face mills from sizing grip in
+     * the first place: sizing grip off a 2" face mill would flag every facing
+     * setup as high risk for a load the jaws never see.
+     *
+     * REVIEW rather than a pass, because there IS still a lateral component —
+     * a face mill's feed force and the shock of entering the cut are real, and
+     * nothing here has computed them. A human looks at a facing setup and
+     * accepts it; CANVAS does not get to claim it computed a margin it did not.
+     */
+    factors.push({
+      id: "holding-margin",
+      label: "Holding margin",
+      level: "REVIEW",
+      observed: `No peripheral cutter in this setup — ${ctx.setupTools!.map((t) => t.description).join(", ")}`,
+      expected: "A lateral load to size the grip against",
+      reason:
+        "Every tool here loads the part along the spindle axis, into the parallels, which is the one direction a vise does not struggle with. No lateral cutting load has been calculated, so no holding margin is claimed — the feed force of a face mill and the shock of entering the cut are real and are not modelled.",
+      suggestions: [
+        "Confirm the part is seated on the parallels and cannot lift as the cutter exits",
+        "Where the face mill enters off the edge of the part, check it drives the part into a jaw or a stop rather than away from one",
+      ],
+    });
   } else if (clampForce == null) {
     missing.push(
       "Clamping force not recorded for this vise — the holding margin cannot be calculated, only approximated by grip depth",
@@ -242,11 +317,28 @@ export function assessWorkholding(ctx: SetupContext): WorkholdingAssessment {
     factors.push({
       id: "grip-depth",
       label: "Grip depth",
-      level: "UNKNOWN",
+      // A recorded grip depth with no peripheral cutter to size it against is
+      // not an unknown: the number is known and there is nothing lateral to
+      // compare it to. UNKNOWN outranks REVIEW in this engine's ordering, so
+      // leaving it here dragged the whole facing setup back to UNKNOWN — and
+      // UNKNOWN is the state readiness maps to MISSING and refuses to let a
+      // human acknowledge. Found by testing the level rather than the factor.
+      level: ctx.gripDepth != null && noPeripheralCutter ? "REVIEW" : "UNKNOWN",
       observed: ctx.gripDepth == null ? "Not defined" : `${ctx.gripDepth.toFixed(3)}"`,
       reason:
-        "Grip depth cannot be evaluated until both the setup geometry and the roughing load are defined.",
-      suggestions: ["Define stock position in the vise", "Assign a roughing operation"],
+        ctx.gripDepth == null
+          ? "Grip depth is not recorded for this setup, so there is nothing to evaluate."
+          : noPeripheralCutter
+            ? "The grip rule of thumb scales with the diameter of a peripheral cutter, and this setup has none. The depth recorded is not evaluated against a lateral load because there is no lateral load to evaluate it against."
+            : "Grip depth cannot be evaluated until both the setup geometry and the roughing load are defined.",
+      // "Assign a roughing operation" was the suggestion here and it is a dead
+      // end: no control assigns one, and a facing setup does not need one.
+      suggestions:
+        ctx.gripDepth == null
+          ? ["Record how the part is actually held on the setups page"]
+          : noPeripheralCutter
+            ? ["Confirm by eye that the part is held deep enough not to lift as the cutter exits"]
+            : ["Assign a tool to the operations in this setup"],
     });
   } else {
     const ratio = ctx.gripDepth / recommended;
