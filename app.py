@@ -1257,6 +1257,49 @@ def create_app():
         result["ok"] = bool(result.get("put") and result.get("get") and result.get("delete"))
         return result
 
+    @app.route("/storage/diag")
+    def storage_diag():
+        """Is object storage actually working, and if not, which variable is
+        wrong? The round-trip below writes, reads and deletes one tiny
+        object; `why` reports the SHAPE of each credential (lengths, hex,
+        whether two of them are the same string) and never a value.
+
+        It lived inside /presave/diag, which only a label-plan account could
+        open, so the person who owns the bucket could not see it.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "auth required"}), 401
+        report = _r2_check()
+        if not report.get("configured"):
+            report["next"] = ("Set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID and "
+                              "R2_SECRET_ACCESS_KEY in Render. Until then uploads "
+                              "stay on this server's disk.")
+        elif not report.get("ok"):
+            why = report.get("why") or {}
+            hints = []
+            if not why.get("secret_is_64_hex"):
+                hints.append("R2_SECRET_ACCESS_KEY should be 64 hex characters "
+                             "(it is %d). Cloudflare shows it once, on R2 -> "
+                             "Manage R2 API Tokens -> Create token."
+                             % why.get("secret_len", 0))
+            if not why.get("access_key_is_32_hex"):
+                hints.append("R2_ACCESS_KEY_ID should be 32 hex characters "
+                             "(it is %d)." % why.get("access_key_len", 0))
+            if why.get("bucket_looks_like_an_id"):
+                hints.append("R2_BUCKET looks like an id, not a name. It is the "
+                             "bucket's name as typed when it was created.")
+            if why.get("bucket_equals_access_key_id") or why.get("account_id_equals_access_key_id"):
+                hints.append("Two of the four variables hold the same string, so "
+                             "the paste was shifted across the fields.")
+            if not why.get("account_id_is_32_hex"):
+                hints.append("R2_ACCOUNT_ID should be 32 hex characters "
+                             "(it is %d); it is in the R2 endpoint URL."
+                             % why.get("account_id_len", 0))
+            report["next"] = hints or ["The four variables have the right shape; "
+                                       "read s3_code above for what Cloudflare said."]
+        return jsonify(report)
+
     @app.route("/presave/diag")
     def presave_diag():
         # Owner-only config check: reports WHICH credentials the running

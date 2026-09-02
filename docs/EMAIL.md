@@ -56,20 +56,57 @@ emailed there arrives as an `email.received` webhook, signature-checked
 (Svix headers), the CSV attachments fetched through Resend's receiving
 API with the same key, and parsed into Statements.
 
-As of the sending switch-over the inbound domain (`…resend.app`) and the
-webhook secret still belong to the *other* Resend account, so deliveries
-arrive but the attachment fetch fails with the new key. Rebuild on the
-team.summitarts account:
+Rebuilt on the team.summitarts account, 2 September 2026. Resend gives
+every account a managed receiving subdomain, so no DNS is needed: this
+account's is **uldainelob.resend.app** (Resend → Emails → Receiving shows
+it as `<anything>@uldainelob.resend.app`). Drop-box addresses are
+therefore `<ingest token>@uldainelob.resend.app`.
 
-1. Resend → Domains → `mail.artiswarrecords.com` → Enable Receiving; add
-   the MX record it shows (`mail` → `inbound-smtp.us-east-1.amazonaws.com`)
-   in Shopify DNS, where the domain is managed.
-2. Resend → Webhooks → Add: `https://street-banker.onrender.com/webhooks/resend`,
-   event `email.received`. Copy its signing secret.
-3. Render: `RESEND_INBOUND_DOMAIN=mail.artiswarrecords.com`,
-   `RESEND_WEBHOOK_SECRET=<the secret>`. Save, redeploy.
+Done:
+
+1. Webhook created in Resend → Webhooks:
+   `https://street-banker.onrender.com/webhooks/resend`, event
+   `email.received`, status Enabled.
+2. Render: `RESEND_INBOUND_DOMAIN=uldainelob.resend.app`, saved and
+   deployed.
+
+Still needed (the secret must be pasted by the account owner; nobody else
+should handle it):
+
+3. Resend → Webhooks → that endpoint → reveal the **signing secret**, and
+   paste it into Render as `RESEND_WEBHOOK_SECRET`, replacing the value
+   left over from the old account. Save, rebuild, deploy.
 4. Prove it: Statements → drop-box self-test emails a sample CSV to your
-   own address and it should appear as a statement within a minute.
+   own drop-box address and it should appear as a statement within a
+   minute. `/mail/diag` reports the shape if it does not.
 
-Drop-box addresses change with the domain; anyone who was emailing the
-old address needs the new one from the Statements page.
+A custom address (`statements@mail.artiswarrecords.com`) is possible by
+adding the MX record Resend shows under a verified domain's Records tab,
+but the managed subdomain needs no DNS and does not depend on a domain
+being retired.
+
+Drop-box addresses change with the domain; anyone who was emailing an
+older address needs the new one from the Statements page.
+
+
+## Object storage (R2), and how to see why it is off
+
+`/storage/diag` (any signed-in account) writes, reads and deletes one tiny
+object and, when that fails, names the variable that is wrong by SHAPE —
+never by value. As of 2 September 2026 it reports a secret of 32
+characters where R2 wants 64 hex, and a bucket holding a 32-hex id rather
+than a name, so uploads stay on the Render disk.
+
+To fix, in Cloudflare → R2:
+
+1. **Manage R2 API Tokens → Create API token**, Object Read & Write. It
+   shows an Access Key ID (32 hex) and a Secret Access Key (64 hex) once.
+2. Note the **bucket name** as typed when it was created, and the
+   **account id** (the 32 hex in the S3 endpoint
+   `https://<account id>.r2.cloudflarestorage.com`).
+3. In Render, set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+   and `R2_ACCOUNT_ID` to those four, save, rebuild and deploy.
+4. Open `/storage/diag`; `"ok": true` means the round trip worked.
+
+Until then nothing is lost: uploads fall back to the Render disk, which is
+1 GB and shared with the database, which is why Studio caps upload size.
