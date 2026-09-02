@@ -10,6 +10,9 @@ import { HoldScene } from "@/components/hold-scene";
 import { SequenceProposalPanel, UnbuiltOptimisations } from "@/components/sequence-proposal";
 import { proposeSequence, type SequencedOperation } from "@/lib/engines/sequencing";
 import { DataRow, DevLabel, EmptyState, LinkButton, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
+import { comparableJobs } from "@/lib/disagreement";
+import { Disagree } from "@/components/disagree";
+import { recordPartDisagreement } from "../disagree-actions";
 
 /**
  * SETUP PLANNING
@@ -42,6 +45,7 @@ export default async function SetupsPage(props: {
   const { id } = await props.params;
   const { problem } = await props.searchParams;
   const user = await requireUser();
+  const jobs = await comparableJobs(user.organizationId);
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
 
@@ -129,6 +133,27 @@ export default async function SetupsPage(props: {
                           Computed without: {a.missingInputs.join("; ")}
                         </p>
                       )}
+                      {/* The workholding assessment is the one a machinist is
+                          most likely to know better than CANVAS — they have
+                          held this shape before. The stored position carries
+                          the DEVELOPMENT ANALYSIS qualifier, so the record
+                          does not read as a firmer claim than was made. */}
+                      <div className="mb-3">
+                        <Disagree
+                          action={recordPartDisagreement}
+                          partId={id}
+                          surface="setups"
+                          subjectType="WORKHOLDING"
+                          subjectId={s.id}
+                          setupId={s.id}
+                          canvasPosition={
+                            a?.holdingMargin?.margin != null
+                              ? `${s.name} — ${RISK_LABEL[a.level]}. ${a.holdingMargin.margin.toFixed(2)}x holding margin against a 2.00x target, governed by ${a.holdingMargin.governingMode === "TIPPING" ? "rolling out of the jaws" : "sliding in the jaws"}. DEVELOPMENT ANALYSIS.`
+                              : `${s.name} — holding margin not calculable: ${a?.missingInputs.join("; ") ?? "workholding not assessed"}.`
+                          }
+                          jobs={jobs}
+                        />
+                      </div>
                       <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
                         <DataRow label="Orientation" value={s.orientation} />
                         <DataRow label="Work offset" value={s.workOffset} />
@@ -253,12 +278,37 @@ export default async function SetupsPage(props: {
 
                   {/* Reduce tool changes, for real. The other four stay
                       labelled, but each now says which wall it hits. */}
-                  <SequenceProposalPanel
-                    proposal={proposeSequence(sequencedOps(s))}
-                    operations={sequencedOps(s)}
-                    setupId={s.id}
-                    partId={id}
-                  />
+                  {(() => {
+                    const proposal = proposeSequence(sequencedOps(s));
+                    return (
+                      <>
+                        <SequenceProposalPanel
+                          proposal={proposal}
+                          operations={sequencedOps(s)}
+                          setupId={s.id}
+                          partId={id}
+                        />
+                        {/* The panel header claims this is "principle 11's
+                            WHY / CHANGE / I DISAGREE shape". It had WHY and
+                            CHANGE and no way to disagree. Only where there is
+                            a proposal to argue with. */}
+                        {proposal.saved > 0 && (
+                          <div className="mt-3">
+                            <Disagree
+                              action={recordPartDisagreement}
+                              partId={id}
+                              surface="setups"
+                              subjectType="SEQUENCE"
+                              subjectId={s.id}
+                              setupId={s.id}
+                              canvasPosition={`${s.name} — reorder to remove ${proposal.saved} tool change${proposal.saved === 1 ? "" : "s"} (${proposal.currentToolChanges} to ${proposal.proposedToolChanges}).`}
+                              jobs={jobs}
+                            />
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                   <UnbuiltOptimisations />
                 </Panel>
               );

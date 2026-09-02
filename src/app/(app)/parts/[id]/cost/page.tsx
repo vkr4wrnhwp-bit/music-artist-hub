@@ -7,10 +7,14 @@ import { compareMakeVsBuy, money } from "@/lib/engines/cost";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { comparableJobs } from "@/lib/disagreement";
+import { Disagree } from "@/components/disagree";
+import { recordPartDisagreement } from "../disagree-actions";
 
 export default async function CostPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const user = await requireUser();
+  const jobs = await comparableJobs(user.organizationId);
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
 
@@ -113,7 +117,23 @@ export default async function CostPage(props: { params: Promise<{ id: string }> 
             </div>
 
             {comparison.recommendation ? (
-              <p className="mt-4 text-[13px] text-platinum">{comparison.recommendation}</p>
+              <>
+                <p className="mt-4 text-[13px] text-platinum">{comparison.recommendation}</p>
+                {/* Only where there IS a recommendation. With no external
+                    quotes there is no CANVAS position to disagree with, and
+                    a form offering to argue with nothing is a dead control. */}
+                <div className="mt-3">
+                  <Disagree
+                    action={recordPartDisagreement}
+                    partId={id}
+                    surface="cost"
+                    subjectType="COST"
+                    subjectId={pkg.revision.revisionId}
+                    canvasPosition={comparison.recommendation}
+                    jobs={jobs}
+                  />
+                </div>
+              </>
             ) : (
               <Notice tone="unknown" title="Buy cannot be evaluated">
                 No external quotes have been entered for this part. CANVAS will not estimate a supplier price it has no

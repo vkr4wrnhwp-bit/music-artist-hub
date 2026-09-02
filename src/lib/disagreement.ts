@@ -195,3 +195,28 @@ export async function relevantKnowledge(params: {
 
   return all.filter((k) => knowledgeApplies(k, params));
 }
+
+/**
+ * Jobs this shop has run, for naming the comparable setup behind a
+ * disagreement.
+ *
+ * One home, because the select for this was dead once already: `Disagree`'s
+ * `jobs` prop defaulted to `[]` and its only call site passed none, so
+ * "have you successfully run a comparable setup?" was asked with no way to
+ * answer it. Six mount points each fetching their own list is six chances to
+ * repeat that.
+ *
+ * COMPLETE only — a job still on the machine has not demonstrated anything.
+ */
+export async function comparableJobs(organizationId: string): Promise<{ id: string; label: string }[]> {
+  const jobs = await db.job.findMany({
+    where: { organizationId, status: "COMPLETE" },
+    orderBy: { completedAt: "desc" },
+    take: 50,
+    include: { part: { select: { partNumber: true } } },
+  });
+  return jobs.map((j) => ({
+    id: j.id,
+    label: `${j.jobNumber} — ${j.part.partNumber} rev ${j.revision}, qty ${j.quantity}`,
+  }));
+}

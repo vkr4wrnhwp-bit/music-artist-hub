@@ -16,6 +16,11 @@ export const DISAGREEMENT_SUBJECTS = [
   "PROCESS",
   "NOMINAL",
   "COST",
+  // The sequence proposal component says in its own header that it is
+  // "principle 11's WHY / CHANGE / I DISAGREE shape". It had WHY and CHANGE
+  // and no way to disagree, and filing one under OTHER makes it unanalysable
+  // — the subject is what scopes the knowledge afterwards.
+  "SEQUENCE",
   "OTHER",
 ] as const;
 export type DisagreementSubject = (typeof DISAGREEMENT_SUBJECTS)[number];
@@ -28,6 +33,7 @@ export const SUBJECT_LABEL: Record<DisagreementSubject, string> = {
   PROCESS: "Process",
   NOMINAL: "Nominal dimension",
   COST: "Cost",
+  SEQUENCE: "Operation sequence",
   OTHER: "Other",
 };
 

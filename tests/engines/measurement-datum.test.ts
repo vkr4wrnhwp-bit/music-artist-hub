@@ -89,27 +89,29 @@ test("a reading with no datum says so rather than reading as reproducible", () =
  */
 
 test("the disagreement form is handed the shop's completed jobs", () => {
-  const page = readFileSync("src/app/(app)/parts/[id]/readiness/page.tsx", "utf8");
-  assert.ok(/jobs=\{comparableJobs\.map/.test(page), "the Disagree form is still handed no jobs, so its select never renders");
-  assert.ok(
-    /status: "COMPLETE"/.test(page),
-    "jobs still on the machine are offered as evidence of having run something",
-  );
-  assert.ok(
-    /organizationId: user\.organizationId/.test(page),
-    "the job list is not scoped to this organisation",
-  );
+  // The query moved into `comparableJobs` when six surfaces started needing
+  // it; six copies would be six chances to repeat the dead-select defect.
+  const lib = readFileSync("src/lib/disagreement.ts", "utf8");
+  assert.ok(/export async function comparableJobs/.test(lib), "there is no shared list of comparable jobs");
+  assert.ok(/status: "COMPLETE"/.test(lib), "jobs still on the machine are offered as evidence of having run something");
+  assert.ok(/where: \{ organizationId, status/.test(lib), "the job list is not scoped to an organisation");
+
+  // And the prop is not optional any more, so a mount point that forgets it
+  // is a compile error rather than a form asking an unanswerable question.
+  const cmp = readFileSync("src/components/disagree.tsx", "utf8");
+  assert.ok(!/jobs = \[\]/.test(cmp), "jobs defaults to an empty list again — the select will not render");
+  assert.ok(/jobs: \{ id: string; label: string \}\[\];/.test(cmp), "jobs is optional again");
 });
 
 test("the disagreement records which job, resolved against this shop's own", () => {
-  const page = readFileSync("src/app/(app)/parts/[id]/readiness/page.tsx", "utf8");
-  assert.ok(/comparableJobId:/.test(page), "the action never records the comparable job");
+  const action = readFileSync("src/app/(app)/parts/[id]/disagree-actions.ts", "utf8");
+  assert.ok(/comparableJobId: job\?\.id \?\? null/.test(action), "the action never records the comparable job");
   assert.ok(
-    !/comparableJobId: String\(formData\.get\("comparableJobId"\)\)/.test(page),
+    !/comparableJobId: String\(formData\.get\("comparableJobId"\)\)/.test(action),
     "a submitted job id is written straight onto the disagreement",
   );
   assert.ok(
-    /db\.job\.findFirst\(\{[\s\S]{0,200}?organizationId: currentUser\.organizationId/.test(page),
+    /db\.job\.findFirst\(\{[\s\S]{0,200}?organizationId: user\.organizationId/.test(action),
     "the submitted job id is not resolved against this organisation's jobs",
   );
 });

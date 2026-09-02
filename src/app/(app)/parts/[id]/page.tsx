@@ -46,6 +46,9 @@ import {
 } from "@/components/ui";
 import { pickFocus } from "@/lib/guide/show-me";
 import { actionLabel, entityLabel, fieldLabel } from "@/lib/audit-labels";
+import { comparableJobs } from "@/lib/disagreement";
+import { Disagree } from "@/components/disagree";
+import { recordPartDisagreement } from "./disagree-actions";
 
 /**
  * THE PART WORKSPACE
@@ -79,6 +82,7 @@ export default async function PartWorkspace(props: {
   const { id } = await props.params;
   const { intake, context, feature, op } = await props.searchParams;
   const user = await requireUser();
+  const jobs = await comparableJobs(user.organizationId);
 
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
@@ -816,6 +820,25 @@ export default async function PartWorkspace(props: {
                     {tp.parameters.rpm} rpm · {tp.parameters.feed} ipm · {tp.moves.length} moves ·{" "}
                     {tp.cycleTimeMinutes.toFixed(2)} min
                   </p>
+                )}
+                {/* Feeds and speeds are the surface a machinist argues with
+                   most and the one shop knowledge is most worth capturing
+                   from — "chatters above .450 DOC on the VF-2" is scoped to
+                   a machine, a tool and a material, which is exactly what a
+                   disagreement records. */}
+                {tp && !tp.isPlaceholder && (
+                  <div className="mt-1.5">
+                    <Disagree
+                      action={recordPartDisagreement}
+                      partId={id}
+                      surface="part"
+                      subjectType="FEED_SPEED"
+                      subjectId={o.id}
+                      setupId={s.id}
+                      canvasPosition={`${o.label} — T${o.tool?.toolNumber ?? "—"}, ${tp.parameters.rpm} rpm, ${tp.parameters.feed} ipm.`}
+                      jobs={jobs}
+                    />
+                  </div>
                 )}
                 {tp?.warnings.map((w) => (
                   <p key={w} className="mt-1 text-[11px] leading-relaxed text-review">

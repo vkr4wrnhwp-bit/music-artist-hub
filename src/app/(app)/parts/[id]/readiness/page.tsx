@@ -8,7 +8,8 @@ import { EVALUATED_PROCESSES, PROCESS_LABEL, UNEVALUATED_PROCESSES } from "@/lib
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Disagree } from "@/components/disagree";
-import { recordDisagreement } from "@/lib/disagreement";
+import { comparableJobs } from "@/lib/disagreement";
+import { recordPartDisagreement } from "../disagree-actions";
 import { revalidatePath } from "next/cache";
 import { showMeHrefFor } from "@/lib/guide/show-me";
 import { Button, Dot, Notice, Panel, SectionHeading, StatusChip, type Tone } from "@/components/ui";
@@ -43,12 +44,7 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
    * COMPLETE only: a job still on the machine has not demonstrated anything
    * yet.
    */
-  const comparableJobs = await db.job.findMany({
-    where: { organizationId: user.organizationId, status: "COMPLETE" },
-    orderBy: { completedAt: "desc" },
-    take: 50,
-    include: { part: { select: { partNumber: true } } },
-  });
+  const jobs = await comparableJobs(user.organizationId);
 
   async function approve() {
     "use server";
@@ -79,44 +75,6 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
     });
 
     redirect(`/parts/${id}/readiness`);
-  }
-
-  /**
-   * Recording a disagreement is a write, and it is deliberately the only thing
-   * this action does. It does not touch the gate, it does not set a flag that
-   * any gate reads, and there is no code path from here to a gate clearing.
-   */
-  async function disagree(formData: FormData) {
-    "use server";
-    const currentUser = await requireWrite();
-    const fresh = await buildPackage(currentUser.organizationId, id);
-    if (!fresh) notFound();
-
-    const reasoning = String(formData.get("reasoning") ?? "").trim();
-    if (!reasoning) redirect(`/parts/${id}/readiness`);
-
-    await recordDisagreement({
-      organizationId: currentUser.organizationId,
-      userId: currentUser.id,
-      subjectType: "READINESS_GATE",
-      subjectId: String(formData.get("subjectId") ?? "") || null,
-      partRevisionId: fresh.revision.revisionId,
-      canvasPosition: String(formData.get("canvasPosition") ?? ""),
-      reasoning,
-      hasRunComparable: formData.get("hasRunComparable") === "yes",
-      // Resolved against this organisation's own jobs, never trusted as an id.
-      comparableJobId:
-        (
-          await db.job.findFirst({
-            where: { id: String(formData.get("comparableJobId") ?? ""), organizationId: currentUser.organizationId },
-            select: { id: true },
-          })
-        )?.id ?? null,
-      proposedValue: String(formData.get("proposedValue") ?? "") || null,
-    });
-
-    revalidatePath(`/parts/${id}/readiness`);
-    redirect(`/parts/${id}/readiness?recorded=1`);
   }
 
   const overallTone: Tone =
@@ -205,15 +163,13 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                 {g.status !== "PASS" && g.status !== "NOT_ATTEMPTED" && (
                   <div className="mt-2.5 pl-6">
                     <Disagree
-                      action={disagree}
+                      action={recordPartDisagreement}
+                      partId={id}
+                      surface="readiness"
                       subjectType="READINESS_GATE"
                       subjectId={g.id}
-                      partRevisionId={pkg.revision.revisionId}
                       canvasPosition={`${g.label} — ${g.status.replace(/_/g, " ")}. ${g.detail}`}
-                      jobs={comparableJobs.map((j) => ({
-                        id: j.id,
-                        label: `${j.jobNumber} — ${j.part.partNumber} rev ${j.revision}, qty ${j.quantity}`,
-                      }))}
+                      jobs={jobs}
                     />
                   </div>
                 )}
@@ -393,6 +349,20 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
                         {[r.toolingCostOrder, r.leadTimeNote].filter(Boolean).join(" · ")}
                       </p>
                     )}
+                    {/* A process recommendation is a manufacturing
+                        judgement about somebody's shop, and it was the one
+                        surface with no way to argue with it. */}
+                    <div className="mt-2.5">
+                      <Disagree
+                        action={recordPartDisagreement}
+                        partId={id}
+                        surface="readiness"
+                        subjectType="PROCESS"
+                        subjectId={r.process}
+                        canvasPosition={`${PROCESS_LABEL[r.process]} — ${r.verdict.replace(/_/g, " ")}. ${r.rationale.join(" ")}`}
+                        jobs={jobs}
+                      />
+                    </div>
                   </div>
                 );
               })}

@@ -18,6 +18,9 @@ import { assessCapability, measurementGeometry } from "@/lib/engines/inspection-
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { Button, DataRow, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { comparableJobs } from "@/lib/disagreement";
+import { Disagree } from "@/components/disagree";
+import { recordPartDisagreement } from "../../disagree-actions";
 
 /**
  * FEATURE DETAIL — FUNCTION BEFORE DIMENSION
@@ -42,6 +45,7 @@ export default async function FeatureDetailPage(props: {
   const { id, fid } = await props.params;
   const { saved } = await props.searchParams;
   const user = await requireUser();
+  const jobs = await comparableJobs(user.organizationId);
 
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
@@ -401,6 +405,22 @@ export default async function FeatureDetailPage(props: {
                     </span>
                   </div>
                 </form>
+              )}
+              {/* Accept it, or say why not. A suggested nominal is CANVAS
+                  reading a measurement against a fit table; the machinist may
+                  know what this bore actually mates with. */}
+              {analysis?.best?.fit && (
+                <div className="mt-4 border-t border-line pt-3">
+                  <Disagree
+                    action={recordPartDisagreement}
+                    partId={id}
+                    surface="part"
+                    subjectType="NOMINAL"
+                    subjectId={fid}
+                    canvasPosition={`${feature.label} — ${analysis.best.bearing.designation}, suggested ${analysis.best.fit.fitClass} against a ${analysis.best.nominalMm} mm nominal (${analysis.best.differenceIn >= 0 ? "+" : ""}${analysis.best.differenceIn.toFixed(4)}" from measured).`}
+                    jobs={jobs}
+                  />
+                </div>
               )}
             </Panel>
           )}

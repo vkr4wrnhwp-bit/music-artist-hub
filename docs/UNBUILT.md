@@ -24,6 +24,11 @@ four items done and one missing is not 80% done; the missing one is missing.
 
 ## Closed in this pass
 
+- **Every major recommendation supports WHY / CHANGE / I DISAGREE** — mounted on seven surfaces
+- **SHOW ME on a review finding updates the 3D scene** — `f0c8ab2`
+- **Backend debug jargon purged from the UI** — `15ce8fd`
+- **View Environment lighting controls, per preset** — `86ec2cf`
+- **The process advisor states what it does not assess** (routing included) — `f6a3935`
 - **NEW PART as a core section — a part created from the command bar (DESCRIBE / IMPORT CAD) must be able to reach a manufacturing plan** — `4e62e9f`
 - **Measurements must reference the established datums — save relatedDatum with each reading, so a dimension is recorded as measured from Datum A/B/C rather than as an isolated number** — `e5110c4`
 - **When a user disagrees, allow them to link the previous comparable job** — `8469e88`
@@ -97,14 +102,6 @@ Jobs is read-only over demo-seed data. No code path creates a Job or a JobOutcom
 
 ``grep -rn 'db.job\.|job.create|jobOutcome.create' src` -> only reads at src/app/(app)/jobs/page.tsx:9 and src/app/(app)/page.tsx:18; db.job.create exists only at prisma/seed.ts:648 and db.jobOutcome.create at prisma/seed.ts:665; `grep -rn 'RELEASED' src` -> only two StatusChip comparisons (src/app/(app)/parts/[id]/page`
 
-### Alternative manufacturing processes the SHOULD-I-MAKE-IT advisor must consider, including routing
-
-> * molded * extruded * turned * routed * EDM'd
-
-The process advisor covers every process the user enumerated except routing. Its PROCESSES enum has 21 entries — turning, fabrication, laser, waterjet, plasma, stamping, forming, hydroforming, casting, forging, extrusion, injection molding, three additive families, hybrid, wire and sinker EDM, purchase-off-the-shelf — but no router/routing entry, so a flat sheet-goods or plastic part is never compared against routing.
-
-`src/lib/engines/process-advisor.ts:17-38 (PROCESSES list) and :41-64 (PROCESS_LABEL); `grep -rn 'ROUTING|CNC_ROUT|router' src/lib --include=*.ts` returns no matches`
-
 ### Manufacturing DNA: attach history to a PartRevision and show a timeline of events (initial release, bore nominal changed, soft jaws added, chatter observed, inspection passed, workholding failure corrected, process revised) with provenance labels
 
 > Create: MANUFACTURING DNA Attach history to a PartRevision. Show timeline: - initial release - bore nominal changed - soft jaws added - chatter observed - inspection passed - workholding failure corrected - process revis
@@ -137,14 +134,6 @@ The review workflow exists but runs only against the package CANVAS itself holds
 
 `src/lib/engines/review.ts:35-63 (TS interfaces, no Prisma model); `grep -rn "FindingResolution\|ImportedModel\|ImportedToolList\|ImportedSetup" src prisma docs` returns nothing; prisma/schema.prisma model list has no ReviewFinding.`
 
-### SHOW ME on a review finding should update the 3D scene
-
-> Each finding should: - have severity - identify setup/operation - show affected geometry - support SHOW ME SHOW ME should update the 3D scene.
-
-Show me on a review finding is a plain link to /parts/[id]/setups, /parts/[id]/features/[fid] or the part page. The finding already carries a camera `point` and a `context` (PART/HOLD/CUT/VERIFY) but both are printed as text beside the button and neither is passed anywhere. The workspace accepts no feature or context query parameter, and `cameraTarget` in the interaction model is written by the reducer but read by nothing, so no code path can frame the geometry.
-
-`src/app/(app)/parts/[id]/review/page.tsx:116-133 (LinkButton to a route; point/context rendered as a label); src/app/(app)/parts/[id]/page.tsx:75 accepts only `{ intake?: string }`; `grep -rn cameraTarget src` matches only src/components/workspace/interaction.tsx:53,90,114,145,163.`
-
 ### During guided measurement, highlight the target feature in the uploaded image and the 3D reconstruction
 
 > Highlight the target feature in the uploaded image and 3D reconstruction.
@@ -152,14 +141,6 @@ Show me on a review finding is a plain link to /parts/[id]/setups, /parts/[id]/f
 The Reference panel always shows `photos[0]` — the first uploaded photo — regardless of which measurement is being requested, with no highlight, marker or crop on the target feature and no 3D reconstruction beside it. The view labels captured at upload (TOP/BOTTOM/FRONT/…) are never used to pick the right image, even though photo-set.tsx's own comment says they exist for exactly that purpose.
 
 `src/components/reverse/guided-measurement.tsx:220-221 render `photos[0].url` / `photos[0].view` unconditionally; src/components/reverse/photo-set.tsx:6-10 states views are labelled "so the guided measurement step can show the operator the right image".`
-
-### Every major recommendation supports WHY / CHANGE / I DISAGREE
-
-> For major recommendations support: WHY? CHANGE I DISAGREE
-
-The Disagree component is mounted in exactly one place — non-passing gates on the readiness page. No process recommendation, workholding assessment, sequence proposal, tool substitution, soft-jaw proposal, nominal suggestion or cost/make-vs-buy output carries it, even though `Disagreement.subjectType` defines WORKHOLDING, TOOL_CHOICE, FEED_SPEED, PROCESS, NOMINAL and COST — every one of those subject types is unreachable from the UI.
-
-``grep -rn "Disagree" src/app src/components --include=*.tsx` outside the component itself matches only src/app/(app)/parts/[id]/readiness/page.tsx:10,178; `recordDisagreement` has one caller (readiness/page.tsx:77); prisma/schema.prisma:1258 lists the six unreachable subject types.`
 
 ### The Feature Lens carries DETAIL / MEASURE / MAKE / VERIFY actions
 
@@ -185,14 +166,6 @@ The contrast work landed at AA, not AAA. tests/engines/contrast.test.ts asserts 
 
 `tests/engines/contrast.test.ts:53 and :70 assert `r >= 4.5`, never 7; src/app/globals.css:251-258 (.instrument-label uses --c-muted); ratios computed from the same tokens the test reads`
 
-### Purge the named backend debug jargon from the UI
-
-> **Micro-copy Standardization:** Purge backend debug jargon (e.g., "1 without an engine", "WHAT THIS PANEL IS NOT").
-
-The replacement mechanism was built — `LimitsDisclosure` (an inline ⓘ disclosure) exists in ui.tsx:330 and the refactor spec records the agreed change as "placement can change (footer → an ⓘ disclosure per panel)" — but it was only wired into the NC page and the lathe page. The string the user actually named still renders as a plain footer heading in the feature panel: `<p className="instrument-label">What this panel is not</p>`, with a code comment stating the copy was deliberately left "verbatim". feature-panel.tsx does not import LimitsDisclosure. (The other named string, "1 without an engine", is effectively gone — `PLACEHOLDER_OPERATIONS` is now `[]` so `placeholderCount` is always 0 and the template never renders.)
-
-`src/components/workspace/feature-panel.tsx:708; `grep -rn LimitsDisclosure src` lists only ui.tsx, parts/[id]/nc/page.tsx and lathe/[id]/page.tsx`
-
 ### Shop-Floor Machinist Mode focused on setup photos and probing routines
 
 > **Shop-Floor Machinist Mode (Role-Based UI):** A touch-optimized, high-contrast tablet view focusing on setup photos, tool projection, probing routines, and digital sign-offs.
@@ -200,14 +173,6 @@ The replacement mechanism was built — `LimitsDisclosure` (an inline ⓘ disclo
 Two of the four named focuses landed (tool projection/stickout at :270 and :306, digital sign-off at :375-421, 48px touch targets). The other two did not. Setup photos: the tablet page renders no image at all — `grep -ni 'img|Image|asset|photo'` over the file returns nothing — even though `Asset.kind` already carries a PHOTO value in the schema. Probing routines: section 3 shows generic Z0/parallels advice and states outright "A stored probing routine with per-feature expected values does not exist for this setup"; there is no probing-routine model anywhere (schema has only two `probe Boolean` capability flags on machines).
 
 ``grep -ni 'img|Image|asset|photo' 'src/app/(app)/parts/[id]/tablet/page.tsx'` returns nothing; src/app/(app)/parts/[id]/tablet/page.tsx:343; prisma/schema.prisma has no probing-routine model (`grep -ni probe` hits only lines 157 and 1482, both capability booleans)`
-
-### View Environment must expose real functional controls for ambient light intensity and highlight intensity, and each preset must control default part lighting
-
-> Implement real functional controls for: ... - floor reflectivity - shadow strength - ambient light intensity - highlight intensity - edge contrast ...
-
-Every other named control in that list landed (background, floor colour, floor reflectivity, shadow, edge/datum line modes, grid visibility+intensity, toolpath/fixture/tool visibility, custom picker + hex, selected-feature colour), but lighting is not controllable at all. The scene's light rig is hard-coded and no ViewEnvironment field exists for it, so the drawer has no lighting section and none of the eight presets varies lighting. This also leaves 'default part lighting' from the earlier preset brief ([4384] line 142: 'Each preset should control: ... - default part lighting') unimplemented — Studio White, Dark Machine Bay and High Contrast all render under identical lights.
-
-`src/components/viewport/scene.tsx:250 `<ambientLight intensity={0.25} />` and :256-258 three fixed `<directionalLight>`s — no prop from `props.env`. `grep -rni "ambient\|highlightIntensity\|lightIntensity" src/lib/view-environment.ts src/components/workspace/view-environment-drawer.tsx` returns nothing. VIEW_PRESETS (s`
 
 ### View Environment must expose real functional controls for section-view fill and annotation visibility
 

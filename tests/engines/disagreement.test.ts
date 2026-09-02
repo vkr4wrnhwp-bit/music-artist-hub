@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   knowledgeApplies,
   DISAGREEMENT_SUBJECTS,
@@ -159,4 +161,114 @@ test("a disagreement about a readiness gate is a first-class subject", () => {
   // It is the one the whole flow exists for: CANVAS said the gate fails, the
   // machinist says it does not. That has to be recordable without clearing it.
   assert.ok(DISAGREEMENT_SUBJECTS.includes("READINESS_GATE"));
+});
+
+/* ---- every significant recommendation can be argued with ---- */
+
+/**
+ * Principle 11: every significant recommendation supports WHY / CHANGE / I
+ * DISAGREE. It was mounted in exactly one place — non-passing readiness gates
+ * — so six of the subjects the vocabulary defines were unreachable. A
+ * machinist could not disagree with a process recommendation, a workholding
+ * assessment, a suggested nominal, a tool substitution, a make-vs-buy verdict,
+ * a feed and speed, or a proposed operation order.
+ *
+ * The vocabulary existing is not the same as the vocabulary being reachable.
+ */
+
+function uiFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...uiFiles(full));
+    else if (full.endsWith(".tsx")) out.push(full);
+  }
+  return out;
+}
+
+const MOUNTS = [...uiFiles("src/app"), ...uiFiles("src/components")]
+  .flatMap((file) => {
+    const src = readFileSync(file, "utf8");
+    return [...src.matchAll(/<Disagree\b[\s\S]{0,900}?\/>/g)].map((m) => ({ file, jsx: m[0] }));
+  })
+  .filter((m) => !m.file.endsWith("disagree.tsx"));
+
+test("every mount point passes a part, a surface and a job list", () => {
+  assert.ok(MOUNTS.length >= 7, `only ${MOUNTS.length} mount points — the coverage below cannot hold`);
+  for (const { file, jsx } of MOUNTS) {
+    assert.ok(/partId=\{/.test(jsx), `${file}: a Disagree without a partId — the action cannot find the revision`);
+    assert.ok(/surface="/.test(jsx), `${file}: a Disagree without a surface — the machinist is redirected elsewhere`);
+    // The exact regression that already happened: jobs defaulted to [] and
+    // the form asked "have you run a comparable setup?" with no way to answer.
+    assert.ok(/jobs=\{/.test(jsx), `${file}: a Disagree with no jobs — the comparable-job select will not render`);
+  }
+});
+
+test("every subject in the vocabulary is reachable, except OTHER", () => {
+  const mounted = new Set(MOUNTS.map((m) => /subjectType="(\w+)"/.exec(m.jsx)?.[1]).filter(Boolean));
+  for (const subject of DISAGREEMENT_SUBJECTS) {
+    if (subject === "OTHER") continue; // the catch-all, deliberately not a mount point
+    assert.ok(
+      mounted.has(subject),
+      `${subject} is in the vocabulary and nowhere in the interface — a machinist cannot disagree with it`,
+    );
+  }
+});
+
+test("every mounted subject is one the vocabulary knows", () => {
+  for (const { file, jsx } of MOUNTS) {
+    const subject = /subjectType="(\w+)"/.exec(jsx)?.[1];
+    assert.ok(subject, `${file}: a Disagree with no subject`);
+    assert.ok(
+      (DISAGREEMENT_SUBJECTS as readonly string[]).includes(subject!),
+      `${file}: ${subject} is not a disagreement subject — the record would be unscopeable`,
+    );
+  }
+});
+
+/* ---- the shared action records evidence and clears nothing ---- */
+
+/** The action with comments stripped — a note explaining a rule is not the
+  * rule, and asserting over prose only catches the documentation. */
+const ACTION = readFileSync("src/app/(app)/parts/[id]/disagree-actions.ts", "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
+
+test("the action takes the subject from the form and validates it", () => {
+  assert.ok(/formData\.get\("subjectType"\)/.test(ACTION), "the action does not read the submitted subject");
+  assert.ok(
+    /DISAGREEMENT_SUBJECTS\.find\(/.test(ACTION),
+    "the submitted subject is not checked against the vocabulary",
+  );
+  // A mislabelled disagreement is worse than a rejected one: the subject is
+  // what scopes the knowledge afterwards.
+  assert.ok(!/subjectType: "OTHER"/.test(ACTION), "an unrecognised subject is filed under OTHER rather than refused");
+  assert.ok(!/subjectType: "READINESS_GATE"/.test(ACTION), "the action hardcodes one subject");
+});
+
+test("the action clears nothing", () => {
+  // Principle 11 enforced structurally rather than by comment. The only writes
+  // permitted here are the ownership lookups and recordDisagreement itself.
+  assert.ok(!/gateCleared/.test(ACTION), "the action touches the gate-cleared flag");
+  const writes = [...ACTION.matchAll(/db\.\w+\.(\w+)\(/g)].map((m) => m[1]);
+  for (const w of writes) {
+    assert.equal(w, "findFirst", `the action performs a db.${w} — it may only look things up and record`);
+  }
+});
+
+test("the action never trusts a revision or an organisation from the form", () => {
+  assert.ok(!/formData\.get\("partRevisionId"\)/.test(ACTION), "the form can name a revision");
+  assert.ok(!/formData\.get\("organizationId"\)/.test(ACTION), "the form can name an organisation");
+  assert.ok(/loadRevision\(user\.organizationId, partId\)/.test(ACTION), "the revision is not derived server-side");
+  for (const scoped of ["setup", "job"]) {
+    assert.ok(
+      new RegExp(`db\\.${scoped}\\.findFirst\\([\\s\\S]{0,220}?organizationId: user\\.organizationId`).test(ACTION),
+      `the submitted ${scoped} id is not resolved against this organisation`,
+    );
+  }
+});
+
+test("the machinist is returned somewhere the app chose, not somewhere the form did", () => {
+  assert.ok(/RETURN_PATH/.test(ACTION), "the redirect target is not from a fixed map");
+  assert.ok(!/formData\.get\("returnTo"\)|formData\.get\("next"\)/.test(ACTION), "the form supplies a redirect target");
 });

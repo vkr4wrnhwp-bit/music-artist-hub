@@ -9,6 +9,9 @@ import { findExistingJaws, proposeFamily, jawEconomics, type JawSet, type JawPro
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { DataRow, EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+import { comparableJobs } from "@/lib/disagreement";
+import { Disagree } from "@/components/disagree";
+import { recordPartDisagreement } from "../disagree-actions";
 
 /**
  * WORKING WITH WHAT YOU HAVE
@@ -21,6 +24,7 @@ import { DataRow, EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, 
 export default async function ToolingPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const user = await requireUser();
+  const jobs = await comparableJobs(user.organizationId);
 
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
@@ -166,6 +170,24 @@ export default async function ToolingPage(props: { params: Promise<{ id: string 
                         {w}
                       </p>
                     ))}
+                    {/* A substitution chain is a judgement about what this
+                        crib can hold to size. A machinist who has drilled
+                        this material with these tools may know otherwise. */}
+                    <div className="mt-3">
+                      <Disagree
+                        action={recordPartDisagreement}
+                        partId={id}
+                        surface="tooling"
+                        subjectType="TOOL_CHOICE"
+                        subjectId={feature.id}
+                        canvasPosition={
+                          plan.blocked
+                            ? `${feature.label} ⌀${diameter.toFixed(4)} — ${plan.blocked}`
+                            : `${feature.label} ⌀${diameter.toFixed(4)} — ${plan.steps.map((st) => `${st.action} (T${st.toolNumber ?? "—"})`).join(" → ")}`
+                        }
+                        jobs={jobs}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

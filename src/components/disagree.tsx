@@ -14,22 +14,35 @@ import type { DisagreementSubject } from "@/lib/disagreement";
  */
 export function Disagree({
   action,
+  partId,
+  surface,
   subjectType,
   subjectId,
-  partRevisionId,
   setupId,
   canvasPosition,
-  jobs = [],
+  jobs,
 }: {
   action: (formData: FormData) => void | Promise<void>;
+  /** The part this is about. The action derives the revision from it. */
+  partId: string;
+  /** Where the machinist was, so they are put back there afterwards. */
+  surface: "readiness" | "setups" | "tooling" | "cost" | "part";
   subjectType: DisagreementSubject;
   subjectId?: string;
-  partRevisionId?: string;
   setupId?: string;
   /** What CANVAS said — stored verbatim so the record survives a recompute. */
   canvasPosition: string;
-  jobs?: { id: string; label: string }[];
+  /**
+   * Completed jobs to choose from. NOT optional and with no default: it
+   * defaulted to `[]` once, its only call site passed none, and the form asked
+   * "have you run a comparable setup?" with no way to answer. A required prop
+   * makes that a compile error rather than dead UI.
+   */
+  jobs: { id: string; label: string }[];
 }) {
+  // Several of these render on one page now. Ids have to differ or a label
+  // points at the wrong field.
+  const slug = `${subjectType}-${subjectId ?? "x"}`;
   return (
     <details className="group">
       <summary className="inline-flex cursor-pointer list-none items-center gap-1 border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:border-line-strong hover:text-platinum">
@@ -40,7 +53,11 @@ export function Disagree({
       <form action={action} className="mt-3 space-y-3 border border-line bg-void px-3 py-3">
         <input type="hidden" name="subjectType" value={subjectType} />
         {subjectId && <input type="hidden" name="subjectId" value={subjectId} />}
-        {partRevisionId && <input type="hidden" name="partRevisionId" value={partRevisionId} />}
+        {/* The part, not the revision. A form that can name a revision can
+            name another shop's; the action looks it up from the part under
+            this organisation instead. */}
+        <input type="hidden" name="partId" value={partId} />
+        <input type="hidden" name="surface" value={surface} />
         {setupId && <input type="hidden" name="setupId" value={setupId} />}
         <input type="hidden" name="canvasPosition" value={canvasPosition} />
 
@@ -50,11 +67,11 @@ export function Disagree({
         </div>
 
         <div>
-          <label htmlFor="reasoning" className="tech-label mb-1 block">
+          <label htmlFor={`reasoning-${slug}`} className="tech-label mb-1 block">
             Why do you disagree?
           </label>
           <textarea
-            id="reasoning"
+            id={`reasoning-${slug}`}
             name="reasoning"
             required
             rows={3}
@@ -79,10 +96,10 @@ export function Disagree({
 
         {jobs.length > 0 && (
           <div>
-            <label htmlFor="comparableJobId" className="tech-label mb-1 block">
+            <label htmlFor={`comparableJobId-${slug}`} className="tech-label mb-1 block">
               Comparable job
             </label>
-            <select id="comparableJobId" name="comparableJobId" className={inputClass} defaultValue="">
+            <select id={`comparableJobId-${slug}`} name="comparableJobId" className={inputClass} defaultValue="">
               <option value="">Not specified</option>
               {jobs.map((j) => (
                 <option key={j.id} value={j.id}>
@@ -94,10 +111,10 @@ export function Disagree({
         )}
 
         <div>
-          <label htmlFor="proposedValue" className="tech-label mb-1 block">
+          <label htmlFor={`proposedValue-${slug}`} className="tech-label mb-1 block">
             What should it say instead? (optional)
           </label>
-          <input id="proposedValue" name="proposedValue" className={inputClass} placeholder="e.g. 0.080 grip is fine here" />
+          <input id={`proposedValue-${slug}`} name="proposedValue" className={inputClass} placeholder="e.g. 0.080 grip is fine here" />
         </div>
 
         <p className="border border-line border-l-2 border-l-review bg-raised px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
