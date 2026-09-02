@@ -116,9 +116,26 @@ async function main() {
     /* ---- NC output gate ---- */
     await page.goto(`${BASE}${href}/nc`);
     const nBody = (await page.textContent("body"))!;
-    if (!nBody.includes("Pre-flight check")) fail("NC pre-flight missing");
+    // The rail is a row of chips, not a titled panel — asserting on a heading
+    // that had already been refactored away is how this check sat failing
+    // without anyone noticing. Assert the posture instead: the items are on
+    // screen, and the first unresolved one is named.
+    for (const item of ["Machine selected", "Simulation completed", "Operator approval"]) {
+      if (!nBody.includes(item)) fail(`NC pre-flight missing "${item}"`);
+    }
+    if (!/First unresolved/i.test(nBody)) fail("NC page does not name the first unresolved pre-flight item");
     if (!/Not certified for production/i.test(nBody)) fail("NC page lost its not-certified notice");
     console.log("ok: NC output gated behind pre-flight");
+
+    // Export must not be offered while the gate is unmet. This is the locked
+    // rule — executable NC is not available while a required gate fails — so
+    // the smoke walks it rather than trusting the button's styling.
+    const ncReady = /\bREADY\b/.test(nBody) && !/NOT READY/.test(nBody);
+    const exportBtn = page.locator('button:has-text("Prepare"), button:has-text("Export")').first();
+    if (!ncReady && (await exportBtn.count()) > 0 && (await exportBtn.isEnabled())) {
+      fail("NC export is offered while pre-flight is unmet");
+    }
+    console.log(`ok: NC export posture (${ncReady ? "ready → export offered" : "not ready → export withheld"})`);
 
     /* ---- knowledge page ---- */
     await page.goto(`${BASE}/knowledge`);
