@@ -68,6 +68,35 @@ running it anyway", so the two kinds of shortfall are now separated:
   accept: a single click standing for several separate engineering judgements is
   the failure the split exists to avoid. The gate is still REVIEW afterwards.
 
+### A feature could only enter the part by accepting an AI proposal
+
+`db.feature.create` existed in exactly one place: the accept path on
+`/proposals`. The feature panel's empty state said *"add features, or accept
+the proposals from the intake"* and no add control existed anywhere. So the only
+route into a part's geometry was to accept something a model had proposed —
+unusable for a shop wanting to type in the 40 mm bore in front of them, and
+uncomfortable against principle 3, since every dimension in the system began as
+an inference even though a human accepted it.
+
+`/parts/[id]/features` is a real route now: add a feature, see what the part
+has, remove one.
+
+Underneath it, a defect that had nothing to do with the missing form.
+`parametersJson` was a free record and `featureSuggestionSchema` types
+parameters as `Record<string, number | string | boolean>`, so **a proposal
+missing a diameter was written straight through** and every engine downstream
+met `undefined` where it expected a number. `feature-input.ts` now declares what
+each of the fifteen kinds actually needs, the manual form renders from it, and
+the accept path validates against it — a suggestion that does not describe a
+buildable feature is skipped and the audit records which and why.
+
+Nothing is defaulted. A missing depth is a refusal, not a zero, because a
+zero-depth pocket removes no material and every engine downstream would treat it
+as real. An empty field is refused as absent even where zero would be a legal
+value, which is the case that matters: a blank mouth-Z silently becoming 0 is a
+number nobody typed. A blank tolerance is no tolerance rather than a ±0.0000
+band that would fail every capability check for a reason nobody stated.
+
 ### A machinist could not record what they actually set
 
 `Setup.gripDepth`, `gripLength`, `stockProjection`, `parallelHeight`, `machineId`

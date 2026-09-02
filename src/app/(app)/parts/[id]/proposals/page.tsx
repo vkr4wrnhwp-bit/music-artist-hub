@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
 import type { FeatureSuggestion } from "@/lib/domain/features";
+import { coerceFeatureParameters, validateFeatureParameters } from "@/lib/domain/feature-input";
 import { TopBar } from "@/components/nav";
 import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip } from "@/components/ui";
 
@@ -46,8 +47,23 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
       const suggestions = JSON.parse(proposal.payloadJson) as FeatureSuggestion[];
       const existingCount = await db.feature.count({ where: { partRevisionId: rev.revisionId } });
 
+      /*
+       * Validated against the same field spec the hand-entry form uses.
+       * featureSuggestionSchema types parameters as a free record, so a
+       * proposal missing a diameter used to be written straight through and
+       * every engine downstream met undefined where it expected a number.
+       * A suggestion that does not describe a buildable feature is skipped,
+       * and the proposal records which ones were.
+       */
+      let written = 0;
+      const skipped: string[] = [];
       for (const [i, s] of suggestions.entries()) {
         const { rationale, ...params } = { ...s.parameters, rationale: s.rationale };
+        const refusals = validateFeatureParameters(s.kind, params);
+        if (refusals.length > 0) {
+          skipped.push(`${s.label}: ${refusals.map((r) => r.reason).join(" ")}`);
+          continue;
+        }
         await db.feature.create({
           data: {
             partRevisionId: rev.revisionId,
@@ -55,10 +71,22 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
             label: s.label,
             functionalRole: s.functionalRole ?? "NONE",
             critical: s.critical ?? false,
-            parametersJson: JSON.stringify(params),
+            parametersJson: JSON.stringify(coerceFeatureParameters(s.kind, params)),
             notes: typeof rationale === "string" ? rationale : undefined,
-            orderIndex: existingCount + i,
+            orderIndex: existingCount + written,
           },
+        });
+        written++;
+      }
+      if (skipped.length > 0) {
+        await audit({
+          organizationId: currentUser.organizationId,
+          userId: currentUser.id,
+          actorType: "HUMAN",
+          entityType: "PartRevision",
+          entityId: rev.revisionId,
+          action: "ACCEPT_SUGGESTION",
+          reason: `${skipped.length} suggested feature(s) did not describe a buildable feature and were not written: ${skipped.join("; ").slice(0, 800)}`,
         });
       }
     }

@@ -179,6 +179,7 @@ const SECTIONS: Section[] = [
  */
 const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
   { suffix: "", label: "Overview" },
+  { suffix: "/features", label: "Features" },
   { suffix: "/setups", label: "Setups" },
   { suffix: "/tooling", label: "Tooling" },
   { suffix: "/soft-jaws", label: "Soft jaws" },
@@ -203,7 +204,7 @@ const PART_ROUTES: { suffix: string; label: string; dev?: boolean }[] = [
  * reachable, only its surfacing changes.
  */
 const PART_MODE_GROUPS: { mode: string; suffixes: string[] }[] = [
-  { mode: "Part", suffixes: ["", "/proposals", "/responsibility", "/cost"] },
+  { mode: "Part", suffixes: ["", "/features", "/proposals", "/responsibility", "/cost"] },
   { mode: "Hold", suffixes: ["/setups", "/soft-jaws"] },
   { mode: "Cut", suffixes: ["/tooling", "/machinist", "/nc-analyzer"] },
   { mode: "Verify", suffixes: ["/inspection", "/fair", "/readiness"] },
