@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { emptyPartIntent } from "@/lib/domain/part-intent";
+import type { Stock } from "@/lib/domain/features";
 import {
   EVALUATED_PROCESSES,
   PROCESSES,
@@ -19,16 +20,26 @@ import {
 
 /* ---- the process advisor knows the edge of what it reasons about ---- */
 
-test("every process the engine claims to evaluate actually produces a recommendation", () => {
-  // The list must be what the engine DOES, not what it intends to. An entry
-  // added here without a rule behind it is the failure this test exists for.
+/** A part answered well enough that the advisor is not blocked on inputs. */
+function answeredInput() {
   const intent = emptyPartIntent("TEST");
   intent.quantity = { value: 25, source: "USER", confidence: "VERIFIED", confirmedByUser: true };
   intent.material = { value: "Aluminum 6061", source: "USER", confidence: "VERIFIED", confirmedByUser: true };
   intent.loadBearing = { value: true, source: "USER", confidence: "VERIFIED", confirmedByUser: true };
   intent.failureConsequence = { value: "LOW", source: "USER", confidence: "VERIFIED", confirmedByUser: true };
+  return {
+    intent,
+    features: [],
+    stock: { form: "RECTANGULAR", x: 6, y: 4, z: 0.75, material: "Aluminum 6061" } as Stock,
+    finishedVolume: 12,
+    machinedUnitCost: 48,
+  };
+}
 
-  const analysis = analyzeProcesses({ intent, features: [], stock: null });
+test("every process the engine claims to evaluate actually produces a recommendation", () => {
+  // The list must be what the engine DOES, not what it intends to. An entry
+  // added here without a rule behind it is the failure this test exists for.
+  const analysis = analyzeProcesses(answeredInput());
   const produced = new Set(analysis.recommendations.map((r) => r.process));
   for (const p of EVALUATED_PROCESSES) {
     assert.ok(produced.has(p), `${p} is listed as evaluated but the engine never recommends on it`);
@@ -36,13 +47,7 @@ test("every process the engine claims to evaluate actually produces a recommenda
 });
 
 test("nothing outside the evaluated list quietly produces a recommendation", () => {
-  const intent = emptyPartIntent("TEST");
-  intent.quantity = { value: 25, source: "USER", confidence: "VERIFIED", confirmedByUser: true };
-  intent.material = { value: "Aluminum 6061", source: "USER", confidence: "VERIFIED", confirmedByUser: true };
-  intent.loadBearing = { value: true, source: "USER", confidence: "VERIFIED", confirmedByUser: true };
-  intent.failureConsequence = { value: "LOW", source: "USER", confidence: "VERIFIED", confirmedByUser: true };
-
-  const analysis = analyzeProcesses({ intent, features: [], stock: null });
+  const analysis = analyzeProcesses(answeredInput());
   for (const r of analysis.recommendations) {
     assert.ok(
       EVALUATED_PROCESSES.includes(r.process),
