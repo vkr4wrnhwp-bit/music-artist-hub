@@ -1,31 +1,37 @@
-{# The public product tour. Twelve steps, one example release, no login. #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Product tour · Street Banker</title>
-  <meta name="description" content="One example artist, one release, twelve steps — what Street Banker does at each stage, and what it does not do yet.">
-  <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
-  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
-  {% include "_fonts.html" %}
-  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
-  <link rel="stylesheet" href="/static/css/product-tour.css?v=2">
-</head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+{% extends "public_base.html" %}
+{# The public product tour. Twelve steps, one example release, no login -
+   and now twelve frames: each step carries the photograph of the surface
+   it describes, from the library the homepage already uses. The copy,
+   the status vocabulary and every link are as they were. #}
+{% set plate = {"stem": "/static/img/hero-band-wide", "widths": [900, 1100, 1342],
+                "close_stem": "/static/img/hero-band-tall", "close_widths": [640, 900]} %}
+{% set plate_eyebrow = "Street Banker" %}
+{% set plate_title = "Walk the whole system." %}
+{% set plate_support = tour.lead %}
 
-{% include "partials/public_header.html" %}
+{# module -> the frame that shows it: [stem, width] #}
+{% set frames = {
+  "Artist EQ": ["/static/img/eq-room", 900],
+  "AI Artist Twin": ["/static/img/artist-twin", 700],
+  "Metadata Passport": ["/static/img/passport-close", 1037],
+  "Rights & Ownership": ["/static/img/passport-wide", 900],
+  "Creative Studio": ["/static/img/creative-close", 600],
+  "Rollout Engine": ["/static/img/rollout-close", 600],
+  "Smart Links": ["/static/img/hero-band-tall", 640],
+  "Fan Intelligence": ["/static/img/departments", 900],
+  "Global Distribution": ["/static/img/distro-close", 740],
+  "Royalty Sweep": ["/static/img/sweep-close", 860],
+  "Street Banker": ["/static/img/closing-close", 520],
+  "Three Street Banker Lanes": ["/static/img/lanes-unit", 760]
+} %}
 
-<main id="main" class="mx-auto max-w-5xl px-6 py-14 lg:px-10 lg:py-20">
+{% block title %}Product tour &middot; Street Banker{% endblock %}
+{% block description %}One example artist, one release, twelve steps &mdash; what Street Banker does at each stage, and what it does not do yet.{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/product-tour.css?v=2">{% endblock %}
 
-  <div class="sb-label text-sb-gold">Street Banker</div>
-  <h1 class="mt-4 max-w-3xl text-[clamp(2rem,5.2vw,3.2rem)] font-semibold uppercase leading-[1.04] tracking-tight">
-    Walk the whole system.
-  </h1>
-  <p class="mt-5 max-w-2xl text-base leading-relaxed text-sb-ink-2">{{ tour.lead }}</p>
-
-  <section class="sbst-key mt-8" aria-labelledby="key-title">
-    <h2 id="key-title" class="sb-label text-sb-ink-2">What the labels mean</h2>
+{% block content %}
+  <section class="sbst-key" aria-labelledby="key-title">
+    <h2 id="key-title" class="pp-h2">What the labels mean</h2>
     <ul class="mt-3 grid gap-2 text-xs leading-relaxed text-sb-ink-2 sm:grid-cols-2">
       <li><span class="sbst-chip sbst-live">Live</span> Working in the product today.</li>
       <li><span class="sbst-chip sbst-example">Example</span> A worked example, not an artist's data.</li>
@@ -36,38 +42,44 @@
     </ul>
   </section>
 
-  <ol class="mt-12">
+  <ol class="pp-steps">
     {% for step in tour.steps %}
-    <li class="sbst-step" id="step-{{ step.slug }}">
-      <div class="sbst-num">{{ "%02d"|format(loop.index) }}</div>
-      <div>
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span class="sb-label text-sb-gold">{{ step.module }}</span>
+    {% set fr = frames.get(step.module, ["/static/img/closing-close", 520]) %}
+    <li class="pp-step sbst-step" id="step-{{ step.slug }}">
+      <div class="sbst-num pp-num">{{ "%02d"|format(loop.index) }}</div>
+      <div class="pp-step-frame" aria-hidden="true">
+        <picture>
+          <source type="image/avif" srcset="{{ fr[0] }}-{{ fr[1] }}.avif">
+          <source type="image/webp" srcset="{{ fr[0] }}-{{ fr[1] }}.webp">
+          <img src="{{ fr[0] }}-{{ fr[1] }}.jpg" alt="" loading="lazy" decoding="async">
+        </picture>
+      </div>
+      <div class="pp-step-body">
+        <div class="pp-step-meta">
+          <span class="pp-step-module">{{ step.module }}</span>
           <span class="sbst-chip sbst-{{ step.status }}">{{ tour.status_labels[step.status] }}</span>
         </div>
-        <h2 class="mt-2 text-xl font-semibold leading-snug text-sb-ink">{{ step.title }}</h2>
-        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-sb-ink-2">{{ step.body }}</p>
-        <a href="{{ step.href }}" class="sbst-link mt-3">{{ step.link }} &rarr;</a>
+        <h2 class="pp-step-title">{{ step.title }}</h2>
+        <p>{{ step.body }}</p>
+        <a href="{{ step.href }}" class="pp-step-link">{{ step.link }} &rarr;</a>
       </div>
     </li>
     {% endfor %}
   </ol>
+{% endblock %}
 
-  <section class="mt-16 border-t border-[rgb(201_168_106_/_0.22)] pt-10" aria-labelledby="tour-end">
-    <h2 id="tour-end" class="text-[clamp(1.4rem,3vw,2rem)] font-semibold uppercase tracking-tight">That is the system.</h2>
-    <p class="mt-3 max-w-xl text-base leading-relaxed text-sb-ink-2">
-      Nothing above required an account, and neither does the plan at the end
-      of it. You need one when you want to keep what you have made.
-    </p>
-    <div class="mt-7 flex flex-wrap gap-3">
-      <a href="/start" class="inline-flex min-h-[52px] items-center justify-center rounded-sm bg-sb-gold px-7 text-xs font-bold uppercase tracking-[0.14em] text-sb-surface-2 transition-colors hover:bg-sb-gold-bright">Build my Street Banker</a>
-      <a href="/artist-control" class="inline-flex min-h-[52px] items-center justify-center rounded-sm border border-[rgb(238_232_220_/_0.34)] px-7 text-xs font-bold uppercase tracking-[0.14em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">Read the artist control policy</a>
+{% block band %}
+  <section class="pp-band" aria-labelledby="tour-end">
+    <div class="pp-band-inner">
+      <div class="pp-band-copy">
+        <h2 class="pp-band-title" id="tour-end">That is the system.</h2>
+        <p>Nothing above required an account, and neither does the plan at the end
+          of it. You need one when you want to keep what you have made.</p>
+      </div>
+      <div class="pp-band-actions">
+        <a href="/start" class="pp-btn">Build my Street Banker</a>
+        <a href="/artist-control" class="pp-btn pp-btn--ghost">Read the artist control policy</a>
+      </div>
     </div>
   </section>
-</main>
-
-<footer class="mx-auto max-w-5xl px-6 pb-14 text-xs text-sb-ink-3 lg:px-10">
-  <a href="/" class="font-semibold hover:text-sb-ink">&larr; Back to Street Banker</a>
-</footer>
-</body>
-</html>
+{% endblock %}
