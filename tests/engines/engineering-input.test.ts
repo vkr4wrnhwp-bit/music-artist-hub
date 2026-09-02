@@ -77,7 +77,7 @@ test("the loop closes: stock plus the profile's fields clears the baseline", () 
     finishedEnvelope: { value: { x: 4, y: 3, z: 0.5 }, source: "USER", confidence: "VERIFIED", confirmedByUser: true },
     quantity: { value: 25, source: "USER", confidence: "VERIFIED", confirmedByUser: true },
     generalTolerance: { value: 0.005, source: "USER", confidence: "VERIFIED", confirmedByUser: true },
-    failureConsequence: { value: "COSMETIC", source: "USER", confidence: "VERIFIED", confirmedByUser: true },
+    failureConsequence: { value: "LOW", source: "USER", confidence: "VERIFIED", confirmedByUser: true },
   };
   assert.deepEqual(missingEngineeringInput(intent), [], "the gate still cannot be cleared by filling everything in");
 });
