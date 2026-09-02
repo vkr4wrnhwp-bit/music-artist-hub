@@ -435,6 +435,18 @@ model PartRevision {
   stockJson        String?
   notes            String?
 
+  // RELEASE — the human act that lets a job be raised against this revision.
+  //
+  // The readiness picture is snapshotted here rather than recomputed later,
+  // because the question a job outcome has to answer afterwards is "what did
+  // we know when we said run it", and readiness moves as the shop's tools,
+  // instruments and machines change. Releasing does not clear a gate; it
+  // records a decision taken against gates that were, at that moment, not
+  // blocking.
+  releasedAt          DateTime?
+  releasedBy          String?
+  releaseSnapshotJson String?
+
   part               Part                     @relation(fields: [partId], references: [id], onDelete: Cascade)
   features           Feature[]
   responsibility     PartResponsibilityProfile?
@@ -942,6 +954,17 @@ model JobOutcome {
   code      String
   operationId String?
   toolNumber Int?
+
+  // The scope this was observed in, captured at recording time rather than
+  // read back through the setup later — the setup can be re-planned, and then
+  // the observation would silently start describing a different machine.
+  //
+  // Principle 11: shop knowledge is scoped to the shop, machine, tool and
+  // material it was seen on and is never promoted into a published fact. A
+  // null here is a missing fact, not a wildcard, and does not match anything.
+  machineId      String?
+  workholdingId  String?
+  materialName   String?
   cause     String
   correctiveAction String
   partsAffected Int @default(0)

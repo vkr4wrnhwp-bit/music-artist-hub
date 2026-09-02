@@ -93,17 +93,21 @@ test("the readiness page says what the comparison does not cover", () => {
 
 /* ---- sections that cannot be used say so ---- */
 
-test("Jobs and Quoting are labelled shells", () => {
-  // Both render real engines over real schemas, and nothing in the
-  // application creates a row for either, so a shop sees an empty section
-  // forever. Network and Shop intelligence said so from the start.
+test("a section is labelled a shell exactly while nothing can write to it", () => {
+  // Quoting still renders real engines over a schema nothing in the
+  // application writes, so a shop sees an empty section forever.
   const nav = readFileSync("src/components/nav.tsx", "utf8");
-  for (const href of ["/jobs", "/quoting"]) {
-    assert.ok(
-      new RegExp(`href: "${href}", label: "[^"]+", shell: true`).test(nav),
-      `${href} presents as a working section while nothing can write to it`,
-    );
-  }
+  assert.ok(
+    /href: "\/quoting", label: "[^"]+", shell: true/.test(nav),
+    "/quoting presents as a working section while nothing can write to it",
+  );
+  // Jobs has a write path now — release a revision, raise a job, record
+  // actuals and outcomes. Leaving the shell label on would be the same lie in
+  // the other direction: it would tell a shop not to bother.
+  assert.ok(
+    !/href: "\/jobs",[^}]*shell: true/.test(nav),
+    "/jobs is still labelled a shell after its write path was built",
+  );
 });
 
 test("neither shell instructs the machinist to press a control that does not exist", () => {
@@ -114,10 +118,11 @@ test("neither shell instructs the machinist to press a control that does not exi
   assert.ok(!/then attach it to a quote/.test(quoting), "the empty state still describes an action nobody can take");
   assert.ok(/not built yet/.test(quoting), "the empty state does not say the section is unbuilt");
 
+  // Jobs no longer needs that guard — the actions exist. What it needs
+  // instead is that its empty state does not claim to be unbuilt, and that
+  // the entry point it names is one that now exists.
   const jobs = readFileSync("src/app/(app)/jobs/page.tsx", "utf8");
-  assert.ok(
-    !/Jobs are created from a released part revision\./.test(jobs),
-    "the empty state still implies jobs can be created",
-  );
-  assert.ok(/not built yet/.test(jobs), "the empty state does not say the section is unbuilt");
+  assert.ok(!/not built yet/.test(jobs), "Jobs still says it is unbuilt after its write path was built");
+  assert.match(jobs, /createJob/, "the Jobs page names no way to raise a job");
+  assert.match(jobs, /released/i, "the Jobs page no longer says what a job is raised against");
 });

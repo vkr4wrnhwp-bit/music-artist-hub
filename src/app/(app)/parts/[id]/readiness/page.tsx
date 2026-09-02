@@ -7,6 +7,9 @@ import { buildPackage } from "@/lib/package";
 import { EVALUATED_PROCESSES, PROCESS_LABEL, UNEVALUATED_PROCESSES } from "@/lib/engines/process-advisor";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
+import { ReleasePanel } from "@/components/release-panel";
+import { evaluateRelease } from "@/lib/engines/jobs";
+import { releaseRevision } from "../release-actions";
 import { Disagree } from "@/components/disagree";
 import { comparableJobs } from "@/lib/disagreement";
 import { recordPartDisagreement } from "../disagree-actions";
@@ -99,6 +102,16 @@ export default async function ReadinessPage(props: { params: Promise<{ id: strin
             </SectionHeading>
             <StatusChip tone={overallTone}>{readiness.overall.replace(/_/g, " ")}</StatusChip>
           </div>
+
+          <ReleasePanel
+            verdict={evaluateRelease(readiness.gates)}
+            revisionId={pkg.revision.revisionId}
+            revision={pkg.revision.revision}
+            released={
+              pkg.revision.releasedAt ? { at: pkg.revision.releasedAt, by: pkg.revision.releasedBy } : null
+            }
+            action={releaseRevision.bind(null, id)}
+          />
 
           {readiness.criticalApplication && (
             <Notice tone="risk" title="Critical application">

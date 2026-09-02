@@ -101,10 +101,21 @@ The Quoting page renders, but nothing in the codebase ever writes a Quote or a C
 
 > JOBS QUOTING NETWORK Build shell only in Phase 1.
 
-Jobs is read-only over demo-seed data. No code path creates a Job or a JobOutcome outside prisma/seed.ts, so a real shop can never record what held, what chattered or what scrapped — which is what the page's own copy says the section is for. The stated entry point does not exist either: both the Jobs page and the home dashboard say "Jobs are created from a released part revision", but nothing anywhere sets a revision's status to RELEASED. The home page's CANVAS-intelligence insights that derive from job outcomes are therefore also unreachable for a real shop.
+Built. The section had a schema, engines and a page, and nothing in the application could write a row — so a shop saw demo data forever. The nav's `shell: true` on `/jobs` is removed, and a test now asserts the label tracks the write path in both directions.
 
-``grep -rn 'db.job\.|job.create|jobOutcome.create' src` -> only reads at src/app/(app)/jobs/page.tsx:9 and src/app/(app)/page.tsx:18; db.job.create exists only at prisma/seed.ts:648 and db.jobOutcome.create at prisma/seed.ts:665; `grep -rn 'RELEASED' src` -> only two StatusChip comparisons (src/app/(app)/parts/[id]/page`
+**Release exists now.** Both the Jobs page and the home dashboard said "jobs are created from a released part revision" and nothing anywhere set a revision to RELEASED. Release lives on the readiness page and is refused while any blocking gate is unresolved — the refusal names each gate, and there is no override, because principle 2 says a click does not satisfy an engineering condition. Gates that are short but not blocking are reservations: they do not refuse the release, they are stored with it.
 
+**The readiness picture is snapshotted at release.** What a job outcome has to answer afterwards is what the shop knew when it said run it, and readiness moves as tools, instruments and machines change. The snapshot carries every gate, not just the failures, plus the estimated cycle time.
+
+**The lifecycle is a closed transition table.** PLANNED → SETUP → RUNNING → COMPLETE, with CANCELLED available until it is finished. A job cannot jump from PLANNED to COMPLETE: the actuals recorded against it would describe a setup and a run that never happened. COMPLETE and CANCELLED are terminal — another run is another job.
+
+**Actuals are never seeded from estimates.** A blank field stays null and the page says which side is missing. An actual quietly inherited from the estimate would make the estimated-against-actual comparison agree with itself on every job forever.
+
+**Outcomes are structured, not typed.** The cause comes from the taxonomy already in `network.ts`, chosen against the outcome code — a cause in somebody's own words cannot be counted across jobs, and counting across jobs is the entire reason to record one. A cause valid for a different code is refused rather than filed under OTHER, and a failure with no corrective action is refused outright.
+
+**And it teaches, within its scope.** `job-knowledge.ts` reads outcomes back onto the setups page. Principle 11 governs it: an observation applies only where machine, workholding and material all match, a null on either side matches nothing rather than acting as a wildcard, and nothing an outcome says changes a number the engines computed. It is shown beside the recommendation, never folded into it.
+
+`src/lib/engines/jobs.ts` (new), `src/lib/job-knowledge.ts` (new), `src/app/(app)/jobs/{actions.ts,page.tsx,[id]/page.tsx}`, `src/app/(app)/parts/[id]/release-actions.ts`, `src/components/jobs/*`, `src/components/release-panel.tsx`, `prisma/schema.prisma` with both migration trees, `tests/engines/jobs.test.ts` (29 tests).
 ### Manufacturing DNA: attach history to a PartRevision and show a timeline of events (initial release, bore nominal changed, soft jaws added, chatter observed, inspection passed, workholding failure corrected, process revised) with provenance labels
 
 > Create: MANUFACTURING DNA Attach history to a PartRevision. Show timeline: - initial release - bore nominal changed - soft jaws added - chatter observed - inspection passed - workholding failure corrected - process revis

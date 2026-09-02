@@ -184,6 +184,9 @@ export interface LoadedRevision {
   revisionId: string;
   revision: string;
   status: string;
+  /** When the revision was released to the floor, and by whom. Null until it is. */
+  releasedAt: Date | null;
+  releasedBy: string | null;
   units: "IN" | "MM";
   intent: PartIntent;
   stock: Stock | null;
@@ -241,6 +244,8 @@ export async function loadRevision(
   })) as Feature[];
 
   return {
+    releasedAt: rev.releasedAt,
+    releasedBy: rev.releasedBy,
     partId: part.id,
     partName: part.name,
     partNumber: part.partNumber,

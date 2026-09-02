@@ -1,8 +1,12 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { OUTCOME_LABEL, type JobOutcomeCode } from "@/lib/engines/network";
+import { JOB_STATUS_LABEL, type JobStatus } from "@/lib/engines/jobs";
 import { TopBar } from "@/components/nav";
-import { EmptyState, Panel, SectionHeading, StatusChip, Table, Td, type Tone } from "@/components/ui";
+import { EmptyState, Notice, Panel, SectionHeading, StatusChip, Table, Td, type Tone } from "@/components/ui";
+import { RaiseJobForm } from "@/components/jobs/raise-job";
+import { createJob } from "./actions";
 
 export default async function JobsPage() {
   const user = await requireUser();
@@ -15,6 +19,14 @@ export default async function JobsPage() {
   const outcomes = jobs.flatMap((j) => j.outcomes);
   const failures = outcomes.filter((o) => o.code !== "SUCCESS");
 
+  // A job is raised against a RELEASED revision. That was always what the
+  // page said; until release existed there was nothing to raise one against.
+  const released = await db.partRevision.findMany({
+    where: { status: "RELEASED", part: { organizationId: user.organizationId } },
+    orderBy: { releasedAt: "desc" },
+    select: { id: true, revision: true, releasedAt: true, part: { select: { id: true, name: true } } },
+  });
+
   return (
     <>
       <TopBar>
@@ -25,12 +37,25 @@ export default async function JobsPage() {
           Jobs
         </SectionHeading>
 
+        <RaiseJobForm
+          released={released.map((r) => ({ partId: r.part.id, partName: r.part.name, revision: r.revision }))}
+          action={createJob}
+        />
+
         {jobs.length === 0 ? (
-          <EmptyState
-            title="Recording a job is not built yet"
-            body="This is where a run's actual cycle time, setup hours, scrap and outcome would sit, so CANVAS could compare what it estimated against what the job did — and so the workholding and process models could learn from what actually held. Nothing in the application creates a job yet, so the list stays empty. Until then, what a setup taught you goes in Shop knowledge, where it is scoped to the machine and tools it was seen on."
-            action={{ label: "Shop knowledge", href: "/knowledge" }}
-          />
+          released.length === 0 ? (
+            <EmptyState
+              title="Nothing run yet"
+              body="A job records what a run actually did — cycle time, setup hours, scrap, and what held or chattered or scrapped and why. The notice above says what has to happen before one can be raised."
+              action={{ label: "Parts", href: "/parts" }}
+            />
+          ) : (
+            <Notice tone="review" title="No jobs raised yet">
+              There {released.length === 1 ? "is one released revision" : `are ${released.length} released revisions`} to
+              raise one against. What held, what chattered, what scrapped and why is the most valuable data a shop
+              generates and the one most often lost.
+            </Notice>
+          )
         ) : (
           <>
             <Panel title="Jobs" dense>
@@ -40,11 +65,15 @@ export default async function JobsPage() {
                   const tone: Tone = !worst ? "unknown" : worst.code === "SUCCESS" ? "pass" : "risk";
                   return (
                     <tr key={j.id} className="hover:bg-raised">
-                      <Td className="text-precision">{j.jobNumber}</Td>
+                      <Td className="text-precision">
+                        <Link href={`/jobs/${j.id}`} className="underline decoration-dotted hover:text-precision-dim">
+                          {j.jobNumber}
+                        </Link>
+                      </Td>
                       <Td>{j.part.name}</Td>
                       <Td muted>{j.revision}</Td>
                       <Td>{j.quantity}</Td>
-                      <Td muted>{j.status}</Td>
+                      <Td muted>{JOB_STATUS_LABEL[j.status as JobStatus] ?? j.status}</Td>
                       <Td>{j.actualCycleMinutes ? `${j.actualCycleMinutes} min` : "—"}</Td>
                       <Td>{j.actualSetupHours ? `${j.actualSetupHours} hr` : "—"}</Td>
                       <Td className={j.scrapCount > 0 ? "text-risk" : ""}>{j.scrapCount}</Td>

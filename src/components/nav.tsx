@@ -136,11 +136,11 @@ const SECTIONS: Section[] = [
     icon: "jobs",
     match: ["/jobs", "/quoting"],
     items: [
-      // Read-only over tables nothing in the application writes. Both render
-      // real engines and real data when a row exists; neither has a way to
-      // create one, so a shop sees an empty section forever. Network and Shop
-      // intelligence said so from the start and these did not.
-      { href: "/jobs", label: "Jobs", shell: true },
+      // Jobs has a write path: release a revision, raise a job against it,
+      // record actuals and structured outcomes. Quoting does not yet — it
+      // renders real engines over a table nothing in the application writes,
+      // so a shop sees an empty section forever, and it says so.
+      { href: "/jobs", label: "Jobs" },
       { href: "/quoting", label: "Quoting", shell: true },
     ],
   },

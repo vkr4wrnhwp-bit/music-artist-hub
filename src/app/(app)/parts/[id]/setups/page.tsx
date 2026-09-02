@@ -15,6 +15,8 @@ import { Disagree } from "@/components/disagree";
 import { recordPartDisagreement } from "../disagree-actions";
 import { recordJawAxis } from "./jaw-axis-actions";
 import { JawAxisField } from "@/components/jaw-axis";
+import { observationsForScope } from "@/lib/job-knowledge";
+import { PriorObservations } from "@/components/jobs/prior-observations";
 
 /**
  * SETUP PLANNING
@@ -51,6 +53,29 @@ export default async function SetupsPage(props: {
   const pkg = await buildPackage(user.organizationId, id);
   if (!pkg) notFound();
 
+  /*
+   * What earlier jobs in this exact scope actually did. Read beside the
+   * recommendations, never folded into them: principle 11 says shop knowledge
+   * is scoped to what it was observed on and never becomes a published
+   * engineering fact, so no number on this page moves because of it.
+   */
+  const scopeSetup = pkg.setups[0] ?? null;
+  const observations = await observationsForScope(
+    user.organizationId,
+    {
+      machine: scopeSetup?.machineId ?? null,
+      material: pkg.revision.intent.material.value ?? null,
+      workholding: scopeSetup?.workholdingId ?? null,
+      toolNumber: null,
+    },
+    id,
+  );
+  const scopeLabel = [
+    pkg.primaryMachine ? `${pkg.primaryMachine.manufacturer} ${pkg.primaryMachine.model}` : "machine not recorded",
+    pkg.revision.intent.material.value ?? "material not recorded",
+    pkg.primaryWorkholding ? pkg.primaryWorkholding.description : "workholding not recorded",
+  ].join(", ");
+
   return (
     <>
       <TopBar>
@@ -73,6 +98,8 @@ export default async function SetupsPage(props: {
               {problem}
             </Notice>
           )}
+
+          <PriorObservations observations={observations} scope={scopeLabel} />
 
           <div data-guide-target="hold-scene" className="space-y-6">
           {pkg.setups.length === 0 ? (
