@@ -1,0 +1,55 @@
+{# The public frame — every page a signed-out visitor can reach.
+
+   Plate, column, band. The homepage header on top; one photograph from
+   the library as a plate with the page's eyebrow, headline and one
+   support line over it (the door's treatment, one page at a time); a
+   reading column; a gold CTA band; a minimal footer. Pages set their
+   plate with {% set plate = {...} %} and fill the blocks - their copy,
+   routes, fields and tests are untouched by the frame.
+
+   plate keys: stem (e.g. "/static/img/sweep-wide"), widths, and
+   optionally close_stem + close_widths for the phone crop, sizes, and
+   position (object-position). Formats are avif / webp / jpg at every
+   width, which is how the library is cut. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Street Banker{% endblock %}</title>
+  <meta name="description" content="{% block description %}Street Banker - the artist operating system.{% endblock %}">
+  {% block head_extra %}{% endblock %}
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  {% include "_fonts.html" %}
+  <link rel="stylesheet" href="/static/css/public-header.css?v=4">
+  <link rel="stylesheet" href="/static/css/public-page.css?v=1">
+</head>
+<body class="min-h-screen bg-sb-ground text-sb-ink antialiased pp">
+
+{% include "partials/public_header.html" %}
+
+{% include "partials/plate.html" %}
+
+<main id="main" class="pp-main">
+  {% block content %}{% endblock %}
+</main>
+
+{% block band %}{% endblock %}
+
+<footer class="pp-footer">
+  <div class="pp-footer-inner">
+    <a href="{% block back_href %}/{% endblock %}" class="pp-back">&larr; Back to Street Banker</a>
+    <nav aria-label="Legal" class="pp-legal">
+      <a href="/terms">Terms</a><span aria-hidden="true">&middot;</span>
+      <a href="/privacy">Privacy</a><span aria-hidden="true">&middot;</span>
+      <a href="/submit">Contact</a>
+    </nav>
+    <p>&copy; 2026 Street Banker LLC. All rights reserved.</p>
+  </div>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

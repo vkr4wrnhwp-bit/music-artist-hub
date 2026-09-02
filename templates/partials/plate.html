@@ -1,0 +1,31 @@
+{# The plate: one photograph, the gold veil, and the page's opening
+   words over it. Reads plain variables the page sets at its top level:
+   `plate` (stem / widths / close_stem / close_widths / position),
+   `plate_eyebrow`, `plate_title`, `plate_support`. Defaults to the band
+   in the backline so a page that forgets still opens on a picture. #}
+{% set p = plate if plate is defined else {"stem": "/static/img/hero-band-wide", "widths": [900, 1100, 1342],
+                                            "close_stem": "/static/img/hero-band-tall", "close_widths": [640, 900]} %}
+{% set pos = p.get("position", "center 35%") %}
+<section class="pp-plate" aria-labelledby="pp-title">
+  <picture class="pp-plate-pic" aria-hidden="true">
+    {% if p.get("close_stem") %}
+    {% for fmt, mime in (("avif", "image/avif"), ("webp", "image/webp"), ("jpg", "image/jpeg")) %}
+    <source media="(max-width: 767px)" type="{{ mime }}"
+            srcset="{% for w in p.close_widths %}{{ p.close_stem }}-{{ w }}.{{ fmt }} {{ w }}w{{ ', ' if not loop.last }}{% endfor %}" sizes="100vw">
+    {% endfor %}
+    {% endif %}
+    {% for fmt, mime in (("avif", "image/avif"), ("webp", "image/webp")) %}
+    <source type="{{ mime }}"
+            srcset="{% for w in p.widths %}{{ p.stem }}-{{ w }}.{{ fmt }} {{ w }}w{{ ', ' if not loop.last }}{% endfor %}" sizes="100vw">
+    {% endfor %}
+    <img class="pp-plate-img" src="{{ p.stem }}-{{ p.widths[-1] }}.jpg"
+         srcset="{% for w in p.widths %}{{ p.stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
+         sizes="100vw" alt="" loading="eager" decoding="async" style="object-position: {{ pos }};">
+  </picture>
+  <span class="pp-veil" aria-hidden="true"></span>
+  <div class="pp-plate-inner">
+    <p class="pp-eyebrow">{{ plate_eyebrow if plate_eyebrow is defined else "Street Banker" }}</p>
+    <h1 class="pp-title" id="pp-title">{{ plate_title if plate_title is defined else "Street Banker" }}</h1>
+    {% if plate_support is defined and plate_support %}<p class="pp-support">{{ plate_support }}</p>{% endif %}
+  </div>
+</section>
