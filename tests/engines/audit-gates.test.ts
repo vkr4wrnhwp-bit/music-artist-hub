@@ -82,3 +82,68 @@ test("comped and tapping segments are declared excluded from scope, not hidden",
   assert.ok(gate.detail.includes("4 comped"));
   assert.ok(gate.detail.includes("never retimed"));
 });
+
+/* ---- what arrived decides what the audit can claim ---- */
+
+/**
+ * The parser reads Fanuc-style word address. Run against Heidenhain
+ * conversational it produces motion that means nothing — and every gate below
+ * parser-fidelity reasons over that motion. Before the file's dialect was
+ * recorded, a Heidenhain program came back REVIEW.
+ */
+
+const source = (over: Partial<NonNullable<AuditGateInput["source"]>> = {}) => ({
+  encoding: "US_ASCII" as const,
+  lineEnding: "LF" as const,
+  controllerFamily: null,
+  ...over,
+});
+
+test("a dialect this parser does not read fails, it does not warn", () => {
+  for (const family of ["HEIDENHAIN", "SIEMENS"] as const) {
+    const r = evaluateAuditGates(input({ source: source({ controllerFamily: family }) }));
+    const fidelity = r.gates.find((g) => g.id === "parser-fidelity");
+    assert.equal(fidelity?.status, "FAIL", `a ${family} program is not a note, it is unreadable`);
+    assert.equal(r.stages.audit, "FAIL", `a ${family} program still lets the audit stage pass`);
+  }
+});
+
+test("word address, which is what it does read, is not penalised", () => {
+  const r = evaluateAuditGates(input({ source: source({ controllerFamily: "FANUC_STYLE" }) }));
+  assert.notEqual(r.gates.find((g) => g.id === "parser-fidelity")?.status, "FAIL");
+});
+
+test("a file with no determinable dialect is not treated as foreign", () => {
+  // Null is "the file does not say", never "wrong controller".
+  const r = evaluateAuditGates(input({ source: source({ controllerFamily: null }) }));
+  assert.notEqual(r.gates.find((g) => g.id === "parser-fidelity")?.status, "FAIL");
+});
+
+test("mixed line endings are reported rather than silently normalised", () => {
+  const r = evaluateAuditGates(input({ source: source({ lineEnding: "MIXED" }) }));
+  const fidelity = r.gates.find((g) => g.id === "parser-fidelity");
+  assert.equal(fidelity?.status, "REVIEW");
+  assert.match(fidelity!.detail, /mixes line endings/);
+});
+
+test("bytes with no declared codepage drop file integrity to review", () => {
+  const r = evaluateAuditGates(input({ source: source({ encoding: "EIGHT_BIT_UNKNOWN" }) }));
+  const integrity = r.gates.find((g) => g.id === "file-integrity");
+  assert.equal(integrity?.status, "REVIEW");
+  assert.match(integrity!.detail, /may not be what was typed/);
+});
+
+test("the encoding and line ending are stated on the integrity gate", () => {
+  const r = evaluateAuditGates(input({ source: source({ encoding: "US_ASCII", lineEnding: "CRLF" }) }));
+  const integrity = r.gates.find((g) => g.id === "file-integrity");
+  assert.equal(integrity?.status, "PASS");
+  assert.match(integrity!.detail, /US-ASCII/);
+  assert.match(integrity!.detail, /CRLF/);
+});
+
+test("a generated program with nothing to inspect is not penalised for it", () => {
+  // No upload, no source facts. The gates say nothing rather than assume.
+  const r = evaluateAuditGates(input({}));
+  assert.notEqual(r.gates.find((g) => g.id === "parser-fidelity")?.status, "FAIL");
+  assert.equal(r.gates.find((g) => g.id === "file-integrity")?.status, "PASS");
+});

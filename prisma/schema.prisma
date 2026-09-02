@@ -759,6 +759,14 @@ model NCProgram {
   sourceFilename String?
   byteLength     Int?
   sourceDigest   String?
+  // How the bytes decoded, how the lines ended, and what dialect the file is
+  // in. NULL means "not determinable from the file" — for controllerFamily
+  // that is not the same as "unknown controller", and nothing may read it as
+  // one. Distinct from PostProcessor.controllerFamily, which is what CANVAS
+  // WRITES for; this is what arrived.
+  sourceEncoding   String?
+  lineEnding       String?
+  controllerFamily String?
   // For OPTIMIZED rows: the program this one was derived from.
   sourceProgramId String?
   // For OPTIMIZED rows: applied proposals, digests and the geometry diff.

@@ -1,4 +1,11 @@
 import type { ParsedNC } from "./parse";
+import {
+  CONTROLLER_FAMILY_LABEL,
+  ENCODING_LABEL,
+  type ControllerFamily,
+  type LineEnding,
+  type SourceEncoding,
+} from "./source";
 
 /**
  * RUN IT PAST CANVAS — AUDIT GATES.
@@ -35,6 +42,12 @@ export interface AuditGateInput {
   parsed: Pick<ParsedNC, "refusals" | "warnings" | "unitsExplicit" | "units" | "workOffsetsSeen" | "segments" | "lineCount">;
   /** The original was stored immutably and its digest computed server-side. */
   originalStored: boolean;
+  /**
+   * What arrived: how the bytes decoded, how the lines end, what dialect the
+   * file is in. Optional because a program CANVAS generated has no upload to
+   * inspect; absent means these gates say nothing rather than assume.
+   */
+  source?: { encoding: SourceEncoding; lineEnding: LineEnding; controllerFamily: ControllerFamily | null };
   digest: string | null;
   /** T numbers called by the program. */
   toolsInProgram: number[];
@@ -76,23 +89,50 @@ export function evaluateAuditGates(input: AuditGateInput): AuditGateResult {
     "file-integrity",
     "NC file integrity",
     "AUDIT",
-    input.originalStored && input.digest ? "PASS" : "FAIL",
-    input.originalStored && input.digest
-      ? `Original stored immutably, sha256 ${input.digest.slice(0, 12)}… computed server-side.`
-      : "The original program is not stored — nothing downstream has a fixed subject.",
+    !input.originalStored || !input.digest
+      ? "FAIL"
+      : input.source?.encoding === "EIGHT_BIT_UNKNOWN"
+        ? "REVIEW"
+        : "PASS",
+    !input.originalStored || !input.digest
+      ? "The original program is not stored — nothing downstream has a fixed subject."
+      : input.source
+        ? `Original stored immutably, sha256 ${input.digest.slice(0, 12)}… computed server-side. ${ENCODING_LABEL[input.source.encoding]}, ${input.source.lineEnding} line endings.${
+            input.source.encoding === "EIGHT_BIT_UNKNOWN"
+              ? " Bytes above 0x7F with no codepage declared — a character in a comment may not be what was typed."
+              : ""
+          }`
+        : `Original stored immutably, sha256 ${input.digest.slice(0, 12)}… computed server-side.`,
   );
 
   const hasRefusals = input.parsed.refusals.length > 0;
+  const family = input.source?.controllerFamily ?? null;
+  const foreignDialect = family === "HEIDENHAIN" || family === "SIEMENS";
+  const mixedEndings = input.source?.lineEnding === "MIXED";
   g(
     "parser-fidelity",
     "Parser fidelity",
     "AUDIT",
-    hasRefusals ? "FAIL" : input.parsed.warnings.length > 0 ? "REVIEW" : "PASS",
-    hasRefusals
-      ? `Interpretation stopped at line ${input.parsed.refusals[0].line}: ${input.parsed.refusals[0].reason}. Motion after that line is unknown.`
-      : input.parsed.warnings.length > 0
-        ? `Parsed with ${input.parsed.warnings.length} note(s) — read them; each names what the parser could not fully trust.`
-        : `${input.parsed.segments.length} motion segments interpreted with no reservations.`,
+    // A dialect this parser does not read is a FAIL, not a note. It reads
+    // Fanuc-style word address; run against Heidenhain conversational or
+    // Siemens it produces motion that means nothing, and every gate below
+    // reasons over that motion.
+    foreignDialect
+      ? "FAIL"
+      : hasRefusals
+        ? "FAIL"
+        : input.parsed.warnings.length > 0 || mixedEndings
+          ? "REVIEW"
+          : "PASS",
+    foreignDialect
+      ? `CANVAS reads Fanuc-style word address. This is a ${CONTROLLER_FAMILY_LABEL[input.source!.controllerFamily!]} program, and nothing the parser produced from it can be trusted.`
+      : hasRefusals
+        ? `Interpretation stopped at line ${input.parsed.refusals[0].line}: ${input.parsed.refusals[0].reason}. Motion after that line is unknown.`
+        : mixedEndings
+          ? `${input.parsed.segments.length} motion segments interpreted, but the file mixes line endings — read as ${input.source!.lineEnding}. Check the block count matches the program you sent.`
+          : input.parsed.warnings.length > 0
+            ? `Parsed with ${input.parsed.warnings.length} note(s) — read them; each names what the parser could not fully trust.`
+            : `${input.parsed.segments.length} motion segments interpreted with no reservations.`,
   );
 
   g(

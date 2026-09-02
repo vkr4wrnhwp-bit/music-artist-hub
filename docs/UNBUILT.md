@@ -24,6 +24,7 @@ four items done and one missing is not 80% done; the missing one is missing.
 
 ## Closed in this pass
 
+- **NC upload provenance: encoding, line endings and controller family** — and the CR-only parse bug they exposed
 - **Every major recommendation supports WHY / CHANGE / I DISAGREE** — mounted on seven surfaces
 - **SHOW ME on a review finding updates the 3D scene** — `f0c8ab2`
 - **Backend debug jargon purged from the UI** — `15ce8fd`
@@ -189,14 +190,6 @@ Two of the four named focuses landed (tool projection/stickout at :270 and :306,
 Four of the ten kinds exist as findings (AIR_CUTTING, EXCESSIVE_RETRACT, SLOW_LINKING_MOVE, UNKNOWN_CONTEXT); low/high engagement and corner spikes are covered in substance by the load bands and REDUCE proposals. But three have no implementation anywhere: TOOL_REACH_REVIEW (the analyzer never compares programmed cut depth against the crib tool's flute length or stickout, although the CAM engine does exactly that at engine.ts:743), WORKHOLDING_LOAD_DIRECTION_REVIEW (no cut-direction-vs-holding check runs on an uploaded program), and SEQUENCING_OPPORTUNITY (the sequencing engine only ever runs on CANVAS-planned operations, never on a parsed NC file). The plan document still lists all ten as the intended set, so this was scoped and then not built.
 
 `src/lib/nc/analyze.ts:28 `kind: "AIR_CUTTING" | "EXCESSIVE_RETRACT" | "SLOW_LINKING_MOVE" | "UNKNOWN_CONTEXT";`. `grep -rn "TOOL_REACH_REVIEW\|WORKHOLDING_LOAD_DIRECTION_REVIEW\|SEQUENCING_OPPORTUNITY" src/` returns nothing. docs/LOAD_AWARE_NC_OPTIMIZER.md:141-150 and :101 still promise them ("Load-direction-vs-holding`
-
-### For an uploaded NC program, store controller family if known, encoding and line endings alongside the other upload provenance
-
-> Never overwrite the uploaded source program. Store: * original file * file hash * import timestamp * user * organization * source filename * controller family if known * encoding * line endings * original byte size
-
-Seven of the ten are stored: original file (`code`), sha256 (`sourceDigest`), import timestamp (`createdAt`), user (`generatedBy`), organization (via partRevision), source filename, byte size. Controller family, encoding and line endings are recorded nowhere — the NCProgram model has no column for any of them, and the upload route decodes with `file.text()` (always UTF-8) without detecting or recording the encoding, the line-ending style, or a controller dialect. The only `controllerFamily` in the schema belongs to PostProcessor, i.e. CANVAS-generated output, not uploaded originals.
-
-`prisma/schema.prisma:744-776 (NCProgram) — no such fields; prisma/schema.prisma:825 `controllerFamily` is on PostProcessor only. src/app/api/parts/[id]/nc-analyze/route.ts:79-92 create data lists only partRevisionId, postId, programNumber, code, certified, origin, sourceFilename, byteLength, sourceDigest, generatedBy. `
 
 ### The Run It Past CANVAS flow should let the user upload a tool list alongside the NC program
 

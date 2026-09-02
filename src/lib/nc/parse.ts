@@ -53,7 +53,14 @@ export interface ParsedNC {
 const ARC_CHORD_TOL = 0.001; // inches of chord deviation for tessellation
 
 export function parseNC(text: string): ParsedNC {
-  const lines = text.split(/\r?\n/);
+  // CR, not just CRLF and LF. A program whose lines end in a bare carriage
+  // return — some controllers and any file that has been through a classic
+  // Mac editor — split into ONE line under `/\r?\n/`. The parser then read a
+  // single 300-character line, produced one segment, and returned NO
+  // refusals: clean, on a program it had not read. That is the failure this
+  // file refuses everywhere else — a dialect it cannot read must not come
+  // back clean, because clean is what an operator reads as safe.
+  const lines = text.split(/\r\n|\n|\r/);
   const segments: NCSegment[] = [];
   const toolChanges: { line: number; toolNumber: number }[] = [];
   const refusals: ParsedNC["refusals"] = [];

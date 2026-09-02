@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Notice, Panel, StatusChip } from "@/components/ui";
+import {
+  CONTROLLER_FAMILY_LABEL,
+  ENCODING_LABEL,
+  type ControllerFamily,
+  type LineEnding,
+  type SourceEncoding,
+} from "@/lib/nc/source";
 
 /**
  * NC ANALYZER — Phase 4A/4B client
@@ -22,6 +29,13 @@ interface AuditGate {
 
 interface Report {
   fileName: string;
+  /** What arrived: how it decoded, how the lines end, what dialect it is. */
+  source?: {
+    encoding: SourceEncoding;
+    lineEnding: LineEnding;
+    controllerFamily: ControllerFamily | null;
+    controllerEvidence: string | null;
+  };
   uploadedProgramId: string;
   digest: string;
   gates: { gates: AuditGate[]; stages: { audit: string; optimization: string; exportPrereqs: string } };
@@ -203,6 +217,21 @@ export function NcAnalyzer({ partId }: { partId: string }) {
                 {r.context.machine ?? "no machine"}
               </span>
             </div>
+            {/* What arrived, before anything read it. The dialect is null when
+                the file carries no marker naming one — not assessed, not
+                assumed — and the marker that decided it is shown so the claim
+                can be checked. */}
+            {r.source && (
+              <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-line px-4 py-2 font-mono text-[11px] text-muted">
+                <span>{ENCODING_LABEL[r.source.encoding]}</span>
+                <span>{r.source.lineEnding} line endings</span>
+                <span>
+                  {r.source.controllerFamily
+                    ? `${CONTROLLER_FAMILY_LABEL[r.source.controllerFamily]} (${r.source.controllerEvidence})`
+                    : "controller family not determinable from the file"}
+                </span>
+              </div>
+            )}
             {r.parse.warnings.length > 0 && (
               <ul className="border-t border-line px-4 py-2">
                 {r.parse.warnings.map((w) => (

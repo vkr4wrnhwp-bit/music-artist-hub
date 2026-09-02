@@ -10,6 +10,7 @@ import { analyzeLoad, type LoadContext } from "@/lib/nc/load";
 import { buildProtectedRegions } from "@/lib/nc/protection";
 import { evaluateAuditGates } from "@/lib/nc/audit-gates";
 import { classifyOperations } from "@/lib/nc/classify";
+import { inspectSource } from "@/lib/nc/source";
 
 /**
  * NC ANALYSIS — Phase 4A/4B endpoint
@@ -66,8 +67,17 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const preset = (new URL(request.url).searchParams.get("preset") ?? "BALANCED") as LoadContext["preset"];
   const stock = revision.stock ? { x: revision.stock.x, y: revision.stock.y, z: revision.stock.z } : null;
 
-  const originalText = await file.text();
-  const digest = createHash("sha256").update(originalText, "utf8").digest("hex");
+  // The bytes, not a string. `file.text()` decodes as UTF-8 and substitutes
+  // U+FFFD for anything that is not — silently losing a character somebody
+  // typed into a comment — and says nothing about how the lines end, which is
+  // the fact that decides whether the program can be read at all.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const source = inspectSource(bytes);
+  const originalText = source.text;
+  // Over the bytes, so the receipt is of the file rather than of one decoding
+  // of it. Identical to the previous digest for any ASCII program, which is
+  // every NC file in practice.
+  const digest = createHash("sha256").update(bytes).digest("hex");
 
   // Immutable original: one row per distinct program text per revision.
   // No code path updates an UPLOADED row — re-uploading the same bytes
@@ -87,6 +97,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         sourceFilename: file.name.slice(0, 200),
         byteLength: file.size,
         sourceDigest: digest,
+        sourceEncoding: source.encoding,
+        lineEnding: source.lineEnding,
+        controllerFamily: source.controllerFamily,
         generatedBy: user.id,
       },
     });
@@ -112,6 +125,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const gates = evaluateAuditGates({
     parsed,
     originalStored: true,
+    source: { encoding: source.encoding, lineEnding: source.lineEnding, controllerFamily: source.controllerFamily },
     digest,
     toolsInProgram,
     toolsMapped: toolsInProgram.filter((t) => toolDiameters[t] !== undefined),
@@ -128,6 +142,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     uploadedProgramId: uploaded.id,
     digest,
     gates,
+    source: {
+      encoding: source.encoding,
+      lineEnding: source.lineEnding,
+      controllerFamily: source.controllerFamily,
+      controllerEvidence: source.controllerEvidence,
+    },
     parse: {
       lineCount: parsed.lineCount,
       segments: parsed.segments.length,

@@ -347,3 +347,16 @@ test("feed stays modal across a tool change, and tapping is exempt", () => {
   assert.deepEqual(tap.refusals, []);
   assert.ok(tap.segments.some((s) => s.tapping));
 });
+
+test("a program whose lines end in bare carriage returns is read, not swallowed", () => {
+  // `/\r?\n/` made such a file ONE line: one segment, and — worse — zero
+  // refusals. A clean report on a program the parser had never read, which is
+  // the one thing this file refuses to do everywhere else.
+  const blocks = ["%", "O0001", "G20 G17 G90 G54", "G00 X0 Y0", "G01 Z-0.25 F10.", "G01 X2.0 F20.", "M30", "%"];
+  const lf = parseNC(blocks.join("\n"));
+  const cr = parseNC(blocks.join("\r"));
+  assert.ok(lf.segments.length > 1, "the fixture must produce several segments or this proves nothing");
+  assert.equal(cr.lineCount, lf.lineCount);
+  assert.equal(cr.segments.length, lf.segments.length);
+  assert.deepEqual(cr.refusals, lf.refusals);
+});
