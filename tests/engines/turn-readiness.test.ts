@@ -179,3 +179,19 @@ test("the three approval states are distinguishable in what they say", () => {
   assert.match(detail("NONE"), /awaiting/i);
   assert.match(detail("APPROVED"), /approved/i);
 });
+
+test("a part with no plan is told it has no plan, not that its tools are unassigned", () => {
+  // "0 of 0 required stations assigned" reads as a tool-crib problem and sends
+  // a machinist to fix something that is not there. The gate was right to
+  // fail and wrong about why.
+  const g = gate({ toolsAssigned: 0, toolsRequired: 0 }, "tooling");
+  assert.equal(g?.status, "FAIL");
+  assert.match(g!.detail, /no turning operations are planned/i);
+  assert.ok(!/0 of 0/.test(g!.detail));
+});
+
+test("a planned part with unassigned stations still says which", () => {
+  const g = gate({ toolsAssigned: 1, toolsRequired: 3 }, "tooling");
+  assert.equal(g?.status, "FAIL");
+  assert.match(g!.detail, /1 of 3/);
+});

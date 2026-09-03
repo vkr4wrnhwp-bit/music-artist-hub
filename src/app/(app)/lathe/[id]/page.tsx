@@ -18,6 +18,7 @@ import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, StatusChip, inp
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
 import { turnApprovalDigest, turnApprovalState, TURN_APPROVAL_STATEMENT } from "@/lib/manufacturing/turn/approval";
+import { recordTurnSetup, recordTurnMaterial } from "./turn-setup-actions";
 import { bestNominalSuggestion } from "@/lib/engines/nominal";
 
 /**
@@ -73,6 +74,26 @@ export default async function LathePartPage(props: {
 
   // Whether the recorded approval still describes the part as it stands. The
   // gate uses the same function, so the panel and the gate cannot disagree.
+  // The shop's own lathes and chucks, for the setup pickers. Nothing here can
+  // be assigned that this organisation does not own.
+  const [allLathes, allChucks] = await Promise.all([
+    db.latheMachine.findMany({ where: { organizationId: user.organizationId }, orderBy: { model: "asc" } }),
+    db.latheWorkholding.findMany({ where: { organizationId: user.organizationId }, orderBy: { description: "asc" } }),
+  ]);
+
+  const setupAction = recordTurnSetup.bind(null, id);
+  const materialAction = recordTurnMaterial.bind(null, id);
+  // Named individually so the panel can say which of them is still open,
+  // rather than a count a machinist has to work out for themselves.
+  const setupMissing = [
+    rot.latheMachineId ? null : "lathe",
+    rot.workholdingId ? null : "chuck",
+    rot.gripLength == null ? "grip length" : null,
+    rot.stickout == null ? "stickout" : null,
+    rot.maxRpmClamp == null ? "max RPM clamp" : null,
+  ].filter((x): x is string => x !== null);
+  const setupComplete = setupMissing.length === 0;
+
   const approvalState = turnApprovalState(rot, rot);
   const approver = rot.approvedById
     ? await db.user.findUnique({ where: { id: rot.approvedById }, select: { name: true, email: true } })
@@ -467,6 +488,117 @@ export default async function LathePartPage(props: {
             </table>
           </details>
 
+          {/* ---------------- Setup ---------------- */}
+          <Panel
+            title="Setup — the machine, the chuck and how it sits in it"
+            meta={
+              <StatusChip tone={setupComplete ? "pass" : "review"}>
+                {setupComplete ? "RECORDED" : `${setupMissing.length} NOT RECORDED`}
+              </StatusChip>
+            }
+          >
+            <p className="max-w-2xl text-[12.5px] leading-relaxed text-muted">
+              Every turning analysis on this page reads these five. A blank field is left as not recorded — the grip and
+              stickout assessments name what is missing rather than judging a number nobody entered.
+            </p>
+
+            <form action={setupAction} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Lathe</span>
+                <select name="latheMachineId" defaultValue={rot.latheMachineId ?? ""} className={inputClass}>
+                  <option value="">Not selected</option>
+                  {allLathes.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.manufacturer} {l.model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Chuck / collet</span>
+                <select name="workholdingId" defaultValue={rot.workholdingId ?? ""} className={inputClass}>
+                  <option value="">Not assigned</option>
+                  {allChucks.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.description}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Max RPM clamp (G50)</span>
+                <input
+                  name="maxRpmClamp"
+                  inputMode="numeric"
+                  defaultValue={rot.maxRpmClamp ?? ""}
+                  placeholder="not recorded"
+                  className={inputClass}
+                />
+              </label>
+
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Grip length, in</span>
+                <input
+                  name="gripLength"
+                  inputMode="decimal"
+                  defaultValue={rot.gripLength ?? ""}
+                  placeholder="not recorded"
+                  className={inputClass}
+                />
+                <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted">
+                  How much of the bar is inside the jaws.
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="tech-label mb-0.5 block">Stickout, in</span>
+                <input
+                  name="stickout"
+                  inputMode="decimal"
+                  defaultValue={rot.stickout ?? ""}
+                  placeholder="not recorded"
+                  className={inputClass}
+                />
+                <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted">
+                  How far the work stands out of the chuck.
+                </span>
+              </label>
+
+              <div className="flex items-end">
+                <Button type="submit" variant="primary">
+                  Record setup
+                </Button>
+              </div>
+            </form>
+
+            <div className="mt-5 border-t border-line pt-4">
+              <form action={materialAction} className="flex flex-wrap items-end gap-3">
+                <label className="block">
+                  <span className="tech-label mb-0.5 block">Material</span>
+                  <input
+                    name="material"
+                    defaultValue={partMaterial ?? ""}
+                    placeholder="e.g. Steel 4140"
+                    className={inputClass}
+                  />
+                </label>
+                <Button type="submit">Record material</Button>
+              </form>
+              <p className="mt-1.5 max-w-2xl text-[10.5px] leading-relaxed text-muted">
+                Stored against the revision as a value you confirmed, with your name on it — not as something CANVAS
+                inferred. The turning speeds and the cost both read it.
+              </p>
+            </div>
+
+            {setupMissing.length > 0 && (
+              <p className="mt-4 text-[12px] leading-relaxed text-review">
+                Not recorded yet: {setupMissing.join(", ")}.
+              </p>
+            )}
+          </Panel>
+
           {/* ---------------- Hold intelligence ---------------- */}
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Hold — chuck grip" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(grip.verdict)}>{grip.verdict}</StatusChip></span>}>
@@ -488,7 +620,9 @@ export default async function LathePartPage(props: {
               </p>
             </Panel>
             <Panel title="Hold — stickout" meta={<span className="flex gap-2"><DevLabel>Dev</DevLabel><StatusChip tone={tone(stickout.verdict)}>{stickout.verdict}</StatusChip></span>}>
-              <p className="font-mono text-[15px] text-platinum tabular-nums">L/D {("ldRatio" in stickout ? stickout.ldRatio : 0).toFixed(1)}:1</p>
+              <p className="font-mono text-[15px] text-platinum tabular-nums">
+                {stickout.ldRatio != null ? `L/D ${stickout.ldRatio.toFixed(1)}:1` : "L/D —"}
+              </p>
               <p className="mt-1 text-[12.5px] leading-relaxed text-platinum-dim">{stickout.detail}</p>
               <TurnAnalysisNarrative analysis={stickout} />
               <form action={toggleTailstock} className="mt-2">

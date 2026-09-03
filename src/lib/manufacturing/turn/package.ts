@@ -95,16 +95,16 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
   /* ---- hold analyses ---- */
   const grip = assessChuckGrip({
     gripDiameter: profile.stockDiameter,
-    gripLength: rot.gripLength ?? 0,
+    gripLength: rot.gripLength,
     jawMaterial: (holding?.jawMaterial as "HARD" | "SOFT_MACHINED" | null) ?? null,
     serrated: holding?.serrated ?? null,
     clampForceLbf: rot.clampForceLbf,
-    stickout: rot.stickout ?? 0,
+    stickout: rot.stickout,
     chuckMaxRpm: holding?.maxRPM ?? null,
     programmedMaxRpm: rot.maxRpmClamp,
   });
   const stickout = assessStickout({
-    unsupportedLength: rot.stickout ?? 0,
+    unsupportedLength: rot.stickout,
     diameter: profile.stockDiameter,
     tailstock: rot.tailstockActive,
   });

@@ -99,11 +99,20 @@ export function evaluateTurnReadiness(input: TurnReadinessInput): {
     g("part-off", "Part-off stability", po.status, po.detail);
   }
 
+  /*
+   * "0 of 0 required stations assigned" was the message a part with no plan
+   * got, and it reads as a tool-assignment problem. It is not: there are no
+   * operations to assign tools to. The gate was right to fail — a part with
+   * nothing planned is not ready to run — and wrong about why, which sends a
+   * machinist to the tool crib to fix something that is not there.
+   */
   g(
     "tooling",
     "Tooling",
-    input.toolsAssigned >= input.toolsRequired && input.toolsRequired > 0 ? "PASS" : "FAIL",
-    `${input.toolsAssigned} of ${input.toolsRequired} required stations assigned.`,
+    input.toolsRequired > 0 && input.toolsAssigned >= input.toolsRequired ? "PASS" : "FAIL",
+    input.toolsRequired === 0
+      ? "No turning operations are planned for this part, so there is nothing to assign tools to."
+      : `${input.toolsAssigned} of ${input.toolsRequired} required stations assigned.`,
   );
   g(
     "rpm",

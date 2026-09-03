@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { validateProfile, overallLength, maxDiameter, type RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import {
   effectiveRpm,
@@ -1178,4 +1179,101 @@ test("a zero-length OD thread is refused, matching the ID rule", () => {
   const r = threadToolpath(op({ type: "THREAD_OD", startZ: 0.5, endZ: 0.5 }), 0.0625);
   assert.equal(r.ok, false);
   assert.ok(!r.ok && /zero-length thread/i.test(r.reason));
+});
+
+/* ---------------- A setup nobody recorded is not a setup at zero ---------------- */
+
+/**
+ * `buildTurnPackage` passed `rot.gripLength ?? 0` and `rot.stickout ?? 0`, so
+ * a rotational part nobody had set up yet was assessed at a 0" grip and 0"
+ * stickout. The grip came back "Grip length is 0.00× the grip diameter — a
+ * shallow bite for the recorded stickout" — a computed verdict, with a ratio
+ * in it, about a number nobody entered — and the stickout came back PASS:
+ * "L/D 0.0:1 unsupported — within the chuck-only guideline", which is the most
+ * reassuring possible answer to a question nobody asked.
+ *
+ * This mattered because the reverse-engineering flow is the one path a shop
+ * uses to get a turned part into CANVAS, and everything it creates starts with
+ * both fields null.
+ */
+
+const grip = (over: Record<string, unknown> = {}) =>
+  assessChuckGrip({
+    gripDiameter: 2,
+    gripLength: 1,
+    jawMaterial: "HARD",
+    serrated: true,
+    clampForceLbf: 3000,
+    stickout: 3,
+    chuckMaxRpm: 4200,
+    programmedMaxRpm: 3000,
+    ...over,
+  } as Parameters<typeof assessChuckGrip>[0]);
+
+test("an unrecorded grip length is UNKNOWN, not a shallow bite", () => {
+  const a = grip({ gripLength: null });
+  assert.equal(a.verdict, "UNKNOWN");
+  assert.ok(!/0\.00×/.test(a.detail), `a ratio was computed from nothing: "${a.detail}"`);
+  assert.ok(a.missingInputs.some((m) => /grip length not recorded/i.test(m)));
+});
+
+test("an unrecorded stickout is UNKNOWN in the grip assessment too", () => {
+  const a = grip({ stickout: null });
+  assert.equal(a.verdict, "UNKNOWN");
+  assert.ok(a.missingInputs.some((m) => /stickout not recorded/i.test(m)));
+});
+
+test("an unrecorded stickout does not PASS the deflection check", () => {
+  // THE WORST OF THE TWO. L/D 0.0:1 read as "within the chuck-only guideline".
+  const a = assessStickout({ unsupportedLength: null, diameter: 1, tailstock: false });
+  assert.equal(a.verdict, "UNKNOWN");
+  assert.equal(a.ldRatio, null, "an L/D ratio was reported for an unrecorded stickout");
+  assert.ok(!/guideline/i.test(a.detail), `it still reads as a pass: "${a.detail}"`);
+  assert.ok(a.missingInputs.some((m) => /stickout not recorded/i.test(m)));
+});
+
+test("an RPM clamp above the chuck limit still FAILs with no geometry recorded", () => {
+  // The one hard failure in this analysis must not be hidden behind the
+  // missing-geometry guard: a G50 clamp over the chuck's limit is wrong
+  // whatever the grip is, and that is exactly the state a part arrives in.
+  const a = grip({ gripLength: null, stickout: null, chuckMaxRpm: 3000, programmedMaxRpm: 4000 });
+  assert.equal(a.verdict, "FAIL");
+  assert.match(a.detail, /exceeds the chuck/i);
+});
+
+test("a fully recorded setup is still judged on its numbers", () => {
+  // The guard must not swallow the real assessment.
+  assert.equal(grip().verdict, "PASS");
+  assert.equal(assessStickout({ unsupportedLength: 6, diameter: 1, tailstock: false }).verdict, "REVIEW");
+  assert.equal(assessStickout({ unsupportedLength: 2, diameter: 1, tailstock: false }).ldRatio, 2);
+});
+
+test("a genuinely shallow grip is still REVIEW, not swallowed by the guard", () => {
+  // 0.25" on a 2" diameter is 0.125× — a real shallow bite, recorded.
+  const a = grip({ gripLength: 0.25 });
+  assert.equal(a.verdict, "REVIEW");
+  assert.match(a.detail, /0\.12×|0\.13×/);
+});
+
+/**
+ * The tests above prove a null input produces UNKNOWN. They cannot prove the
+ * CALLER passes null, and the caller is where the bug was: buildTurnPackage
+ * turned an unrecorded grip into a 0" one before the analysis ever saw it.
+ * Nothing in the suite exercises buildTurnPackage, so this reads the source.
+ *
+ * Comments are stripped first — the comment explaining this fix quotes the
+ * pattern being banned.
+ */
+test("the turning package never substitutes zero for an unrecorded hold", () => {
+  const src = readFileSync("src/lib/manufacturing/turn/package.ts", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  for (const field of ["gripLength", "stickout", "unsupportedLength"]) {
+    const line = src.split("\n").find((l) => l.trim().startsWith(`${field}: rot.`));
+    assert.ok(line, `${field} is no longer passed from the rotational part — this guard has gone stale`);
+    assert.ok(
+      !/\?\?\s*0/.test(line!),
+      `${field} substitutes zero for an unrecorded value: ${line!.trim()}`,
+    );
+  }
 });

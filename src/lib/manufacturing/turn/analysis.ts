@@ -24,25 +24,54 @@ export interface TurnAnalysis {
 
 export function assessChuckGrip(input: {
   gripDiameter: number;
-  gripLength: number;
+  /**
+   * How much of the bar is inside the jaws. NULL when nobody has recorded it.
+   *
+   * The caller passed `rot.gripLength ?? 0`, so a part nobody had set up yet
+   * was assessed at a 0" grip and reported "Grip length is 0.00× the grip
+   * diameter — a shallow bite for the recorded stickout": a computed verdict,
+   * with a ratio in it, about a number nobody entered. The same was true of
+   * the stickout. An unrecorded input is UNKNOWN and says so.
+   */
+  gripLength: number | null;
   jawMaterial: "HARD" | "SOFT_MACHINED" | null;
   serrated: boolean | null;
   clampForceLbf: number | null;
-  stickout: number;
+  stickout: number | null;
   chuckMaxRpm: number | null;
   programmedMaxRpm: number | null;
 }): TurnAnalysis {
   const missing: string[] = [];
   const recs: string[] = [];
+  if (input.gripLength === null) missing.push("Grip length not recorded — how much of the bar is inside the jaws.");
+  if (input.stickout === null) missing.push("Stickout not recorded — how far the work stands out of the chuck.");
   if (input.clampForceLbf === null) missing.push("Clamp force not recorded — the chuck's actual hydraulic setting, not the catalogue maximum.");
   if (input.chuckMaxRpm === null) missing.push("Chuck RPM limit not recorded.");
+
+  // The RPM check runs first even with no geometry: a G50 clamp above the
+  // chuck's limit is wrong whatever the grip is, and it is the one finding
+  // here that is a hard FAIL rather than a judgement.
+  if (input.programmedMaxRpm !== null && input.chuckMaxRpm !== null && input.programmedMaxRpm > input.chuckMaxRpm) {
+    return dev(
+      "FAIL",
+      `Programmed maximum ${input.programmedMaxRpm} RPM exceeds the chuck's ${input.chuckMaxRpm} RPM limit. Centrifugal force unloads the jaws as speed rises.`,
+      ["Lower the G50 clamp below the chuck limit"],
+      missing,
+    );
+  }
+
+  if (input.gripLength === null || input.stickout === null) {
+    return dev(
+      "UNKNOWN",
+      "How the part is held has not been recorded, so there is no grip to assess. Record it on the turning workspace.",
+      ["Record the grip length and the stickout for this setup"],
+      missing,
+    );
+  }
 
   const gripRatio = input.gripLength / Math.max(1e-6, input.gripDiameter);
   const stickRatio = input.stickout / Math.max(1e-6, input.gripDiameter);
 
-  if (input.programmedMaxRpm !== null && input.chuckMaxRpm !== null && input.programmedMaxRpm > input.chuckMaxRpm) {
-    return dev("FAIL", `Programmed maximum ${input.programmedMaxRpm} RPM exceeds the chuck's ${input.chuckMaxRpm} RPM limit. Centrifugal force unloads the jaws as speed rises.`, ["Lower the G50 clamp below the chuck limit"], missing);
-  }
   if (gripRatio < 0.25) {
     recs.push("Increase grip length", "Machine soft jaws for full-contact grip");
     return dev("REVIEW", `Grip length is ${(gripRatio).toFixed(2)}× the grip diameter — a shallow bite for the recorded stickout.`, recs, missing);
@@ -60,10 +89,25 @@ export function assessChuckGrip(input: {
 /* ---------------- Stickout / deflection ---------------- */
 
 export function assessStickout(input: {
-  unsupportedLength: number;
+  /** Null when nobody has recorded it — not zero. See assessChuckGrip. */
+  unsupportedLength: number | null;
   diameter: number;
   tailstock: boolean;
-}): TurnAnalysis & { ldRatio: number } {
+}): TurnAnalysis & { ldRatio: number | null } {
+  if (input.unsupportedLength === null) {
+    return {
+      ldRatio: null,
+      verdict: "UNKNOWN",
+      // "L/D 0.0:1 unsupported — within the chuck-only guideline" was a PASS
+      // on a part whose stickout nobody had entered, which is the most
+      // reassuring possible answer to a question nobody asked.
+      detail: "Stickout has not been recorded, so there is no length-to-diameter ratio to judge.",
+      recommendations: ["Record how far the work stands out of the chuck"],
+      missingInputs: ["Stickout not recorded."],
+      assumptions: [],
+      developmentAnalysis: true as const,
+    };
+  }
   const ld = input.unsupportedLength / Math.max(1e-6, input.diameter);
   const base = {
     ldRatio: Number(ld.toFixed(1)),
