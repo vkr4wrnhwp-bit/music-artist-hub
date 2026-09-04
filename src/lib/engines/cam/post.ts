@@ -49,7 +49,7 @@ export interface PostContext {
    * system convention, which is what every program written before setups had
    * frames of their own meant. See engines/cam/setup-frame.ts.
    */
-  origins?: { workOffset: string; sentence: string }[];
+  origins?: { setupId: string; name: string; workOffset: string; sentence: string }[];
 }
 
 export interface PostDefinition {
@@ -109,6 +109,80 @@ export function commentText(s: string): string {
  * Absent means the one system convention, which is what every program written
  * before setups had frames of their own meant.
  */
+/**
+ * WHERE ONE SETUP ENDS AND THE NEXT BEGINS.
+ *
+ * A two-setup part posted as one continuous program. Every motion block called
+ * the single work offset the form asked for, and nothing at all marked the
+ * boundary — so the control ran setup 1, and then ran setup 2's motion on a
+ * part still clamped the first way. Setup 2 on the demo part is "Flip,
+ * thickness and profile": it machines the opposite face. That program drives
+ * the tool through the vise.
+ *
+ * The header printed "G54 — ..." and "G55 — ..." as of B3, which is what made
+ * it look considered.
+ *
+ * A setup change is a person doing something with their hands. It is M0 and
+ * not M1: an optional stop is skipped by a control with optional-stop off,
+ * which is a setting, and a part coming out of the vise is not.
+ */
+function setupBoundary(
+  ctx: PostContext,
+  setupId: string,
+  c: (s: string) => string,
+  opts: {
+    /** The block that stops the control dead. Never an optional stop. */
+    stop: string;
+    /** Getting the part where hands can reach it. */
+    home: string[];
+    /** What this control needs the operator to do about the new frame. */
+    instruction: (workOffset: string) => string;
+  },
+): string[] {
+  const setup = (ctx.origins ?? []).find((o) => o.setupId === setupId);
+  const lines = ["", c("-".repeat(56))];
+  lines.push(c(`${setup?.name ?? "NEXT SETUP"} — THE PART COMES OUT OF THE VISE HERE.`));
+  if (setup) {
+    lines.push(c(opts.instruction(setup.workOffset)));
+    lines.push(c(`${setup.workOffset}: ${setup.sentence}`));
+  } else {
+    // Nothing said which frame this motion belongs in, so the program cannot
+    // say either. Naming the gap beats printing an offset nobody recorded.
+    lines.push(c("NO COORDINATE FRAME IS RECORDED FOR THIS SETUP. DO NOT RUN UNTIL IT IS."));
+  }
+  lines.push(c("EVERYTHING BELOW CUTS THE PART IN ITS NEW POSITION. CHECK IT BEFORE CYCLE START."));
+  lines.push(c("-".repeat(56)));
+  lines.push(...opts.home);
+  lines.push(opts.stop);
+  return lines;
+}
+
+/** The offset a setup's motion runs under, or the program's own as a fallback. */
+function offsetFor(ctx: PostContext, setupId: string): string {
+  return (ctx.origins ?? []).find((o) => o.setupId === setupId)?.workOffset ?? ctx.workOffset;
+}
+
+/**
+ * Setups run in blocks, and a program never goes back.
+ *
+ * The package builds toolpaths setup by setup, so they arrive contiguous. If
+ * they ever stopped being contiguous, this emitter would cheerfully write a
+ * stop asking the operator to flip the part, cut two moves, and ask them to
+ * flip it back — motion that is individually correct and collectively a part
+ * clamped four times to make two cuts. Refusing is the only defensible answer:
+ * a re-entered setup means the ordering upstream is wrong, not that the
+ * program should describe it.
+ */
+function enterSetup(seen: Set<string>, setupId: string): void {
+  if (seen.has(setupId)) {
+    throw new Error(
+      `Setup ${setupId} is entered twice in one program. Operations have to be ordered so each setup runs in one block — ` +
+        "otherwise the program asks the operator to re-clamp the part and then clamp it back.",
+    );
+  }
+  seen.add(setupId);
+}
+
 function originLines(ctx: PostContext): string[] {
   const origins = ctx.origins ?? [];
   if (origins.length === 0) return [PROGRAM_ORIGIN.sentence];
@@ -151,6 +225,20 @@ function header(ctx: PostContext, lines: string[], comment: (s: string) => strin
    */
   const assumed = assumedOffsetsNote(ctx.toolTable);
   if (assumed) lines.push(comment(assumed));
+  /*
+   * How many times the part comes out of the vise, said at the top. A
+   * machinist loading one program has no other way to know it contains two
+   * operations until they hit the M0 in the middle of it.
+   */
+  if ((ctx.origins ?? []).length > 1) {
+    lines.push(
+      comment(
+        `THIS PROGRAM CONTAINS ${ctx.origins!.length} SETUPS. IT STOPS BETWEEN THEM AND THE PART IS RE-CLAMPED: ${ctx
+          .origins!.map((o) => `${o.workOffset} ${o.name}`)
+          .join(" / ")}`,
+      ),
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -212,6 +300,9 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
     lines.push("G53 G0 Z0.");
 
     let currentTool = -1;
+    // The setup the control is standing in. A change means a person's hands.
+    let currentSetup: string | null = null;
+    const seenSetups = new Set<string>();
     let currentFeed = -1;
 
     for (let idx = 0; idx < toolpaths.length; idx++) {
@@ -236,6 +327,39 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       const reg = offsetRegisters(
         entry ?? { toolNumber: tp.toolNumber, lengthOffset: null, diameterOffset: null },
       );
+      /*
+       * The setup boundary comes BEFORE the operation heading, so the stop is
+       * never buried inside a tool's block — an operator single-blocking would
+       * meet the heading first and read the M0 as belonging to the cut.
+       *
+       * Nothing is emitted for the first setup: the operator clamped the part
+       * to start the program, and a stop asking them to do what they have just
+       * done is a stop they learn to cycle-start through.
+       */
+      if (tp.setupId !== currentSetup) {
+        if (currentSetup !== null) {
+          lines.push(
+            ...setupBoundary(ctx, tp.setupId, c, {
+              stop: "M0",
+              home: [
+                "G53 G0 Z0.",
+                // Table out, so the vise is reachable. The program end already
+                // does this; a setup change is the other time it matters.
+                dialect === "HAAS" ? "G53 G0 Y0." : "G53 G0 X0. Y0.",
+              ],
+              // This family carries the offset in the motion blocks below, so
+              // the operator's job is to set the offset, not to select it.
+              instruction: (o) => `RE-CLAMP AS THE SETUP SHEET SHOWS, THEN SET ${o}.`,
+            }),
+          );
+          // The next tool call is a real one even if the same cutter comes
+          // back: the operator has been at the machine.
+          currentTool = -1;
+        }
+        enterSetup(seenSetups, tp.setupId);
+        currentSetup = tp.setupId;
+      }
+
       lines.push("");
       lines.push(c(`${tp.type} — T${tp.toolNumber} ${entry?.description ?? ""}`));
 
@@ -273,7 +397,7 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
               : `${cy.code === "G83" ? "PECK DRILL" : "DRILL"} ${group.length} ${group.length === 1 ? "HOLE" : "HOLES"} — Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""}`,
           ),
         );
-        lines.push(`${ctx.workOffset} G0 X${n(cy.x)} Y${n(cy.y)}`);
+        lines.push(`${offsetFor(ctx, tp.setupId)} G0 X${n(cy.x)} Y${n(cy.y)}`);
         lines.push(`G43 H${reg.h} Z${n(ctx.safeZ, 3)}`);
         if (tp.parameters.coolant !== "OFF") lines.push("M8");
         lines.push(tap ? `S${cy.rpm}` : `S${cy.rpm} M3`);
@@ -293,7 +417,7 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       }
 
       lines.push(`S${tp.parameters.rpm} M3`);
-      lines.push(`${ctx.workOffset} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
+      lines.push(`${offsetFor(ctx, tp.setupId)} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
       lines.push(`G43 H${reg.h} Z${n(ctx.safeZ, 3)}`);
       if (tp.parameters.coolant !== "OFF") {
         lines.push(dialect === "HAAS" && tp.parameters.coolant === "THROUGH_SPINDLE" ? "M88" : "M8");
@@ -435,11 +559,35 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push("G54");
 
   let currentTool = -1;
+  let currentSetup: string | null = null;
+  const seenSetups = new Set<string>();
 
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) {
       lines.push(c(`OPERATION ${tp.type} HAS NO TOOLPATH ENGINE — SKIPPED`));
       continue;
+    }
+    /*
+     * GRBL runs everything this post writes under G54 — it has no offset the
+     * program can switch to for a second setup. So the frame change is the
+     * operator's to make at the control, and the program says exactly that
+     * rather than emitting a G55 the machine will not honour.
+     */
+    if (tp.setupId !== currentSetup) {
+      if (currentSetup !== null) {
+        lines.push("M5");
+        lines.push(
+          ...setupBoundary(ctx, tp.setupId, c, {
+            stop: "M0",
+            home: [],
+            instruction: () =>
+              "RE-CLAMP AS THE SETUP SHEET SHOWS. THIS POST RUNS EVERYTHING UNDER G54 — RE-ZERO G54 TO THE NEW SETUP BEFORE CYCLE START.",
+          }),
+        );
+        currentTool = -1;
+      }
+      enterSetup(seenSetups, tp.setupId);
+      currentSetup = tp.setupId;
     }
     if (tp.type === "TAP") {
       // GRBL has no rigid tapping. Emitting the tap moves as feed lines would
@@ -508,9 +656,36 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   for (const line of originLines(ctx)) lines.push(c(line));
   let block = 1;
   let currentCall = "";
+  let currentSetup: string | null = null;
+  const seenSetups = new Set<string>();
   const push = (s: string) => lines.push(`${block++} ${s}`);
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
+    /*
+     * A TNC carries the frame in a datum shift or a preset, and this
+     * development post emits neither — every coordinate is in the one frame
+     * the program was written in. So the second setup's zero is the operator's
+     * to set at the control, and the boundary says which preset the setup
+     * sheet calls it rather than implying the program has handled it.
+     */
+    if (tp.setupId !== currentSetup) {
+      if (currentSetup !== null) {
+        for (const line of setupBoundary(ctx, tp.setupId, c, {
+          stop: "M0",
+          home: [],
+          instruction: (o) =>
+            `RE-CLAMP AS THE SETUP SHEET SHOWS. THIS POST EMITS NO DATUM SHIFT — SET THE PRESET THE SHEET CALLS ${o} BEFORE CYCLE START.`,
+        })) {
+          // Comments and blank lines are not numbered blocks on a TNC; the
+          // stop is.
+          if (line === "M0") push("STOP M0");
+          else lines.push(line);
+        }
+        currentCall = "";
+      }
+      enterSetup(seenSetups, tp.setupId);
+      currentSetup = tp.setupId;
+    }
     if (tp.type === "TAP") {
       // Rigid tapping on TNC is cycle 207, which this development post does
       // not implement. Unsynchronised feed lines would break the tap.
@@ -584,8 +759,29 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push(ctx.units === "IN" ? "G70" : "G71");
   lines.push("G17 G90 G54");
   let currentTool = -1;
+  let currentSetup: string | null = null;
+  const seenSetups = new Set<string>();
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
+    // 840D selects the frame with the same G54..G57 words, so the offset is
+    // emitted here rather than left to the operator — what they have to do is
+    // set it, and re-clamp.
+    if (tp.setupId !== currentSetup) {
+      if (currentSetup !== null) {
+        lines.push("M5");
+        lines.push(
+          ...setupBoundary(ctx, tp.setupId, c, {
+            stop: "M0",
+            home: [],
+            instruction: (o) => `RE-CLAMP AS THE SETUP SHEET SHOWS, THEN SET ${o}.`,
+          }),
+        );
+        lines.push(offsetFor(ctx, tp.setupId));
+        currentTool = -1;
+      }
+      enterSetup(seenSetups, tp.setupId);
+      currentSetup = tp.setupId;
+    }
     if (tp.type === "TAP") {
       // Rigid tapping on 840D is CYCLE84, which this development post does
       // not implement. Unsynchronised feed lines would break the tap.

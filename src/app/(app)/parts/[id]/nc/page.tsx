@@ -111,7 +111,18 @@ export default async function NcPage(props: {
     if (!preflightPassed(gate)) redirect(`/parts/${id}/nc?post=${post.id}`);
 
     const programNumber = String(formData.get("programNumber") || "1001");
-    const workOffset = String(formData.get("workOffset") || "G54");
+    /*
+     * NOT ASKED FOR ANY MORE.
+     *
+     * A dropdown offering G54..G59 was a fourth source of truth for something
+     * the setups already record, and picking it wrong silently overrode them:
+     * the program ran under whatever was chosen while the header printed the
+     * setups' own offsets. Motion now carries each setup's offset, and this
+     * value is only what the program falls back to for a setup with no frame
+     * recorded. It is stored so the reconciler can still say what the program
+     * was written under.
+     */
+    const workOffset = fresh.setups.find((s) => fresh.framesBySetup[s.id])?.workOffset ?? "G54";
 
     const ctx: PostContext = {
       programNumber,
@@ -144,6 +155,11 @@ export default async function NcPage(props: {
       origins: fresh.setups
         .filter((s) => fresh.framesBySetup[s.id])
         .map((s) => ({
+          // The setup id is what lets the post tell one setup's motion from
+          // another's. Without it a two-setup part posted as one continuous
+          // program, all of it under one offset, with nothing marking the flip.
+          setupId: s.id,
+          name: s.name,
           workOffset: s.workOffset,
           sentence: frameSentence(fresh.framesBySetup[s.id], fresh.revision.stock).sentence,
         })),
@@ -301,13 +317,19 @@ export default async function NcPage(props: {
                   <input name="programNumber" defaultValue={existing?.programNumber ?? "1001"} className={inputClass} />
                 </Field>
               </div>
-              <div className="w-32">
-                <Field label="Work offset">
-                  <select name="workOffset" defaultValue={existing?.workOffset ?? "G54"} className={inputClass}>
-                    {["G54", "G55", "G56", "G57", "G58", "G59"].map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
+              {/*
+                The work offset is not a choice here. Each setup records its
+                own, and the program carries them per setup — a dropdown was a
+                fourth source of truth that silently overrode the setups when
+                somebody picked the wrong one.
+              */}
+              <div className="min-w-40">
+                <Field label="Work offsets">
+                  <p className="py-1.5 font-mono text-[12px] text-platinum">
+                    {pkg.setups.length === 0
+                      ? "No setups"
+                      : pkg.setups.map((s) => `${s.workOffset} ${s.name}`).join(" · ")}
+                  </p>
                 </Field>
               </div>
               <Button type="submit" variant="primary" disabled={!canExport}>

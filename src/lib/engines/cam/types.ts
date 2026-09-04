@@ -202,6 +202,17 @@ export interface CannedCycle {
 
 export interface Toolpath {
   operationId: string;
+  /**
+   * WHICH SETUP THIS MOTION BELONGS TO.
+   *
+   * Dropped on the way out of the engine, which is how a two-setup part came
+   * to post as one continuous program: every block called the single work
+   * offset the form asked for, and nothing marked where the operator has to
+   * turn the part over. Setup 2 machines the opposite face, so it ran on a
+   * part still clamped the first way. The post had no information to do
+   * otherwise even if it had wanted to.
+   */
+  setupId: string;
   type: OperationType;
   toolId: string;
   toolNumber: number;

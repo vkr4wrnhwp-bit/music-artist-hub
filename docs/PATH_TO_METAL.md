@@ -1079,12 +1079,67 @@ control with a bug.
 
 `src/lib/engines/cam/offsets.ts`, `commentText` and the emitters in `cam/post.ts`,
 the tool crib form, `setup-sheet.ts` and the printed sheet.
+
+**T9 — Two setups, one program, no flip. — BUILT**
+The worst defect found in the CAM chain so far, and the seeded demo part is the
+case that shows it. `CANVAS Bearing Support` has two setups: *Top face and
+features* under G54, and *Flip, thickness and profile* under G55. It posted as
+one continuous program.
+
+`Toolpath` dropped `setupId` on the way out of the engine — `OperationRequest`
+carried it, the toolpath did not. So by the time the post saw the list, every
+setup's motion was one undifferentiated stream, and the emitter had no
+information to do anything else even if it had wanted to. All eleven motion
+blocks called a single work offset taken from a **dropdown on the export form**,
+and nothing marked the boundary: no stop, no comment, not a blank line. The
+control ran setup 1 and then ran setup 2's motion on a part still clamped the
+first way. Setup 2 machines the opposite face. That program drives the tool
+through the vise.
+
+And the header had printed `G54 — …` and `G55 — …` since B3, which is exactly
+what made it look considered.
+
+- **A setup change is a person doing something with their hands.** The boundary
+  now retracts to machine zero, brings the table out, and stops on **M0** — not
+  M1, because an optional stop is skipped by a control with optional-stop off,
+  which is a setting, and a part coming out of the vise is not. It names the
+  setup, says to re-clamp as the sheet shows and set G55, and prints that
+  frame's own sentence including the turnover warning. It sits *before* the
+  operation heading, so an operator single-blocking does not read it as
+  belonging to the next cut, and the tool is re-called afterwards even if it is
+  the same cutter — the operator has been at the machine.
+- **Motion runs under its own setup's offset.** A setup with no frame recorded
+  falls back rather than borrowing the other one's, which would be the same
+  failure arrived at from the other direction.
+- **The work-offset dropdown is gone.** It was a fourth source of truth for
+  something the setups record, and picking it wrong silently overrode them while
+  the header printed the setups' own offsets. The page states what the setups
+  say instead.
+- **The header says how many setups the program holds**, because a machinist
+  loading one program has no other way to know it contains two operations until
+  they meet the M0 halfway down it.
+- **A setup entered twice is refused.** The package builds toolpaths setup by
+  setup so they arrive contiguous; if they ever stopped being, this would
+  cheerfully ask the operator to flip the part, cut two moves, and flip it back.
+  That is motion which is individually correct and collectively a part clamped
+  four times to make two cuts.
+
+Every control answers for itself. GRBL runs everything this post writes under
+G54, so its boundary says the offset is the operator's to re-zero rather than
+emitting a G55 the machine will not honour. The 840D selects the frame itself.
+The TNC emits no datum shift, so it says so and names the preset the sheet
+calls — and its stop is a numbered block, because a comment is not one and a
+stop that is not a block is a stop the control skips.
+
+`setupId` on `Toolpath`, `setupBoundary` / `offsetFor` / `enterSetup` and all
+four emitters in `cam/post.ts`, the NC export page.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
   the previous tool left, which is the first step toward an in-process stock model.
-- **Multiple work offsets and fixture offsets.** `G54.1 P`, multi-part fixtures,
-  the same program run four up.
+- **Multiple work offsets and fixture offsets.** ~~One offset per setup~~ —
+  BUILT, see T9. Still open: `G54.1 P`, multi-part fixtures, the same program
+  run four up.
 - **Tool library that means what it means elsewhere.** Per-material feed and
   speed data rather than one SFM band; presetter data; pocket assignment; sister
   tools. ~~Tool life in minutes and parts, not a 0–1 float~~ — BUILT, see T7.
@@ -1094,8 +1149,9 @@ the tool crib form, `setup-sheet.ts` and the printed sheet.
 - **Program revision control at the machine.** Which revision is loaded, hash
   checked against the approved one (the export already computes a SHA-256),
   DNC or drip feed for programs over the control's memory.
-- **Second op properly.** B3's transform plus datum transfer, dowel and soft-jaw
-  location, and the tolerance stack across the flip stated as a number.
+- **Second op properly.** B3's transform and T9's boundary are in. Still open:
+  datum transfer, dowel and soft-jaw location, and the tolerance stack across
+  the flip stated as a number.
 
 ---
 

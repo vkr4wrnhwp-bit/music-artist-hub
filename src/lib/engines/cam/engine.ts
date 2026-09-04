@@ -238,6 +238,7 @@ export function generateToolpath(
       ok: true,
       toolpath: {
         operationId: req.id,
+        setupId: req.setupId,
         type: req.type,
         toolId: req.toolId,
         toolNumber: ctx.tool.toolNumber,
@@ -404,6 +405,7 @@ export function generateToolpath(
     ok: true,
     toolpath: {
       operationId: req.id,
+      setupId: req.setupId,
       type: req.type,
       toolId: req.toolId,
       toolNumber: ctx.tool.toolNumber,
