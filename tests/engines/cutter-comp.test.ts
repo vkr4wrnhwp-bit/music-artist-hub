@@ -35,7 +35,7 @@ const endmill = {
 } as unknown as Tool;
 
 const ctx: MachiningContext = {
-  tool: endmill, materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
+  tool: endmill, partFeatures: [], materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
   rapidRate: 1000, maxSpindleRPM: 8100, maxFeed: 500,
 };
 

@@ -206,6 +206,18 @@ model Tool {
   overallLength Float
   stickout     Float
 
+  // THE POINT.
+  //
+  // The INCLUDED angle at the tool's point, in degrees, as the catalogue
+  // states it — 90 for a 90° chamfer mill, 118 for a jobber drill, 60 for a
+  // spotting drill ground to 60. Nullable and with no default, because a
+  // chamfer's angle is a property of the tool that cuts it: a 90° chamfer mill
+  // cuts 45° chamfers and nothing else, and assuming one would be inventing
+  // the geometry of a cone the shop owns. tipDiameter is the flat ground on
+  // the end; it decides how far off the edge the cutter centre runs.
+  pointAngle  Float?
+  tipDiameter Float?
+
   holderId String?
   holder   ToolHolder? @relation(fields: [holderId], references: [id], onDelete: SetNull)
 

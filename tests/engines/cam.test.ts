@@ -25,7 +25,7 @@ const endmill = { ...boringHead, id: "t2", toolClass: "FLAT_END_MILL", diameter:
 const tap = { ...boringHead, id: "t10", toolNumber: 10, toolClass: "TAP", diameter: 0.25, maxRPM: 4000, sfmMin: 30, sfmMax: 60 } as Tool;
 
 const ctx = (tool: Tool): MachiningContext => ({
-  tool, materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
+  tool, partFeatures: [], materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
   rapidRate: 1000, maxSpindleRPM: 8100, maxFeed: 500,
 });
 

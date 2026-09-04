@@ -84,6 +84,7 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
       }
       const ctx: MachiningContext = {
         tool,
+        partFeatures: input.features,
         materialSfmMin: input.materialSfmMin,
         materialSfmMax: input.materialSfmMax,
         materialName: input.materialName,

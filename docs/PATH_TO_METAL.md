@@ -352,6 +352,72 @@ and the part comes off the machine with a cone of material in every through
 hole. Needs a breakthrough allowance from the drill's own point angle, and the
 same question applies to a contour cut through the stock.
 
+**A8 — The chamfer was not a chamfer. — BUILT**
+`chamferToolpath` ignored `feature.width` and `feature.angle` entirely. It
+walked a rectangle around the **STOCK** outline — 6 × 4 on the seeded bearing
+support, where the finished profile is 5.875 × 3.875 — at a hard-coded `R0.1`
+corner, at whatever Z the plan happened to carry, which was a hard-coded
+`−0.03`. A 0.030 × 45° chamfer and a 0.005 × 60° chamfer produced the identical
+path, and the path cut air a quarter of an inch outside the part for its entire
+length while reporting material removed.
+
+Where the feature applied to **HOLES** it emitted a rapid, a plunge and a
+retract at X0 Y0 and nothing else: three moves at the origin, `isPlaceholder`
+false, no warning, and the pre-flight counted it as an operation that had
+produced motion.
+
+That is exactly the shape locked principle 5 exists for, and worse than a stub,
+because a stub says so.
+
+**A chamfer mill is a cone, and the cone decides the angle.** Its flank sits at
+half its included angle from the axis, and that flank *is* the chamfer surface —
+so depth and offset decide only the width. A 90° chamfer mill cuts 45° chamfers
+and cannot cut a 30° chamfer at any depth or any offset; the tool for that is a
+120° included one, and CANVAS says so rather than cutting 45° of the right width
+and calling it done.
+
+Working in the plane normal to the edge, a chamfer of width W at angle A from
+the face runs from (R − W, 0) to (R, −W·tan A). Putting the cone's flank on that
+line, with the tip clearing the bottom by `c`:
+
+    Z of the tip  = −(W·tan A + c)
+    radial offset = tipRadius + c / tan A
+
+outward on an outside edge, inward on a pocket or a hole, and by symmetry the
+same number both ways. Below the chamfer the tool clears the wall by `c / tan A`.
+The test does not check that arithmetic against itself — it walks the cone the
+tool actually is, from the position this puts it in, and confirms the surface
+passes through both ends of the chamfer on the drawing.
+
+**The tool had no point angle**, because nothing in the system recorded one.
+`Tool.pointAngle` and `Tool.tipDiameter` are new columns, nullable with no
+default, on the form under Geometry. A chamfer mill with no angle recorded is a
+cone of unknown angle, and assuming 90° would cut a wrong part for exactly the
+shop that owns the 82° one — so the operation is refused and the message names
+the field.
+
+The edge is found from the part rather than the stock: `OUTSIDE_TOP` follows the
+profile feature's chain, `POCKET` follows the pocket, `HOLES` visits every hole
+— interpolating a circle where the hole is big enough and plunging the cone
+where it is not, which is how a small hole gets chamfered and what a spotting
+drill does. A hole whose diameter is under the tool's tip flat is refused, since
+the tool will not enter it.
+
+The planner and the engine ask the **same function** for the depth, so the plan,
+the setup sheet and the program carry one number instead of three that can
+drift, and a chamfer the crib cannot cut is a concern on the plan rather than an
+operation the engine will refuse later. Verified live: clearing the point angle
+on the seeded chamfer mill drops the operation from the plan (18 ops to 17) and
+puts the reason on the machinist's page; restoring it brings it back.
+
+`src/lib/engines/cam/chamfer.ts`, `chamferToolpath` in `cam/engine.ts`,
+`MachiningContext.partFeatures`, `Tool.pointAngle` / `tipDiameter`, the chamfer
+branch of `machinist.ts`.
+
+**Still open:** the pass plunges straight to depth at its start point, which is
+0.03 of engagement with the flank rather than a ramp or an approach from clear
+air. Fine at this depth, wrong the day a chamfer is 0.06.
+
 ### B. The machinist must know how to set the job up
 
 **B1 — The setup sheet. — BUILT**
@@ -784,8 +850,9 @@ Saying no is part of the plan.
    and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
 8. ~~**A5 + A6** chained contours and real finish passes~~ — BUILT.
-8b. ~~**A7** one operation per hole~~ — BUILT. A six-hole bolt circle was one
-   hole, and the audit found it, not the tests.
+8b. ~~**A7 + A8** one operation per hole, and a chamfer that is one~~ — BUILT.
+   A six-hole bolt circle was one hole and a chamfer was a ring round the
+   stock. The audit found both; the tests found neither.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
    ~~D1~~ BUILT; D2 needs real iron.
 10. **B3** the setup transform, and second-op work opens up.

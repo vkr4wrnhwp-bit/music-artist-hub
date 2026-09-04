@@ -42,6 +42,8 @@ export interface ToolFormValues {
   fluteLength?: number;
   overallLength?: number;
   stickout?: number;
+  pointAngle?: number | null;
+  tipDiameter?: number | null;
   holderId?: string | null;
   maxRPM?: number;
   recommendedMaterials?: string;
@@ -98,7 +100,7 @@ export function toolSections(
     },
     {
       title: "Geometry",
-      note: "Corner radius decides whether an internal corner is machinable at all. Stickout decides whether a depth is reachable. Neither has a safe default.",
+      note: "Corner radius decides whether an internal corner is machinable at all. Stickout decides whether a depth is reachable. Point angle decides what chamfer a chamfer mill can cut. None of them has a safe default.",
       fields: [
         { name: "diameter", label: "Diameter", unit: "in", kind: "number", required: true, min: "0", half: true, defaultValue: v.diameter ?? null },
         { name: "cornerRadius", label: "Corner radius", unit: "in", kind: "number", required: true, min: "0", half: true, hint: "Zero for a square end mill.", defaultValue: v.cornerRadius ?? 0 },
@@ -107,6 +109,27 @@ export function toolSections(
         { name: "fluteLength", label: "Flute length", unit: "in", kind: "number", required: true, min: "0", half: true, defaultValue: v.fluteLength ?? null },
         { name: "overallLength", label: "Overall length", unit: "in", kind: "number", required: true, min: "0", half: true, defaultValue: v.overallLength ?? null },
         { name: "stickout", label: "Stickout", unit: "in", kind: "number", required: true, min: "0", half: true, hint: "Nominal, as the tool is normally set.", defaultValue: v.stickout ?? null },
+        {
+          name: "pointAngle",
+          label: "Point angle",
+          unit: "deg",
+          kind: "number",
+          min: "0",
+          max: "180",
+          half: true,
+          hint: "INCLUDED angle at the point — 90 for a 90° chamfer mill, 118 for a jobber drill. A chamfer's angle is the angle of the cone that cuts it, so without this a chamfer cannot be planned at all.",
+          defaultValue: v.pointAngle ?? null,
+        },
+        {
+          name: "tipDiameter",
+          label: "Tip diameter",
+          unit: "in",
+          kind: "number",
+          min: "0",
+          half: true,
+          hint: "Flat ground on the end. Zero for a true point. Decides how far off the edge the cutter centre runs.",
+          defaultValue: v.tipDiameter ?? null,
+        },
         {
           name: "holderId",
           label: "Holder",

@@ -1,4 +1,5 @@
 import type { Tool } from "@/lib/domain/shop";
+import type { Feature } from "@/lib/domain/features";
 
 /**
  * CAM ARCHITECTURE — see /docs/CAM_ENGINE.md
@@ -221,6 +222,17 @@ export type ToolpathResult =
 
 export interface MachiningContext {
   tool: Tool;
+  /**
+   * Every feature on the part, not only the one being cut.
+   *
+   * A chamfer is the one operation that is not about its own feature: it
+   * breaks the edge of something else, and which something is what
+   * `applyTo` and `targetFeatureId` name. Without the rest of the part in
+   * hand the chamfer engine cannot find that edge, which is how it ended up
+   * ringing the STOCK outline — the one boundary that is definitely not the
+   * part.
+   */
+  partFeatures: Feature[];
   /**
    * SFM window for the material being cut. Null when the shop has no record
    * of this material — and then no motion is produced for it. Surface speed

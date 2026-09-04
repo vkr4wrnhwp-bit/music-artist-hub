@@ -3,6 +3,7 @@ import { maximumDepth, minimumInternalRadius } from "@/lib/domain/features";
 import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop";
 import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type { OperationType } from "./cam/types";
+import { chamferGeometry } from "./cam/chamfer";
 
 /**
  * THE AI MACHINIST
@@ -635,13 +636,35 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
     });
   }
 
-  // Chamfer
-  // One per chamfer feature. "Chamfer top edges" pointed at `chamfers[0]` was
-  // the same defect as the drills: every other chamfer on the part went
-  // uncut, and the label did not say which one it meant.
+  /*
+   * Chamfer — one per chamfer feature, at the depth the geometry gives.
+   *
+   * "Chamfer top edges" pointed at `chamfers[0]` was the same defect as the
+   * drills: every other chamfer on the part went uncut, and the label did not
+   * say which one it meant. `finalZ` was a hard-coded −0.03 regardless of the
+   * chamfer's width or the tool's angle, which is a number that produces the
+   * drawn chamfer only by coincidence.
+   *
+   * The depth comes from `chamferGeometry`, which is the same function the
+   * toolpath engine calls — so the plan, the setup sheet and the program all
+   * carry one number rather than three that can drift. Where the tool cannot
+   * cut the chamfer at all, the plan says which tool would rather than
+   * planning an operation the engine will refuse.
+   */
   const chamfer = findTool(tools, "CHAMFER_MILL");
-  if (c.chamfers.length > 0 && chamfer) {
+  if (c.chamfers.length > 0 && !chamfer) {
+    concerns.push(
+      `${c.chamfers.length === 1 ? "The chamfer" : `${c.chamfers.length} chamfers`} on this part cannot be cut: there is no chamfer mill in the crib. Break the edges by hand or add one.`,
+    );
+  }
+  if (chamfer) {
     for (const f of c.chamfers) {
+      if (f.kind !== "CHAMFER") continue;
+      const geo = chamferGeometry(f, chamfer);
+      if ("error" in geo) {
+        concerns.push(`${f.label}: ${geo.error.reason}`);
+        continue;
+      }
       ops1.push({
         sequence: seq++,
         type: "CHAMFER",
@@ -650,10 +673,10 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         toolId: chamfer.id,
         toolNumber: chamfer.toolNumber,
         topZ: 0,
-        finalZ: -0.03,
+        finalZ: geo.z,
         stepover: 0,
         stockToLeave: 0,
-        rationale: "Breaking edges on the machine is cheaper than a deburring bench and far more consistent.",
+        rationale: `${f.width.toFixed(4)} × ${f.angle}° comes off the ${chamfer.pointAngle}° cone at Z${geo.z.toFixed(4)} — the depth and the width are one number, not two. Breaking edges on the machine is cheaper than a deburring bench and far more consistent.`,
       });
     }
   }

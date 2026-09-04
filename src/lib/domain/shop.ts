@@ -162,6 +162,16 @@ export interface Tool {
   fluteLength: number;
   overallLength: number;
   stickout: number;
+  /**
+   * INCLUDED angle at the point, degrees, as the catalogue states it — 90 for
+   * a 90° chamfer mill, 118 for a jobber drill. A chamfer's angle is a
+   * property of the cone that cuts it, so this is the input that decides
+   * whether a tool can make a given chamfer at all; absent, the chamfer
+   * engine refuses rather than assuming one.
+   */
+  pointAngle?: number;
+  /** Flat ground on the end. Decides how far off the edge the centre runs. */
+  tipDiameter?: number;
   holder: string;
   /** Holder body diameter at the nose — used for holder clearance checks. */
   holderNoseDiameter: number;

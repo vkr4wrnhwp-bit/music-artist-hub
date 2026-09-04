@@ -13,6 +13,7 @@ import type {
 import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
 import { arcGeometry, arcMove, arcSegments } from "./arc";
 import { chainLength, chainMoves, offsetChain, rectangleChain, type Chain } from "./chain";
+import { chamferEdge, chamferGeometry } from "./chamfer";
 
 /**
  * DETERMINISTIC TOOLPATH ENGINE — Phase 1
@@ -333,9 +334,11 @@ export function generateToolpath(
     }
     case "CHAMFER": {
       if (!feature) return missingFeature(req);
-      const r = chamferToolpath(req, feature, ctx, params, stock);
+      const r = chamferToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
       moves = r.moves;
       removed = r.removed;
+      warnings.push(...r.warnings);
       break;
     }
     case "ENGRAVE": {
@@ -1465,30 +1468,142 @@ function chamferToolpath(
   feature: Feature,
   ctx: MachiningContext,
   p: CuttingParameters,
-  stock: Stock,
-): { moves: Move[]; removed: number } {
-  const moves: Move[] = [];
-  const z = req.finalZ;
-  const feed = Math.round(p.feed * 0.8);
-
-  if (feature.kind === "CHAMFER" && feature.applyTo === "HOLES") {
-    // Chamfer pass at each hole is emitted by the caller as separate ops in a
-    // full implementation; Phase 1 rings the outside profile.
-    moves.push({ type: "RAPID", x: 0, y: 0, z: req.clearanceZ, feed: null });
-    moves.push({ type: "PLUNGE", x: 0, y: 0, z, feed: p.plungeFeed });
-    moves.push({ type: "RETRACT", x: 0, y: 0, z: req.retractZ, feed: null });
-    return { moves, removed: 0.001 };
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "CHAMFER") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind} and is not a chamfer.`,
+        recommendations: ["Point the operation at the chamfer feature"],
+      },
+    };
   }
 
-  const w = stock.x + ctx.tool.diameter * 0.25;
-  const l = stock.y + ctx.tool.diameter * 0.25;
-  moves.push({ type: "RAPID", x: -w / 2, y: -l / 2, z: req.clearanceZ, feed: null });
-  moves.push({ type: "PLUNGE", x: -w / 2, y: -l / 2, z, feed: p.plungeFeed });
-  rectMoves(moves, 0, 0, w, l, 0.1, z, feed);
-  moves.push({ type: "RETRACT", x: -w / 2, y: -l / 2, z: req.retractZ, feed: null });
+  const geo = chamferGeometry(feature, ctx.tool);
+  if ("error" in geo) return geo;
+  const edge = chamferEdge(feature, ctx.partFeatures);
+  if ("error" in edge) return edge;
 
-  return { moves, removed: 2 * (stock.x + stock.y) * 0.01 * 0.01 };
+  const moves: Move[] = [];
+  const warnings: string[] = [];
+  // A chamfer is a light finishing cut taken with the flank of a cone. It runs
+  // at the finishing chipload, not the roughing one the operation inherited.
+  const feed = Math.round(p.feed * 0.8);
+  const z = geo.z;
+
+  /*
+   * The Z here is the ENGINE's, derived from the chamfer width and the tool's
+   * own cone, not the operation's `finalZ`. A depth typed into a plan cannot
+   * produce a chamfer of a stated width except by coincidence — the two are
+   * locked together by the geometry — and the plan carries the same number
+   * because the planner asks this same function for it.
+   */
+  if (Math.abs(req.finalZ - z) > 1e-6) {
+    warnings.push(
+      `Cutting at Z${z.toFixed(4)} rather than the planned Z${req.finalZ.toFixed(4)}: the depth of a chamfer is set by its width and the tool's angle, not chosen.`,
+    );
+  }
+
+  if (edge.kind === "HOLES") {
+    let cut = 0;
+    for (const hole of edge.holes) {
+      const rTool = hole.diameter / 2 - geo.offset;
+      if (geo.tipRadius >= hole.diameter / 2) {
+        return {
+          error: {
+            reason: `${ctx.tool.description} has a ${(geo.tipRadius * 2).toFixed(4)}" flat on its end and ${hole.label} is ⌀${hole.diameter.toFixed(4)}. The tip will not enter the hole, so it cannot break that edge.`,
+            recommendations: [
+              `Use a chamfer mill with a tip under ⌀${hole.diameter.toFixed(4)}`,
+              "Spot the chamfer with a spotting drill of the same included angle",
+            ],
+          },
+        };
+      }
+      moves.push({ type: "RAPID", x: hole.x, y: hole.y, z: req.clearanceZ, feed: null });
+      if (rTool > MIN_CHAMFER_ARC) {
+        /*
+         * Big enough to interpolate: down the middle, out to the circle, round
+         * it, back to the middle. Two 180° arcs, because a G2 with I/J and no
+         * end point means "full circle" on a Haas and means something else or
+         * nothing elsewhere.
+         */
+        moves.push({ type: "PLUNGE", x: hole.x, y: hole.y, z, feed: p.plungeFeed });
+        moves.push({ type: "CUT", x: hole.x + rTool, y: hole.y, z, feed });
+        moves.push(arcMove("CUT", { x: hole.x + rTool, y: hole.y }, hole.x, hole.y, { x: hole.x - rTool, y: hole.y, z }, false, feed));
+        moves.push(arcMove("CUT", { x: hole.x - rTool, y: hole.y }, hole.x, hole.y, { x: hole.x + rTool, y: hole.y, z }, false, feed));
+        moves.push({ type: "CUT", x: hole.x, y: hole.y, z, feed });
+      } else {
+        /*
+         * Too small to circle in — the cone forms the whole chamfer on the way
+         * down, which is how a small hole gets chamfered and is what a
+         * spotting drill does. The depth is different: the chamfer's top edge
+         * is where the cone's radius reaches half the hole plus the width, so
+         * that is what sets Z rather than the flank-on-the-line construction.
+         */
+        const plungeZ = -(hole.diameter / 2 + feature.width - geo.tipRadius) * geo.tanAngle;
+        moves.push({ type: "PLUNGE", x: hole.x, y: hole.y, z: plungeZ, feed: p.plungeFeed });
+        moves.push({ type: "RETRACT", x: hole.x, y: hole.y, z: req.clearanceZ, feed: null });
+        cut += Math.PI * hole.diameter * feature.width * geo.drop * 0.5;
+        continue;
+      }
+      moves.push({ type: "RETRACT", x: hole.x, y: hole.y, z: req.clearanceZ, feed: null });
+      cut += Math.PI * hole.diameter * feature.width * geo.drop * 0.5;
+    }
+    moves.push({ type: "RETRACT", x: moves[moves.length - 1].x, y: moves[moves.length - 1].y, z: req.retractZ, feed: null });
+    return { moves, removed: cut, warnings };
+  }
+
+  /* ---- A closed boundary: the outside profile, or a pocket ---- */
+
+  let path: Chain;
+  if (edge.kind === "POCKET") {
+    // Inward, so the boundary shrinks by the offset on every side. A corner
+    // the offset cannot fit inside is a corner this tool cannot get into, and
+    // that is the same refusal the pocket itself makes.
+    const pk = edge.pocket;
+    if (pk.cornerRadius - geo.offset <= 0 || pk.width - 2 * geo.offset <= 0 || pk.length - 2 * geo.offset <= 0) {
+      return {
+        error: {
+          reason: `Breaking the edge of ${pk.label} puts the cutter centre ${geo.offset.toFixed(4)}" inside the wall, and the pocket's R${pk.cornerRadius.toFixed(4)} corner has no room for it.`,
+          recommendations: [
+            "Use a chamfer mill with a smaller tip",
+            "Open the pocket's corner radius",
+            "Break this edge by hand",
+          ],
+        },
+      };
+    }
+    const shrunk = rectangleChain(pk.width - 2 * geo.offset, pk.length - 2 * geo.offset, pk.cornerRadius - geo.offset);
+    path = {
+      start: { x: shrunk.start.x + pk.centerX, y: shrunk.start.y + pk.centerY },
+      segments: shrunk.segments.map((seg) =>
+        seg.kind === "LINE"
+          ? { kind: "LINE" as const, to: { x: seg.to.x + pk.centerX, y: seg.to.y + pk.centerY } }
+          : {
+              kind: "ARC" as const,
+              to: { x: seg.to.x + pk.centerX, y: seg.to.y + pk.centerY },
+              center: { x: seg.center.x + pk.centerX, y: seg.center.y + pk.centerY },
+              cw: seg.cw,
+            },
+      ),
+    };
+  } else {
+    const outer = offsetChain(edge.chain, geo.offset);
+    if ("error" in outer) return outer;
+    path = outer;
+  }
+
+  moves.push({ type: "RAPID", x: path.start.x, y: path.start.y, z: req.clearanceZ, feed: null });
+  moves.push({ type: "PLUNGE", x: path.start.x, y: path.start.y, z, feed: p.plungeFeed });
+  moves.push(...chainMoves(path, z, feed));
+  moves.push({ type: "RETRACT", x: path.start.x, y: path.start.y, z: req.retractZ, feed: null });
+
+  // The chamfer is a triangular prism along the edge: half the width by the
+  // drop, run round the perimeter.
+  return { moves, removed: chainLength(path) * feature.width * geo.drop * 0.5, warnings };
 }
+
+/** Below this the tool cannot usefully circle a hole, so it plunges instead. */
+const MIN_CHAMFER_ARC = 0.005;
 
 /* ------------------------------------------------------------------ */
 /* ENGRAVE                                                             */

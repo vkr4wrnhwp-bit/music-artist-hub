@@ -144,6 +144,7 @@ export async function buildPackage(
         }
         const ctx: MachiningContext = {
           tool,
+          partFeatures: revision.features,
           materialSfmMin: material?.sfmCarbideMin ?? null,
           materialSfmMax: material?.sfmCarbideMax ?? null,
           materialName: material?.name ?? "Unspecified",

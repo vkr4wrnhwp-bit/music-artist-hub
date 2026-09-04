@@ -84,6 +84,8 @@ export async function getTools(organizationId: string): Promise<Tool[]> {
     fluteLength: t.fluteLength,
     overallLength: t.overallLength,
     stickout: t.stickout,
+    pointAngle: t.pointAngle ?? undefined,
+    tipDiameter: t.tipDiameter ?? undefined,
     holder: t.holder?.description ?? "Not assigned",
     holderNoseDiameter: t.holder?.noseDiameter ?? 0,
     holderTaperAngle: t.holder?.taperAngleDegrees,

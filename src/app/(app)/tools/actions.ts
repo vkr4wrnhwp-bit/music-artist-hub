@@ -46,6 +46,11 @@ function parse(formData: FormData) {
     fluteLength,
     overallLength,
     stickout: f.number("stickout", "Stickout", { min: 0 }),
+    // Optional, because most of the crib is not pointed. Where it matters the
+    // chamfer engine refuses the operation and names the field, rather than
+    // this form insisting on an angle for an end mill.
+    pointAngle: f.optionalNumber("pointAngle", "Point angle", { min: 0, max: 180 }),
+    tipDiameter: f.optionalNumber("tipDiameter", "Tip diameter", { min: 0 }),
     holderId: f.optionalText("holderId"),
 
     material: f.text("material", "Tool material"),

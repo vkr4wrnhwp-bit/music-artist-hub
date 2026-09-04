@@ -29,7 +29,7 @@ const mill = (over: Partial<Tool> = {}) =>
   }) as unknown as Tool;
 
 const ctx = (tool = mill()): MachiningContext => ({
-  tool, materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
+  tool, partFeatures: [], materialSfmMin: 600, materialSfmMax: 1000, materialName: "Aluminum 6061",
   rapidRate: 1000, maxSpindleRPM: 8100, maxFeed: 500,
 });
 

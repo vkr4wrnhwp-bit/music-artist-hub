@@ -70,7 +70,7 @@ test("self-consistency: the parser reads CANVAS's own Haas output with zero refu
     holderNoseDiameter: 1.75, maxRPM: 8100, recommendedMaterials: [], chiploadMin: 0.002, chiploadMax: 0.005,
     sfmMin: 600, sfmMax: 1000, coolant: "FLOOD", lifeRemaining: 1, condition: "GOOD", regrindCount: 0,
   } as unknown as Tool;
-  const ctx: MachiningContext = { tool, materialSfmMin: 600, materialSfmMax: 1000, materialName: "AL", rapidRate: 1000, maxSpindleRPM: 8100, maxFeed: 500 };
+  const ctx: MachiningContext = { tool, partFeatures: [], materialSfmMin: 600, materialSfmMax: 1000, materialName: "AL", rapidRate: 1000, maxSpindleRPM: 8100, maxFeed: 500 };
   const feature = { id: "f", kind: "RECT_POCKET", label: "P", functionalRole: "NONE", critical: false, centerX: 0, centerY: 0, width: 3, length: 2, depth: 0.25, cornerRadius: 0.25, top: 0 } as unknown as Feature;
   const req: OperationRequest = { id: "op", type: "POCKET_2D", label: "P", featureId: "f", toolId: "t", setupId: "s", topZ: 0, finalZ: -0.25, clearanceZ: 0.1, retractZ: 1 };
   const r = generateToolpath(req, feature, ctx, stock);
