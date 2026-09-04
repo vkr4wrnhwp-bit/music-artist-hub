@@ -48,7 +48,14 @@ export interface SheetTool {
   diameter: number;
   stickout: number;
   holder: string;
-  /** H and D registers. Both equal the tool number under the current post. */
+  /**
+   * H and D registers. Both equal the tool number under the current post.
+   *
+   * D matters now that contours are cut with the control doing the offsetting:
+   * it holds the cutter radius, and nudging it is how a machinist takes a thou
+   * off a wall without re-posting. It has to reach the machine, which is why it
+   * is on this sheet.
+   */
   lengthOffset: number;
   pocket: number | null;
   operationLabels: string[];
@@ -194,7 +201,12 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
     );
   }
   if (tools.length > 0) {
-    unknowns.push("Tool length offsets are set at the machine, not by CANVAS. H equals the tool number in this post; confirm every one on the offset page before the first cut.");
+    unknowns.push(
+      "Tool length offsets are set at the machine, not by CANVAS. H equals the tool number in this post; confirm every one on the offset page before the first cut.",
+    );
+    unknowns.push(
+      "Set the D register for each cutter to its radius. Contours are cut with the control compensating, so D is what holds the size — and D is where you take a thou off a wall without re-posting.",
+    );
   }
 
   /* ---------------- Operations ---------------- */

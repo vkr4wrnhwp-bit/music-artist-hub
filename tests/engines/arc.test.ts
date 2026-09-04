@@ -209,7 +209,11 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$
 const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
 
 test("the Fanuc family emits G2/G3 with I and J", () => {
-  assert.ok(/\$\{mv\.cw \? "G2" : "G3"\} \$\{coords\} I\$\{n\(mv\.i!\)\} J\$\{n\(mv\.j!\)\}/.test(post), "no I/J arc block");
+  // I and J come from `ai`/`aj`, which resolve to the PROGRAMMED arc centre
+  // where compensation is active and to the cutter centre otherwise. An arc's
+  // centre offset is measured from where the program says the tool is.
+  assert.ok(/\$\{mv\.cw \? "G2" : "G3"\} \$\{coords\} I\$\{n\(ai\)\} J\$\{n\(aj\)\}/.test(post), "no I/J arc block");
+  assert.ok(/const ai = pg\?\.i \?\? mv\.i!;/.test(post), "the arc centre does not follow the programmed path");
   // R-word arcs are ambiguous over 180° — the control picks the minor arc and
   // the major one is unreachable. I/J is never ambiguous.
   assert.equal(/G2.*\bR\$\{/.test(post), false, "an R-word arc reached a post");

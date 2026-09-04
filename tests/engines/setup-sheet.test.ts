@@ -145,6 +145,12 @@ test("tool length offsets are always called out as set at the machine", () => {
 
 /* ---------------- Operations ---------------- */
 
+test("the sheet tells the machinist to set the D registers", () => {
+  // Contours are cut with the control compensating now, so D holds the size.
+  // A machinist who does not know that reaches for an offset that is zero.
+  assert.ok(sheet().unknowns.some((u) => /Set the D register/i.test(u)));
+});
+
 test("speeds, feeds and cycle time come from the toolpath that was generated", () => {
   const o = sheet().operations[0];
   assert.equal(o.rpm, 6000);

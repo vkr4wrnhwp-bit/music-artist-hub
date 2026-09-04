@@ -147,8 +147,23 @@ function samplePoints(segs: Seg[]): { x: number; y: number; z: number }[] {
   return out;
 }
 
+/**
+ * The path the PROGRAM carries, which is not always the cutter centre.
+ *
+ * Where cutter compensation is active the program holds the part boundary and
+ * the control offsets it. Comparing the posted text against the cutter centre
+ * there would report every compensated contour as being exactly one tool radius
+ * wrong — a false alarm on the one operation a machinist most needs to trust.
+ */
+const programmedPath = (moves: Toolpath["moves"]) =>
+  moves.map((m) =>
+    m.program
+      ? { ...m, x: m.program.x, y: m.program.y, ...(m.program.i !== undefined ? { i: m.program.i, j: m.program.j } : {}) }
+      : m,
+  );
+
 function plannedSegments(tp: Toolpath): Seg[] {
-  const moves = flattenArcs(tp.moves, COMPARISON_CHORD);
+  const moves = flattenArcs(programmedPath(tp.moves), COMPARISON_CHORD);
   const out: Seg[] = [];
   for (let i = 1; i < moves.length; i++) {
     const a = moves[i - 1];

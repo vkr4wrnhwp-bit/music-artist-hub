@@ -112,24 +112,49 @@ cut in the program.
 `src/lib/engines/cam/arc.ts`, the generators in `cam/engine.ts`, all four posts
 in `cam/post.ts`, `sim/stock-removal.ts` and `viewport/scene.tsx`.
 
-**A2 — Cutter compensation the control can see. (MEDIUM)**
-The contour path is offset in software — `const w = feature.width +
-ctx.tool.diameter` (`cam/engine.ts:1147`) — and no `G41/G42/D` word is ever
-emitted. `verifyNc` does not look for one, and `nc/parse.ts:156` knows what
-comp is only well enough to mark other people's programs as comped.
+**A2 — Cutter compensation the control can see. — BUILT**
+The contour path was offset in software — `feature.width + tool.diameter` — and
+no `G41`/`G42`/`D` word ever reached the control. That takes away the
+machinist's only recourse for holding size. A cutter a thou and a half under
+nominal, a regrind, a hair of runout, spring on a deep wall: the answer to every
+one of them is to nudge the D offset and re-run the finish pass. A program with
+the offset baked in cannot be adjusted at the machine at all, and the only fix
+is to walk back to the computer and re-post, which nobody does at 11pm.
 
-What the machinist gets: no way to hold size. A cutter 0.0015″ under nominal,
-a regrind, a hair of runout, spring on a deep wall — the entire normal recourse
-is to nudge the D offset a thou and re-run the finish pass. CANVAS's programs
-cannot be adjusted at the control at all. The only fix is to go back to the
-computer and re-post, which no shop will do at 11pm.
+The program now carries the **part boundary** and the control offsets it. The
+move list still carries the **cutter centre**, because that is what the
+simulator sweeps and what every collision check reasons about — the two paths
+are built side by side from one generator and zipped, so they cannot drift, and
+`Move.program` is where the second one lives.
 
-Build: emit `G41/G42` with a `D` register on finish passes, generate the
-lead-in and lead-out geometry the comp rules require (a linear or arc lead at
-least one tool radius long, comp on before the first cut, off after the last,
-never a comp change in a corner), populate the D register from the tool record,
-and add the offset value to the setup sheet. Keep the software-offset path for
-roughing where nobody adjusts.
+`G42`, because the contour runs counter-clockwise with the part on the inside,
+so the cutter is to the right of travel. With a right-hand tool that is
+conventional milling; climbing means reversing to clockwise with `G41`, which
+belongs with real finish passes (A6) rather than hidden inside this change.
+
+The lead moves *are* the comp rules: activation on a straight move in free air
+at least a tool radius long, cancellation on a straight move away from the part,
+never on an arc and never inside a corner. A post also refuses to end a tool
+with compensation still open. GRBL has no offset table, so it gets the cutter
+centre and a line telling the machinist size is not adjustable there —
+reaching for an offset that does not exist is the failure that line prevents.
+
+**A gouge fell out of the rework.** The lead-in used to end on the *left* edge
+while the contour started on the *bottom* edge, so the first cutting move was a
+straight chord across the bottom-left corner: 0.293 × the corner radius into the
+part, nearly a tenth of an inch on an ordinary profile. Nothing in the system
+could have caught it — the simulator removes whatever the path sweeps, and there
+is no check that the finished shape matches the model. That check needs the
+in-process stock model in Tier 2. Meanwhile a test now asserts no cutting move
+runs diagonally on a rounded rectangle, which is the signature of a corner being
+cut off.
+
+Also gone: four zero-length blocks per pass, where the lead-in and the contour
+start were emitted as two separate moves to the same point.
+
+`ProgrammedPoint` in `cam/types.ts`, `contourToolpath` in `cam/engine.ts`, the
+comp words in `cam/post.ts`, `programmedPath` in `nc/reconcile.ts`, and the D
+register on the setup sheet.
 
 **A3 — Canned cycles. — BUILT**
 The post special-cased only `TAP` → `G84`, and derived its Z and R by running
@@ -586,7 +611,8 @@ Saying no is part of the plan.
 4. ~~**A3** canned cycles~~ — BUILT. The program reads like a program.
 5. **C1 + C2** simulate and reconcile the posted text — closes the loop that
    makes every later post change safe.
-6. **A2** cutter compensation — the machinist gets their offset back.
+6. ~~**A2** cutter compensation~~ — BUILT. The machinist has their offset back,
+   and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
 8. **A5 + A6** chained contours and real finish passes.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.

@@ -93,8 +93,35 @@ export interface OperationRequest {
 export const MOVE_TYPES = ["RAPID", "CUT", "PLUNGE", "LEAD_IN", "LEAD_OUT", "RETRACT", "ARC"] as const;
 export type MoveType = (typeof MOVE_TYPES)[number];
 
+/**
+ * WHERE THE PROGRAM SENDS THE TOOL, WHEN THE CONTROL IS DOING THE OFFSETTING.
+ *
+ * `x`/`y` on a Move are always the CUTTER CENTRE — that is what the simulator
+ * sweeps, what cycle time measures, and what every collision check reasons
+ * about. When cutter compensation is active the PROGRAM carries a different
+ * point: the part boundary, with the control offsetting by the value in the D
+ * register. Both are needed, and conflating them is how a simulator ends up
+ * proving a path half a tool width from the one that gets cut.
+ *
+ * `side` is which side of the programmed path the cutter runs on, in the
+ * direction of travel — LEFT is G41, RIGHT is G42.
+ */
+export interface ProgrammedPoint {
+  x: number;
+  y: number;
+  /** Arc centre offsets in PROGRAMMED coordinates, for an arc block. */
+  i?: number;
+  j?: number;
+  side: "LEFT" | "RIGHT";
+  /** Turn compensation on over this move (G41/G42 with the D register). */
+  activate?: boolean;
+  /** Turn it off over this move (G40). */
+  deactivate?: boolean;
+}
+
 export interface Move {
   type: MoveType;
+  /** Cutter centre. */
   x: number;
   y: number;
   z: number;
@@ -105,6 +132,11 @@ export interface Move {
   j?: number;
   /** Arc direction. */
   cw?: boolean;
+  /**
+   * The point the PROGRAM carries, when it is not the cutter centre. Absent
+   * means the program and the cutter centre are the same point.
+   */
+  program?: ProgrammedPoint;
 }
 
 /**

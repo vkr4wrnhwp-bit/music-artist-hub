@@ -130,7 +130,24 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       currentFeed = -1;
 
       for (let i = 0; i < tp.moves.length; i++) {
-        lines.push(moveLine(tp.moves[i], currentFeed, (f) => (currentFeed = f), i > 0 ? tp.moves[i - 1] : null));
+        lines.push(
+          moveLine(
+            tp.moves[i],
+            currentFeed,
+            (f) => (currentFeed = f),
+            i > 0 ? tp.moves[i - 1] : null,
+            // D and H are the same register number under this post. The setup
+            // sheet prints it, and it is what the machinist adjusts to hold size.
+            entry?.lengthOffset ?? tp.toolNumber,
+          ),
+        );
+      }
+      // A tool must never leave with compensation still active. If the engine
+      // produced a path that opens comp and does not close it, the program says
+      // so rather than the control finding out on the next rapid.
+      if (tp.moves.some((m) => m.program?.activate) && !tp.moves.some((m) => m.program?.deactivate)) {
+        lines.push(c("COMPENSATION LEFT ACTIVE BY THE TOOLPATH — CANCELLED HERE"));
+        lines.push("G40");
       }
 
       lines.push("M9");
@@ -158,19 +175,47 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
  *
  * G2 is clockwise seen from +Z, which is what `cw` means.
  */
-function moveLine(mv: Move, currentFeed: number, setFeed: (f: number) => void, prev: Move | null): string {
-  const coords = `X${n(mv.x)} Y${n(mv.y)} Z${n(mv.z, 3)}`;
+function moveLine(
+  mv: Move,
+  currentFeed: number,
+  setFeed: (f: number) => void,
+  prev: Move | null,
+  dOffset?: number,
+): string {
+  /*
+   * CUTTER COMPENSATION
+   *
+   * When a move carries a programmed point, the PROGRAM gets the boundary and
+   * the control offsets it by the D register. `x`/`y` on the move stay the
+   * cutter centre for everything upstream; only these two words change.
+   *
+   * G41 is left of the path, G42 right, G40 cancels. The engine puts activate
+   * on a straight lead-in and deactivate on a straight lead-out away from the
+   * part — this only writes what it is told, because a comp code on the wrong
+   * block is a fault at best and a gouge at worst.
+   */
+  const pg = mv.program;
+  const px = pg ? pg.x : mv.x;
+  const py = pg ? pg.y : mv.y;
+  const coords = `X${n(px)} Y${n(py)} Z${n(mv.z, 3)}`;
   if (mv.feed === null) return `G0 ${coords}`;
 
   const feedWord = mv.feed !== currentFeed ? ` F${mv.feed}.` : "";
   if (mv.feed !== currentFeed) setFeed(mv.feed);
 
+  const compOn = pg?.activate ? `${pg.side === "LEFT" ? "G41" : "G42"} D${dOffset ?? 0} ` : "";
+  const compOff = pg?.deactivate ? "G40 " : "";
+
   if (prev && isArc(mv)) {
     // Helical when the Z changes: same G2/G3 block with a Z word, which every
-    // control in this family interpolates.
-    return `${mv.cw ? "G2" : "G3"} ${coords} I${n(mv.i!)} J${n(mv.j!)}${feedWord}`;
+    // control in this family interpolates. Arc I/J come from the programmed
+    // path too — an arc's centre offset is measured from where the PROGRAM
+    // says the tool is, not from where the cutter centre is.
+    const ai = pg?.i ?? mv.i!;
+    const aj = pg?.j ?? mv.j!;
+    return `${mv.cw ? "G2" : "G3"} ${coords} I${n(ai)} J${n(aj)}${feedWord}`;
   }
-  return `G1 ${coords}${feedWord}`;
+  return `${compOn}${compOff}G1 ${coords}${feedWord}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -209,9 +254,19 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
     lines.push("M0");
     lines.push(`S${tp.parameters.rpm} M3`);
     // GRBL speaks the same G2/G3 with I/J, including helical.
+    // GRBL supports G41/G42 with a D word in recent builds but not on every
+    // firmware in the field, and it has no offset table to hold the value. The
+    // program carries the CUTTER CENTRE here instead — correct motion with no
+    // adjustment available at the machine — and says so, because a machinist
+    // who expects to dial a D offset needs to know there is not one.
+    if (tp.moves.some((m) => m.program)) {
+      lines.push(c("NO CUTTER COMPENSATION ON GRBL — PATH IS THE CUTTER CENTRE, SIZE IS NOT ADJUSTABLE AT THE MACHINE"));
+    }
     let feed = -1;
     for (let i = 0; i < tp.moves.length; i++) {
-      lines.push(moveLine(tp.moves[i], feed, (f) => (feed = f), i > 0 ? tp.moves[i - 1] : null));
+      const raw = tp.moves[i];
+      const centreOnly = raw.program ? { ...raw, program: undefined } : raw;
+      lines.push(moveLine(centreOnly, feed, (f) => (feed = f), i > 0 ? tp.moves[i - 1] : null));
     }
   }
   lines.push("");
@@ -243,6 +298,12 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
     // cut the same hole in more blocks, which is the honest trade.
     if (tp.cannedCycle) {
       lines.push(`; DRILLING CYCLE 200/203 NOT IMPLEMENTED — DRILLED AS FEED MOVES`);
+    }
+    // R0 throughout: no cutter compensation in this development post, so the
+    // coordinates are the cutter centre and size is not adjustable at the
+    // control. Cycle 200-series comp is a separate piece of work.
+    if (tp.moves.some((m) => m.program)) {
+      lines.push("; NO CUTTER COMPENSATION — PATH IS THE CUTTER CENTRE, SIZE NOT ADJUSTABLE AT THE MACHINE");
     }
     push(`TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`);
     push(`L Z+${n(ctx.safeZ, 3)} R0 FMAX M3`);
@@ -315,6 +376,9 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
      * count, and this development post does not implement it — flattened to a
      * stated chord tolerance instead, and the program says so where it happens.
      */
+    if (tp.moves.some((m) => m.program)) {
+      lines.push(c("NO CUTTER COMPENSATION — PATH IS THE CUTTER CENTRE, SIZE NOT ADJUSTABLE AT THE MACHINE"));
+    }
     let feed = -1;
     const moves = tp.moves;
     for (let i = 0; i < moves.length; i++) {

@@ -651,6 +651,12 @@ function rectMoves(
   const rr = Math.min(cr, hx, hy);
   // Each corner is one 90° arc about the corner's centre, counter-clockwise.
   // It was eight chords, which put a flat on every corner of every profile.
+  //
+  // The arc's I/J are measured from where the tool already is, and every corner
+  // here is preceded by the straight run that lands exactly on its start point.
+  // Emitting that point again produced a zero-length block before every corner
+  // — legal, and four wasted blocks per pass that a machinist single-blocking
+  // through has to step past.
   const corner = (x: number, y: number, sx: number, sy: number) => {
     if (rr <= 0) {
       moves.push({ type: "CUT", x, y, z, feed });
@@ -659,10 +665,6 @@ function rectMoves(
     const startAngle = Math.atan2(sy, sx);
     const from = { x: x + rr * Math.cos(startAngle), y: y + rr * Math.sin(startAngle) };
     const endAngle = startAngle + Math.PI / 2;
-    // The arc starts where the straight run before it ended. Emitting that
-    // point keeps the path continuous when the caller has not already arrived
-    // there — the arc's own I/J are measured from it.
-    moves.push({ type: "CUT", x: from.x, y: from.y, z, feed });
     moves.push(
       arcMove("ARC", from, x, y, { x: x + rr * Math.cos(endAngle), y: y + rr * Math.sin(endAngle), z }, false, feed),
     );
@@ -1231,6 +1233,45 @@ function tapToolpath(
 /* 2D CONTOUR — outside profile with tangential lead in/out            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * 2D CONTOUR, WITH THE CONTROL DOING THE OFFSETTING.
+ *
+ * The offset used to be baked into the path — `feature.width + tool.diameter`
+ * — and no G41/G42/D ever reached the control. That takes away the machinist's
+ * only recourse for holding size. A cutter a thou and a half under nominal, a
+ * regrind, a hair of runout, spring on a deep wall: the answer to all of them
+ * is to nudge the D offset and re-run the finish pass. A program whose offset
+ * is baked in cannot be adjusted at the machine at all, and the only fix is to
+ * walk back to the computer and re-post, which nobody does at 11pm.
+ *
+ * So the PROGRAM now carries the part boundary and the control offsets it. The
+ * move list still carries the cutter centre, because that is what the simulator
+ * sweeps and what every collision check reasons about — the two paths are built
+ * side by side here and zipped together, from the same generator, so they
+ * cannot drift.
+ *
+ * COMP SIDE
+ *
+ * The contour runs counter-clockwise, so at the bottom edge travel is +X with
+ * the part at +Y. The cutter must stay outside the part, which is to the RIGHT
+ * of the direction of travel: G42. With a right-hand cutter that is
+ * conventional milling; climbing an outside profile means reversing to
+ * clockwise with G41, which belongs with real finish passes (A6) rather than
+ * here, where it would be a second change hiding inside this one.
+ *
+ * THE LEAD MOVES ARE THE COMP RULES
+ *
+ * Compensation is activated on a straight move, in free air, at least a tool
+ * radius long, and cancelled the same way on a move AWAY from the part. Never
+ * inside a corner and never on an arc — controls fault on that or ramp the
+ * offset through the cut.
+ *
+ * Fixed here at the same time: the lead-in used to end on the LEFT edge while
+ * the contour started on the BOTTOM edge, so the first cutting move was a
+ * straight chord across the bottom-left corner — a gouge of 0.293 × the corner
+ * radius, nearly a tenth of an inch on an ordinary part. The lead now lands
+ * exactly on the point the contour starts from.
+ */
 function contourToolpath(
   req: OperationRequest,
   feature: Feature,
@@ -1247,24 +1288,80 @@ function contourToolpath(
   }
 
   const moves: Move[] = [];
-  const r = ctx.tool.diameter / 2;
+  const d = ctx.tool.diameter;
+  const r = d / 2;
   const totalDepth = req.topZ - req.finalZ;
   const passes = Math.max(1, Math.ceil(totalDepth / p.stepdown));
 
-  // Cutter compensation applied in the path: offset outward by tool radius.
-  const w = feature.width + ctx.tool.diameter;
-  const l = feature.length + ctx.tool.diameter;
-  const cr = feature.cornerRadius + r;
-  const leadRadius = Math.max(r, 0.1);
+  // The boundary the program carries, and the centre path the cutter follows.
+  const W = feature.width;
+  const L = feature.length;
+  const CR = feature.cornerRadius;
+  const w = W + d;
+  const l = L + d;
+  const cr = CR + r;
+
+  // Where the contour opens: the left end of the bottom edge, on both paths.
+  const startProgram = { x: -W / 2 + CR, y: -L / 2 };
+  const startCentre = { x: -w / 2 + cr, y: -l / 2 };
+  const lead = Math.max(2 * r, 0.2);
+  const leadFeed = Math.round(p.feed * 0.6);
 
   for (let pass = 1; pass <= passes; pass++) {
     const z = req.topZ - (totalDepth * pass) / passes;
-    moves.push({ type: "RAPID", x: -w / 2 - leadRadius * 2, y: -l / 2 + cr, z: req.clearanceZ, feed: null });
-    moves.push({ type: "PLUNGE", x: -w / 2 - leadRadius * 2, y: -l / 2 + cr, z, feed: p.plungeFeed });
-    moves.push({ type: "LEAD_IN", x: -w / 2, y: -l / 2 + cr, z, feed: Math.round(p.feed * 0.6) });
-    rectMoves(moves, 0, 0, w, l, cr, z, p.feed);
-    moves.push({ type: "LEAD_OUT", x: -w / 2 - leadRadius * 2, y: -l / 2 + cr, z, feed: Math.round(p.feed * 0.6) });
-    moves.push({ type: "RETRACT", x: -w / 2 - leadRadius * 2, y: -l / 2 + cr, z: req.retractZ, feed: null });
+    const approach = { x: startProgram.x - lead, y: startProgram.y };
+
+    // Comp is off for the approach and the plunge, so program and centre agree.
+    moves.push({ type: "RAPID", x: approach.x, y: approach.y, z: req.clearanceZ, feed: null });
+    moves.push({ type: "PLUNGE", x: approach.x, y: approach.y, z, feed: p.plungeFeed });
+
+    // Comp comes on over the lead-in. The centre ends one radius to the right
+    // of the programmed point, which is exactly where the contour starts.
+    moves.push({
+      type: "LEAD_IN",
+      x: startCentre.x,
+      y: startCentre.y,
+      z,
+      feed: leadFeed,
+      program: { x: startProgram.x, y: startProgram.y, side: "RIGHT", activate: true },
+    });
+
+    // Both rectangles from one generator, zipped. Identical structure by
+    // construction — same corner count, same order — so a move in one has
+    // exactly one counterpart in the other.
+    const centre: Move[] = [];
+    rectMoves(centre, 0, 0, w, l, cr, z, p.feed);
+    const boundary: Move[] = [];
+    rectMoves(boundary, 0, 0, W, L, CR, z, p.feed);
+    if (centre.length !== boundary.length) {
+      return {
+        error: {
+          reason: `The compensated boundary and the cutter path came out different lengths for ${feature.label}, so the program and the simulation would describe different shapes.`,
+          recommendations: ["Report this — it is a CANVAS defect, not a setup problem"],
+        },
+      };
+    }
+    // The lead-in already lands on the contour's start point, so the first
+    // move of the loop is that same point again.
+    for (let k = 1; k < centre.length; k++) {
+      const b = boundary[k];
+      moves.push({
+        ...centre[k],
+        program: { x: b.x, y: b.y, ...(b.i !== undefined ? { i: b.i, j: b.j } : {}), side: "RIGHT" },
+      });
+    }
+
+    // Comp off on the way out, moving away from the part rather than back
+    // along the wall that was just cut.
+    moves.push({
+      type: "LEAD_OUT",
+      x: startCentre.x,
+      y: startProgram.y - lead,
+      z,
+      feed: leadFeed,
+      program: { x: startProgram.x, y: startProgram.y - lead, side: "RIGHT", deactivate: true },
+    });
+    moves.push({ type: "RETRACT", x: startCentre.x, y: startProgram.y - lead, z: req.retractZ, feed: null });
   }
 
   const perimeter = 2 * (feature.width + feature.length);
