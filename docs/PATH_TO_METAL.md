@@ -844,13 +844,31 @@ Verified on the seeded part: four `G84` holes merged into one cycle at F34.40 =
 `src/lib/engines/cam/thread.ts`, `threadMillToolpath` in `cam/engine.ts`,
 `Tool.threadDesignation`, the thread branch of `machinist.ts`.
 
-**Still open:** the tap's **lead chamfer** is not in the depth. A tap does not
-cut a full thread to the end of its travel — 3 to 5 threads on a plug tap are
-still forming when it stops. In a through hole that leaves the last threads
-incomplete at the far face; in a blind hole the full-thread depth is short by
-the lead, and driving deeper to compensate bottoms the tap and breaks it. Same
-family as A9's drill point, and the same answer: record the chamfer style on the
-tool rather than guess it.
+**T3 — The tap's lead chamfer, and the hole under a blind one. — BUILT**
+Found while building T2 and fixed straight after it. A tap does not cut a full
+thread to the end of its travel: the lead chamfer is still forming when it
+stops. A drawing calling 0.500" of thread wants 0.500" of **full form**, and a
+tap that stops there leaves the last threads incomplete — which a plug gauge
+finds and nothing else does.
+
+Worse, a blind tapped hole was drilled to the thread depth and then tapped to
+the same depth. That is how a tap bottoms out and snaps off in the part, and it
+was the arithmetic on every blind tapped hole in the system.
+
+`Tool.tapLeadThreads` records the chamfer in threads — taper 7-10, plug 3-5,
+bottoming 1-1.5, and it is on the catalogue page. The tap's tip now runs to the
+called-out depth plus its lead, and the drill under a **blind** one goes deeper
+still: thread, plus lead, plus two threads for the chips to go somewhere.
+
+The two cases are not treated the same, because the cost of a wrong guess is
+not the same. In a **through** hole the far side is already open, so running
+past costs nothing and a tool with no lead recorded gets a stated five threads
+— printed in the operation's own rationale, not hidden in a Z. In a **blind**
+hole a lead assumed too short bottoms the tap, so it is refused and the message
+names the field.
+
+`tapDepth` in `cam/thread.ts`, the drill and tap branches of `machinist.ts`,
+`Tool.tapLeadThreads`.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what

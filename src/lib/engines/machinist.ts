@@ -4,7 +4,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop"
 import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type { OperationType } from "./cam/types";
 import { chamferGeometry } from "./cam/chamfer";
-import { parseThread, sameThread, tapDrill, threadEngagement, threadMinor } from "./cam/thread";
+import { PLUG_LEAD_THREADS, parseThread, sameThread, tapDepth, tapDrill, threadEngagement, threadMinor } from "./cam/thread";
 import { BREAKOUT_CLEARANCE, drillPoint } from "./cam/drill-point";
 
 /**
@@ -326,6 +326,9 @@ function classify(features: Feature[]): Classified {
  * changes, and the operator read a pocket in the list that would not be cut.
  * A depth nobody recorded is a missing input, and the planner says so.
  */
+/** Whether a feature is called out as going right through the part. */
+const isThrough = (f: Feature): boolean => "through" in f && f.through === true;
+
 const depthOf = (f: Feature, stock: Stock): number | null => {
   if ("through" in f && f.through) return stock.z;
   if ("depth" in f && typeof f.depth === "number") return f.depth;
@@ -610,6 +613,33 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         const through = "through" in hole && hole.through === true;
         let tipZ = -holeDepth;
         let breakthroughNote = "";
+
+        /*
+         * A BLIND TAPPED HOLE IS DRILLED DEEPER THAN ITS THREAD.
+         *
+         * The drawing's depth on a tapped hole is the FULL-FORM thread depth.
+         * The tap has to reach that plus its own lead chamfer, and the chips
+         * have to go somewhere below that — so the drill goes deeper than
+         * either. Drilling to the thread depth and then tapping to it is how a
+         * tap bottoms out and snaps off in the part.
+         *
+         * A through hole needs none of this: the breakthrough below already
+         * opens the far side.
+         */
+        let tapNote = "";
+        if (!through && hole.kind === "TAPPED_HOLE") {
+          const th = parseThread(hole.thread);
+          const tapForThis = th
+            ? tools.find((t) => t.toolClass === "TAP" && sameThread(t.threadDesignation, hole.thread))
+            : null;
+          if (th && tapForThis) {
+            const dep = tapDepth(th, holeDepth, false, tapForThis.tapLeadThreads);
+            if (!("error" in dep)) {
+              tipZ = -dep.hole;
+              tapNote = ` Drilled to ${dep.hole.toFixed(4)}" rather than the ${holeDepth.toFixed(3)}" thread depth: the tap reaches full form at ${holeDepth.toFixed(3)}" only if its ${dep.lead.toFixed(4)}" lead has somewhere to go, and the chips below that.`;
+            }
+          }
+        }
         if (through) {
           const point = drillPoint(match);
           if ("error" in point) {
@@ -642,7 +672,9 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
             rationale:
               (ratio > 4
                 ? `${ratio.toFixed(1)}:1 depth to diameter — pecking to clear chips rather than packing the flutes.`
-                : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`) + breakthroughNote,
+                : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`) +
+              breakthroughNote +
+              tapNote,
           },
         });
       }
@@ -843,6 +875,17 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
     const millFits = mill && mill.fluteLength >= depth;
 
     if (tap && !(pattern === "BEST_FINISH" && millFits)) {
+      /*
+       * The tap goes PAST the called-out depth by its own lead chamfer, because
+       * the chamfer is still forming when it stops. A drawing asking for 0.500"
+       * of thread wants 0.500" of full form, and a tap that stops there leaves
+       * the last threads incomplete.
+       */
+      const dep = tapDepth(thread, depth, isThrough(f), tap.tapLeadThreads);
+      if ("error" in dep) {
+        concerns.push(`${f.label}: ${dep.error.reason}`);
+        continue;
+      }
       ops1.push({
         sequence: seq++,
         type: "TAP",
@@ -851,10 +894,15 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         toolId: tap.id,
         toolNumber: tap.toolNumber,
         topZ: 0,
-        finalZ: -depth,
+        finalZ: -dep.tip,
         stepover: 0,
         stockToLeave: 0,
-        rationale: `${thread.designation} rigid tapped. The feed is the thread — ${thread.pitch.toFixed(4)}" per revolution — not a number anybody chose.`,
+        rationale:
+          `${thread.designation} rigid tapped. The feed is the thread — ${thread.pitch.toFixed(4)}" per revolution — not a number anybody chose. ` +
+          `The tip runs to ${dep.tip.toFixed(4)}" so full form reaches the called-out ${depth.toFixed(3)}": the last ${dep.lead.toFixed(4)}" is the tap's lead chamfer, still cutting.` +
+          (dep.assumed
+            ? ` ${tap.description} records no lead, so ${PLUG_LEAD_THREADS} threads is assumed — free in a through hole, and recorded on the tool it would not be an assumption.`
+            : ""),
       });
       continue;
     }

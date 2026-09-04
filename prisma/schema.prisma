@@ -227,6 +227,16 @@ model Tool {
   // one is refused rather than matched on its size.
   threadDesignation String?
 
+  // THE LEAD CHAMFER ON A TAP, in threads.
+  //
+  // A tap does not cut a full thread to the end of its travel: the chamfer is
+  // still forming when the tap stops. Taper taps carry 7-10 threads of lead,
+  // plug 3-5, bottoming 1-1.5, and the number is on the catalogue page. In a
+  // BLIND hole the tap has to reach the called-out thread depth plus its lead
+  // and the hole has to be deeper still, so a guess here is what bottoms a tap
+  // and snaps it off. Nullable, and the blind case refuses without it.
+  tapLeadThreads Float?
+
   holderId String?
   holder   ToolHolder? @relation(fields: [holderId], references: [id], onDelete: SetNull)
 

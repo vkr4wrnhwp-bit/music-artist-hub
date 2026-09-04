@@ -45,6 +45,7 @@ export interface ToolFormValues {
   pointAngle?: number | null;
   tipDiameter?: number | null;
   threadDesignation?: string | null;
+  tapLeadThreads?: number | null;
   holderId?: string | null;
   maxRPM?: number;
   recommendedMaterials?: string;
@@ -129,6 +130,16 @@ export function toolSections(
           placeholder: "1/4-20 UNC",
           hint: "For a tap or a thread mill. A 1/4-20 tap and a 1/4-28 tap are both ⌀0.250, so a match on diameter puts the wrong pitch in the hole — without this the tool is not offered for any thread.",
           defaultValue: v.threadDesignation ?? null,
+        },
+        {
+          name: "tapLeadThreads",
+          label: "Tap lead",
+          unit: "threads",
+          kind: "number",
+          min: "0",
+          half: true,
+          hint: "How many threads of chamfer are ground on the end: taper 7-10, plug 3-5, bottoming 1-1.5. A tap has to reach the called-out depth PLUS its lead, and a blind hole has to be drilled deeper still — without this a blind tapped hole is refused rather than guessed at.",
+          defaultValue: v.tapLeadThreads ?? null,
         },
         {
           name: "tipDiameter",

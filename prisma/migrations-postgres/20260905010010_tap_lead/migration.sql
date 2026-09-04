@@ -1,0 +1,11 @@
+-- The lead chamfer on a tap, in threads.
+--
+-- A tap does not cut a full thread to the end of its travel: the chamfer is
+-- still forming when the tap stops. Taper taps carry 7-10 threads of lead, plug
+-- 3-5, bottoming 1-1.5, and the number is on the catalogue page.
+--
+-- In a THROUGH hole running past by a few threads costs nothing. In a BLIND
+-- hole the tap has to reach the called-out thread depth plus its lead and the
+-- drilled hole has to be deeper still -- a guess there is what bottoms a tap and
+-- snaps it off in the part. Nullable, and the blind case refuses without it.
+ALTER TABLE "Tool" ADD COLUMN "tapLeadThreads" DOUBLE PRECISION;

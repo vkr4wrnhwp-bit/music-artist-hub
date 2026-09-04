@@ -36,7 +36,9 @@ const tool = (o: { id: string; n: number; cls: string; d: number; over?: Partial
     lifeRemaining: 1, condition: "GOOD", regrindCount: 0, ...o.over,
   }) as unknown as Tool;
 
-const TAP = tool({ id: "tap", n: 10, cls: "TAP", d: 0.25, over: { threadDesignation: "1/4-20 UNC", maxRPM: 4000 } });
+const TAP = tool({ id: "tap", n: 10, cls: "TAP", d: 0.25, over: { threadDesignation: "1/4-20 UNC", maxRPM: 4000, tapLeadThreads: 4 } });
+/** The same tap with nothing recorded about its lead chamfer. */
+const TAP_NO_LEAD = tool({ id: "tap", n: 10, cls: "TAP", d: 0.25, over: { threadDesignation: "1/4-20 UNC", maxRPM: 4000 } });
 const TM = tool({ id: "tm", n: 11, cls: "THREAD_MILL", d: 0.14, over: { threadDesignation: "1/4-20", fluteLength: 0.75 } });
 const D201 = tool({ id: "d201", n: 6, cls: "DRILL", d: 0.201, over: { pointAngle: 118, tipDiameter: 0 } });
 const SPOT = tool({ id: "spot", n: 5, cls: "SPOT_DRILL", d: 0.5, over: { pointAngle: 90, tipDiameter: 0 } });
@@ -299,6 +301,69 @@ test("a thread nobody recorded is a concern, not a guessed pitch", () => {
   assert.ok(p.concerns.some((c) => /no thread designation recorded/.test(c)), `got [${p.concerns.join(" | ")}]`);
   const q = plan([tapped({ thread: "quarter twenty" })], [D201, TAP]);
   assert.ok(q.concerns.some((c) => /cannot be read for a pitch and a major diameter/.test(q.concerns.join(" "))), `got [${q.concerns.join(" | ")}]`);
+});
+
+/* ---------------- The tap's lead chamfer ---------------- */
+
+test("the tap runs past the called-out depth by its own lead", () => {
+  /*
+   * A tap does not cut a full thread to the end of its travel: the chamfer is
+   * still forming when it stops. A drawing asking for 0.500" of thread wants
+   * 0.500" of FULL FORM, and a tap that stops there leaves the last threads
+   * incomplete — which a plug gauge finds and nothing else does.
+   */
+  const op = opsOf([tapped()], [SPOT, D201, TAP]).find((o) => o.type === "TAP")!;
+  // 4 threads of lead at 1/20" pitch is 0.200" past the 0.500" thread.
+  assert.equal(Number(op.finalZ.toFixed(6)), -0.7);
+  assert.match(op.rationale, /the last 0\.2000" is the tap's lead chamfer, still cutting/);
+  // Through, the thread is the whole thickness and the lead goes past that.
+  const thru = opsOf([tapped({ through: true })], [SPOT, D201, TAP]).find((o) => o.type === "TAP")!;
+  assert.equal(Number(thru.finalZ.toFixed(6)), -0.95);
+});
+
+test("a blind tapped hole is drilled deeper than its thread", () => {
+  /*
+   * Drilling to the thread depth and then tapping to it is how a tap bottoms
+   * out and snaps off in the part. The hole takes the thread, the lead, and
+   * somewhere for the chips to go.
+   */
+  const ops = opsOf([tapped()], [SPOT, D201, TAP]);
+  const drill = ops.find((o) => o.type === "DRILL" && o.toolId === "d201")!;
+  const tap = ops.find((o) => o.type === "TAP")!;
+  // 0.500 thread + 0.200 lead + 2 threads of chip room = 0.800.
+  assert.equal(Number(drill.finalZ.toFixed(6)), -0.8);
+  assert.ok(drill.finalZ < tap.finalZ, "the drill does not clear the tap");
+  assert.match(drill.rationale, /the chips below that/);
+});
+
+test("a blind tap with no lead recorded is refused rather than guessed at", () => {
+  // Through, the assumption is free. Blind, it is what bottoms the tap.
+  const p = plan([tapped()], [SPOT, D201, TAP_NO_LEAD]);
+  assert.equal(p.setups.flatMap((s) => s.operations).filter((o) => o.type === "TAP").length, 0);
+  assert.ok(p.concerns.some((c) => /records no lead chamfer/.test(c)), `got [${p.concerns.join(" | ")}]`);
+  assert.ok(p.concerns.some((c) => /the tap bottoms and snaps off in the part/.test(c)));
+});
+
+test("a through tap with no lead recorded says what it assumed", () => {
+  // The hole is open, so running past costs nothing — but the number is in the
+  // rationale rather than hidden in a Z.
+  const op = opsOf([tapped({ through: true })], [SPOT, D201, TAP_NO_LEAD]).find((o) => o.type === "TAP")!;
+  // 0.750 of thread through the stock, plus 5 assumed threads of lead.
+  assert.equal(Number(op.finalZ.toFixed(6)), -1);
+  assert.match(op.rationale, /records no lead, so 5 threads is assumed/);
+  assert.match(op.rationale, /free in a through hole/);
+  // And a tap that records its own does not say it assumed anything.
+  const known = opsOf([tapped({ through: true })], [SPOT, D201, TAP]).find((o) => o.type === "TAP")!;
+  assert.equal(/is assumed/.test(known.rationale), false);
+});
+
+test("a through tapped hole is not drilled deeper for the tap", () => {
+  // The breakthrough already opens the far side; adding the tap's lead on top
+  // of it would drill further into whatever is under the part for nothing.
+  const ops = opsOf([tapped({ through: true, depth: 0.5 })], [SPOT, D201, TAP]);
+  const drill = ops.find((o) => o.type === "DRILL" && o.toolId === "d201")!;
+  assert.equal(/thread depth/.test(drill.rationale), false, drill.rationale);
+  assert.match(drill.rationale, /Through hole/);
 });
 
 /* ---------------- The shape that caused it ---------------- */

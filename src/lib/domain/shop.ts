@@ -179,6 +179,15 @@ export interface Tool {
    * the wrong pitch in the hole and snaps the tap off in the part.
    */
   threadDesignation?: string;
+  /**
+   * Threads of lead chamfer on a tap, as the catalogue states it: taper 7-10,
+   * plug 3-5, bottoming 1-1.5.
+   *
+   * A tap does not cut a full thread to the end of its travel. In a blind hole
+   * it has to reach the called-out depth plus its lead, and the hole has to be
+   * deeper still — which is why a guess here is what bottoms a tap.
+   */
+  tapLeadThreads?: number;
   holder: string;
   /** Holder body diameter at the nose — used for holder clearance checks. */
   holderNoseDiameter: number;

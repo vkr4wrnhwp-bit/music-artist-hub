@@ -54,6 +54,7 @@ function parse(formData: FormData) {
     // Stored as written and compared on the numbers it parses to, so
     // "1/4-20" and "1/4-20 UNC" are one tap.
     threadDesignation: f.optionalText("threadDesignation"),
+    tapLeadThreads: f.optionalNumber("tapLeadThreads", "Tap lead", { min: 0, max: 20 }),
     holderId: f.optionalText("holderId"),
 
     material: f.text("material", "Tool material"),

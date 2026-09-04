@@ -110,3 +110,61 @@ export function threadEngagement(thread: Thread, holeDiameter: number): number {
 
 /** Minor diameter of an internal thread — the hole the crest sits at. */
 export const threadMinor = (thread: Thread): number => thread.major - 2 * 0.6495 * thread.pitch;
+
+/**
+ * HOW FAR PAST THE FULL THREAD A TAP HAS TO GO.
+ *
+ * A tap does not cut a full thread to the end of its travel: the lead chamfer
+ * is still forming when it stops. A drawing calling a 0.500" thread depth wants
+ * 0.500" of FULL FORM, so the tap's tip finishes a lead below that.
+ *
+ * In a THROUGH hole the hole is open and running past costs nothing, so a tool
+ * that records no lead gets `PLUG_LEAD_THREADS` — a stated process allowance
+ * printed in the operation's own rationale, not a number hidden in a Z.
+ *
+ * In a BLIND hole it costs everything: the tap has to reach the called-out
+ * depth plus its lead and the drilled hole has to be deeper still, and a lead
+ * assumed too short bottoms the tap and snaps it off. That case refuses.
+ */
+export const PLUG_LEAD_THREADS = 5;
+
+/** Chips have to go somewhere at the bottom of a blind tapped hole. */
+export const BLIND_TAP_CHIP_CLEARANCE_THREADS = 2;
+
+export interface TapDepth {
+  /** Z the tap's tip reaches, positive, below the top of the thread. */
+  tip: number;
+  /** How much of that is the lead rather than full thread. */
+  lead: number;
+  /** How deep the hole under it has to be drilled. */
+  hole: number;
+  /** True when the lead was the stated allowance rather than the tool's own. */
+  assumed: boolean;
+}
+
+export function tapDepth(
+  thread: Thread,
+  threadDepth: number,
+  through: boolean,
+  leadThreads: number | null | undefined,
+): TapDepth | { error: { reason: string; recommendations: string[] } } {
+  if (leadThreads == null && !through) {
+    return {
+      error: {
+        reason: `This is a blind ${thread.designation} and the tap records no lead chamfer. A tap has to reach the called-out depth plus its own lead, and the hole has to be deeper still — assume too short a lead and the tap bottoms and snaps off in the part.`,
+        recommendations: [
+          "Record the lead on the tap in threads: taper 7-10, plug 3-5, bottoming 1-1.5",
+          "The catalogue page states it, and so does the box",
+        ],
+      },
+    };
+  }
+  const threads = leadThreads ?? PLUG_LEAD_THREADS;
+  const lead = threads * thread.pitch;
+  return {
+    tip: threadDepth + lead,
+    lead,
+    hole: through ? threadDepth : threadDepth + lead + BLIND_TAP_CHIP_CLEARANCE_THREADS * thread.pitch,
+    assumed: leadThreads == null,
+  };
+}
