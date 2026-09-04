@@ -8,12 +8,15 @@ draft underneath it does.
 """
 import pytest
 
+import db as store
 import passport_store as ps
 from db import get_db
 
 
 @pytest.fixture(scope="module", autouse=True)
 def schema():
+    # The stage plot lives in db.py's schema now, not in a table of our own.
+    store.init_db()
     ps.init_passports()
 
 
@@ -64,27 +67,65 @@ def test_an_unknown_field_never_reaches_sql(passport):
     assert len(ps.rows("inputs", passport)) == 2
 
 
-def test_playback_and_stage_plot_are_single_rows(passport):
+def test_playback_is_a_single_row(passport):
     ps.save_playback(passport, system="Ableton", sample_rate="48 kHz", tc_fps="30")
     ps.save_playback(passport, system="Ableton", sample_rate="96 kHz", tc_fps="30")
     pb = ps.get_playback(passport)
     assert pb["sample_rate"] == "96 kHz", "the second save updates, not inserts"
 
-    ps.save_stage_plot(passport, width_m="12", depth_m="8",
-                       elements=[{"kind": "wedge", "x": 1, "y": 2}])
-    plot = ps.get_stage_plot(passport)
-    assert plot["width_m"] == "12"
-    assert plot["elements"][0]["kind"] == "wedge"
+
+def test_the_stage_plot_is_read_from_the_editor_not_duplicated(passport):
+    """There is no passport_stage_plot table. /stage-plot owns the drawing,
+    derives the channel list and exports the PNG the advance email attaches;
+    a second plot here would be a worse copy of a shipped feature."""
+    assert not hasattr(ps, "save_stage_plot")
+    store.save_stage_plot("user-tests", {"items": {"drums": 1, "bass": 1}})
+    plot = ps.get_stage_plot(passport, "user-tests")
+    assert plot["has_plot"] is True
+    assert plot["channels"][0] == "Kick — Beta 52"
+    assert len(plot["channels"]) == 8
 
 
-def test_an_unparseable_stage_plot_reads_as_empty(passport):
-    """A plot that will not parse must not take down a page the crew is
-    reading an hour before doors."""
-    ps.save_stage_plot(passport, width_m="10")
-    with get_db() as db:
-        db.execute("UPDATE passport_stage_plot SET elements = ? WHERE passport_id = ?",
-                   ("{not json", passport))
-    assert ps.get_stage_plot(passport)["elements"] == []
+def test_an_artist_with_no_plot_is_not_an_error(passport):
+    store.save_stage_plot("user-tests", {})
+    plot = ps.get_stage_plot(passport, "user-tests")
+    assert plot["has_plot"] is False and plot["channels"] == []
+
+
+def test_importing_seeds_the_input_list_without_duplicating(passport):
+    """The editor already knows a drum kit is seven inputs. Typing that again
+    is work the product can do - but a second import must not double it."""
+    store.save_stage_plot("user-tests", {"items": {"drums": 1}})
+    # The fixture already has a hand-typed "Kick", so a drum kit's seven
+    # channels should bring in six - the dedup is the point, not a rounding.
+    added = ps.import_inputs_from_plot(passport, "user-tests")
+    assert added == 6, "Kick was already there and must not arrive twice"
+
+    again = ps.import_inputs_from_plot(passport, "user-tests")
+    assert again == 0, "re-importing must not duplicate"
+
+    sources = [r["source"] for r in ps.rows("inputs", passport)]
+    assert sources.count("Kick") == 1
+    assert "Snare" in sources and "OH R" in sources
+
+
+def test_the_import_leaves_what_the_drawing_cannot_know_blank(passport):
+    store.save_stage_plot("user-tests", {"items": {"bass": 1}})
+    ps.import_inputs_from_plot(passport, "user-tests", replace=True)
+    row = [r for r in ps.rows("inputs", passport) if r["source"] == "Bass"][0]
+    assert row["mic_di"] == "DI"
+    assert row["patch"] == "" and row["stagebox"] == "" and row["performer"] == ""
+
+
+def test_publishing_freezes_the_drawn_plot_too(passport):
+    """This is what the consolidation buys: the drawn plot had no versioning
+    of its own, and now a published passport carries the plot as it stood."""
+    store.save_stage_plot("user-tests", {"items": {"drums": 1}})
+    vid = ps.publish(passport, "user-tests")
+    store.save_stage_plot("user-tests", {"items": {"drums": 1, "keys": 2}})
+    frozen = ps.get_version(vid, "user-tests")["snapshot"]["stage_plot"]
+    assert len(frozen["channels"]) == 7, "the version keeps the plot it froze"
+    assert len(ps.get_stage_plot(passport, "user-tests")["channels"]) == 11
 
 
 # --- immutability, the point of the phase ------------------------------------

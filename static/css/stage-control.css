@@ -59,8 +59,10 @@
 }
 
 /* --- the version stamp ---------------------------------------------------- */
-/* Rotated like a rubber stamp because that is exactly its job: it says which
- * document you are holding. Kept off the print path's way at small widths. */
+/* It WAS rotated like a rubber stamp. Dropped: the brief asks for operational
+ * rather than decorative, the stamp is already doing real work saying which
+ * document you are holding, and the tilt was the one flourish that was not
+ * carrying any. */
 
 .sc-stamp {
   display: inline-flex;
@@ -74,7 +76,6 @@
   font-family: var(--sb-mono);
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  transform: rotate(-2deg);
 }
 
 .sc-stamp-no {
@@ -90,7 +91,6 @@
 .sc-stamp--none {
   border-color: var(--sb-paper-line);
   color: var(--sb-paper-ink-3);
-  transform: none;
 }
 
 .sc-stamp--draft {
@@ -202,13 +202,17 @@
   background: var(--sb-warn-wash);
 }
 
+/* --sb-warn on the warn wash measures 2.14:1. These are dark-on-paper
+ * variants of the same hues, each measured at >= 4.5:1 on the ground it
+ * actually sits on. The status hues stay recognisable; they stop being
+ * decorative. */
 .sc-gaps h3 {
   margin: 0 0 var(--sb-s2);
   font-family: var(--sb-mono);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--sb-warn);
+  color: rgb(151 86 41);
 }
 
 .sc-gaps ul { margin: 0; padding-left: var(--sb-s5); }
@@ -237,15 +241,26 @@
   color: var(--sb-paper-ink);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--sb-paper-line);
+  /* 1.4.11: this underline is the only visible boundary of the control, so it
+   * needs 3:1, not the decorative-rule contrast --sb-paper-line carries
+   * (1.41:1). Measured 3.40:1. */
+  border-bottom: 1px solid rgb(132 130 125);
   border-radius: 0;
 }
 
-.sc-in:focus {
-  outline: 2px solid var(--sb-focus);
-  outline-offset: 2px;
-  border-bottom-color: var(--sb-paper-gold);
+/* --sb-focus is a BOX-SHADOW value, not a colour. This said
+ * `outline: 2px solid var(--sb-focus)`, which is invalid CSS, so the browser
+ * dropped the whole declaration and the focus ring never existed. Every other
+ * sheet in the repo does `box-shadow: var(--sb-focus)`; so does this one now. */
+.sc-in:focus-visible,
+.sc-btn:focus-visible,
+.sc-x:focus-visible {
+  outline: none;
+  box-shadow: var(--sb-focus);
+  border-radius: var(--sb-r-control);
 }
+
+.sc-in:focus { border-bottom-color: var(--sb-paper-gold); }
 
 .sc-in::placeholder { color: var(--sb-paper-ink-3); }
 
@@ -283,7 +298,7 @@ select.sc-in {
   cursor: pointer;
 }
 
-.sc-x:hover { color: var(--sb-crit); border-color: var(--sb-crit); }
+.sc-x:hover { color: rgb(184 75 61); border-color: rgb(184 75 61); }
 
 .sc-btn {
   padding: var(--sb-s2) var(--sb-s4);
@@ -309,6 +324,16 @@ select.sc-in {
 
 .sc-btn--go:hover { color: var(--sb-paper); filter: brightness(1.06); }
 .sc-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* 2.5.5. .sc-btn was ~31px tall and .sc-x ~20px. board.css, light-studio.css
+ * and rack.css all carry this rule already - Stage Control is the module most
+ * likely to be operated on a phone, so it is the last one that should skip it. */
+@media (pointer: coarse) {
+  .sc-btn, .sc-x { min-height: 44px; }
+  .sc-x { min-width: 44px; }
+  .sc-in { min-height: 44px; }
+  select.sc-in { min-height: 44px; }
+}
 
 /* --- publishing ----------------------------------------------------------- */
 
@@ -406,9 +431,9 @@ select.sc-in {
   min-width: 5.5rem;
 }
 
-.sc-diff-tag--add { color: var(--sb-good); }
-.sc-diff-tag--rm { color: var(--sb-crit); }
-.sc-diff-tag--ch { color: var(--sb-warn); }
+.sc-diff-tag--add { color: rgb(80 119 76); }   /* 4.56:1 on paper */
+.sc-diff-tag--rm { color: rgb(184 75 61); }    /* 4.53:1 on paper */
+.sc-diff-tag--ch { color: rgb(162 92 44); }    /* 4.54:1 on paper */
 
 .sc-was {
   color: var(--sb-paper-ink-3);

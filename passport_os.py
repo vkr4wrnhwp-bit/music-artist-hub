@@ -67,6 +67,11 @@ def _ctx(**extra):
     return base
 
 
+# Both spellings, with the slash-less one canonical because that is what every
+# other nav href in the app looks like. Registering only "/" made the sidebar
+# entry point at a URL that merely REDIRECTED, which
+# tests/test_navigation_honesty.py rightly calls pointing nowhere.
+@bp.route("")
 @bp.route("/")
 def index():
     user = _signed_in()
@@ -101,7 +106,7 @@ def detail(head, user):
         sections={s: ps.rows(s, head["id"]) for s in EDITABLE_SECTIONS},
         section_labels=SECTION_LABELS,
         playback=ps.get_playback(head["id"]),
-        stage_plot=ps.get_stage_plot(head["id"]),
+        stage_plot=ps.get_stage_plot(head["id"], user["id"]),
         documents=ps.documents(head["id"]),
         gaps=ps.gaps(head["id"], user["id"]),
         versions=ps.versions(head["id"]),
@@ -156,16 +161,17 @@ def save_playback(head, user):
     return redirect(url_for("passport.detail", passport_id=head["id"]) + "#playback")
 
 
-@bp.route("/<passport_id>/stage-plot", methods=["POST"])
+@bp.route("/<passport_id>/inputs/import", methods=["POST"])
 @require_passport
-def save_stage_plot(head, user):
-    ps.save_stage_plot(head["id"],
-                       width_m=request.form.get("width_m"),
-                       depth_m=request.form.get("depth_m"),
-                       power_notes=request.form.get("power_notes"),
-                       access_notes=request.form.get("access_notes"),
-                       elements=ps.get_stage_plot(head["id"])["elements"])
-    return redirect(url_for("passport.detail", passport_id=head["id"]) + "#stage_plot")
+def import_inputs(head, user):
+    """Seed the input list from the drawn stage plot.
+
+    There is no save-the-plot route here on purpose: /stage-plot owns the
+    drawing, and a second editor would fork it. This reads it.
+    """
+    ps.import_inputs_from_plot(head["id"], user["id"],
+                               replace=bool(request.form.get("replace")))
+    return redirect(url_for("passport.detail", passport_id=head["id"]) + "#inputs")
 
 
 @bp.route("/<passport_id>/publish", methods=["POST"])

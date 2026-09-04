@@ -32,6 +32,8 @@ import json
 import sqlite3
 import uuid
 
+import stage_plot_catalog as catalog
+
 from db import get_db, _now
 
 # --- vocabulary --------------------------------------------------------------
@@ -131,19 +133,13 @@ def init_passports():
             );
             CREATE INDEX IF NOT EXISTS idx_ppersonnel ON passport_personnel(passport_id, sort);
 
-            /* Dimensions plus a free-form element list, kept as JSON because a
-               stage plot is a drawing: its shape changes with the editor, and
-               a column per element type would be a migration every time
-               somebody adds a riser. */
-            CREATE TABLE IF NOT EXISTS passport_stage_plot (
-                passport_id TEXT PRIMARY KEY,
-                width_m TEXT NOT NULL DEFAULT '',
-                depth_m TEXT NOT NULL DEFAULT '',
-                power_notes TEXT NOT NULL DEFAULT '',
-                access_notes TEXT NOT NULL DEFAULT '',
-                elements TEXT NOT NULL DEFAULT '[]',
-                updated TEXT NOT NULL
-            );
+            /* NO passport_stage_plot table. The Stage Plot editor
+               (/stage-plot, static/js/stageplot.js) already owns the drawing,
+               already derives a channel list from it, and already exports the
+               PNG the TOUR advance email attaches. A second plot here would be
+               a worse copy of a shipped feature. The passport READS that plot
+               and freezes it into each published version instead - which gives
+               the drawn plot the versioning it never had. */
 
             CREATE TABLE IF NOT EXISTS passport_inputs (
                 id TEXT PRIMARY KEY,
@@ -416,6 +412,10 @@ def delete_row(section, passport_id, row_id):
     return cur.rowcount > 0
 
 
+def rows_for(section, passport_id):
+    return rows(section, passport_id)
+
+
 def rows(section, passport_id):
     table, _cols = _SECTION_TABLES[section]
     with get_db() as db:
@@ -455,40 +455,55 @@ def get_playback(passport_id):
                        passport_id=passport_id, updated="")
 
 
-def save_stage_plot(passport_id, width_m="", depth_m="", power_notes="",
-                    access_notes="", elements=None):
-    """`elements` is a list of dicts. Stored as JSON - see the schema comment."""
-    payload = json.dumps(elements if elements is not None else [])
-    with get_db() as db:
-        db.execute(
-            "INSERT INTO passport_stage_plot (passport_id, width_m, depth_m, "
-            "power_notes, access_notes, elements, updated) VALUES (?,?,?,?,?,?,?) "
-            "ON CONFLICT(passport_id) DO UPDATE SET width_m = excluded.width_m, "
-            "depth_m = excluded.depth_m, power_notes = excluded.power_notes, "
-            "access_notes = excluded.access_notes, elements = excluded.elements, "
-            "updated = excluded.updated",
-            (passport_id, (width_m or "").strip(), (depth_m or "").strip(),
-             (power_notes or "").strip(), (access_notes or "").strip(),
-             payload, _now()))
-    _touch(passport_id)
-    return True
+def get_stage_plot(passport_id, user_id=None):
+    """The artist's drawn stage plot, from the Stage Plot editor.
 
-
-def get_stage_plot(passport_id):
-    with get_db() as db:
-        row = _row(db.execute(
-            "SELECT * FROM passport_stage_plot WHERE passport_id = ?",
-            (passport_id,)).fetchone())
-    if not row:
-        return {"passport_id": passport_id, "width_m": "", "depth_m": "",
-                "power_notes": "", "access_notes": "", "elements": [], "updated": ""}
+    Per USER, not per passport, because that is where the editor keeps it and
+    duplicating it here would fork the drawing. `elements` is whatever the
+    editor saved; this module never writes it.
+    """
+    head = get_passport(passport_id, user_id)
+    if head is None:
+        return {"state": None, "channels": [], "has_plot": False}
+    import db as _store
     try:
-        row["elements"] = json.loads(row["elements"] or "[]")
-    except (TypeError, ValueError):
-        # A plot that will not parse is shown as empty rather than exploding a
-        # page the crew is trying to read an hour before doors.
-        row["elements"] = []
-    return row
+        state = _store.get_stage_plot(head["user_id"])
+    except sqlite3.OperationalError:
+        # The Stage Plot editor's table belongs to another module. A passport
+        # page must not 500 because that module has not initialised its schema
+        # on this deployment - "no plot" is the honest answer, and it is the
+        # same answer an artist who has not drawn one gets.
+        state = None
+    return {"state": state, "channels": catalog.channel_list(state),
+            "has_plot": bool(state and (state.get("items") or {}))}
+
+
+def import_inputs_from_plot(passport_id, user_id=None, replace=False):
+    """Seed the input list from the drawn plot.
+
+    The editor already knows a drum kit is seven inputs. Typing that in again
+    is work the product can do, so this turns its channel list into structured
+    rows - and leaves patch, stagebox and performer BLANK, because the drawing
+    does not know them and an invented patch number on a rider is worse than an
+    empty one.
+
+    Appends by default. `replace` is offered because re-importing after adding
+    a keyboard should be able to rebuild rather than duplicate, but it is never
+    the default: it would silently discard mic choices somebody typed by hand.
+    """
+    plot = get_stage_plot(passport_id, user_id)
+    rows = catalog.as_input_rows(plot["state"])
+    if not rows:
+        return 0
+    if replace:
+        with get_db() as db:
+            db.execute("DELETE FROM passport_inputs WHERE passport_id = ?", (passport_id,))
+    else:
+        existing = {(r.get("source") or "").lower() for r in rows_for("inputs", passport_id)}
+        rows = [r for r in rows if r["source"].lower() not in existing]
+    for r in rows:
+        add_row("inputs", passport_id, **r)
+    return len(rows)
 
 
 # --- documents ---------------------------------------------------------------
@@ -537,7 +552,7 @@ def build_snapshot(passport_id, user_id=None):
         "identity": {k: head.get(k, "") for k in IDENTITY_FIELDS},
         "contacts": rows("contacts", passport_id),
         "personnel": rows("personnel", passport_id),
-        "stage_plot": get_stage_plot(passport_id),
+        "stage_plot": get_stage_plot(passport_id, user_id),
         "inputs": rows("inputs", passport_id),
         "outputs": rows("outputs", passport_id),
         "playback": get_playback(passport_id),
