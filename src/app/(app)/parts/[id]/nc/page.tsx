@@ -15,10 +15,11 @@ import {
   type PostContext,
 } from "@/lib/engines/cam/post";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
+import { POSITION_TOLERANCE, reconcilePostedProgram } from "@/lib/nc/reconcile";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { NcExportPanel } from "@/components/nc/export-panel";
-import { Button, DevLabel, Dot, Field, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { Button, DevLabel, Dot, Field, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, Table, Td, inputClass } from "@/components/ui";
 
 /**
  * NC OUTPUT
@@ -67,8 +68,22 @@ export default async function NcPage(props: {
   // program leaving; the mint re-checks, because a disabled button is not a
   // gate.
   const verifyBlockers = ncVerificationBlockers(issues);
+
+  /*
+   * RECONCILIATION — does the emitted program cut the path that was approved?
+   *
+   * Recomputed from the stored program text on every render rather than stored
+   * with the program, because it is a comparison between two things that both
+   * move: regenerate the toolpath and the answer changes, and a stored verdict
+   * would go on describing a program that no longer matches.
+   */
+  const reconciled = existing ? reconcilePostedProgram(existing.code, pkg.toolpaths) : null;
   const canExport =
-    preflightPassed(preflight) && Boolean(selectedPost) && Boolean(machine) && verifyBlockers.length === 0;
+    preflightPassed(preflight) &&
+    Boolean(selectedPost) &&
+    Boolean(machine) &&
+    verifyBlockers.length === 0 &&
+    Boolean(reconciled?.verified);
 
   /* ---------------- Generate ---------------- */
 
@@ -287,6 +302,62 @@ export default async function NcPage(props: {
 
           {existing && (
             <>
+              {reconciled && (
+                <Panel
+                  title="Program against plan"
+                  meta={
+                    <StatusChip tone={reconciled.verified ? "pass" : "risk"}>
+                      {reconciled.verified ? "TRACES THE PLAN" : "DOES NOT MATCH"}
+                    </StatusChip>
+                  }
+                >
+                  <div className="mb-3">
+                    <LimitsDisclosure label="What this proves and what it does not">
+                      Every other check on this page verifies the TOOLPATH — workholding, holding margin, simulation,
+                      collision, cycle time. The post sits downstream of all of them. This reads the emitted program
+                      back and checks it traces the same path, within {POSITION_TOLERANCE}″, so the proofs already run
+                      against the toolpath carry over to the file. It is geometry only: it says nothing about whether
+                      the work offset is set, the length offsets are right or the spindle turns the right way.
+                    </LimitsDisclosure>
+                  </div>
+                  <p className="mb-3 text-[12px] leading-relaxed text-platinum-dim">{reconciled.detail}</p>
+                  {reconciled.tools.length > 0 && (
+                    <Table head={["Tool", "Planned cut", "In the program", "Worst departure"]}>
+                      {reconciled.tools.map((t) => (
+                        <tr key={t.toolNumber} className="hover:bg-raised">
+                          <Td className="font-mono text-platinum">T{t.toolNumber}</Td>
+                          <Td muted>{t.plannedCutting.toFixed(2)}″</Td>
+                          <Td muted>{t.postedCutting.toFixed(2)}″</Td>
+                          <Td>
+                            <span
+                              className={
+                                Number.isFinite(t.maxDeviation) && t.maxDeviation <= POSITION_TOLERANCE
+                                  ? "font-mono tabular-nums text-platinum"
+                                  : "font-mono tabular-nums text-risk"
+                              }
+                            >
+                              {Number.isFinite(t.maxDeviation) ? `${t.maxDeviation.toFixed(4)}″` : "not in the program"}
+                            </span>
+                          </Td>
+                        </tr>
+                      ))}
+                    </Table>
+                  )}
+                  {reconciled.findings.length > 0 && (
+                    <ul className="mt-3 space-y-1">
+                      {reconciled.findings.map((f, i) => (
+                        <li key={i} className="flex gap-3 text-[11.5px] leading-relaxed">
+                          <span className={f.severity === "ERROR" ? "font-mono text-risk" : "font-mono text-review"}>
+                            {f.severity}
+                          </span>
+                          <span className="text-platinum-dim">{f.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Panel>
+              )}
+
               {issues.length > 0 && (
                 <Panel title={`NC verification — ${issues.length} issues`} meta={<DevLabel>Linter, not a verifier</DevLabel>}>
                   <div className="mb-3">

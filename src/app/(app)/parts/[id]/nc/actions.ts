@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { getPost, ncVerificationBlockers, preflightPassed, verifyNc } from "@/lib/engines/cam/post";
+import { reconcilePostedProgram } from "@/lib/nc/reconcile";
 
 /**
  * NC EXPORT — mint and record.
@@ -101,6 +102,34 @@ export async function mintExport(partId: string): Promise<MintGrant | MintRefusa
         })),
       };
     }
+  }
+
+  /*
+   * DOES THE FILE ABOUT TO LEAVE CUT THE PATH THAT WAS APPROVED?
+   *
+   * Everything above this line verified the TOOLPATH — workholding, holding
+   * margin, simulation, collision, cycle time, the gates, the approval. The
+   * post sits downstream of all of it, and nothing read what came out. A
+   * dropped retract, a reversed arc, a canned cycle whose R plane does not
+   * match the moves it replaced: each produces a program that looks like the
+   * plan and does not cut like it, and every proof above would still pass.
+   *
+   * At the mint, against the bytes about to be handed over, for the same
+   * reason the NC verification above is: a stored verdict is a claim about the
+   * code as it was.
+   */
+  const reconciled = reconcilePostedProgram(program.code, pkg.toolpaths);
+  if (!reconciled.verified) {
+    return {
+      ok: false,
+      refused: reconciled.findings
+        .filter((f) => f.severity === "ERROR")
+        .map((f, idx) => ({
+          id: `reconcile-${f.line ?? idx}`,
+          label: f.line ? `Program does not match the plan, line ${f.line}` : "Program does not match the plan",
+          detail: f.message,
+        })),
+    };
   }
 
   const bytes = Buffer.from(program.code, "utf8");

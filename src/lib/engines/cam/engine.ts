@@ -726,7 +726,20 @@ function drillToolpath(
 
   moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: rPlane, feed: null });
   if (peck) {
-    let z = req.topZ;
+    /*
+     * The peck ladder starts at the R PLANE, not at the top of the stock.
+     *
+     * That is what the control does: G83's Q is the increment measured from R,
+     * so the depths are R−Q, R−2Q … and the first peck spends the air gap
+     * between R and the surface. Starting the ladder at topZ instead produced a
+     * move list whose peck depths were every one of them Q off from the cycle
+     * the post emits — 13% more cutting distance in the program than in the
+     * plan, on a path the simulator had already approved.
+     *
+     * Found by reconcile.ts on its first run against a real part, which is the
+     * entire reason that module exists.
+     */
+    let z = rPlane;
     while (z > req.finalZ + 1e-6) {
       z = Math.max(req.finalZ, z - peckDepth);
       moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z, feed: drillFeed });

@@ -277,22 +277,50 @@ transfer and its tolerance stack become expressible.
 
 ### C. Verification must verify the artifact that is actually run
 
-**C1 — Simulate the posted program, not the pre-post move list. (MEDIUM)**
-`sim/stock-removal.ts` takes `Move[]`. So the simulator proves the toolpath
-engine's intent, and the post sits downstream of the proof. Every class of post
-bug — a dropped retract, a modal feed carried into a rapid, a bad arc, a wrong
-offset word — is invisible by construction.
+**C1 + C2 — Verify the artifact that is actually run. — BUILT**
+Everything upstream verified the TOOLPATH: workholding, holding margin, the
+height-field simulation, collision, cycle time, the gates, the approval. The
+post sat downstream of every one of those proofs and nothing read what came out
+of it. A dropped retract, a reversed arc, a canned cycle whose R plane does not
+match the moves it replaced — each produces a program that looks like the plan
+and does not cut like it, and every proof above would still have passed.
 
-Both halves already exist: `nc/parse.ts` is a real modal G-code interpreter
-that refuses honestly what it cannot read, and `stock-removal.ts` is a real
-height-field simulator. Wire the parser's output into the simulator and run the
-*emitted text*.
+`nc/reconcile.ts` reads the emitted program back with the existing NC parser and
+proves it traces the same path as the toolpath, to a stated 0.004″. **That is
+stronger than simulating the posted text and cheaper.** If the program traces
+the moves the simulator already swept, every proof already run against those
+moves covers the program too — and there is no second material-removal model to
+keep in step with the first. Two simulators that disagree is a worse problem
+than the one being solved.
 
-**C2 — Prove post output against the toolpath it came from. (SMALL)**
-Nothing compares them. Sample the posted program back to points and check them
-against the source moves within a tolerance; report any divergence as a
-blocking finding. This is the check that lets a post eventually stop being
-labelled DEVELOPMENT.
+It compares in both directions, because a program that cuts a perfect *subset*
+of the plan would pass a one-way check while quietly dropping a finish pass.
+It refuses Heidenhain and Siemens **by name** rather than reading them wrongly —
+the parser is a Fanuc-family interpreter, and run against a foreign dialect it
+produced a page of confident nonsense. It reports UNVERIFIED where the parser
+refused, because unread must never come back verified. And it gates: the export
+mint runs it against the bytes about to be handed over, not against a stored
+verdict.
+
+**It found a real defect on its first run**, in code written an hour earlier:
+the drill engine's peck ladder started at the stock top while `G83` measures Q
+from the R plane, so every peck depth in the program was one increment off the
+move list the simulator had already approved — 13% more cutting distance in the
+program than in the plan.
+
+Measured on a real eight-tool part, a freshly posted program traces the plan to
+**0.00102″** — the NC parser's own arc tessellation, with everything else below
+rounding. The same part's *stored* program, posted before arcs existed, comes
+back at 0.0729″ and DOES NOT MATCH, which is the ordinary shop case this catches
+every day: the plan moved and the program on the machine did not.
+
+**Still uncovered, stated:** geometry, not machine state. It says nothing about
+whether the work offset is set, the length offsets are right, or the spindle
+turns the right way — `verifyNc` covers part of that and the setup sheet carries
+the rest to the machine.
+
+`src/lib/nc/reconcile.ts`, the mint in `parts/[id]/nc/actions.ts`, the panel on
+`parts/[id]/nc`.
 
 **C3 — Collision checks are optional and say so. (MEDIUM)**
 The fixture check runs only when a fixture model is supplied and reports
