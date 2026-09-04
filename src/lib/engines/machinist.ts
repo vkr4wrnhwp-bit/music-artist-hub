@@ -5,6 +5,7 @@ import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type { OperationType } from "./cam/types";
 import { chamferGeometry } from "./cam/chamfer";
 import { PLUG_LEAD_THREADS, parseThread, sameThread, tapDepth, tapDrill, threadEngagement, threadMinor } from "./cam/thread";
+import { annulusOf, footprintOf, overlaps } from "./cam/island";
 import { BREAKOUT_CLEARANCE, drillPoint } from "./cam/drill-point";
 
 /**
@@ -285,6 +286,8 @@ interface Classified {
   /** Holes that also carry a head to cut once the pilot exists. */
   heads: Feature[];
   bores: Feature[];
+  /** Features that have to be LEFT STANDING when everything round them goes. */
+  bosses: Feature[];
   contours: Feature[];
   chamfers: Feature[];
   engravings: Feature[];
@@ -311,6 +314,7 @@ function classify(features: Feature[]): Classified {
     holes: features.filter((f) => f.kind === "DRILLED_HOLE" || f.kind === "TAPPED_HOLE" || headed(f)),
     heads: features.filter(headed),
     bores: features.filter((f) => f.kind === "BORE" || f.kind === "CIRC_POCKET"),
+    bosses: features.filter((f) => f.kind === "BOSS"),
     contours: features.filter((f) => f.kind === "OUTSIDE_CONTOUR"),
     chamfers: features.filter((f) => f.kind === "CHAMFER"),
     engravings: features.filter((f) => f.kind === "ENGRAVING"),
@@ -430,6 +434,20 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
       concerns.push(`${f.label}: no depth recorded, so it cannot be planned. A pocket of unknown depth is a missing dimension, not a shallow one.`);
       continue;
     }
+    /*
+     * A pocket with something standing in it that is not a concentric round
+     * island is an operation the engine refuses. Planning it anyway produces a
+     * plan that reads complete and cannot run, which the boss's own concern
+     * above has already explained.
+     */
+    const blocked = c.bosses.some(
+      (b) =>
+        footprintOf(f) !== null &&
+        footprintOf(b) !== null &&
+        overlaps(footprintOf(f)!, footprintOf(b)!) &&
+        annulusOf(f, b) === null,
+    );
+    if (blocked) continue;
     const { tool, reason } = selectMill(tools, cr, d, prefer);
     if (!tool) {
       concerns.push(`${f.label}: ${reason}`);
@@ -466,6 +484,28 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         });
       }
     }
+  }
+
+  /*
+   * BOSSES.
+   *
+   * A boss was in no bucket at all: no operation, no concern, and the pocket
+   * around it machined it away without a word. Cutting the material round a
+   * boss IS island avoidance, so there is no separate boss operation to plan —
+   * what there is, is the truth about it, said once per boss.
+   *
+   * The pocket that contains one refuses in the engine and names it, and the
+   * coverage gate holds the part until somebody says how the boss is made.
+   */
+  for (const f of c.bosses) {
+    const inPocket = [...c.pockets, ...c.bores].find(
+      (pk) => footprintOf(pk) !== null && footprintOf(f) !== null && overlaps(footprintOf(pk)!, footprintOf(f)!),
+    );
+    concerns.push(
+      inPocket
+        ? `${f.label} stands inside ${inPocket.label}. Cutting the material round an island is island avoidance and this engine does not have it — the only case it can cut is a round island concentric in a round pocket.`
+        : `${f.label} is left standing while the material round it goes, which is island avoidance and this engine does not have it. Nothing here will produce it.`,
+    );
   }
 
   /*

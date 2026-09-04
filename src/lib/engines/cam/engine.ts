@@ -14,6 +14,7 @@ import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
 import { arcGeometry, arcMove, arcSegments } from "./arc";
 import { chainLength, chainMoves, offsetChain, rectangleChain, type Chain } from "./chain";
 import { chamferEdge, chamferGeometry } from "./chamfer";
+import { annulusOf, islandsIn } from "./island";
 import { parseThread, parseThreadMajor, parseThreadPitch, sameThread, threadMinor } from "./thread";
 
 /**
@@ -508,6 +509,48 @@ function pocketToolpath(
     };
   }
 
+  /*
+   * ANYTHING STANDING IN THIS POCKET.
+   *
+   * A pocket toolpath sweeps its whole area, so a boss inside one is machined
+   * away — on a 3.000 × 2.000 pocket with a ⌀0.750 boss at its centre, a third
+   * of the moves were inside the boss and the helical entry started at the
+   * boss's own centre. Nothing said a word.
+   *
+   * A circular island concentric in a circular pocket is an annulus and needs
+   * no clipping at all. Every other arrangement needs island avoidance, which
+   * this engine does not have, and it is refused by name.
+   */
+  const islands = islandsIn(feature, ctx.partFeatures);
+  let inner = 0;
+  if (islands.length > 1) {
+    return {
+      error: {
+        reason: `${feature.label} has ${islands.length} features standing in it — ${islands.map((f) => f.label).join(", ")}. A pocket toolpath sweeps its whole area, so it would machine all of them away. Cutting around more than one island needs island avoidance, which this engine does not have.`,
+        recommendations: [
+          "Machine this pocket as separate pockets between the islands",
+          "Record the islands as not made by this program if another operation produces them",
+        ],
+      },
+    };
+  }
+  if (islands.length === 1) {
+    const ring = annulusOf(feature, islands[0]);
+    if (!ring) {
+      return {
+        error: {
+          reason: `${islands[0].label} stands inside ${feature.label}, and a pocket toolpath sweeps its whole area — this path would machine it away. Only a round island concentric in a round pocket can be cut without island avoidance, which this engine does not have.`,
+          recommendations: [
+            `Make ${feature.label} a round pocket concentric with ${islands[0].label}, if that is what the part is`,
+            "Machine the area around the island as separate pockets",
+            `Record ${islands[0].label} as not made by this program if another operation produces it`,
+          ],
+        },
+      };
+    }
+    inner = ring.innerDiameter;
+  }
+
   if (circular && diameter <= d) {
     return {
       error: {
@@ -541,17 +584,47 @@ function pocketToolpath(
     if (circular) {
       // Helical entry at centre, then concentric rings outward. The helix
       // must fit inside the finished wall, less the tool radius.
-      const entry = helicalEntry(cx, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, diameter / 2 - r - leave);
-      if (!entry) return helixRefusal(d, `⌀${diameter.toFixed(4)} pocket`);
-      moves.push(...entry);
+      /*
+       * With an island there is material at the centre, so the helix goes in
+       * the band on the mid-radius rather than on the axis — and the band has
+       * to be wider than the tool for one to fit at all.
+       */
+      if (inner > 0) {
+        const band = (diameter - inner) / 2 - leave;
+        if (band <= d) {
+          return {
+            error: {
+              reason: `${feature.label} leaves a ${band.toFixed(4)}" band around ${islands[0].label} and the tool is ⌀${d.toFixed(4)}. There is no room to get in, let alone move.`,
+              recommendations: [`Use a tool under ⌀${band.toFixed(4)}`, "Open the pocket or reduce the island"],
+            },
+          };
+        }
+        const mid = (diameter / 2 + inner / 2) / 2;
+        const entry = helicalEntry(cx + mid, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, band / 2 - r);
+        if (!entry) return helixRefusal(d, `${band.toFixed(4)}" band around ${islands[0].label}`);
+        moves.push(...entry);
+      } else {
+        const entry = helicalEntry(cx, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, diameter / 2 - r - leave);
+        if (!entry) return helixRefusal(d, `⌀${diameter.toFixed(4)} pocket`);
+        moves.push(...entry);
+      }
       const maxRadius = diameter / 2 - r - leave;
-      for (let rad = stepover; rad <= maxRadius + 1e-6; rad += stepover) {
+      // An island leaves an annulus: the rings start clear of it rather than
+      // at the centre, and the last one stops a tool radius off its wall.
+      const minRadius = inner > 0 ? inner / 2 + r + leave : 0;
+      for (let rad = Math.max(stepover, minRadius); rad <= maxRadius + 1e-6; rad += stepover) {
         ringMoves(moves, cx, cy, Math.min(rad, maxRadius), z, p.feed);
       }
       // Finish wall pass, full depth, no stock left.
       if (pass === passes) {
         moves.push({ type: "LEAD_IN", x: cx + diameter / 2 - r - leave, y: cy, z, feed: p.feed });
         ringMoves(moves, cx, cy, diameter / 2 - r, z, Math.round(p.feed * 0.7));
+        // The island gets a finish pass too: it is a wall of the part, and the
+        // one the boss's own size is measured on.
+        if (inner > 0) {
+          moves.push({ type: "LEAD_IN", x: cx + inner / 2 + r, y: cy, z, feed: p.feed });
+          ringMoves(moves, cx, cy, inner / 2 + r, z, Math.round(p.feed * 0.7));
+        }
       }
     } else {
       const innerW = width - d - 2 * leave;
@@ -577,8 +650,8 @@ function pocketToolpath(
     warnings.push(`${leave.toFixed(3)}" left on the walls for the finish pass.`);
   }
 
-  const area = circular ? Math.PI * (diameter / 2) ** 2 : width * length;
-  return { moves, removed: area * totalDepth, warnings };
+  const area = (circular ? Math.PI * (diameter / 2) ** 2 : width * length) - Math.PI * (inner / 2) ** 2;
+  return { moves, removed: Math.max(0, area) * totalDepth, warnings };
 }
 
 /**

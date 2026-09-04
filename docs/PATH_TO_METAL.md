@@ -740,10 +740,11 @@ first.
 Tier 0 gets one part cut. Tier 1 is the difference between a demonstration and
 a shop's Tuesday. Still no kernel required.
 
-- **Chained 2D geometry.** Open and closed chains, islands, multiple pockets.
-  The natural extension of A5, and it covers most job-shop profiling. ~~Slots as
-  real slots~~ and ~~radial and grid patterns, bolt circles~~ — BUILT; see T1
-  and T4.
+- **Chained 2D geometry.** Open and closed chains, and general island
+  avoidance. The natural extension of A5, and it covers most job-shop
+  profiling. ~~Slots as real slots~~, ~~radial and grid patterns, bolt
+  circles~~ and ~~the one island case that needs no clipping~~ — BUILT; see T1,
+  T4 and T5.
 - **Hole-making as a family.** Spot, drill, peck, chip-break, ream, back-spot.
   ~~Counterbore, countersink~~ and ~~the drill point angle in the depth
   arithmetic~~ — BUILT; see A9 and T1 below.
@@ -912,6 +913,46 @@ cycles.
 
 `src/lib/domain/pattern.ts`, `patternFeature` in `features/feature-actions.ts`,
 `components/pattern-form.tsx`, `Feature.patternId/patternIndex/patternJson`.
+
+**T5 — A pocket machined away anything standing in it. — BUILT**
+A pocket toolpath sweeps its whole area. On a 3.000 × 2.000 pocket with a
+Ø0.750 locating boss at its centre, **66 of the 188 moves were inside the
+boss**, and the helical entry started at the boss's own centre. The boss was
+machined away, the operation reported real motion, and nothing said a word.
+
+The coverage gate caught the wrong half of it. A `BOSS` was in no `classify`
+bucket at all, so it had no operation and read as "not cut" — and a machinist
+looking at a feature they want **left standing** could reasonably record it as
+not made by this program, which clears the gate and leaves the program still
+cutting it away. The check that existed pointed at the symptom and the cause
+went unmentioned.
+
+Machining round an island is island avoidance: offsetting a region bounded by an
+outer loop and inner loops, and clipping every ring against every island. That
+is a real piece of computational geometry and this engine does not have it — so
+a pocket with something standing in it is **refused, by name**, rather than
+approximated.
+
+**One case needs none of it.** A round island concentric in a round pocket is an
+annulus, and concentric rings between the two radii are exactly right with
+nothing to clip — a sealing land, a relief round a spigot, a counterbored face.
+That case is cut: the rings start a tool radius clear of the island, the helix
+goes in the BAND rather than on the axis (there is material on the axis now), a
+band narrower than the tool is refused, and the island gets a finish pass of its
+own because it is a wall of the part and the one the boss's size is measured on.
+Measured: a Ø0.375 tool in a Ø2.500 pocket round a Ø1.200 spigot cuts between
+radius 0.7875 and 1.0625, and nothing enters the spigot.
+
+The planner does not plan a pocket the engine will refuse — the same rule as the
+slot — and every boss now says how it is not made, whether it stands in a pocket
+or on its own face.
+
+`src/lib/engines/cam/island.ts`, `pocketToolpath` in `cam/engine.ts`, the boss
+and pocket branches of `machinist.ts`.
+
+**Still open:** general island avoidance, which is the rest of this Tier 1 item
+along with open chains and multiple pockets. What is here refuses honestly and
+cuts the one arrangement it can prove.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
