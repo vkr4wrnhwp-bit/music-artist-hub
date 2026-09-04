@@ -1,5 +1,6 @@
 import type { ManufacturingPackage } from "@/lib/package";
 import { assessCoverage, coverageVerdict } from "@/lib/engines/coverage";
+import { RISK_LABEL, type RiskLevel } from "@/lib/engines/workholding";
 import type { PostDefinition, PreflightItem } from "./post";
 
 /**
@@ -157,9 +158,26 @@ function toolpathDetail(total: number, real: number): string {
   return `${missing} of ${total} operations have no toolpath engine. The post writes each one into the program as a skipped comment, so the program would run to completion without cutting them.`;
 }
 
+/*
+ * THIS SENTENCE IS READ WHEN NC EXPORT IS BLOCKED.
+ *
+ * It said `1 setup(s) at HIGH_RISK` — a pluralisation nobody finished and a
+ * raw enum, in the one line explaining why a program cannot be released. Every
+ * other surface in the app renders the same value through RISK_LABEL as "High
+ * risk"; this call site was the exception, so the identical condition read one
+ * way on the setups page and another on the gate that blocks the work.
+ */
 function workholdingSummary(pkg: ManufacturingPackage): string {
   const levels = Object.values(pkg.workholdingBySetup).map((a) => a.level);
   if (levels.length === 0) return "No setups to evaluate — nothing has been assessed";
   const bad = levels.filter((l) => l !== "SAFE" && l !== "LIKELY_SAFE");
-  return bad.length === 0 ? "All setups assessed safe or likely safe" : `${bad.length} setup(s) at ${bad.join(", ")}`;
+  if (bad.length === 0) return "All setups assessed safe or likely safe";
+  // Worst first, and each level named once with its count, so three setups at
+  // one level read as "3 setups at review" rather than as a repeated list.
+  const order: RiskLevel[] = ["HIGH_RISK", "REVIEW", "UNKNOWN"];
+  const parts = order
+    .map((level) => ({ level, n: bad.filter((l) => l === level).length }))
+    .filter((x) => x.n > 0)
+    .map(({ level, n }) => `${n} ${n === 1 ? "setup" : "setups"} at ${RISK_LABEL[level].toLowerCase()}`);
+  return parts.join(", ");
 }

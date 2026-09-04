@@ -126,7 +126,11 @@ test("a workholding level short of likely-safe is not verified", () => {
 test("one unsafe setup among safe ones fails the whole item", () => {
   const i = itemFor(pkg({ workholdingBySetup: { s1: { level: "SAFE" }, s2: { level: "HIGH_RISK" } } }), "workholding");
   assert.equal(i.status, "FAIL");
-  assert.match(i.detail, /HIGH_RISK/);
+  // The intent is that the failing level is NAMED, not that the enum leaks.
+  // This asserted /HIGH_RISK/ and so was holding the raw identifier in the UI
+  // in place — the test encoding the defect it was meant to prevent.
+  assert.match(i.detail, /high risk/);
+  assert.ok(!/HIGH_RISK/.test(i.detail), "the enum reached the sentence a machinist reads");
 });
 
 test("a critical feature with no inspection method stops the export", () => {
@@ -189,4 +193,28 @@ test("a post nobody has proven on this machine stops the export", () => {
   );
   assert.equal(stale.status, "FAIL");
   assert.equal(passes(pkg({ postValidation: { state: "SUPERSEDED", detail: "x", record: null } })), false);
+});
+
+test("the workholding gate speaks the same language as every other surface", () => {
+  // It said `1 setup(s) at HIGH_RISK`: an unfinished plural and a raw enum, in
+  // the one sentence that explains why NC export is blocked. RISK_LABEL was
+  // already the app's translation of that value everywhere else, so the same
+  // condition read one way on the setups page and another on the gate that
+  // stops the work.
+  const summary = (levels: string[]) =>
+    itemFor(
+      pkg({
+        setups: levels.map((_, i) => ({ id: `s${i}`, operations: [{ id: `o${i}`, label: "x", featureId: "f1" }] })),
+        workholdingBySetup: Object.fromEntries(levels.map((l, i) => [`s${i}`, { level: l }])),
+      }),
+      "workholding",
+    ).detail;
+
+  assert.equal(summary(["HIGH_RISK"]), "1 setup at high risk");
+  assert.equal(summary(["HIGH_RISK", "HIGH_RISK"]), "2 setups at high risk");
+  assert.ok(!/setup\(s\)/.test(summary(["REVIEW"])), "the (s) placeholder is back");
+  assert.ok(!/HIGH_RISK|LIKELY_SAFE/.test(summary(["HIGH_RISK", "REVIEW"])), "a raw enum reached the gate detail");
+  // Worst first: one line, and the blocking level is met before the advisory.
+  assert.equal(summary(["REVIEW", "HIGH_RISK"]), "1 setup at high risk, 1 setup at review");
+  assert.equal(summary(["SAFE", "LIKELY_SAFE"]), "All setups assessed safe or likely safe");
 });
