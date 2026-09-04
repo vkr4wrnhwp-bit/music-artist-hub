@@ -217,6 +217,14 @@ export interface Tool {
   expectedLifeMinutes: number;
   notes?: string;
 
+  /**
+   * Which row of the control's offset table this tool calls — H for the length,
+   * D for the radius. Undefined means nobody recorded it, and the post says the
+   * number was assumed rather than stating it as a fact about the control.
+   */
+  lengthOffset?: number;
+  diameterOffset?: number;
+
   /* ---- Tool reality: what is in the holder, not what the catalogue said ---- */
 
   /** NEW | GOOD | WORN | REGRIND | UNKNOWN. Feeds the cutting force model. */

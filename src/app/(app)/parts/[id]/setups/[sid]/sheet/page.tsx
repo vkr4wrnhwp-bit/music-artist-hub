@@ -155,7 +155,8 @@ export default async function SetupSheetPage({
                   <th className={th}>Stickout</th>
                   <th className={th}>Holder</th>
                   <th className={th}>Pocket</th>
-                  <th className={th}>H / D</th>
+                  <th className={th}>H</th>
+                  <th className={th}>D</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,7 +168,20 @@ export default async function SetupSheetPage({
                     <td className={td}>{t.stickout.toFixed(3)}</td>
                     <td className={`${td} font-sans text-[11px]`}>{t.holder}</td>
                     <td className={td}>{t.pocket ?? <Missing>load it</Missing>}</td>
-                    <td className={td}>{t.lengthOffset}</td>
+                    {/*
+                      H puts the tool at the right Z, D holds the size. Where
+                      the crib does not record them the tool number stands in,
+                      and the sheet says so rather than printing an assumption
+                      in the same ink as a recorded fact.
+                    */}
+                    <td className={td}>
+                      {t.lengthOffset}
+                      {t.lengthOffsetAssumed && <span className="text-[9px]"> (assumed)</span>}
+                    </td>
+                    <td className={td}>
+                      {t.diameterOffset}
+                      {t.diameterOffsetAssumed && <span className="text-[9px]"> (assumed)</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

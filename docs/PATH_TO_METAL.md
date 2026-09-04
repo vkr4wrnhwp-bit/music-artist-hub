@@ -1032,6 +1032,53 @@ decimal and a real charge never rounds to nothing.
 `src/lib/engines/tool-life.ts`, the COMPLETE branch of `jobs/actions.ts`,
 `freshEdge` in `tools/actions.ts`, the crib and tool-edit pages. `lifeRemaining`
 stays in the schema so no shop's data is thrown away, and reaches no screen.
+
+**T8 — The offset registers the program calls for. — BUILT**
+`G43 H6` tells the control to apply the length in row 6 of its offset table;
+`G41 D6` applies its radius. CANVAS wrote `lengthOffset: t.toolNumber` in three
+places. H and D were the tool number, everywhere, with no shop record behind
+them — and the program header and the setup sheet printed the result as though
+CANVAS knew what was loaded in that control.
+
+It usually IS the tool number, on a Haas or a Fanuc where H and D index the same
+row. It is not universal, and a shop running sister tools or keeping diameter
+offsets in a separate block so a length can never be typed into a radius had no
+way to say so. A wrong H is the single most consequential wrong number in a
+program: the tool goes to the wrong Z, which is a crash into the fixture or a
+cut in air.
+
+The registers are now recorded on the tool. Where a shop has recorded them the
+program calls them; where nobody has, the tool number still stands in — a
+program has to call something — but it goes out labelled ASSUMED, in the header,
+against each tool, and on the setup sheet, with the tools named rather than
+counted. The two live in one engine so the paper in the operator's hand cannot
+name a different register from the program.
+
+Two blocks the post could write and must not, both found while wiring this and
+neither reachable through today's engine — which is exactly why they were worth
+closing:
+
+- `G41 D0`. Not "no offset selected" but compensate by ZERO: the control cuts on
+  the programmed boundary and every wall comes back a tool radius oversize. It
+  reads like a real block and it runs. The emitter's `D${dOffset ?? 0}` is gone.
+- **Compensation on an arc block.** G41/G42 must be commanded in G0 or G1; this
+  family alarms on comp in a circular block. The arc branch returned before the
+  comp words were ever used, so an arc lead-in would have gone out silently
+  uncompensated — the same oversize part with nothing to read. No arc lead-in
+  exists today, which is why the trap would have been sprung by whoever added
+  one. Both throw rather than emit.
+
+And emitting the seeded crib turned up a third, in the header itself. A
+Fanuc-family comment runs from `(` to the FIRST `)`, and T6 is described as
+`#7 (0.201") carbide drill` — so the comment ended after 0.201 and the control
+read ` carbide drill` as G-code words and alarmed on line 12. Comment text is
+now sanitised on the way out: brackets become square ones, and `⌀ ″ ° — · × ±`
+go out as the words a machinist would have typed, because a lot of readers in
+the field are ASCII and a control that chokes on a byte in a comment is not a
+control with a bug.
+
+`src/lib/engines/cam/offsets.ts`, `commentText` and the emitters in `cam/post.ts`,
+the tool crib form, `setup-sheet.ts` and the printed sheet.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
@@ -1039,9 +1086,9 @@ stays in the schema so no shop's data is thrown away, and reaches no screen.
 - **Multiple work offsets and fixture offsets.** `G54.1 P`, multi-part fixtures,
   the same program run four up.
 - **Tool library that means what it means elsewhere.** Per-material feed and
-  speed data rather than one SFM band; presetter data; D and H registers; pocket
-  assignment; sister tools. ~~Tool life in minutes and parts, not a 0–1 float~~
-  — BUILT, see T7.
+  speed data rather than one SFM band; presetter data; pocket assignment; sister
+  tools. ~~Tool life in minutes and parts, not a 0–1 float~~ — BUILT, see T7.
+  ~~D and H registers~~ — BUILT, see T8.
 - **The job packet.** Setup sheet plus tool list plus traveller plus first-article
   form, printed together, versioned with the program.
 - **Program revision control at the machine.** Which revision is loaded, hash

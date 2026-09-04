@@ -104,6 +104,8 @@ export async function getTools(organizationId: string): Promise<Tool[]> {
     lifeCountedFrom: t.lifeCountedFrom ?? undefined,
     expectedLifeMinutes: t.expectedLifeMinutes,
     notes: t.notes ?? undefined,
+    lengthOffset: t.lengthOffset ?? undefined,
+    diameterOffset: t.diameterOffset ?? undefined,
     condition: t.condition as Tool["condition"],
     actualStickout: t.actualStickout ?? undefined,
     measuredRunout: t.measuredRunout ?? undefined,

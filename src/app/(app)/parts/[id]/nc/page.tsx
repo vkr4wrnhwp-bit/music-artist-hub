@@ -119,10 +119,14 @@ export default async function NcPage(props: {
       machine: fresh.primaryMachine,
       workOffset,
       units: fresh.revision.units,
+      // The registers as the crib recorded them. Null is not a hole to be
+      // filled here — the post decides what an unrecorded register means and
+      // says so in the header. See engines/cam/offsets.ts.
       toolTable: fresh.assignedTools.map((t) => ({
         toolNumber: t.toolNumber,
         description: t.description,
-        lengthOffset: t.toolNumber,
+        lengthOffset: t.lengthOffset ?? null,
+        diameterOffset: t.diameterOffset ?? null,
         diameter: t.diameter,
       })),
       safeZ: 1,

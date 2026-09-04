@@ -134,8 +134,8 @@ const machine = {
 const postCtx = {
   programNumber: "2507", programName: "test", machine, workOffset: "G54", units: "IN" as const,
   toolTable: [
-    { toolNumber: 9, description: "boring head", lengthOffset: 9, diameter: 1.5748 },
-    { toolNumber: 10, description: "1/4-20 tap", lengthOffset: 10, diameter: 0.25 },
+    { toolNumber: 9, description: "boring head", lengthOffset: 9, diameterOffset: 9, diameter: 1.5748 },
+    { toolNumber: 10, description: "1/4-20 tap", lengthOffset: 10, diameterOffset: 10, diameter: 0.25 },
   ],
   safeZ: 1, partName: "test", revision: "A", generatedAtIso: "2026-08-10T00:00:00Z",
 };

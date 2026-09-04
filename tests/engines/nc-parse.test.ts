@@ -79,7 +79,7 @@ test("self-consistency: the parser reads CANVAS's own Haas output with zero refu
   const machine = { id: "m", manufacturer: "Haas", model: "VF-2", controller: "HAAS_NGC", travelsX: 30, travelsY: 16, travelsZ: 20, maxSpindleRPM: 8100, spindleTaper: "CAT40", maxFeed: 500, rapidRate: 1000, toolCapacity: 20, hasToolChanger: true, accuracy: 0.0002 } as unknown as MachineProfile;
   const nc = getPost("haas-ngc-dev")!.emit([r.toolpath], {
     programNumber: "1", programName: "t", machine, workOffset: "G54", units: "IN",
-    toolTable: [{ toolNumber: 2, description: "em", lengthOffset: 2, diameter: 0.5 }],
+    toolTable: [{ toolNumber: 2, description: "em", lengthOffset: 2, diameterOffset: 2, diameter: 0.5 }],
     safeZ: 1, partName: "t", revision: "A", generatedAtIso: "2026-08-10T00:00:00Z",
   });
   const p = parseNC(nc);

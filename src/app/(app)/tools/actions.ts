@@ -76,6 +76,10 @@ function parse(formData: FormData) {
     // engines/tool-life.ts.
     actualStickout: f.optionalNumber("actualStickout", "Measured stickout", { min: 0 }),
     measuredRunout: f.optionalNumber("measuredRunout", "Measured runout", { min: 0 }),
+    // Left blank means the tool number is assumed and the post says so. It is
+    // never filled in here to make the record look complete.
+    lengthOffset: f.optionalInteger("lengthOffset", "H register", { min: 1 }),
+    diameterOffset: f.optionalInteger("diameterOffset", "D register", { min: 1 }),
     expectedLifeMinutes: f.number("expectedLifeMinutes", "Expected life", { min: 0 }),
     costPerTool: f.number("costPerTool", "Cost per tool", { min: 0 }),
     notes: f.optionalText("notes"),

@@ -223,7 +223,7 @@ const machine = {
 
 const postCtx = {
   programNumber: "1001", programName: "TEST", machine, workOffset: "G54", units: "IN" as const,
-  toolTable: [{ toolNumber: 2, description: "1/2 3FL", lengthOffset: 2, diameter: 0.5 }],
+  toolTable: [{ toolNumber: 2, description: "1/2 3FL", lengthOffset: 2, diameterOffset: 2, diameter: 0.5 }],
   safeZ: 1, partName: "test", revision: "A", generatedAtIso: "2026-09-04T00:00:00Z",
 };
 

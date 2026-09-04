@@ -188,7 +188,7 @@ const drill = (x: number, y: number, over: Record<string, unknown> = {}): Toolpa
 
 const ctx = {
   programNumber: "1001", programName: "TEST", machine, workOffset: "G54", units: "IN" as const,
-  toolTable: [{ toolNumber: 6, description: "#7 drill", lengthOffset: 6, diameter: 0.201 }],
+  toolTable: [{ toolNumber: 6, description: "#7 drill", lengthOffset: 6, diameterOffset: 6, diameter: 0.201 }],
   safeZ: 1, partName: "test", revision: "A", generatedAtIso: "2026-09-04T00:00:00Z",
 };
 
@@ -294,7 +294,9 @@ test("an operation with no toolpath engine is never merged into the cycle above 
    */
   const ghost = { ...drill(2, 1), isPlaceholder: true } as unknown as Toolpath;
   const code = emit([drill(1, 1), ghost, drill(3, 1)]);
-  assert.match(code, /HAS NO TOOLPATH ENGINE — SKIPPED/);
+  // Hyphen, not an em-dash: comment text is sanitised to the ASCII a
+  // control's reader accepts. See commentText in cam/post.ts.
+  assert.match(code, /HAS NO TOOLPATH ENGINE - SKIPPED/);
   assert.equal((code.match(/^G98 /gm) ?? []).length, 2, "a placeholder was merged into a cycle");
   assert.equal(/^X2\.0000 Y1\.0000$/m.test(code), false, "the placeholder was drilled as a position under the cycle");
 });
@@ -309,7 +311,7 @@ test("a merged hole announces nothing", () => {
    */
   const code = emit([drill(1, 1), drill(2, 1), drill(3, 1)]);
   assert.equal(
-    (code.match(/^\(DRILL — T6/gm) ?? []).length,
+    (code.match(/^\(DRILL - T6/gm) ?? []).length,
     1,
     "merged holes still announce themselves as operations with no motion",
   );

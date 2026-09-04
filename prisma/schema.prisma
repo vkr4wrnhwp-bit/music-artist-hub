@@ -288,6 +288,19 @@ model Tool {
   expectedLifeMinutes  Float  @default(120)
   notes                String?
 
+  // THE OFFSET REGISTERS THIS SHOP ACTUALLY USES.
+  //
+  // H is the length offset the program calls, D the diameter offset. Both were
+  // assumed equal to the tool number everywhere — printed in the program header
+  // and on the setup sheet as though CANVAS knew what was in the control's
+  // offset table. It usually is the tool number, and a wrong H is the single
+  // most consequential wrong number in a program: the tool goes to the wrong Z.
+  //
+  // Null means nobody recorded it, and then the post says the number was
+  // ASSUMED rather than presenting it as a fact about this control.
+  lengthOffset   Int?
+  diameterOffset Int?
+
   // Tool reality. What is actually in the holder, as opposed to what the
   // catalogue page said. The cutting model reads condition and helix; a worn
   // edge ploughs rather than cuts and raises specific cutting force.

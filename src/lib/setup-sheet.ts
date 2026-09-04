@@ -4,6 +4,7 @@ import { GOVERNING_DIMENSION } from "@/lib/engines/inspection-plan";
 import { assessCoverage } from "@/lib/engines/coverage";
 import { PROGRAM_ORIGIN } from "@/lib/program-origin";
 import { frameSentence } from "./engines/cam/setup-frame";
+import { offsetRegisters } from "./engines/cam/offsets";
 
 /**
  * THE SETUP SHEET
@@ -50,14 +51,23 @@ export interface SheetTool {
   stickout: number;
   holder: string;
   /**
-   * H and D registers. Both equal the tool number under the current post.
+   * THE OFFSET REGISTERS THE PROGRAM CALLS.
    *
-   * D matters now that contours are cut with the control doing the offsetting:
-   * it holds the cutter radius, and nudging it is how a machinist takes a thou
-   * off a wall without re-posting. It has to reach the machine, which is why it
-   * is on this sheet.
+   * H holds the length that decides Z, D the radius that holds the size —
+   * nudging D is how a machinist takes a thou off a wall without re-posting, so
+   * both have to reach the machine. They are usually the same row and they are
+   * not the same word, and the sheet stopped printing them as one number the
+   * day one of them could differ.
+   *
+   * The `Assumed` flags say the tool number is standing in because nobody
+   * recorded that register. They are per word, because they are recorded per
+   * word: a row-level flag would mark a recorded H as assumed the moment
+   * somebody filled in one and not the other. See engines/cam/offsets.ts.
    */
   lengthOffset: number;
+  diameterOffset: number;
+  lengthOffsetAssumed: boolean;
+  diameterOffsetAssumed: boolean;
   pocket: number | null;
   operationLabels: string[];
 }
@@ -227,6 +237,13 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
     // stickout; the row carries the pocket it physically sits in. Both are
     // needed and neither has the other.
     const t = pkg.assignedTools.find((x) => x.id === row.id) ?? null;
+    // The same resolution the post uses, from the same engine, so the sheet in
+    // the operator's hand cannot name a different register from the program.
+    const reg = offsetRegisters({
+      toolNumber: row.toolNumber,
+      lengthOffset: t?.lengthOffset ?? null,
+      diameterOffset: t?.diameterOffset ?? null,
+    });
     tools.push({
       toolNumber: row.toolNumber,
       description: row.description,
@@ -235,7 +252,10 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
       // number that decides reach and the number that goes on the presetter.
       stickout: t?.actualStickout ?? row.stickout,
       holder: t?.holder ?? "not recorded",
-      lengthOffset: row.toolNumber,
+      lengthOffset: reg.h,
+      diameterOffset: reg.d,
+      lengthOffsetAssumed: !reg.hRecorded,
+      diameterOffsetAssumed: !reg.dRecorded,
       pocket: row.pocket ?? null,
       operationLabels: opsForTool.get(row.id) ?? [],
     });
@@ -250,11 +270,23 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
   }
   if (tools.length > 0) {
     unknowns.push(
-      "Tool length offsets are set at the machine, not by CANVAS. H equals the tool number in this post; confirm every one on the offset page before the first cut.",
+      "Tool length offsets are set at the machine, not by CANVAS. Confirm every H on the offset page before the first cut — a wrong H puts the tool at the wrong Z.",
     );
     unknowns.push(
       "Set the D register for each cutter to its radius. Contours are cut with the control compensating, so D is what holds the size — and D is where you take a thou off a wall without re-posting.",
     );
+    /*
+     * Which of these numbers CANVAS was told and which it assumed. The crib
+     * records the registers a shop actually uses; where nobody recorded one the
+     * tool number stands in, and the operator is the one who can check it
+     * against the offset page in ten seconds.
+     */
+    const assumed = tools.filter((t) => t.lengthOffsetAssumed || t.diameterOffsetAssumed);
+    if (assumed.length > 0) {
+      unknowns.push(
+        `H and D for ${assumed.map((t) => `T${t.toolNumber}`).join(", ")} are assumed equal to the tool number — the crib does not record them. Check them against the control's offset table.`,
+      );
+    }
   }
 
   /* ---------------- Operations ---------------- */

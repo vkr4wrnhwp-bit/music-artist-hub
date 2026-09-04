@@ -2,6 +2,7 @@ import type { Move, Toolpath } from "./types";
 import { CHORD_TOLERANCE, arcGeometry, flattenArcs, isArc } from "./arc";
 import { PROGRAM_ORIGIN } from "@/lib/program-origin";
 import type { MachineProfile } from "@/lib/domain/shop";
+import { assumedOffsetsNote, offsetRegisters } from "./offsets";
 
 /**
  * POST PROCESSOR ARCHITECTURE
@@ -19,7 +20,21 @@ export interface PostContext {
   machine: MachineProfile;
   workOffset: string; // G54..G59
   units: "IN" | "MM";
-  toolTable: { toolNumber: number; description: string; lengthOffset: number; diameter: number }[];
+  /**
+   * WHICH ROW OF THE CONTROL'S OFFSET TABLE EACH TOOL CALLS.
+   *
+   * `lengthOffset` and `diameterOffset` are what the shop recorded; null means
+   * nobody did, and then the tool number stands in and the header says the
+   * number was ASSUMED rather than presenting it as a fact about this control.
+   * See engines/cam/offsets.ts.
+   */
+  toolTable: {
+    toolNumber: number;
+    description: string;
+    lengthOffset: number | null;
+    diameterOffset: number | null;
+    diameter: number;
+  }[];
   safeZ: number;
   partName: string;
   revision: string;
@@ -47,6 +62,40 @@ export interface PostDefinition {
 }
 
 const n = (v: number, places = 4) => v.toFixed(places).replace(/^-0(\.0+)?$/, "0");
+
+/**
+ * TEXT A CONTROL CAN READ.
+ *
+ * Two ways a comment breaks a program, both of them from text nobody wrote for
+ * a control:
+ *
+ * A Fanuc-family comment runs from `(` to the first `)`. A tool described as
+ * `#7 (0.201") carbide drill` closes the comment at the `)` after 0.201, and
+ * the control then reads ` carbide drill` as G-code words and alarms. The
+ * description is correct English and it is not a comment — so brackets become
+ * square ones on the way out, which is what a post has always done.
+ *
+ * And the readers on a lot of iron in the field are ASCII. `⌀`, `″`, `°`, `—`
+ * and `·` all come from CANVAS's own screens, where they belong; a control that
+ * chokes on a byte in a comment is not a control with a bug. So they go out as
+ * the words a machinist would have typed, and anything else non-ASCII is
+ * dropped rather than sent as a byte nobody can predict.
+ */
+export function commentText(s: string): string {
+  return s
+    .replace(/[()]/g, (b) => (b === "(" ? "[" : "]"))
+    .replace(/[⌀ø∅]/g, "DIA ")
+    .replace(/[″”“]/g, '"')
+    .replace(/[′’‘]/g, "'")
+    .replace(/°/g, " DEG")
+    .replace(/[—–]/g, "-")
+    .replace(/·/g, "-")
+    .replace(/×/g, "x")
+    .replace(/±/g, "+/-")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /**
  * WHERE ZERO IS, IN THE HEADER, IN THE PROGRAM'S OWN WORDS.
@@ -85,8 +134,23 @@ function header(ctx: PostContext, lines: string[], comment: (s: string) => strin
   for (const line of originLines(ctx)) lines.push(comment(line));
   lines.push(comment("VERIFY EVERY LINE BEFORE RUNNING. DRY RUN ABOVE THE PART."));
   for (const t of ctx.toolTable) {
-    lines.push(comment(`T${t.toolNumber} ${t.description} D${n(t.diameter, 4)} H${t.lengthOffset}`));
+    const r = offsetRegisters(t);
+    lines.push(
+      comment(
+        `T${t.toolNumber} ${t.description} ⌀${n(t.diameter, 4)} H${r.h} D${r.d}${
+          r.source === "RECORDED" ? "" : " (ASSUMED)"
+        }`,
+      ),
+    );
   }
+  /*
+   * A register nobody recorded is still called by the program — it has to call
+   * something — but it goes out labelled. A number stated as an assumption is
+   * one a machinist checks against the offset page in ten seconds; a number
+   * stated as a fact is one they will not think to check.
+   */
+  const assumed = assumedOffsetsNote(ctx.toolTable);
+  if (assumed) lines.push(comment(assumed));
 }
 
 /* ------------------------------------------------------------------ */
@@ -134,10 +198,13 @@ function sameCycle(a: Toolpath | undefined, b: Toolpath): boolean {
 function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
   return (toolpaths: Toolpath[], ctx: PostContext): string => {
     const lines: string[] = [];
-    const c = (s: string) => `(${s})`;
+    const c = (s: string) => `(${commentText(s)})`;
 
     lines.push(`%`);
-    lines.push(`O${ctx.programNumber} (${ctx.programName.toUpperCase()})`);
+    // The part name reaches this line, and a part called "Bracket (rev 2)"
+    // would close the comment on its own bracket and leave `rev 2)` to be read
+    // as G-code.
+    lines.push(`O${ctx.programNumber} (${commentText(ctx.programName.toUpperCase())})`);
     header(ctx, lines, c);
 
     lines.push(ctx.units === "IN" ? "G20" : "G21");
@@ -163,6 +230,12 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       if (sameCycle(toolpaths[idx - 1], tp)) continue;
 
       const entry = ctx.toolTable.find((t) => t.toolNumber === tp.toolNumber);
+      // A tool that is not in the table has no recorded registers either, and
+      // the tool number is what stands in — the same answer offsetRegisters
+      // gives, arrived at in one place rather than two.
+      const reg = offsetRegisters(
+        entry ?? { toolNumber: tp.toolNumber, lengthOffset: null, diameterOffset: null },
+      );
       lines.push("");
       lines.push(c(`${tp.type} — T${tp.toolNumber} ${entry?.description ?? ""}`));
 
@@ -201,7 +274,7 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
           ),
         );
         lines.push(`${ctx.workOffset} G0 X${n(cy.x)} Y${n(cy.y)}`);
-        lines.push(`G43 H${entry?.lengthOffset ?? tp.toolNumber} Z${n(ctx.safeZ, 3)}`);
+        lines.push(`G43 H${reg.h} Z${n(ctx.safeZ, 3)}`);
         if (tp.parameters.coolant !== "OFF") lines.push("M8");
         lines.push(tap ? `S${cy.rpm}` : `S${cy.rpm} M3`);
         lines.push(
@@ -221,7 +294,7 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
 
       lines.push(`S${tp.parameters.rpm} M3`);
       lines.push(`${ctx.workOffset} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
-      lines.push(`G43 H${entry?.lengthOffset ?? tp.toolNumber} Z${n(ctx.safeZ, 3)}`);
+      lines.push(`G43 H${reg.h} Z${n(ctx.safeZ, 3)}`);
       if (tp.parameters.coolant !== "OFF") {
         lines.push(dialect === "HAAS" && tp.parameters.coolant === "THROUGH_SPINDLE" ? "M88" : "M8");
       }
@@ -234,9 +307,10 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
             currentFeed,
             (f) => (currentFeed = f),
             i > 0 ? tp.moves[i - 1] : null,
-            // D and H are the same register number under this post. The setup
-            // sheet prints it, and it is what the machinist adjusts to hold size.
-            entry?.lengthOffset ?? tp.toolNumber,
+            // D, not H. They are usually the same row and they are not the
+            // same word: D carries the radius the machinist adjusts to hold
+            // size, H the length that decides Z.
+            reg.d,
           ),
         );
       }
@@ -278,7 +352,7 @@ function moveLine(
   currentFeed: number,
   setFeed: (f: number) => void,
   prev: Move | null,
-  dOffset?: number,
+  dOffset: number | null,
 ): string {
   /*
    * CUTTER COMPENSATION
@@ -301,7 +375,39 @@ function moveLine(
   const feedWord = mv.feed !== currentFeed ? ` F${mv.feed}.` : "";
   if (mv.feed !== currentFeed) setFeed(mv.feed);
 
-  const compOn = pg?.activate ? `${pg.side === "LEFT" ? "G41" : "G42"} D${dOffset ?? 0} ` : "";
+  /*
+   * TWO BLOCKS THIS POST MUST NOT WRITE.
+   *
+   * `G41 D0` is not "no offset selected" — it is compensate by ZERO, so the
+   * control cuts on the programmed boundary and every wall comes back a tool
+   * radius oversize. It reads like a real block and it runs. So a comp move
+   * with no register to name is a refusal, not a D0.
+   *
+   * And G41/G42 must be commanded in G0 or G1 mode: this family alarms on comp
+   * commanded in a circular block. Dropping the word instead — which is what
+   * this did, silently, because the arc branch returned before the comp words
+   * were ever used — is the same oversize part with nothing to read. No arc
+   * lead-in exists in the engine today, which is exactly why the trap would
+   * have been sprung by whoever added one.
+   *
+   * Both throw rather than emit. A program the post cannot write correctly is
+   * not a program to hand a machinist, and this is the last place before the
+   * file leaves.
+   */
+  if ((pg?.activate || pg?.deactivate) && prev && isArc(mv)) {
+    throw new Error(
+      "Cutter compensation was requested on an arc block. G41/G42 must be commanded in G0 or G1; " +
+        "the lead-in and lead-out have to be straight moves.",
+    );
+  }
+  if (pg?.activate && !(dOffset !== null && dOffset > 0)) {
+    throw new Error(
+      `Cutter compensation was requested with no diameter offset register (D${dOffset ?? "none"}). ` +
+        "G41 D0 compensates by zero and leaves every wall a tool radius oversize.",
+    );
+  }
+
+  const compOn = pg?.activate ? `${pg.side === "LEFT" ? "G41" : "G42"} D${dOffset} ` : "";
   const compOff = pg?.deactivate ? "G40 " : "";
 
   if (prev && isArc(mv)) {
@@ -322,7 +428,7 @@ function moveLine(
 
 const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
   const lines: string[] = [];
-  const c = (s: string) => `; ${s}`;
+  const c = (s: string) => `; ${commentText(s)}`;
   header(ctx, lines, c);
   lines.push(ctx.units === "IN" ? "G20" : "G21");
   lines.push("G17 G90 G94");
@@ -376,7 +482,9 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
     for (let i = 0; i < tp.moves.length; i++) {
       const raw = tp.moves[i];
       const centreOnly = raw.program ? { ...raw, program: undefined } : raw;
-      lines.push(moveLine(centreOnly, feed, (f) => (feed = f), i > 0 ? tp.moves[i - 1] : null));
+      // `centreOnly` has had its programmed path stripped, so no comp word is
+      // reachable here and there is no register to name.
+      lines.push(moveLine(centreOnly, feed, (f) => (feed = f), i > 0 ? tp.moves[i - 1] : null, null));
     }
   }
   lines.push("");
@@ -392,9 +500,12 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
 const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   const lines: string[] = [];
   lines.push(`BEGIN PGM ${ctx.programNumber} ${ctx.units === "IN" ? "INCH" : "MM"}`);
-  lines.push(`; CANVAS DEVELOPMENT / SIMULATION POST — NOT CERTIFIED FOR PRODUCTION`);
-  lines.push(`; PART ${ctx.partName} REV ${ctx.revision}`);
-  for (const line of originLines(ctx)) lines.push(`; ${line}`);
+  // Same sanitiser as the other posts: a TNC reader is no more ASCII-
+  // tolerant than a Fanuc one, and the text comes from the same screens.
+  const c = (t: string) => `; ${commentText(t)}`;
+  lines.push(c("CANVAS DEVELOPMENT / SIMULATION POST — NOT CERTIFIED FOR PRODUCTION"));
+  lines.push(c(`PART ${ctx.partName} REV ${ctx.revision}`));
+  for (const line of originLines(ctx)) lines.push(c(line));
   let block = 1;
   let currentCall = "";
   const push = (s: string) => lines.push(`${block++} ${s}`);
@@ -468,7 +579,7 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
 
 const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
   const lines: string[] = [];
-  const c = (s: string) => `; ${s}`;
+  const c = (s: string) => `; ${commentText(s)}`;
   header(ctx, lines, c);
   lines.push(ctx.units === "IN" ? "G70" : "G71");
   lines.push("G17 G90 G54");

@@ -56,6 +56,8 @@ export interface ToolFormValues {
   coolant?: string;
   costPerTool?: number;
   expectedLifeMinutes?: number;
+  lengthOffset?: number | null;
+  diameterOffset?: number | null;
   condition?: string;
   actualStickout?: number | null;
   measuredRunout?: number | null;
@@ -204,6 +206,12 @@ export function toolSections(
         },
         { name: "actualStickout", label: "Measured stickout", unit: "in", kind: "number", min: "0", half: true, hint: "Left blank means not measured — not that it matches nominal.", defaultValue: v.actualStickout ?? null },
         { name: "measuredRunout", label: "Measured runout", unit: "in", kind: "number", min: "0", half: true, defaultValue: v.measuredRunout ?? null },
+        // Which row of the control's offset table this tool calls. Optional,
+        // because most shops run H = D = the tool number and typing it forty
+        // times teaches nothing — but a shop that does otherwise has no other
+        // way to say so, and the post prints ASSUMED where nobody has.
+        { name: "lengthOffset", label: "H register", kind: "number", min: "1", half: true, hint: "Blank means the tool number is assumed. A wrong H puts the tool at the wrong Z.", defaultValue: v.lengthOffset ?? null },
+        { name: "diameterOffset", label: "D register", kind: "number", min: "1", half: true, hint: "Blank means the tool number is assumed. D holds the radius that holds the size.", defaultValue: v.diameterOffset ?? null },
         { name: "expectedLifeMinutes", label: "Expected life", unit: "min", kind: "number", required: true, min: "0", half: true, defaultValue: v.expectedLifeMinutes ?? 120 },
         { name: "costPerTool", label: "Cost per tool", unit: "currency", kind: "number", required: true, min: "0", half: true, defaultValue: v.costPerTool ?? 0 },
         { name: "notes", label: "Notes", kind: "textarea", defaultValue: v.notes ?? null },
