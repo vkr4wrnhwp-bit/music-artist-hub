@@ -4,6 +4,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop"
 import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type { OperationType } from "./cam/types";
 import { chamferGeometry } from "./cam/chamfer";
+import { BREAKOUT_CLEARANCE, drillPoint } from "./cam/drill-point";
 
 /**
  * THE AI MACHINIST
@@ -504,6 +505,38 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         // group's deepest hole set both, so a 0.1" hole beside a 1.0" one was
         // drilled to 1.0" — through the bottom of the part and into the vise.
         const holeDepth = depthOf(hole, stock) ?? d;
+
+        /*
+         * A THROUGH HOLE IS DRILLED PAST THE MATERIAL BY THE DRILL'S POINT.
+         *
+         * The full diameter is reached a point-length behind the tip, so a
+         * hole drilled to exactly the stock thickness comes off the machine
+         * with a cone of material still in the bottom of it. It looks finished
+         * everywhere in the system and fails on the first part.
+         *
+         * The point angle is required rather than assumed: 118° and 135°
+         * differ by a quarter of the point length on the same drill, and there
+         * is no safe direction to guess in — too shallow leaves the cone, too
+         * deep drills the parallels.
+         */
+        const through = "through" in hole && hole.through === true;
+        let tipZ = -holeDepth;
+        let breakthroughNote = "";
+        if (through) {
+          const point = drillPoint(match);
+          if ("error" in point) {
+            concerns.push(`${hole.label}: ${point.error.reason}`);
+            continue;
+          }
+          tipZ = -(holeDepth + point.breakthrough);
+          breakthroughNote = ` Through hole: the tip runs to Z${tipZ.toFixed(4)}, which is the ${holeDepth.toFixed(3)}" of material plus the drill's ${point.pointLength.toFixed(4)}" point and ${BREAKOUT_CLEARANCE.toFixed(3)}" to break the burr clean. The part needs that much clearance under it.`;
+        }
+
+        /*
+         * The peck decision is the MATERIAL, not the drilled depth. What packs
+         * a flute is how much hole the chips have to climb; the point-length
+         * overrun is mostly the point leaving the far side.
+         */
         const ratio = holeDepth / match.diameter;
         drillOps.push({
           hole,
@@ -515,13 +548,13 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
             toolId: match.id,
             toolNumber: match.toolNumber,
             topZ: 0,
-            finalZ: -holeDepth,
+            finalZ: tipZ,
             stepover: 0,
             stockToLeave: 0,
             rationale:
-              ratio > 4
+              (ratio > 4
                 ? `${ratio.toFixed(1)}:1 depth to diameter — pecking to clear chips rather than packing the flutes.`
-                : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`,
+                : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`) + breakthroughNote,
           },
         });
       }

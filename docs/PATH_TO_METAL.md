@@ -345,13 +345,6 @@ an actual change.
 `planApproach` in `machinist.ts`, `sameCycle` and all four emitters in
 `cam/post.ts`.
 
-**Still open — found while fixing this:** a through hole is drilled to exactly
-the stock thickness. `depthOf` returns `stock.z` for `through`, and a Ø0.201″
-drill has a 0.060″ point on it, so the hole is 0.060″ short of breaking through
-and the part comes off the machine with a cone of material in every through
-hole. Needs a breakthrough allowance from the drill's own point angle, and the
-same question applies to a contour cut through the stock.
-
 **A8 — The chamfer was not a chamfer. — BUILT**
 `chamferToolpath` ignored `feature.width` and `feature.angle` entirely. It
 walked a rectangle around the **STOCK** outline — 6 × 4 on the seeded bearing
@@ -417,6 +410,48 @@ branch of `machinist.ts`.
 **Still open:** the pass plunges straight to depth at its start point, which is
 0.03 of engagement with the flank rather than a ramp or an approach from clear
 air. Fine at this depth, wrong the day a chamfer is 0.06.
+
+**A9 — A drill does not make a hole as deep as it goes. — BUILT**
+`depthOf` returns `stock.z` for a feature marked `through`, and the operation
+went to exactly that Z. A twist drill is ground to a point: the full diameter is
+reached a point-length behind the tip, so a Ø0.201″ jobber drill at 118° reaches
+full diameter **0.0604″** above where its tip stopped. Every through hole on the
+part came off the machine with a cone of material still in the bottom of it —
+finished-looking on the plan, on the setup sheet and in the program, and short
+on the first article.
+
+Found while fixing A7, which is the second time reading this area for one thing
+has turned up another.
+
+The point angle is **required, not assumed**. 118° is the jobber grind and 135°
+the split point, and they differ by a quarter of the point length on the same
+drill. There is no safe direction to guess in — too shallow leaves the cone, too
+deep drills the parallels — so a through hole whose drill has no angle recorded
+is a concern on the plan and no operation, with the field named. A hole with a
+recorded depth is untouched: that depth is the drawing's, and it is measured to
+the shoulder.
+
+The peck decision stayed on the **material** depth rather than the drilled one.
+What packs a flute is how much hole the chips have to climb out of; the
+point-length overrun is mostly the point leaving the far side. 0.804″ of
+material is exactly 4:1 on a Ø0.201 drill and 0.884″ to the tip is 4.4:1, and
+pecking the second is a cycle spent on nothing.
+
+**The sheet says what the setup now needs.** A Z of −0.830 on a 0.750″ part
+reads as an error to anybody checking the plan against the drawing, and a
+machinist who cannot see why will shorten it at the control — or set the part
+flat on the parallels and drill them. The operation's rationale states the
+material, the point and the break allowance separately, and the setup sheet
+carries a CLEARANCE UNDER PART line: the deepest any operation in the setup
+finishes below the bottom of the stock, which is exactly the gap the part has to
+stand off whatever is under it.
+
+`src/lib/engines/cam/drill-point.ts`, the drill branch of `machinist.ts`,
+`buildSetupSheet`.
+
+**Still open:** the same question applies to a contour cut through the stock —
+an end mill leaves no cone, but a profile cut to exactly the stock height leaves
+the part hanging on a film.
 
 ### B. The machinist must know how to set the job up
 
@@ -850,9 +885,11 @@ Saying no is part of the plan.
    and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
 8. ~~**A5 + A6** chained contours and real finish passes~~ — BUILT.
-8b. ~~**A7 + A8** one operation per hole, and a chamfer that is one~~ — BUILT.
-   A six-hole bolt circle was one hole and a chamfer was a ring round the
-   stock. The audit found both; the tests found neither.
+8b. ~~**A7 + A8 + A9** one operation per hole, a chamfer that is one, and a
+   through hole that goes through~~ — BUILT. A six-hole bolt circle was one
+   hole, a chamfer was a ring round the stock, and every through hole had a
+   cone left in the bottom of it. The audit found the first two; the third
+   turned up while fixing them. The tests found none of the three.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
    ~~D1~~ BUILT; D2 needs real iron.
 10. **B3** the setup transform, and second-op work opens up.

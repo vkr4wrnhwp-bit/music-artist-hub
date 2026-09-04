@@ -153,6 +153,29 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
     { label: "Positive stop", value: setup.hasPositiveStop ? "yes" : "no" },
   ];
 
+  /*
+   * HOW MUCH AIR THE PART NEEDS UNDER IT.
+   *
+   * A through hole is drilled past the material by the drill's own point plus
+   * a break allowance, so the tip finishes below the bottom of the stock. On
+   * the sheet that reads as a Z deeper than the part is thick, and a machinist
+   * who cannot see why will shorten it at the control — or set the part flat on
+   * the parallels and drill them.
+   *
+   * The number is the deepest any operation in this setup goes past the bottom
+   * of the stock, which is exactly the gap the part has to stand off whatever
+   * is under it.
+   */
+  const below = st
+    ? Math.max(0, ...setup.operations.map((o) => -o.finalZ - st.z))
+    : 0;
+  if (below > 1e-6) {
+    workholding.push({
+      label: "Clearance under part",
+      value: `${below.toFixed(3)}″ — the deepest cut finishes below the bottom of the stock. Set the part off the parallels by at least that, or run it on a sacrificial plate.`,
+    });
+  }
+
   if (!wh) unknowns.push("No workholding device is recorded for this setup. Nothing below has been checked against a fixture.");
   note(setup.jawAxis, "Which axis the jaws close on is not recorded, so the fixture is not modelled and the clearance checks that need it did not run.");
   note(setup.gripDepth == null ? null : "x", "Grip depth is not recorded. Set it at the vise and record what you set — the holding margin cannot be computed without it.");

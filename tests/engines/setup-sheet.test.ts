@@ -99,6 +99,35 @@ const pkg = (over: Record<string, unknown> = {}): ManufacturingPackage =>
 
 const sheet = (over: Record<string, unknown> = {}) => buildSetupSheet(pkg(over), "s1")!;
 
+/* ---------------- How much air the part needs under it ---------------- */
+
+const deepen = (finalZ: number) => {
+  const p = pkg();
+  (p.setups[0].operations[0] as unknown as Record<string, unknown>).finalZ = finalZ;
+  return buildSetupSheet(p, "s1")!;
+};
+
+test("a cut that finishes below the stock says how far the part has to stand off", () => {
+  /*
+   * A through hole is drilled past the material by the drill's own point plus
+   * a break allowance, so the tip finishes below the bottom of the stock. On
+   * the sheet that reads as a Z deeper than the part is thick, and a machinist
+   * who cannot see why will shorten it at the control — or set the part flat on
+   * the parallels and drill them.
+   */
+  const row = deepen(-1.08).workholding.find((f) => f.label === "Clearance under part");
+  assert.ok(row, "the sheet does not say the cut goes below the part");
+  assert.match(row.value!, /^0\.080″/);
+  assert.match(row.value!, /off the parallels by at least that, or run it on a sacrificial plate/);
+});
+
+test("a setup that stays inside the stock does not invent a clearance", () => {
+  const has = (finalZ: number) => deepen(finalZ).workholding.some((f) => f.label === "Clearance under part");
+  assert.equal(has(-0.5), false);
+  // Exactly at the bottom is not below it.
+  assert.equal(has(-1), false);
+});
+
 /* ---------------- It is about a setup, not a part ---------------- */
 
 test("an unknown setup returns nothing rather than a sheet about some other setup", () => {
