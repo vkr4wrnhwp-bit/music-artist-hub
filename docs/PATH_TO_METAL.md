@@ -177,32 +177,49 @@ comp on, climb-only, full depth in one pass where the tool allows.
 
 ### B. The machinist must know how to set the job up
 
-**B1 — There is no setup sheet. (MEDIUM — highest value per hour on this list)**
-Grep the source: no setup sheet, no traveller, no job packet. The phrase
-appears only in a tool-field hint and in the analyzer's assumption text.
+**B1 — The setup sheet. — BUILT**
+Grep the source before this change: no setup sheet, no traveller, no job
+packet. CANVAS *knew* everything one contains — stock size and grade, vise and
+jaw type, grip depth, parallel height, jaw axis, orientation, work offset, the
+tool list with stickout and holder, the operation order, the predicted cycle
+time, the critical dimensions and how each is to be inspected — and printed
+none of it. You cannot hand a program to a second-shift machinist with none of
+that, which meant the program could not leave the office.
 
-CANVAS *knows* everything a setup sheet contains — stock size and grade, vise
-and jaw type, grip depth, parallel height, jaw axis, part orientation, work
-offset, the tool list with stickout and holder, the operation order, the
-predicted cycle time, the critical dimensions and how each is to be inspected.
-It prints none of it. You cannot hand a program to a second-shift machinist
-with none of that, which means today the program cannot leave the office.
+`setup-sheet.ts` assembles it and the page prints it: black on white, heavy
+rules, program zero boxed at the top, and a print stylesheet that drops the
+instrument shell — whose `overflow: hidden` would otherwise have clipped a
+four-page sheet to page one with nothing to say the rest existed.
 
-Build: a printable setup sheet per setup — origin location and how to pick it
-up, part orientation with the viewport's own image, stock, workholding, tool
-table with pockets/stickout/offsets, operation sequence, cycle time, critical
-dimensions, and the gate state at approval. The data is all in
-`ManufacturingPackage` already; this is a rendering job, not an engineering one.
+Two things on it are the point.
 
-**B2 — The work-offset origin is never stated to the operator. (SMALL)**
-The convention exists — "Work-offset origin taken as program zero with Z0 at
-the stock top" (`nc/analyze.ts:112`), "origin at stock centre"
-(`sim/stock-removal.ts:103`) — and appears nowhere in the posted program. The
-header carries part, machine, date, tool list and a warning, and not the one
-sentence that decides whether the part is cut in the right place.
+**Absence is printed, not omitted.** The dangerous setup sheet is the one that
+leaves a field blank: a blank grip depth reads as "no grip depth needed", a
+missing parallel height reads as "sits on the floor of the vise". Every unknown
+becomes a line in a RESOLVE AT THE MACHINE checklist — tools with no pocket,
+offsets that CANVAS does not set, toleranced features with no inspection
+method, operations that produced no toolpath, features nothing cuts, and grip
+numbers that are the plan's intent rather than a measurement. On the seeded
+bearing support it printed four, all true.
 
-Build: origin declaration in the post header and on the setup sheet; make it a
-property of the Setup rather than a convention held in two comments.
+**The gate state is printed.** A sheet in somebody's hand is not clearance to
+cut, so it carries the readiness verdict and every open blocking gate. It also
+carries the development-post notice unconditionally, because no package state
+turns a development post into a certified one.
+
+`src/lib/setup-sheet.ts`, `src/lib/program-origin.ts`,
+`parts/[id]/setups/[sid]/sheet`, and the print block in `globals.css`.
+
+**B2 — The work-offset origin is never stated to the operator. (SMALL — half done)**
+The convention lived in two source comments in two different files and reached
+the operator in neither. It now lives once, in `src/lib/program-origin.ts`, and
+the setup sheet and the NC analyzer's assumption list both say it in the same
+words.
+
+Still to do: the **post header**. It carries part, machine, date, tool list and
+a warning, and not the one sentence that decides whether the part is cut in the
+right place. And the origin should become a property of the Setup — see B3 —
+rather than a system-wide default.
 
 **B3 — A setup has no coordinate frame. (LARGE)**
 `Setup` carries `orientation` (a string, "TOP") and `workOffset` ("G54") and no

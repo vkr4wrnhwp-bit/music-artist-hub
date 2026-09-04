@@ -27,12 +27,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        required action into this provider and the drawer reads them. Nothing is
        invented in transit — the page publishes values it has already loaded. */
     <PartShellProvider>
-      <div className="flex h-dvh overflow-hidden bg-shell">
-        <Sidebar user={{ name: user.name, organizationName: user.organizationName, role: user.role }} />
+      <div className="shell-frame flex h-dvh overflow-hidden bg-shell">
+        <div className="shell-chrome contents">
+          <Sidebar user={{ name: user.name, organizationName: user.organizationName, role: user.role }} />
+        </div>
         <ShellUserProvider
           user={{ name: user.name, organizationName: user.organizationName, role: user.role }}
         >
-          <div className="flex min-w-0 flex-1 flex-col bg-work">{children}</div>
+          <div className="shell-work flex min-w-0 flex-1 flex-col bg-work">{children}</div>
           <Suspense fallback={null}>
             <CoachMark />
           </Suspense>

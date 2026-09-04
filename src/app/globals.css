@@ -422,3 +422,43 @@ a:focus-visible {
   padding: 4px 10px;
   font-size: 11px;
 }
+
+/* ------------------------------------------------------------------
+   PAPER
+   ------------------------------------------------------------------
+   The setup sheet is the one thing in CANVAS that is meant to leave the
+   screen — it goes to the machine with the program, and a machinist sets up
+   from it. The shell is a fixed-height, overflow-hidden instrument frame,
+   which is right on a monitor and wrong on paper twice over: the icon rail
+   prints down the side of every page, and `overflow: hidden` clips the sheet
+   to one screen, so a four-page sheet comes out as page one with nothing to
+   say the rest existed.
+
+   Scoped to print only. Nothing here changes a pixel on screen.
+   ------------------------------------------------------------------ */
+@media print {
+  .shell-frame {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .shell-work {
+    display: block !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .shell-chrome {
+    display: none !important;
+  }
+  /* A page break inside a tool table or an operation list splits a row across
+     two sheets, and a machinist reads the half on the second page as its own
+     operation. */
+  table,
+  section {
+    break-inside: avoid;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}

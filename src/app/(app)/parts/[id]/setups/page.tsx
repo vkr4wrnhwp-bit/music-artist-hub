@@ -131,7 +131,22 @@ export default async function SetupsPage(props: {
                 <Panel
                   key={s.id}
                   title={s.name}
-                  meta={<StatusChip tone={tone}>{a ? RISK_LABEL[a.level] : "Not assessed"}</StatusChip>}
+                  meta={
+                    <div className="flex items-center gap-3">
+                      {/* The sheet is what actually goes to the machine with
+                          the program. It states program zero, the stock, the
+                          vise, the tools and what is still unresolved — and it
+                          prints the gate state, so it is never mistaken for
+                          clearance to cut. */}
+                      <Link
+                        href={`/parts/${id}/setups/${s.id}/sheet`}
+                        className="text-[10px] font-semibold uppercase tracking-[0.12em] text-precision-dim hover:text-precision"
+                      >
+                        Setup sheet
+                      </Link>
+                      <StatusChip tone={tone}>{a ? RISK_LABEL[a.level] : "Not assessed"}</StatusChip>
+                    </div>
+                  }
                 >
                   {/* The hold is the object: the drawing carries grip,
                       projection and the peak force where it acts. */}

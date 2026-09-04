@@ -3,6 +3,7 @@ import type { NCSegment, ParsedNC } from "./parse";
 import { timePath } from "./time";
 import { REACH_CLEARANCE, reachesDepth } from "@/lib/domain/shop";
 import { ACROSS_SHARE_THRESHOLD, summariseLoadDirection } from "./load-direction";
+import { PROGRAM_ORIGIN } from "@/lib/program-origin";
 
 /** Stated fallback when a part names no machine. Never presented as machine data. */
 export const DEFAULT_RAPID_IPM = 600;
@@ -109,7 +110,10 @@ export function analyzeNC(parsed: ParsedNC, ctx: AnalysisContext): NCAnalysis {
     accel !== null
       ? `Trapezoidal acceleration model at ${accel} in/s² (machine record) with cos-scaled junction velocities — DEVELOPMENT ANALYSIS, not validated against this machine's control. Jerk, per-axis limits and look-ahead are not modelled; dense 3D paths run slower than this estimate.`
       : "No axis acceleration recorded for this machine: times are distance over feed and overstate savings on short segments. Record axisAccel on the machine to enable the trapezoidal model.",
-    "Work-offset origin taken as program zero with Z0 at the stock top.",
+    // Stated from one place. This sentence and the setup sheet's and the post
+    // header's used to be three separately-written strings describing the one
+    // assumption that decides whether the part is cut in the right place.
+    PROGRAM_ORIGIN.prose,
   ];
   if (ctx.rapidRate === null) {
     assumptions.push(
