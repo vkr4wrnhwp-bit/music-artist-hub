@@ -3,6 +3,7 @@ import type { FeatureKind } from "@/lib/domain/features";
 import { GOVERNING_DIMENSION } from "@/lib/engines/inspection-plan";
 import { assessCoverage } from "@/lib/engines/coverage";
 import { PROGRAM_ORIGIN } from "@/lib/program-origin";
+import { frameSentence } from "./engines/cam/setup-frame";
 
 /**
  * THE SETUP SHEET
@@ -88,7 +89,12 @@ export interface SheetCharacteristic {
 export interface SetupSheet {
   part: { name: string; number: string | null; revision: string; material: string | null; condition: string | null };
   setup: { sequence: number; name: string; orientation: string; workOffset: string; machine: string | null };
-  origin: { xy: string; z: string; prose: string; datumNote: string | null };
+  /**
+   * `turned` is its own line because it is its own fact. A machinist reading
+   * "BOTTOM" knows which face is up and not which way it got there, and the
+   * two answers mirror different coordinates.
+   */
+  origin: { xy: string; z: string; turned: string | null; prose: string; datumNote: string | null };
   stock: SheetField[];
   workholding: SheetField[];
   /** PLANNED | MEASURED | null — what the grip numbers above actually describe. */
@@ -135,6 +141,23 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
     unknowns.push("Stock is not defined. Every coordinate in this program is measured from the stock, so nothing below can be set up without it.");
   } else if (!st.condition) {
     unknowns.push("Stock condition is not recorded. Confirm the temper against the certificate before cutting — the speeds and feeds were derived from the material record, not from this bar.");
+  }
+
+  /* ---------------- Where zero is, for THIS setup ---------------- */
+
+  /*
+   * The sheet used to print one system-wide sentence for every setup, because
+   * there was one convention. A setup that is turned over is a different frame
+   * under a different work offset, and the sheet is the document that stands
+   * between a machinist and picking up the wrong edge.
+   */
+  const frame = pkg.framesBySetup[setup.id] ?? null;
+  const frameError = pkg.frameErrorsBySetup[setup.id] ?? null;
+  const originText = frame
+    ? frameSentence(frame, st)
+    : { xy: PROGRAM_ORIGIN.xy, z: PROGRAM_ORIGIN.z, sentence: PROGRAM_ORIGIN.sentence, prose: PROGRAM_ORIGIN.prose };
+  if (frameError) {
+    unknowns.push(`Where zero is cannot be stated for this setup. ${frameError.reason}`);
   }
 
   /* ---------------- Workholding ---------------- */
@@ -339,9 +362,17 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
       machine: setup.machine ? `${setup.machine.manufacturer} ${setup.machine.model}` : null,
     },
     origin: {
-      xy: PROGRAM_ORIGIN.xy,
-      z: PROGRAM_ORIGIN.z,
-      prose: PROGRAM_ORIGIN.prose,
+      xy: originText.xy,
+      z: originText.z,
+      turned:
+        frame && frame.flipAxis
+          ? `About ${frame.flipAxis} — every ${frame.flipAxis === "Y" ? "X" : "Y"} on the model is mirrored${
+              frame.quarterTurns ? `, then indexed ${frame.quarterTurns * 90}° CCW` : ""
+            }`
+          : frame && frame.quarterTurns
+            ? `Indexed ${frame.quarterTurns * 90}° CCW from the model`
+            : null,
+      prose: originText.prose,
       datumNote: setup.datumNote ?? null,
     },
     stock,

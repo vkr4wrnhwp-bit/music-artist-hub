@@ -22,6 +22,7 @@ import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { NcExportPanel } from "@/components/nc/export-panel";
 import { Button, DevLabel, Dot, Field, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, Table, Td, inputClass } from "@/components/ui";
+import { frameSentence } from "@/lib/engines/cam/setup-frame";
 
 /**
  * NC OUTPUT
@@ -128,6 +129,20 @@ export default async function NcPage(props: {
       partName: fresh.revision.partName,
       revision: fresh.revision.revision,
       generatedAtIso: new Date().toISOString(),
+      /*
+       * Where zero is, per work offset, in the setups' own words.
+       *
+       * A part that gets flipped runs under more than one offset and the frames
+       * are not the same sentence. An operator who picks up an edge under the
+       * wrong reading cuts a mirrored part, and nothing in the program is wrong
+       * enough for a gate to catch it — so the header carries one line each.
+       */
+      origins: fresh.setups
+        .filter((s) => fresh.framesBySetup[s.id])
+        .map((s) => ({
+          workOffset: s.workOffset,
+          sentence: frameSentence(fresh.framesBySetup[s.id], fresh.revision.stock).sentence,
+        })),
     };
 
     const code = post.emit(fresh.toolpaths, ctx);

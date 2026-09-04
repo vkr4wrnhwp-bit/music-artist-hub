@@ -104,6 +104,14 @@ export default async function SetupSheetPage({
             <span className="font-bold">{sheet.origin.z}</span>
             <span className="text-[11px] uppercase tracking-[0.1em] text-neutral-600">Part up</span>
             <span className="font-bold">{sheet.setup.orientation}</span>
+            {/* Which face is up does not say which way it was turned to get
+                there, and the two answers mirror different coordinates. */}
+            {sheet.origin.turned && (
+              <>
+                <span className="text-[11px] uppercase tracking-[0.1em] text-neutral-600">Turned</span>
+                <span className="font-bold">{sheet.origin.turned}</span>
+              </>
+            )}
           </div>
           {sheet.origin.datumNote && (
             <p className="mt-2 border-t border-neutral-300 pt-2 text-[12px] leading-snug">{sheet.origin.datumNote}</p>

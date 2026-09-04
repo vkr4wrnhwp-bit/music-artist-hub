@@ -37,6 +37,14 @@ const num = (formData: FormData, name: string): number | null => {
   return Number.isFinite(v) && v >= 0 ? v : null;
 };
 
+/** Program zero can sit either side of the stock centre, so this one signs. */
+const signed = (formData: FormData, name: string): number | null => {
+  const raw = String(formData.get(name) ?? "").trim();
+  if (raw === "") return null;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : null;
+};
+
 export async function recordSetupGeometry(partId: string, formData: FormData) {
   const user = await requireWrite();
 
@@ -63,6 +71,8 @@ export async function recordSetupGeometry(partId: string, formData: FormData) {
 
   const gripDepth = num(formData, "gripDepth");
   const stockProjection = num(formData, "stockProjection");
+  const flipAxisRaw = String(formData.get("flipAxis") ?? "");
+  const quarterTurns = num(formData, "quarterTurns");
 
   await db.setup.update({
     where: { id: owned.id },
@@ -78,6 +88,12 @@ export async function recordSetupGeometry(partId: string, formData: FormData) {
       // workholding engine will trust.
       jawAxis: jawAxisRaw === "X" || jawAxisRaw === "Y" ? jawAxisRaw : null,
       jawSurface: (JAW_SURFACES as readonly string[]).includes(jawSurfaceRaw) ? jawSurfaceRaw : null,
+      // How the part sits. Same rule as the jaw axis: only a value the frame
+      // engine recognises is stored, because a stored value is one it acts on.
+      flipAxis: flipAxisRaw === "X" || flipAxisRaw === "Y" ? flipAxisRaw : null,
+      quarterTurns: quarterTurns === null || quarterTurns > 3 ? null : Math.round(quarterTurns),
+      originX: signed(formData, "originX"),
+      originY: signed(formData, "originY"),
       workOffset: String(formData.get("workOffset") ?? "").trim().slice(0, 10) || "G54",
       datumNote: String(formData.get("datumNote") ?? "").trim().slice(0, 500) || null,
       geometrySource: "MEASURED",

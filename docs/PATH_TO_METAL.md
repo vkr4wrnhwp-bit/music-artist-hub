@@ -512,20 +512,74 @@ reads as safe, and a dialect that was not read must never come back verified.
 Still to do: the origin should become a property of the Setup — see B3 — rather
 than a system-wide default.
 
-**B3 — A setup has no coordinate frame. (LARGE)**
-`Setup` carries `orientation` (a string, "TOP") and `workOffset` ("G54") and no
-origin, no transform (`prisma/schema.prisma:759`). Feature coordinates are
-assumed to be program coordinates. There is no rotation, no offset, no
-part-in-stock placement.
+**B3 — A setup had no coordinate frame. — BUILT**
+`Setup` carried `orientation` — the string "TOP" or "BOTTOM" — and a work
+offset, and nothing else. Feature coordinates were program coordinates by
+assumption: no origin, no rotation, no statement of how the part sits.
 
-What this forecloses: second-op work. Flip a part and every X, Y and Z in the
-second setup is wrong, with nothing in the system aware of it. Multi-part
-fixtures, tombstones, anything not centred, and datum transfer between setups
-all sit behind the same gap.
+For the first setup on a centred part that assumption is true, which is why it
+survived. For the second it is not. Turn a part over and every X on it moves to
+the other side of the machine — a hole at X+2.2500 in the model is at X−2.2500
+once the part is flipped — and nothing in the system knew. The program was
+dimensionally perfect and mirrored, which is the failure mode that measures
+correct on every individual feature and scraps the part.
 
-Build: a real per-setup transform — origin in stock coordinates, orientation as
-a rotation, and a single function every toolpath passes through. Then datum
-transfer and its tolerance stack become expressible.
+Worse, **"BOTTOM" does not say which way it was turned.** Rolled about X and
+pitched about Y both put the bottom face up, and they mirror different
+coordinates. The string on its own cannot be acted on at all — so a setup that
+says the part is bottom up and does not record the axis is **refused**, and it
+produces no motion. That is the one failure worth refusing outright rather than
+warning about, because there is nothing downstream that could catch it.
+
+The frame is a turnover, a quarter-turn index and an origin. Rotation is
+restricted to quarter turns because that is what a vise does — an angle between
+them needs a fixture that locates the part at it, and CANVAS does not model one
+— and it keeps every derived box axis-aligned, which is what the simulator's
+height field and the collision checks are built on.
+
+Turning the part over is a proper 180° rotation in 3D, but in the XY plane the
+machine works in its determinant is −1, so **every arc reverses**: a G3 on the
+top face is a G2 on the bottom, and one left as a G3 cuts the other side of the
+line. The canned-cycle descriptor is transformed with the moves rather than
+derived from them, or a hole pattern would be drilled in one place and simulated
+in another.
+
+Applied **once**, in `buildPackage`, where the toolpath is produced — so the
+post, the simulator, the reconciler and the sheet all read one frame. Verified
+on the seeded bearing support: Setup 2's paths come out with X unchanged, every
+Y negated and every arc reversed, and Setup 1 is untouched.
+
+**Z is not transformed, and that is deliberate.** Operations are already
+authored in the setup's own Z — the planner emits Setup 2's depths measured from
+the face that is up in Setup 2 — so there is nothing to transform from.
+
+The planner states which way it flips and why: rolled front to back about X, so
+the face that was against the fixed jaw stays against it and the second setup's
+X repeats off the first. Turning it about Y would swap them and hand the datum
+to the moving jaw.
+
+And the fact reaches the people it has to. The post header carries one origin
+line per work offset — G54 the part as modelled, G55 the same part turned over
+about X with every Y mirrored — because an operator picking up an edge under the
+wrong reading cuts a mirrored part and nothing in the program is wrong enough
+for a gate to catch it. The printed setup sheet carries TURNED as its own line
+beside PART UP, since which face is up does not say which way it got there. The
+setups page states the refusal beside the control that clears it.
+
+The default is the convention the whole system already ran on: zero at the
+centre of the stock, no index, the part the way up it was modelled. A setup that
+records nothing means exactly that, so nothing planned before this existed
+changes.
+
+`src/lib/engines/cam/setup-frame.ts`, `Setup.flipAxis/quarterTurns/originX/Y`,
+`buildPackage`, `PostContext.origins`, `buildSetupSheet`, the setup-geometry
+form and the second-setup branch of `machinist.ts`.
+
+**Still open:** a feature whose depth is measured from the opposite face — a
+counterbore on the underside — is still not expressible, and datum transfer
+between setups and its tolerance stack sit behind that. Multi-part fixtures and
+tombstones need an origin per instance, which is this frame repeated rather than
+a different idea.
 
 ### C. Verification must verify the artifact that is actually run
 
@@ -875,15 +929,17 @@ Saying no is part of the plan.
 
 1. ~~**A4** feature coverage gate~~ — BUILT. Found six uncut features on a
    seeded part the first time it ran.
-2. **B1** setup sheet — the program cannot leave the office without it.
+2. ~~**B1** setup sheet~~ — BUILT. The program can leave the office.
 3. ~~**A1** arc output~~ — BUILT. 1,685 blocks to 420 on the seeded part, and
    a bore that is round.
 4. ~~**A3** canned cycles~~ — BUILT. The program reads like a program.
-5. **C1 + C2** simulate and reconcile the posted text — closes the loop that
-   makes every later post change safe.
+5. ~~**C1 + C2** simulate and reconcile the posted text~~ — BUILT. It caught a
+   peck-depth defect in code written an hour earlier, which is the loop
+   working.
 6. ~~**A2** cutter compensation~~ — BUILT. The machinist has their offset back,
    and a corner gouge went with it.
-7. **B2 + E** origin declaration, proof-out state, the remaining gates.
+7. ~~**B2 + E** origin declaration, proof-out state, the remaining gates~~ —
+   BUILT. The origin declaration is now per setup; see B3.
 8. ~~**A5 + A6** chained contours and real finish passes~~ — BUILT.
 8b. ~~**A7 + A8 + A9** one operation per hole, a chamfer that is one, and a
    through hole that goes through~~ — BUILT. A six-hole bolt circle was one
@@ -892,7 +948,10 @@ Saying no is part of the plan.
    turned up while fixing them. The tests found none of the three.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
    ~~D1~~ BUILT; D2 needs real iron.
-10. **B3** the setup transform, and second-op work opens up.
+10. ~~**B3** the setup transform~~ — BUILT. A flipped setup was a mirrored
+   program that measured correct on every feature, and "BOTTOM" could not say
+   which way the part was turned.
 
-Items 1 through 7 are what stands between here and a machinist trusting the
-output. Everything after that is scale.
+Items 1 through 8b are built. What is left in Tier 0 is **D2** — one control
+commissioned end to end — and it needs real iron and a machinist, not more
+code. Everything after that is scale.

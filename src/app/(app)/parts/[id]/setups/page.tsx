@@ -148,6 +148,20 @@ export default async function SetupsPage(props: {
                     </div>
                   }
                 >
+                  {/*
+                    A setup that cannot say how the part sits produces no
+                    motion at all, and this is the page with the control that
+                    fixes it. The gates catch it too, further downstream — but
+                    a blocker whose remedy is three pages away is a blocker
+                    somebody works around.
+                  */}
+                  {pkg.frameErrorsBySetup[s.id] && (
+                    <Notice tone="risk" title="Where zero is cannot be read for this setup">
+                      {pkg.frameErrorsBySetup[s.id].reason} No toolpath is generated for this setup until it is
+                      recorded — a mirrored program is dimensionally perfect and scrap.
+                    </Notice>
+                  )}
+
                   {/* The hold is the object: the drawing carries grip,
                       projection and the peak force where it acts. */}
                   <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
@@ -170,6 +184,11 @@ export default async function SetupsPage(props: {
                           parallelHeight: s.parallelHeight,
                           jawAxis: s.jawAxis,
                           jawSurface: s.jawSurface,
+                          orientation: s.orientation,
+                          flipAxis: s.flipAxis,
+                          quarterTurns: s.quarterTurns,
+                          originX: s.originX,
+                          originY: s.originY,
                           workOffset: s.workOffset,
                           datumNote: s.datumNote,
                           geometrySource: s.geometrySource,

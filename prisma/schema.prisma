@@ -806,6 +806,25 @@ model Setup {
   workOffset     String @default("G54")
   datumNote      String?
 
+  // WHERE PROGRAM ZERO IS, AND WHICH WAY THE PART IS TURNED.
+  //
+  // `orientation` says which face is up and cannot say which way the part was
+  // turned to get it there: rolled about X mirrors every Y, pitched about Y
+  // mirrors every X, and both read "BOTTOM". Two different parts. So the axis
+  // is recorded, and a BOTTOM setup without it is refused rather than guessed.
+  //
+  // quarterTurns indexes the part about Z in 90° steps, which is what a vise
+  // does — an angle between them needs a fixture that locates the part at it,
+  // and none is modelled. originX/Y move program zero off the stock centre.
+  //
+  // All nullable, all meaning the convention the system already ran on: zero
+  // at the stock centre, no index, the way up it was modelled. Nothing planned
+  // before these existed changes.
+  flipAxis     String? // X | Y
+  quarterTurns Int?
+  originX      Float?
+  originY      Float?
+
   // Setup geometry that the workholding engine reasons over.
   //
   // WHERE THESE NUMBERS CAME FROM decides what the holding margin means.

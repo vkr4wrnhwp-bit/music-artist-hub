@@ -17,6 +17,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "./domain/shop";
 import { proofState } from "./nc/proof";
 import { foreignProgram, postValidationState, type PostValidationVerdict } from "./engines/post-validation";
 import { defaultPostForController, getPost } from "./engines/cam/post";
+import { setupFrame, toProgramToolpath, type FrameRefusal, type SetupFrame } from "./engines/cam/setup-frame";
 
 /**
  * Assembles the complete manufacturing package for a revision.
@@ -39,6 +40,16 @@ export interface ManufacturingPackage {
   primaryMachine: MachineProfile | null;
   primaryWorkholding: WorkholdingDevice | null;
   workholdingBySetup: Record<string, WorkholdingAssessment>;
+  /**
+   * How each setup sits: turned over about which axis, indexed how far, with
+   * program zero where. The toolpaths below are already in the program
+   * coordinates these describe. A setup whose frame cannot be read — bottom up
+   * with no flip axis recorded — is in `frameErrorsBySetup` instead, and it
+   * produces no toolpaths, because a mirrored program is dimensionally perfect
+   * and cuts the wrong part. See engines/cam/setup-frame.ts.
+   */
+  framesBySetup: Record<string, SetupFrame>;
+  frameErrorsBySetup: Record<string, FrameRefusal>;
   toolpaths: Toolpath[];
   toolpathErrors: ToolpathError[];
   cycleMinutes: number;
@@ -129,9 +140,33 @@ export async function buildPackage(
 
   const toolpaths: Toolpath[] = [];
   const toolpathErrors: ToolpathError[] = [];
+  const framesBySetup: Record<string, SetupFrame> = {};
+  const frameErrorsBySetup: Record<string, FrameRefusal> = {};
 
   if (revision.stock && primaryMachine) {
     for (const setup of setups) {
+      /*
+       * THE SETUP'S FRAME, BEFORE ANY OF ITS TOOLPATHS.
+       *
+       * A setup that cannot say how the part sits produces no motion at all.
+       * The alternative is a program that is dimensionally perfect and mirrored
+       * — every feature measures correct on its own and the part is scrap —
+       * which is the one failure mode worth refusing outright.
+       */
+      const frame = setupFrame(setup);
+      if ("error" in frame) {
+        frameErrorsBySetup[setup.id] = frame.error;
+        for (const op of setup.operations) {
+          toolpathErrors.push({
+            operationId: op.id,
+            reason: `${op.label}: ${frame.error.reason}`,
+            recommendations: frame.error.recommendations,
+          });
+        }
+        continue;
+      }
+      framesBySetup[setup.id] = frame;
+
       for (const op of setup.operations) {
         const tool = tools.find((t) => t.id === op.toolId);
         if (!tool) {
@@ -170,7 +205,9 @@ export async function buildPackage(
         };
         const feature = revision.features.find((f) => f.id === op.featureId) ?? null;
         const result = generateToolpath(request, feature, ctx, revision.stock);
-        if (result.ok) toolpaths.push(result.toolpath);
+        // Into the setup's program coordinates once, here, so everything
+        // downstream — post, simulator, reconciler, sheet — reads one frame.
+        if (result.ok) toolpaths.push(toProgramToolpath(frame, result.toolpath));
         else toolpathErrors.push(result.error);
       }
     }
@@ -423,6 +460,8 @@ export async function buildPackage(
     primaryMachine,
     primaryWorkholding,
     workholdingBySetup,
+    framesBySetup,
+    frameErrorsBySetup,
     toolpaths,
     toolpathErrors,
     cycleMinutes,

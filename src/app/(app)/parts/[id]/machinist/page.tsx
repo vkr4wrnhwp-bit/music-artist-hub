@@ -167,6 +167,9 @@ export default async function MachinistPage(props: {
           sequence: s.sequence,
           name: s.name,
           orientation: s.orientation,
+          // Which way the part is turned to get there. "BOTTOM" cannot say it,
+          // and a setup that does not say produces no motion at all.
+          flipAxis: s.flipAxis,
           machineId: freshMachine.id,
           workholdingId: fresh.primaryWorkholding?.id ?? null,
           workOffset: s.workOffset,

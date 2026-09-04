@@ -122,6 +122,16 @@ export interface PlannedSetup {
   sequence: number;
   name: string;
   orientation: "TOP" | "BOTTOM";
+  /**
+   * Which axis the part is turned over about to reach this orientation.
+   *
+   * "BOTTOM" on its own cannot say: rolled about X mirrors every Y, pitched
+   * about Y mirrors every X, and both put the same face up. A plan that does
+   * not say produces a setup nothing can generate motion for, which is the
+   * honest outcome and not a useful one — so the planner states its intent and
+   * the datum note says why it chose that way.
+   */
+  flipAxis: "X" | "Y" | null;
   workOffset: string;
   datumNote: string;
   gripDepth: number;
@@ -719,6 +729,7 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
       sequence: 1,
       name: "SETUP 1 — Top face and features",
       orientation: "TOP",
+      flipAxis: null,
       workOffset: "G54",
       datumNote:
         "Datum A is the machined top face. X0Y0 at the part centre, established by probing the stock rather than trusting the saw cut.",
@@ -863,8 +874,21 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
       sequence: 2,
       name: "SETUP 2 — Flip, thickness and profile",
       orientation: "BOTTOM",
+      /*
+       * Rolled front to back, about X.
+       *
+       * The jaws hold the two faces perpendicular to X. Turning the part over
+       * about that same axis keeps both of them in the jaws AND keeps the one
+       * that was against the fixed jaw against it, which is what makes the
+       * second setup's X repeat off the first. Turning it about Y would swap
+       * them and hand the datum to the moving jaw.
+       *
+       * Every Y in the model mirrors as a result, and the program says so.
+       */
+      flipAxis: "X",
       workOffset: "G55",
-      datumNote: "Located on the machined top face from Setup 1, seated on the soft jaw step.",
+      datumNote:
+        "Located on the machined top face from Setup 1, seated on the soft jaw step. Rolled front to back about X, so the face that was against the fixed jaw stays against it — every Y on the model is mirrored in this setup.",
       gripDepth: grip,
       gripLength: Math.min(stock.x, jawWidth),
       stockProjection: Number((remaining - grip).toFixed(3)),

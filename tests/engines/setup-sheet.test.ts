@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { buildSetupSheet } from "@/lib/setup-sheet";
 import { PROGRAM_ORIGIN } from "@/lib/program-origin";
 import type { ManufacturingPackage } from "@/lib/package";
+import { DEFAULT_FRAME } from "@/lib/engines/cam/setup-frame";
 
 /**
  * THE SETUP SHEET
@@ -90,6 +91,10 @@ const pkg = (over: Record<string, unknown> = {}): ManufacturingPackage =>
     ],
     assignedTools: [{ id: "t1", holder: "CAT40 ER32", actualStickout: 1.31 }],
     workholdingBySetup: { s1: { level: "SAFE", holdingMargin: { margin: 3.2 } } },
+    // Where zero is, per setup. The default frame is the convention the whole
+    // system ran on before a setup could say otherwise.
+    framesBySetup: { s1: DEFAULT_FRAME },
+    frameErrorsBySetup: {},
     toolpaths: [
       { operationId: "o1", isPlaceholder: false, cycleTimeMinutes: 2.5, parameters: { rpm: 6000, feed: 42 } },
     ],
@@ -136,13 +141,47 @@ test("an unknown setup returns nothing rather than a sheet about some other setu
 
 /* ---------------- Program zero ---------------- */
 
-test("the sheet states where program zero is", () => {
+test("the sheet states where program zero is, for this setup", () => {
   const s = sheet();
   // The one sentence that decides whether the part is cut in the right place.
   // It lived in two source comments and reached the operator in neither.
   assert.equal(s.origin.xy, PROGRAM_ORIGIN.xy);
-  assert.equal(s.origin.z, PROGRAM_ORIGIN.z);
+  assert.match(s.origin.z, /top of the stock as it sits in this setup/i);
   assert.match(s.origin.datumNote!, /left rear corner/);
+});
+
+test("a setup that is turned over says so where zero is stated", () => {
+  /*
+   * The sheet printed one system-wide sentence for every setup, because there
+   * was one convention. A flipped setup is a different frame, and the sheet is
+   * the document standing between a machinist and picking up the wrong edge.
+   */
+  const p = pkg();
+  (p.framesBySetup as Record<string, unknown>).s1 = { ...DEFAULT_FRAME, flipAxis: "Y", originX: -3, originY: -2 };
+  const s = buildSetupSheet(p, "s1")!;
+  assert.match(s.origin.prose, /turned over about Y/);
+  assert.match(s.origin.prose, /every X on the model is on the other side of the machine/);
+  assert.match(s.origin.xy, /X-3\.0000 Y-2\.0000/);
+  // Its own line on the printed sheet: "BOTTOM" says which face is up and not
+  // which way it got there, and the two answers mirror different coordinates.
+  assert.match(s.origin.turned!, /^About Y — every X on the model is mirrored$/);
+
+  const p2 = pkg();
+  (p2.framesBySetup as Record<string, unknown>).s1 = { ...DEFAULT_FRAME, flipAxis: "X", quarterTurns: 1 };
+  assert.match(buildSetupSheet(p2, "s1")!.origin.turned!, /About X — every Y on the model is mirrored, then indexed 90° CCW/);
+
+  // Nothing to say when the part is the way it was modelled.
+  assert.equal(sheet().origin.turned, null);
+});
+
+test("a setup whose frame cannot be read says that rather than printing a default", () => {
+  // Bottom up with no flip axis. Printing the system convention here would be
+  // stating the one reading that is certainly not this setup's.
+  const p = pkg();
+  (p.framesBySetup as Record<string, unknown>).s1 = undefined;
+  (p.frameErrorsBySetup as Record<string, unknown>).s1 = { reason: "no axis recorded", recommendations: [] };
+  const s = buildSetupSheet(p, "s1")!;
+  assert.ok(s.unknowns.some((u) => /Where zero is cannot be stated/.test(u)), s.unknowns.join(" | "));
 });
 
 /* ---------------- Tools ---------------- */
@@ -317,9 +356,15 @@ test("program zero is stated from one place", () => {
   // Scoped to each header that writes it. An unscoped match passed while the
   // Fanuc header dropped the line, because the Heidenhain one still had it.
   const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  // Both headers now ask one function, which falls back to the system
+  // convention when the program carries no per-setup frame.
+  assert.ok(/PROGRAM_ORIGIN\.sentence/.test(/function originLines\([\s\S]*?\n}/.exec(post)?.[0] ?? ""),
+    "the origin line no longer falls back to the one stated convention");
   const fanuc = /function header\([\s\S]*?\n}/.exec(post);
   assert.ok(fanuc, "the shared post header moved — this test cannot check it any more");
-  assert.ok(/PROGRAM_ORIGIN\.sentence/.test(fanuc![0]), "the post header does not state where program zero is");
+  assert.ok(/originLines\(ctx\)/.test(fanuc![0]), "the post header does not state where program zero is");
   const tnc = /const emitHeidenhain[\s\S]*?BEGIN PGM[\s\S]{0,400}/.exec(post);
-  assert.ok(tnc && /PROGRAM_ORIGIN\.sentence/.test(tnc[0]), "the Heidenhain header does not state where program zero is");
+  assert.ok(tnc && /originLines\(ctx\)/.test(tnc[0]), "the Heidenhain header does not state where program zero is");
+  // And the sheet asks the same function rather than composing its own prose.
+  assert.ok(/frameSentence\(frame, st\)/.test(sheetSrc), "the sheet writes its own origin sentence");
 });

@@ -34,6 +34,11 @@ export function SetupGeometryForm({
     parallelHeight: number | null;
     jawAxis: string | null;
     jawSurface: string | null;
+    orientation: string;
+    flipAxis: string | null;
+    quarterTurns: number | null;
+    originX: number | null;
+    originY: number | null;
     workOffset: string;
     datumNote: string | null;
     geometrySource: string | null;
@@ -135,6 +140,40 @@ export function SetupGeometryForm({
         <Field label="Datum note" hint="What the work offset is measured from. A reading with no reference is not reproducible.">
           <input name="datumNote" defaultValue={setup.datumNote ?? ""} maxLength={500} className={inputClass} />
         </Field>
+
+        {/*
+          HOW THE PART SITS.
+
+          "BOTTOM" cannot say which way it was turned to get there. Rolled
+          about X mirrors every Y, pitched about Y mirrors every X, and both
+          put the same face up — two different parts, and a program written
+          under the wrong reading is dimensionally perfect and mirrored.
+        */}
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field
+            label="Turned over about"
+            hint={
+              setup.orientation === "BOTTOM"
+                ? "Required. X if you rolled it front to back, Y if you turned it left to right."
+                : "Only for a setup with the part bottom up."
+            }
+          >
+            <select name="flipAxis" defaultValue={setup.flipAxis ?? ""} className={inputClass}>
+              <option value="">Not turned over</option>
+              <option value="X">X — rolled front to back, every Y mirrors</option>
+              <option value="Y">Y — turned left to right, every X mirrors</option>
+            </select>
+          </Field>
+          <Field label="Index, quarter turns" hint="Counter-clockwise about Z. 0 to 3.">
+            <input name="quarterTurns" type="number" step="1" min={0} max={3} defaultValue={setup.quarterTurns ?? 0} className={inputClass} />
+          </Field>
+          <Field label="Zero X from stock centre, in" hint="0 puts X0 at the centre. Negative is toward −X.">
+            <input name="originX" type="number" step="0.0001" defaultValue={setup.originX ?? 0} className={inputClass} />
+          </Field>
+          <Field label="Zero Y from stock centre, in">
+            <input name="originY" type="number" step="0.0001" defaultValue={setup.originY ?? 0} className={inputClass} />
+          </Field>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" size="sm">Record as measured</Button>

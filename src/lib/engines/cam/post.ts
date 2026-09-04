@@ -24,6 +24,17 @@ export interface PostContext {
   partName: string;
   revision: string;
   generatedAtIso: string;
+  /**
+   * WHERE ZERO IS, PER WORK OFFSET.
+   *
+   * A part that gets flipped runs under more than one offset, and the frames
+   * are not the same sentence: G54 is the part the way it was modelled, G55 is
+   * the same part turned over about an axis, and an operator who picks up an
+   * edge under the wrong reading cuts a mirrored part. Absent means the one
+   * system convention, which is what every program written before setups had
+   * frames of their own meant. See engines/cam/setup-frame.ts.
+   */
+  origins?: { workOffset: string; sentence: string }[];
 }
 
 export interface PostDefinition {
@@ -36,6 +47,25 @@ export interface PostDefinition {
 }
 
 const n = (v: number, places = 4) => v.toFixed(places).replace(/^-0(\.0+)?$/, "0");
+
+/**
+ * WHERE ZERO IS, IN THE HEADER, IN THE PROGRAM'S OWN WORDS.
+ *
+ * One line when the whole program runs under one frame, one line per work
+ * offset when it does not. A part that gets flipped runs under more than one,
+ * and the readings are not the same sentence — an operator who picks up an edge
+ * under the wrong one cuts a mirrored part, and nothing in the program is wrong
+ * enough for a gate to catch it.
+ *
+ * Absent means the one system convention, which is what every program written
+ * before setups had frames of their own meant.
+ */
+function originLines(ctx: PostContext): string[] {
+  const origins = ctx.origins ?? [];
+  if (origins.length === 0) return [PROGRAM_ORIGIN.sentence];
+  if (origins.length === 1) return [origins[0].sentence];
+  return origins.map((o) => `${o.workOffset} — ${o.sentence}`);
+}
 
 function header(ctx: PostContext, lines: string[], comment: (s: string) => string) {
   lines.push(comment("CANVAS — DEVELOPMENT / SIMULATION POST. NOT CERTIFIED FOR PRODUCTION."));
@@ -52,7 +82,7 @@ function header(ctx: PostContext, lines: string[], comment: (s: string) => strin
    * nothing is wrong in the program. It is wrong in the assumption the program
    * was written under, and an assumption nobody printed is one nobody can check.
    */
-  lines.push(comment(PROGRAM_ORIGIN.sentence));
+  for (const line of originLines(ctx)) lines.push(comment(line));
   lines.push(comment("VERIFY EVERY LINE BEFORE RUNNING. DRY RUN ABOVE THE PART."));
   for (const t of ctx.toolTable) {
     lines.push(comment(`T${t.toolNumber} ${t.description} D${n(t.diameter, 4)} H${t.lengthOffset}`));
@@ -364,7 +394,7 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push(`BEGIN PGM ${ctx.programNumber} ${ctx.units === "IN" ? "INCH" : "MM"}`);
   lines.push(`; CANVAS DEVELOPMENT / SIMULATION POST — NOT CERTIFIED FOR PRODUCTION`);
   lines.push(`; PART ${ctx.partName} REV ${ctx.revision}`);
-  lines.push(`; ${PROGRAM_ORIGIN.sentence}`);
+  for (const line of originLines(ctx)) lines.push(`; ${line}`);
   let block = 1;
   let currentCall = "";
   const push = (s: string) => lines.push(`${block++} ${s}`);
