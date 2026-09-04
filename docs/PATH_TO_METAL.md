@@ -69,25 +69,48 @@ Nothing in this tier needs a geometry kernel.
 
 ### A. The program must describe the part the model describes
 
-**A1 — Arc output. (MEDIUM, do first)**
-`Move` has an `ARC` type with `i`/`j`/`cw` fields (`cam/types.ts:93`) and
-**no generator ever emits one**. `ringMoves` walks a circle in
-`max(24, radius × 60)` straight chords (`cam/engine.ts:607`); `rectMoves`
-walks each corner in eight (`:617`).
+**A1 — Arc output. — BUILT**
+`Move` carried an `ARC` type with `i`, `j` and `cw` fields and **no generator
+ever emitted one**. Four operations walked circles in straight chords: pocket
+rings, profile corners, bore helical interpolation, and adaptive's ramp entry.
 
-What the machinist gets: a Ø1.000″ bore comes out as a 30-sided polygon whose
-flats sit **0.0027″ inside nominal** — five times the whole band on a ±0.0005″
-bearing seat, and a form error, so it cannot be dialled out with an offset. The
-part measures round on a two-point mic across the flats and is not round.
-Secondary damage: programs are ten to fifty times longer than they need to be,
-the control's look-ahead buffer thrashes on short blocks, and the finish shows
-every chord.
+A Ø1.000″ bore arrived as a thirty-sided polygon whose flats sat **0.0027″
+inside nominal** — five times the whole band on a ±0.0005″ bearing seat, and a
+form error, so no offset dials it out. The part measures round across the flats
+on a two-point mic and is not round.
 
-Build: arc-aware move generation for every circular path, `G2/G3` with `I/J`
-in the Fanuc family (`R` is ambiguous over 180°), arc splitting at quadrant
-boundaries where a control needs it, helical arc output for helical entry, and
-a linearisation fallback with a *stated* chord tolerance for anything genuinely
-non-circular.
+`cam/arc.ts` now owns the convention in one place: `i` and `j` are the offsets
+from the arc's start to its centre, which is the incremental I/J every
+Fanuc-family control reads, so the post writes them out with no conversion and
+no chance of a sign error in translation. Full circles go out as two 180° arcs
+rather than one full-circle block, because a G2 with I/J and no endpoint means
+"full circle" on Haas and Fanuc and means something else or nothing elsewhere.
+
+The Fanuc family and GRBL emit native `G2`/`G3` with `I`/`J`, helical included.
+Heidenhain gets `CC`/`C`; Siemens gets `G2`/`G3` with `I=`/`J=`. Neither of
+those two has its helix syntax implemented, so a helical arc on those posts is
+flattened to a stated chord tolerance and **the program says so on the line
+where it happens** — a longer program that cuts the right shape beats a guess
+at syntax that does not.
+
+Everything downstream that walks the path as segments — the height-field
+simulator, the viewport, a post that has to flatten — calls one shared
+`flattenArcs`. Three copies of that tessellation would be three chances for the
+simulator to disagree with the program about where the tool went.
+
+The one path still walked in chords is adaptive clearing's Archimedean spiral,
+and that is not an oversight: its radius grows every revolution, so no `G2`/`G3`
+can express it and every CAM system chords it too. Its segment count now comes
+from the same chord tolerance as everything else, rather than the fixed 48 per
+revolution that got worse as the pocket got bigger.
+
+Measured on the seeded bearing support: **1,685 blocks to 420**, with cycle
+time unchanged at 7.9 min — the path is the same path, and an arc measured
+along the arc keeps the estimate honest rather than shortening every circular
+cut in the program.
+
+`src/lib/engines/cam/arc.ts`, the generators in `cam/engine.ts`, all four posts
+in `cam/post.ts`, `sim/stock-removal.ts` and `viewport/scene.tsx`.
 
 **A2 — Cutter compensation the control can see. (MEDIUM)**
 The contour path is offset in software — `const w = feature.width +
@@ -514,7 +537,8 @@ Saying no is part of the plan.
 1. ~~**A4** feature coverage gate~~ — BUILT. Found six uncut features on a
    seeded part the first time it ran.
 2. **B1** setup sheet — the program cannot leave the office without it.
-3. **A1** arc output — the largest single fidelity win.
+3. ~~**A1** arc output~~ — BUILT. 1,685 blocks to 420 on the seeded part, and
+   a bore that is round.
 4. **A3** canned cycles — small, and the program starts reading like a program.
 5. **C1 + C2** simulate and reconcile the posted text — closes the loop that
    makes every later post change safe.

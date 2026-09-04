@@ -309,6 +309,11 @@ test("turning annotations off never hides evidence or geometry", () => {
     !/annotationsVisible/.test(datumIndicator![0]),
     "the work offset origin hides with annotations — it is geometry, not a label",
   );
-  const toolpath = /function Toolpath\([\s\S]{0,1600}?\n}/.exec(scene);
-  assert.ok(toolpath && !/annotationsVisible/.test(toolpath[0]), "the toolpath hides with annotations");
+  // The bound is a window big enough to hold the function, not a claim about
+  // its length — it grew when the toolpath started flattening arcs before
+  // drawing them, and a window that silently stops matching turns this
+  // assertion into a test that passes by finding nothing.
+  const toolpath = /function Toolpath\([\s\S]{0,3000}?\n}/.exec(scene);
+  assert.ok(toolpath, "Toolpath moved or outgrew the window — this test cannot check it any more");
+  assert.ok(!/annotationsVisible/.test(toolpath![0]), "the toolpath hides with annotations");
 });

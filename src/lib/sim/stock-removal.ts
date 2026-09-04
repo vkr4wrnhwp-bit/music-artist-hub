@@ -1,4 +1,5 @@
 import type { Move } from "@/lib/engines/cam/types";
+import { flattenArcs } from "@/lib/engines/cam/arc";
 import { cutterHitsJaw, type FixtureModel } from "./fixture";
 
 /**
@@ -154,9 +155,18 @@ export function buildTimeline(ops: SimOperation[], rapidRate: number): { segment
   let t = 0;
   ops.forEach((op, opIndex) => {
     opStartTimes.push(t);
-    for (let i = 1; i < op.moves.length; i++) {
-      const a = op.moves[i - 1];
-      const b = op.moves[i];
+    /*
+     * Arcs are flattened before the field is swept. A height field is walked
+     * segment by segment, so an arc read as its chord would remove a straight
+     * swath where the tool actually curves — leaving material the program cuts,
+     * and worse, missing the jaw the tool actually reaches on the way round.
+     * The tolerance is the shared one, so the simulator and any post that has
+     * to flatten walk the identical path.
+     */
+    const moves = flattenArcs(op.moves);
+    for (let i = 1; i < moves.length; i++) {
+      const a = moves[i - 1];
+      const b = moves[i];
       const dist = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
       if (dist === 0) continue;
       const rapid = b.feed === null;

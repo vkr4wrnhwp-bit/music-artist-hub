@@ -1,4 +1,5 @@
 import type { Move, Toolpath } from "./types";
+import { CHORD_TOLERANCE, arcGeometry, flattenArcs, isArc } from "./arc";
 import type { MachineProfile } from "@/lib/domain/shop";
 
 /**
@@ -107,8 +108,8 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       }
       currentFeed = -1;
 
-      for (const mv of tp.moves) {
-        lines.push(moveLine(mv, currentFeed, (f) => (currentFeed = f)));
+      for (let i = 0; i < tp.moves.length; i++) {
+        lines.push(moveLine(tp.moves[i], currentFeed, (f) => (currentFeed = f), i > 0 ? tp.moves[i - 1] : null));
       }
 
       lines.push("M9");
@@ -125,14 +126,30 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
   };
 }
 
-function moveLine(mv: Move, currentFeed: number, setFeed: (f: number) => void): string {
+/**
+ * One move, in Fanuc-family words.
+ *
+ * `prev` is needed because an arc's I and J are measured from where the tool
+ * already is — that is the incremental convention this engine stores them in,
+ * so they go out as they are held. A control reads I/J as the vector to the
+ * centre; getting the sign wrong here would put the arc on the other side of
+ * the part, which is why the value is never recomputed on the way out.
+ *
+ * G2 is clockwise seen from +Z, which is what `cw` means.
+ */
+function moveLine(mv: Move, currentFeed: number, setFeed: (f: number) => void, prev: Move | null): string {
   const coords = `X${n(mv.x)} Y${n(mv.y)} Z${n(mv.z, 3)}`;
   if (mv.feed === null) return `G0 ${coords}`;
-  if (mv.feed !== currentFeed) {
-    setFeed(mv.feed);
-    return `G1 ${coords} F${mv.feed}.`;
+
+  const feedWord = mv.feed !== currentFeed ? ` F${mv.feed}.` : "";
+  if (mv.feed !== currentFeed) setFeed(mv.feed);
+
+  if (prev && isArc(mv)) {
+    // Helical when the Z changes: same G2/G3 block with a Z word, which every
+    // control in this family interpolates.
+    return `${mv.cw ? "G2" : "G3"} ${coords} I${n(mv.i!)} J${n(mv.j!)}${feedWord}`;
   }
-  return `G1 ${coords}`;
+  return `G1 ${coords}${feedWord}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -164,8 +181,11 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
     lines.push(c("MANUAL TOOL CHANGE REQUIRED — GRBL HAS NO ATC"));
     lines.push("M0");
     lines.push(`S${tp.parameters.rpm} M3`);
+    // GRBL speaks the same G2/G3 with I/J, including helical.
     let feed = -1;
-    for (const mv of tp.moves) lines.push(moveLine(mv, feed, (f) => (feed = f)));
+    for (let i = 0; i < tp.moves.length; i++) {
+      lines.push(moveLine(tp.moves[i], feed, (f) => (feed = f), i > 0 ? tp.moves[i - 1] : null));
+    }
   }
   lines.push("");
   lines.push("M5");
@@ -194,7 +214,32 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
     }
     push(`TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`);
     push(`L Z+${n(ctx.safeZ, 3)} R0 FMAX M3`);
-    for (const mv of tp.moves) {
+    /*
+     * A planar arc is CC (circle centre, absolute) followed by C (move to the
+     * end point) with DR- clockwise or DR+ counter-clockwise. A HELICAL arc on
+     * a TNC is a different construction again, and this development post does
+     * not implement it — so those are flattened to straight moves at a stated
+     * chord tolerance rather than guessed at. Flattening a helix is a longer
+     * program that cuts the right shape; guessing the syntax is a program that
+     * does not.
+     */
+    const moves = tp.moves;
+    for (let i = 0; i < moves.length; i++) {
+      const mv = moves[i];
+      const prev = i > 0 ? moves[i - 1] : null;
+      const geo = prev && isArc(mv) ? arcGeometry(prev, mv) : null;
+      if (geo && prev && Math.abs(mv.z - prev.z) < 1e-9) {
+        push(`CC X${n(geo.centerX, 3)} Y${n(geo.centerY, 3)}`);
+        push(`C X${n(mv.x, 3)} Y${n(mv.y, 3)} ${mv.cw ? "DR-" : "DR+"} R0 F${mv.feed}`);
+        continue;
+      }
+      if (geo && prev) {
+        lines.push(`; HELICAL ARC FLATTENED TO ${CHORD_TOLERANCE}IN CHORD — TNC HELIX SYNTAX NOT IMPLEMENTED`);
+        for (const seg of flattenArcs([prev, mv]).slice(1)) {
+          push(`L X${n(seg.x, 3)} Y${n(seg.y, 3)} Z${n(seg.z, 3)} R0 F${seg.feed}`);
+        }
+        continue;
+      }
       const coords = `X${n(mv.x, 3)} Y${n(mv.y, 3)} Z${n(mv.z, 3)}`;
       push(mv.feed === null ? `L ${coords} R0 FMAX` : `L ${coords} R0 F${mv.feed}`);
     }
@@ -228,9 +273,35 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
     lines.push(`T="T${tp.toolNumber}" M6`);
     lines.push(`S${tp.parameters.rpm} M3`);
     lines.push("D1");
+    /*
+     * 840D takes G2/G3 with incremental I/J for a planar arc, which is the
+     * same convention the engine stores. A helix needs TURN= and a full-turn
+     * count, and this development post does not implement it — flattened to a
+     * stated chord tolerance instead, and the program says so where it happens.
+     */
     let feed = -1;
-    for (const mv of tp.moves) {
+    const moves = tp.moves;
+    for (let i = 0; i < moves.length; i++) {
+      const mv = moves[i];
+      const prev = i > 0 ? moves[i - 1] : null;
       const coords = `X=${n(mv.x)} Y=${n(mv.y)} Z=${n(mv.z, 3)}`;
+      const helical = prev && isArc(mv) && Math.abs(mv.z - prev.z) > 1e-9;
+
+      if (prev && isArc(mv) && !helical) {
+        const word = mv.feed !== feed ? ` F=${mv.feed}` : "";
+        if (mv.feed !== null) feed = mv.feed;
+        lines.push(`${mv.cw ? "G2" : "G3"} ${coords} I=${n(mv.i!)} J=${n(mv.j!)}${word}`);
+        continue;
+      }
+      if (prev && helical) {
+        lines.push(c(`HELICAL ARC FLATTENED TO ${CHORD_TOLERANCE}IN CHORD — TURN= HELIX NOT IMPLEMENTED`));
+        for (const seg of flattenArcs([prev, mv]).slice(1)) {
+          const w = seg.feed !== feed ? ` F=${seg.feed}` : "";
+          if (seg.feed !== null) feed = seg.feed;
+          lines.push(`G1 X=${n(seg.x)} Y=${n(seg.y)} Z=${n(seg.z, 3)}${w}`);
+        }
+        continue;
+      }
       if (mv.feed === null) lines.push(`G0 ${coords}`);
       else if (mv.feed !== feed) {
         feed = mv.feed;

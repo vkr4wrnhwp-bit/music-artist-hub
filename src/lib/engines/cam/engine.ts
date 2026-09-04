@@ -10,6 +10,7 @@ import type {
   ToolpathResult,
 } from "./types";
 import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
+import { arcGeometry, arcMove, arcSegments } from "./arc";
 
 /**
  * DETERMINISTIC TOOLPATH ENGINE — Phase 1
@@ -587,31 +588,47 @@ function helicalEntry(
   if (depth <= 0) return [];
   const pitch = Math.max(0.02, toolDiameter * 0.05);
   const revs = Math.max(1, Math.ceil(depth / pitch));
-  const steps = revs * 24;
+  // Two helical half-turns per revolution. Each one is a real G2/G3 with a Z,
+  // which is what a control ramps smoothly; the twenty-four chords per turn
+  // this used to emit were the ramp entry a look-ahead buffer chokes on.
+  const halves = revs * 2;
   const out: Move[] = [{ type: "RAPID", x: cx + radius, y: cy, z: clearanceZ, feed: null }];
-  for (let i = 1; i <= steps; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    out.push({
-      type: "PLUNGE",
+  let from = { x: cx + radius, y: cy, z: fromZ };
+  for (let i = 1; i <= halves; i++) {
+    const a = i * Math.PI;
+    const to = {
       x: cx + radius * Math.cos(a),
       y: cy + radius * Math.sin(a),
-      z: Math.max(toZ, fromZ - (depth * i) / steps),
-      feed: plungeFeed,
-    });
+      z: Math.max(toZ, fromZ - (depth * i) / halves),
+    };
+    out.push(arcMove("PLUNGE", from, cx, cy, to, false, plungeFeed));
+    from = to;
   }
   // Close to centre at depth so the clearing pattern starts where it expects.
   out.push({ type: "CUT", x: cx, y: cy, z: toZ, feed: plungeFeed });
   return out;
 }
 
+/**
+ * A full circle, as two 180° arcs.
+ *
+ * This used to walk `max(24, radius * 60)` straight chords, which left a
+ * Ø1.000" bore 0.0027" out of round at the chord midpoints — see arc.ts. Two
+ * halves rather than one full-circle block because a G2 with I/J and no
+ * endpoint means "full circle" on Haas and Fanuc and means something else or
+ * nothing elsewhere; two semicircles are unambiguous on every control and cost
+ * one extra block.
+ *
+ * Counter-clockwise, which is climb milling on an internal circular pocket
+ * with a right-hand cutter — the same direction the chorded version walked.
+ */
 function ringMoves(moves: Move[], cx: number, cy: number, radius: number, z: number, feed: number) {
   if (radius <= 0) return;
-  const segments = Math.max(24, Math.round(radius * 60));
-  moves.push({ type: "CUT", x: cx + radius, y: cy, z, feed });
-  for (let i = 1; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    moves.push({ type: "CUT", x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a), z, feed });
-  }
+  const start = { x: cx + radius, y: cy };
+  const far = { x: cx - radius, y: cy, z };
+  moves.push({ type: "CUT", x: start.x, y: start.y, z, feed });
+  moves.push(arcMove("ARC", start, cx, cy, far, false, feed));
+  moves.push(arcMove("ARC", far, cx, cy, { ...start, z }, false, feed));
 }
 
 function rectMoves(
@@ -627,17 +644,23 @@ function rectMoves(
   const hx = w / 2;
   const hy = l / 2;
   const rr = Math.min(cr, hx, hy);
+  // Each corner is one 90° arc about the corner's centre, counter-clockwise.
+  // It was eight chords, which put a flat on every corner of every profile.
   const corner = (x: number, y: number, sx: number, sy: number) => {
     if (rr <= 0) {
       moves.push({ type: "CUT", x, y, z, feed });
       return;
     }
-    const steps = 8;
     const startAngle = Math.atan2(sy, sx);
-    for (let i = 0; i <= steps; i++) {
-      const a = startAngle + (i / steps) * (Math.PI / 2);
-      moves.push({ type: "CUT", x: x + rr * Math.cos(a), y: y + rr * Math.sin(a), z, feed });
-    }
+    const from = { x: x + rr * Math.cos(startAngle), y: y + rr * Math.sin(startAngle) };
+    const endAngle = startAngle + Math.PI / 2;
+    // The arc starts where the straight run before it ended. Emitting that
+    // point keeps the path continuous when the caller has not already arrived
+    // there — the arc's own I/J are measured from it.
+    moves.push({ type: "CUT", x: from.x, y: from.y, z, feed });
+    moves.push(
+      arcMove("ARC", from, x, y, { x: x + rr * Math.cos(endAngle), y: y + rr * Math.sin(endAngle), z }, false, feed),
+    );
   };
   moves.push({ type: "CUT", x: cx - hx + rr, y: cy - hy, z, feed });
   moves.push({ type: "CUT", x: cx + hx - rr, y: cy - hy, z, feed });
@@ -838,9 +861,19 @@ function adaptiveToolpath(
         },
       };
     }
-    // Archimedean spiral: radius grows by exactly ae per revolution.
+    /*
+     * Archimedean spiral: radius grows by exactly ae per revolution.
+     *
+     * This one stays tessellated, and that is not an oversight. An arc has a
+     * constant radius by definition and a spiral does not have one — G2/G3
+     * cannot express this path, and every CAM system on the market walks it in
+     * chords too. What changed is the chord count: a fixed 48 per revolution
+     * was a tolerance that got worse as the pocket got bigger, and the count
+     * now comes from the same chord tolerance every other flattening in the
+     * system uses, computed at the largest radius the spiral reaches.
+     */
     const revs = Math.max(1, Math.ceil(maxR / ae));
-    const segsPerRev = 48;
+    const segsPerRev = arcSegments(maxR, 2 * Math.PI);
     for (let i = 1; i <= revs * segsPerRev; i++) {
       const a = (i / segsPerRev) * Math.PI * 2;
       const rad = Math.min(maxR, (a / (Math.PI * 2)) * ae);
@@ -857,10 +890,22 @@ function adaptiveToolpath(
   const pitch = Math.max(0.02, d * 0.05);
   const entryRevs = Math.max(1, Math.ceil(totalDepth / pitch));
   entry.push({ type: "RAPID", x: cx + he, y: cy, z: req.clearanceZ, feed: null });
-  for (let i = 1; i <= entryRevs * 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    const zz = Math.max(z, req.topZ - (totalDepth * i) / (entryRevs * 24));
-    entry.push({ type: "PLUNGE", x: cx + he * Math.cos(a), y: cy + he * Math.sin(a), z: zz, feed: p.plungeFeed });
+  // Two helical half-turns per revolution, the same construction the pocket
+  // engine ramps in on. Twenty-four chords a turn was a ramp the control's
+  // look-ahead had to stumble through before the cut even started.
+  {
+    const halves = entryRevs * 2;
+    let from = { x: cx + he, y: cy, z: req.topZ };
+    for (let i = 1; i <= halves; i++) {
+      const a = i * Math.PI;
+      const to = {
+        x: cx + he * Math.cos(a),
+        y: cy + he * Math.sin(a),
+        z: Math.max(z, req.topZ - (totalDepth * i) / halves),
+      };
+      entry.push(arcMove("PLUNGE", from, cx, cy, to, false, p.plungeFeed));
+      from = to;
+    }
   }
   entry.push({ type: "CUT", x: cx, y: cy, z, feed });
 
@@ -963,24 +1008,32 @@ function boreToolpath(
     // Helix pitch per revolution: shallow enough to stay a finishing cut.
     const pitch = Math.min(p.stepdown, d * 0.1);
     const revs = Math.max(1, Math.ceil(depth / pitch));
-    const segments = Math.max(24, Math.round(pathR * 60));
     const helixFeed = Math.round(p.feed * 0.65);
 
     moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
     moves.push({ type: "PLUNGE", x: cx, y: cy, z: req.topZ + 0.02, feed: p.plungeFeed });
     moves.push({ type: "LEAD_IN", x: cx + pathR, y: cy, z: req.topZ + 0.02, feed: helixFeed });
+    /*
+     * Helical interpolation, two half-turn arcs per revolution.
+     *
+     * This is the operation where chording hurt most: boring is what produces
+     * a bearing seat, and the bore was being cut as a polygon of up to
+     * `max(24, pathR * 60)` sides. On a Ø1.000" bore that is 0.0027" of form
+     * error — five times a ±0.0005" band, and not something an offset can fix.
+     */
+    let from = { x: cx + pathR, y: cy, z: req.topZ + 0.02 };
     for (let rev = 0; rev < revs; rev++) {
       const zStart = req.topZ - (depth * rev) / revs;
       const zEnd = req.topZ - (depth * (rev + 1)) / revs;
-      for (let i = 1; i <= segments; i++) {
-        const a = (i / segments) * Math.PI * 2;
-        moves.push({
-          type: "CUT",
+      for (let half = 1; half <= 2; half++) {
+        const a = half * Math.PI;
+        const to = {
           x: cx + pathR * Math.cos(a),
           y: cy + pathR * Math.sin(a),
-          z: Math.max(req.finalZ, zStart + ((zEnd - zStart) * i) / segments),
-          feed: helixFeed,
-        });
+          z: Math.max(req.finalZ, zStart + ((zEnd - zStart) * half) / 2),
+        };
+        moves.push(arcMove("CUT", from, cx, cy, to, false, helixFeed));
+        from = to;
       }
     }
     // Full flat ring at depth cleans up the helix exit ramp.
@@ -1240,13 +1293,22 @@ function engraveToolpath(
 /* Cycle time — measured from the actual moves                         */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Cycle time from the moves themselves.
+ *
+ * An arc is measured along the arc, not across its chord. Once circles became
+ * real arcs, a straight-line measure would have read a full bore ring as its
+ * diameter — every circular cut in the program shorter than it is, and the
+ * quoted cycle time short with it.
+ */
 export function cycleTime(moves: Move[], rapidRate: number): { minutes: number; cuttingDistance: number } {
   let minutes = 0;
   let cuttingDistance = 0;
   for (let i = 1; i < moves.length; i++) {
     const a = moves[i - 1];
     const b = moves[i];
-    const dist = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+    const geo = arcGeometry(a, b);
+    const dist = geo ? geo.length : Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
     if (dist === 0) continue;
     const rate = b.feed ?? rapidRate;
     minutes += dist / Math.max(rate, 1);

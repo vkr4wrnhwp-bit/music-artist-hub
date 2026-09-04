@@ -19,6 +19,7 @@ import * as THREE from "three";
 import type { Feature, Stock } from "@/lib/domain/features";
 import { buildPartSolid } from "./part-solid";
 import { SimRig } from "./sim-view";
+import { flattenArcs } from "@/lib/engines/cam/arc";
 import type { Move } from "@/lib/engines/cam/types";
 
 /**
@@ -1099,7 +1100,12 @@ function Balloon({
 /* Toolpath                                                            */
 /* ------------------------------------------------------------------ */
 
-function Toolpath({ moves, playhead, zTop }: { moves: Move[]; playhead: number; zTop: number }) {
+function Toolpath({ moves: raw, playhead, zTop }: { moves: Move[]; playhead: number; zTop: number }) {
+  // Drawn from the flattened path. An arc rendered as its chord would show a
+  // polygon in the viewport for a bore the program cuts round — the operator
+  // reading the screen and the operator reading the program would be looking
+  // at two different parts.
+  const moves = useMemo(() => flattenArcs(raw), [raw]);
   const segments = useMemo(() => {
     const cut: [number, number, number][][] = [];
     const rapid: [number, number, number][][] = [];
@@ -1142,8 +1148,12 @@ function Toolpath({ moves, playhead, zTop }: { moves: Move[]; playhead: number; 
   );
 }
 
-function ToolMarker({ moves, playhead, zTop }: { moves: Move[]; playhead: number; zTop: number }) {
+function ToolMarker({ moves: raw, playhead, zTop }: { moves: Move[]; playhead: number; zTop: number }) {
   const ref = useRef<THREE.Group>(null);
+  // Flattened for the same reason the path is: the marker has to sit on the
+  // line that is drawn, and an arc's endpoints alone would jump it across the
+  // chord while the path curves.
+  const moves = useMemo(() => flattenArcs(raw), [raw]);
   const idx = Math.min(moves.length - 1, Math.max(0, Math.floor(moves.length * playhead) - 1));
   const m = moves[idx];
   if (!m) return null;
