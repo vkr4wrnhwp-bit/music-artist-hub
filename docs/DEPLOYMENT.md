@@ -12,6 +12,20 @@ knows which one it got.
 
 ---
 
+## Which branch is live
+
+`render.yaml` names no branch, and a Render Blueprint with no `branch:` key
+deploys the repository's **default branch**. If the branch you are pushing to
+is not the default, nothing you push reaches the site — the build succeeds, the
+service stays healthy, and it serves older code. There is no error anywhere;
+the only symptom is that the site does not change.
+
+Check it in one place: Render dashboard -> the `canvas` service -> Settings ->
+Branch. Set it to the branch you actually deploy from, or make that branch the
+repository default. Do both and they agree; do neither and you are reading a
+build from whenever the default branch last moved.
+
+
 ## Render (recommended — one blueprint, nothing to copy)
 
 `render.yaml` in the repository root declares the web service and its

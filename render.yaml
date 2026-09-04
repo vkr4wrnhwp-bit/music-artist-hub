@@ -34,10 +34,16 @@ services:
         fromDatabase:
           name: canvas-db
           property: connectionString
-      # The deterministic intake parser needs no key and no network. Set this
-      # to "anthropic" and add ANTHROPIC_API_KEY to enable the full copilot.
-      - key: CANVAS_AI_PROVIDER
-        value: deterministic
+      # CANVAS_AI_PROVIDER is deliberately NOT set here.
+      #
+      # It used to be pinned to "deterministic", and that value is the one
+      # thing that overrides a key: a shop could set ANTHROPIC_API_KEY in the
+      # dashboard, correctly, and every model-backed screen would still report
+      # "not connected" because the blueprint had switched the provider off
+      # underneath them.
+      #
+      # Unset, a key alone turns the model on. Set it to "deterministic" only
+      # to deliberately run without one while a key is present.
       # Uploads land here. Without the disk below this survives until the next
       # deploy; with it, permanently.
       - key: CANVAS_STORAGE_DIR
