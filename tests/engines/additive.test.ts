@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assessAdditive, tightestBand, type AdditiveInput, type PrinterRecord, type PrintMaterialRecord } from "@/lib/engines/additive";
+import { assessAdditive, tightestBand, anisotropyIsPossible, type AdditiveInput, type PrinterRecord, type PrintMaterialRecord } from "@/lib/engines/additive";
 import { emptyPartIntent } from "@/lib/domain/part-intent";
 import type { Feature } from "@/lib/domain/features";
 import type { PartIntent } from "@/lib/domain/part-intent";
@@ -291,4 +291,22 @@ test("every finding carries a number or a named gap, never a bare verdict", () =
     const namesAGap = /\bno\b[^.]*\b(on file|recorded|records)\b|not recorded|nobody has/i.test(f.detail);
     assert.ok(/\d/.test(f.detail) || namesAGap, `${f.check} carries no number and names no gap: "${f.detail}"`);
   }
+});
+
+/* ---------------- A material entered the wrong way round ---------------- */
+
+test("a material cannot be stronger across its layers than within them", () => {
+  // Not merely wrong: the anisotropy check would then report the part is fine
+  // in the direction it is actually weakest.
+  assert.equal(anisotropyIsPossible(7100, 3250), true);
+  assert.equal(anisotropyIsPossible(5000, 9000), false);
+  // Equal is possible — a genuinely isotropic process exists.
+  assert.equal(anisotropyIsPossible(6400, 6400), true);
+});
+
+test("an unmeasured figure is not treated as an impossible one", () => {
+  // Blank is the honest state for most shops and must stay enterable.
+  assert.equal(anisotropyIsPossible(7100, null), true);
+  assert.equal(anisotropyIsPossible(null, 3250), true);
+  assert.equal(anisotropyIsPossible(null, null), true);
 });

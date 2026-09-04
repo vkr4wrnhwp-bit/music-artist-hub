@@ -24,7 +24,7 @@ function parse(formData: FormData) {
   const due = f.optionalText("calibrationDue");
   if (due) {
     const d = new Date(due);
-    if (Number.isNaN(d.getTime())) f.text("__calibrationDueInvalid", "Calibration due date is not a date");
+    if (Number.isNaN(d.getTime())) f.problem("Calibration due date is not a date.");
     else calibrationDue = d;
   }
 
@@ -44,9 +44,8 @@ function parse(formData: FormData) {
   // Recorded the other way round, the capability verdict is computed from a
   // figure the instrument cannot deliver.
   if (data.uncertainty > 0 && data.resolution > 0 && data.uncertainty < data.resolution / 2) {
-    f.text(
-      "__uncertaintyBelowResolution",
-      `Uncertainty ±${data.uncertainty} is below half the ${data.resolution} resolution, which no instrument achieves`,
+    f.problem(
+      `Uncertainty ±${data.uncertainty} is below half the ${data.resolution} resolution, which no instrument achieves.`,
     );
   }
   f.done();

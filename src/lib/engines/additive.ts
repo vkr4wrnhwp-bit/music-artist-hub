@@ -73,6 +73,22 @@ export interface PrintMaterialRecord {
   creepDataOnFile: boolean;
 }
 
+/**
+ * Whether a recorded pair of tensile figures is physically possible.
+ *
+ * A printed part is continuous within a layer and bonded between them, so it
+ * cannot be stronger across the layers than within them. A row entered the
+ * wrong way round is not merely wrong — the anisotropy check would then report
+ * the part is fine in the direction it is actually weakest.
+ *
+ * Lives here rather than in the form action because it is an engineering rule,
+ * and because a rule inside a "use server" module cannot be exported to a test.
+ */
+export function anisotropyIsPossible(tensileXY: number | null, tensileZ: number | null): boolean {
+  if (tensileXY === null || tensileZ === null) return true;
+  return tensileZ <= tensileXY;
+}
+
 export interface AdditiveInput {
   intent: PartIntent;
   features: Feature[];

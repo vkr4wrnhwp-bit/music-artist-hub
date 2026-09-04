@@ -133,6 +133,21 @@ export class FormReader {
   }
 
   /** Throws if anything was wrong. Call once, after reading every field. */
+  /**
+   * A problem that is not about one field being absent or malformed.
+   *
+   * Cross-field rules — an uncertainty below the instrument's own resolution,
+   * a printed material stronger across its layers than within them — were
+   * being recorded by calling `text()` with a fake field name and the message
+   * as the label. That works, because `text()` pushes a problem for a field
+   * that is not there, but it formats it as "<label> is required": the
+   * operator was told "Uncertainty ±0.0001 is below half the 0.001
+   * resolution, which no instrument achieves is required".
+   */
+  problem(message: string): void {
+    this.problems.push(message);
+  }
+
   done(): void {
     if (this.problems.length > 0) throw new FormRejected(this.problems);
   }

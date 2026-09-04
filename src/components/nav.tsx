@@ -44,6 +44,7 @@ type IconKey =
   | "tool"
   | "workholding"
   | "metrology"
+  | "additive"
   | "jobs"
   | "knowledge"
   | "settings";
@@ -127,6 +128,15 @@ const SECTIONS: Section[] = [
     icon: "metrology",
     match: ["/metrology"],
     items: [{ href: "/metrology", label: "Metrology" }],
+  },
+  {
+    id: "additive",
+    rail: "Additive",
+    title: "Additive",
+    href: "/printing",
+    icon: "additive",
+    match: ["/printing"],
+    items: [{ href: "/printing", label: "Printers and materials" }],
   },
   {
     id: "jobs",
@@ -395,6 +405,17 @@ function RailIcon({ name }: { name: IconKey }) {
           <path d="M7 4.8 H13 V15.2 H7 Z" />
           <path d="M5.2 10 H7" />
           <path d="M13 10 H14.8" />
+        </svg>
+      );
+    case "additive":
+      return (
+        <svg {...common}>
+          <path d="M2.6 16.4 H17.4" />
+          <path d="M6 14.2 H14" />
+          <path d="M6.6 11.8 H13.4" />
+          <path d="M7.2 9.4 H12.8" />
+          <path d="M10 2.6 V6.4" />
+          <path d="M8.6 6.4 H11.4 L10 8.2 Z" />
         </svg>
       );
     case "metrology":
