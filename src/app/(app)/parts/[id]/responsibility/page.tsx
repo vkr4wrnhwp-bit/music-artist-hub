@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { auditChanges } from "@/lib/audit";
 import { loadRevision } from "@/lib/data";
 import { ENVIRONMENTS, FAILURE_CONSEQUENCE, LOADING_TYPES, PRODUCTION_INTENT } from "@/lib/domain/part-intent";
-import { confirmedBy } from "@/lib/provenance";
+import { confirmedBy, SOURCE_LABEL } from "@/lib/provenance";
 import { TopBar } from "@/components/nav";
 import { Button, Field, Notice, Panel, SectionHeading, inputClass } from "@/components/ui";
 
@@ -147,6 +147,19 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
       intent.finishedEnvelope = confirmedBy({ x: envelope[0]!, y: envelope[1]!, z: envelope[2]! }, currentUser.name, answeredAt, "Part responsibility interview");
     }
 
+    /*
+     * Material was the one intent field this interview did not confirm, while
+     * the readiness gate told the shop to "confirm the material" and nothing on
+     * the milling side could. The lathe workspace grew a control for it, so a
+     * turned part could confirm its material and a milled part could not.
+     *
+     * Blank leaves whatever is there alone rather than clearing it: an empty
+     * box is a question not answered, and wiping a material an intake extracted
+     * would take a speed and feed table away to record nothing.
+     */
+    const material = String(formData.get("material") ?? "").trim();
+    if (material) intent.material = confirmedBy(material, currentUser.name, answeredAt, "Part responsibility interview");
+
     const materialCondition = String(formData.get("materialCondition") ?? "").trim();
     if (materialCondition) intent.materialCondition = confirmedBy(materialCondition, currentUser.name, answeredAt, "Part responsibility interview");
     const surfaceFinish = String(formData.get("surfaceFinish") ?? "").trim();
@@ -184,6 +197,7 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
       (before ?? {}) as Record<string, unknown>,
       {
         ...data,
+        ...(material ? { intentMaterial: material } : {}),
         ...(materialCondition ? { intentMaterialCondition: materialCondition } : {}),
         ...(surfaceFinish ? { intentSurfaceFinish: surfaceFinish } : {}),
         ...(inspectionReqs.length ? { intentInspectionRequirements: inspectionReqs.join(", ") } : {}),
@@ -346,6 +360,16 @@ export default async function ResponsibilityPage(props: { params: Promise<{ id: 
                 recorded USER-confirmed — leaving one blank leaves the gate open, it does not fill in an average.
               </p>
               <div className="space-y-4">
+                <Field
+                  label="Material"
+                  hint={
+                    revision.intent.material.value
+                      ? `Currently ${revision.intent.material.value}, ${SOURCE_LABEL[revision.intent.material.source].toLowerCase()}. Saving this records it as a fact you stated, which is what the material gate is asking for.`
+                      : "The alloy and grade, as it is on the rack. Every speed and feed in the plan is derived from it."
+                  }
+                >
+                  <input name="material" className={inputClass} defaultValue={revision.intent.material.value ?? ""} />
+                </Field>
                 <Field label="Material condition / temper" hint="e.g. T6511, annealed, 4140 HT 28-32 HRC.">
                   <input name="materialCondition" className={inputClass} defaultValue={revision.intent.materialCondition.value ?? ""} />
                 </Field>

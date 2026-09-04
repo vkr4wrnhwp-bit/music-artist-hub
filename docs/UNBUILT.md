@@ -170,6 +170,28 @@ putting both back cleared them again. Two HUMAN audit rows record old and new.
 `src/app/(app)/parts/[id]/features/responsibility-actions.ts`,
 the FUNCTION tab of `/parts/[id]/features/[fid]`.
 
+### The material gate told a milled part to confirm something no screen could record
+
+`readiness.ts` emits the material gate with the suggestion "Confirm the
+material". The only control in the app that could satisfy it lived in the lathe
+workspace — added when the turning side grew its setup controls — so a turned
+part could confirm its material and a milled part could not. The responsibility
+interview confirmed sixteen intent fields and not that one.
+
+The interview now asks for it alongside material condition and writes it
+`confirmedBy(...)`, USER-sourced and VERIFIED, the same way every other answer
+on that page is recorded. Blank leaves whatever is there alone rather than
+clearing it: wiping a material an intake extracted would take every speed and
+feed derived from it away, to record nothing.
+
+Verified on a real part whose material was an AI inference: the gate read
+BLOCKING — "Aluminum 6061 — ai suggestion, not confirmed by a human" — before,
+and left the blocking list after, with a HUMAN audit row recording the change.
+This is principle 3 working as intended: the inference stayed inferred until a
+human stated it.
+
+`src/app/(app)/parts/[id]/responsibility/page.tsx`.
+
 **Still not correctable:** a feature's geometry. A diameter typed wrong is
 permanent in the same way, and it is a larger question than this one — the
 toolpaths, the simulation and every recorded measurement are all downstream of

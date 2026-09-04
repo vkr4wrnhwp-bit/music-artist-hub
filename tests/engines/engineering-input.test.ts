@@ -120,3 +120,30 @@ test("a blank field leaves the gate open rather than writing a number", () => {
     "a partly-filled finished envelope can be stored — two axes is not a smaller envelope, it is an unanswered question",
   );
 });
+
+/*
+ * MATERIAL, ON THE MILLING SIDE
+ *
+ * readiness.ts emits the material gate with the suggestion "Confirm the
+ * material", and until now the only control in the app that could do it lived
+ * in the lathe workspace. A milled part was told to confirm something no screen
+ * would record — the gate asking for an action the product does not offer.
+ */
+test("the responsibility profile can confirm the material", () => {
+  const page = readFileSync("src/app/(app)/parts/[id]/responsibility/page.tsx", "utf8");
+  assert.ok(/name="material"/.test(page), "the profile does not ask for the material");
+  assert.ok(
+    /intent\.material = confirmedBy\(material,/.test(page),
+    "the material is asked for but not recorded as human-confirmed, so the gate cannot move",
+  );
+});
+
+test("a blank material leaves the existing one alone", () => {
+  const page = readFileSync("src/app/(app)/parts/[id]/responsibility/page.tsx", "utf8");
+  // Wiping a material an intake extracted would take every speed and feed in
+  // the plan with it, to record nothing.
+  assert.ok(
+    /if \(material\) intent\.material = confirmedBy\(/.test(page),
+    "an empty material box can clear the material",
+  );
+});
