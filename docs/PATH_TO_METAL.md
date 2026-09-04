@@ -1133,6 +1133,73 @@ stop that is not a block is a stop the control skips.
 
 `setupId` on `Toolpath`, `setupBoundary` / `offsetFor` / `enterSetup` and all
 four emitters in `cam/post.ts`, the NC export page.
+
+**T10 — The part's shape, and the circle in the corner. — BUILT**
+Asked what was actually missing to post NC for a 3-axis Haas, the answer was
+one thing: **there was no way to get a real outside profile in.**
+`Feature.chain` — an ordered closed loop of lines and arcs — was read in
+exactly two places, typed in the domain, and **written by nothing**. No form, no
+STEP recognizer, no AI proposal, no seed. So `contourToolpath` always took its
+fallback, and every profile CANVAS has ever posted was
+`rectangleChain(width, length, cornerRadius)`: a rounded rectangle from three
+numbers. The A5 chained-contour engine worked correctly and was unreachable.
+
+Two ways in, one path through. **A DXF** is what a shop already has, out of
+whatever CAD it owns; **a sketch drawn in CANVAS** is what a shop does from a
+napkin, a sample or a phone photo. Both become the same unordered bag of lines
+and arcs, and `geometry/loop.ts` is where they meet: ends joined, the loop
+closed, and the winding established rather than trusted — `contourToolpath`
+compensates G42 and `rectangleChain` is counter-clockwise, so a clockwise loop
+fed through unchanged puts the cutter INSIDE the part and takes the profile off
+undersize by a full tool diameter, with a program that reads correctly on the
+screen. A DXF carries no intent about direction and CAD writes both.
+
+What it refuses, by name and with coordinates: an open end, a branch, a gap
+wider than CAD noise. What it does not do silently: a gap it DID close is
+reported, because 0.0005" a CAD wrote by accident is worth knowing before the
+part is cut. Splines and ellipses are named rather than flattened into chords —
+approximating one cuts a shape that is not the drawing, to a tolerance nobody
+chose. Units come from `$INSUNITS` and are asked for when the file does not say,
+because a millimetre drawing read as inches is a part 25.4 times too big and
+every check in this system would pass it. Depth is not in a 2D drawing and is
+asked rather than guessed. Interior loops are measured and named and NOT
+imported: a circle could be drilled, bored or milled, and that is a
+manufacturing decision a drawing does not answer.
+
+**And then posting the result found the worst defect in the system.**
+
+A plain 4 × 3 rectangle — the path every profiled part has always taken — posted
+**three of its four sides**, emitted the straight right-hand edge as an R0.2500
+arc spanning 3 inches, and finished with four `G3` blocks whose start and end
+were the same point. A G2/G3 whose endpoint is where the tool already is, is a
+**complete circle**: the control cuts it, at depth, in the corner of the part.
+
+The offset inserts a pivot arc at each sharp convex corner, so it carries more
+segments than the boundary. The zip walked both with one index, so from the
+first corner onward every boundary point landed on the wrong centre move, and
+once the index ran past the end it clamped to the closing point and emitted
+circles there. `offsetChain` now REPORTS which segments it inserted rather than
+the caller inferring it — and a pivot carries no program block at all, because
+with compensation active the control pivots the tool round the corner itself.
+The move stays for the simulator and the collision checks.
+
+Nothing caught it because nothing read a posted program back as geometry. Now
+something does: no arc is a full circle, no arc spans a chord longer than its
+own diameter, no cutting block is zero length, and an L-bracket imported from a
+DXF reaches every corner of the L instead of being squared off across the notch.
+Five of those seven checks fail against the code as it stood this morning.
+
+`src/lib/geometry/loop.ts`, `dxf/parse.ts`, `geometry/recognize.ts`,
+`geometry/sketch.ts`, `components/profile-sketch.tsx` and `profile-input.tsx`,
+`features/geometry-actions.ts`, the pivot reporting in `cam/chain.ts` and the
+zip in `cam/engine.ts`.
+
+**Also fixed in passing:** accepting a proposal whose every suggestion was
+refused marked it ACCEPTED and wrote nothing — the screen said accepted and the
+part gained a feature it did not have. It stays PROPOSED and says why. And a
+deterministic parser's output was labelled "AI suggestion · 100% intake
+completeness"; a parser is not a model, and a confidence stored because the
+column is not nullable is not a measure of anything.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what

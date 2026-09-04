@@ -5,8 +5,10 @@ import { loadRevision } from "@/lib/data";
 import { featureSummary, fmtTol } from "@/lib/domain/features";
 import { TopBar } from "@/components/nav";
 import { AddFeature } from "@/components/add-feature";
+import { ProfileInput } from "@/components/profile-input";
 import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip } from "@/components/ui";
 import { createFeature, deleteFeature } from "./feature-actions";
+import { importDxfProfile, saveDrawnProfile } from "./geometry-actions";
 
 /**
  * THE PART'S FEATURES
@@ -40,6 +42,18 @@ export default async function FeaturesPage(props: { params: Promise<{ id: string
           <SectionHeading sub="Geometry, and what each piece of it is responsible for. A part with no features has no manufacturing plan — nothing can be reached, held, cut or verified against nothing.">
             Features
           </SectionHeading>
+
+          {/*
+            The part's outside shape. `Feature.chain` was read by the contour
+            engine and written by nothing, so every profile was a rounded
+            rectangle from three numbers — an L-bracket came out a rectangle
+            and nothing said so.
+          */}
+          <ProfileInput
+            importDxf={importDxfProfile.bind(null, id)}
+            saveDrawn={saveDrawnProfile.bind(null, id)}
+            proposalsHref={`/parts/${id}/proposals`}
+          />
 
           <AddFeature action={createFeature.bind(null, id)} />
 

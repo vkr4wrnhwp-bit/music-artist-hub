@@ -18,6 +18,14 @@ import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip } from "@
  * person, not as a system action.
  */
 
+/**
+ * Providers that are a parser and arithmetic rather than a model. Their
+ * proposals still go through human acceptance — that is what makes geometry
+ * safe — but calling them AI would be a false provenance, and CANVAS types
+ * the actor rather than inferring it.
+ */
+const DETERMINISTIC_PROVIDERS = new Set(["step-recognizer", "dxf-import", "canvas-sketch"]);
+
 export default async function ProposalsPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const user = await requireUser();
@@ -64,6 +72,18 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
           skipped.push(`${s.label}: ${refusals.map((r) => r.reason).join(" ")}`);
           continue;
         }
+        /*
+         * THE BOUNDARY TRAVELS WITH THE FEATURE.
+         *
+         * `Feature.chain` is read by the contour and chamfer engines and was
+         * written by nothing, so every profile was `rectangleChain()` — a
+         * rounded rectangle from three numbers, whatever shape the part
+         * actually was. A suggestion that carries a real closed loop writes it
+         * here, alongside the scalars, and the data mapper spreads it back on
+         * to the domain feature. Both halves or neither: a chain with no start
+         * point has no first segment to leave from.
+         */
+        const boundary = s.chain && s.chainStart ? { chain: s.chain, chainStart: s.chainStart } : {};
         await db.feature.create({
           data: {
             partRevisionId: rev.revisionId,
@@ -71,7 +91,7 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
             label: s.label,
             functionalRole: s.functionalRole ?? "NONE",
             critical: s.critical ?? false,
-            parametersJson: JSON.stringify(coerceFeatureParameters(s.kind, params)),
+            parametersJson: JSON.stringify({ ...coerceFeatureParameters(s.kind, params), ...boundary }),
             notes: typeof rationale === "string" ? rationale : undefined,
             orderIndex: existingCount + written,
           },
@@ -88,6 +108,23 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
           action: "ACCEPT_SUGGESTION",
           reason: `${skipped.length} suggested feature(s) did not describe a buildable feature and were not written: ${skipped.join("; ").slice(0, 800)}`,
         });
+      }
+
+      /*
+       * ACCEPTING SOMETHING THAT WROTE NOTHING IS NOT AN ACCEPTANCE.
+       *
+       * The skip was audited and the proposal was marked ACCEPTED, so the
+       * screen said "accepted" and the part gained nothing — the operator's
+       * next clue would have been a missing feature at the machine. A proposal
+       * where every suggestion was refused stays PROPOSED, and the refusal is
+       * shown where the proposal is.
+       */
+      if (written === 0) {
+        await db.aIRecommendation.update({
+          where: { id: proposalId },
+          data: { summary: `${proposal.summary}\n\nNOT ACCEPTED — ${skipped.join("; ")}`.slice(0, 2000) },
+        });
+        redirect(`/parts/${id}/proposals`);
       }
     }
 
@@ -141,8 +178,31 @@ export default async function ProposalsPage(props: { params: Promise<{ id: strin
                 title={p.summary}
                 meta={
                   <span className="flex gap-2">
-                    <StatusChip tone="review">AI suggestion</StatusChip>
-                    {p.confidence !== null && <StatusChip tone="neutral">{(p.confidence * 100).toFixed(0)}% intake completeness</StatusChip>}
+                    {/*
+                      WHAT PROPOSED THIS, AND WHETHER IT HAS A SCORE.
+
+                      A parser is not a model. The STEP recognizer, the DXF
+                      reader and the drawing surface are arithmetic — labelling
+                      their output "AI suggestion" is a false provenance, and it
+                      undercuts the line above about nothing a model proposes
+                      entering the part model on its own.
+
+                      And the confidence: a deterministic reader stores 1
+                      because the column is not nullable there, which rendered
+                      as "100% intake completeness" — a number that looks like a
+                      live measure and is nothing of the kind. A score belongs
+                      only to something that actually scored.
+                    */}
+                    {DETERMINISTIC_PROVIDERS.has(p.providerId ?? "") ? (
+                      <StatusChip tone="neutral">Read from geometry</StatusChip>
+                    ) : (
+                      <>
+                        <StatusChip tone="review">AI suggestion</StatusChip>
+                        {p.confidence !== null && (
+                          <StatusChip tone="neutral">{(p.confidence * 100).toFixed(0)}% intake completeness</StatusChip>
+                        )}
+                      </>
+                    )}
                   </span>
                 }
               >

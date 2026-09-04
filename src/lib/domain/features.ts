@@ -373,12 +373,39 @@ export const fmtTol = (t?: Tolerance): string =>
 /* validate before they are ever allowed into a part.                  */
 /* ------------------------------------------------------------------ */
 
+const chainPointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
+
+/**
+ * REAL GEOMETRY GETS A REAL VALIDATOR.
+ *
+ * `parameters` is a flat record of scalars, which is right for the numbers a
+ * feature carries and wrong for a boundary: a chain is an ordered list of
+ * lines and arcs, and widening the record to admit it would open the same door
+ * to anything else. So the chain is its own field with its own shape, checked
+ * at the boundary like every other value entering the system.
+ *
+ * A DXF import and a profile drawn in CANVAS both arrive here. See
+ * geometry/loop.ts, which is where the segments become a closed, correctly
+ * wound loop before they ever reach this.
+ */
+export const chainSegmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("LINE"), to: chainPointSchema }),
+  z.object({ kind: z.literal("ARC"), to: chainPointSchema, center: chainPointSchema, cw: z.boolean() }),
+]);
+
 export const featureSuggestionSchema = z.object({
   kind: z.enum(FEATURE_KINDS),
   label: z.string(),
   functionalRole: z.enum(FUNCTIONAL_ROLES).default("NONE"),
   critical: z.boolean().default(false),
   parameters: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])),
+  /**
+   * The boundary, when this suggestion carries one. Both halves or neither:
+   * a chain with no start point has no first segment to leave from, and the
+   * contour engine reads them as a pair.
+   */
+  chain: z.array(chainSegmentSchema).min(2).optional(),
+  chainStart: chainPointSchema.optional(),
   rationale: z.string().optional(),
 });
 

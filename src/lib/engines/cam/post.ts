@@ -425,6 +425,15 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       currentFeed = -1;
 
       for (let i = 0; i < tp.moves.length; i++) {
+        /*
+         * A pivot arc is motion, not a block. The offset inserts it so the
+         * simulator knows where the cutter body goes round a sharp convex
+         * corner; with G41/G42 active the control does that pivot itself, and
+         * a program that also carried it emitted a G2/G3 whose start and end
+         * are the same point — a complete 360 degree circle, cut into the
+         * corner of the part.
+         */
+        if (tp.moves[i].program?.pivot) continue;
         lines.push(
           moveLine(
             tp.moves[i],

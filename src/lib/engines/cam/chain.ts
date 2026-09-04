@@ -48,6 +48,19 @@ export interface Chain {
   start: ChainPoint;
   /** Closed: the last segment ends where `start` is. */
   segments: ChainSegment[];
+  /**
+   * Indices in `segments` that this offset INSERTED — the arcs the tool
+   * pivots through at a sharp convex corner. They have no counterpart in the
+   * boundary, and with cutter compensation active the control performs them
+   * itself, so they are motion for the simulator and not blocks for the
+   * program. Present only on an offset chain.
+   *
+   * Without this the caller has to guess which segments are pivots, and the
+   * guess was wrong: every profile CANVAS posted came out with its straight
+   * edges programmed as impossible arcs and a full circle cut into the last
+   * corner.
+   */
+  pivots?: number[];
 }
 
 export interface ChainError {
@@ -177,6 +190,7 @@ export function offsetChain(chain: Chain, radius: number): Chain | { error: Chai
   /* ---- Join the offsets ---- */
 
   const out: ChainSegment[] = [];
+  const pivots: number[] = [];
   for (let i = 0; i < offsets.length; i++) {
     const cur = offsets[i];
     const next = offsets[(i + 1) % offsets.length];
@@ -204,10 +218,11 @@ export function offsetChain(chain: Chain, radius: number): Chain | { error: Chai
 
     // Convex: the tool pivots around the corner. Same turn direction as the
     // corner itself, which is counter-clockwise on an outside profile.
+    pivots.push(out.length);
     out.push({ kind: "ARC", to: next.from, center: next.vertex, cw: false });
   }
 
-  return { start: offsets[0].from, segments: out };
+  return { start: offsets[0].from, segments: out, pivots };
 }
 
 /** Cutting moves along a chain at one depth. */

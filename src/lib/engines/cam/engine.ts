@@ -1650,18 +1650,35 @@ function contourToolpath(
      */
     const centreMoves = chainMoves(centreChain, z, p.feed);
     const boundaryMoves = chainMoves(boundary, z, p.feed);
+    /*
+     * The offset says which of its segments it INSERTED, rather than the zip
+     * inferring it. Inferring it was wrong: `b` advanced once per centre move
+     * including the pivots, so from the first sharp corner onward every
+     * boundary point landed on the wrong centre move — a straight edge went
+     * out as an impossible arc, and once `b` ran past the end it clamped to
+     * the closing point and emitted full circles there. A 4 x 2 plate posted
+     * three of its four sides and cut four 360 degree circles into one corner,
+     * and it did that for every profiled part in the system.
+     *
+     * A pivot carries no program block at all: with compensation active the
+     * control pivots the tool round the corner itself. The move stays, because
+     * the simulator and the collision checks need the motion.
+     */
+    const pivots = new Set(centreChain.pivots ?? []);
     let b = 0;
     for (let k = 0; k < centreMoves.length; k++) {
-      // A pivot arc inserted by the offset has no boundary segment of its own;
-      // it is programmed at the vertex the boundary already arrived at.
-      const isPivot = centreMoves.length !== boundaryMoves.length && k > 0 && b >= boundaryMoves.length;
-      const bm = boundaryMoves[Math.min(b, boundaryMoves.length - 1)];
+      if (pivots.has(k)) {
+        moves.push({ ...centreMoves[k], program: { x: centreMoves[k].x, y: centreMoves[k].y, side: "RIGHT", pivot: true } });
+        continue;
+      }
+      const bm = boundaryMoves[b];
+      if (!bm) break;
       moves.push({
         ...centreMoves[k],
         program: {
           x: bm.x,
           y: bm.y,
-          ...(bm.i !== undefined && !isPivot ? { i: bm.i, j: bm.j } : {}),
+          ...(bm.i !== undefined ? { i: bm.i, j: bm.j } : {}),
           side: "RIGHT",
         },
       });

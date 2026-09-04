@@ -138,6 +138,17 @@ export interface ProgrammedPoint {
   j?: number;
   side: "LEFT" | "RIGHT";
   /** Turn compensation on over this move (G41/G42 with the D register). */
+  /**
+   * A pivot arc the offset inserted at a sharp convex corner. It is motion the
+   * simulator needs and NOT a block the program carries: with compensation
+   * active the control pivots the tool round the corner itself.
+   *
+   * Emitting one anyway is what put an impossible arc on every straight edge
+   * and a full 360 degree circle in the last corner of every profiled part —
+   * a G2/G3 whose start and end are the same point is a complete circle, and
+   * the control cuts it.
+   */
+  pivot?: boolean;
   activate?: boolean;
   /** Turn it off over this move (G40). */
   deactivate?: boolean;
