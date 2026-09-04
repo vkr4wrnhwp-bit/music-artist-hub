@@ -81,6 +81,12 @@ export interface FeatureBase {
    * prose would be a second vocabulary that could drift from the first.
    */
   inspectionDeviceType?: string;
+  /**
+   * A person's stated reason this feature is not cut by the program — a
+   * fillet, a hand-broken chamfer, a vendor operation. Read by the coverage
+   * gate, which repeats it rather than swallowing it. See engines/coverage.ts.
+   */
+  notMachinedReason?: string;
   notes?: string;
 }
 

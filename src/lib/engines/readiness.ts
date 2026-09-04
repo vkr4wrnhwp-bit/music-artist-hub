@@ -7,6 +7,7 @@ import { canReach, checkEnvelope, fitsInternalCorner } from "@/lib/domain/shop";
 import type { WorkholdingAssessment } from "./workholding";
 import { assessCapability, measurementGeometry, worstCapability, type CapabilityResult, type Instrument } from "./inspection-capability";
 import { isEngineeringGrade, SOURCE_LABEL } from "@/lib/provenance";
+import { assessCoverage, coverageVerdict, type CoverageOperation } from "./coverage";
 
 /**
  * MANUFACTURING READINESS
@@ -40,6 +41,7 @@ export const SEVERITY: Record<GateStatus, number> = {
  */
 export const READINESS_GATE_IDS = [
   "geometry",
+  "coverage",
   "material",
   "engineering",
   "machine",
@@ -109,6 +111,13 @@ export interface ReadinessInput {
     requiredToolNumbers: number[];
     loadedToolNumbers: number[] | null;
   }[];
+  /**
+   * Every operation in the plan, so the coverage gate can ask whether each
+   * feature is cut by one. Undefined when the caller has no plan to offer;
+   * an empty array means a plan with no operations, which is a different
+   * fact and reads differently.
+   */
+  operations?: CoverageOperation[];
   /** Metrology the shop actually owns. Drives the inspection capability gate. */
   instruments?: Instrument[];
   simulationRun: boolean;
@@ -126,6 +135,41 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
       ? gate("geometry", "Geometry", "MISSING", "No features are defined on this part.", true, ["Add features to the part"])
       : gate("geometry", "Geometry", "PASS", `${input.features.length} features defined.`, true, []),
   );
+
+  /* ---- Feature coverage ----
+   *
+   * Geometry says the features exist. This says the program makes them. A
+   * feature nothing is planned against is not refused anywhere else: the post
+   * writes the program, the program runs start to finish, and the part comes
+   * off the machine without its bore. Nobody inspects for an absence.
+   *
+   * `operations` undefined means the caller had no plan data to give — not
+   * that the plan is empty — so the gate reports that it did not run rather
+   * than reporting every feature uncut. It stays blocking either way: a part
+   * whose coverage is unknown is not a part that is ready to run.
+   */
+  if (input.operations === undefined) {
+    gates.push(
+      gate("coverage", "Feature coverage", "NOT_ATTEMPTED", "The operation plan was not available to check features against.", true, []),
+    );
+  } else {
+    const coverage = assessCoverage(input.features, input.operations);
+    const verdict = coverageVerdict(coverage);
+    gates.push(
+      gate(
+        "coverage",
+        "Feature coverage",
+        verdict.ok ? "PASS" : coverage.planned ? "MISSING" : "NOT_ATTEMPTED",
+        verdict.detail,
+        true,
+        verdict.ok
+          ? []
+          : coverage.planned
+            ? ["Add an operation for each uncut feature", "Or record why it is not made by this program"]
+            : ["Choose a machining approach on the Machinist page"],
+      ),
+    );
+  }
 
   /* ---- Machine envelope ---- */
   if (!input.machine) {

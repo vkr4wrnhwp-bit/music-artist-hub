@@ -35,6 +35,14 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
      */
     "inspection-capability": `/metrology`,
     inspection: `/parts/${partId}/inspection?guide=inspection-plan`,
+    /*
+     * The coverage gate's scene is the operation plan — the list where you can
+     * see, per setup, which features are cut and which are not. The machinist
+     * page is where an approach that creates operations is chosen, and that is
+     * where next-action.ts sends the operator to FIX it; SHOW ME is the other
+     * half of that pair and lands on the evidence rather than on the remedy.
+     */
+    coverage: `/parts/${partId}/setups`,
     responsibility: `/parts/${partId}/responsibility`,
   };
   const g = gateId.toLowerCase();

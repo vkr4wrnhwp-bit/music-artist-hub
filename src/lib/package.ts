@@ -272,6 +272,12 @@ export async function buildPackage(
     intent: revision.intent,
     stock: revision.stock,
     features: revision.features,
+    // Every operation in every setup, so the coverage gate can ask whether
+    // each feature is cut by one. Flattened here rather than in the engine:
+    // the engine takes a list and knows nothing about setups.
+    operations: setups.flatMap((s) =>
+      s.operations.map((o) => ({ id: o.id, label: o.label, featureId: o.featureId })),
+    ),
     machine: primaryMachine,
     tools: assignedTools,
     workholding: primaryWorkholding,

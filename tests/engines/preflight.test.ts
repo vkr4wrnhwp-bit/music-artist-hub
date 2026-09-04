@@ -23,6 +23,10 @@ const pkg = (over: Record<string, unknown> = {}): ManufacturingPackage =>
       stock: { x: 6, y: 4, z: 1 },
       features: [{ id: "f1", critical: true, inspectionMethod: "Bore gauge" }],
     },
+    // One setup with one operation cutting f1, so the coverage item has a
+    // complete package to look at. A fixture missing this reads as a part
+    // whose only feature nothing cuts.
+    setups: [{ id: "s1", operations: [{ id: "o1", label: "Bore f1", featureId: "f1" }] }],
     workholdingBySetup: { s1: { level: "SAFE" } },
     assignedTools: [{ stickout: 1.5 }],
     toolpaths: [{ isPlaceholder: false }],

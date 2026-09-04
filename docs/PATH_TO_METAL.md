@@ -122,19 +122,35 @@ Build: `G81` (drill), `G82` (spot/counterbore with dwell), `G83` (peck),
 cancellation, plus the `R`-plane discipline that goes with them. Structurally
 identical to the `G84` case that already exists.
 
-**A4 — A feature with no operation is silently not cut. (SMALL — do this now)**
-`preflight.ts` already reasons this way about placeholder toolpaths: "the
+**A4 — A feature with no operation is silently not cut. — BUILT**
+`preflight.ts` already reasoned this way about placeholder toolpaths: "the
 program is syntactically complete, runs start to finish, and simply never cuts
-those features." The same hole exists one level up. Nothing checks that every
-feature is *addressed by an operation*. The workspace knows — "No operation in
-the plan cuts this feature" (`components/workspace/feature-actions.ts:75`) —
-but it is not a gate.
+those features." The same hole sat one level up. Nothing checked that every
+feature was *addressed by an operation*. The workspace knew — "No operation in
+the plan cuts this feature" — but it was not a gate, and a program that runs to
+completion and hands back a part missing its bearing bore is not something
+anybody inspects for. Every inspection method in this system measures something
+that is there.
 
-What the machinist gets: a program that runs to completion and hands back a
-part missing its bearing bore. Nobody inspects for the absence of a feature.
+`engines/coverage.ts` now answers it, and both the readiness gate and the export
+pre-flight ask that one function — the lesson `preflight.ts` states in its own
+header: if the gate logic exists in two places, it does not exist.
 
-Build: a feature-coverage gate in `readiness.ts` and a pre-flight item.
-Cheapest high-severity item on this list.
+The gate has to be clearable on real parts or it gets routed around. A FILLET
+has no operation type in the CAM engine at all; a chamfer is broken at the
+bench; a bore arrives in the extrusion. So a person may state, in a sentence,
+that a feature is not made by this program — recorded with their name and the
+time, on the feature's MACHINE tab. It is a manufacturing fact only a person can
+know, in the same class as confirming the material, and the gate repeats the
+sentence in its detail rather than swallowing it: somebody at the bench still
+has to do that work, and the setup sheet (B1) will print it.
+
+Found on three seeded parts the moment it ran, including a bearing support with
+six of twelve features that no operation cuts.
+
+`src/lib/engines/coverage.ts`, the `coverage` gate in `readiness.ts`, the
+`coverage` item in `cam/preflight.ts`, and
+`parts/[id]/features/not-machined-actions.ts`.
 
 **A5 — The outside contour is a rectangle at the origin. (MEDIUM)**
 `contourToolpath` hard-codes `rectMoves(moves, 0, 0, w, l, cr, z, p.feed)`
@@ -478,7 +494,8 @@ Saying no is part of the plan.
 
 ## 8. THE ORDER I WOULD ACTUALLY BUILD IT IN
 
-1. **A4** feature coverage gate — hours, prevents a part missing its bore.
+1. ~~**A4** feature coverage gate~~ — BUILT. Found six uncut features on a
+   seeded part the first time it ran.
 2. **B1** setup sheet — the program cannot leave the office without it.
 3. **A1** arc output — the largest single fidelity win.
 4. **A3** canned cycles — small, and the program starts reading like a program.

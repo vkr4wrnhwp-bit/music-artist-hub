@@ -14,6 +14,7 @@ import { READINESS_GATE_IDS } from "@/lib/engines/readiness";
 
 const GATE_LABEL: Record<string, string> = {
   geometry: "Geometry",
+  coverage: "Feature coverage",
   material: "Material",
   engineering: "Engineering input",
   machine: "Machine envelope",

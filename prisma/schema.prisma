@@ -573,6 +573,21 @@ model Feature {
   inspectionMethodBy String?
   inspectionMethodAt DateTime?
 
+  // NOT MADE BY THIS PROGRAM
+  //
+  // A sentence, from a person, saying this feature is not cut by the plan —
+  // a fillet the CAM engine has no operation for, a chamfer broken at the
+  // bench, a bore the extrusion already carries, a vendor operation. Without
+  // it the coverage gate could never be cleared on a real part and every shop
+  // would learn to ignore it.
+  //
+  // Deliberately a sentence and not a boolean: a checkbox is a click, and the
+  // setup sheet has to be able to print what the person actually said. Who and
+  // when travel with it for the same reason the inspection method's do.
+  notMachinedReason String?
+  notMachinedBy     String?
+  notMachinedAt     DateTime?
+
   // FUNCTION BEFORE DIMENSION
   //
   // What this feature has to interface with. A dimension without this is a

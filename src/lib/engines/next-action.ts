@@ -42,6 +42,11 @@ const RESOLUTION_ORDER: ReadinessGateId[] = [
   "reach",
   "corners",
   "tools",
+  // Coverage sits after tools because an uncut feature is usually resolved by
+  // planning an operation, and an operation needs a tool. It sits ahead of
+  // everything downstream because adding an operation invalidates the
+  // workholding assessment, the simulation and the approval.
+  "coverage",
   // tool-loading and critical-review were both absent from this list and from
   // GATE_ROUTE below. A gate missing here ranks last among its peers; a gate
   // missing from the route table offers the operator no link at all — the
@@ -67,6 +72,9 @@ const GATE_ROUTE: Record<ReadinessGateId, { href: (id: string) => string; label:
   reach: { href: (id) => `/parts/${id}/tooling`, label: "Tooling" },
   corners: { href: (id) => `/parts/${id}/tooling`, label: "Tooling" },
   tools: { href: (id) => `/parts/${id}/tooling`, label: "Tooling" },
+  // An uncut feature is fixed by planning an operation for it, which is what
+  // the machinist page does.
+  coverage: { href: (id) => `/parts/${id}/machinist`, label: "Machinist" },
   // The carousel lives on the machine, not on the part.
   "tool-loading": { href: () => `/machines`, label: "Machines" },
   "inspection-capability": { href: () => `/metrology`, label: "Metrology" },

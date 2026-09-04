@@ -1,4 +1,5 @@
 import type { ManufacturingPackage } from "@/lib/package";
+import { assessCoverage, coverageVerdict } from "@/lib/engines/coverage";
 import type { PostDefinition, PreflightItem } from "./post";
 
 /**
@@ -53,6 +54,18 @@ export function buildPreflight(
       true,
     ),
     item("tools", "Tools verified", pkg.assignedTools.length > 0, `${pkg.assignedTools.length} tools assigned`, true),
+    // FEATURE COVERAGE
+    //
+    // The `toolpaths` item below asks whether every OPERATION produced motion.
+    // This one asks whether every FEATURE has an operation at all — the same
+    // failure one level up, and the one nothing was watching. A feature with
+    // no operation is not refused anywhere: the program is written, it runs to
+    // completion, and the part comes off the machine without that feature. An
+    // absence is the one thing no inspection method in this system measures.
+    //
+    // Verdict and wording both come from the shared engine, so the readiness
+    // gate and the export gate cannot describe the same part differently.
+    coverageItem(pkg),
     item(
       "toollengths",
       "Tool lengths verified",
@@ -79,6 +92,14 @@ export function buildPreflight(
     item("simulation", "Simulation completed", pkg.simulationRun, pkg.simulationRun ? "Development visualisation run" : "Not run", true),
     item("approval", "Operator approval", pkg.approved, pkg.approved ? "Package approved" : "No approval recorded", true),
   ];
+}
+
+function coverageItem(pkg: ManufacturingPackage): PreflightItem {
+  const operations = pkg.setups.flatMap((s) =>
+    s.operations.map((o) => ({ id: o.id, label: o.label, featureId: o.featureId })),
+  );
+  const verdict = coverageVerdict(assessCoverage(pkg.revision.features, operations));
+  return item("coverage", "Every feature is cut", verdict.ok, verdict.detail, true);
 }
 
 function item(id: string, label: string, pass: boolean, detail: string, required: boolean): PreflightItem {

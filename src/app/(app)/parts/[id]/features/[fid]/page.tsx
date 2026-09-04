@@ -25,6 +25,7 @@ import { Disagree } from "@/components/disagree";
 import { MatingDesignationField } from "@/components/mating-designation";
 import { recordPartDisagreement } from "../../disagree-actions";
 import { recordFeatureResponsibility } from "../responsibility-actions";
+import { recordNotMachined } from "../not-machined-actions";
 import { FeatureSpecimen } from "@/components/feature-specimen";
 import {
   SPECIMEN_TABS,
@@ -123,6 +124,7 @@ export default async function FeatureDetailPage(props: {
   const options = methodOptions(feature, instrumentList);
   const assignMethod = assignInspectionMethod.bind(null, id);
   const responsibilityAction = recordFeatureResponsibility.bind(null, id);
+  const notMachinedAction = recordNotMachined.bind(null, id);
 
   /* ---- Reasoning from the interface ---- */
 
@@ -844,11 +846,14 @@ export default async function FeatureDetailPage(props: {
 
           {/* ---------------- MACHINE ---------------- */}
           {tab === "MACHINE" && (
+            <>
             <Panel title={`How it gets cut — ${operations.length} operation${operations.length === 1 ? "" : "s"}`} dense>
               {operations.length === 0 ? (
                 <p className="p-4 text-[12px] leading-relaxed text-muted">
                   No operation is planned against this feature yet. Choosing a machining approach on the Machinist page
-                  creates them.
+                  creates them. Until one exists, or until somebody records below that this feature is not made by
+                  this program, the coverage gate holds the part: a program that does not cut a feature still runs to
+                  completion, and nothing downstream inspects for something that is not there.
                 </p>
               ) : (
                 <ul>
@@ -867,6 +872,49 @@ export default async function FeatureDetailPage(props: {
                 </ul>
               )}
             </Panel>
+
+            {/* NOT MADE BY THIS PROGRAM — the coverage gate's one legitimate
+                answer other than an operation. A sentence rather than a
+                checkbox: the setup sheet has to print what was actually said,
+                and a click is not a decision anybody can read back. */}
+            <Panel
+              title={row.notMachinedReason ? "Not made by this program" : "Is this feature made somewhere else?"}
+              dense
+            >
+              <div className="space-y-3 p-4">
+                {row.notMachinedReason ? (
+                  <p className="text-[12px] leading-relaxed text-muted">
+                    Recorded by {row.notMachinedBy ?? "somebody"}
+                    {row.notMachinedAt ? ` on ${row.notMachinedAt.toISOString().slice(0, 10)}` : ""}. The coverage gate
+                    passes and repeats this sentence rather than reporting the feature as cut. Clear the box to put it
+                    back under the gate.
+                  </p>
+                ) : (
+                  <p className="text-[12px] leading-relaxed text-muted">
+                    A fillet the toolpath engine has no operation for, a chamfer broken at the bench, a bore the
+                    extrusion already carries, a vendor operation. Say so here and the coverage gate stops asking for
+                    an operation — it names what you wrote instead. Leave it empty if this program should cut it.
+                  </p>
+                )}
+                <form action={notMachinedAction} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="featureId" value={row.id} />
+                  <label className="min-w-[220px] flex-1">
+                    <span className="tech-label mb-1 block">How it is made</span>
+                    <input
+                      name="reason"
+                      maxLength={240}
+                      defaultValue={row.notMachinedReason ?? ""}
+                      placeholder="e.g. broken at the bench with a hand deburr tool"
+                      className={inputClass}
+                    />
+                  </label>
+                  <Button type="submit" size="sm">
+                    {row.notMachinedReason ? "Update" : "Record"}
+                  </Button>
+                </form>
+              </div>
+            </Panel>
+            </>
           )}
 
           {/* ---------------- HISTORY ---------------- */}
