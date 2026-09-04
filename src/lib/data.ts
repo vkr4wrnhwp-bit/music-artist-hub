@@ -187,6 +187,30 @@ export async function getParts(organizationId: string) {
   });
 }
 
+/**
+ * ONE PHOTOGRAPH PER PART, FOR THE TILES.
+ *
+ * A part with no features has nothing to draw, but a shop that photographed
+ * it has a real picture of the real thing. This is the newest photograph on
+ * file for each of the given parts, in one query rather than one per tile.
+ *
+ * Org-scoped like every other read here: the part ids come from a list this
+ * session already loaded, and the where clause re-checks them anyway, because
+ * an id that arrived from anywhere is not proof of ownership.
+ */
+export async function getPartPhotos(organizationId: string, partIds: string[]): Promise<Map<string, string>> {
+  if (partIds.length === 0) return new Map();
+  const rows = await db.uploadedAsset.findMany({
+    where: { organizationId, partId: { in: partIds }, kind: { in: ["PHOTO", "SETUP_PHOTO"] } },
+    orderBy: { createdAt: "desc" },
+    select: { partId: true, storageKey: true },
+  });
+  const byPart = new Map<string, string>();
+  // First row per part wins, and the rows arrive newest first.
+  for (const r of rows) if (r.partId && !byPart.has(r.partId)) byPart.set(r.partId, r.storageKey);
+  return byPart;
+}
+
 export interface LoadedRevision {
   partId: string;
   partName: string;

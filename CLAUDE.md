@@ -144,15 +144,28 @@ part is 84% complete". No emoji in manufacturing UI.
 
 ## Visual language
 
-**Studio White**, approved 2026-09-04. Warm white workspace, graphite type,
-restrained precision blue. The instrument is paper; the part is the brightest
-thing on it and the main interface. Blue means active state, selected geometry,
-datum, measurement, toolpath, coordinate origin — used sparingly.
+**Studio White**, approved 2026-09-04. Two regions, one vocabulary.
 
-Four steps of one warm neutral, in this order by luminance: chrome, page,
-panel, card. `contrast.test.ts` enforces both the ordering and the WCAG floors
-by reading the tokens straight out of `globals.css` — change a hex and CI
-measures it.
+The **work surface** is warm white with graphite type — the instrument is
+paper, and the part is the brightest thing on it and the main interface. The
+**chrome** around it (rail, header, drawer, command bar) is graphite, and that
+is where the warmth lives: brass, a brighter blue, a brighter green. An
+all-white first cut read as a clinic; the frame has to be dark for the sheet
+to read as lit.
+
+A state means the same thing in both regions and simply picks the ink legible
+where it sits — `.canvas-shell` re-points the `--c-*` role tokens, so no
+component needs a variant. Blue means active state, selected geometry, datum,
+measurement, toolpath, coordinate origin — used sparingly.
+
+The **brass edge** is the one mark carrying no state: a hairline where chrome
+meets the work surface, the seam of the instrument. Two edges, and it does not
+spread — brass anywhere it could be mistaken for the review state stops being
+a seam.
+
+Ordering by luminance is chrome, page, panel, card. `contrast.test.ts` enforces
+the ordering, the WCAG floors per region, and the brass rule by reading the
+tokens straight out of `globals.css` — change a hex and CI measures it.
 
 No grid background. No sketch-style placeholder UI: where a part has geometry,
 render it. Aerospace metrology and precision instrumentation, not generic SaaS:

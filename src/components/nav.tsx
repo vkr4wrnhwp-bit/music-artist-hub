@@ -479,7 +479,7 @@ function Rail({ active }: { active: Section }) {
   return (
     <nav
       aria-label="Sections"
-      className="flex h-full w-[72px] shrink-0 flex-col border-r border-line bg-shell"
+      className="instrument-edge-r flex h-full w-[72px] shrink-0 flex-col border-r border-line bg-shell"
     >
       <Link
         href="/"
@@ -911,7 +911,7 @@ export function TopBar({
        heading. Identity, trail, metadata and status now share a single
        64px row; on narrow screens it wraps rather than clipping, and the
        right group's status module is the last thing standing. */
-    <header className="canvas-shell flex min-h-[64px] shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line-strong bg-header py-2 pl-12 pr-4 lg:pl-5 lg:pr-5">
+    <header className="canvas-shell instrument-edge-b flex min-h-[64px] shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line-strong bg-header py-2 pl-12 pr-4 lg:pl-5 lg:pr-5">
       <div className="flex min-w-0 shrink grow basis-[16rem] items-center gap-3 overflow-hidden">
         {heading && (
           <h1 className="shrink-0 truncate text-[16px] font-medium leading-none tracking-[0.01em] text-platinum">

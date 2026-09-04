@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getMachines, getMaterials, getMetrology, getParts, getTools, getWorkholding, loadRevision } from "@/lib/data";
-import { MillPartThumb, TurnPartThumb } from "@/components/part-thumb";
+import { getMachines, getMaterials, getMetrology, getParts, getTools, getWorkholding, getPartPhotos, loadRevision } from "@/lib/data";
+import { MillPartThumb, TurnPartThumb, PartPhotoThumb, PartThumbEmpty } from "@/components/part-thumb";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
@@ -41,6 +41,7 @@ export default async function HomePage() {
    * renders "no geometry yet" over a part that has a measured one. The
    * library already made that distinction; the home screen did not.
    */
+  const photos = await getPartPhotos(user.organizationId, parts.slice(0, 6).map((p) => p.id));
   const recent = await Promise.all(
     parts.slice(0, 6).map(async (p) => {
       const rev = p.revisions[0];
@@ -53,6 +54,7 @@ export default async function HomePage() {
         hydrated: await loadRevision(user.organizationId, p.id),
         profile: rot ? (JSON.parse(rot.profileJson) as RotationalProfile) : null,
         isTurned: rot !== null,
+        photo: photos.get(p.id) ?? null,
       };
     }),
   );
@@ -147,17 +149,27 @@ export default async function HomePage() {
                * generic icon that implies there is something to look at.
                */
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {recent.map(({ p, rev, hydrated, profile, isTurned }) => (
+                {recent.map(({ p, rev, hydrated, profile, isTurned, photo }) => (
                   <li key={p.id}>
                     <Link
                       href={isTurned ? `/lathe/${p.id}` : `/parts/${p.id}`}
                       className="group block border border-line bg-surface transition-colors hover:border-line-strong"
                     >
                       <div className="h-[92px] border-b border-line">
+                        {/*
+                          Three states, in order of how much CANVAS actually
+                          knows: its own geometry, then a photograph of the
+                          real part labelled as one, then the action that
+                          would fill the slot.
+                        */}
                         {isTurned && profile ? (
                           <TurnPartThumb profile={profile} />
-                        ) : (
+                        ) : (hydrated?.features.length ?? 0) > 0 ? (
                           <MillPartThumb features={hydrated?.features ?? []} stock={hydrated?.stock ?? null} />
+                        ) : photo ? (
+                          <PartPhotoThumb src={`/api/assets/${encodeURIComponent(photo)}`} alt={`Photograph of ${p.name}`} />
+                        ) : (
+                          <PartThumbEmpty stock={hydrated?.stock ?? null} />
                         )}
                       </div>
                       <div className="px-3 py-2">

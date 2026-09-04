@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getParts, loadRevision } from "@/lib/data";
+import { getPartPhotos, getParts, loadRevision } from "@/lib/data";
 import { db } from "@/lib/db";
 import { TopBar } from "@/components/nav";
-import { MillPartThumb, TurnPartThumb } from "@/components/part-thumb";
+import { MillPartThumb, PartPhotoThumb, PartThumbEmpty, TurnPartThumb } from "@/components/part-thumb";
 import { LibraryView } from "@/components/library-view";
 import { EmptyState, LinkButton, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
@@ -21,6 +21,7 @@ export default async function PartLibraryPage() {
 
   // Tile data: hydrated features + stock per part, and the rotational
   // profile where one exists. Parts are few; this stays cheap.
+  const photos = await getPartPhotos(user.organizationId, parts.map((p) => p.id));
   const tiles = await Promise.all(
     parts.map(async (p) => {
       const rev = p.revisions[0];
@@ -42,23 +43,48 @@ export default async function PartLibraryPage() {
               : (rev?._count.setups ?? 0) === 0
                 ? "Pick an approach"
                 : "Open workspace";
-      return { p, rev, hydrated, profile, isTurned: rot !== null, material, next };
+      /*
+       * Which of the four pictures this tile gets. Decided once, here,
+       * because the caption below the tile has to know: an empty tile
+       * already carries the next action in 9px caps across its middle, and
+       * repeating it in the corner is the same sentence twice.
+       */
+      const photo = photos.get(p.id) ?? null;
+      const art =
+        rot !== null && profile && profile.segments.length > 0
+          ? "profile"
+          : (hydrated?.features.length ?? 0) > 0
+            ? "drawing"
+            : photo
+              ? "photo"
+              : "action";
+      return { p, rev, hydrated, profile, isTurned: rot !== null, material, next, photo, art };
     }),
   );
 
   const grid = (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {tiles.map(({ p, rev, hydrated, profile, isTurned, material, next }) => (
+      {tiles.map(({ p, rev, hydrated, profile, isTurned, material, next, photo, art }) => (
         <Link
           key={p.id}
           href={isTurned ? `/lathe/${p.id}` : `/parts/${p.id}`}
           className="group block border border-line bg-surface transition-colors hover:border-line-strong"
         >
           <div className="h-[120px] border-b border-line">
-            {isTurned && profile ? (
+            {/*
+              Geometry first, then a photograph of the real part labelled as
+              one, then the action that would fill the slot — `next` is
+              already computed above, so an empty tile says the same thing
+              the row under it says.
+            */}
+            {art === "profile" && profile ? (
               <TurnPartThumb profile={profile} />
-            ) : (
+            ) : art === "drawing" ? (
               <MillPartThumb features={hydrated?.features ?? []} stock={hydrated?.stock ?? null} />
+            ) : art === "photo" && photo ? (
+              <PartPhotoThumb src={`/api/assets/${encodeURIComponent(photo)}`} alt={`Photograph of ${p.name}`} />
+            ) : (
+              <PartThumbEmpty stock={hydrated?.stock ?? null} action={next} />
             )}
           </div>
           <div className="px-3.5 py-2.5">
@@ -76,7 +102,7 @@ export default async function PartLibraryPage() {
                 )}
                 {isTurned && <StatusChip tone="neutral">TURNED</StatusChip>}
               </span>
-              <span className="tech-label truncate text-right">{next}</span>
+              {art !== "action" && <span className="tech-label truncate text-right">{next}</span>}
             </div>
           </div>
         </Link>

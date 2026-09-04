@@ -66,17 +66,8 @@ export function MillPartThumb({
   const Y = (v: number) => oy + (sy / 2 - v) * k;
 
   // No geometry yet: an empty stock outline looks like a finished blank
-  // plate, which is a lie. Say what the tile actually knows.
-  if (features.length === 0) {
-    return (
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label="No geometry yet">
-        {stock && <rect x={ox} y={oy} width={sx * k} height={sy * k} fill="none" stroke={MUTED_INK} strokeWidth={1} strokeDasharray="5 4" />}
-        <text x={W / 2} y={H / 2 + 3} fontSize={9} fill={MUTED_INK} fontFamily="monospace" textAnchor="middle">
-          {stock ? "stock only — no geometry yet" : "no geometry yet"}
-        </text>
-      </svg>
-    );
-  }
+  // plate, which is a lie. Hand the slot to PartThumbEmpty instead.
+  if (features.length === 0) return <PartThumbEmpty stock={stock} />;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label="Part top view">
@@ -147,5 +138,78 @@ export function TurnPartThumb({ profile }: { profile: RotationalProfile }) {
       <line x1={pad - 6} y1={H / 2} x2={W - pad + 6} y2={H / 2} stroke={BLUE} strokeWidth={0.8} strokeDasharray="8 3 2 3" opacity={0.5} />
       <path d={d} fill={INK} fillOpacity={0.82} stroke={INK} strokeWidth={1} />
     </svg>
+  );
+}
+
+/**
+ * THE SLOT WHEN THERE IS NOTHING TO DRAW.
+ *
+ * A part with no features has no top view, and the tile used to say so in
+ * 9px grey — true, dead, and easy to read as "this part is broken". It is a
+ * third of the library on a young shop's first week.
+ *
+ * WHY IT DOES NOT SAY "COMING SOON"
+ *
+ * Because nothing is coming. The tile is empty for a reason that belongs to
+ * THIS part — nobody has added geometry, or defined stock, or measured the
+ * profile — and every one of those is an action the shop takes, not one
+ * CANVAS is going to ship. "Coming soon" would move the responsibility onto
+ * a feature that does not exist and hide the thing they can actually do.
+ *
+ * So the slot carries the action. Dashed stock where stock is known, the
+ * part's own next step where it is not.
+ */
+export function PartThumbEmpty({ stock, action }: { stock: Stock | null; action?: string }) {
+  const W = 180, H = 120, pad = 12;
+  const sx = stock?.x ?? 6;
+  const sy = stock?.y ?? 4;
+  const k = Math.min((W - pad * 2) / sx, (H - pad * 2) / sy);
+  const ox = (W - sx * k) / 2;
+  const oy = (H - sy * k) / 2;
+  const label = (action ?? (stock ? "Add geometry" : "Define stock")).toUpperCase();
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ background: PAPER }} className="h-full w-full" role="img" aria-label={label}>
+      {/* Stock, dashed, because it is known and the part inside it is not. */}
+      {stock && <rect x={ox} y={oy} width={sx * k} height={sy * k} fill="none" stroke={MUTED_INK} strokeWidth={1} strokeDasharray="5 4" />}
+      {/* A centre mark, at the program origin the drawn tile uses. Small: it
+          locates the empty tile in the same frame as a full one, so the two
+          do not read as different kinds of picture. */}
+      <g stroke={MUTED_INK} strokeWidth={0.9}>
+        <path d={`M${W / 2 - 9} ${H / 2 - 14} H${W / 2 + 9}`} />
+        <path d={`M${W / 2} ${H / 2 - 23} V${H / 2 - 5}`} />
+      </g>
+      <text x={W / 2} y={H / 2 + 14} fontSize={9} fill={INK} fontFamily="monospace" letterSpacing="1.4" textAnchor="middle">
+        {label}
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * A PHOTOGRAPH OF THE PART, LABELLED AS ONE.
+ *
+ * When a shop has photographed a part but not modelled it, the photograph is
+ * the best picture of it that exists — better than an empty frame, and it is
+ * what somebody walking past the screen would recognise.
+ *
+ * It carries a tag, always. A photograph in the same slot that elsewhere
+ * holds CANVAS's own geometry would otherwise read as geometry, and a
+ * machinist would take the tile as evidence the part is modelled. It is not:
+ * nothing calibrates an uploaded photo to part coordinates, no dimension
+ * comes off it, and the tag says which of the two they are looking at.
+ */
+export function PartPhotoThumb({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden" style={{ background: PAPER }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} className="h-full w-full object-cover" />
+      <span
+        className="absolute bottom-0 left-0 px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.14em]"
+        style={{ background: INK, color: PAPER }}
+      >
+        Photo &mdash; not geometry
+      </span>
+    </div>
   );
 }
