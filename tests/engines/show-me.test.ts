@@ -29,11 +29,22 @@ const GATE_LABEL: Record<string, string> = {
   inspection: "Inspection plan",
   simulation: "Simulation",
   nc: "NC post",
+  proof: "Proven on the machine",
   approval: "Operator approval",
 };
 
 /** Gates with no physical scene, deliberately: no link beats a vague one. */
-const NO_SCENE = ["engineering", "critical-review", "simulation", "nc", "approval"];
+const NO_SCENE = [
+  "engineering",
+  "critical-review",
+  "simulation",
+  "nc",
+  // Proof-out is resolved at the machine with a part in the vise. There is no
+  // scene in the app that shows it, and a link to one would be a link to the
+  // wrong thing.
+  "proof",
+  "approval",
+];
 
 test("every readiness gate either resolves to a scene or is deliberately unlinked", () => {
   for (const gid of READINESS_GATE_IDS) {

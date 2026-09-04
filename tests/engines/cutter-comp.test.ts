@@ -247,3 +247,62 @@ test("the reconciler compares against the programmed path, not the cutter centre
   const src = readFileSync("src/lib/nc/reconcile.ts", "utf8");
   assert.ok(/flattenArcs\(programmedPath\(tp\.moves\)/.test(src), "the reconciler flattens the cutter centre");
 });
+
+/* ------------------------------------------------------------------ */
+/* The NC linter reads programs, not prose                             */
+/* ------------------------------------------------------------------ */
+
+test("a comment carrying coordinates is not read as motion", () => {
+  /*
+   * The program header now states where program zero is — "X0 Y0 AT THE
+   * CENTRE OF THE STOCK" — and the coordinate regexes found an X and a Y in
+   * it. A comment read as a motion block, which combined with the feed check
+   * turned a correct program into one reported as "motion but no feed moves":
+   * an operator told a cutting pass runs at rapid.
+   */
+  const { verifyNc } = require("@/lib/engines/cam/post") as typeof import("@/lib/engines/cam/post");
+  const withComment = `%
+O1000
+(PROGRAM ZERO: X0 Y0 AT THE CENTRE OF THE STOCK)
+(SECOND VISE SITS AT X22.0 Y9.0 — DO NOT INDEX PAST IT)
+G20
+G17 G90
+T1 M6
+S5000 M3
+G0 X1.0000 Y0.0000 Z0.100
+G1 X1.0000 Y1.0000 Z-0.100 F20.
+M5
+M30
+%`;
+  // The X22.0 in that note is outside the VF-2's ±15" of X travel. Read as a
+  // motion block it produces a travel-envelope ERROR on a line that commands
+  // nothing — a program refused for the contents of its own documentation.
+  assert.deepEqual(verifyNc(withComment, machine).filter((i) => i.severity === "ERROR"), []);
+
+  // And a program whose ONLY coordinates live in comments has no motion at
+  // all, rather than motion with no feed.
+  const commentsOnly = `%
+O1000
+(MOVE TO X5.0 Y5.0 BY HAND BEFORE STARTING)
+G20
+M30
+%`;
+  assert.deepEqual(verifyNc(commentsOnly, machine).filter((i) => i.severity === "ERROR"), []);
+});
+
+test("Siemens is refused by name rather than verified having read nothing", () => {
+  // 840D looks like G-code and is not: X= addressing means every coordinate
+  // regex misses, so the checker saw no motion at all and returned CLEAN.
+  const { verifyNc } = require("@/lib/engines/cam/post") as typeof import("@/lib/engines/cam/post");
+  const s840 = `; CANVAS
+G70
+G17 G90 G54
+T="T1" M6
+G1 X=1.0000 Y=0.0000 Z=-0.100 F=20
+M30`;
+  const issues = verifyNc(s840, machine);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].severity, "WARNING");
+  assert.match(issues[0].message, /Siemens 840D/);
+  assert.match(issues[0].message, /unverified/);
+});

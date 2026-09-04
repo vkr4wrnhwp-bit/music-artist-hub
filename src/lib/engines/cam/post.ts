@@ -1,5 +1,6 @@
 import type { Move, Toolpath } from "./types";
 import { CHORD_TOLERANCE, arcGeometry, flattenArcs, isArc } from "./arc";
+import { PROGRAM_ORIGIN } from "@/lib/program-origin";
 import type { MachineProfile } from "@/lib/domain/shop";
 
 /**
@@ -41,6 +42,17 @@ function header(ctx: PostContext, lines: string[], comment: (s: string) => strin
   lines.push(comment(`PART ${ctx.partName} REV ${ctx.revision}`));
   lines.push(comment(`MACHINE ${ctx.machine.manufacturer} ${ctx.machine.model}`));
   lines.push(comment(`GENERATED ${ctx.generatedAtIso}`));
+  /*
+   * The one sentence that decides whether the part is cut in the right place.
+   *
+   * It governed the whole system and lived in two source comments, reaching the
+   * operator in neither. A machinist who picks up an edge at the corner instead
+   * of the centre runs a program that is dimensionally perfect and half of it in
+   * air, the other half through the vise — and no gate catches it, because
+   * nothing is wrong in the program. It is wrong in the assumption the program
+   * was written under, and an assumption nobody printed is one nobody can check.
+   */
+  lines.push(comment(PROGRAM_ORIGIN.sentence));
   lines.push(comment("VERIFY EVERY LINE BEFORE RUNNING. DRY RUN ABOVE THE PART."));
   for (const t of ctx.toolTable) {
     lines.push(comment(`T${t.toolNumber} ${t.description} D${n(t.diameter, 4)} H${t.lengthOffset}`));
@@ -284,6 +296,7 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push(`BEGIN PGM ${ctx.programNumber} ${ctx.units === "IN" ? "INCH" : "MM"}`);
   lines.push(`; CANVAS DEVELOPMENT / SIMULATION POST — NOT CERTIFIED FOR PRODUCTION`);
   lines.push(`; PART ${ctx.partName} REV ${ctx.revision}`);
+  lines.push(`; ${PROGRAM_ORIGIN.sentence}`);
   let block = 1;
   const push = (s: string) => lines.push(`${block++} ${s}`);
   for (const tp of toolpaths) {
@@ -507,6 +520,27 @@ export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIss
     ];
   }
 
+  /*
+   * Siemens 840D, for exactly the same reason.
+   *
+   * It looks like G-code and is not: axes are addressed `X=1.0` and tools are
+   * called `T="T1"`. Every coordinate regex below misses `X=`, so the checker
+   * saw no motion at all in an 840D program and returned CLEAN — verified,
+   * having read nothing. That is the failure this file's header names, and it
+   * survived because nothing exercised the honest-refusal path on the second
+   * dialect that needs it.
+   */
+  if (/\bT\s*=\s*"/.test(nc) || /^\s*G\d+\s+X=/m.test(nc)) {
+    return [
+      {
+        severity: "WARNING",
+        line: 1,
+        message:
+          "This is a Siemens 840D program. CANVAS's NC verification reads Fanuc-family G-code and cannot check X= addressing — travel envelope, spindle state and feed limits are all unverified here.",
+      },
+    ];
+  }
+
   let unitsSet = false;
   let spindleOn = false;
   let sawMotion = false;
@@ -515,7 +549,17 @@ export function verifyNc(nc: string, machine: MachineProfile): NcVerificationIss
   let feedEverSet = false;
 
   lines.forEach((raw, i) => {
-    const line = raw.trim().toUpperCase();
+    /*
+     * Comments are stripped before anything is read out of a line.
+     *
+     * The header carries "PROGRAM ZERO: X0 Y0 AT THE CENTRE OF THE STOCK",
+     * and the coordinate regexes below happily found an X and a Y in it — a
+     * comment read as a motion block. On its own that is only noise; combined
+     * with the feed check it turned a correct program into one reported as
+     * "motion but no feed moves", which is an operator being told a cutting
+     * pass runs at rapid.
+     */
+    const line = raw.replace(/\([^)]*\)/g, "").replace(/;.*$/, "").trim().toUpperCase();
     const ln = i + 1;
     if (/\bG20\b|\bG21\b|\bG70\b|\bG71\b/.test(line)) unitsSet = true;
     if (/\bM3\b|\bM4\b/.test(line)) { spindleOn = true; spindleOnAtEnd = true; }

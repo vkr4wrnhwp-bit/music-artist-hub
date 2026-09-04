@@ -283,4 +283,14 @@ test("program zero is stated from one place", () => {
   // The analyzer's assumption list says the same thing to a different reader.
   const analyze = strip(readFileSync("src/lib/nc/analyze.ts", "utf8"));
   assert.ok(/PROGRAM_ORIGIN/.test(analyze), "the analyzer still carries its own copy of the origin convention");
+  // And the program itself. A machinist reading the file at the control gets
+  // the same sentence as the one reading the sheet at the vise.
+  // Scoped to each header that writes it. An unscoped match passed while the
+  // Fanuc header dropped the line, because the Heidenhain one still had it.
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  const fanuc = /function header\([\s\S]*?\n}/.exec(post);
+  assert.ok(fanuc, "the shared post header moved — this test cannot check it any more");
+  assert.ok(/PROGRAM_ORIGIN\.sentence/.test(fanuc![0]), "the post header does not state where program zero is");
+  const tnc = /const emitHeidenhain[\s\S]*?BEGIN PGM[\s\S]{0,400}/.exec(post);
+  assert.ok(tnc && /PROGRAM_ORIGIN\.sentence/.test(tnc[0]), "the Heidenhain header does not state where program zero is");
 });

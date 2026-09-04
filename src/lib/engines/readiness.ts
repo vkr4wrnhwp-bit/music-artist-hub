@@ -56,6 +56,7 @@ export const READINESS_GATE_IDS = [
   "inspection",
   "simulation",
   "nc",
+  "proof",
   "approval",
 ] as const;
 export type ReadinessGateId = (typeof READINESS_GATE_IDS)[number];
@@ -122,6 +123,12 @@ export interface ReadinessInput {
   instruments?: Instrument[];
   simulationRun: boolean;
   ncGenerated: boolean;
+  /**
+   * Whether the stored program has ever cut a good part, and whether it is
+   * still the program that did. Undefined when there is no program to ask
+   * about. See nc/proof.ts.
+   */
+  proof?: { state: "NEVER_RUN" | "PROVEN" | "STALE"; detail: string };
   operatorApproved: boolean;
 }
 
@@ -513,6 +520,28 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     input.ncGenerated
       ? gate("nc", "NC post", "REVIEW", "Development post output generated. Not certified for production.", false, ["Review the program line by line"])
       : gate("nc", "NC post", "NOT_ATTEMPTED", "No NC program has been generated.", false, []),
+  );
+
+  /* ---- Proof-out ----
+   *
+   * Deliberately NON-blocking. A program that has never cut a part is the
+   * normal state of every new program, and a gate that refused to release one
+   * would make first articles impossible — which is to say it would be routed
+   * around inside a week. The point is to make the distinction visible and
+   * attributable, not to prevent it.
+   *
+   * STALE is the one worth reading twice: a program that WAS proven and has
+   * since been re-posted. That is the state most likely to be trusted wrongly,
+   * because somebody remembers running it.
+   */
+  gates.push(
+    !input.ncGenerated || !input.proof
+      ? gate("proof", "Proven on the machine", "NOT_ATTEMPTED", "No program has been generated for this revision.", false, [])
+      : input.proof.state === "PROVEN"
+        ? gate("proof", "Proven on the machine", "PASS", input.proof.detail, false, [])
+        : gate("proof", "Proven on the machine", "REVIEW", input.proof.detail, false, [
+            input.proof.state === "STALE" ? "Prove the current program out again" : "Prove this program out and record it",
+          ]),
   );
 
   /* ---- Operator approval — always the last gate ---- */

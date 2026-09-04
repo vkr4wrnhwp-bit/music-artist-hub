@@ -274,16 +274,29 @@ turns a development post into a certified one.
 `src/lib/setup-sheet.ts`, `src/lib/program-origin.ts`,
 `parts/[id]/setups/[sid]/sheet`, and the print block in `globals.css`.
 
-**B2 — The work-offset origin is never stated to the operator. (SMALL — half done)**
+**B2 — The work-offset origin. — BUILT**
 The convention lived in two source comments in two different files and reached
-the operator in neither. It now lives once, in `src/lib/program-origin.ts`, and
-the setup sheet and the NC analyzer's assumption list both say it in the same
-words.
+the operator in neither. It now lives once, in `program-origin.ts`, and four
+surfaces say it in the same words: the setup sheet, the NC analyzer's assumption
+list, **and every post header**, in that dialect's own comment syntax.
 
-Still to do: the **post header**. It carries part, machine, date, tool list and
-a warning, and not the one sentence that decides whether the part is cut in the
-right place. And the origin should become a property of the Setup — see B3 —
-rather than a system-wide default.
+Putting it in the header exposed two real defects in `verifyNc`, which is a
+linter that reads programs and was reading prose. It found the `X0 Y0` inside
+the new comment and read the line as a motion block — on its own only noise, but
+combined with the feed check it turned a correct program into one reported as
+"motion but no feed moves", which is an operator being told a cutting pass runs
+at rapid. Any comment mentioning a coordinate outside the travel envelope would
+have done the same. Comments are now stripped before anything is read out of a
+line.
+
+And it turned out `verifyNc` **could not read Siemens at all** — `X=` addressing
+means every coordinate regex misses, so an 840D program came back CLEAN having
+seen no motion whatsoever. It already refused Heidenhain by name for exactly
+this reason; it now refuses 840D the same way. Verified is what an operator
+reads as safe, and a dialect that was not read must never come back verified.
+
+Still to do: the origin should become a property of the Setup — see B3 — rather
+than a system-wide default.
 
 **B3 — A setup has no coordinate frame. (LARGE)**
 `Setup` carries `orientation` (a string, "TOP") and `workOffset` ("G54") and no
@@ -394,20 +407,37 @@ one directory away. Point the verifier at it.
 
 The gate list is the product. Five are missing for machine-ready NC:
 
-| Gate | Clears on |
-|---|---|
-| Feature coverage | Every feature is cut by an operation (A4) |
-| Post validated | A validation record for this machine + control (D1) |
-| Emitted-program verification | Posted text simulated and reconciled (C1, C2) |
-| Setup documentation | A setup sheet exists for every setup (B1) |
-| Proof-out state | `NEVER RUN` → `PROVEN` on machine, date, operator |
+| Gate | Clears on | State |
+|---|---|---|
+| Feature coverage | Every feature is cut by an operation | **BUILT** (A4) |
+| Emitted-program verification | Posted text reconciled to its toolpath | **BUILT** (C1+C2) — gates the mint |
+| Proof-out state | A named person, a machine, a date, and a part that came out good | **BUILT** — non-blocking, see below |
+| Post validated | A validation record for this machine + control | Open (D1) |
+| Setup documentation | A setup sheet exists for every setup | **Dropped** — the sheet is generated from the package, so it cannot be missing. A gate that always passes is worse than no gate. The sheet's own RESOLVE AT THE MACHINE list carries what it does not know. |
+| Collision checked | Fixture, holder and rapid interference all actually ran | Partial (C3) |
 
-That last one deserves its own paragraph. **The most important property of an
-NC program is whether it has ever cut a good part.** Nothing in the schema
-records it. A program proven on the VF-2 last Tuesday and the same program
-never run are indistinguishable in the system today, and no machinist thinks
-about them the same way. This is a small schema change and a large change in
-what CANVAS can honestly say.
+**The most important property of an NC program is whether it has ever cut a
+good part**, and nothing recorded it: a program proven on the VF-2 last Tuesday
+and the same program never run were indistinguishable, and no machinist treats
+them the same. `nc/proof.ts` now answers NEVER RUN, PROVEN or STALE.
+
+It is deliberately **non-blocking**. A program that has never cut a part is the
+normal state of every new program, and a gate that refused to release one would
+make first articles impossible — which is to say it would be routed around
+inside a week. It makes the distinction visible and attributable, not
+impossible.
+
+STALE is the state worth reading twice: a program that *was* proven and has
+since been re-posted. The proof stores the SHA-256 of the code it was about, so
+a re-post moves it to STALE by itself rather than going on vouching for text
+nobody has run — the same construction as the turning side's approval digest,
+and for the same reason. An approval that outlives the thing it approved is
+worse than none, because somebody relies on it.
+
+Adding the gate also surfaced a mis-routing in SHOW ME: it substring-matched
+gate ids **or labels**, so "Proven on the machine" matched the `machine` gate
+and sent the operator to stock definition. The id now decides, and it decides
+first.
 
 ---
 

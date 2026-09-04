@@ -926,6 +926,23 @@ model NCProgram {
   sourceEncoding   String?
   lineEnding       String?
   controllerFamily String?
+  // HAS THIS PROGRAM EVER CUT A GOOD PART?
+  //
+  // The most important property an NC program has, and nothing recorded it. A
+  // program proven on the VF-2 last Tuesday and the same program never run were
+  // indistinguishable in this system, and no machinist treats them the same.
+  //
+  // `provenDigest` is what stops the record outliving the program: it is the
+  // SHA-256 of the code as it was when somebody watched it cut. Regenerate the
+  // toolpath, re-post, and the digest no longer matches — the proof is stale
+  // and says so rather than vouching for text nobody has run. Same construction
+  // as RotationalPart.approvedDigest.
+  provenAt        DateTime?
+  provenByName    String?
+  provenMachineId String?
+  provenNote      String?
+  provenDigest    String?
+
   // For OPTIMIZED rows: the program this one was derived from.
   sourceProgramId String?
   // For OPTIMIZED rows: applied proposals, digests and the geometry diff.

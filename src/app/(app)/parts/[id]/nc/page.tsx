@@ -16,6 +16,8 @@ import {
 } from "@/lib/engines/cam/post";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { POSITION_TOLERANCE, reconcilePostedProgram } from "@/lib/nc/reconcile";
+import { proofState } from "@/lib/nc/proof";
+import { recordProofOut } from "./actions";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
 import { NcExportPanel } from "@/components/nc/export-panel";
@@ -78,6 +80,10 @@ export default async function NcPage(props: {
    * would go on describing a program that no longer matches.
    */
   const reconciled = existing ? reconcilePostedProgram(existing.code, pkg.toolpaths) : null;
+  const proof = existing
+    ? proofState(existing, existing.code, machine ? `${machine.manufacturer} ${machine.model}` : null)
+    : { state: "NEVER_RUN" as const, detail: "", provenAt: null, provenByName: null, provenNote: null };
+  const proofAction = recordProofOut.bind(null, id);
   const canExport =
     preflightPassed(preflight) &&
     Boolean(selectedPost) &&
@@ -302,6 +308,42 @@ export default async function NcPage(props: {
 
           {existing && (
             <>
+              {existing && (
+                <Panel
+                  title="Proven on the machine"
+                  meta={
+                    <StatusChip
+                      tone={proof.state === "PROVEN" ? "pass" : proof.state === "STALE" ? "risk" : "review"}
+                    >
+                      {proof.state.replace(/_/g, " ")}
+                    </StatusChip>
+                  }
+                >
+                  <p className="mb-3 text-[12px] leading-relaxed text-platinum-dim">{proof.detail}</p>
+                  <p className="mb-3 text-[11.5px] leading-relaxed text-muted">
+                    Whether a program has ever cut a good part is the first thing anybody wants to know about it, and
+                    it is the one thing CANVAS could not tell you. This does not clear a gate and does not block one —
+                    a program that has never been run is the normal state of a new program. It records which it is,
+                    and who says so. Re-posting moves it back to stale by itself: a proof is about specific bytes.
+                  </p>
+                  <form action={proofAction} className="flex flex-wrap items-end gap-2">
+                    <label className="min-w-[260px] flex-1">
+                      <span className="tech-label mb-1 block">What happened at the machine</span>
+                      <input
+                        name="note"
+                        maxLength={240}
+                        defaultValue={existing.provenNote ?? ""}
+                        placeholder="first article passed, 0.0002 over on the bore, took a thou off D2"
+                        className={inputClass}
+                      />
+                    </label>
+                    <Button type="submit" size="sm">
+                      {proof.state === "PROVEN" ? "Update" : "Record the run"}
+                    </Button>
+                  </form>
+                </Panel>
+              )}
+
               {reconciled && (
                 <Panel
                   title="Program against plan"

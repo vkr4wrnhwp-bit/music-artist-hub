@@ -8,6 +8,8 @@ import { buildPackage } from "@/lib/package";
 import { buildPreflight } from "@/lib/engines/cam/preflight";
 import { getPost, ncVerificationBlockers, preflightPassed, verifyNc } from "@/lib/engines/cam/post";
 import { reconcilePostedProgram } from "@/lib/nc/reconcile";
+import { programDigest } from "@/lib/nc/proof";
+import { revalidatePath } from "next/cache";
 
 /**
  * NC EXPORT — mint and record.
@@ -261,4 +263,66 @@ function gateLapsedReason(outcome: ExportOutcome, gateHolds: boolean): string {
           ? "Offered for download — destination and write not verifiable in this browser"
           : "Write attempted, nothing written";
   return gateHolds ? base : `${base}. Pre-flight no longer passed at record time — authorisation lapsed between mint and record.`;
+}
+
+/**
+ * RECORDING THAT A PROGRAM CUT A GOOD PART.
+ *
+ * The most important property an NC program has, and until now nothing recorded
+ * it: a program proven on the machine last Tuesday and the same program never
+ * run were indistinguishable, and no machinist treats them the same.
+ *
+ * A note is required and stored as prose, for the same reason the not-machined
+ * reason is: a checkbox is a click, and "first article passed, 0.0002 over on
+ * the bore, took a thou off D2" is the sentence the next person needs. The
+ * digest of the code as it stands is stored with it, so a re-post moves the
+ * proof to STALE by itself rather than vouching for text nobody has run.
+ *
+ * This clears no gate. The proof gate does not block — a program that has never
+ * cut a part is the normal state of every new program — so nothing here is an
+ * override of anything.
+ */
+export async function recordProofOut(partId: string, formData: FormData): Promise<void> {
+  const user = await requireWrite();
+  const pkg = await buildPackage(user.organizationId, partId);
+  if (!pkg) return;
+
+  const program = await db.nCProgram.findFirst({
+    where: { partRevisionId: pkg.revision.revisionId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!program) return;
+
+  const note = String(formData.get("note") ?? "").trim().slice(0, 240);
+  const clearing = note === "";
+
+  await db.nCProgram.update({
+    where: { id: program.id },
+    data: clearing
+      ? { provenAt: null, provenByName: null, provenMachineId: null, provenNote: null, provenDigest: null }
+      : {
+          provenAt: new Date(),
+          provenByName: user.name,
+          provenMachineId: pkg.primaryMachine?.id ?? null,
+          provenNote: note,
+          provenDigest: programDigest(program.code),
+        },
+  });
+
+  await audit({
+    organizationId: user.organizationId,
+    userId: user.id,
+    entityType: "NCProgram",
+    entityId: program.id,
+    action: "UPDATE",
+    actorType: "HUMAN",
+    field: "provenAt",
+    oldValue: program.provenAt ? program.provenAt.toISOString() : "never run",
+    newValue: clearing ? "never run" : new Date().toISOString(),
+    reason: clearing
+      ? `The proof-out record for O${program.programNumber} was withdrawn.`
+      : `O${program.programNumber} cut a good part on ${pkg.primaryMachine ? `${pkg.primaryMachine.manufacturer} ${pkg.primaryMachine.model}` : "the machine"}: ${note}`,
+  });
+
+  revalidatePath(`/parts/${partId}`, "layout");
 }

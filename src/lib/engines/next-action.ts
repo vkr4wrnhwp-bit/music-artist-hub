@@ -61,6 +61,9 @@ const RESOLUTION_ORDER: ReadinessGateId[] = [
   "inspection",
   "simulation",
   "nc",
+  // Proof-out sits beside the program itself: it is a fact about the bytes,
+  // and it is resolved at the machine rather than on a screen.
+  "proof",
   "approval",
 ];
 
@@ -84,6 +87,7 @@ const GATE_ROUTE: Record<ReadinessGateId, { href: (id: string) => string; label:
   inspection: { href: (id) => `/parts/${id}/inspection`, label: "Inspection" },
   simulation: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
   nc: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
+  proof: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
   approval: { href: (id) => `/parts/${id}/readiness`, label: "Readiness" },
 };
 

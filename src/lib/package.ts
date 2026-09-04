@@ -14,6 +14,7 @@ import { assessAdditive, type AdditiveResult } from "./engines/additive";
 import { selectPrimaryMachine, selectMaterial } from "./package-selectors";
 import { analyzeProcesses, type ProcessAnalysis } from "./engines/process-advisor";
 import type { MachineProfile, Tool, WorkholdingDevice } from "./domain/shop";
+import { proofState } from "./nc/proof";
 
 /**
  * Assembles the complete manufacturing package for a revision.
@@ -287,6 +288,11 @@ export async function buildPackage(
     instruments,
     simulationRun: Boolean(sim),
     ncGenerated: Boolean(nc),
+    // The proof is about the bytes, so it is computed from the stored code
+    // rather than read as a flag. A re-post moves it to STALE by itself.
+    proof: nc
+      ? proofState(nc, nc.code, primaryMachine ? `${primaryMachine.manufacturer} ${primaryMachine.model}` : null)
+      : undefined,
     operatorApproved: Boolean(approval),
   });
 

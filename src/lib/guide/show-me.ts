@@ -46,10 +46,35 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
     responsibility: `/parts/${partId}/responsibility`,
   };
   const g = gateId.toLowerCase();
+
+  /*
+   * The gate id decides, and it decides FIRST.
+   *
+   * This used to substring-match the id or the LABEL against every key, which
+   * meant a gate whose wording happened to contain another gate's name
+   * inherited that gate's scene. "Proven on the machine" matched `machine` and
+   * sent the operator to stock definition — a SHOW ME that lands on the one
+   * screen with nothing to do with the blocker. Matching the id exactly first
+   * removes the whole class.
+   */
+  if (NO_SCENE.has(g)) return null;
+  if (Object.prototype.hasOwnProperty.call(map, g)) return map[g];
+
+  // Fallback for callers passing something that is not a gate id.
   const l = gateLabel.toLowerCase();
   const key = Object.keys(map).find((k) => g.includes(k) || l.includes(k));
   return key ? map[key] : null;
 }
+
+/**
+ * Gates whose blocker has no physical scene, stated here rather than left as an
+ * absence from the map above.
+ *
+ * Proof-out is the clearest case: it is resolved at the machine with a part in
+ * the vise, and any link would be a link to the wrong thing. No link beats a
+ * vague one.
+ */
+const NO_SCENE = new Set(["engineering", "critical-review", "simulation", "nc", "proof", "approval"]);
 
 /* ------------------------------------------------------------------ */
 /* Review findings                                                     */
