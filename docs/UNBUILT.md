@@ -192,6 +192,34 @@ human stated it.
 
 `src/app/(app)/parts/[id]/responsibility/page.tsx`.
 
+### Stock was write-once, so a mistyped blank was permanent
+
+`defineStock` returned early whenever stock already existed — define, never
+redefine. A 2.000 blank entered as 0.200 could not be fixed: holding margin,
+tool reach, cycle time and material removed all plan from those numbers, and
+every one of them went on being computed from the wrong figure with no way back
+short of entering the part again. The audit rated it BROKEN / BLOCKS_USE.
+
+The reason it was written that way is real — stock that setups and toolpaths
+already plan from should not be silently replaced by a form post — but the
+answer to that is not refusing the correction. It is making the correction take
+down what was concluded from the old blank.
+
+Correcting stock now revokes any standing approval on the package and clears
+any simulation run against the previous blank, returning those gates to MISSING
+and NOT ATTEMPTED, which is what they honestly are. An approval of a 4 × 3 ×
+0.125 billet is not an approval of a 4 × 3 × 0.875 one, and a simulation of the
+first is a recording of a cut that will not happen. Both consequences are stated
+on the panel before the correction is made, and audited after: one HUMAN row for
+the stock, one SYSTEM row each for the approval and the simulation. Re-posting
+identical numbers is not a correction and disturbs neither.
+
+Verified in the browser on a released part carrying an approval and a
+simulation: correcting the blank left the approval revoked, the simulation gone,
+and three audit rows recording what happened and why.
+
+`src/app/(app)/parts/[id]/page.tsx`.
+
 **Still not correctable:** a feature's geometry. A diameter typed wrong is
 permanent in the same way, and it is a larger question than this one — the
 toolpaths, the simulation and every recorded measurement are all downstream of

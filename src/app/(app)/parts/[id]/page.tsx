@@ -216,9 +216,8 @@ export default async function PartWorkspace(props: {
     const currentUser = await requireWrite();
     const fresh = await buildPackage(currentUser.organizationId, id);
     if (!fresh) notFound();
-    // Define, not redefine: stock that setups and toolpaths already plan from
-    // does not get silently replaced by a form post.
-    if (fresh.revision.stock) return;
+
+    const previous = fresh.revision.stock;
 
     const dims = (["x", "y", "z"] as const).map((k) => Number(String(formData.get(k) ?? "").trim()));
     const material = String(formData.get("material") ?? "").trim();
@@ -232,6 +231,13 @@ export default async function PartWorkspace(props: {
     if (env && (x < env.x - 1e-6 || y < env.y - 1e-6 || z < env.z - 1e-6)) return;
 
     const stock = { form: "RECTANGULAR" as const, x, y, z, material, ...(condition ? { condition } : {}) };
+    const describe = (v: { x: number; y: number; z: number; material: string; condition?: string }) =>
+      `${v.x} × ${v.y} × ${v.z} in ${v.material}${v.condition ? ` (${v.condition})` : ""}`;
+
+    // Re-posting the same numbers is not a correction and should not disturb
+    // an approval or a simulation.
+    if (previous && describe(previous) === describe(stock)) return;
+
     await db.partRevision.update({
       where: { id: fresh.revision.revisionId },
       data: { stockJson: JSON.stringify(stock) },
@@ -244,10 +250,67 @@ export default async function PartWorkspace(props: {
       action: "UPDATE",
       actorType: "HUMAN",
       field: "stock",
-      newValue: `${x} × ${y} × ${z} in ${material}`,
-      reason: "Stock defined on the part page",
+      ...(previous ? { oldValue: describe(previous) } : {}),
+      newValue: describe(stock),
+      reason: previous ? "Stock corrected on the part page" : "Stock defined on the part page",
     });
-    revalidatePath(`/parts/${id}`);
+
+    if (previous) {
+      /*
+       * CORRECTING STOCK INVALIDATES WHAT WAS CONCLUDED FROM THE OLD STOCK.
+       *
+       * Holding margin, tool reach, cycle time and the material removed are all
+       * computed from these dimensions. An approval given on a 4 × 3 × 1 blank
+       * is not an approval of a 4 × 3 × 2 blank, and a simulation run against
+       * the first is not evidence about the second — it is a recording of a cut
+       * that will not happen.
+       *
+       * So the approval is revoked and the simulation record removed, returning
+       * those gates to MISSING and NOT ATTEMPTED, which is what they honestly
+       * are. Both are audited: six months later the trail shows the stock
+       * changed and shows what the change took down with it. This is principle
+       * 11 in the other direction — evidence is recorded, and nothing that
+       * depended on the old evidence is quietly carried forward.
+       */
+      const revoked = await db.approval.updateMany({
+        where: { partRevisionId: fresh.revision.revisionId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (revoked.count > 0) {
+        await audit({
+          organizationId: currentUser.organizationId,
+          userId: currentUser.id,
+          entityType: "PartRevision",
+          entityId: fresh.revision.revisionId,
+          action: "UPDATE",
+          actorType: "SYSTEM",
+          field: "approval",
+          oldValue: "APPROVED",
+          newValue: "REVOKED",
+          reason: "Stock was corrected. The package that was approved is not the package that would now be run.",
+        });
+      }
+
+      const cleared = await db.simulation.deleteMany({
+        where: { setup: { partRevisionId: fresh.revision.revisionId } },
+      });
+      if (cleared.count > 0) {
+        await audit({
+          organizationId: currentUser.organizationId,
+          userId: currentUser.id,
+          entityType: "PartRevision",
+          entityId: fresh.revision.revisionId,
+          action: "DELETE",
+          actorType: "SYSTEM",
+          field: "simulation",
+          oldValue: `${cleared.count} run`,
+          newValue: "none",
+          reason: "Stock was corrected. A simulation against the old blank is not evidence about the new one.",
+        });
+      }
+    }
+
+    revalidatePath(`/parts/${id}`, "layout");
   }
 
   const primarySetup = pkg.setups[0];
@@ -641,55 +704,91 @@ export default async function PartWorkspace(props: {
 
     stock: (
       <div className="space-y-3">
-        {revision.stock ? (
-          <>
-            <DataRow label="Form" value={revision.stock.form} />
-            <DataRow label="X" value={`${fmt(revision.stock.x, 3)}″`} />
-            <DataRow label="Y" value={`${fmt(revision.stock.y, 3)}″`} />
-            <DataRow label="Z" value={`${fmt(revision.stock.z, 3)}″`} />
-            <DataRow label="Material" value={revision.stock.material} />
-            <DataRow label="Condition" value={revision.stock.condition ?? "—"} />
-            <DataRow
-              label="Volume"
-              value={`${(revision.stock.x * revision.stock.y * revision.stock.z).toFixed(2)} in³`}
-            />
-          </>
-        ) : (
-          <div className="space-y-2.5">
-            <p className="text-[12px] leading-relaxed text-muted">
-              Stock is not defined for this revision. Everything downstream — workholding, toolpaths, gates — plans
-              from what you enter here, so enter what will actually be in the vise.
-            </p>
-            {(() => {
-              const env = revision.intent.finishedEnvelope.value as { x: number; y: number; z: number } | null;
-              return env ? (
-                <p className="font-mono text-[11.5px] text-platinum-dim tabular-nums">
-                  Finished envelope: {env.x.toFixed(3)} × {env.y.toFixed(3)} × {env.z.toFixed(3)} in — stock must
-                  cover it; the allowance is your machining decision, not a default.
-                </p>
-              ) : null;
-            })()}
+        {(() => {
+          const st = revision.stock;
+          const env = revision.intent.finishedEnvelope.value as { x: number; y: number; z: number } | null;
+          const form = (
             <form action={defineStock} className="grid grid-cols-3 gap-2">
               {(["x", "y", "z"] as const).map((axis) => (
                 <label key={axis} className="block">
                   <span className="tech-label mb-0.5 block">{axis.toUpperCase()} (in)</span>
-                  <input name={axis} inputMode="decimal" required className="w-full border border-line-strong bg-surface px-1.5 py-1 font-mono text-[12px] text-platinum" />
+                  <input
+                    name={axis}
+                    inputMode="decimal"
+                    required
+                    defaultValue={st ? String(st[axis]) : ""}
+                    className="w-full border border-line-strong bg-surface px-1.5 py-1 font-mono text-[12px] text-platinum"
+                  />
                 </label>
               ))}
               <label className="col-span-2 block">
                 <span className="tech-label mb-0.5 block">Material</span>
-                <input name="material" required placeholder="e.g. Aluminum 6061" className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
+                <input name="material" required placeholder="e.g. Aluminum 6061" defaultValue={st?.material ?? ""} className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
               </label>
               <label className="block">
                 <span className="tech-label mb-0.5 block">Condition</span>
-                <input name="condition" placeholder="optional" className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
+                <input name="condition" placeholder="optional" defaultValue={st?.condition ?? ""} className="w-full border border-line-strong bg-surface px-1.5 py-1 text-[12px] text-platinum" />
               </label>
               <button type="submit" data-guide-target="define-stock" className="col-span-3 border border-precision/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-precision hover:bg-precision/10">
-                Define stock
+                {st ? "Correct stock" : "Define stock"}
               </button>
             </form>
-          </div>
-        )}
+          );
+
+          const envelopeNote = env ? (
+            <p className="font-mono text-[11.5px] text-platinum-dim tabular-nums">
+              Finished envelope: {env.x.toFixed(3)} × {env.y.toFixed(3)} × {env.z.toFixed(3)} in — stock must cover
+              it; the allowance is your machining decision, not a default.
+            </p>
+          ) : null;
+
+          if (!st) {
+            return (
+              <div className="space-y-2.5">
+                <p className="text-[12px] leading-relaxed text-muted">
+                  Stock is not defined for this revision. Everything downstream — workholding, toolpaths, gates —
+                  plans from what you enter here, so enter what will actually be in the vise.
+                </p>
+                {envelopeNote}
+                {form}
+              </div>
+            );
+          }
+
+          return (
+            <>
+              <DataRow label="Form" value={st.form} />
+              <DataRow label="X" value={`${fmt(st.x, 3)}″`} />
+              <DataRow label="Y" value={`${fmt(st.y, 3)}″`} />
+              <DataRow label="Z" value={`${fmt(st.z, 3)}″`} />
+              <DataRow label="Material" value={st.material} />
+              <DataRow label="Condition" value={st.condition ?? "—"} />
+              <DataRow label="Volume" value={`${(st.x * st.y * st.z).toFixed(2)} in³`} />
+
+              {/*
+                A mistyped blank used to be permanent: the action defined stock
+                and refused to redefine it, so a 2.0 entered as 0.2 left the
+                part unusable with no way back. Correcting it is allowed, and
+                what the correction costs is stated before it is made rather
+                than discovered afterwards.
+              */}
+              <details className="border border-line pt-0">
+                <summary className="cursor-pointer px-2.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-precision-dim hover:text-precision">
+                  Correct stock
+                </summary>
+                <div className="space-y-2.5 border-t border-line p-2.5">
+                  <p className="text-[12px] leading-relaxed text-muted">
+                    Holding margin, tool reach, cycle time and material removed are all computed from these
+                    numbers. Changing them revokes any approval on this package and clears any simulation run
+                    against the old blank — an approval of a different blank is not an approval of this one.
+                  </p>
+                  {envelopeNote}
+                  {form}
+                </div>
+              </details>
+            </>
+          );
+        })()}
       </div>
     ),
 
