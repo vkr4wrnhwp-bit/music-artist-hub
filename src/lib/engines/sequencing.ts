@@ -97,6 +97,8 @@ export const FEATURE_STAGE: Record<OperationType, number> = {
   POCKET_2D: 1,
   ADAPTIVE_2D: 1,
   SLOT_MILL: 1,
+  // A step comes off the outside of the part, alongside the profile.
+  STEP_MILL: 1,
   DRILL: 2,
   PECK_DRILL: 3,
   // A head goes on a hole that already exists and before it is threaded: a

@@ -343,6 +343,15 @@ export function generateToolpath(
       warnings.push(...r.warnings);
       break;
     }
+    case "STEP_MILL": {
+      if (!feature) return missingFeature(req);
+      const r = stepToolpath(req, feature, ctx, stock, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
     case "SLOT_MILL": {
       if (!feature) return missingFeature(req);
       const r = slotToolpath(req, feature, ctx, params);
@@ -1683,6 +1692,103 @@ function contourToolpath(
   // described the bounding box rather than the profile.
   const perimeter = chainLength(boundary);
   return { moves, removed: perimeter * ctx.tool.diameter * totalDepth * 0.5, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* STEP — a facing cut over a strip along one edge                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A STEP HAD NO ENGINE AND NO PLAN.
+ *
+ * `STEP` was in the feature vocabulary, on the entry form, and in no bucket the
+ * planner reads — so a step recorded on a part produced no operation, no
+ * concern, and only the coverage gate three pages later saying a feature was
+ * not cut. It was the last kind in the list that nothing looked at.
+ *
+ * A step is not a pocket. It is open on one side — the side it runs along — so
+ * ringing a closed boundary round it would air-cut the open edge and leave the
+ * cutter buried at the closed one. It is a FACING cut over a strip: zig-zag
+ * across it, entering and leaving off the end of the part where there is no
+ * material, which is what makes it need no ramp and no helix.
+ */
+function stepToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  stock: Stock,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "STEP") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind} and is not a step.`,
+        recommendations: ["Point the operation at a step feature", "Change the operation type"],
+      },
+    };
+  }
+  const d = ctx.tool.diameter;
+  const along = feature.side === "XMIN" || feature.side === "XMAX";
+  const across = along ? stock.y : stock.x;
+  if (feature.width <= 0) {
+    return {
+      error: {
+        reason: `${feature.label} records a ${feature.width} step, which takes nothing off the edge.`,
+        recommendations: ["Record how far in from the edge the step runs"],
+      },
+    };
+  }
+
+  const warnings: string[] = [];
+  const moves: Move[] = [];
+  const lead = d * 0.6; // roll on and off past the end of the part
+  const stepover = d * 0.7;
+  const totalDepth = req.topZ - req.finalZ;
+  const passes = Math.max(1, Math.ceil(totalDepth / p.stepdown));
+
+  /*
+   * The strip, in part coordinates. `width` is measured in from the named edge,
+   * and the cutter centre runs half a tool inside the far boundary so the edge
+   * of the cut lands on the step's wall rather than a radius past it.
+   */
+  const edge = feature.side === "XMIN" ? -stock.x / 2 : feature.side === "XMAX" ? stock.x / 2 : feature.side === "YMIN" ? -stock.y / 2 : stock.y / 2;
+  const inward = feature.side === "XMIN" || feature.side === "YMIN" ? 1 : -1;
+  const wallAt = edge + inward * feature.width;
+  // First pass hangs off the edge; the last one stops a tool radius short of
+  // the wall so the wall is cut to size and not through.
+  const first = edge - inward * (d / 2);
+  const last = wallAt - inward * (d / 2);
+  const span = Math.abs(last - first);
+  const lanes = Math.max(1, Math.ceil(span / stepover));
+
+  if (feature.width < d / 2) {
+    warnings.push(
+      `${feature.label} is ${feature.width.toFixed(4)}" wide and the tool is ⌀${d.toFixed(4)}, so a single pass overhangs the edge by more than half the cutter. It cuts, and the far side of the tool is doing nothing.`,
+    );
+  }
+
+  const at = (lane: number, end: number, z: number, type: Move["type"], feed: number | null): Move => {
+    const pos = first + inward * (lanes === 0 ? 0 : (span * lane) / lanes);
+    const cross = end * (across / 2 + lead);
+    return along ? { type, x: pos, y: cross, z, feed } : { type, x: cross, y: pos, z, feed };
+  };
+
+  moves.push(at(0, -1, req.clearanceZ, "RAPID", null));
+  for (let pass = 1; pass <= passes; pass++) {
+    const z = req.topZ - (totalDepth * pass) / passes;
+    let dir = 1;
+    moves.push(at(0, -dir, req.clearanceZ, "RAPID", null));
+    moves.push(at(0, -dir, z, "PLUNGE", p.plungeFeed));
+    for (let lane = 0; lane <= lanes; lane++) {
+      moves.push(at(lane, -dir, z, "CUT", p.feed));
+      moves.push(at(lane, dir, z, "CUT", p.feed));
+      dir *= -1;
+      if (lane < lanes) moves.push(at(lane + 1, -dir, z, "CUT", p.feed));
+    }
+    moves.push({ ...moves[moves.length - 1], type: "RETRACT", z: req.retractZ, feed: null });
+  }
+
+  return { moves, removed: feature.width * across * totalDepth, warnings };
 }
 
 /* ------------------------------------------------------------------ */

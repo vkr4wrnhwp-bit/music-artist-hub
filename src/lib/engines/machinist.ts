@@ -288,6 +288,8 @@ interface Classified {
   bores: Feature[];
   /** Features that have to be LEFT STANDING when everything round them goes. */
   bosses: Feature[];
+  steps: Feature[];
+  fillets: Feature[];
   contours: Feature[];
   chamfers: Feature[];
   engravings: Feature[];
@@ -315,6 +317,8 @@ function classify(features: Feature[]): Classified {
     heads: features.filter(headed),
     bores: features.filter((f) => f.kind === "BORE" || f.kind === "CIRC_POCKET"),
     bosses: features.filter((f) => f.kind === "BOSS"),
+    steps: features.filter((f) => f.kind === "STEP"),
+    fillets: features.filter((f) => f.kind === "FILLET"),
     contours: features.filter((f) => f.kind === "OUTSIDE_CONTOUR"),
     chamfers: features.filter((f) => f.kind === "CHAMFER"),
     engravings: features.filter((f) => f.kind === "ENGRAVING"),
@@ -410,6 +414,19 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
   let seq = 1;
 
   const faceMill = findTool(tools, "FACE_MILL") ?? findTool(tools, "SHELL_MILL");
+  /*
+   * A face with no face mill in the crib produced no operation and no concern —
+   * the same silence every other dropped kind was found in, and the one that
+   * survived longest because a shop nearly always owns a face mill. Datum A is
+   * the surface everything else on the part is measured from.
+   */
+  if (c.faces.length > 0 && !faceMill) {
+    for (const f of c.faces) {
+      concerns.push(
+        `${f.label}: no face mill or shell mill in the crib, so nothing here establishes Datum A. Every other dimension on this part is measured from it.`,
+      );
+    }
+  }
   if (c.faces.length > 0 && faceMill) {
     ops1.push({
       sequence: seq++,
@@ -484,6 +501,66 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         });
       }
     }
+  }
+
+  /*
+   * STEPS.
+   *
+   * `STEP` was in the vocabulary, on the entry form, and in no bucket this
+   * planner reads. A step recorded on a part produced no operation and no
+   * concern — only the coverage gate, three pages later, saying a feature was
+   * not cut.
+   *
+   * It is a facing cut over a strip along one edge, open on that side, so the
+   * cutter enters and leaves off the end of the part where there is no
+   * material. The biggest mill that reaches takes it: nothing about a step
+   * constrains the cutter except depth.
+   */
+  for (const f of c.steps) {
+    if (f.kind !== "STEP") continue;
+    const d = depthOf(f, stock);
+    if (d === null) {
+      concerns.push(`${f.label}: no depth recorded, so it cannot be planned. A step of unknown depth is a missing dimension, not a shallow one.`);
+      continue;
+    }
+    const { tool, reason } = selectMill(tools, null, d, "LARGEST");
+    if (!tool) {
+      concerns.push(`${f.label}: ${reason}`);
+      continue;
+    }
+    ops1.push({
+      sequence: seq++,
+      type: "STEP_MILL",
+      label: f.label,
+      featureId: f.id,
+      toolId: tool.id,
+      toolNumber: tool.toolNumber,
+      topZ: 0,
+      finalZ: -d,
+      stepover: 0.7,
+      stockToLeave: 0,
+      rationale: `${f.width.toFixed(4)}" off the ${f.side} edge, faced in lanes across the part. The cut is open on that side, so the cutter rolls on and off past the end rather than plunging into a corner.`,
+    });
+  }
+
+  /*
+   * FILLETS.
+   *
+   * A fillet is a radius on a corner, not a cut of its own: it is produced by
+   * the tool that cuts the corner, and the drawing calling one is a statement
+   * about the smallest cutter that may be used. That constraint now reaches
+   * `minimumInternalRadius`, where a fillet had been invisible.
+   *
+   * What is left is to say it, because a feature with no operation and nothing
+   * written about it is the shape every other defect in this family took.
+   */
+  for (const f of c.fillets) {
+    if (f.kind !== "FILLET") continue;
+    concerns.push(
+      f.applyTo === "POCKET_CORNERS"
+        ? `${f.label} is a corner radius, not a cut of its own — it comes off the tool that cuts the corner, and R${f.radius.toFixed(4)} is now the smallest cutter radius this part allows. Nothing separate will produce it.`
+        : `${f.label} is an outside corner radius. It comes off the profile pass, and the profile's own corner radius is what the program cuts to — check the two agree.`,
+    );
   }
 
   /*

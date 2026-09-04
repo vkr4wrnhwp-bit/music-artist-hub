@@ -256,6 +256,19 @@ export function minimumInternalRadius(features: Feature[]): number | null {
     if (f.kind === "RECT_POCKET") radii.push(f.cornerRadius);
     if (f.kind === "CIRC_POCKET" || f.kind === "BORE") radii.push(f.diameter / 2);
     if (f.kind === "SLOT") radii.push(f.width / 2);
+    /*
+     * A FILLET was invisible here, and a fillet IS an internal radius — it is
+     * the drawing saying what radius the corner has to be, which is the same
+     * statement a pocket's `cornerRadius` makes and the same constraint on the
+     * tool that cuts it. Left out, a part with R0.0625 fillets called out
+     * separately from a pocket whose own corner reads R0.2500 was cut with a
+     * ⌀0.500 mill and came back with corners four times too big for whatever
+     * had to sit in them.
+     *
+     * OUTSIDE_VERTICAL fillets are outside corners: a cutter of any size goes
+     * round them, so they constrain nothing here.
+     */
+    if (f.kind === "FILLET" && f.applyTo === "POCKET_CORNERS") radii.push(f.radius);
   }
   return radii.length ? Math.min(...radii) : null;
 }

@@ -953,6 +953,43 @@ and pocket branches of `machinist.ts`.
 **Still open:** general island avoidance, which is the rest of this Tier 1 item
 along with open chains and multiple pockets. What is here refuses honestly and
 cuts the one arrangement it can prove.
+
+**T6 — The last kinds nothing looked at. — BUILT**
+A sweep of **all fifteen feature kinds** through the planner, asking one
+question of each — does this produce an operation, or say why not — found three
+still dropped in silence.
+
+A **FILLET** appeared nowhere in any engine. It did not constrain tool
+selection, it was not cut, and it raised no concern. `minimumInternalRadius`
+read pocket corners, bores and slots and not the one feature whose entire
+content is a corner radius — so a drawing calling R0.0625 pocket fillets beside
+a pocket whose own corner reads R0.2500 was cut with a Ø0.500 mill and came back
+with corners four times too big for whatever had to sit in them. A fillet is not
+a cut of its own; it is the drawing stating the smallest cutter that may be
+used, and now it says so and constrains it. An OUTSIDE_VERTICAL fillet
+constrains nothing, because a cutter of any size goes round an outside corner.
+
+A **STEP** had no toolpath and no plan branch, though it is an ordinary cut: a
+facing pass over a strip along one edge. It is not a pocket — it is open on the
+side it runs along, so ringing a closed boundary would air-cut the open edge and
+bury the cutter at the closed one. It zig-zags across the strip, entering and
+leaving past the end of the part where there is no material, which is what lets
+it need neither ramp nor helix. The cut lands exactly on the edge and exactly on
+the wall: a Ø0.500 tool on a 0.500" step off a 6.000 plate runs its centre from
+X−3.250 to X−2.750.
+
+And a **FACE with no face mill in the crib** produced no operation and no
+concern — the silence that survived longest, because a shop nearly always owns
+one. Datum A is the surface every other dimension on the part is measured from.
+
+The sweep is now a test. Every kind in the vocabulary is planned against a crib
+that can make it, and any that produces neither an operation nor a concern
+naming it fails the suite — which is the check that would have found SLOT,
+COUNTERBORE, COUNTERSINK, BOSS, FILLET, STEP and the unthreaded tapped hole in
+one run, months before an audit did.
+
+`stepToolpath` in `cam/engine.ts`, `minimumInternalRadius` in `domain/features.ts`,
+the step, fillet and face branches of `machinist.ts`.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
