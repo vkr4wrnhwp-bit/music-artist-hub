@@ -259,6 +259,43 @@ async function main() {
   ];
   for (const d of metrology) await db.metrologyDevice.create({ data: { organizationId: org.id, ...d } });
 
+  /*
+   * ADDITIVE — a shop-floor FDM machine and a resin printer.
+   *
+   * Deliberately ordinary machines with the numbers a shop would actually
+   * measure, not aspirational ones: the advisor's whole job is to say what
+   * these can and cannot do, and seeding a machine that holds ±0.0005 would
+   * make every answer agreeable and useless.
+   *
+   * `achievableTolerance` is what the shop observed on a printed coupon. PETG
+   * keeps under half its in-plane strength through the layers, which is the
+   * figure the anisotropy check exists to surface; the SLA resin has no creep
+   * data on file, which is the honest state for most shops.
+   */
+  const printers = [
+    {
+      manufacturer: "Prusa", model: "MK4", technology: "FDM",
+      buildX: 9.84, buildY: 8.3, buildZ: 8.6,
+      achievableTolerance: 0.008, achievableRa: 500, minLayerHeight: 0.002, nozzleDiameter: 0.0157,
+      notes: "Tolerance measured on a printed coupon, not the manufacturer's figure.",
+    },
+    {
+      manufacturer: "Formlabs", model: "Form 3+", technology: "SLA",
+      buildX: 5.7, buildY: 5.7, buildZ: 7.3,
+      achievableTolerance: 0.003, achievableRa: 80, minLayerHeight: 0.001, nozzleDiameter: null,
+      notes: null,
+    },
+  ];
+  for (const p of printers) await db.printer.create({ data: { organizationId: org.id, ...p } });
+
+  const printMaterials = [
+    { name: "PETG — Prusament", technology: "FDM", tensileXY: 7100, tensileZ: 3250, maxServiceTempF: 160, creepDataOnFile: false, densityLbIn3: 0.0459, costPerPound: 12.5, notes: "Z strength measured in house on printed coupons." },
+    { name: "PLA", technology: "FDM", tensileXY: 8000, tensileZ: 3000, maxServiceTempF: 130, creepDataOnFile: false, densityLbIn3: 0.0448, costPerPound: 9, notes: null },
+    { name: "Nylon-CF", technology: "FDM", tensileXY: 10500, tensileZ: null, maxServiceTempF: 290, creepDataOnFile: false, densityLbIn3: 0.0426, costPerPound: 42, notes: "No Z figure measured yet — do not assume it matches the in-plane number." },
+    { name: "Tough 2000 resin", technology: "SLA", tensileXY: 6400, tensileZ: 6100, maxServiceTempF: 145, creepDataOnFile: false, densityLbIn3: 0.0430, costPerPound: 68, notes: null },
+  ];
+  for (const m of printMaterials) await db.printMaterial.create({ data: { organizationId: org.id, ...m } });
+
   /* ================================================================ */
   /* TEST PART 001 — CANVAS Bearing Support                           */
   /* ================================================================ */

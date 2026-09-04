@@ -10,6 +10,7 @@ import { evaluateReadiness, type ReadinessReport } from "./engines/readiness";
 import { generateToolpath, totalCycleTime } from "./engines/cam/engine";
 import type { Toolpath, ToolpathError, MachiningContext, OperationRequest } from "./engines/cam/types";
 import { computeCost, quantityBreaks, DEFAULT_ASSUMPTIONS, type CostAssumptions, type CostResult } from "./engines/cost";
+import { assessAdditive, type AdditiveResult } from "./engines/additive";
 import { selectPrimaryMachine, selectMaterial } from "./package-selectors";
 import { analyzeProcesses, type ProcessAnalysis } from "./engines/process-advisor";
 import type { MachineProfile, Tool, WorkholdingDevice } from "./domain/shop";
@@ -43,6 +44,8 @@ export interface ManufacturingPackage {
   costAssumptions: CostAssumptions;
   breaks: CostResult[];
   process: ProcessAnalysis;
+  /** Additive judged against the shop's own printers. See engines/additive.ts. */
+  additive: AdditiveResult;
   hasInspectionPlan: boolean;
   approved: boolean;
   ncGenerated: boolean;
@@ -57,7 +60,7 @@ export async function buildPackage(
   const revision = await loadRevision(organizationId, partId, revisionLabel);
   if (!revision) return null;
 
-  const [setups, machines, tools, workholdingDevices, materials, metrology, shop, plan, approval, nc, sim] = await Promise.all([
+  const [setups, machines, tools, workholdingDevices, materials, metrology, shop, plan, approval, nc, sim, printers, printMaterials] = await Promise.all([
     getSetups(revision.revisionId),
     getMachines(organizationId),
     getTools(organizationId),
@@ -69,6 +72,8 @@ export async function buildPackage(
     db.approval.findFirst({ where: { partRevisionId: revision.revisionId, revokedAt: null } }),
     db.nCProgram.findFirst({ where: { partRevisionId: revision.revisionId }, orderBy: { createdAt: "desc" } }),
     db.simulation.findFirst({ where: { setup: { partRevisionId: revision.revisionId } } }),
+    db.printer.findMany({ where: { organizationId }, orderBy: { model: "asc" } }),
+    db.printMaterial.findMany({ where: { organizationId }, orderBy: { name: "asc" } }),
   ]);
 
   /*
@@ -337,12 +342,26 @@ export async function buildPackage(
 
   /* ---------------- Process advisor ---------------- */
 
+  /*
+   * Additive is judged against the shop's own printers rather than a generic
+   * machine. With none on file the engine says so and the advisor falls back
+   * to what it can say from geometry and volume alone.
+   */
+  const additive = assessAdditive({
+    intent: revision.intent,
+    features: revision.features,
+    envelope: revision.intent.finishedEnvelope.value ?? null,
+    printers,
+    printMaterials,
+  });
+
   const process = analyzeProcesses({
     intent: revision.intent,
     stock: revision.stock,
     features: revision.features,
     finishedVolume: null,
     machinedUnitCost: cost.unitCost,
+    additive,
   });
 
   return {
@@ -361,6 +380,7 @@ export async function buildPackage(
     readiness,
     cost,
     costAssumptions,
+    additive,
     breaks,
     process,
     hasInspectionPlan: Boolean(plan),

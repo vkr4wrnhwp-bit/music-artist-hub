@@ -55,6 +55,8 @@ model Organization {
   jawBlanks    JawBlank[]
   jawSets      JawSet[]
   materials    Material[]
+  printers     Printer[]
+  printMaterials PrintMaterial[]
   metrology    MetrologyDevice[]
   jobs         Job[]
   quotes       Quote[]
@@ -341,6 +343,79 @@ model JawSet {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
+}
+
+// ADDITIVE — what the shop can actually print with.
+//
+// The advisor answers "should this be printed" against these rows and refuses
+// where they are absent. Every field is nullable except the ones that identify
+// the machine: a printer whose achievable tolerance nobody has measured cannot
+// be judged against a tolerance band, and the advisor says so rather than
+// using a marketing figure.
+model Printer {
+  id             String @id @default(cuid())
+  organizationId String
+  manufacturer   String
+  model          String
+  // FDM | SLA | SLS | MJF | METAL_PBF | BINDER_JET
+  technology     String
+
+  // Build envelope, inches.
+  buildX Float
+  buildY Float
+  buildZ Float
+
+  // The dimensional tolerance THIS SHOP has observed on THIS machine, inches,
+  // as a plus/minus. Null means nobody has measured it, which is not the same
+  // as the machine being inaccurate — the advisor reports the gap.
+  achievableTolerance Float?
+  // Surface roughness the process leaves, Ra microinches. Null when unmeasured.
+  achievableRa        Float?
+  minLayerHeight      Float?
+  nozzleDiameter      Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, manufacturer, model])
+  @@index([organizationId])
+}
+
+// A printable material as the shop actually runs it.
+//
+// Kept apart from `Material` because the properties that decide whether a part
+// can be printed are not the ones that decide how it machines. The pair that
+// matters most is tensileXY against tensileZ: a printed part is bonded between
+// layers rather than continuous through them, and the ratio is the whole
+// anisotropy story. Nothing here is defaulted.
+model PrintMaterial {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  // Which technologies can run it. FDM | SLA | SLS | MJF | METAL_PBF | BINDER_JET
+  technology     String
+
+  // Tensile strength in the build plane and through the layers, psi.
+  tensileXY Float?
+  tensileZ  Float?
+  // Above this the part loses stiffness. Deflection temperature, degrees F.
+  maxServiceTempF Float?
+  // Whether the shop has a recorded creep figure. A press-fit or a sustained
+  // load in a polymer is a creep question, and "no data" is the honest answer
+  // where nobody has one.
+  creepDataOnFile Boolean @default(false)
+  densityLbIn3    Float?
+  costPerPound    Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
   @@index([organizationId])
 }
 

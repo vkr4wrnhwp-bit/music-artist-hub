@@ -1,6 +1,7 @@
 import type { PartIntent } from "@/lib/domain/part-intent";
 import { isCriticalApplication } from "@/lib/domain/part-intent";
 import type { Feature, Stock } from "@/lib/domain/features";
+import type { AdditiveResult } from "./additive";
 
 /**
  * MANUFACTURING METHOD ADVISOR
@@ -94,6 +95,15 @@ export interface ProcessInput {
   finishedVolume: number | null;
   /** Machining cost per part from the cost engine, if computed. */
   machinedUnitCost: number | null;
+  /**
+   * What the shop can actually print with, and what the part would need.
+   *
+   * Absent means the caller did not ask the additive engine, and the additive
+   * recommendations then say only what they can say from geometry and volume.
+   * Present, it replaces guesswork with the shop's own machines: see
+   * engines/additive.ts.
+   */
+  additive?: AdditiveResult | null;
 }
 
 /**
@@ -121,6 +131,23 @@ export const EVALUATED_PROCESSES: Process[] = [
 
 /** Named, and not reasoned about. What a comparison here does NOT cover. */
 export const UNEVALUATED_PROCESSES: Process[] = PROCESSES.filter((p) => !EVALUATED_PROCESSES.includes(p));
+
+/** Best-first ordering of the additive engine's verdicts. */
+const ADDITIVE_RANK: Record<string, number> = { VIABLE: 0, REVIEW: 1, INSUFFICIENT_DATA: 2, NOT_RECOMMENDED: 3 };
+
+/**
+ * The additive engine's verdict in the advisor's own vocabulary.
+ *
+ * VIABLE maps to VIABLE rather than RECOMMENDED: this engine has checked that
+ * printing CAN work, not that it is the right call against machining it, and
+ * the difference is the whole of principle 9.
+ */
+const ADDITIVE_TO_VERDICT: Record<string, ProcessRecommendation["verdict"]> = {
+  VIABLE: "VIABLE",
+  REVIEW: "INVESTIGATE",
+  INSUFFICIENT_DATA: "INSUFFICIENT_DATA",
+  NOT_RECOMMENDED: "NOT_SUITABLE",
+};
 
 export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
   const { intent } = input;
@@ -236,16 +263,44 @@ export function analyzeProcesses(input: ProcessInput): ProcessAnalysis {
 
   /* ---- Additive ---- */
   const complex = input.features.length > 12;
+
+  /*
+   * Where the additive engine has run, its findings ARE the rationale. This
+   * block used to reason from feature count and volume alone, so a shop with a
+   * hobby FDM machine on the bench and a ±0.0005 bearing bore on the drawing
+   * got the same sentence as a shop with a laser powder-bed machine.
+   *
+   * The verdict comes from what the shop owns and what the part carries;
+   * nothing here re-derives it, so this list and the additive panel cannot
+   * disagree.
+   */
+  const add = input.additive ?? null;
+  const bestAdditive = add?.assessments.length
+    ? add.assessments.reduce((a, b) => (ADDITIVE_RANK[b.verdict] < ADDITIVE_RANK[a.verdict] ? b : a))
+    : null;
+
   recs.push({
     process: "METAL_ADDITIVE_PBF",
-    verdict: propertyChangeGated ? "INSUFFICIENT_DATA" : "INVESTIGATE",
+    verdict: propertyChangeGated
+      ? "INSUFFICIENT_DATA"
+      : bestAdditive
+        ? ADDITIVE_TO_VERDICT[bestAdditive.verdict]
+        : "INVESTIGATE",
     volumeBand: "1 – 200, geometry-driven",
-    rationale: [
-      complex
-        ? "Feature count is high enough that additive's geometric freedom may reduce setups."
-        : "Geometry is prismatic and machines efficiently — additive would add cost without buying anything.",
-      "Powder-bed parts still need datum creation, stress relief and CNC finishing on functional surfaces.",
-    ],
+    rationale: bestAdditive
+      ? [
+          `Judged against ${bestAdditive.printerLabel}, the best of ${add!.assessments.length} printer${add!.assessments.length === 1 ? "" : "s"} on file.`,
+          ...bestAdditive.findings.filter((f) => f.verdict !== "VIABLE").map((f) => f.detail),
+          ...(bestAdditive.hybridNote ? [bestAdditive.hybridNote] : []),
+          "Powder-bed parts still need datum creation, stress relief and CNC finishing on functional surfaces.",
+        ]
+      : [
+          ...(add?.unavailable ? [add.unavailable] : []),
+          complex
+            ? "Feature count is high enough that additive's geometric freedom may reduce setups."
+            : "Geometry is prismatic and machines efficiently — additive would add cost without buying anything.",
+          "Powder-bed parts still need datum creation, stress relief and CNC finishing on functional surfaces.",
+        ],
     blockers: [
       ...(propertyChangeGated ? ["Responsibility profile incomplete — fused powder is not wrought material and cannot be substituted blind."] : []),
       ...(critical
