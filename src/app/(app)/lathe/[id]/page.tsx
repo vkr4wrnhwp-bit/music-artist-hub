@@ -14,11 +14,14 @@ import { NcExportPanel } from "@/components/nc/export-panel";
 import { mintTurnExport, recordTurnExport } from "./nc/actions";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
-import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, StatusChip, inputClass, type Tone } from "@/components/ui";
+import { Button, DevLabel, Dot, LimitsDisclosure, Notice, Panel, SectionHeading, StatusChip, inputClass, type Tone } from "@/components/ui";
 import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { buildTurnPackage } from "@/lib/manufacturing/turn/package";
 import { turnApprovalDigest, turnApprovalState, TURN_APPROVAL_STATEMENT } from "@/lib/manufacturing/turn/approval";
 import { recordTurnSetup, recordTurnMaterial } from "./turn-setup-actions";
+import { generateTurnPlan } from "./plan-actions";
+import { planTurning, type PlannerTool } from "@/lib/manufacturing/turn/planner";
+import { selectMaterial } from "@/lib/package-selectors";
 import { bestNominalSuggestion } from "@/lib/engines/nominal";
 
 /**
@@ -80,6 +83,23 @@ export default async function LathePartPage(props: {
     db.latheMachine.findMany({ where: { organizationId: user.organizationId }, orderBy: { model: "asc" } }),
     db.latheWorkholding.findMany({ where: { organizationId: user.organizationId }, orderBy: { description: "asc" } }),
   ]);
+
+  // What planning would produce right now, and what it would refuse. Computed
+  // from the same function the action uses, so the preview cannot promise
+  // operations the write would not create.
+  const materialRecord = selectMaterial(
+    await db.material.findMany({ where: { organizationId: user.organizationId } }),
+    pkg.materialFromIntent,
+  );
+  const planPreview = planTurning({
+    profile,
+    tools: tools as unknown as PlannerTool[],
+    materialSfmMin: materialRecord?.sfmCarbideMin ?? null,
+    materialSfmMax: materialRecord?.sfmCarbideMax ?? null,
+    materialName: pkg.materialFromIntent,
+    chuckMaxRpm: holding?.maxRPM ?? null,
+  });
+  const planAction = generateTurnPlan.bind(null, id);
 
   const setupAction = recordTurnSetup.bind(null, id);
   const materialAction = recordTurnMaterial.bind(null, id);
@@ -460,6 +480,89 @@ export default async function LathePartPage(props: {
           )}
 
           {/* ---------------- Full technical table, on demand ---------------- */}
+          {/* ---------------- The plan ---------------- */}
+          <Panel
+            title="Operation plan"
+            meta={
+              <span className="flex items-center gap-2">
+                <DevLabel>Dev</DevLabel>
+                <StatusChip tone={plan.length > 0 ? "pass" : "review"}>
+                  {plan.length > 0 ? `${plan.length} OPS` : "NOT PLANNED"}
+                </StatusChip>
+              </span>
+            }
+          >
+            {plan.length === 0 ? (
+              <p className="max-w-2xl text-[12.5px] leading-relaxed text-platinum">
+                No operations are planned for this part, so there is no toolpath, no cycle time and no cost — and the
+                tooling gate cannot pass.
+              </p>
+            ) : (
+              <p className="max-w-2xl text-[12.5px] leading-relaxed text-muted">
+                Derived from the profile and the crib. Re-planning replaces every operation, including any a machinist
+                has edited since.
+              </p>
+            )}
+
+            {planPreview.operations.length > 0 ? (
+              <>
+                <p className="mt-3 text-[12px] leading-relaxed text-muted">
+                  {plan.length === 0 ? "Planning would produce" : "Re-planning would produce"}{" "}
+                  {planPreview.operations.length} operation{planPreview.operations.length === 1 ? "" : "s"}:
+                </p>
+                <ul className="mt-1.5 space-y-0.5">
+                  {planPreview.operations.map((o) => (
+                    <li key={o.operationNumber} className="flex flex-wrap items-baseline gap-x-3 text-[12.5px] text-platinum">
+                      <span className="font-mono text-[11px] text-muted tabular-nums">{o.operationNumber}</span>
+                      <span>{o.label}</span>
+                      <span className="font-mono text-[11px] text-muted tabular-nums">
+                        T{o.toolStation} · {o.params.rpm} rpm · {o.params.feedPerRev.toFixed(4)} ipr
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <form action={planAction} className="mt-4">
+                  <Button type="submit" variant="primary">
+                    {plan.length === 0 ? "Generate plan" : "Re-plan from the profile"}
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <Notice tone="review" title="Nothing can be planned yet">
+                <ul className="mt-1 space-y-1">
+                  {planPreview.refusals.map((r) => (
+                    <li key={r}>— {r}</li>
+                  ))}
+                </ul>
+              </Notice>
+            )}
+
+            {planPreview.operations.length > 0 && planPreview.refusals.length > 0 && (
+              <div className="mt-4">
+                <SectionHeading>What it will not plan</SectionHeading>
+                <ul className="mt-1.5 space-y-1">
+                  {planPreview.refusals.map((r) => (
+                    <li key={r} className="text-[12px] leading-relaxed text-review">
+                      — {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {planPreview.assumptions.length > 0 && (
+              <div className="mt-4">
+                <LimitsDisclosure label="What the planner decided, and on what basis">
+                  <ul className="space-y-1">
+                    {planPreview.assumptions.map((a) => (
+                      <li key={a}>— {a}</li>
+                    ))}
+                  </ul>
+                </LimitsDisclosure>
+              </div>
+            )}
+          </Panel>
+
           <details className="border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted hover:text-platinum">
               View table — {plan.length} ops · est {totalMinutes.toFixed(2)} min (ESTIMATED — assumptions per op)

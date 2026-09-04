@@ -54,9 +54,13 @@ export function deriveCuttingParameters(
    * so the tool's own rating wins: it is the rating that belongs to the
    * thing doing the cutting.
    */
-  const sfmLo = Math.max(tool.sfmMin, ctx.materialSfmMin);
-  const sfmHi = Math.min(tool.sfmMax, ctx.materialSfmMax);
-  const sfm = sfmLo <= sfmHi ? (sfmLo + sfmHi) / 2 : clamp((tool.sfmMin + tool.sfmMax) / 2, tool.sfmMin, tool.sfmMax);
+  // No overlap: the tool's own rating wins. `max(toolMin, matMin)` and
+  // `min(toolMax, matMax)` cross over there, and their average is a number
+  // strictly between the two windows and inside neither — a ⌀0.25 tap rated
+  // 30-60 SFM, in aluminium quoted 600-1000, came out at 330 SFM.
+  const sfm =
+    intersectSfm(tool.sfmMin, tool.sfmMax, ctx.materialSfmMin, ctx.materialSfmMax) ??
+    clamp((tool.sfmMin + tool.sfmMax) / 2, tool.sfmMin, tool.sfmMax);
 
   const rawRpm = (sfm * 12) / (Math.PI * tool.diameter);
   const rpm = Math.round(clamp(rawRpm, 100, Math.min(tool.maxRPM, ctx.maxSpindleRPM)));
@@ -82,6 +86,32 @@ export function deriveCuttingParameters(
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+/**
+ * Surface speed where the tool's rated window and the material's overlap, or
+ * NULL when they do not.
+ *
+ * Exported because the turning planner needs the intersection and a second
+ * copy of it would eventually disagree with the mill about how fast to run.
+ *
+ * WHAT IS DELIBERATELY NOT SHARED is what to do when the windows miss each
+ * other, because that is not one rule. Milling falls back to the tool's own
+ * rating: the tools that land here are taps and the like, whose speed is set
+ * by the operation rather than by the material's milling window. Turning does
+ * the opposite and falls back to the material, because surface speed in
+ * turning is a property of the workpiece — an insert "rated 500-1100 SFM" is
+ * rated across the materials it might see, and in 4140 you run at 4140's
+ * speed. Applying the milling fallback to a turning finish pass ran a carbide
+ * insert at 800 SFM in a steel quoted 250-450, which burns the insert.
+ *
+ * Returning null makes each caller state its own answer instead of inheriting
+ * one written for the other machine.
+ */
+export function intersectSfm(toolMin: number, toolMax: number, materialMin: number, materialMax: number): number | null {
+  const lo = Math.max(toolMin, materialMin);
+  const hi = Math.min(toolMax, materialMax);
+  return lo <= hi ? (lo + hi) / 2 : null;
+}
 
 /* ------------------------------------------------------------------ */
 /* Entry point                                                         */
