@@ -1,12 +1,27 @@
 import "server-only";
 import type { ZodType } from "zod";
 import type { PartIntentExtraction } from "@/lib/domain/part-intent";
-import type { FeatureSuggestion } from "@/lib/domain/features";
+import { FEATURE_KINDS, type FeatureSuggestion } from "@/lib/domain/features";
+import { validSighting, type PhotoRead } from "@/lib/engines/photo-plan";
 import { DeterministicProvider } from "./deterministic";
 import { z } from "zod";
 import { SCHEMAS, type AiProvider, type BearingStampReading, type CopilotContext, type CopilotReply, type MeasurementPlan, type RiskSummary } from "./provider";
 
 /** What a vision read may return. Characters and legibility — never dimensions. */
+const photoReadSchema = z.object({
+  sightings: z.array(
+    z.object({
+      label: z.string(),
+      kind: z.string(),
+      x: z.number(),
+      y: z.number(),
+      whatToMeasure: z.string(),
+      note: z.string().optional(),
+    }),
+  ),
+  note: z.string(),
+});
+
 const stampReadingSchema = z.object({
   readings: z.array(z.object({ text: z.string(), confidence: z.number() })),
   note: z.string(),
@@ -175,6 +190,71 @@ export class AnthropicProvider implements AiProvider {
    * read something is worse than no model here, because the value it invents
    * decides a bore diameter.
    */
+  /**
+   * WHAT IS ON THIS PART AND WHERE, NOT HOW BIG.
+   *
+   * The tool schema has no field a dimension could go in. That is the point:
+   * a model asked to describe a part will happily volunteer "approximately
+   * 40 mm", and a plausible diameter is the most dangerous output this
+   * application could produce because it looks exactly like a measured one.
+   * Recognising that there IS a bore, and where, is pattern recognition —
+   * which is the thing a model is genuinely good at, and which no amount of
+   * being right about makes it a measurement.
+   *
+   * The coordinates are for pointing at the photograph the machinist is
+   * holding, and nothing else reads them. They never become part coordinates:
+   * a picture has perspective, and a pixel is not a position on the part.
+   */
+  async readPartPhoto(image: { mediaType: string; base64: string }): Promise<PhotoRead> {
+    const result = await this.structuredWithImage(
+      photoReadSchema,
+      {
+        type: "object",
+        properties: {
+          sightings: {
+            type: "array",
+            description: "Each distinct machined feature you can actually see. Do not list a feature you are inferring from symmetry on a face that is not visible.",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string", description: "What it is, as a machinist would say it. e.g. 'large central bore', 'four corner mounting holes'." },
+                kind: { type: "string", description: `One of: ${FEATURE_KINDS.join(", ")}.` },
+                x: { type: "number", description: "Horizontal position in the image, 0 at the left edge to 1 at the right." },
+                y: { type: "number", description: "Vertical position in the image, 0 at the top edge to 1 at the bottom." },
+                whatToMeasure: { type: "string", description: "The dimension a machinist must go and take. e.g. 'inside diameter and depth', 'thickness'." },
+                note: { type: "string", description: "Anything about this view that makes the feature hard to be sure of." },
+              },
+              required: ["label", "kind", "x", "y", "whatToMeasure"],
+            },
+          },
+          note: { type: "string", description: "What you could not see: faces out of view, occlusion, focus, lighting." },
+        },
+        required: ["sightings", "note"],
+      },
+      "This is a photograph of a machined part. A machinist is holding it and needs to know what to measure. " +
+        "List the machined features you can see and where each one is in the image. " +
+        "DO NOT state or estimate any dimension, size, diameter, depth or thread — not even approximately, not even as a range. " +
+        "You cannot measure from a photograph and the machinist is going to measure every one of these themselves. " +
+        "If a face is out of view, say so in the note rather than guessing what is on it.",
+      image,
+    );
+    if (!result) {
+      return { connected: true, sightings: [], note: "The vision request failed. Nothing was read from the photograph." };
+    }
+    /*
+     * A kind outside the vocabulary, or a point off the image, is dropped
+     * rather than coerced. A pin in the wrong place points at the wrong lump
+     * of metal, which is worse than one pin fewer.
+     */
+    const sightings = result.sightings.filter(validSighting);
+    const dropped = result.sightings.length - sightings.length;
+    return {
+      connected: true,
+      sightings,
+      note: dropped > 0 ? `${result.note} ${dropped} reading(s) did not name a feature kind CANVAS knows or fell outside the image, and were dropped.`.trim() : result.note,
+    };
+  }
+
   async readBearingStamp(image: { mediaType: string; base64: string }): Promise<BearingStampReading> {
     const result = await this.structuredWithImage(
       stampReadingSchema,

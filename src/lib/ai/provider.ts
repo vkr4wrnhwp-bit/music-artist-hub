@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import type { PhotoRead } from "@/lib/engines/photo-plan";
 import { partIntentExtractionSchema, type PartIntentExtraction } from "@/lib/domain/part-intent";
 import { featureSuggestionSchema, type FeatureSuggestion } from "@/lib/domain/features";
 
@@ -108,6 +109,26 @@ export interface AiProvider {
    * image, and then `readings` is empty. It never returns a plausible guess.
    */
   readBearingStamp(image: { mediaType: string; base64: string }): Promise<BearingStampReading>;
+
+  /**
+   * Looks at a photograph of a part and says WHAT is there and WHERE — never
+   * how big.
+   *
+   * This is the pointing half of reverse engineering. A machinist holding a
+   * part and a phone gets an ordered list of things to measure, each pinned to
+   * the spot on the photograph it means, instead of a list of labels they have
+   * to match to lumps of metal themselves.
+   *
+   * The returned shape has nowhere to put a dimension — no size, no estimate,
+   * no range — and that is deliberate. A plausible diameter is the most
+   * dangerous thing this application could produce, because it would arrive
+   * looking exactly like a measured one. Pattern recognition is what a model is
+   * good at; measuring is not something it can do at all.
+   *
+   * `connected` is false for any provider that cannot look at an image, and
+   * then `sightings` is empty. It never returns a plausible guess.
+   */
+  readPartPhoto(image: { mediaType: string; base64: string }): Promise<PhotoRead>;
 }
 
 export interface BearingStampReading {

@@ -1268,6 +1268,65 @@ proposal is where a human rules on it.
 
 `src/lib/scan/slice.ts`, `src/lib/geometry/fit.ts`, the profile proposal in the
 scan import route.
+
+**T12 — Upload a photo; it points at the part and says measure this. — BUILT**
+The feature reverse engineering was built around, and the half it did not have.
+`reconstruction.ts` already knew the order of work — datums first and blocking,
+because a bore is 2.000 *from something* and until that something is named the
+number is not reproducible; then the envelope, because a feature's position is
+meaningless if the block it sits in is the wrong size. What it could not do was
+**point**. A machinist read a list of labels and had to work out which lump of
+metal each one meant — and for a part nobody has modelled there were no labels
+either, because the list is built from features and there were none.
+
+Now: photograph the part, and the order of work comes back **on the picture**.
+Numbered pins, the current one lit and the rest dimmed, and under it what to
+measure, what to reach for out of this shop's own drawer, and why this one now.
+Record the reading and it moves to the next.
+
+**The model supplies WHAT and WHERE. Never HOW BIG.** Not because it would
+usually be wrong — because a plausible diameter is the most dangerous thing this
+application could produce, and it would arrive looking exactly like a measured
+one. So there is nowhere to put one: `PhotoSighting` has a label, a kind, a
+point on the image and the dimension a person must go and take, and no size
+field, no estimate, no range. The tool schema offers no such property either,
+and the prompt says *"DO NOT state or estimate any dimension — not even
+approximately, not even as a range. You cannot measure from a photograph."*
+The same trick as `clearableByConfirmation: false`: enforced by the type rather
+than by everyone remembering.
+
+The rest follows from the principles already in place:
+
+- **A provider with no vision model produces no list at all.** The worst version
+  of this feature would be a deterministic fallback offering "there is probably a
+  bore in the middle" — a machinist would measure what it told them to and never
+  learn it was guessed from nothing. Verified in the browser: with no key
+  configured the route returns `connected: false` and an empty plan.
+- **A reading is attributed to the instrument that took it**, chosen by the
+  person who took it, because the step's recommendation and what was actually
+  reached for are different questions and the second is the one that sets the
+  uncertainty. It goes through the same `/api/measurements` endpoint as a reading
+  taken at the bench, because that is what it is.
+- **A pin off the image, or naming a feature kind CANVAS does not know, is
+  dropped and counted** — a pin in the wrong place points at the wrong lump of
+  metal, which is worse than one pin fewer.
+- **A step no instrument in the shop can take is listed and said**, not dropped.
+  A list you can finish is not the same as a part you have described.
+- **The caveats sit above the work list, not under it**, and one of them is the
+  count of views: a machinist who reads this as a description of the part will
+  measure the five things on it and miss the sixth, on the face nobody
+  photographed.
+- Logged with `actorType: "AI"`, because a model looked at a picture. What it
+  produced was a list of things to go and measure, and never a value.
+
+Found in the browser: the pins were drawn on whatever photograph was already
+stored against the part, so a first photo produced a plan with nowhere to put
+it, and a second view got marked up over the first. They go on the picture that
+was just handed over.
+
+`src/lib/engines/photo-plan.ts`, `readPartPhoto` on both providers,
+`api/parts/photo-plan`, `components/reverse/photo-guide.tsx` and
+`photo-measure.tsx`.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what

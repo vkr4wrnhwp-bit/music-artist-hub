@@ -13,6 +13,7 @@ import { loadRevision } from "@/lib/data";
 import { ReconstructionPlanPanel } from "@/components/reverse/reconstruction-plan";
 import { GuidedMeasurement } from "@/components/reverse/guided-measurement";
 import { PhotoSetUploader } from "@/components/reverse/photo-set";
+import { PhotoMeasure } from "@/components/reverse/photo-measure";
 import { LinkButton, Notice, Panel, SectionHeading, StatusChip } from "@/components/ui";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
@@ -178,6 +179,26 @@ export default async function SessionPage(props: { params: Promise<{ id: string 
             plan={plan}
             establishDatum={establishDatum}
             establishedKeys={establishedKeys}
+          />
+
+          {/*
+            "I have the part and a phone. Where do I start?"
+
+            The plan below knows the order of work and cannot point at
+            anything. This puts the same order ON the photograph: numbered
+            pins, the current one lit, measure this then this. The model says
+            what it can see and where — never how big — and every reading goes
+            into this same session, attributed to the instrument that took it.
+          */}
+          <PhotoMeasure
+            partId={session.partRevision.partId}
+            sessionId={session.id}
+            photos={photos.map((p) => ({
+              id: p.id,
+              url: `/api/assets/${encodeURIComponent(p.storageKey)}`,
+              label: p.viewLabel ?? p.filename,
+            }))}
+            devices={devices.map((d) => ({ id: d.id, label: `${METROLOGY_LABELS[d.deviceType]} — ${d.description}` }))}
           />
 
           <GuidedMeasurement

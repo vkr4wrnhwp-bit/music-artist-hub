@@ -1,5 +1,6 @@
 import type { PartIntentExtraction } from "@/lib/domain/part-intent";
 import type { FeatureSuggestion } from "@/lib/domain/features";
+import type { PhotoRead } from "@/lib/engines/photo-plan";
 import type { AiProvider, BearingStampReading, CopilotContext, CopilotReply, MeasurementPlan, RiskSummary } from "./provider";
 
 /**
@@ -384,6 +385,21 @@ export class DeterministicProvider implements AiProvider {
    * exact failure principle 5 names: a feature that appears to work and does
    * not, on a value that decides a bore diameter.
    */
+  /**
+   * No vision model, no reading — and no plausible list of features either.
+   *
+   * A deterministic provider inventing "there is probably a bore in the middle"
+   * would be the worst version of this feature: a machinist would measure what
+   * it told them to and never learn it had been guessed from nothing.
+   */
+  async readPartPhoto(): Promise<PhotoRead> {
+    return {
+      connected: false,
+      sightings: [],
+      note: "No vision model is connected. The photograph is stored against the part so you can work from it yourself; nothing has been read from it, and no list of things to measure has been produced.",
+    };
+  }
+
   async readBearingStamp(): Promise<BearingStampReading> {
     return {
       connected: false,
