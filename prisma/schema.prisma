@@ -258,7 +258,32 @@ model Tool {
   sfmMin               Float
   sfmMax               Float
   coolant              String
+  /**
+   * DEAD. Superseded by minutesUsed / partsCut below.
+   *
+   * This was a 0-1 float, required on the tool form and shown on the tools
+   * page as a colour-coded percentage — and nothing in the system ever changed
+   * it. It was whatever somebody typed when they added the tool, presented as
+   * a live gauge, and a machinist reading "100%" in green reasonably concluded
+   * the tool had life left.
+   *
+   * Kept so no shop's data is thrown away, read by nothing.
+   */
   lifeRemaining        Float  @default(1)
+
+  // WHAT THIS TOOL HAS ACTUALLY DONE.
+  //
+  // Accumulated when a job is marked COMPLETE, from the cutting time the
+  // toolpaths charge to this tool times the quantity made. It is a LOWER
+  // BOUND and the UI says so: a job run without being recorded, or a tool
+  // borrowed for something else, is time this never saw.
+  //
+  // lifeCountedFrom is when the count started — a new tool, or the regrind
+  // that gave it a fresh edge. Null means nobody has said, and then the
+  // figures are minutes since whenever, which is stated rather than implied.
+  minutesUsed     Float     @default(0)
+  partsCut        Int       @default(0)
+  lifeCountedFrom DateTime?
   costPerTool          Float  @default(0)
   expectedLifeMinutes  Float  @default(120)
   notes                String?

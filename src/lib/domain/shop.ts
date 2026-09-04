@@ -201,8 +201,20 @@ export interface Tool {
   sfmMin: number;
   sfmMax: number;
   coolant: string;
-  /** 0–1 remaining life estimate. */
+  /**
+   * DEAD. A 0-1 float nothing ever changed — typed once when the tool was
+   * added and shown ever after as a colour-coded percentage. Superseded by the
+   * three below and read by nothing. See engines/tool-life.ts.
+   */
   lifeRemaining: number;
+  /** Cutting minutes charged from jobs marked complete. A floor, not a total. */
+  minutesUsed: number;
+  /** Parts those jobs made. */
+  partsCut: number;
+  /** When the count started — a new tool, or the regrind that gave it an edge. */
+  lifeCountedFrom?: Date;
+  /** Catalogue expectation, for the two to be measured against each other. */
+  expectedLifeMinutes: number;
   notes?: string;
 
   /* ---- Tool reality: what is in the holder, not what the catalogue said ---- */

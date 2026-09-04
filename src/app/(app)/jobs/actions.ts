@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { canTransition, validateOutcome, type OutcomeDraft } from "@/lib/engines/jobs";
 import { buildPackage } from "@/lib/package";
 import { audit } from "@/lib/audit";
+import { minutesPerTool } from "@/lib/engines/tool-life";
 
 /**
  * THE JOBS WRITE PATH
@@ -149,6 +150,59 @@ export async function advanceJob(jobId: string, formData: FormData) {
           costActual: null,
         },
       });
+
+      /*
+       * AND THE TOOLS FIND OUT THEY WERE USED.
+       *
+       * `Tool.lifeRemaining` was a 0-1 float that nothing ever changed — typed
+       * once when the tool was added and shown ever after as a colour-coded
+       * percentage. This is the other half of removing it: a completed job
+       * charges each tool the cutting time its toolpaths took, times the
+       * quantity made.
+       *
+       * It counts only jobs recorded here, which makes every figure a floor
+       * rather than a total, and the tools page says so beside the number.
+       */
+      const { byTool, source } = minutesPerTool(
+        pkg.toolpaths.filter((tp) => !tp.isPlaceholder).map((tp) => ({ toolId: tp.toolId, cycleTimeMinutes: tp.cycleTimeMinutes })),
+        job.quantity,
+        job.actualCycleMinutes,
+      );
+      for (const [toolId, minutes] of byTool) {
+        // Scoped to the shop's own crib, like every other write here: a tool id
+        // reaching this from anywhere is one another shop could name.
+        const owned = await db.tool.findFirst({
+          where: { id: toolId, organizationId: user.organizationId },
+          select: { id: true, lifeCountedFrom: true },
+        });
+        if (!owned) continue;
+        await db.tool.update({
+          where: { id: owned.id },
+          data: {
+            minutesUsed: { increment: Number(minutes.toFixed(3)) },
+            partsCut: { increment: Math.max(1, job.quantity) },
+            lastUsedAt: new Date(),
+            // The count starts at the first job charged to this edge, unless a
+            // fresh edge already stamped it. Without this the tools page reads
+            // "since nobody said when" for ever, which is a figure with no
+            // window around it.
+            ...(owned.lifeCountedFrom === null ? { lifeCountedFrom: new Date() } : {}),
+          },
+        });
+      }
+      if (byTool.size > 0) {
+        await audit({
+          organizationId: user.organizationId,
+          userId: user.id,
+          actorType: "SYSTEM",
+          entityType: "Job",
+          entityId: job.id,
+          action: "UPDATE",
+          field: "toolLife",
+          newValue: `${byTool.size} tools charged from ${source === "MEASURED" ? "the recorded cycle time" : "the estimated cycle time"}`,
+          reason: `Job ${job.jobNumber} completed: ${Math.max(1, job.quantity)} part${job.quantity === 1 ? "" : "s"}.`,
+        });
+      }
     }
   }
 

@@ -54,7 +54,6 @@ export interface ToolFormValues {
   sfmMin?: number;
   sfmMax?: number;
   coolant?: string;
-  lifeRemaining?: number;
   costPerTool?: number;
   expectedLifeMinutes?: number;
   condition?: string;
@@ -203,7 +202,6 @@ export function toolSections(
           options: CONDITIONS.map((c) => ({ value: c, label: title(c) })),
           defaultValue: v.condition ?? "UNKNOWN",
         },
-        { name: "lifeRemaining", label: "Life remaining", unit: "0–1", kind: "number", required: true, min: "0", max: "1", half: true, defaultValue: v.lifeRemaining ?? 1 },
         { name: "actualStickout", label: "Measured stickout", unit: "in", kind: "number", min: "0", half: true, hint: "Left blank means not measured — not that it matches nominal.", defaultValue: v.actualStickout ?? null },
         { name: "measuredRunout", label: "Measured runout", unit: "in", kind: "number", min: "0", half: true, defaultValue: v.measuredRunout ?? null },
         { name: "expectedLifeMinutes", label: "Expected life", unit: "min", kind: "number", required: true, min: "0", half: true, defaultValue: v.expectedLifeMinutes ?? 120 },

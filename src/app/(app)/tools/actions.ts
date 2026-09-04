@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { audit, auditChanges } from "@/lib/audit";
 import { TOOL_CLASSES } from "@/lib/domain/shop";
 import { FormReader, rejectionQuery } from "@/lib/shop-form";
+import { formatMinutes } from "@/lib/engines/tool-life";
 import { TOOL_CONDITIONS, TOOL_COOLANTS } from "./tool-fields";
 
 /**
@@ -68,7 +69,11 @@ function parse(formData: FormData) {
     recommendedMaterials: f.jsonList("recommendedMaterials"),
 
     condition: f.choice("condition", "Condition", TOOL_CONDITIONS),
-    lifeRemaining: f.number("lifeRemaining", "Life remaining", { min: 0, max: 1 }),
+    // `lifeRemaining` is not asked for any more. It was a 0-1 float nothing
+    // ever changed, shown as a colour-coded percentage — a live-looking gauge
+    // reading whatever somebody typed when the tool was added. What a tool has
+    // actually done is accumulated from completed jobs instead; see
+    // engines/tool-life.ts.
     actualStickout: f.optionalNumber("actualStickout", "Measured stickout", { min: 0 }),
     measuredRunout: f.optionalNumber("measuredRunout", "Measured runout", { min: 0 }),
     expectedLifeMinutes: f.number("expectedLifeMinutes", "Expected life", { min: 0 }),
@@ -214,6 +219,71 @@ export async function deleteTool(formData: FormData): Promise<void> {
     field: "tool",
     oldValue: `T${existing.toolNumber} · ${existing.description}`,
     reason: "Tool removed from the crib.",
+  });
+
+  revalidatePath("/tools");
+  redirect("/tools");
+}
+
+/**
+ * A FRESH EDGE RESETS THE COUNT.
+ *
+ * `minutesUsed` accumulates from completed jobs and never falls on its own,
+ * which is right for a cutter that keeps cutting and wrong the moment somebody
+ * regrinds it or swaps the inserts. Without this the chip reads PAST_EXPECTED
+ * on a tool with a brand new edge, and a figure that is wrong in the direction
+ * of alarm becomes the label nobody reads — the same failure the 0-1 float had,
+ * pointing the other way.
+ *
+ * What went in is required, because the three cases are not the same tool:
+ * a regrind is a shorter cutter with a reground geometry, new inserts are the
+ * same body, and a new tool is a different serial. The audit row keeps the
+ * count that was cleared, so the history is not lost with the counter.
+ */
+const EDGE_EVENTS = {
+  NEW_TOOL: { label: "New tool", condition: "NEW" as const, regrind: false },
+  REGRIND: { label: "Reground", condition: "REGRIND" as const, regrind: true },
+  NEW_INSERTS: { label: "New inserts", condition: "NEW" as const, regrind: false },
+};
+
+export async function freshEdge(formData: FormData): Promise<void> {
+  const user = await requireWrite();
+  const id = String(formData.get("id") ?? "");
+  const existing = await db.tool.findFirst({ where: { id, organizationId: user.organizationId } });
+  if (!existing) redirect("/tools");
+
+  const key = String(formData.get("edge") ?? "");
+  const event = Object.hasOwn(EDGE_EVENTS, key) ? EDGE_EVENTS[key as keyof typeof EDGE_EVENTS] : null;
+  if (!event) {
+    redirect(`/tools/${id}/edit?problem=${encodeURIComponent("Say what went in before the count is cleared.")}`);
+  }
+
+  const note = String(formData.get("edgeNote") ?? "").trim().slice(0, 300);
+
+  await db.tool.update({
+    where: { id },
+    data: {
+      minutesUsed: 0,
+      partsCut: 0,
+      lifeCountedFrom: new Date(),
+      condition: event.condition,
+      ...(event.regrind ? { regrindCount: { increment: 1 } } : {}),
+    },
+  });
+
+  await audit({
+    organizationId: user.organizationId,
+    userId: user.id,
+    entityType: "Tool",
+    entityId: id,
+    action: "UPDATE",
+    actorType: "HUMAN",
+    field: "toolLife",
+    // The cleared count lives in the trail rather than disappearing with the
+    // counter — what the last edge gave is what a shop sets expected life from.
+    oldValue: `${formatMinutes(existing.minutesUsed)} min over ${existing.partsCut} part${existing.partsCut === 1 ? "" : "s"}`,
+    newValue: `count reset — ${event.label}`,
+    reason: note === "" ? `${event.label}: life count restarted.` : `${event.label}: ${note}`,
   });
 
   revalidatePath("/tools");

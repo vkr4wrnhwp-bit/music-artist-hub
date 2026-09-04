@@ -990,6 +990,48 @@ one run, months before an audit did.
 
 `stepToolpath` in `cam/engine.ts`, `minimumInternalRadius` in `domain/features.ts`,
 the step, fillet and face branches of `machinist.ts`.
+
+**T7 — Tool life was a number nobody updated. — BUILT**
+`Tool.lifeRemaining` was a 0-1 float. It was **required** on the tool form and
+rendered on the crib page as a colour-coded percentage — green above 40%, review
+above 15%, risk below — and **nothing in the system ever changed it**. It was
+whatever somebody typed when the tool was added, possibly a year and four
+hundred parts ago, presented ever after as a live gauge. A machinist reading
+"T2 · 100%" in green concludes that tool has plenty of edge left. That is worse
+than showing nothing and worse than a stub, because a stub says so.
+
+What a tool has actually done is now accumulated: when a job is marked COMPLETE,
+each tool is charged the cutting time its toolpaths took times the quantity made,
+scoped to the shop that ran it, logged with `actorType: "SYSTEM"`. Where a
+machinist recorded an actual cycle time that is what is charged, apportioned
+across the tools in the ratio of their estimates — there is nothing per tool to
+measure against, and a measured-looking figure on a derived share would be the
+same lie in miniature.
+
+Three rules the old float broke:
+
+- **No denominator, no percentage.** A tool with no expected life recorded gets
+  the minutes and a sentence saying what is missing, never a fraction. Inventing
+  a denominator is how the float got there.
+- **It is a floor, not a total, and it says so beside the number.** A job run
+  without being recorded, or this cutter borrowed for another part, is time
+  nothing here saw. A machinist who believes 40% is left and has 5% is the
+  person the feature exists to protect.
+- **A fresh edge restarts the count.** Minutes never fall on their own, which is
+  right until somebody regrinds the cutter or swaps the inserts. Without a
+  restart the chip reads PAST_EXPECTED on a brand new edge — wrong in the
+  direction of alarm, and ignored exactly as fast as one wrong the other way.
+  What went in is required, the cleared count is kept in the audit trail, and a
+  regrind counts as one.
+
+Completing a job in the browser found what the tests did not: a spot drill
+charged 0.4 min read "0 min over 1 part" and "0% used", which to somebody
+glancing down a column is the same sentence as "unused". Short times keep a
+decimal and a real charge never rounds to nothing.
+
+`src/lib/engines/tool-life.ts`, the COMPLETE branch of `jobs/actions.ts`,
+`freshEdge` in `tools/actions.ts`, the crib and tool-edit pages. `lifeRemaining`
+stays in the schema so no shop's data is thrown away, and reaches no screen.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
@@ -997,8 +1039,9 @@ the step, fillet and face branches of `machinist.ts`.
 - **Multiple work offsets and fixture offsets.** `G54.1 P`, multi-part fixtures,
   the same program run four up.
 - **Tool library that means what it means elsewhere.** Per-material feed and
-  speed data rather than one SFM band; tool life in minutes and parts, not a
-  0–1 float; presetter data; D and H registers; pocket assignment; sister tools.
+  speed data rather than one SFM band; presetter data; D and H registers; pocket
+  assignment; sister tools. ~~Tool life in minutes and parts, not a 0–1 float~~
+  — BUILT, see T7.
 - **The job packet.** Setup sheet plus tool list plus traveller plus first-article
   form, printed together, versioned with the program.
 - **Program revision control at the machine.** Which revision is loaded, hash

@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TopBar } from "@/components/nav";
-import { Button, Notice, SectionHeading } from "@/components/ui";
+import { Button, Field, Notice, SectionHeading, inputClass } from "@/components/ui";
+import { toolLife } from "@/lib/engines/tool-life";
 import { ShopForm } from "@/components/shop-form";
 import { toolSections } from "../../tool-fields";
-import { updateTool, deleteTool } from "../../actions";
+import { updateTool, deleteTool, freshEdge } from "../../actions";
 
 export default async function EditToolPage(props: {
   params: Promise<{ id: string }>;
@@ -25,6 +26,17 @@ export default async function EditToolPage(props: {
     db.toolHolder.findMany({ orderBy: { taper: "asc" } }),
     db.operation.count({ where: { toolId: id } }),
   ]);
+
+  // What this edge has done, from jobs recorded here. Same verdict the crib
+  // list shows, computed from the same engine rather than restated.
+  const life = toolLife({
+    description: tool.description,
+    minutesUsed: tool.minutesUsed,
+    partsCut: tool.partsCut,
+    expectedLifeMinutes: tool.expectedLifeMinutes,
+    lifeCountedFrom: tool.lifeCountedFrom,
+    regrindCount: tool.regrindCount,
+  });
 
   return (
     <>
@@ -56,6 +68,45 @@ export default async function EditToolPage(props: {
           <ShopForm action={updateTool} sections={toolSections(tool, holders)} submitLabel="Save changes" cancelHref="/tools">
             <input type="hidden" name="id" value={tool.id} />
           </ShopForm>
+
+          {/*
+            EDGE LIFE.
+
+            Minutes accumulate from jobs marked complete and never fall on
+            their own, which is right until somebody regrinds the cutter or
+            swaps the inserts. A count that cannot be restarted reads
+            PAST_EXPECTED on a brand new edge, and a figure wrong in the
+            direction of alarm is ignored exactly as fast as one wrong the
+            other way.
+          */}
+          <div className="border border-line bg-raised px-4 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-platinum">Edge life</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{life.summary}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">{life.caveat}</p>
+            <form action={freshEdge} className="mt-3 flex flex-wrap items-end gap-3">
+              <input type="hidden" name="id" value={tool.id} />
+              <div className="w-44">
+                <Field label="Fresh edge" required>
+                  <select name="edge" className={inputClass} defaultValue="">
+                    <option value="" disabled>
+                      Select
+                    </option>
+                    <option value="NEW_TOOL">New tool</option>
+                    <option value="REGRIND">Reground</option>
+                    <option value="NEW_INSERTS">New inserts</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="min-w-[16rem] flex-1">
+                <Field label="Note" hint="Optional. Kept with the count that is being cleared.">
+                  <input name="edgeNote" className={inputClass} maxLength={300} />
+                </Field>
+              </div>
+              <Button type="submit" size="sm">
+                Restart count
+              </Button>
+            </form>
+          </div>
 
           <form action={deleteTool} className="border border-line border-l-2 border-l-risk bg-raised px-4 py-3">
             <input type="hidden" name="id" value={tool.id} />

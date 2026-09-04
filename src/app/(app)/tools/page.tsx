@@ -1,10 +1,36 @@
 import { requireUser } from "@/lib/auth";
 import { getTools } from "@/lib/data";
+import { toolLife, formatMinutes, type ToolLife, type ToolLifeState } from "@/lib/engines/tool-life";
 import { db } from "@/lib/db";
 import { fmt } from "@/lib/domain/features";
 import { TopBar } from "@/components/nav";
 import Link from "next/link";
 import { EmptyState, LinkButton, Panel, SectionHeading, StatusChip, Table, Td } from "@/components/ui";
+
+/*
+ * UNTRACKED is not a warning. A tool with no expected life recorded is a
+ * missing input, not a worn cutter, and colouring it as risk would be the
+ * same lie in the other direction.
+ */
+const LIFE_TONE: Record<ToolLifeState, "pass" | "review" | "risk" | "unknown"> = {
+  UNTRACKED: "unknown",
+  FRESH: "pass",
+  IN_USE: "pass",
+  NEAR_END: "review",
+  PAST_EXPECTED: "risk",
+};
+
+/*
+ * A tool charged a real fraction of a minute must not read 0% — "0% used" and
+ * "unused" are the same sentence to a machinist glancing down a column, and one
+ * of them is false. Anything counted but below a whole percent reads as such.
+ */
+const LIFE_LABEL = (l: ToolLife): string => {
+  if (l.state === "UNTRACKED") return l.minutesUsed > 0 ? `${formatMinutes(l.minutesUsed)} min` : "Not counted";
+  if (l.state === "FRESH") return "Unused";
+  const pct = l.fractionUsed! * 100;
+  return pct < 1 ? "under 1% used" : `${pct.toFixed(0)}% used`;
+};
 
 export default async function ToolCribPage() {
   const user = await requireUser();
@@ -50,7 +76,7 @@ export default async function ToolCribPage() {
         ) : (
           <div data-guide-target="tool-crib">
           <Panel title={`${tools.length} tools`} dense>
-            <Table head={["T#", "Class", "Description", "⌀", "Flutes", "Reach", "Chipload", "SFM", "Holder", "Loaded in", "Life", ""]}>
+            <Table head={["T#", "Class", "Description", "⌀", "Flutes", "Reach", "Chipload", "SFM", "Holder", "Loaded in", "Used", ""]}>
               {tools.map((t) => (
                 <tr key={t.id} className="hover:bg-raised">
                   <Td className="text-precision">T{t.toolNumber}</Td>
@@ -68,10 +94,28 @@ export default async function ToolCribPage() {
                   <Td muted>{t.holder}</Td>
                   {/* "In the crib" is a real location, not a blank. */}
                   <Td muted={locationOf.get(t.id) == null}>{locationOf.get(t.id) ?? "Crib"}</Td>
+                  {/*
+                    What the tool has DONE, not a number somebody typed.
+                    A 0-1 float nothing ever updated was shown here as a
+                    colour-coded percentage, and green at 100% is what a
+                    machinist reads as "plenty left".
+                  */}
                   <Td>
-                    <StatusChip tone={t.lifeRemaining > 0.4 ? "pass" : t.lifeRemaining > 0.15 ? "review" : "risk"}>
-                      {(t.lifeRemaining * 100).toFixed(0)}%
-                    </StatusChip>
+                    {(() => {
+                      const life = toolLife({
+                        description: t.description,
+                        minutesUsed: t.minutesUsed,
+                        partsCut: t.partsCut,
+                        expectedLifeMinutes: t.expectedLifeMinutes,
+                        lifeCountedFrom: t.lifeCountedFrom ?? null,
+                        regrindCount: t.regrindCount,
+                      });
+                      return (
+                        <span title={`${life.summary} ${life.caveat}`}>
+                          <StatusChip tone={LIFE_TONE[life.state]}>{LIFE_LABEL(life)}</StatusChip>
+                        </span>
+                      );
+                    })()}
                   </Td>
                   <Td>
                     <Link
