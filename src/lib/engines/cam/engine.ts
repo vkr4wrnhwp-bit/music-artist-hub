@@ -640,13 +640,42 @@ function pocketToolpath(
     } else {
       const innerW = width - d - 2 * leave;
       const innerL = length - d - 2 * leave;
-      const rings = Math.max(1, Math.ceil(Math.min(innerW, innerL) / 2 / stepover));
       const entry = helicalEntry(cx, cy, d, pass === 1 ? req.topZ : prevZ, z, req.clearanceZ, p.plungeFeed, Math.min(innerW, innerL) / 2);
       if (!entry) return helixRefusal(d, `${width.toFixed(3)} × ${length.toFixed(3)} pocket`);
       moves.push(...entry);
-      for (let i = rings; i >= 1; i--) {
-        const w = (innerW * i) / rings;
-        const l = (innerL * i) / rings;
+
+      /*
+       * RINGS GROW OUTWARD FROM THE ENTRY, ONE STEPOVER PER AXIS PER RING.
+       *
+       * This used to scale both axes by i/rings while counting rings from the
+       * SHORT side, and walk them outermost-first. Two defects in three lines:
+       *
+       *   The count. On a 6 × 1.5 pocket the long axis moved innerW/(2·rings)
+       *   per ring — several times the programmed stepover — so the cutter was
+       *   loaded far past the engagement its feed and speed were chosen for,
+       *   on every ring of every pass.
+       *
+       *   The order. `for (i = rings; i >= 1; i--)` cut the OUTER boundary
+       *   first, reached by a straight feed move from a helix that had just
+       *   ended at the pocket centre. That is a full-diameter slotting cut
+       *   through solid material at pocketing feed, and it was the first thing
+       *   that happened in every rectangular pocket this engine produced.
+       *
+       * Each axis now grows independently and clamps at its own half-extent,
+       * so no ring ever removes more than `stepover` radially whatever the
+       * aspect ratio — and the first ring sits inside the circle the helix
+       * cleared (the helix swings 0.4·d, so it opens ⌀1.8·d, and a first ring
+       * at ±stepover has its corner at stepover·√2 < 0.9·d).
+       *
+       * This is the same inside-out growth the circular branch above already
+       * uses; the two shapes disagreed only because they were written apart.
+       */
+      const halfW = innerW / 2;
+      const halfL = innerL / 2;
+      const rings = Math.max(1, Math.ceil(Math.max(halfW, halfL) / stepover));
+      for (let i = 1; i <= rings; i++) {
+        const w = Math.min(i * stepover, halfW) * 2;
+        const l = Math.min(i * stepover, halfL) * 2;
         rectMoves(moves, cx, cy, w, l, Math.max(0, cornerR - r), z, p.feed);
       }
       if (pass === passes) {
