@@ -864,6 +864,7 @@ export default async function FeatureDetailPage(props: {
                         <span className="tech-label">{setup}</span>
                       </div>
                       <p className="tech-label mt-1">
+                        {op.pass === "FINISH" ? "finish · " : ""}
                         {op.type.replace(/_/g, " ").toLowerCase()} · from Z{op.topZ.toFixed(3)} to Z{op.finalZ.toFixed(3)}
                         {op.tool ? ` · T${op.tool.toolNumber} ${op.tool.description}` : " · no tool assigned"}
                       </p>

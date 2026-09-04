@@ -174,6 +174,7 @@ export default async function SetupSheetPage({
               <tr>
                 <th className={th}>#</th>
                 <th className={th}>Operation</th>
+                <th className={th}>Pass</th>
                 <th className={th}>T</th>
                 <th className={th}>Z from</th>
                 <th className={th}>Z to</th>
@@ -194,6 +195,13 @@ export default async function SetupSheetPage({
                       </span>
                     )}
                     {o.featureLabel && <div className="text-[10px] text-neutral-600">{o.featureLabel}</div>}
+                  </td>
+                  <td className={td}>
+                    {o.pass === "FINISH" ? (
+                      <span className="border border-black px-1 text-[9px] font-bold uppercase tracking-[0.1em]">finish</span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.08em] text-neutral-600">rough</span>
+                    )}
                   </td>
                   <td className={td}>{o.toolNumber != null ? `T${o.toolNumber}` : <Missing>none</Missing>}</td>
                   <td className={td}>{o.topZ.toFixed(3)}</td>

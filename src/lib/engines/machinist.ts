@@ -106,6 +106,12 @@ export interface PlannedOperation {
   stepover: number;
   /** Left for a later finishing pass. */
   stockToLeave: number;
+  /**
+   * ROUGH | FINISH. A finish pass takes finishing chipload and runs the full
+   * depth in one go where the flute allows, so the wall has no witness line at
+   * every depth step. Absent means ROUGH.
+   */
+  pass?: "ROUGH" | "FINISH";
   /** Why this machinist chose this tool and these numbers. */
   rationale: string;
 }
@@ -669,20 +675,34 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         concerns.push(`${f.label}: ${reason}`);
         continue;
       }
+      /*
+       * A WALL THAT MATTERS GETS ITS OWN PASS.
+       *
+       * This used to depend on the approach: only BEST_FINISH split rough from
+       * finish, so a toleranced profile planned under any other heading got
+       * roughing feeds on its final wall and a witness line at every depth
+       * step. The approach decides how hard to push, not whether a toleranced
+       * surface is finished — that is a property of the feature.
+       *
+       * FASTEST_CYCLE still gets one pass when the profile carries no
+       * tolerance and is not critical, because there the wall is a wall.
+       */
+      const needsFinish = separateFinish || f.critical || Boolean(f.tolerance);
       ops2.push({
         sequence: s2++,
         type: "CONTOUR_2D",
-        label: `${separateFinish ? "Rough " : "Finish "}${f.label}`,
+        label: `${needsFinish ? "Rough " : "Finish "}${f.label}`,
         featureId: f.id,
         toolId: tool.id,
         toolNumber: tool.toolNumber,
         topZ: 0,
         finalZ: -d,
         stepover,
-        stockToLeave,
+        stockToLeave: needsFinish ? Math.max(stockToLeave, 0.015) : stockToLeave,
+        pass: "ROUGH",
         rationale: reason,
       });
-      if (separateFinish) {
+      if (needsFinish) {
         const finish = selectMill(tools, cr, d, "SMALLEST");
         if (finish.tool) {
           ops2.push({
@@ -696,8 +716,16 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
             finalZ: -d,
             stepover: 0.08,
             stockToLeave: 0,
-            rationale: "Spring pass at full depth for a consistent wall finish.",
+            pass: "FINISH",
+            rationale:
+              finish.tool.fluteLength >= d
+                ? "Full-depth finishing pass: one continuous wall, no witness line at a depth step."
+                : `Finishing pass. ${finish.tool.description} has ${finish.tool.fluteLength.toFixed(3)}" of flute against a ${d.toFixed(3)}" wall, so it steps down and will show a line at each step.`,
           });
+        } else {
+          concerns.push(
+            `${f.label} is toleranced and no tool in the crib can finish it in a separate pass — the roughing pass is the wall.`,
+          );
         }
       }
     }

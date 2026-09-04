@@ -227,17 +227,41 @@ inside/outside sense — as a feature parameter. This is the first piece of
 actual geometry the system needs, and it is worth doing before a kernel because
 2D chains cover most of what a job shop profiles.
 
-**A6 — Finish passes are a parameter, not a pass. (MEDIUM)**
-`stockToLeave` exists in `CuttingParameters` and is applied as an offset to the
-roughing geometry. There is no separate finishing operation with its own tool,
-feed, speed, depth of cut and comp state.
+**A6 — Finish passes are a parameter, not a pass. — BUILT**
+`stockToLeave` was the only thing separating a finish pass from a roughing one,
+which made it a roughing pass with a different number in it: the same mid-range
+chipload, the same stepdown, the same depth ladder. The finishing flag was
+derived from the operation TYPE — `CHAMFER || ENGRAVE` — so an operation the
+planner labelled "Finish outside profile" cut the final wall at roughing feeds.
+On the ±0.0005″ features the inspection engine reasons so carefully about.
 
-What the machinist gets: roughing feeds on the final wall. Finish and
-tolerance both suffer, and the ±0.0005″ features the inspection engine reasons
-so carefully about were never machined to a finishing strategy.
+`pass: "ROUGH" | "FINISH"` is now a property of the operation, carried from the
+planner through the stored row to the engine. A finish pass takes the finishing
+chipload, leaves nothing behind, and **runs the full depth in one go** — because
+every depth step leaves a witness line: a visible band where the cutter
+re-entered, and a place the wall sits proud or shy by however the tool deflected
+on that step.
 
-Build: finish passes as first-class operations — spring pass, separate feed,
-comp on, climb-only, full depth in one pass where the tool allows.
+The limit is the flute, not the ambition. Past the flute length the shank is
+rubbing the wall, so the pass steps down like a roughing pass and **says so** —
+a machinist who ordered a finish pass and got a stepped one has to know which he
+has.
+
+And whether a wall gets its own pass no longer depends on the approach. Only
+`BEST_FINISH` used to split them, so a toleranced profile planned under any
+other heading got roughing feeds on its final wall. The approach decides how
+hard to push; whether a toleranced surface is finished is a property of the
+feature. All five approaches now split it — and where no tool in the crib can
+finish a toleranced wall, the plan says that rather than quietly roughing it.
+
+Absent means ROUGH, so no plan approved before this existed cuts differently.
+
+**Still open:** pocket walls. This covers the contour, which is where comp lives
+and where the size a machinist adjusts actually is. A pocket's floor and walls
+want separate treatment and separate tools.
+
+`OperationRequest.pass` in `cam/types.ts`, `Operation.pass` in the schema,
+`contourToolpath` in `cam/engine.ts`, the profile branch of `machinist.ts`.
 
 ### B. The machinist must know how to set the job up
 
@@ -644,7 +668,7 @@ Saying no is part of the plan.
 6. ~~**A2** cutter compensation~~ — BUILT. The machinist has their offset back,
    and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
-8. **A5 + A6** chained contours and real finish passes.
+8. **A5** chained contours — ~~**A6** real finish passes~~ BUILT.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
 10. **B3** the setup transform, and second-op work opens up.
 

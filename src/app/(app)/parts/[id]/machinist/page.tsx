@@ -195,6 +195,7 @@ export default async function MachinistPage(props: {
             finalZ: o.finalZ,
             clearanceZ: 0.1,
             retractZ: 1,
+            pass: o.pass ?? "ROUGH",
             overridesJson: JSON.stringify({ stepover: o.stepover, stockToLeave: o.stockToLeave }),
             // Membership in the engine's own list, so this cannot drift when
             // an operation type gains an engine.

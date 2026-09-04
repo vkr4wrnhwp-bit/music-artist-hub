@@ -100,6 +100,11 @@ function score(plan: MachinistPlan, input: ReviewInput): ScoredPlan {
         setupId: String(setup.sequence),
         // The approach's engagement and finishing allowance are what actually
         // separate the plans once the engine gets hold of them.
+        //
+        // `pass` travels too, or the comparison prices every plan's finishing
+        // work at roughing feeds and the cycle-time column stops meaning
+        // anything about the plans it is comparing.
+        pass: op.pass ?? "ROUGH",
         overrides: { stepover: op.stepover, stockToLeave: op.stockToLeave },
         topZ: op.topZ,
         finalZ: op.finalZ,

@@ -80,6 +80,19 @@ export interface OperationRequest {
   featureId: string | null;
   toolId: string;
   setupId: string;
+  /**
+   * ROUGHING OR FINISHING, AS A PROPERTY OF THE OPERATION.
+   *
+   * `stockToLeave` used to be the only thing that distinguished them, which
+   * made a finish pass a roughing pass with a different number in it: the same
+   * mid-range chipload, the same stepdown, the same depth ladder. Roughing
+   * feeds on the final wall, and a witness line at every depth step — on the
+   * ±0.0005" features the inspection engine reasons so carefully about.
+   *
+   * Absent means ROUGH, because that is what every operation was before this
+   * existed and a missing value must not silently change what an old plan does.
+   */
+  pass?: "ROUGH" | "FINISH";
   /** Optional overrides. Anything omitted is derived from tool + material. */
   overrides?: Partial<CuttingParameters>;
   /** Z of the top of material for this operation. */

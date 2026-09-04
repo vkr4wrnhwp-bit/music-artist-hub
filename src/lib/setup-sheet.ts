@@ -65,6 +65,8 @@ export interface SheetOperation {
   sequence: number;
   label: string;
   type: string;
+  /** ROUGH or FINISH. A machinist treats the two differently at the control. */
+  pass: string;
   toolNumber: number | null;
   featureLabel: string | null;
   topZ: number;
@@ -218,6 +220,7 @@ export function buildSetupSheet(pkg: ManufacturingPackage, setupId: string): Set
       sequence: op.sequence,
       label: op.label,
       type: words(op.type),
+      pass: op.pass === "FINISH" ? "FINISH" : "ROUGH",
       toolNumber: op.tool?.toolNumber ?? null,
       featureLabel: op.feature?.label ?? null,
       topZ: op.topZ,

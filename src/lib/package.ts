@@ -149,6 +149,9 @@ export async function buildPackage(
           featureId: op.featureId,
           toolId: tool.id,
           setupId: setup.id,
+          // Absent means ROUGH, which is what every operation planned before
+          // this column existed is.
+          pass: op.pass === "FINISH" ? "FINISH" : "ROUGH",
           overrides: parseJson(op.overridesJson, {}),
           topZ: op.topZ,
           finalZ: op.finalZ,

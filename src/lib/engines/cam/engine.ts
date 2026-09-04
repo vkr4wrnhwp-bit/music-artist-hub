@@ -180,7 +180,17 @@ export function generateToolpath(
     };
   }
 
-  const params = deriveCuttingParameters(cuttable, req.overrides, req.type === "CHAMFER" || req.type === "ENGRAVE");
+  /*
+   * Finishing is a property of the OPERATION, not a guess from its type.
+   *
+   * This used to be `type === "CHAMFER" || type === "ENGRAVE"` — so an
+   * operation the planner labelled "Finish outside profile" got roughing
+   * parameters: mid-range chipload, roughing stepdown, a depth ladder that
+   * leaves a witness line at every step. The label said finish and the numbers
+   * said rough.
+   */
+  const finishing = req.pass === "FINISH" || req.type === "CHAMFER" || req.type === "ENGRAVE";
+  const params = deriveCuttingParameters(cuttable, req.overrides, finishing);
   const warnings: string[] = [];
 
   /* ---- Hard validation before any motion is produced ---- */
@@ -317,6 +327,7 @@ export function generateToolpath(
       if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
       moves = r.moves;
       removed = r.removed;
+      warnings.push(...r.warnings);
       break;
     }
     case "CHAMFER": {
@@ -1277,7 +1288,7 @@ function contourToolpath(
   feature: Feature,
   ctx: MachiningContext,
   p: CuttingParameters,
-): { moves: Move[]; removed: number } | { error: { reason: string; recommendations: string[] } } {
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
   if (feature.kind !== "OUTSIDE_CONTOUR") {
     return {
       error: {
@@ -1291,7 +1302,29 @@ function contourToolpath(
   const d = ctx.tool.diameter;
   const r = d / 2;
   const totalDepth = req.topZ - req.finalZ;
-  const passes = Math.max(1, Math.ceil(totalDepth / p.stepdown));
+
+  /*
+   * A FINISH pass runs the full depth in one go.
+   *
+   * Every depth step in a finishing pass leaves a witness line on the wall —
+   * a visible band where the cutter re-entered, and a place the wall is a
+   * fraction of a thou proud or shy depending on how the tool deflected on
+   * each step. A wall cut in one pass has none of them.
+   *
+   * The limit is the flute, not the ambition: past the flute length the shank
+   * is rubbing the wall, which is not a finishing strategy. There the pass
+   * steps down like a roughing pass and SAYS SO, because a machinist who
+   * ordered a finish pass and got a stepped one needs to know which he has.
+   */
+  const finishing = req.pass === "FINISH";
+  const oneShot = finishing && totalDepth <= ctx.tool.fluteLength + 1e-9;
+  const passes = oneShot ? 1 : Math.max(1, Math.ceil(totalDepth / p.stepdown));
+  const warnings: string[] = [];
+  if (finishing && !oneShot) {
+    warnings.push(
+      `Finish pass on ${feature.label} is ${totalDepth.toFixed(3)}" deep against ${ctx.tool.fluteLength.toFixed(3)}" of flute, so it steps down in ${passes} passes and will show a witness line at each step. A longer-flute tool would cut this wall in one.`,
+    );
+  }
 
   // The boundary the program carries, and the centre path the cutter follows.
   const W = feature.width;
@@ -1365,7 +1398,7 @@ function contourToolpath(
   }
 
   const perimeter = 2 * (feature.width + feature.length);
-  return { moves, removed: perimeter * ctx.tool.diameter * totalDepth * 0.5 };
+  return { moves, removed: perimeter * ctx.tool.diameter * totalDepth * 0.5, warnings };
 }
 
 /* ------------------------------------------------------------------ */

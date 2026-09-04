@@ -850,6 +850,12 @@ model Operation {
   clearanceZ Float @default(0.25)
   retractZ   Float @default(1)
 
+  // ROUGH | FINISH. Absent means ROUGH: that is what every operation was before
+  // this column existed, and a missing value must not silently change what an
+  // old plan does. A FINISH pass takes finishing chipload and runs the full
+  // depth in one go where the flute allows — see cam/engine.ts.
+  pass          String?
+
   // Overrides only. Anything absent is derived from tool + material.
   overridesJson String?
 
