@@ -452,28 +452,55 @@ function faceToolpath(
 
   moves.push({ type: "RAPID", x: -halfX - lead, y: -halfY + d / 2, z: req.clearanceZ, feed: null });
 
-  let prevZ = req.topZ;
+  /*
+   * LANES THAT REACH THE FAR EDGE.
+   *
+   * This walked `y` from -halfY + d/2 by one stepover at a time and stopped
+   * when the next lane centre passed halfY - d/2. On 4" stock with a 2" face
+   * mill the lanes landed at -1.0, -0.3 and +0.4 — the last one's trailing
+   * edge reaching 1.4 against a stock edge at 2.0, leaving 0.6" of Datum A
+   * untouched. And when the cutter was wider than the stock the condition was
+   * false on entry, so the operation emitted no cutting moves at all.
+   *
+   * Neither showed anywhere, because `removed` was returned unconditionally
+   * as the full stock volume — the simulation reported a clean face over an
+   * uncut band, and every gate read PASS.
+   *
+   * The span between the first and last lane CENTRES is fixed by geometry:
+   * the cutter must start half its width inside one edge and finish half its
+   * width inside the other. Divide that span into whole steps no larger than
+   * the nominal stepover, and the far edge is reached by construction. A
+   * cutter at least as wide as the stock is one lane down the middle.
+   */
+  const span = stock.y - d;
+  const lanes = span <= 1e-9 ? 1 : Math.ceil(span / stepover) + 1;
+  const step = lanes > 1 ? span / (lanes - 1) : 0;
+  const firstY = lanes > 1 ? -halfY + d / 2 : 0;
+
   for (let pass = 1; pass <= passes; pass++) {
     const z = req.topZ - (totalDepth * pass) / passes;
-    let y = -halfY + d / 2;
     let dir = 1;
-    moves.push({ type: "RAPID", x: -halfX - lead, y, z: req.clearanceZ, feed: null });
-    moves.push({ type: "PLUNGE", x: -halfX - lead, y, z, feed: p.plungeFeed });
+    moves.push({ type: "RAPID", x: -halfX - lead, y: firstY, z: req.clearanceZ, feed: null });
+    moves.push({ type: "PLUNGE", x: -halfX - lead, y: firstY, z, feed: p.plungeFeed });
 
-    while (y <= halfY - d / 2 + 1e-6) {
+    for (let lane = 0; lane < lanes; lane++) {
+      const y = firstY + lane * step;
       const xStart = dir > 0 ? -halfX - lead : halfX + lead;
       const xEnd = dir > 0 ? halfX + lead : -halfX - lead;
       moves.push({ type: "CUT", x: xStart, y, z, feed: p.feed });
       moves.push({ type: "CUT", x: xEnd, y, z, feed: p.feed });
-      y += stepover;
       dir *= -1;
-      if (y <= halfY - d / 2 + 1e-6) {
-        moves.push({ type: "CUT", x: xEnd, y, z, feed: p.feed });
+      // Step across at the end of the lane, still cutting, so the transition
+      // is a machined move rather than a rapid through the face.
+      if (lane < lanes - 1) {
+        moves.push({ type: "CUT", x: xEnd, y: firstY + (lane + 1) * step, z, feed: p.feed });
       }
     }
     moves.push({ type: "RETRACT", x: moves[moves.length - 1].x, y: moves[moves.length - 1].y, z: req.retractZ, feed: null });
   }
 
+  // Now true by construction: every lane is emitted and the last one's
+  // trailing edge lands on the far stock edge.
   return { moves, removed: stock.x * stock.y * totalDepth };
 }
 

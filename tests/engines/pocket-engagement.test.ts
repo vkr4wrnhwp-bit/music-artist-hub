@@ -130,3 +130,58 @@ test("the rings still reach the pocket wall", () => {
   assert.ok(Math.abs(maxX - (6 - endmill.diameter) / 2) < 1e-6, `X reached ${maxX}`);
   assert.ok(Math.abs(maxY - (1.5 - endmill.diameter) / 2) < 1e-6, `Y reached ${maxY}`);
 });
+
+/* ---------------- FACING: the datum face, all of it ---------------- */
+
+const faceReq = (finalZ: number): OperationRequest =>
+  ({
+    id: "opf", type: "FACE", label: "Face top", featureId: "f0", toolId: "t2",
+    topZ: 0, finalZ, clearanceZ: 0.1, retractZ: 0.5, pass: "ROUGH",
+  }) as unknown as OperationRequest;
+
+const faceFeature = { id: "f0", kind: "FACE", label: "Top face", functionalRole: "DATUM", critical: true, top: 0 } as unknown as Feature;
+
+function facing(stockY: number, toolDia: number) {
+  const tool = { ...endmill, diameter: toolDia, description: `${toolDia}" mill` } as Tool;
+  const st: Stock = { form: "RECTANGULAR", x: 6, y: stockY, z: 1, material: "Aluminum 6061" };
+  const r = generateToolpath(faceReq(-0.02), faceFeature, { ...ctx, tool }, st);
+  assert.ok(r.ok, `facing refused for ${stockY}" stock with a ${toolDia}" mill`);
+  if (!r.ok) throw new Error("unreachable");
+  return r.toolpath.moves.filter((m) => m.type === "CUT");
+}
+
+test("facing reaches both edges of the stock, whatever the cutter width", () => {
+  /*
+   * The lane loop stepped by 0.7 x d and stopped when the next lane centre
+   * passed halfY - d/2. On 4" stock with a 2" mill the lanes landed at -1.0,
+   * -0.3 and +0.4: the last lane's trailing edge reached 1.4 against an edge
+   * at 2.0, so 0.6" of the datum face was never touched — while `removed` was
+   * returned as the full stock volume and every gate read PASS.
+   */
+  for (const [stockY, dia] of [[4, 2], [4, 0.5], [3, 1.25], [2.5, 0.75], [6, 3]] as const) {
+    const cut = facing(stockY, dia);
+    const lo = Math.min(...cut.map((m) => m.y)) - dia / 2;
+    const hi = Math.max(...cut.map((m) => m.y)) + dia / 2;
+    assert.ok(lo <= -stockY / 2 + 1e-6, `${stockY}" / ⌀${dia}: near edge short by ${(lo + stockY / 2).toFixed(4)}"`);
+    assert.ok(hi >= stockY / 2 - 1e-6, `${stockY}" / ⌀${dia}: far edge short by ${(stockY / 2 - hi).toFixed(4)}"`);
+  }
+});
+
+test("no lane steps more than the face-mill stepover", () => {
+  // Reaching the edge must not be bought by widening the last step.
+  for (const [stockY, dia] of [[4, 2], [3, 1.25], [6, 3]] as const) {
+    const ys = [...new Set(facing(stockY, dia).map((m) => Number(m.y.toFixed(6))))].sort((a, b) => a - b);
+    for (let i = 1; i < ys.length; i++) {
+      assert.ok(ys[i] - ys[i - 1] <= dia * 0.7 + 1e-6, `${stockY}" / ⌀${dia}: lane step ${(ys[i] - ys[i - 1]).toFixed(4)}" exceeds 0.7 x ⌀`);
+    }
+  }
+});
+
+test("a cutter wider than the stock still cuts", () => {
+  // The old loop's condition was false on entry here, so the operation
+  // emitted no cutting moves at all and reported the full volume removed.
+  const cut = facing(2, 3);
+  assert.ok(cut.length > 0, "a 3\" mill on 2\" stock emitted no cutting moves");
+  const ys = [...new Set(cut.map((m) => Number(m.y.toFixed(6))))];
+  assert.deepEqual(ys, [0], "a cutter wider than the stock is one lane down the middle");
+});
