@@ -199,7 +199,7 @@ export function SectionSketch({ feature, stock, env }: { feature: Feature; stock
           textAnchor="middle"
           fill={DIM}
           fontSize="10"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           {section.widthLabel}
         </text>
@@ -215,7 +215,7 @@ export function SectionSketch({ feature, stock, env }: { feature: Feature; stock
           y={(SLAB_T + bottom) / 2 + 3}
           fill={DIM}
           fontSize="9.5"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           {section.through ? "THRU" : fmt(section.depth)}
         </text>
@@ -232,7 +232,7 @@ export function SectionSketch({ feature, stock, env }: { feature: Feature; stock
           textAnchor="end"
           fill="var(--c-muted)"
           fontSize="9.5"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           {fmt(stock.z, 3)}
         </text>
@@ -289,7 +289,7 @@ function FaceSection({ feature, stock, env }: { feature: Extract<Feature, { kind
           y={(SLAB_T + finishedTop) / 2 + 3}
           fill={DIM}
           fontSize="9.5"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           {fmt(feature.depth)}
         </text>
@@ -299,7 +299,7 @@ function FaceSection({ feature, stock, env }: { feature: Extract<Feature, { kind
           y={SLAB_T - 10}
           fill="var(--c-muted)"
           fontSize="9.5"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           MATERIAL REMOVED
         </text>
@@ -315,7 +315,7 @@ function FaceSection({ feature, stock, env }: { feature: Extract<Feature, { kind
           textAnchor="end"
           fill="var(--c-muted)"
           fontSize="9.5"
-          fontFamily="var(--font-mono-tech), ui-monospace, monospace"
+          fontFamily="var(--font-readout), ui-monospace, monospace"
         >
           {fmt(stock.z, 3)}
         </text>

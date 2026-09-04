@@ -426,7 +426,7 @@ export function AxisTriad({ className = "" }: { className?: string }) {
         <line x1="14" y1="40" x2="14" y2="8" />
         <line x1="14" y1="40" x2="2" y2="52" />
       </g>
-      <g fill="var(--c-muted)" fontSize="7" fontFamily="var(--font-mono-tech)">
+      <g fill="var(--c-muted)" fontSize="7" fontFamily="var(--font-readout)">
         <text x="47" y="43">X</text>
         <text x="10" y="7">Z</text>
         <text x="0" y="46">Y</text>

@@ -260,8 +260,9 @@
   --color-shell-line-strong: var(--canvas-shell-line-strong);
   --color-shell-blue: var(--canvas-shell-blue);
 
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-mono-tech);
+  /* Named by role, set in layout.tsx. A face swap is that one file. */
+  --font-sans: var(--font-voice);
+  --font-mono: var(--font-readout);
 }
 
 html,
@@ -270,7 +271,7 @@ body {
      as the instrument frame rather than as another sheet of paper. */
   background: var(--canvas-bg-shell);
   color: var(--canvas-text);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-voice), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "tnum" 1;
 }
@@ -298,7 +299,7 @@ body {
    meant. */
 @layer components {
   .tech-label {
-    font-family: var(--font-mono-tech), ui-monospace, monospace;
+    font-family: var(--font-readout), ui-monospace, monospace;
     font-size: 10px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -306,7 +307,7 @@ body {
   }
 
   .instrument-label {
-    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-voice), ui-sans-serif, system-ui, sans-serif;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.14em;
@@ -315,7 +316,7 @@ body {
   }
 
   .tech-value {
-    font-family: var(--font-mono-tech), ui-monospace, monospace;
+    font-family: var(--font-readout), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
   }
 
@@ -331,7 +332,7 @@ body {
   }
 
   .shell-label {
-    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-voice), ui-sans-serif, system-ui, sans-serif;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.14em;

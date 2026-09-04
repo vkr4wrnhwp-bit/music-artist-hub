@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Icon, type IconName } from "./icons";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -37,17 +38,16 @@ interface NavItem {
   dev?: boolean;
 }
 
-type IconKey =
-  | "home"
-  | "part"
-  | "machine"
-  | "tool"
-  | "workholding"
-  | "metrology"
-  | "additive"
-  | "jobs"
-  | "knowledge"
-  | "settings";
+/*
+ * The rail draws from the app's icon set rather than its own. IconName is
+ * wider than the rail uses — that is the point: the marks live in one module
+ * now, and a feature list or a gate row can reach the same bore, tapped hole
+ * and datum the navigation draws.
+ */
+type IconKey = Extract<
+  IconName,
+  "home" | "part" | "machine" | "tool" | "workholding" | "metrology" | "additive" | "jobs" | "knowledge" | "settings"
+>;
 
 interface Section {
   id: string;
@@ -347,123 +347,6 @@ export function PartShellInfoBridge(info: PartShellInfo) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Icons — line geometry, 1.25 stroke, square ends. Instruments, not    */
-/* illustrations. No fills, no rounding, no emoji.                      */
-/* ------------------------------------------------------------------ */
-
-function RailIcon({ name }: { name: IconKey }) {
-  const common = {
-    width: 20,
-    height: 20,
-    viewBox: "0 0 20 20",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.25,
-    "aria-hidden": true as const,
-  };
-  switch (name) {
-    case "home":
-      return (
-        <svg {...common}>
-          <path d="M2.5 9 L10 3 L17.5 9" />
-          <path d="M4.5 8.2 V16.5 H15.5 V8.2" />
-          <path d="M8.2 16.5 V11.8 H11.8 V16.5" />
-        </svg>
-      );
-    case "part":
-      return (
-        <svg {...common}>
-          <path d="M10 2.6 L17 6.3 V13.7 L10 17.4 L3 13.7 V6.3 Z" />
-          <path d="M3 6.3 L10 10 L17 6.3" />
-          <path d="M10 10 V17.4" />
-        </svg>
-      );
-    case "machine":
-      return (
-        <svg {...common}>
-          <path d="M2.5 16.8 H17.5" />
-          <path d="M6.4 16.8 V13.2 H13.6 V16.8" />
-          <path d="M8.4 2.8 H11.6 V8 H8.4 Z" />
-          <path d="M10 8 V13.2" />
-          <path d="M4 2.8 V8" />
-        </svg>
-      );
-    case "tool":
-      return (
-        <svg {...common}>
-          <path d="M7.8 2.6 H12.2 V9.4 H7.8 Z" />
-          <path d="M7.8 9.4 V15.4 L10 17.6 L12.2 15.4 V9.4" />
-          <path d="M7.8 12 L12.2 10.4" />
-          <path d="M7.8 14.6 L12.2 13" />
-        </svg>
-      );
-    case "workholding":
-      return (
-        <svg {...common}>
-          <path d="M1.8 6.6 H5.2 V13.4 H1.8 Z" />
-          <path d="M14.8 6.6 H18.2 V13.4 H14.8 Z" />
-          <path d="M7 4.8 H13 V15.2 H7 Z" />
-          <path d="M5.2 10 H7" />
-          <path d="M13 10 H14.8" />
-        </svg>
-      );
-    case "additive":
-      return (
-        <svg {...common}>
-          <path d="M2.6 16.4 H17.4" />
-          <path d="M6 14.2 H14" />
-          <path d="M6.6 11.8 H13.4" />
-          <path d="M7.2 9.4 H12.8" />
-          <path d="M10 2.6 V6.4" />
-          <path d="M8.6 6.4 H11.4 L10 8.2 Z" />
-        </svg>
-      );
-    case "metrology":
-      return (
-        <svg {...common}>
-          <path d="M2 6.6 H18" />
-          <path d="M2 6.6 V10.4" />
-          <path d="M5.2 6.6 V13.6 H7.4" />
-          <path d="M12.6 6.6 V13.6 H10.4" />
-          <path d="M8.4 3.4 H16 V6.6" />
-          <path d="M15 6.6 V9" />
-        </svg>
-      );
-    case "jobs":
-      return (
-        <svg {...common}>
-          <path d="M4 2.8 H16 V17.2 H4 Z" />
-          <path d="M6.4 6.6 H8" />
-          <path d="M9.6 6.6 H13.6" />
-          <path d="M6.4 10 H8" />
-          <path d="M9.6 10 H13.6" />
-          <path d="M6.4 13.4 H8" />
-          <path d="M9.6 13.4 H13.6" />
-        </svg>
-      );
-    case "knowledge":
-      return (
-        <svg {...common}>
-          <path d="M10 5.4 V17" />
-          <path d="M2.6 3.4 H8.4 L10 5.4 L11.6 3.4 H17.4" />
-          <path d="M2.6 3.4 V15 H8.4 L10 17 L11.6 15 H17.4 V3.4" />
-        </svg>
-      );
-    case "settings":
-      return (
-        <svg {...common}>
-          <path d="M2.6 5.4 H17.4" />
-          <path d="M2.6 10 H17.4" />
-          <path d="M2.6 14.6 H17.4" />
-          <path d="M7 3.6 V7.2" />
-          <path d="M13 8.2 V11.8" />
-          <path d="M8.6 12.8 V16.4" />
-        </svg>
-      );
-  }
-}
-
-/* ------------------------------------------------------------------ */
 /* Rail + drawer                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -502,7 +385,7 @@ function Rail({ active }: { active: Section }) {
               }`}
             >
               {on && <span aria-hidden className="absolute left-0 top-0 h-full w-[2px] bg-precision" />}
-              <RailIcon name={s.icon} />
+              <Icon name={s.icon} size={20} />
               <span className="text-[8.5px] font-medium uppercase leading-none tracking-[0.01em]">{s.rail}</span>
             </Link>
           );

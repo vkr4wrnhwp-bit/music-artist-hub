@@ -58,17 +58,39 @@ export default async function PartLibraryPage() {
             : photo
               ? "photo"
               : "action";
-      return { p, rev, hydrated, profile, isTurned: rot !== null, material, next, photo, art };
+      /*
+       * THREE WEIGHTS, NOT TWELVE EQUAL CARDS.
+       *
+       * The grid gave a released part and an empty stub the same border, the
+       * same size and the same everything, with status as the quietest
+       * element on the card — and finding the released ones is the one thing
+       * a shop scans this page for.
+       *
+       * The stage is derived from what is already loaded. It is NOT a
+       * readiness verdict: readiness is gate-based and costs a package build
+       * per part, and a green stripe that had not actually run the gates
+       * would be the worst thing this grid could show. RELEASED means a human
+       * approved the revision, which is a fact the row already holds.
+       */
+      const stage =
+        rev?.status === "RELEASED" ? "released" : (hydrated?.features.length ?? 0) > 0 || rot !== null ? "working" : "stub";
+      return { p, rev, hydrated, profile, isTurned: rot !== null, material, next, photo, art, stage };
     }),
   );
 
   const grid = (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {tiles.map(({ p, rev, hydrated, profile, isTurned, material, next, photo, art }) => (
+      {tiles.map(({ p, rev, hydrated, profile, isTurned, material, next, photo, art, stage }) => (
         <Link
           key={p.id}
           href={isTurned ? `/lathe/${p.id}` : `/parts/${p.id}`}
-          className="group block border border-line bg-surface transition-colors hover:border-line-strong"
+          className={`group block border bg-surface transition-colors hover:border-line-strong ${
+            stage === "released"
+              ? "border-line border-l-2 border-l-pass"
+              : stage === "stub"
+                ? "border-line/60"
+                : "border-line"
+          }`}
         >
           <div className="h-[120px] border-b border-line">
             {/*
@@ -88,7 +110,14 @@ export default async function PartLibraryPage() {
             )}
           </div>
           <div className="px-3.5 py-2.5">
-            <p className="truncate text-[13px] text-platinum group-hover:text-white">{p.name}</p>
+            {/* A stub's name recedes: it is a placeholder for a part, not a part. */}
+            <p
+              className={`truncate text-[13px] group-hover:text-white ${
+                stage === "stub" ? "text-muted" : "text-platinum"
+              }`}
+            >
+              {p.name}
+            </p>
             <p className="tech-label mt-0.5">
               {p.partNumber ?? "—"} · Rev {rev?.revision ?? "—"}
               {material ? ` · ${material}` : ""}

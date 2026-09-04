@@ -1,15 +1,36 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+/**
+ * TWO FACES, BY ROLE.
+ *
+ * The variables are named for the job, not the family — `--font-voice` and
+ * `--font-readout` — for the same reason `--c-platinum` is named for the
+ * reading role rather than the hue. A future swap is this file and nothing
+ * else; `globals.css` and every component ask for the role.
+ *
+ * VOICE — Instrument Sans.
+ * A grotesk drawn tight and slightly narrow, which is the property a dense
+ * operation table needs: at the 10px this app sets its labels, it keeps its
+ * counters where a wider face closes them up. It replaced Inter, which is
+ * the face this kind of interface reaches for by default — that being the
+ * argument against it rather than for it.
+ *
+ * READOUT — Geist Mono.
+ * Every number a machinist could cut to is set in this: dimensions,
+ * tolerances, feeds, offsets, G-code. Its digits are unambiguous at 11px and
+ * its zero cannot be read as an O, which is not a stylistic preference on a
+ * screen showing bore diameters.
+ */
+const voice = Instrument_Sans({
+  variable: "--font-voice",
   subsets: ["latin"],
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
-  variable: "--font-mono-tech",
+const readout = Geist_Mono({
+  variable: "--font-readout",
   subsets: ["latin"],
   display: "swap",
 });
@@ -22,7 +43,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${mono.variable} antialiased`}>{children}</body>
+      <body className={`${voice.variable} ${readout.variable} antialiased`}>{children}</body>
     </html>
   );
 }

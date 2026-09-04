@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { SEMANTIC_COLORS, contrastRatio } from "@/lib/view-environment";
 
 /**
@@ -258,4 +258,49 @@ test("the brass edge stays a seam and never becomes a state", () => {
   // of them is redundant and the seam has quietly become a status light.
   assert.notEqual(brass.toLowerCase(), token("--canvas-orange").toLowerCase());
   assert.notEqual(brass.toLowerCase(), token("--canvas-shell-orange").toLowerCase());
+});
+
+test("the type system is addressed by role, so a face swap is one file", () => {
+  // The palette survived being flipped twice because nothing outside
+  // globals.css names a hue. The same has to hold for the faces: a component
+  // or stylesheet asking for `--font-inter` pins the app to a family, and the
+  // next swap becomes a grep instead of an edit.
+  assert.ok(/--font-sans:\s*var\(--font-voice\)/.test(css), "the sans role must resolve to --font-voice");
+  assert.ok(/--font-mono:\s*var\(--font-readout\)/.test(css), "the mono role must resolve to --font-readout");
+  const named = css.match(/var\(--font-(?!voice|readout|sans|mono)[a-z-]+\)/g);
+  assert.equal(named, null, `globals.css names a font family directly: ${named?.join(", ")}`);
+  // And no literal family names in the stylesheet either — the fallbacks are
+  // generic stacks by design, so a real family here means a face was pasted in.
+  const literal = css.match(/font-family:[^;]*\b(Inter|Roboto|Arial|Helvetica|JetBrains)\b/gi);
+  assert.equal(literal, null, `a font family is hardcoded: ${literal?.join(", ")}`);
+});
+
+test("no component asks for a font variable that does not exist", () => {
+  /*
+   * The rename caught seven call sites in components — SVG <text> elements
+   * setting fontFamily="var(--font-mono-tech)". A CSS variable that is not
+   * declared does not error: it resolves to nothing and the browser falls
+   * back, so a dimension callout on a section view would have quietly stopped
+   * being monospaced and nothing would have said so.
+   */
+  /*
+   * Two sources of truth, and both count: globals.css declares the ROLE
+   * aliases, layout.tsx registers the actual variables through next/font. A
+   * check against only one of them fails every legitimate call site.
+   */
+  const layout = readFileSync("src/app/layout.tsx", "utf8");
+  const declared = new Set([
+    ...[...css.matchAll(/(--font-[a-z-]+):/g)].map((m) => m[1]),
+    ...[...layout.matchAll(/variable:\s*"(--font-[a-z-]+)"/g)].map((m) => m[1]),
+  ]);
+  assert.ok(declared.has("--font-voice") && declared.has("--font-readout"), "layout.tsx must register both roles");
+  const files = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.tsx?$/.test(f));
+  const bad: string[] = [];
+  for (const f of files) {
+    const src = readFileSync(`src/${f}`, "utf8");
+    for (const m of src.matchAll(/var\((--font-[a-z-]+)\)/g)) {
+      if (!declared.has(m[1])) bad.push(`${f}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(bad, [], `undeclared font variables: ${bad.join(", ")}`);
 });
