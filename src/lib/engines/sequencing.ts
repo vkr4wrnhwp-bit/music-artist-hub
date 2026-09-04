@@ -96,8 +96,14 @@ export const FEATURE_STAGE: Record<OperationType, number> = {
   FACE: 0,
   POCKET_2D: 1,
   ADAPTIVE_2D: 1,
+  SLOT_MILL: 1,
   DRILL: 2,
   PECK_DRILL: 3,
+  // A head goes on a hole that already exists and before it is threaded: a
+  // counterbore cut after tapping cuts the top of the thread off, and a
+  // countersink after it raises a burr into the finished form.
+  COUNTERBORE: 4,
+  COUNTERSINK: 4,
   BORE: 4,
   TAP: 5,
   ENGRAVE: 6,

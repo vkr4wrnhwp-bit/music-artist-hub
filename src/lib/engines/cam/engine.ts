@@ -332,6 +332,25 @@ export function generateToolpath(
       warnings.push(...r.warnings);
       break;
     }
+    case "SLOT_MILL": {
+      if (!feature) return missingFeature(req);
+      const r = slotToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
+    case "COUNTERBORE":
+    case "COUNTERSINK": {
+      if (!feature) return missingFeature(req);
+      const r = headToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
     case "CHAMFER": {
       if (!feature) return missingFeature(req);
       const r = chamferToolpath(req, feature, ctx, params);
@@ -1457,6 +1476,356 @@ function contourToolpath(
   // described the bounding box rather than the profile.
   const perimeter = chainLength(boundary);
   return { moves, removed: perimeter * ctx.tool.diameter * totalDepth * 0.5, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* SLOT — ramped, along its own centreline                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The steepest a mill is fed into its own cut along a straight line.
+ *
+ * A slot cannot be helixed into: at full width there is no room to swing, and
+ * `helicalEntry` refuses rather than plunging a tool nobody recorded as
+ * centre-cutting. Ramping along the slot's own length is what a machinist does
+ * instead, and 3° is the conservative end of what a plain end mill takes.
+ */
+const SLOT_RAMP_DEGREES = 3;
+
+/**
+ * A SLOT IS NOT A POCKET.
+ *
+ * `classify` put SLOT in the pocket bucket, so the planner emitted a POCKET_2D
+ * operation for every slot on the part and the pocket engine then refused it —
+ * "is a SLOT and cannot be machined with a 2D pocket operation". A plan that
+ * reads complete, produces an operation, and cannot run. The machinist reads
+ * the plan; the refusal only appears at export.
+ *
+ * A slot is a centreline and a width: a stadium, two parallel edges closed by
+ * a half-round at each end. The cutter runs the centreline, and where it is
+ * narrower than the slot it takes a finishing lap round the stadium the
+ * boundary offsets to — the same shape, narrower by the tool.
+ */
+function slotToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "SLOT") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind} and is not a slot.`,
+        recommendations: ["Point the operation at a slot feature", "Change the operation type"],
+      },
+    };
+  }
+
+  const d = ctx.tool.diameter;
+  const r = d / 2;
+  const w = feature.width;
+
+  if (w < d - 1e-9) {
+    return {
+      error: {
+        reason: `${feature.label} is ${w.toFixed(4)}" wide and the tool is ⌀${d.toFixed(4)}. It does not fit.`,
+        recommendations: [`Use a tool ⌀${w.toFixed(4)} or smaller`, "Open the slot on the drawing"],
+      },
+    };
+  }
+
+  const dx = feature.endX - feature.startX;
+  const dy = feature.endY - feature.startY;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) {
+    return {
+      error: {
+        reason: `${feature.label} starts and ends at the same point, so it has no length to cut along.`,
+        recommendations: ["Record the slot's two end points", "A slot of zero length is a hole — record it as one"],
+      },
+    };
+  }
+  const ux = dx / len;
+  const uy = dy / len;
+
+  /*
+   * HOW FAR THE CUTTER CENTRE ACTUALLY TRAVELS.
+   *
+   * The cutter's EDGE makes the round end of the slot, so its centre stops a
+   * radius short at each end. A slot no longer than the tool leaves the centre
+   * nowhere to go — the two ends collapse onto one point and the "ramp" becomes
+   * a vertical feed at a single XY, which is the plunge this whole approach
+   * exists to avoid. That is a round-ended pocket, not a slot, and it is
+   * refused rather than plunged.
+   */
+  const travel = len - d;
+  if (travel <= 1e-6) {
+    return {
+      error: {
+        reason: `${feature.label} is ${len.toFixed(4)}" long and the tool is ⌀${d.toFixed(4)}, so the cutter centre has nowhere to travel and nothing to ramp along. Feeding it straight down at one point needs a centre-cutting mill, and CANVAS does not record which tools cut on centre.`,
+        recommendations: [
+          `Use a tool under ⌀${len.toFixed(4)} so the cutter has room to move`,
+          "A slot no longer than the cutter is a round-ended pocket — record it as one",
+        ],
+      },
+    };
+  }
+
+  const warnings: string[] = [];
+  const moves: Move[] = [];
+  const totalDepth = req.topZ - req.finalZ;
+
+  /*
+   * The step is whatever the ramp can reach over the travel available, and
+   * never more than the parameters ask for. A short slot ramps less per pass
+   * and takes more passes; forcing the parameter's stepdown would steepen the
+   * ramp past what a plain end mill takes, on the tool the ramp exists for.
+   */
+  const rampReach = travel * Math.tan((SLOT_RAMP_DEGREES * Math.PI) / 180);
+  const step = Math.min(p.stepdown, rampReach);
+  const passes = Math.max(1, Math.ceil(totalDepth / step));
+  if (rampReach < p.stepdown) {
+    warnings.push(
+      `${feature.label} leaves the cutter ${travel.toFixed(4)}" of travel, so a ${SLOT_RAMP_DEGREES}° ramp only reaches ${rampReach.toFixed(4)}" per pass against the ${p.stepdown.toFixed(4)}" stepdown. Cutting it in ${passes} passes rather than steepening the ramp.`,
+    );
+  }
+
+  // Full width is a full slot: 180° of engagement, the heaviest cut there is.
+  if (w - d < 1e-9) {
+    warnings.push(
+      `The tool is the full width of the slot, so it is 180° engaged for the whole cut — chips have nowhere to go and the cutter is loaded on both sides. A smaller tool taking two passes is easier on the spindle and on the wall.`,
+    );
+  }
+
+  const at = (t: number, z: number, type: Move["type"], feed: number | null): Move => ({
+    type,
+    x: feature.startX + ux * t,
+    y: feature.startY + uy * t,
+    z,
+    feed,
+  });
+  // The centreline is shortened by the tool radius at each end: the cutter's
+  // edge, not its centre, makes the round end of the slot.
+  const a = r;
+  const b = len - r;
+
+  moves.push({ type: "RAPID", x: feature.startX + ux * a, y: feature.startY + uy * a, z: req.clearanceZ, feed: null });
+  moves.push(at(a, req.topZ, "PLUNGE", p.plungeFeed));
+
+  let z = req.topZ;
+  for (let pass = 1; pass <= passes; pass++) {
+    const target = req.topZ - (totalDepth * pass) / passes;
+    // Down the slot while descending, back along it flat. Every pass ends
+    // where the next one starts, so nothing rapids through the cut.
+    moves.push(at(b, target, "CUT", p.plungeFeed));
+    moves.push(at(a, target, "CUT", p.feed));
+    z = target;
+  }
+
+  /*
+   * The finishing lap, when the tool is narrower than the slot: round the
+   * stadium the boundary offsets to, which is the same centreline with a
+   * half-round of (w − d)/2 at each end.
+   */
+  const offR = (w - d) / 2;
+  if (offR > 1e-6) {
+    const nx = -uy;
+    const ny = ux;
+    const finishFeed = Math.round(p.feed * 0.7);
+    const pt = (t: number, side: number) => ({
+      x: feature.startX + ux * t + nx * offR * side,
+      y: feature.startY + uy * t + ny * offR * side,
+    });
+    const s1 = pt(a, 1);
+    const e1 = pt(b, 1);
+    const e2 = pt(b, -1);
+    const s2 = pt(a, -1);
+    moves.push({ type: "LEAD_IN", x: s1.x, y: s1.y, z, feed: finishFeed });
+    moves.push({ type: "CUT", x: e1.x, y: e1.y, z, feed: finishFeed });
+    moves.push(arcMove("CUT", e1, feature.startX + ux * b, feature.startY + uy * b, { ...e2, z }, true, finishFeed));
+    moves.push({ type: "CUT", x: s2.x, y: s2.y, z, feed: finishFeed });
+    moves.push(arcMove("CUT", s2, feature.startX + ux * a, feature.startY + uy * a, { ...s1, z }, true, finishFeed));
+  }
+
+  moves.push({ type: "RETRACT", x: moves[moves.length - 1].x, y: moves[moves.length - 1].y, z: req.retractZ, feed: null });
+
+  // A stadium: a rectangle of length (len − w) by w, plus a circle of ⌀w.
+  const area = Math.max(0, len - w) * w + Math.PI * (w / 2) ** 2;
+  return { moves, removed: area * totalDepth, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* COUNTERBORE and COUNTERSINK — the head on a hole                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * THE HEAD ON A HOLE.
+ *
+ * COUNTERBORE and COUNTERSINK were in no `classify` bucket at all. The planner
+ * emitted no operation and raised no concern: total silence, on a feature whose
+ * whole point is that a screw head has to sit in it. Only the coverage gate
+ * caught them, at export, three pages away from the plan a machinist reads.
+ *
+ * A counterbore is a flat-bottomed circle at the head diameter, interpolated
+ * with an end mill. A countersink is a cone, and it is the same arithmetic as a
+ * chamfer: the tool's own included angle is the angle of the cone, and the
+ * depth is where that cone reaches the head diameter. Both need the pilot hole
+ * to exist first, which is what the sequencing table's stage says.
+ */
+function headToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "COUNTERBORE" && feature.kind !== "COUNTERSINK") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind}, which has no head to cut.`,
+        recommendations: ["Point the operation at a counterbore or countersink feature"],
+      },
+    };
+  }
+  const head = feature.headDiameter;
+  if (head == null || !(head > 0)) {
+    return {
+      error: {
+        reason: `${feature.label} records no head diameter, and the head is the whole of what this operation cuts.`,
+        recommendations: [
+          "Record the head diameter from the drawing or the fastener standard",
+          "A 1/4-20 socket head takes a ⌀0.400 counterbore; the standard gives the rest",
+        ],
+      },
+    };
+  }
+  if (head <= feature.diameter) {
+    return {
+      error: {
+        reason: `${feature.label} records a ⌀${head.toFixed(4)} head on a ⌀${feature.diameter.toFixed(4)} hole. A head no larger than its own hole is not a head.`,
+        recommendations: ["Check which of the two diameters is the head"],
+      },
+    };
+  }
+
+  const warnings: string[] = [];
+  const moves: Move[] = [];
+  const d = ctx.tool.diameter;
+
+  if (feature.kind === "COUNTERSINK") {
+    /*
+     * A cone, cut by a cone. The tool's own included angle IS the angle of the
+     * countersink — no depth or offset changes it — so a tool ground at the
+     * wrong angle is refused rather than plunged deeper to make the diameter.
+     */
+    const want = feature.countersinkAngle ?? 82;
+    if (ctx.tool.pointAngle == null) {
+      return {
+        error: {
+          reason: `${ctx.tool.description} has no point angle recorded, and a countersink is cut by the tool's cone. Without it there is no way to know what angle this tool cuts.`,
+          recommendations: [
+            "Record the point angle on the tool — 82° is the inch standard, 90° the metric one",
+            "The included angle is the full angle at the point",
+          ],
+        },
+      };
+    }
+    if (Math.abs(ctx.tool.pointAngle - want) > 0.5) {
+      return {
+        error: {
+          reason: `${feature.label} is a ${want}° countersink and ${ctx.tool.description} is ground at ${ctx.tool.pointAngle}°. The angle of a countersink is the angle of the cone that cuts it.`,
+          recommendations: [`Use a ${want}° countersink`, `Change the drawing to ${ctx.tool.pointAngle}° if the angle is not functional`],
+        },
+      };
+    }
+    const tip = (ctx.tool.tipDiameter ?? 0) / 2;
+    if (tip >= feature.diameter / 2) {
+      return {
+        error: {
+          reason: `${ctx.tool.description} has a ${(tip * 2).toFixed(4)}" flat on its end and ${feature.label} is a ⌀${feature.diameter.toFixed(4)} hole. The tip will not enter it.`,
+          recommendations: [`Use a countersink with a tip under ⌀${feature.diameter.toFixed(4)}`],
+        },
+      };
+    }
+    // Depth: where the cone's radius reaches the head. The flank stands off
+    // the axis at half the included angle, so it gains tan(half) per unit down.
+    const half = ((ctx.tool.pointAngle / 2) * Math.PI) / 180;
+    const z = req.topZ - (head / 2 - tip) / Math.tan(half);
+    moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: req.clearanceZ, feed: null });
+    moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z, feed: p.plungeFeed });
+    moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.retractZ, feed: null });
+    // A truncated cone from the hole to the head, over the depth it takes.
+    const drop = req.topZ - z;
+    const removed = (Math.PI * drop) / 3 * ((head / 2) ** 2 + (head / 2) * (feature.diameter / 2) + (feature.diameter / 2) ** 2);
+    return { moves, removed: Math.max(0, removed), warnings };
+  }
+
+  /* ---- Counterbore: a flat-bottomed circle at the head diameter ---- */
+
+  const depth = feature.headDepth;
+  if (depth == null || !(depth > 0)) {
+    return {
+      error: {
+        reason: `${feature.label} records no counterbore depth. A head that sits proud is the failure this feature exists to prevent, and a depth nobody wrote down is not a shallow one.`,
+        recommendations: ["Record the counterbore depth from the drawing", "Flush usually means the head height plus a few thou"],
+      },
+    };
+  }
+  if (d > head) {
+    return {
+      error: {
+        reason: `${feature.label} is a ⌀${head.toFixed(4)} counterbore and the tool is ⌀${d.toFixed(4)}. It does not fit.`,
+        recommendations: [`Use a tool ⌀${head.toFixed(4)} or smaller`, "Use a piloted counterbore of the finished size"],
+      },
+    };
+  }
+
+  /*
+   * The DEPTH is the counterbore's, not the operation's `finalZ` — the pilot
+   * beneath it goes right through the part, and a head cut to the pilot's Z
+   * would take the whole thickness out at the head diameter.
+   */
+  const passes = Math.max(1, Math.ceil(depth / p.stepdown));
+  const stepover = d * p.stepover;
+  const maxRadius = head / 2 - d / 2;
+
+  moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: req.clearanceZ, feed: null });
+
+  /*
+   * STRAIGHT DOWN THE PILOT.
+   *
+   * Everywhere else in this engine an end mill helixes into solid material,
+   * because a standard mill has no cutting edge at its centre and plunging one
+   * rubs rather than cuts. A counterbore is the case where that does not apply:
+   * the tool is concentric with a hole that already exists, so its axis is over
+   * open air and the cutting happens on the annulus outside the pilot. It is
+   * what every machinist does, and it is why the sequencing table puts the head
+   * after the drill rather than beside it.
+   *
+   * A ⌀0.400 counterbore with a ⌀0.375 mill leaves 0.0125" of radius to move
+   * in, which no helix fits — and needs none.
+   */
+  moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z: req.topZ, feed: p.plungeFeed });
+
+  for (let pass = 1; pass <= passes; pass++) {
+    const z = req.topZ - (depth * pass) / passes;
+    moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z, feed: p.plungeFeed });
+    for (let rad = stepover; rad <= maxRadius + 1e-6; rad += stepover) {
+      ringMoves(moves, feature.centerX, feature.centerY, Math.min(rad, maxRadius), z, p.feed);
+    }
+    if (pass === passes && maxRadius > 1e-6) {
+      ringMoves(moves, feature.centerX, feature.centerY, maxRadius, z, Math.round(p.feed * 0.7));
+    }
+  }
+  moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.retractZ, feed: null });
+
+  if (Math.abs(d - head) < 1e-9) {
+    warnings.push(
+      `The cutter is the finished size of the counterbore, so the bore is whatever the tool measures and there is nothing to adjust at the control. A smaller mill interpolating it holds size on a D offset instead.`,
+    );
+  }
+
+  const removed = Math.PI * ((head / 2) ** 2 - (feature.diameter / 2) ** 2) * depth;
+  return { moves, removed: Math.max(0, removed), warnings };
 }
 
 /* ------------------------------------------------------------------ */

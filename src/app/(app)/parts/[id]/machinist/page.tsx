@@ -549,7 +549,15 @@ export default async function MachinistPage(props: {
                             <span className="min-w-0">
                               <span className="block font-mono text-[12.5px] text-platinum">{o.label}</span>
                               <span className="tech-label block">
-                                {o.type} · T{o.toolNumber ?? "—"} · {(o.stepover * 100).toFixed(0)}% stepover
+                                {/*
+                                  Stepover only where it means something. A
+                                  drill, a chamfer and a slot all carry zero,
+                                  and "0% stepover" beside a slot the cutter
+                                  is 100% engaged in is not a blank field —
+                                  it is a wrong number.
+                                */}
+                                {o.type} · T{o.toolNumber ?? "—"}
+                                {o.stepover > 0 ? ` · ${(o.stepover * 100).toFixed(0)}% stepover` : ""}
                                 {o.stockToLeave > 0 ? ` · ${o.stockToLeave.toFixed(3)}″ left on` : ""}
                               </span>
                               <span className="mt-1 block text-[12px] leading-relaxed text-muted">{o.rationale}</span>

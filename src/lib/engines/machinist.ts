@@ -278,18 +278,37 @@ function selectBoreMill(
 interface Classified {
   faces: Feature[];
   pockets: Feature[];
+  /** Their own bucket: a slot is a centreline and a width, not a rectangle. */
+  slots: Feature[];
   holes: Feature[];
+  /** Holes that also carry a head to cut once the pilot exists. */
+  heads: Feature[];
   bores: Feature[];
   contours: Feature[];
   chamfers: Feature[];
   engravings: Feature[];
 }
 
+/**
+ * WHAT THE PLANNER SEES, AND WHAT IT USED TO MISS.
+ *
+ * SLOT sat in the pocket bucket, so every slot got a POCKET_2D operation the
+ * pocket engine then refused — a plan that reads complete and cannot run.
+ * COUNTERBORE and COUNTERSINK sat in no bucket at all: no operation, no
+ * concern, total silence on a feature whose whole point is that a screw head
+ * has to sit in it, caught only by the coverage gate at export.
+ *
+ * A head is BOTH a hole and a head: the pilot is drilled like any other hole
+ * and the head is cut after it, which is why those kinds appear twice here.
+ */
 function classify(features: Feature[]): Classified {
+  const headed = (f: Feature) => f.kind === "COUNTERBORE" || f.kind === "COUNTERSINK";
   return {
     faces: features.filter((f) => f.kind === "FACE"),
-    pockets: features.filter((f) => f.kind === "RECT_POCKET" || f.kind === "SLOT"),
-    holes: features.filter((f) => f.kind === "DRILLED_HOLE" || f.kind === "TAPPED_HOLE"),
+    pockets: features.filter((f) => f.kind === "RECT_POCKET"),
+    slots: features.filter((f) => f.kind === "SLOT"),
+    holes: features.filter((f) => f.kind === "DRILLED_HOLE" || f.kind === "TAPPED_HOLE" || headed(f)),
+    heads: features.filter(headed),
     bores: features.filter((f) => f.kind === "BORE" || f.kind === "CIRC_POCKET"),
     contours: features.filter((f) => f.kind === "OUTSIDE_CONTOUR"),
     chamfers: features.filter((f) => f.kind === "CHAMFER"),
@@ -443,6 +462,64 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         });
       }
     }
+  }
+
+  /*
+   * SLOTS.
+   *
+   * A slot used to fall into the pocket bucket, so it got a POCKET_2D
+   * operation that the pocket engine refused — a plan that reads complete,
+   * produces an operation and cannot run.
+   *
+   * The tool has to FIT the slot, which is the opposite constraint to a
+   * pocket: a pocket wants the biggest cutter that clears its corners, a slot
+   * wants the biggest that is not wider than the slot itself. Full width is
+   * the heaviest cut there is, so where the crib has something narrower the
+   * plan takes it and leaves the walls to a finishing lap.
+   */
+  for (const f of c.slots) {
+    if (f.kind !== "SLOT") continue;
+    const d = depthOf(f, stock);
+    if (d === null) {
+      concerns.push(`${f.label}: no depth recorded, so it cannot be planned. A slot of unknown depth is a missing dimension, not a shallow one.`);
+      continue;
+    }
+    const fits = tools
+      .filter((t) => MILL_CLASSES.includes(t.toolClass) && t.diameter <= f.width + 1e-9 && canReach(t, d))
+      .sort((a, b) => b.diameter - a.diameter);
+    // The biggest that still leaves a wall to finish; failing that the biggest
+    // that fits at all, which is a full-width cut and the engine says so.
+    // Both are choices over a list this decision built, not a fallback to
+    // whatever is first in the crib.
+    const leavesWall = fits.filter((t) => t.diameter < f.width - 1e-9);
+    const tool = (leavesWall.length > 0 ? leavesWall : fits)[0] ?? null;
+    if (!tool) {
+      const narrowest = tools
+        .filter((t) => MILL_CLASSES.includes(t.toolClass))
+        .sort((a, b) => a.diameter - b.diameter)[0];
+      concerns.push(
+        narrowest
+          ? `${f.label} is ${f.width.toFixed(4)}" wide and ${d.toFixed(3)}" deep. The narrowest mill in the crib that reaches is not a fit — ⌀${narrowest.diameter.toFixed(4)} is the smallest there is.`
+          : `${f.label}: no mill in the crib, so it cannot be produced.`,
+      );
+      continue;
+    }
+    ops1.push({
+      sequence: seq++,
+      type: "SLOT_MILL",
+      label: f.label,
+      featureId: f.id,
+      toolId: tool.id,
+      toolNumber: tool.toolNumber,
+      topZ: 0,
+      finalZ: -d,
+      stepover: 0,
+      stockToLeave: 0,
+      rationale:
+        tool.diameter < f.width - 1e-9
+          ? `⌀${tool.diameter.toFixed(4)} in a ${f.width.toFixed(4)}" slot leaves ${((f.width - tool.diameter) / 2).toFixed(4)}" a side for a finishing lap, and the cutter is never more than half engaged.`
+          : `⌀${tool.diameter.toFixed(4)} is the full width of the slot, so it runs 180° engaged. Nothing narrower in the crib reaches ${d.toFixed(3)}".`,
+    });
   }
 
   // Holes — spot then drill, unless the approach is minimising tool changes.
@@ -600,6 +677,104 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
       }
     }
     for (const { op } of drillOps) ops1.push({ ...op, sequence: seq++ });
+  }
+
+  /*
+   * THE HEAD ON A HOLE.
+   *
+   * COUNTERBORE and COUNTERSINK were in no bucket at all: no operation, no
+   * concern, total silence on a feature whose whole point is that a screw head
+   * has to sit in it. Only the coverage gate caught them, at export, three
+   * pages away from the plan a machinist reads.
+   *
+   * The pilot is drilled above with every other hole; this is the head, and it
+   * only goes in the plan if the pilot did — cutting a counterbore over a hole
+   * nobody could drill is a tool change spent on nothing, and it reads as
+   * though the feature is handled.
+   */
+  const drilled = new Set(ops1.filter((o) => o.type === "DRILL" || o.type === "PECK_DRILL").map((o) => o.featureId));
+  for (const f of c.heads) {
+    if (f.kind !== "COUNTERBORE" && f.kind !== "COUNTERSINK") continue;
+    if (!drilled.has(f.id)) {
+      concerns.push(`${f.label}: its own hole is not being drilled, so there is nothing to put a head on.`);
+      continue;
+    }
+    const head = f.headDiameter;
+    if (head == null || !(head > 0)) {
+      concerns.push(
+        `${f.label}: no head diameter recorded, and the head is the whole of what the operation cuts. The fastener standard gives it.`,
+      );
+      continue;
+    }
+
+    if (f.kind === "COUNTERSINK") {
+      const want = f.countersinkAngle ?? 82;
+      const sinks = tools.filter(
+        (t) => (t.toolClass === "COUNTERSINK" || t.toolClass === "CHAMFER_MILL" || t.toolClass === "SPOT_DRILL") && t.pointAngle != null,
+      );
+      const tool = sinks.find((t) => Math.abs(t.pointAngle! - want) <= 0.5) ?? null;
+      if (!tool) {
+        const near = sinks.sort((a, b) => Math.abs(a.pointAngle! - want) - Math.abs(b.pointAngle! - want))[0];
+        concerns.push(
+          near
+            ? `${f.label} is a ${want}° countersink and the nearest cone in the crib is ${near.description} at ${near.pointAngle}°. The angle of a countersink is the angle of the cone that cuts it — no depth makes a ${near.pointAngle}° tool cut ${want}°.`
+            : `${f.label} is a ${want}° countersink and no tool in the crib records a point angle, so nothing here can be said to cut one.`,
+        );
+        continue;
+      }
+      ops1.push({
+        sequence: seq++,
+        type: "COUNTERSINK",
+        label: `Countersink ${f.label}`,
+        featureId: f.id,
+        toolId: tool.id,
+        toolNumber: tool.toolNumber,
+        topZ: 0,
+        // The engine derives the depth from the cone and the head diameter;
+        // this is the same arithmetic, so the plan and the program agree.
+        finalZ: -(head / 2 - (tool.tipDiameter ?? 0) / 2) / Math.tan(((tool.pointAngle! / 2) * Math.PI) / 180),
+        stepover: 0,
+        stockToLeave: 0,
+        rationale: `⌀${head.toFixed(4)} at ${want}° comes off the ${tool.pointAngle}° cone at one depth — the diameter and the depth are one number, not two.`,
+      });
+      continue;
+    }
+
+    const depth = f.headDepth;
+    if (depth == null || !(depth > 0)) {
+      concerns.push(
+        `${f.label}: no counterbore depth recorded. A head that sits proud is the failure this feature exists to prevent, and a depth nobody wrote down is not a shallow one.`,
+      );
+      continue;
+    }
+    // Mills only. A piloted counterbore of the finished size is a real tool
+    // and the crib has no class for one; interpolating with an end mill holds
+    // the size at the control instead, which is the answer a shop without the
+    // exact piloted cutter reaches for anyway.
+    const fits = tools
+      .filter((t) => MILL_CLASSES.includes(t.toolClass) && t.diameter <= head + 1e-9 && canReach(t, depth))
+      .sort((a, b) => b.diameter - a.diameter);
+    const tool = fits[0] ?? null;
+    if (!tool) {
+      concerns.push(`${f.label}: no cutter in the crib fits a ⌀${head.toFixed(4)} counterbore ${depth.toFixed(3)}" deep.`);
+      continue;
+    }
+    ops1.push({
+      sequence: seq++,
+      type: "COUNTERBORE",
+      label: `Counterbore ${f.label}`,
+      featureId: f.id,
+      toolId: tool.id,
+      toolNumber: tool.toolNumber,
+      topZ: 0,
+      finalZ: -depth,
+      stepover: 0.4,
+      stockToLeave: 0,
+      rationale:
+        Math.abs(tool.diameter - head) < 1e-9
+          ? `⌀${tool.diameter.toFixed(4)} is the finished size, so it plunges down the pilot and cuts the bore in one.`
+          : `⌀${tool.diameter.toFixed(4)} interpolates the ⌀${head.toFixed(4)} bore, which holds the size at the control rather than at the tool crib.`,
+    });
   }
 
   // Bores — the feature most likely to carry a real tolerance.

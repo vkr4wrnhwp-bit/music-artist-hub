@@ -741,11 +741,55 @@ Tier 0 gets one part cut. Tier 1 is the difference between a demonstration and
 a shop's Tuesday. Still no kernel required.
 
 - **Chained 2D geometry.** Open and closed chains, islands, multiple pockets,
-  slots as real slots, radial and grid patterns, bolt circles. The natural
-  extension of A5, and it covers most job-shop profiling.
-- **Hole-making as a family.** Spot, drill, peck, chip-break, ream, counterbore,
-  countersink, back-spot, with the drill point angle in the depth arithmetic
-  (a through hole drilled to nominal depth does not break through).
+  radial and grid patterns, bolt circles. The natural extension of A5, and it
+  covers most job-shop profiling. ~~Slots as real slots~~ — BUILT.
+- **Hole-making as a family.** Spot, drill, peck, chip-break, ream, back-spot.
+  ~~Counterbore, countersink~~ and ~~the drill point angle in the depth
+  arithmetic~~ — BUILT; see A9 and T1 below.
+
+**T1 — Three feature kinds the planner skipped. — BUILT**
+SLOT sat in the pocket bucket, so every slot on a part got a `POCKET_2D`
+operation and the pocket engine then refused it — *"is a SLOT and cannot be
+machined with a 2D pocket operation"*. A plan that reads complete, produces an
+operation, and cannot run: the machinist reads the plan, and the refusal only
+appears at export. COUNTERBORE and COUNTERSINK sat in **no bucket at all** — no
+operation, no concern, total silence on a feature whose whole point is that a
+screw head has to sit in it. The add-feature form collected the head diameter,
+the head depth and the countersink angle the entire time.
+
+A slot is a centreline and a width, not a rectangle. It cannot be helixed into
+— at full width there is no room to swing, and this engine refuses to plunge a
+tool nobody recorded as centre-cutting — so it ramps along its own length at 3°,
+alternating direction, and the step per pass is whatever that ramp reaches over
+the travel the cutter actually has. A slot no longer than the cutter is a
+round-ended pocket and is refused rather than fed straight down at one point.
+Where the tool is narrower than the slot it takes a finishing lap round the
+stadium the boundary offsets to; where it is not, the program says the cutter is
+180° engaged, which is the heaviest cut there is.
+
+The planner picks the **biggest cutter that fits**, which is the opposite rule
+to a pocket's biggest-that-clears-the-corner, and prefers one that leaves a wall
+to finish.
+
+A counterbore is the one plunge in the system that does not need a
+centre-cutting mill: the tool is concentric with a hole that already exists, so
+its axis is over open air. A ⌀0.400 bore with a ⌀0.375 mill leaves 0.0125" of
+radius to move in — no helix fits, and none is needed. It is cut to the
+counterbore's own depth, not the operation's `finalZ`: the pilot goes through
+the part, and a head cut to the pilot's Z is the part in two pieces.
+
+A countersink is a cone cut by a cone, which is the same arithmetic as the
+chamfer in A8 — the tool's included angle IS the angle, and a tool ground at 90°
+is refused for an 82° countersink rather than plunged deeper to make the
+diameter. The plan carries the depth the engine derives, so the sheet and the
+program are one number.
+
+The stage table puts a head after the drill and before the tap: a counterbore
+cut after tapping takes the top of the thread off, and a countersink after it
+raises a burr into the finished form.
+
+`slotToolpath` and `headToolpath` in `cam/engine.ts`, `classify` and the slot
+and head branches of `machinist.ts`, `FEATURE_STAGE`.
 - **Thread milling.** Today tapping is the only thread strategy. Thread milling
   is how a shop makes one 3/4-10 in 17-4, how it saves a part with a broken tap,
   and how it holds a class-3 fit. The helical arc machinery from A1 is most of it.
