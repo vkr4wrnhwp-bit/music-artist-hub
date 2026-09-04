@@ -503,6 +503,57 @@ def build_song_detail(song_id):
     }
 
 
+class StaticCacheHeaders:
+    """Let the edge and the browser keep /static/ instead of re-fetching it.
+
+    Flask touches the session on nearly every request, so it stamps
+    "Vary: Cookie" on the response, and no shared cache will store anything
+    carrying that header. Together with Werkzeug's default
+    "Cache-Control: no-cache" it meant Cloudflare answered every asset with
+    cf-cache-status: DYNAMIC and the origin re-sent all of it on every
+    visit - crawlers included, around the clock. Static files are byte
+    identical for every visitor, so neither header belongs on them.
+
+    This is WSGI middleware rather than an after_request hook because
+    save_session runs AFTER those hooks and puts "Cookie" back; a hook
+    cannot win that race, so this sits outside the app and gets the last
+    word.
+
+    Two lifetimes, because only some references are cache-busted. A URL
+    carrying a query string is safe to freeze for a year - changing the
+    file changes the "?v=" and therefore the URL. The bare references
+    (mostly images) get a day: long enough to stop the re-fetching, short
+    enough that replacing one is not a year-long mistake.
+    """
+
+    YEAR = "public, max-age=31536000, immutable"
+    DAY = "public, max-age=86400"
+
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        if not environ.get("PATH_INFO", "").startswith("/static/"):
+            return self.app(environ, start_response)
+        busted = bool(environ.get("QUERY_STRING"))
+
+        def _start(status, headers, exc_info=None):
+            # Only cache what actually succeeded. A 404 or a redirect
+            # frozen at the edge for a year is a bug nobody can clear.
+            # 304 is included because a revalidation that answers without
+            # Cache-Control leaves the browser's copy stale-by-default, so
+            # it would come back and ask again on the very next page load.
+            if status.startswith("200") or status.startswith("304"):
+                headers = [(k, v) for (k, v) in headers
+                           if k.lower() not in ("cache-control", "vary")]
+                headers.append(("Cache-Control", self.YEAR if busted else self.DAY))
+                # Static bytes differ only by how they were compressed.
+                headers.append(("Vary", "Accept-Encoding"))
+            return start_response(status, headers, exc_info)
+
+        return self.app(environ, _start)
+
+
 def create_app():
     app = Flask(__name__)
     # Session key: override via SECRET_KEY env in production.
@@ -2880,6 +2931,8 @@ def create_app():
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
+                     # A crawler bounced to /login never reads the rules.
+                     "/robots.txt",
                      "/api/artist-signal-profile",
                      # A stranger asking what the Artist Twin does, and how
                      # their music would be treated, must not meet a password
@@ -5382,6 +5435,32 @@ def create_app():
         resp = send_from_directory(os.path.join(app.static_folder, "js"), "sw.js")
         resp.headers["Cache-Control"] = "no-cache"
         return resp
+
+    # Every prefix here is a share link whose token IS the authorisation:
+    # an EPK, a press announcement, a beat sent to one artist, a signed
+    # licence, a day sheet for the local crew. They are public so the
+    # recipient can open them without an account, which is exactly why a
+    # crawler must not index them - a search result would hand a private
+    # link to everyone. /uploads/ is the same argument for files.
+    _NO_CRAWL = ("/uploads/", "/l/", "/s/", "/epk/", "/stem-src/", "/presave/",
+                 "/reset/", "/team/join/", "/webhooks/", "/club/", "/showday/",
+                 "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/",
+                 "/press/", "/lights/remote/", "/lights/show/", "/beat/",
+                 "/licence/", "/cleared/", "/tour-share/", "/board-renew/",
+                 "/@", "/login", "/signup", "/logout", "/demo-access")
+
+    @app.route("/robots.txt")
+    def robots_txt():
+        """Steer crawlers off the share links and the sign-in pages.
+
+        The marketing pages stay open - they exist to be found. /static/ is
+        explicitly allowed because a crawler that cannot fetch the CSS
+        renders the page wrongly and judges it on that.
+        """
+        lines = ["User-agent: *", "Allow: /static/"]
+        lines += ["Disallow: " + p for p in _NO_CRAWL]
+        lines.append("")
+        return Response("\n".join(lines), mimetype="text/plain")
 
     @app.route("/stage-plot")
     def stage_plot():
@@ -9009,6 +9088,10 @@ def create_app():
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
+
+    # Last, so it wraps everything above and gets the final say on the
+    # headers Flask's session handling would otherwise leave in place.
+    app.wsgi_app = StaticCacheHeaders(app.wsgi_app)
 
     return app
 
