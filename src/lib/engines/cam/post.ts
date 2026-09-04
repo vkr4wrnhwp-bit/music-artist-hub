@@ -183,6 +183,29 @@ function enterSetup(seen: Set<string>, setupId: string): void {
   seen.add(setupId);
 }
 
+/**
+ * THE UNITS BACKSTOP.
+ *
+ * Every engine in CANVAS computes in inches; geometry is converted INTO
+ * inches on import and nothing converts on the way out. So a metric revision
+ * would emit G21 — millimetre mode — with inch coordinates, and the control
+ * would cut the part at 1/25.4 scale. Every number on the sheet would look
+ * right and the machine would make a part 1/25th the size.
+ *
+ * The pre-flight gate refuses this first and explains it. This is the second
+ * line, beside the G41 D0 refusal and the arc-comp refusal, for the same
+ * reason those exist: a post that can be handed a package by any caller does
+ * not get to assume the gate ran.
+ */
+function refuseUnconvertedMetric(ctx: PostContext): void {
+  if (ctx.units === "IN") return;
+  throw new Error(
+    "This revision is in millimetres and CANVAS has no unit conversion on the output path. " +
+      "The post would write G21 with coordinates computed in inches, and the part would be cut at 1/25.4 scale. " +
+      "Metric output is not implemented — set the revision to inches to post.",
+  );
+}
+
 function originLines(ctx: PostContext): string[] {
   const origins = ctx.origins ?? [];
   if (origins.length === 0) return [PROGRAM_ORIGIN.sentence];
@@ -285,6 +308,7 @@ function sameCycle(a: Toolpath | undefined, b: Toolpath): boolean {
 
 function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
   return (toolpaths: Toolpath[], ctx: PostContext): string => {
+    refuseUnconvertedMetric(ctx);
     const lines: string[] = [];
     const c = (s: string) => `(${commentText(s)})`;
 
@@ -560,6 +584,7 @@ function moveLine(
 /* ------------------------------------------------------------------ */
 
 const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
+  refuseUnconvertedMetric(ctx);
   const lines: string[] = [];
   const c = (s: string) => `; ${commentText(s)}`;
   header(ctx, lines, c);
@@ -655,6 +680,7 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
 /* ------------------------------------------------------------------ */
 
 const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
+  refuseUnconvertedMetric(ctx);
   const lines: string[] = [];
   lines.push(`BEGIN PGM ${ctx.programNumber} ${ctx.units === "IN" ? "INCH" : "MM"}`);
   // Same sanitiser as the other posts: a TNC reader is no more ASCII-
@@ -762,6 +788,7 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
 /* ------------------------------------------------------------------ */
 
 const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
+  refuseUnconvertedMetric(ctx);
   const lines: string[] = [];
   const c = (s: string) => `; ${commentText(s)}`;
   header(ctx, lines, c);

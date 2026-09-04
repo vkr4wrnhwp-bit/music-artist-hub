@@ -58,7 +58,38 @@ export function buildPreflight(
       pkg.postValidation.detail,
       true,
     ),
-    item("units", "Units confirmed", pkg.revision.units === "IN" || pkg.revision.units === "MM", `Program in ${pkg.revision.units === "IN" ? "inches (G20)" : "millimetres (G21)"}`, true),
+    /*
+     * THE UNITS WORD IS THE ONLY UNITS-AWARE LINE IN THE PIPELINE.
+     *
+     * This item passed for both values, which read as "somebody confirmed the
+     * units" and was in fact "the field holds one of its two legal values".
+     *
+     * Underneath it, the whole model is inches. Geometry arrives converted
+     * INTO inches (nc/parse.ts and nc/tool-list.ts both divide by 25.4 on the
+     * way in), every engine computes in inches, and the post then chooses G20
+     * or G21 from this field while emitting the same numbers either way. A
+     * metric revision therefore posts G21 with inch coordinates: X6. under
+     * G21 is six MILLIMETRES, the part is cut at 1/25.4 scale, and every gate
+     * on this list reads PASS.
+     *
+     * Converting at post time is the right fix and it is not this one. It has
+     * to reach every coordinate, every arc centre, every feed, the safe and
+     * clearance planes, the tool table in the header and the travel check in
+     * verifyNc — and a conversion that misses one of those is worse than no
+     * conversion, because it looks converted. Until that exists this gate
+     * FAILS and says why, which is the same posture the engines take when an
+     * input is missing: refuse and name it, rather than emit a number that
+     * looks authoritative.
+     */
+    item(
+      "units",
+      "Units confirmed",
+      pkg.revision.units === "IN",
+      pkg.revision.units === "IN"
+        ? "Program in inches (G20)"
+        : "This revision is in millimetres. Every engine in CANVAS computes in inches and nothing converts on the way out, so the post would emit G21 with inch coordinates and the part would be cut at 1/25.4 scale. Metric output is not implemented; set the revision to inches to post.",
+      true,
+    ),
     item("stock", "Stock verified", Boolean(pkg.revision.stock), pkg.revision.stock ? `${pkg.revision.stock.x} × ${pkg.revision.stock.y} × ${pkg.revision.stock.z}` : "Stock not defined", true),
     item(
       "workholding",
